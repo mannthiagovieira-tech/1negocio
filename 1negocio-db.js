@@ -47,11 +47,13 @@ const DB = {
     // 1. criar conta no Supabase Auth
     const res = await fetch(SB_URL + '/auth/v1/signup', {
       method: 'POST',
-      headers: { apikey: SB_ANON, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      headers: { apikey: SB_ANON, 'Authorization': 'Bearer ' + SB_ANON, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, data: { nome, whatsapp, tipo } })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.msg || data.error_description || 'Erro no cadastro');
+    const text = await res.text();
+    if (!text) throw new Error('Resposta vazia do servidor');
+    const data = JSON.parse(text);
+    if (!res.ok) throw new Error(data.msg || data.error_description || data.message || 'Erro no cadastro');
 
     const jwt = data.access_token;
     const uid = data.user?.id;
@@ -76,11 +78,13 @@ const DB = {
   async signIn({ email, password }) {
     const res = await fetch(SB_URL + '/auth/v1/token?grant_type=password', {
       method: 'POST',
-      headers: { apikey: SB_ANON, 'Content-Type': 'application/json' },
+      headers: { apikey: SB_ANON, 'Authorization': 'Bearer ' + SB_ANON, 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error_description || 'E-mail ou senha incorretos');
+    const text = await res.text();
+    if (!text) throw new Error('Resposta vazia do servidor');
+    const data = JSON.parse(text);
+    if (!res.ok) throw new Error(data.error_description || data.message || 'E-mail ou senha incorretos');
 
     DB._jwt = data.access_token;
     DB._uid = data.user?.id;
