@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negócio · Diagnóstico</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@300;400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0c0c0a;--bg2:#111110;--bg3:#161614;--ink:#f5f4ef;--dim:rgba(245,244,239,.42);--faint:rgba(245,244,239,.08);--green:#10b981;--amber:#f59e0b;--red:#f87171;--bdr:rgba(245,244,239,.1)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace;min-height:100vh;overflow-x:hidden}
+/* PROGRESS */
+.prog-wrap{position:fixed;top:0;left:0;right:0;z-index:100;height:3px;background:var(--faint);overflow:hidden}
+.prog-fill{height:100%;background:var(--green);transition:width .5s cubic-bezier(.4,0,.2,1);width:0%;box-shadow:0 0 8px rgba(16,185,129,.8),0 0 16px rgba(16,185,129,.4)}
+/* HEADER */
+.hdr{position:fixed;top:3px;left:0;right:0;z-index:99;display:flex;align-items:center;justify-content:space-between;padding:14px 32px;background:rgba(12,12,10,.96);backdrop-filter:blur(20px);border-bottom:1px solid var(--faint)}
+.hdr-logo{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--ink);letter-spacing:-.01em}
+.hdr-logo em{color:var(--green);font-style:normal}
+.hdr-info{text-align:center}
+.hdr-section{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--green)}
+
+.hdr-save{font-size:9px;color:var(--dim);display:flex;align-items:center;gap:5px}
+.sdot{width:5px;height:5px;border-radius:50%;background:var(--green);opacity:0}
+.sdot.on{opacity:1;animation:blink 1.2s ease infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+/* PAGE */
+.page{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:90px 24px 80px}
+/* CARD */
+.card{max-width:580px;width:100%;animation:fu .3s ease}
+@keyframes fu{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+.card.out{animation:fout .2s ease forwards}
+@keyframes fout{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-12px)}}
+/* EYEBROW */
+.eyebrow{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--green);margin-bottom:8px;display:flex;align-items:center;gap:7px}
+.eyebrow::before{content:'';width:16px;height:1px;background:var(--green);display:block;flex-shrink:0}
+/* QUESTION */
+.q{font-family:'Instrument Serif',serif;font-size:clamp(20px,3.5vw,32px);line-height:1.25;color:var(--ink);margin-bottom:6px}
+.q em{color:var(--green);font-style:italic}
+.hint{font-size:12px;color:var(--dim);margin-bottom:24px;line-height:1.6}
+/* INPUT */
+.field{margin-bottom:14px}
+.fl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:6px;display:block}
+input[type=text],input[type=number],textarea,select{
+  width:100%;background:var(--bg2);border:1px solid var(--bdr);
+  padding:13px 16px;color:var(--ink);font-family:'DM Mono',monospace;
+  font-size:14px;outline:none;transition:border-color .2s;
+  -webkit-appearance:none;border-radius:0;
+}
+input:focus,textarea:focus,select:focus{border-color:rgba(16,185,129,.5);background:rgba(16,185,129,.025)}
+textarea{resize:vertical;min-height:80px;line-height:1.6}
+select option{background:#111}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* OPTIONS */
+.opts{display:grid;gap:7px;margin-bottom:8px}
+.opts.c2{grid-template-columns:1fr 1fr}
+.opts.c3{grid-template-columns:1fr 1fr 1fr}
+.opts.c1{grid-template-columns:1fr}
+.opt{border:1px solid var(--bdr);background:var(--bg2);padding:13px 16px;cursor:pointer;transition:all .12s;display:flex;align-items:flex-start;gap:10px;text-align:left;position:relative;width:100%}
+.opt:hover{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.04)}
+.opt.sel{border-color:rgba(16,185,129,.6);background:rgba(16,185,129,.07)}
+.opt-ico{font-size:18px;flex-shrink:0;line-height:1;margin-top:1px}
+.opt-t{font-size:13px;font-weight:500;color:var(--ink);margin-bottom:1px;line-height:1.3}
+.opt-s{font-size:11px;color:var(--dim);line-height:1.35}
+.opt-ck{position:absolute;top:9px;right:10px;width:14px;height:14px;border-radius:50%;border:1px solid var(--bdr);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--green);flex-shrink:0}
+.opt.sel .opt-ck{background:var(--green);border-color:var(--green);color:#000}
+/* COUNTER */
+.ctr-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--faint)}
+.ctr-row:last-child{border:none}
+.ctr-lbl{font-size:12px;color:var(--ink)}
+.ctr-sub{font-size:10px;color:var(--dim);margin-top:1px}
+.ctr-ctrl{display:flex;align-items:center;gap:0;flex-shrink:0}
+.ctr-btn{width:30px;height:30px;background:var(--bg2);border:1px solid var(--bdr);color:var(--ink);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.ctr-btn:hover{border-color:var(--green);color:var(--green)}
+.ctr-v{width:36px;text-align:center;font-size:14px;font-weight:500;color:var(--ink)}
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:12px}
+.tbl th{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);padding:8px 8px 6px;text-align:left;border-bottom:1px solid var(--faint)}
+.tbl td{padding:5px 4px;border-bottom:1px solid var(--faint)}
+.tbl td input,.tbl td select{padding:8px 10px;font-size:12px}
+.del-btn{background:none;border:none;color:var(--dim);cursor:pointer;padding:4px 8px;font-size:13px;transition:color .12s}
+.del-btn:hover{color:var(--red)}
+.add-btn{width:100%;border:1px dashed rgba(16,185,129,.3);background:none;color:var(--green);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:9px;cursor:pointer;margin-top:2px;transition:all .12s}
+.add-btn:hover{background:rgba(16,185,129,.04)}
+/* CALC BOX */
+.calc-box{border:1px solid rgba(16,185,129,.2);background:rgba(16,185,129,.04);padding:14px 16px;margin:12px 0;font-size:12px;line-height:1.6;color:var(--dim)}
+.calc-val{font-size:20px;font-weight:600;color:var(--green);font-family:'Instrument Serif',serif;margin-top:4px}
+/* WARN */
+.warn-box{border:1px solid rgba(245,158,11,.2);background:rgba(245,158,11,.04);padding:12px 16px;margin:12px 0;font-size:12px;line-height:1.6;color:var(--amber)}
+/* NOTE */
+.note{border-left:2px solid rgba(16,185,129,.35);padding:8px 14px;font-size:11px;color:var(--dim);line-height:1.6;margin-bottom:14px}
+/* BTNS */
+.btn-row{display:flex;align-items:center;gap:10px;margin-top:20px;flex-wrap:wrap}
+.btn-next{background:var(--green);color:#000;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;padding:14px 28px;border:none;cursor:pointer;transition:all .13s}
+.btn-next:hover{background:#34d399}
+.btn-next:active{transform:scale(.98)}
+.btn-back{background:transparent;color:var(--dim);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:14px 18px;border:1px solid var(--bdr);cursor:pointer;transition:all .13s}
+.btn-back:hover{color:var(--ink)}
+.btn-skip{background:transparent;color:var(--dim);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:14px 0;border:none;cursor:pointer;opacity:.6;transition:opacity .12s}
+.btn-skip:hover{opacity:1}
+/* INLINE EXPAND */
+.expand{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--faint)}
+/* RESULT */
+.r-wrap{max-width:580px;width:100%;animation:fu .5s ease}
+.r-top{border:1px solid rgba(16,185,129,.22);background:rgba(16,185,129,.04);padding:28px 32px;margin-bottom:12px}
+.r-ey{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--green);margin-bottom:8px}
+.r-lbl{font-size:11px;color:var(--dim);margin-bottom:4px}
+.r-val{font-family:'Instrument Serif',serif;font-size:clamp(32px,5vw,50px);color:var(--ink);line-height:1;margin-bottom:3px}
+.r-range{font-size:12px;color:var(--dim)}
+.r-warn{padding:12px 16px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);font-size:12px;color:var(--amber);margin-top:12px;line-height:1.65}
+.r-pillars{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.pillar{padding:12px 14px;border:1px solid var(--faint);background:var(--bg2)}
+.p-n{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:5px}
+.p-bar{height:2px;background:var(--faint);margin-bottom:5px}
+.p-fill{height:100%;background:var(--green);transition:width 1s ease .2s}
+.p-sc{font-size:12px;color:var(--ink);font-weight:500}
+.r-cta{border:1px solid var(--bdr);background:var(--bg2);padding:22px 26px;margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.btn-cal{background:var(--amber);color:#000;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;padding:13px 20px;border:none;cursor:pointer;transition:all .13s;flex-shrink:0}
+.btn-cal:hover{background:#fbbf24}
+.saving-bar{position:fixed;bottom:20px;right:20px;background:var(--bg2);border:1px solid var(--faint);padding:9px 14px;font-size:9px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;opacity:0;transition:opacity .3s;display:flex;align-items:center;gap:6px;pointer-events:none}
+.saving-bar.show{opacity:1}
+@media(max-width:600px){
+  .hdr{padding:12px 16px}
+  .page{padding:76px 16px 60px}
+  .opts.c2,.opts.c3{grid-template-columns:1fr}
+  .g2{grid-template-columns:1fr}
+  .r-pillars{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="prog-wrap"><div class="prog-fill" id="prog"></div></div>
+<header class="hdr">
+  <div class="hdr-logo"><em>1</em>NEGÓCIO</div>
+  <div class="hdr-section" id="hdr-sec">Identificação</div>
+  <div class="hdr-save"><div class="sdot" id="sdot"></div><span id="stxt">Rascunho</span></div>
+</header>
+<main class="page" id="page">
+  <div id="card-wrap"></div>
+  <div id="result-screen" style="display:none"></div>
+</main>
+<div class="saving-bar" id="saving-bar"><div class="sdot on"></div> Salvando...</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  DADOS
+// ═══════════════════════════════════════════════════
+var D={
+  nome:'',estado:'',cidade:'',cat:'',tipoNeg:[],origem:'',ano:'',
+  franq:'',franqNome:'',
+  temSocio:'',socios:[],
+  clt:0,pjc:0,pjs:0,folha:0,
+  ausencia:'',ausenciaTxt:'',
+  ponto:'',aluguelVal:0,imovelVendaJunto:'',imovelVendaVal:0,imovelLocacaoVal:0,
+  fat:0,trend:'',
+  custoFixo:0,marketing:'',marketingVal:0,
+  sobraVal:0,sobraType:'',prolaboreInc:'',prolaboreVal:0,
+  parcelasDivInc:'',ebitdaFinal:0,
+  temDivida:'',dividas:[],
+  ctaPagarForn:0,prazoPagarForn:'',
+  ctaReceberCli:0,prazoReceberCli:'',antecipa:'',antecipaMsg:'',antecipaCusto:0,
+  b2x:[],nProd:'',nProdDesc:'',ticket:0,conc:'',canais:[],
+  precif:'',markupComp:0,markupVenda:0,
+  ativos:[],estoque:0,ativosVal:0,areceber:0,alvaras:'',diferencial:'',
+  motivo:'',motivoTxt:'',precoEsp:0,urg:5,
+  flexNeg:'',transicao:''
+};
+
+// ═══════════════════════════════════════════════════
+//  QUESTION FLOW
+// ═══════════════════════════════════════════════════
+var QUESTIONS = [];
+var qIdx = 0;
+var history = [];
+
+function buildQuestions(){
+  QUESTIONS = [
+    // ── IDENTIFICAÇÃO ──────────────────────────────
+    {
+      id:'nome', section:'Identificação',
+      render:function(){
+        return card('O negócio','Qual é o <em>nome fantasia</em>?','Como aparece na placa, no Instagram, na nota...',
+          '<div class="field"><input type="text" id="q-nome" placeholder="Ex: Farmácia Central, Studio Moda..." value="'+esc(D.nome)+'" autocomplete="off" oninput="D.nome=this.value" autofocus></div>',
+          function(){return D.nome.trim().length>1;}
+        );
+      }
+    },
+    {
+      id:'local', section:'Identificação',
+      render:function(){
+        return card('Localização','Onde fica o <em>negócio?</em>','',
+          '<div class="g2">'
+          +'<div class="field"><label class="fl">Estado</label>'
+          +'<select id="q-estado" onchange="D.estado=this.value">'
+          +'<option value="">Selecione</option>'
+          +['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'].map(function(s){return '<option'+(D.estado===s?' selected':'')+'>'+s+'</option>';}).join('')
+          +'</select></div>'
+          +'<div class="field"><label class="fl">Cidade</label>'
+          +'<input type="text" id="q-cidade" placeholder="Nome da cidade" value="'+esc(D.cidade)+'" oninput="D.cidade=this.value"></div>'
+          +'</div>',
+          function(){return D.estado&&D.cidade.trim().length>1;}
+        );
+      }
+    },
+    {
+      id:'cat', section:'Identificação',
+      render:function(){
+        return card('Segmento','Qual é o <em>segmento do negócio?</em>','',
+          opts([
+            ['🛍️','Varejo','Loja, comércio, revenda'],
+            ['🍔','Alimentação','Restaurante, padaria, delivery'],
+            ['🏥','Saúde','Clínica, farmácia, estética'],
+            ['💻','Tecnologia','Software, SaaS, TI'],
+            ['🎓','Educação','Escola, curso, treinamento'],
+            ['🔧','Serviços','Prestação de serviços em geral'],
+            ['🏭','Indústria','Produção, manufatura'],
+            ['🏗️','Construção','Construtora, reforma'],
+            ['📦','Outro','Outro segmento']
+          ],'cat','c3'),
+          function(){return !!D.cat;}
+        );
+      }
+    },
+    {
+      id:'origem', section:'Identificação',
+      render:function(){
+        var extra='';
+        if(D.origem) extra='<div class="field" style="margin-top:10px"><label class="fl">Em que ano?</label><input type="number" id="q-ano" placeholder="Ex: 2015" min="1950" max="2025" value="'+D.ano+'" oninput="D.ano=this.value"></div>';
+        return card('Origem','Essa empresa você <em>fundou ou comprou?</em>','',
+          opts([
+            ['🌱','Fundei','Criei do zero'],
+            ['🤝','Comprei','Adquiri de terceiro']
+          ],'origem','c2',function(){renderQ();})+extra,
+          function(){return !!D.origem&&!!D.ano;}
+        );
+      }
+    },
+    {
+      id:'tipoNeg', section:'Identificação',
+      render:function(){
+        return card('Tipo de operação','Como o negócio <em>opera?</em> (múltipla escolha)','',
+          opts([
+            ['🔄','Revenda de produtos','Compra e revende sem transformar'],
+            ['🏭','Fabricação','Produz, manufatura ou transforma'],
+            ['🚚','Distribuição','Distribui para outros pontos ou revendedores'],
+            ['🔧','Serviço','Vende trabalho, conhecimento ou resultado']
+          ],'tipoNeg','c2',null,true),
+          function(){return Array.isArray(D.tipoNeg)&&D.tipoNeg.length>0;}
+        );
+      }
+    },
+    {
+      id:'franquia', section:'Identificação',
+      render:function(){
+        var extra='';
+        if(D.franq==='Sim') extra='<div class="field" style="margin-top:10px"><input type="text" id="q-franqNome" placeholder="Nome da franqueadora (Ex: Subway, Cacau Show...)" value="'+esc(D.franqNome)+'" oninput="D.franqNome=this.value"></div>';
+        return card('Franquia','É uma <em>franquia?</em>','',
+          opts([
+            ['🚫','Não','Marca própria'],
+            ['🏷️','Sim','Opera com licença de franqueadora']
+          ],'franq','c2',function(){renderQ();})+extra,
+          function(){return !!D.franq;}
+        );
+      }
+    },
+    // ── SÓCIOS ─────────────────────────────────────
+    {
+      id:'socios', section:'Sócios',
+      render:function(){
+        var body='';
+        body+=opts([['👤','Só eu','Sócio único'],['👥','Sim, tenho sócios','Mais de um sócio']],'temSocio','c2',function(){renderQ();});
+        if(D.temSocio==='Sim, tenho sócios'){
+          body+='<div class="note">Informe nome, % de participação e remuneração mensal de cada sócio.</div>';
+          body+='<table class="tbl"><thead><tr><th>Nome do sócio</th><th>% Participação</th><th>Remuneração/mês (R$)</th><th></th></tr></thead>';
+          body+='<tbody id="socios-tbody">';
+          if(D.socios.length===0) D.socios=[{nome:'',pct:'',rem:''}];
+          D.socios.forEach(function(s,i){
+            body+='<tr>'
+              +'<td><input type="text" value="'+esc(s.nome)+'" placeholder="Nome" oninput="D.socios['+i+'].nome=this.value"></td>'
+              +'<td><input type="number" value="'+s.pct+'" placeholder="%" min="0" max="100" oninput="D.socios['+i+'].pct=this.value"></td>'
+              +'<td><input type="text" value="'+fmtM(s.rem)+'" placeholder="Ex: 8.000" oninput="D.socios['+i+'].rem=parseMoney(this.value);maskInp(this)"></td>'
+              +'<td>'+(D.socios.length>1?'<button class="del-btn" onclick="D.socios.splice('+i+',1);renderQ()">✕</button>':'')+'</td>'
+              +'</tr>';
+          });
+          body+='</tbody></table>';
+          body+='<button class="add-btn" onclick="D.socios.push({nome:\'\',pct:\'\',rem:\'\'});renderQ()">+ Adicionar sócio</button>';
+        }
+        return card('Sócios','Você tem <em>sócios?</em>','',body,function(){return !!D.temSocio;});
+      }
+    },
+    // ── EQUIPE ─────────────────────────────────────
+    {
+      id:'equipe', section:'Equipe',
+      render:function(){
+        return card('Equipe','Como é a <em>estrutura da equipe?</em>','Inclua todos — CLT, prestadores e informais.',
+          '<div style="border:1px solid var(--bdr);padding:4px 0;margin-bottom:14px">'
+          +ctrRow('clt','CLT (carteira assinada)','Funcionários com registro')
+          +ctrRow('pjc','PJ com contrato','Prestadores com contrato formal')
+          +ctrRow('pjs','PJ sem contrato','Prestadores informais')
+          +'</div>'
+          +'<div class="field"><label class="fl">Custo total da folha por mês (R$) — salários + encargos + PJs</label>'
+          +'<input type="text" id="q-folha" value="'+fmtM(D.folha)+'" placeholder="Ex: 45.000" oninput="D.folha=parseMoney(this.value);maskInp(this)"></div>',
+          function(){return true;}
+        );
+      }
+    },
+    // ── OPERAÇÃO ────────────────────────────────────
+    {
+      id:'ausencia', section:'Operação',
+      render:function(){
+        var extra=D.ausencia==='Outra situação'?'<div class="field" style="margin-top:10px"><textarea id="q-ausenciaTxt" placeholder="Descreve o que aconteceria...">'+esc(D.ausenciaTxt)+'</textarea></div>':'';
+        return card('Dependência','Se você se ausentar por <em>30 dias,</em> o que acontece?','Essa resposta impacta diretamente o valuation.',
+          opts([
+            ['✅','Opera normalmente','A equipe resolve tudo sem mim'],
+            ['⚠️','Opera com dificuldade','Perde eficiência mas continua'],
+            ['🛑','Para ou perde muito','Depende diretamente de mim'],
+            ['✍️','Outra situação','Vou descrever']
+          ],'ausencia','c2',function(){renderQ();})+extra,
+          function(){return !!D.ausencia;}
+        );
+      }
+    },
+    {
+      id:'ponto', section:'Operação',
+      render:function(){
+        var extra='';
+        if(D.ponto==='Sim, alugado'){
+          extra='<div class="expand" style="display:block;margin-top:12px">'
+            +'<div class="field"><label class="fl">Valor do aluguel + despesas do imóvel (IPTU, condomínio, etc.) por mês (R$)</label>'
+            +'<input type="text" value="'+fmtM(D.aluguelVal)+'" placeholder="Ex: 8.500" oninput="D.aluguelVal=parseMoney(this.value);maskInp(this)"></div>'
+            +'</div>';
+        } else if(D.ponto==='Sim, imóvel próprio'){
+          extra='<div class="expand" style="display:block;margin-top:12px">'
+            +'<div class="field"><label class="fl">O imóvel precisa ser vendido junto com o negócio?</label>'
+            +'<div class="opts c2">'
+            +'<button class="opt'+( D.imovelVendaJunto==='Sim'?' sel':'')+'" onclick="D.imovelVendaJunto=\'Sim\';renderQ()"><div class="opt-t">Sim, vende junto</div><div class="opt-ck">✓</div></button>'
+            +'<button class="opt'+( D.imovelVendaJunto==='Não'?' sel':'')+'" onclick="D.imovelVendaJunto=\'Não\';renderQ()"><div class="opt-t">Não, pode separar</div><div class="opt-ck">✓</div></button>'
+            +'</div></div>';
+          if(D.imovelVendaJunto==='Sim'){
+            extra+='<div class="field"><label class="fl">Valor do imóvel (R$)</label><input type="text" value="'+fmtM(D.imovelVendaVal)+'" placeholder="Ex: 1.200.000" oninput="D.imovelVendaVal=parseMoney(this.value);maskInp(this)"></div>';
+          } else if(D.imovelVendaJunto==='Não'){
+            extra+='<div class="field"><label class="fl">Qual seria o valor de locação mensal estimado para o imóvel? (R$)</label><input type="text" value="'+fmtM(D.imovelLocacaoVal)+'" placeholder="Ex: 6.000/mês" oninput="D.imovelLocacaoVal=parseMoney(this.value);maskInp(this)"></div>';
+          }
+          extra+='</div>';
+        }
+        return card('Ponto físico','O negócio tem um <em>espaço físico?</em>','',
+          opts([
+            ['🏪','Sim, imóvel próprio','Comprado ou construído'],
+            ['🔑','Sim, alugado','Contrato de locação ativo'],
+            ['🌐','100% digital','Opera sem espaço físico'],
+            ['🚐','Itinerante / delivery','Sem ponto fixo']
+          ],'ponto','c2',function(){renderQ();})+extra,
+          function(){return !!D.ponto;}
+        );
+      }
+    },
+    // ── FINANCEIRO ──────────────────────────────────
+    {
+      id:'fat', section:'Financeiro',
+      render:function(){
+        return card('Faturamento','Qual é o <em>faturamento médio mensal?</em>','Use o valor bruto (antes de impostos). Se variar muito, use a média dos últimos 6 meses.',
+          '<div class="field"><label class="fl">Faturamento mensal (R$)</label>'
+          +'<input type="text" id="q-fat" value="'+fmtM(D.fat)+'" placeholder="Ex: 150.000" oninput="D.fat=parseMoney(this.value);maskInp(this)" autofocus></div>',
+          function(){return D.fat>0;}
+        );
+      }
+    },
+    {
+      id:'trend', section:'Financeiro',
+      render:function(){
+        return card('Crescimento','Comparando com 12 meses atrás, as vendas...','',
+          opts([
+            ['📈','Cresceram','Acima de +10%'],
+            ['➡️','Andaram de lado','Variação de ±10%'],
+            ['📉','Diminuíram','Queda acima de 10%']
+          ],'trend','c3'),
+          function(){return !!D.trend;}
+        );
+      }
+    },
+    {
+      id:'custos', section:'Financeiro',
+      render:function(){
+        return card('Custos fixos','Além da folha, quanto custa <em>manter o negócio</em> por mês?','Luz, água, internet, contador, sistemas, licenças, etc. Não inclua aluguel nem folha aqui.',
+          '<div class="field"><label class="fl">Custos fixos mensais sem folha e sem aluguel (R$)</label>'
+          +'<input type="text" value="'+fmtM(D.custoFixo)+'" placeholder="Ex: 12.000" oninput="D.custoFixo=parseMoney(this.value);maskInp(this)"></div>',
+          function(){return true;}
+        );
+      }
+    },
+    {
+      id:'marketing', section:'Financeiro',
+      render:function(){
+        var extra=D.marketing==='Sim, investe'?
+          '<div class="field" style="margin-top:10px"><label class="fl">Quanto por mês? (R$)</label>'
+          +'<input type="text" value="'+fmtM(D.marketingVal)+'" placeholder="Ex: 5.000" oninput="D.marketingVal=parseMoney(this.value);maskInp(this)"></div>':''
+        return card('Marketing','Investe em <em>marketing ou publicidade?</em>','',
+          opts([
+            ['📢','Sim, investe','Tráfego pago, influência, eventos...'],
+            ['🗣️','Só orgânico / indicação','Sem investimento direto'],
+            ['❌','Não investe','Sem ações de marketing']
+          ],'marketing','c1',function(){renderQ();})+extra,
+          function(){return !!D.marketing;}
+        );
+      }
+    },
+    {
+      id:'sobra', section:'Financeiro',
+      render:function(){
+        var extra='';
+        if(D.sobraType){
+          extra='<div class="warn-box" style="margin-top:8px">⚠ Importante: O valor que sobra ainda <strong>não</strong> é o resultado operacional do negócio. Precisamos entender o que está ou não incluído.</div>';
+        }
+        return card('Resultado','O quanto <em>sobra por mês</em> para o dono?','Informe o que fica no final do mês após pagar todas as contas.',
+          '<div class="field"><input type="text" value="'+fmtM(D.sobraVal)+'" placeholder="Ex: 25.000" oninput="D.sobraVal=parseMoney(this.value);maskInp(this)"></div>'
+          +'<div class="field" style="margin-top:8px"><label class="fl">Esse valor é antes ou depois de pagar parcelas de dívidas?</label>'
+          +'<div class="opts c2">'
+          +'<button class="opt'+(D.sobraType==='Antes'?' sel':'')+'" onclick="D.sobraType=\'Antes\';renderQ()"><div class="opt-t">Antes</div><div class="opt-s">As parcelas ainda saem desse valor</div><div class="opt-ck">✓</div></button>'
+          +'<button class="opt'+(D.sobraType==='Depois'?' sel':'')+'" onclick="D.sobraType=\'Depois\';renderQ()"><div class="opt-t">Depois</div><div class="opt-s">Já paguei as parcelas desse valor</div><div class="opt-ck">✓</div></button>'
+          +'</div></div>'+extra,
+          function(){return D.sobraVal>0&&!!D.sobraType;}
+        );
+      }
+    },
+    {
+      id:'prolabore', section:'Financeiro',
+      render:function(){
+        var extra=D.prolaboreInc==='Não, sai desse valor'?
+          '<div class="field" style="margin-top:10px"><label class="fl">Quanto é o pró-labore total dos sócios por mês? (R$)</label>'
+          +'<input type="text" value="'+fmtM(D.prolaboreVal)+'" placeholder="Ex: 15.000" oninput="D.prolaboreVal=parseMoney(this.value);maskInp(this)"></div>':'';
+        return card('Pró-labore','O salário dos sócios (pró-labore) está incluído <em>nas despesas que levaram ao que sobra?</em>','',
+          '<div class="opts c2">'
+          +'<button class="opt'+(D.prolaboreInc==='Sim, já está nas despesas'?' sel':'')+'" onclick="D.prolaboreInc=\'Sim, já está nas despesas\';renderQ()"><div class="opt-t">Sim, já está nas despesas</div><div class="opt-s">O pró-labore já reduziu o valor que sobra</div><div class="opt-ck">✓</div></button>'
+          +'<button class="opt'+(D.prolaboreInc==='Não, sai desse valor'?' sel':'')+'" onclick="D.prolaboreInc=\'Não, sai desse valor\';renderQ()"><div class="opt-t">Não, sai desse valor</div><div class="opt-s">O pró-labore ainda sai do que sobra</div><div class="opt-ck">✓</div></button>'
+          +'</div>'+extra,
+          function(){return !!D.prolaboreInc;}
+        );
+      }
+    },
+    // ── DÍVIDAS ─────────────────────────────────────
+    {
+      id:'dividas', section:'Dívidas',
+      render:function(){
+        var body=opts([
+          ['✅','Não, sem dívidas','CNPJ sem passivos relevantes'],
+          ['⚠️','Sim, tem dívidas','Financiamentos, impostos, fornecedores...']
+        ],'temDivida','c2',function(){renderQ();});
+        if(D.temDivida==='Sim, tem dívidas'){
+          body+='<div class="note">Liste as dívidas <strong>atreladas ao CNPJ</strong> — financiamentos, parcelamentos de impostos, dívidas com fornecedores, etc. Isso é confidencial e fundamental para o valuation correto.</div>';
+          body+='<table class="tbl"><thead><tr><th>Tipo</th><th>Credor / Descrição</th><th>Saldo total (R$)</th><th>Parcela/mês (R$)</th><th></th></tr></thead><tbody id="div-tbody">';
+          if(!D.dividas.length) D.dividas=[{tipo:'Banco',desc:'',total:0,parcela:0}];
+          D.dividas.forEach(function(d,i){
+            body+='<tr>'
+              +'<td><select oninput="D.dividas['+i+'].tipo=this.value">'
+              +['Banco','Impostos','Terceiros','Fornecedores','Outros'].map(function(t){return '<option'+(d.tipo===t?' selected':'')+'>'+t+'</option>';}).join('')
+              +'</select></td>'
+              +'<td><input type="text" value="'+esc(d.desc)+'" placeholder="Ex: Caixa, FGTS..." oninput="D.dividas['+i+'].desc=this.value"></td>'
+              +'<td><input type="text" value="'+fmtM(d.total)+'" placeholder="Ex: 80.000" oninput="D.dividas['+i+'].total=parseMoney(this.value);maskInp(this)"></td>'
+              +'<td><input type="text" value="'+fmtM(d.parcela)+'" placeholder="Ex: 3.500" oninput="D.dividas['+i+'].parcela=parseMoney(this.value);maskInp(this)"></td>'
+              +'<td>'+(D.dividas.length>1?'<button class="del-btn" onclick="D.dividas.splice('+i+',1);renderQ()">✕</button>':'')+'</td>'
+              +'</tr>';
+          });
+          body+='</tbody></table>';
+          body+='<button class="add-btn" onclick="D.dividas.push({tipo:\'Banco\',desc:\'\',total:0,parcela:0});renderQ()">+ Adicionar dívida</button>';
+        }
+        return card('Dívidas','O negócio tem <em>dívidas atreladas ao CNPJ?</em>','',body,function(){return !!D.temDivida;});
+      }
+    },
+    {
+      id:'cta', section:'Dívidas',
+      render:function(){
+        return card('Balanço de curto prazo','Agora dois números do <em>dia a dia financeiro:</em>','Esses valores entram no cálculo do capital de giro.',
+          '<div class="field"><label class="fl">Contas a pagar a fornecedores (saldo atual, R$)</label>'
+          +'<input type="text" value="'+fmtM(D.ctaPagarForn)+'" placeholder="Ex: 45.000" oninput="D.ctaPagarForn=parseMoney(this.value);maskInp(this)"></div>'
+          +'<div class="field"><label class="fl">Prazo médio para pagar fornecedores</label>'
+          +'<select onchange="D.prazoPagarForn=this.value">'
+          +'<option value="">Selecione</option>'
+          +['Antecipado','À vista','10 dias','20 dias','30 dias','45 dias','60 dias','90 dias ou mais'].map(function(p){return '<option'+(D.prazoPagarForn===p?' selected':'')+'>'+p+'</option>';}).join('')
+          +'</select></div>'
+          +'<div class="field" style="margin-top:4px"><label class="fl">Contas a receber de clientes (saldo atual, R$)</label>'
+          +'<input type="text" value="'+fmtM(D.ctaReceberCli)+'" placeholder="Ex: 68.000" oninput="D.ctaReceberCli=parseMoney(this.value);maskInp(this)"></div>'
+          +'<div class="field"><label class="fl">Prazo médio para receber dos clientes</label>'
+          +'<select onchange="D.prazoReceberCli=this.value">'
+          +'<option value="">Selecione</option>'
+          +['Antecipado (cliente paga antes)','À vista','10 dias','20 dias','30 dias','45 dias','60 dias','90 dias ou mais'].map(function(p){return '<option'+(D.prazoReceberCli===p?' selected':'')+'>'+p+'</option>';}).join('')
+          +'</select></div>',
+          function(){return true;}
+        );
+      }
+    },
+    {
+      id:'antecipa', section:'Dívidas',
+      render:function(){
+        var extra='';
+        if(D.antecipa==='Sim, antecipo recebíveis'){
+          extra='<div class="field" style="margin-top:10px"><label class="fl">Qual é o custo médio da antecipação? (% ao mês ou ao ano)</label>'
+          +'<input type="text" value="'+esc(D.antecipaMsg)+'" placeholder="Ex: 2,5% ao mês ou 30% ao ano" oninput="D.antecipaMsg=this.value"></div>';
+        }
+        return card('Antecipação','Você <em>antecipa recebíveis</em> (usa antecipação de cartão, factoring, etc.)?','',
+          opts([
+            ['✅','Sim, antecipo recebíveis','Uso antecipação de cartão, factoring, fintech...'],
+            ['❌','Não, recebo no prazo normal','Sem antecipação']
+          ],'antecipa','c2',function(){renderQ();})+extra,
+          function(){return !!D.antecipa;}
+        );
+      }
+    },
+    // ── CLIENTES ────────────────────────────────────
+    {
+      id:'b2x', section:'Clientes',
+      render:function(){
+        return card('Perfil de clientes','Seus clientes são <em>(múltipla escolha):</em>','',
+          opts([
+            ['👤','Pessoa física','Consumidor final'],
+            ['🏢','Empresas (B2B)','Clientes corporativos'],
+            ['🏛️','Governo','Licitações, prefeituras, órgãos públicos']
+          ],'b2x','c3',null,true),
+          function(){return Array.isArray(D.b2x)&&D.b2x.length>0;}
+        );
+      }
+    },
+    {
+      id:'nProd', section:'Clientes',
+      render:function(){
+        var extra=D.nProd==='Outro'?'<div class="field" style="margin-top:10px"><input type="text" value="'+esc(D.nProdDesc)+'" placeholder="Descreva brevemente sua oferta..." oninput="D.nProdDesc=this.value"></div>':'';
+        return card('Portfólio','O negócio oferece <em>quantos produtos ou serviços?</em>','',
+          opts([
+            ['🎯','Produto ou serviço único','Só uma oferta principal'],
+            ['📦','Linha pequena (2 a 5)','Algumas variações ou complementos'],
+            ['🗂️','Linha média (6 a 15)','Mix diversificado'],
+            ['🏬','Portfólio amplo (mais de 15)','Muitos produtos/serviços'],
+            ['✍️','Prefiro descrever','Vou explicar melhor']
+          ],'nProd','c2',function(){renderQ();})+extra,
+          function(){return !!D.nProd;}
+        );
+      }
+    },
+    {
+      id:'precif', section:'Clientes',
+      render:function(){
+        var isProd=['Varejo','Alimentação','Indústria'].includes(D.cat);
+        var markup='';
+        if(isProd){
+          markup='<div class="note" style="margin-top:12px">Para ter uma ideia do seu markup:</div>'
+          +'<div class="g2">'
+          +'<div class="field"><label class="fl">Você compra/produz por (R$)</label><input type="text" value="'+fmtM(D.markupComp)+'" placeholder="Ex: 100" oninput="D.markupComp=parseMoney(this.value);maskInp(this)"></div>'
+          +'<div class="field"><label class="fl">Você vende por (R$)</label><input type="text" value="'+fmtM(D.markupVenda)+'" placeholder="Ex: 260" oninput="D.markupVenda=parseMoney(this.value);maskInp(this);showMarkup()"></div>'
+          +'</div>'
+          +'<div id="markup-result"></div>';
+        }
+        return card('Precificação','Como você <em>define o preço</em> do que vende?','',
+          opts([
+            ['📊','Custo + margem fixa','Calculo o custo e adiciono uma margem'],
+            ['🏷️','Baseado no mercado','Sigo o preço dos concorrentes'],
+            ['💡','Por valor percebido','O cliente paga pelo resultado'],
+            ['📋','Tabela / contrato','Tabela fixa ou negociado caso a caso']
+          ],'precif','c2')+markup,
+          function(){return !!D.precif;}
+        );
+      }
+    },
+    {
+      id:'clientes2', section:'Clientes',
+      render:function(){
+        return card('Base de clientes','Seus <em>3 maiores clientes</em> representam quanto do faturamento?','Alta concentração é um fator de risco para o comprador.',
+          opts([
+            ['🟢','Menos de 20%','Carteira bem diversificada'],
+            ['🟡','Entre 20% e 50%','Concentração moderada'],
+            ['🔴','Mais de 50%','Alta concentração']
+          ],'conc','c3'),
+          function(){return !!D.conc;}
+        );
+      }
+    },
+    {
+      id:'ticket', section:'Clientes',
+      render:function(){
+        return card('Ticket médio','Qual é o <em>ticket médio</em> por venda ou contrato?','<em style="color:var(--dim)">Não sabe ao certo? Tudo bem — pode deixar em branco e avançar.</em>',
+          '<div class="field"><label class="fl">Ticket médio (R$) — opcional</label>'
+          +'<input type="text" value="'+fmtM(D.ticket)+'" placeholder="Ex: 350 por visita ou 4.500 por contrato" oninput="D.ticket=parseMoney(this.value);maskInp(this)"></div>',
+          function(){return true;}
+        );
+      }
+    },
+    {
+      id:'canais', section:'Clientes',
+      render:function(){
+        return card('Canais','Como os clientes <em>chegam até você?</em> (múltipla escolha)','',
+          opts([
+            ['📱','Redes sociais / tráfego pago','Instagram, Google Ads, Meta...'],
+            ['🗣️','Indicação / boca a boca','Sem esforço pago'],
+            ['🏪','Fluxo do ponto físico','Quem passa pela rua entra'],
+            ['🔍','Google / SEO orgânico','Busca sem anúncio'],
+            ['📋','Licitações / governo','Editais e contratos públicos'],
+            ['🤝','Parceiros / revendedores','Canal indireto'],
+            ['📧','Carteira / recompra','Clientes recorrentes já captados']
+          ],'canais','c2',null,true),
+          function(){return Array.isArray(D.canais)&&D.canais.length>0;}
+        );
+      }
+    },
+    // ── ATIVOS ──────────────────────────────────────
+    {
+      id:'ativos', section:'Ativos',
+      render:function(){
+        return card('Ativos intangíveis','O que torna seu negócio <em>difícil de copiar?</em> (múltipla escolha)','Esses são os ativos que justificam um múltiplo maior.',
+          opts([
+            ['📋','Carteira de clientes recorrentes','Base ativa com histórico'],
+            ['⚙️','Processos documentados','Operação independe das pessoas'],
+            ['💡','Tecnologia / software próprio','Ferramenta desenvolvida internamente'],
+            ['®️','Marca registrada / patente','Proteção legal de propriedade intelectual'],
+            ['📍','Localização estratégica','Ponto de alta demanda ou difícil acesso'],
+            ['🏆','Reputação / autoridade no setor','Reconhecimento de mercado'],
+            ['🤝','Contratos de longo prazo','Receita comprometida com prazo'],
+            ['👥','Equipe qualificada e estável','Time experiente e fidelizado']
+          ],'ativos','c2',null,true),
+          function(){return true;}
+        );
+      }
+    },
+    {
+      id:'balanco', section:'Ativos',
+      render:function(){
+        return card('Balanço simplificado','Precisamos de alguns números para calcular o <em>valor de venda final:</em>','',
+          '<div class="field"><label class="fl">Estoque a preço de custo (R$)</label>'
+          +'<input type="text" value="'+fmtM(D.estoque)+'" placeholder="Ex: 120.000 (ou 0 se não tem estoque)" oninput="D.estoque=parseMoney(this.value);maskInp(this)"></div>'
+          +'<div class="field"><label class="fl">Outros ativos físicos — equipamentos, veículos, máquinas (R$)</label>'
+          +'<input type="text" value="'+fmtM(D.ativosVal)+'" placeholder="Ex: 80.000" oninput="D.ativosVal=parseMoney(this.value);maskInp(this)"></div>'
+          +'<div class="field"><label class="fl">Regime tributário</label>'
+          +'<select onchange="D.regime=this.value">'
+          +'<option value="">Selecione</option>'
+          +['Simples Nacional','Lucro Presumido','Lucro Real','MEI'].map(function(r){return '<option'+(D.regime===r?' selected':'')+'>'+r+'</option>';}).join('')
+          +'</select></div>',
+          function(){return true;}
+        );
+      }
+    },
+    {
+      id:'alvaras', section:'Ativos',
+      render:function(){
+        return card('Regularidade','Alvarás e licenças estão <em>em dia?</em>','',
+          opts([
+            ['✅','Sim, tudo em dia','Documentação regular'],
+            ['⚠️','Tem pendências','Há irregularidades'],
+            ['❓','Não sei ao certo','Preciso verificar']
+          ],'alvaras','c3'),
+          function(){return !!D.alvaras;}
+        );
+      }
+    },
+    {
+      id:'diferencial', section:'Ativos',
+      render:function(){
+        return card('Diferencial','Por que um cliente escolhe você <em>e não o concorrente?</em>','Uma frase honesta. Isso vai para o anúncio.',
+          '<textarea id="q-dif" placeholder="Ex: Somos os únicos na cidade com entrega em 2h e atendimento 24h para empresas..." oninput="D.diferencial=this.value">'+esc(D.diferencial)+'</textarea>',
+          function(){return true;}
+        );
+      }
+    },
+    // ── VENDA ───────────────────────────────────────
+    {
+      id:'motivo', section:'Venda',
+      render:function(){
+        var extra=D.motivo==='Outro motivo'?'<div style="margin-top:10px"><textarea placeholder="Descreva o que está motivando a venda..." oninput="D.motivoTxt=this.value">'+esc(D.motivoTxt)+'</textarea></div>':'';
+        return card('Motivação','Por que você está <em>pensando em vender?</em>','Honestidade aqui define que tipo de comprador vai ter interesse.',
+          opts([
+            ['🌍','Mudança de vida','Aposentadoria, mudança de área ou cidade'],
+            ['💰','Capitalizar','Monetizar o que construiu'],
+            ['🆘','Dificuldade operacional','Cansaço, saúde, conflito societário...'],
+            ['🚀','Novo projeto','Quer focar em outro negócio'],
+            ['✍️','Outro motivo','Prefiro descrever']
+          ],'motivo','c2',function(){renderQ();})+extra,
+          function(){return !!D.motivo;}
+        );
+      }
+    },
+    {
+      id:'preco', section:'Venda',
+      render:function(){
+        return card('Expectativa de preço','Por quanto você <em>imagina vender?</em>','Sua expectativa — sem compromisso. Pode deixar em branco e deixar a 1Negócio avaliar.',
+          '<div class="field"><input type="text" value="'+fmtM(D.precoEsp)+'" placeholder="Ex: 800.000 (opcional)" oninput="D.precoEsp=parseMoney(this.value);maskInp(this)"></div>',
+          function(){return true;}
+        );
+      }
+    },
+    {
+      id:'urg', section:'Venda',
+      render:function(){
+        return card('Urgência','De 0 a 10, qual é a <em>sua pressa em vender?</em>','',
+          '<div style="margin-bottom:24px">'
+          +'<div style="font-family:\'Instrument Serif\',serif;font-size:32px;color:var(--green);margin-bottom:10px" id="urg-v">'+D.urg+'</div>'
+          +'<input type="range" id="q-urg" min="0" max="10" value="'+D.urg+'" style="width:100%;-webkit-appearance:none;height:2px;background:var(--faint);outline:none;border:none;padding:0;cursor:pointer;margin-bottom:8px" oninput="D.urg=parseInt(this.value);document.getElementById(\'urg-v\').textContent=this.value" class="urg-range">'
+          +'<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--dim)"><span>Sem pressa</span><span>Muito urgente</span></div>'
+          +'</div>',
+          function(){return true;}
+        );
+      }
+    },
+    {
+      id:'flex', section:'Venda',
+      render:function(){
+        return card('Flexibilidade','Quão flexível você está na <em>negociação?</em>','',
+          opts([
+            ['💵','À vista total','Só aceito pagamento integral no fechamento'],
+            ['🤝','Aceito parcelas para o comprador','Financiamento parcelado ao longo do tempo'],
+            ['📊','Aceito earn-out','Parte do pagamento atrelado ao desempenho futuro'],
+            ['🔀','Totalmente aberto','Analiso qualquer proposta séria']
+          ],'flexNeg','c2'),
+          function(){return !!D.flexNeg;}
+        );
+      }
+    },
+    {
+      id:'transicao', section:'Venda',
+      render:function(){
+        return card('Transição','Por quanto tempo você apoiaria <em>a transição?</em>','Quanto mais longa, mais confortável fica o comprador.',
+          opts([
+            ['🚫','Sem transição','Entrego e saio'],
+            ['⚡','Até 1 mês','Transição rápida'],
+            ['📅','1 a 3 meses','Transição curta'],
+            ['🗓️','3 a 12 meses','Transição padrão'],
+            ['🤝','Mais de 1 ano','Estou disposto a ficar como consultor']
+          ],'transicao','c2'),
+          function(){return !!D.transicao;}
+        );
+      }
+    }
+  ];
+}
+
+// ═══════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════
+function esc(s){return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function fmtM(v){if(!v||v===0)return '';return Number(v).toLocaleString('pt-BR');}
+function parseMoney(s){if(!s)return 0;return parseInt((s+'').replace(/[^0-9]/g,''))||0;}
+function maskInp(el){var v=parseMoney(el.value);el.value=v?v.toLocaleString('pt-BR'):'';}
+function fmtBRL(v){if(!v||isNaN(v))return '—';if(v>=1e6)return 'R$ '+(v/1e6).toFixed(1).replace('.',',')+'M';if(v>=1e3)return 'R$ '+Math.round(v/1e3)+'K';return 'R$ '+v.toLocaleString('pt-BR');}
+
+function card(sec,title,hint,body,validateFn){
+  window._curValidate=typeof validateFn==='function'?validateFn:function(){return true;};
+  return '<div class="card" id="cur-card">'
+    +'<div class="eyebrow">'+sec+'</div>'
+    +'<h1 class="q">'+title+'</h1>'
+    +(hint?'<p class="hint">'+hint+'</p>':'')
+    +body
+    +'</div>';
+}
+
+function opts(items,key,cols,onChange,multi){
+  var html='<div class="opts '+cols+'">';
+  items.forEach(function(item){
+    var ico=item.length===3?item[0]:'';
+    var title=item[ico?1:0];
+    var sub=item[ico?2:1]||'';
+    var isArr=multi&&Array.isArray(D[key]);
+    var sel=isArr?D[key].includes(title):D[key]===title;
+    var handler=multi?
+      'onclick="selMulti(this,\''+key+'\''+(onChange?',function(){'+onChange.toString().replace(/"/g,"'")+'}'  :'')+')\"':
+      'onclick="selOne(this,\''+key+'\',\''+title.replace(/'/g,"\\'")+'\')'+(onChange?';('+onChange.toString()+')()':'')+'"';
+    html+='<button class="opt'+(sel?' sel':'')+'" '+handler+'>'
+      +(ico?'<div class="opt-ico">'+ico+'</div>':'')
+      +'<div><div class="opt-t">'+title+'</div>'+(sub?'<div class="opt-s">'+sub+'</div>':'')+'</div>'
+      +'<div class="opt-ck">✓</div>'
+      +'</button>';
+  });
+  html+='</div>';
+  return html;
+}
+
+function selOne(el,key,val){
+  D[key]=val;
+  el.closest('.opts').querySelectorAll('.opt').forEach(function(o){o.classList.remove('sel');});
+  el.classList.add('sel');
+}
+function selMulti(el,key){
+  if(!Array.isArray(D[key]))D[key]=[];
+  var title=el.querySelector('.opt-t').textContent.trim();
+  if(el.classList.contains('sel')){el.classList.remove('sel');D[key]=D[key].filter(function(v){return v!==title;});}
+  else{el.classList.add('sel');if(!D[key].includes(title))D[key].push(title);}
+}
+
+function ctrRow(id,lbl,sub){
+  var v=typeof D[id]==='number'?D[id]:0;
+  return '<div class="ctr-row"><div><div class="ctr-lbl">'+lbl+'</div><div style="font-size:10px;color:var(--dim)">'+sub+'</div></div>'
+    +'<div class="ctr-ctrl">'
+    +'<button class="ctr-btn" onclick="adjCtr(\''+id+'\',-1)">−</button>'
+    +'<div class="ctr-v" id="ctr-'+id+'">'+v+'</div>'
+    +'<button class="ctr-btn" onclick="adjCtr(\''+id+'\',1)">+</button>'
+    +'</div></div>';
+}
+function adjCtr(id,delta){
+  D[id]=Math.max(0,(D[id]||0)+delta);
+  var el=document.getElementById('ctr-'+id);
+  if(el) el.textContent=D[id];
+}
+
+function showMarkup(){
+  var c=D.markupComp,v=D.markupVenda;
+  var el=document.getElementById('markup-result');
+  if(!el||!c||!v)return;
+  var mg=((v-c)/v*100).toFixed(1);
+  var mult=(v/c).toFixed(2);
+  el.innerHTML='<div class="calc-box">Margem bruta: <strong style="color:var(--green)">'+mg+'%</strong> &nbsp;·&nbsp; Markup: <strong style="color:var(--green)">'+mult+'×</strong></div>';
+}
+
+// ═══════════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════════
+function renderQ(){
+  buildQuestions();
+  var q=QUESTIONS[qIdx];
+  if(!q){calcResult();return;}
+  document.getElementById('hdr-sec').textContent=q.section;
+
+  document.getElementById('prog').style.width=((qIdx+1)/QUESTIONS.length*95)+'%';
+  var wrap=document.getElementById('card-wrap');
+  wrap.innerHTML=q.render();
+  // restore slider
+  if(q.id==='urg'){
+    var sl=document.getElementById('q-urg');
+    if(sl){sl.style.setProperty('--v',D.urg);sl.style.accentColor='var(--green)';}
+  }
+  saveLocal();
+}
+
+function next(){
+  // Sync only the CURRENT card's inputs into D (by calling oninput with proper 'this')
+  var curCard = document.getElementById('cur-card');
+  if(curCard){
+    curCard.querySelectorAll('input[oninput],textarea[oninput]').forEach(function(el){
+      try{ el.oninput.call(el, {}); }catch(e){}
+    });
+    curCard.querySelectorAll('select[onchange]').forEach(function(el){
+      try{ el.onchange.call(el, {}); }catch(e){}
+    });
+  }
+
+  // Validate
+  var valid = true;
+  try { valid = window._curValidate ? window._curValidate() : true; } catch(e){ valid = true; }
+  if(!valid){ flash(); return; }
+
+  history.push(qIdx);
+  qIdx++;
+  buildQuestions();
+  if(qIdx >= QUESTIONS.length){ calcResult(); return; }
+  renderQ();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+function back(){
+  if(history.length>0){qIdx=history.pop();renderQ();window.scrollTo({top:0,behavior:'smooth'});}
+}
+function skip(){
+  history.push(qIdx);qIdx++;
+  if(qIdx>=QUESTIONS.length){calcResult();return;}
+  renderQ();window.scrollTo({top:0,behavior:'smooth'});
+}
+function flash(){
+  var c=document.getElementById('cur-card');
+  if(!c)return;
+  c.style.animation='none';
+  c.style.border='1px solid rgba(248,113,113,.5)';
+  // Show inline error
+  var existing = document.getElementById('flash-msg');
+  if(existing) existing.remove();
+  var msg = document.createElement('div');
+  msg.id = 'flash-msg';
+  msg.style.cssText = 'color:#f87171;font-size:11px;margin-top:10px;letter-spacing:.06em;animation:fu .2s ease';
+  msg.textContent = '← Preencha este campo para continuar, ou clique em Pular';
+  c.appendChild(msg);
+  setTimeout(function(){
+    c.style.border='';
+    if(msg.parentNode) msg.remove();
+  }, 2500);
+}
+
+// ═══════════════════════════════════════════════════
+//  SAVE
+// ═══════════════════════════════════════════════════
+function saveLocal(){
+  try{localStorage.setItem('1n_diag',JSON.stringify({data:D,qIdx:qIdx,history:history}));}catch(e){}
+  var bar=document.getElementById('saving-bar');
+  bar.classList.add('show');
+  setTimeout(function(){bar.classList.remove('show');},1400);
+  document.getElementById('sdot').classList.add('on');
+  document.getElementById('stxt').textContent='Salvo';
+}
+
+// ═══════════════════════════════════════════════════
+//  VALUATION
+// ═══════════════════════════════════════════════════
+var MULT_BASE={Varejo:2.5,Alimentação:2.8,Saúde:3.8,Tecnologia:4.5,Educação:3.5,
+  Serviços:3.0,Indústria:2.8,Construção:2.5,Outro:3.0};
+
+function calcResult(){
+  // Calc EBITDA
+  var sobra=D.sobraVal||0;
+  var addback=0;
+  if(D.prolaboreInc==='Não, sai desse valor') addback+=D.prolaboreVal||0;
+  if(D.sobraType==='Antes'){
+    var totalParcelas=D.dividas.reduce(function(s,d){return s+(d.parcela||0);},0);
+    addback+=totalParcelas;
+  }
+  var ebitda_m=sobra+addback;
+  var ebitda_a=ebitda_m*12;
+  D.ebitdaFinal=ebitda_a;
+
+  var cat=D.cat||'Outro';
+  var mult=MULT_BASE[cat]||3.0;
+  if(D.trend==='Cresceram')mult+=0.5;
+  if(D.trend==='Diminuíram')mult-=0.5;
+  if(D.ausencia==='Opera normalmente')mult+=0.4;
+  if(D.ausencia==='Para ou perde muito')mult-=0.5;
+  if(D.conc==='Menos de 20%')mult+=0.3;
+  if(D.conc==='Mais de 50%')mult-=0.4;
+  if(Array.isArray(D.ativos)&&D.ativos.length>=4)mult+=0.4;
+  mult=Math.max(1.5,Math.min(mult,7));
+
+  var valMult=ebitda_a>0?ebitda_a*mult:((D.fat||0)*12*0.12*mult);
+
+  // Ativos tangíveis
+  var totalAtivos=(D.estoque||0)+(D.ativosVal||0)+(D.ctaReceberCli||0)+(D.imovelVendaJunto==='Sim'?D.imovelVendaVal||0:0);
+  var totalDividas=D.dividas.reduce(function(s,d){return s+(d.total||0);},0);
+  var giroLiq=(D.ctaReceberCli||0)-(D.ctaPagarForn||0);
+
+  var valorVenda=valMult+totalAtivos+giroLiq-totalDividas;
+  var lo=Math.max(0,valorVenda*0.8),hi=valorVenda*1.2;
+
+  // Avisos
+  var avisos=[];
+  if(D.ausencia==='Para ou perde muito')avisos.push('Alta dependência operacional do sócio comprime o múltiplo');
+  if(D.conc==='Mais de 50%')avisos.push('Concentração de receita em poucos clientes é fator de risco');
+  if(D.trend==='Diminuíram')avisos.push('Tendência de queda impacta o múltiplo setorial');
+  if(totalDividas>0)avisos.push(fmtBRL(totalDividas)+' em dívidas descontados do valor de venda');
+  if(D.alvaras==='Tem pendências')avisos.push('Pendências de alvarás podem travar a transação');
+  if(D.antecipa==='Sim, antecipo recebíveis')avisos.push('Antecipação de recebíveis reduz o valor real do fluxo de caixa');
+
+  // Pilares
+  var pFin=calcPF(),pCom=calcPC(),pOp=calcPO(),pRisk=calcPR();
+
+  var midStr=fmtBRL(valorVenda);
+
+  document.getElementById('prog').style.width='100%';
+  document.getElementById('hdr-sec').textContent='Resultado';
+
+  document.getElementById('card-wrap').innerHTML='';
+  var rs=document.getElementById('result-screen');
+  rs.style.display='block';
+  rs.innerHTML='<div class="r-wrap">'
+    +'<div class="eyebrow">Análise preliminar 1Negócio</div>'
+    +'<h1 class="q" style="margin-bottom:20px">Seu negócio vale<br><em>'+midStr+'</em></h1>'
+    +'<div class="r-top">'
+    +'<div class="r-ey">VALUATION ORIENTATIVO</div>'
+    +'<div class="r-lbl">Faixa estimada — EBITDA anual de '+fmtBRL(ebitda_a)+' × múltiplo '+mult.toFixed(1)+'× + ativos</div>'
+    +'<div class="r-val">'+midStr+'</div>'
+    +'<div class="r-range">Faixa: '+fmtBRL(lo)+' – '+fmtBRL(hi)+'</div>'
+    +(avisos.length?'<div class="r-warn"><strong>Pontos de atenção:</strong><ul style="padding-left:14px;margin-top:6px;display:flex;flex-direction:column;gap:3px">'+avisos.map(function(a){return '<li>'+a+'</li>';}).join('')+'</ul></div>':'')
+    +'</div>'
+    +'<div class="r-pillars">'
+    +renderPillar('Resultado',pFin)
+    +renderPillar('Comercial',pCom)
+    +renderPillar('Operação',pOp)
+    +renderPillar('Risco',pRisk)
+    +'</div>'
+    +'<div style="border:1px solid rgba(245,158,11,.2);background:rgba(245,158,11,.03);padding:16px 20px;margin-top:12px;font-size:12px;color:var(--dim);line-height:1.7">'
+    +'<strong style="color:var(--amber)">Importante:</strong> Este é um valor <strong style="color:var(--ink)">orientativo</strong>. O laudo completo, com análise auditada de DRE e balanço e valuation definitivo, é realizado com o consultor 1Negócio na reunião de avaliação.'
+    +'</div>'
+    +'<div class="r-cta">'
+    +'<div><div style="font-size:14px;font-weight:500;color:var(--ink);margin-bottom:2px">Agende sua reunião de avaliação</div><div style="font-size:11px;color:var(--dim)">90 min · Consultor dedicado · Resultado em 48h após a reunião</div></div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px">'+'<a href="https://buy.stripe.com/9B6cN47X05dm3a9a0r5os03" target="_blank" style="display:block;background:#f59e0b;color:#000;font-family:\'DM Mono\',monospace;font-size:10px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;padding:12px 18px;text-decoration:none;text-align:center;white-space:nowrap">Avaliação · R$397 →</a>'+'<a href="https://buy.stripe.com/7sYdR8elo21aeSRegH5os02" target="_blank" style="display:block;background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.35);font-family:\'DM Mono\',monospace;font-size:10px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;padding:11px 18px;text-decoration:none;text-align:center;white-space:nowrap">Plano Guiado · R$588 →</a>'+'</div>'
+    +'</div>'
+    +'<div style="text-align:center;padding:16px 0 0;font-size:11px;color:var(--dim)">Seus dados foram salvos. O consultor já tem acesso a este diagnóstico.</div>'
+    +'</div>';
+
+  setTimeout(function(){
+    document.querySelectorAll('.p-fill').forEach(function(el){
+      el.style.width=el.dataset.w+'%';
+    });
+  },100);
+  window.scrollTo({top:0,behavior:'smooth'});
+  saveLocal();
+}
+
+function renderPillar(n,s){
+  return '<div class="pillar"><div class="p-n">'+n.toUpperCase()+'</div>'
+    +'<div class="p-bar"><div class="p-fill" data-w="'+s+'" style="width:0%"></div></div>'
+    +'<div class="p-sc">'+s+'<span style="font-size:9px;color:var(--dim)">/100</span></div></div>';
+}
+
+function calcPF(){
+  var s=50;
+  if(D.sobraVal>0&&D.fat>0){var mg=D.sobraVal/D.fat;if(mg>0.25)s+=30;else if(mg>0.12)s+=15;else if(mg<0.05)s-=15;}
+  if(D.trend==='Cresceram')s+=15;if(D.trend==='Diminuíram')s-=20;
+  if(D.temDivida==='Sim, tem dívidas')s-=10;
+  return Math.max(10,Math.min(s,98));
+}
+function calcPC(){
+  var s=50;
+  if(D.conc==='Menos de 20%')s+=25;if(D.conc==='Mais de 50%')s-=20;
+  if(Array.isArray(D.canais)&&D.canais.length>=3)s+=15;
+  return Math.max(10,Math.min(s,98));
+}
+function calcPO(){
+  var s=50;
+  if(D.ausencia==='Opera normalmente')s+=35;if(D.ausencia==='Para ou perde muito')s-=30;
+  if(Array.isArray(D.ativos)){
+    if(D.ativos.some(function(a){return a.includes('Processos');}))s+=15;
+    if(D.ativos.some(function(a){return a.includes('Equipe');}))s+=10;
+  }
+  if(D.alvaras==='Sim, tudo em dia')s+=10;if(D.alvaras==='Tem pendências')s-=15;
+  return Math.max(10,Math.min(s,98));
+}
+function calcPR(){
+  var s=70;
+  if(D.temDivida==='Sim, tem dívidas')s-=20;if(D.alvaras==='Tem pendências')s-=15;
+  if(D.conc==='Mais de 50%')s-=10;if(D.ausencia==='Para ou perde muito')s-=10;
+  if(D.trend==='Cresceram')s+=10;
+  return Math.max(10,Math.min(s,98));
+}
+
+function agendar(){alert('Em produção: abre o link Cal.com exclusivo para clientes da Avaliação R$397');}
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+(function(){
+  try{
+    var saved=localStorage.getItem('1n_diag');
+    if(saved){
+      var p=JSON.parse(saved);
+      if(p.data)Object.assign(D,p.data);
+      if(typeof p.qIdx==='number')qIdx=p.qIdx;
+      if(Array.isArray(p.history))history=p.history;
+    }
+  }catch(e){}
+  buildQuestions();
+  renderQ();
+})();
+</script>
+
+<!-- NAV BUTTONS (fixed bottom) -->
+<div id="nav-bar" style="position:fixed;bottom:0;left:0;right:0;background:rgba(12,12,10,.96);backdrop-filter:blur(20px);border-top:1px solid var(--faint);padding:14px 32px;display:flex;align-items:center;gap:12px;z-index:98">
+  <button class="btn-back" onclick="back()">←</button>
+  <button class="btn-next" onclick="next()" style="flex:1">Continuar →</button>
+  <button class="btn-skip" onclick="skip()">Pular</button>
+</div>
+
+</body>
+</html>
