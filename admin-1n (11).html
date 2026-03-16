@@ -1,0 +1,1943 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>1Negócio Admin v2</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Instrument+Serif:ital@0;1&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0c0c0a;--s1:#111110;--s2:#0c0c0a;--s3:#161614;
+  --b1:rgba(255,255,255,.07);--b2:rgba(255,255,255,.12);
+  --ink:rgba(255,255,255,.88);--ink2:rgba(255,255,255,.65);--ink3:rgba(255,255,255,.38);--ink4:rgba(255,255,255,.22);
+  --amber:#f59e0b;--green:#10b981;--red:#f87171;--blue:#60a5fa;--purple:#a78bfa;
+  --f:'DM Mono',monospace;--fh:'Syne',sans-serif;
+}
+body{background:var(--bg);color:var(--ink);font-family:var(--f);font-size:11px}
+#top{height:44px;background:rgba(12,12,10,.98);border-bottom:1px solid rgba(245,158,11,.2);display:flex;align-items:stretch;flex-shrink:0;backdrop-filter:blur(20px)}
+.logo{padding:0 18px;border-right:1px solid var(--b1);display:flex;align-items:center;gap:10px;font-family:var(--fh);font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+.logo em{color:var(--green);font-style:normal}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 2.4s ease infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.6)}}
+.kpi{padding:0 14px;border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;justify-content:center;cursor:default;flex-shrink:0}
+.kpi-n{font-size:14px;font-weight:700;line-height:1}
+.kpi-l{font-size:7px;color:var(--ink4);letter-spacing:.12em;text-transform:uppercase;margin-top:2px}
+.tnav{display:flex;align-items:stretch;flex:1}
+.tn{background:none;border:none;border-bottom:2px solid transparent;padding:0 14px;color:var(--ink3);font-family:var(--f);font-size:9px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .12s}
+.tn:hover{color:var(--ink);background:rgba(255,255,255,.03)}
+.tn.on{color:var(--green);border-bottom-color:var(--green);background:rgba(16,185,129,.05)}
+.tcp{background:rgba(16,185,129,.08);border:none;border-left:1px solid rgba(16,185,129,.25);padding:0 16px;color:var(--green);font-family:var(--f);font-size:9px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;flex-shrink:0}
+.tcp:hover{background:rgba(16,185,129,.14)}
+.ttime{padding:0 14px;display:flex;align-items:center;color:rgba(255,255,255,.3);font-size:11px;font-weight:700;letter-spacing:.08em;border-left:1px solid var(--b1);flex-shrink:0}
+#shell{display:grid;grid-template-columns:156px 1fr;flex:1;overflow:hidden}
+#sb{background:#060606;border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;overflow-y:auto}
+.sblbl{padding:10px 12px 4px;font-size:7px;letter-spacing:.18em;color:var(--ink4);text-transform:uppercase}
+.si{display:flex;align-items:center;gap:9px;padding:8px 14px;cursor:pointer;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);border-left:3px solid transparent;transition:all .1s}
+.si:hover{color:var(--ink2);background:rgba(255,255,255,.04)}
+.si.on{color:var(--green);border-left-color:var(--green);background:rgba(16,185,129,.05)}
+.sbsep{height:1px;background:var(--b1);margin:6px 0}
+.sbnew{margin:10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);color:var(--green);font-family:var(--f);font-size:8px;letter-spacing:.12em;text-transform:uppercase;padding:9px;cursor:pointer;transition:all .14s;width:calc(100% - 20px)}
+.sbnew:hover{background:rgba(16,185,129,.14)}
+#main{overflow-y:auto}
+.view{display:none;padding:14px}
+.view.on{display:block}
+
+/* STATUS BAR */
+.statusbar{display:inline-flex;align-items:stretch;border:1px solid var(--b1);overflow:hidden}
+.ss{padding:5px 12px;font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);cursor:pointer;transition:all .1s;border-right:1px solid var(--b1)}
+.ss:last-child{border-right:none}
+.ss:hover{background:rgba(255,255,255,.04)}
+.ss.on-r{color:var(--ink3);background:rgba(255,255,255,.05)}
+.ss.on-a{color:var(--blue);background:rgba(96,165,250,.1)}
+.ss.on-p{color:var(--green);background:rgba(52,211,153,.1)}
+
+/* BLOCO ACCORDION */
+.bloco{background:#111110;border:1px solid rgba(255,255,255,.07);margin-bottom:6px}
+.bloco-hd{padding:8px 12px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;border-bottom:0;transition:background .1s}
+.bloco-hd:hover{background:rgba(255,255,255,.02)}
+.bloco.open .bloco-hd{border-bottom:1px solid var(--b1)}
+.bloco-num{font-size:7px;letter-spacing:.14em;color:var(--ink4);width:18px;text-align:center;flex-shrink:0}
+.bloco-title{font-size:9px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;flex:1}
+.bloco-ia{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);color:var(--amber);font-family:var(--f);font-size:7px;letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;cursor:pointer;transition:all .1s;flex-shrink:0}
+.bloco-ia:hover{background:rgba(251,191,36,.2)}
+.bloco-toggle{font-size:10px;color:var(--ink4);width:16px;text-align:center;flex-shrink:0;transition:transform .2s}
+.bloco.open .bloco-toggle{transform:rotate(180deg)}
+.bloco-body{display:none;padding:12px}
+.bloco.open .bloco-body{display:block}
+.bloco.open .bloco-hd{background:rgba(255,255,255,.015)}
+
+/* COLOR ACCENTS PER BLOCK */
+.bloco.c-amber{border-left:3px solid var(--amber)}
+.bloco.c-blue{border-left:3px solid var(--blue)}
+.bloco.c-green{border-left:3px solid var(--green)}
+.bloco.c-red{border-left:3px solid var(--red)}
+.bloco.c-purple{border-left:3px solid var(--purple)}
+.bloco.c-teal{border-left:3px solid #2dd4bf}
+.bloco.c-gray{border-left:3px solid var(--ink4)}
+.bloco.c-amber .bloco-title{color:var(--amber)}
+.bloco.c-blue .bloco-title{color:var(--blue)}
+.bloco.c-green .bloco-title{color:var(--green)}
+.bloco.c-red .bloco-title{color:var(--red)}
+.bloco.c-purple .bloco-title{color:var(--purple)}
+.bloco.c-teal .bloco-title{color:#2dd4bf}
+.bloco.c-gray .bloco-title{color:var(--ink3)}
+
+/* FORM */
+.fi{background:#161614;border:1px solid rgba(255,255,255,.08);padding:7px 11px;color:var(--ink);font-family:var(--f);font-size:11px;outline:none;width:100%;transition:border-color .12s}
+.fi:focus{border-color:rgba(16,185,129,.4)}
+textarea.fi{resize:vertical}
+select.fi option{background:var(--s3)}
+.fl{font-size:7px;letter-spacing:.14em;color:var(--ink4);text-transform:uppercase;margin-bottom:3px}
+.fla{font-size:7px;letter-spacing:.14em;color:rgba(251,191,36,.7);text-transform:uppercase;margin-bottom:3px}
+.flb{font-size:7px;letter-spacing:.14em;color:rgba(96,165,250,.7);text-transform:uppercase;margin-bottom:3px}
+.flg{font-size:7px;letter-spacing:.14em;color:rgba(52,211,153,.7);text-transform:uppercase;margin-bottom:3px}
+.flr{font-size:7px;letter-spacing:.14em;color:rgba(248,113,113,.7);text-transform:uppercase;margin-bottom:3px}
+.fg{display:flex;flex-direction:column;flex:1;min-width:120px}
+.fr{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.btn{background:rgba(255,255,255,.06);border:1px solid var(--b2);padding:5px 12px;color:var(--ink2);font-family:var(--f);font-size:9px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .12s}
+.btn:hover{background:rgba(255,255,255,.12);color:#fff}
+.ba{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.4);color:var(--amber)}.ba:hover{background:rgba(251,191,36,.22)}
+.bg_{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:var(--green)}.bg_:hover{background:rgba(16,185,129,.18)}
+.bb{background:rgba(96,165,250,.1);border-color:rgba(96,165,250,.35);color:var(--blue)}.bb:hover{background:rgba(96,165,250,.2)}
+.br{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.35);color:var(--red)}
+.bsm{padding:3px 8px;font-size:8px}
+.bg_{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:var(--green)}.bg_:hover{background:rgba(16,185,129,.18)}
+
+/* BADGES */
+.bge{display:inline-block;font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px}
+.bgg{background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.3);color:var(--green)}
+.bga{background:rgba(251,191,36,.15);border:1px solid rgba(251,191,36,.3);color:var(--amber)}
+.bgb{background:rgba(96,165,250,.15);border:1px solid rgba(96,165,250,.3);color:var(--blue)}
+.bgd{background:rgba(107,114,128,.15);border:1px solid rgba(107,114,128,.3);color:var(--ink4)}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:7px;letter-spacing:.12em;color:var(--ink4);text-transform:uppercase;padding:6px 10px;text-align:left;border-bottom:1px solid var(--b1);background:rgba(0,0,0,.15)}
+.tbl td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--ink2);font-size:11px;vertical-align:middle}
+.tbl tr:hover td{background:rgba(255,255,255,.025)}
+
+/* DRE */
+.dtbl{width:100%;border-collapse:collapse;font-size:11px}
+.dtbl th{padding:5px 10px;border-bottom:1px solid rgba(255,255,255,.08);font-size:7px;letter-spacing:.12em;color:var(--green);text-transform:uppercase;text-align:right;background:rgba(0,0,0,.2);white-space:nowrap}
+.dtbl th:first-child{text-align:left;min-width:180px}
+.dtbl td{padding:3px 10px;border-bottom:1px solid rgba(255,255,255,.03);color:var(--ink2);text-align:right}
+.dtbl td:first-child{text-align:left;color:var(--ink)}
+.dtbl tr.res td{background:rgba(52,211,153,.07);font-weight:700}
+.dtbl tr.res td:first-child{color:var(--green);font-size:7px;letter-spacing:.08em;text-transform:uppercase}
+.dtbl tr.res.neg td{background:rgba(248,113,113,.07)}.dtbl tr.res.neg td:first-child{color:var(--red)}
+.dtbl tr:not(.res):hover td{background:rgba(255,255,255,.02)}
+.dinp{background:transparent;border:none;color:var(--ink);font-family:var(--f);font-size:11px;text-align:right;width:100%;outline:none;padding:2px 4px}
+.dinp:focus{background:rgba(251,191,36,.07);border-bottom:1px solid var(--amber)}
+.ptgl{display:flex;background:rgba(0,0,0,.3);border:1px solid var(--b1)}
+.pbtn{background:none;border:none;border-bottom:2px solid transparent;padding:4px 10px;font-family:var(--f);font-size:8px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;color:var(--ink4);transition:all .1s}
+.pbtn.on{color:var(--green);border-bottom-color:var(--green);background:rgba(16,185,129,.07)}
+
+/* BALANCO */
+.bal-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--b1)}
+.bal-col-hd{padding:6px 10px;font-size:7px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between}
+.bal-col-hd.at{color:var(--green);background:rgba(52,211,153,.07)}
+.bal-col-hd.pas{color:var(--red);background:rgba(248,113,113,.07);border-left:1px solid var(--b1)}
+.bal-row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px;padding:3px 8px;border-bottom:1px solid rgba(255,255,255,.025)}
+.bal-row.pas{border-left:1px solid var(--b1)}
+.bal-row:last-child{border-bottom:none}
+.bal-inp{background:transparent;border:none;color:var(--ink);font-family:var(--f);font-size:10px;text-align:right;width:90px;outline:none;padding:2px 4px}
+.bal-inp:focus{background:rgba(255,255,255,.04);border-bottom:1px solid var(--b2)}
+.bal-total{display:grid;grid-template-columns:1fr 1fr;background:rgba(0,0,0,.2);border-top:2px solid var(--b2)}
+.bal-tc{padding:7px 10px;display:flex;justify-content:space-between;align-items:center}
+.bal-tc.pas{border-left:1px solid var(--b1)}
+.bal-pl{padding:7px 10px;background:rgba(52,211,153,.06);border-top:1px solid rgba(52,211,153,.2);display:flex;justify-content:space-between;align-items:center}
+
+/* PILARES */
+.pr{display:grid;grid-template-columns:150px 32px 1fr 46px 44px;align-items:center;gap:6px;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,.04)}
+.pr:last-child{border:none}
+input[type=range]{width:100%;cursor:pointer;accent-color:var(--amber)}
+.obsbtn{background:rgba(255,255,255,.05);border:1px solid var(--b1);color:var(--ink4);font-family:var(--f);font-size:7px;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;cursor:pointer}
+.obsbtn:hover{color:var(--amber);border-color:rgba(251,191,36,.4)}
+
+/* SCORE */
+.sbox{display:flex;align-items:center;gap:16px;padding:10px 12px;background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.15);margin-bottom:10px}
+.sbig{font-family:var(--fh);font-size:44px;font-weight:800;line-height:1}
+.sbarbg{height:3px;background:rgba(255,255,255,.1);flex:1;overflow:hidden}
+.sbarfill{height:100%;transition:width .7s}
+
+/* LOG */
+.log-item{display:flex;gap:10px;padding:7px 12px;border-bottom:1px solid rgba(255,255,255,.04)}
+.log-item:last-child{border:none}
+.ld{width:7px;height:7px;border-radius:50%;background:var(--ink4);flex-shrink:0;margin-top:3px}
+.ld.g{background:var(--green)}.ld.a{background:var(--amber)}.ld.b{background:var(--blue)}.ld.r{background:var(--red)}.ld{opacity:.8}
+.log-txt{font-size:10px;color:var(--ink2);line-height:1.5}
+.log-time{font-size:9px;color:var(--ink4);margin-top:2px}
+
+/* IA PANEL */
+#ia-panel{position:fixed;right:0;top:44px;bottom:0;width:280px;background:#060606;border-left:1px solid rgba(16,185,129,.2);display:none;flex-direction:column;z-index:200}
+#ia-panel.open{display:flex}
+.ia-hd{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:rgba(16,185,129,.04)}
+.ia-hd-t{font-size:8px;letter-spacing:.14em;color:var(--green);text-transform:uppercase;font-family:var(--fh);font-weight:700}
+.ia-body{flex:1;overflow-y:auto;padding:12px;font-size:10px;color:var(--ink2);line-height:1.7}
+.ia-msg{padding:8px 10px;background:rgba(16,185,129,.05);border-left:2px solid rgba(16,185,129,.3);margin-bottom:8px}
+.ia-empty{color:var(--ink4);font-size:9px;letter-spacing:.08em;text-align:center;padding:20px;text-transform:uppercase}
+
+/* COPILOTO */
+#cp{position:fixed;right:0;top:44px;bottom:0;width:284px;background:#060606;border-left:1px solid rgba(245,158,11,.2);display:none;flex-direction:column;z-index:200}
+#cp.open{display:flex}
+.cphd{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:rgba(245,158,11,.04)}
+.cphdtxt{font-size:9px;letter-spacing:.14em;color:var(--amber);text-transform:uppercase;font-family:var(--fh);font-weight:700}
+.cpmsgs{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:6px}
+.cpm{padding:8px 10px;font-size:10px;line-height:1.65}
+.cpm.ai{background:rgba(16,185,129,.05);border-left:2px solid rgba(16,185,129,.35);color:var(--ink2)}
+.cpm.user{background:rgba(96,165,250,.06);border-left:3px solid rgba(96,165,250,.4);color:var(--ink3)}
+.cpm.sys{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);text-align:center;background:none;border:none;padding:4px}
+.cptype{padding:6px 14px;font-size:9px;color:var(--amber);letter-spacing:.1em}
+.cpwrap{padding:8px;border-top:1px solid var(--b1);display:flex;gap:6px;flex-shrink:0;background:rgba(0,0,0,.2)}
+.cpinp{flex:1;background:var(--s2);border:1px solid var(--b1);padding:7px 9px;color:var(--ink);font-family:var(--f);font-size:10px;outline:none;resize:none;max-height:55px}
+.cpinp:focus{border-color:rgba(251,191,36,.4)}
+.cpsend{background:rgba(251,191,36,.15);border:1px solid rgba(251,191,36,.4);color:var(--amber);padding:0 12px;cursor:pointer;font-size:14px}
+.cpsend:hover{background:rgba(251,191,36,.28)}
+.ld-txt{padding:24px;text-align:center;color:var(--ink4);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.fontes-upload{border:1px dashed rgba(16,185,129,.2);padding:16px;text-align:center;cursor:pointer;background:rgba(16,185,129,.03);transition:background .15s}
+.fontes-upload:hover{background:rgba(16,185,129,.06)}
+.fonte-card{background:rgba(0,0,0,.2);border:1px solid var(--b1);padding:8px 10px;margin-bottom:6px;display:flex;flex-direction:column;gap:4px}
+.fonte-card.t{border-left:3px solid var(--blue)}
+.fonte-card.g{border-left:3px solid var(--green)}
+.info-tip{padding:8px 10px;background:rgba(255,255,255,.03);border-left:2px solid rgba(255,255,255,.1);font-size:9px;color:var(--ink4);line-height:1.6;margin-top:8px}
+
+
+/* ═══════════ LOGIN ═══════════ */
+#admin-login{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;background:var(--bg);
+  background-image:radial-gradient(ellipse 60% 40% at 50% 0%, rgba(16,185,129,.06) 0%, transparent 70%);
+}
+#app-wrap{display:flex;flex-direction:column;overflow:hidden;height:100vh}
+#app-wrap.hidden{display:none}
+.al-box{
+  background:#111110;border:1px solid rgba(255,255,255,.1);
+  padding:40px 36px;width:100%;max-width:380px;
+}
+.al-logo{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:#fff;margin-bottom:3px;letter-spacing:-.01em}
+.al-logo em{color:#10b981;font-style:normal}
+.al-sub{font-size:8px;letter-spacing:.18em;color:rgba(255,255,255,.28);text-transform:uppercase;margin-bottom:32px}
+.al-label{font-size:7px;letter-spacing:.16em;color:rgba(255,255,255,.38);text-transform:uppercase;margin-bottom:5px}
+.al-inp{
+  width:100%;background:#0c0c0a;border:1px solid rgba(255,255,255,.1);
+  padding:11px 13px;color:#fff;font-family:'DM Mono',monospace;font-size:12px;
+  outline:none;margin-bottom:16px;display:block;box-sizing:border-box;
+  transition:border-color .15s;
+}
+.al-inp:focus{border-color:rgba(16,185,129,.5);background:#0f0f0d}
+.al-btn{
+  width:100%;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);
+  color:#10b981;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;padding:13px;cursor:pointer;transition:all .15s;
+  display:block;box-sizing:border-box;
+}
+.al-btn:hover{background:rgba(16,185,129,.24);border-color:rgba(16,185,129,.5)}
+.al-btn:active{background:rgba(16,185,129,.32)}
+.al-err{font-size:10px;color:#f87171;min-height:18px;margin-bottom:10px;letter-spacing:.04em}
+.al-lock{font-size:8px;letter-spacing:.1em;color:rgba(255,255,255,.18);text-align:center;margin-top:16px;text-transform:uppercase}
+.al-sep{height:1px;background:rgba(255,255,255,.07);margin:20px 0}
+
+</style>
+</head>
+<body>
+
+<di
+
+<div id="admin-login" style="display:none">
+  <div class="al-box">
+    <div class="al-logo"><em>1</em>NEGÓCIO</div>
+    <div class="al-sub">Painel Admin &middot; Acesso Restrito</div>
+    <div class="al-label">E-mail</div>
+    <input class="al-inp" id="al-email" type="email" placeholder="admin@1negocio.com.br" autocomplete="username">
+    <div class="al-label">Senha</div>
+    <input class="al-inp" id="al-senha" type="password" placeholder="••••••••" autocomplete="current-password">
+    <div class="al-err" id="al-err"></div>
+    <button class="al-btn" id="al-btn" type="button">Entrar no Painel</button>
+    <div class="al-lock">&#128274; &#193;rea restrita &middot; 1neg&oacute;cio</div>
+  </div>
+</div>
+<div id="app-wrap" class="hidden">
+<div id="top">
+  <div class="logo"><em>1</em>NEGÓCIO <div class="dot"></div></div>
+  <div class="kpi"><div class="kpi-n" style="color:var(--ink)">3</div><div class="kpi-l">Negócios</div></div>
+  <div class="kpi"><div class="kpi-n" style="color:var(--green)">1</div><div class="kpi-l">Publicados</div></div>
+  <div class="kpi"><div class="kpi-n" style="color:var(--amber)">2</div><div class="kpi-l">Em Aval.</div></div>
+  <div class="tnav">
+    <button class="tn on" onclick="go('financeiro',this)">Financeiro</button>
+    <button class="tn" onclick="go('anuncios',this)">Anúncios</button>
+    <button class="tn" onclick="go('clientes',this)">Clientes</button>
+    <button class="tn" onclick="go('chats',this)">Chats</button>
+    <button class="tn" onclick="go('mesas',this)">Mesas</button>
+    <button class="tn" onclick="go('agenda',this)">Agenda</button>
+    <button class="tn" onclick="go('aval',this)">◆ Aval.</button>
+  </div>
+  <button class="tcp" onclick="toggleCp()">◆ Copiloto</button>
+  <div class="ttime" id="ttime">--:--:--</div><button onclick="adminLogout()" style="background:none;border:none;border-left:1px solid rgba(255,255,255,.07);padding:0 14px;color:rgba(255,255,255,.25);font-family:var(--f);font-size:8px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;height:100%;transition:color .1s" onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='rgba(255,255,255,.25)'">Sair</button>
+</div>
+<div id="shell">
+<div id="sb">
+  <div class="sblbl">Painel</div>
+  <div class="si on" onclick="go('financeiro',null)">$ Financeiro</div>
+  <div class="si" onclick="go('anuncios',null)">◆ Anúncios</div>
+  <div class="si" onclick="go('clientes',null)">○ Clientes</div>
+  <div class="si" onclick="go('chats',null)">✉ Chats</div>
+  <div class="si" onclick="go('mesas',null)">⬡ Mesas</div>
+  <div class="si" onclick="go('agenda',null)">◷ Agenda</div>
+  <div class="sbsep"></div>
+  <div class="sblbl">Admin</div>
+  <div class="si" onclick="go('aval',null)">◈ Avaliação</div>
+  <div class="sbsep"></div>
+  <button class="sbnew" onclick="go('aval',null)">+ Nova Avaliação</button>
+</div>
+<div id="main">
+
+<!-- FINANCEIRO -->
+<div class="view on" id="v-financeiro" style="max-width:900px">
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+    <div style="background:var(--s1);border:1px solid var(--b1);padding:14px;position:relative;overflow:hidden"><div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--green)"></div><div style="font-size:7px;letter-spacing:.14em;color:var(--ink4);text-transform:uppercase;margin-bottom:4px">Receita Março</div><div style="font-size:22px;font-weight:700;color:var(--green)">R$ 4.085</div><div style="font-size:9px;color:var(--ink4)">1 guiado + 3 avaliações</div></div>
+    <div style="background:var(--s1);border:1px solid var(--b1);padding:14px;position:relative;overflow:hidden"><div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--amber)"></div><div style="font-size:7px;letter-spacing:.14em;color:var(--ink4);text-transform:uppercase;margin-bottom:4px">Guiados Ativos</div><div style="font-size:22px;font-weight:700;color:var(--amber)">1</div><div style="font-size:9px;color:var(--ink4)">R$ 588 + 5% comissão</div></div>
+    <div style="background:var(--s1);border:1px solid var(--b1);padding:14px;position:relative;overflow:hidden"><div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--blue)"></div><div style="font-size:7px;letter-spacing:.14em;color:var(--ink4);text-transform:uppercase;margin-bottom:4px">Aval. R$397 — Mês</div><div style="font-size:22px;font-weight:700;color:var(--blue)">3</div><div style="font-size:9px;color:var(--ink4)">R$ 1.191</div></div>
+    <div style="background:var(--s1);border:1px solid var(--b1);padding:14px;position:relative;overflow:hidden"><div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--purple)"></div><div style="font-size:7px;letter-spacing:.14em;color:var(--ink4);text-transform:uppercase;margin-bottom:4px">Comissões Abertas</div><div style="font-size:22px;font-weight:700;color:var(--purple)">R$ 195K</div><div style="font-size:9px;color:var(--ink4)">estimativa s/ anúncios publicados</div></div>
+  </div>
+  <div style="background:var(--s1);border:1px solid var(--b1)">
+    <div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--ink3);text-transform:uppercase;background:rgba(0,0,0,.2);display:flex;align-items:center;gap:8px">Transações Recentes <button class="btn bsm" style="margin-left:auto">Exportar</button></div>
+    <table class="tbl">
+      <thead><tr><th>Data</th><th>Tipo</th><th>Cliente</th><th>Negócio</th><th style="text-align:right">Valor</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td style="color:var(--ink4);font-size:10px">16/03/2026</td><td><span class="bge bgg">Aval. R$397</span></td><td>Ana Souza</td><td>Barbearia Premium</td><td style="text-align:right;font-weight:600;color:var(--green)">R$ 397</td><td><span class="bge bgg">Pago</span></td></tr>
+        <tr><td style="color:var(--ink4);font-size:10px">14/03/2026</td><td><span class="bge bga">Guiado</span></td><td>Rafael Mendes</td><td>SaaS Gestão Clínicas</td><td style="text-align:right;font-weight:600;color:var(--amber)">R$ 588</td><td><span class="bge bgg">Pago</span></td></tr>
+        <tr><td style="color:var(--ink4);font-size:10px">10/03/2026</td><td><span class="bge bgb">Aval. R$397</span></td><td>Carlos Lima</td><td>Distribuidora Insumos</td><td style="text-align:right;font-weight:600;color:var(--green)">R$ 397</td><td><span class="bge bgg">Pago</span></td></tr>
+        <tr><td style="color:var(--ink4);font-size:10px">05/03/2026</td><td><span class="bge bgb">Aval. R$397</span></td><td>Maria Costa</td><td>Loja Roupas Online</td><td style="text-align:right;font-weight:600;color:var(--amber)">R$ 397</td><td><span class="bge bgd">Aguardando</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ANÚNCIOS -->
+<div class="view" id="v-anuncios" style="max-width:900px">
+  <div style="display:flex;gap:6px;margin-bottom:12px">
+    <button class="btn ba" onclick="go('aval',null)">+ Novo Anúncio</button>
+    <div style="display:flex;background:rgba(0,0,0,.3);border:1px solid var(--b1);margin-left:auto">
+      <button class="pbtn on" id="an-tab-pub" onclick="anTab('pub',this)">Publicados</button>
+      <button class="pbtn" id="an-tab-aval" onclick="anTab('aval',this)">Em Avaliação</button>
+      <button class="pbtn" id="an-tab-alt" onclick="anTab('alt',this)">Solicit. Alteração</button>
+      <button class="pbtn" id="an-tab-pend" onclick="anTab('pend',this)">Pendentes Aprov.</button>
+    </div>
+  </div>
+  <div id="an-pub" class="an-view">
+    <div style="background:var(--s1);border:1px solid var(--b1)">
+      <div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--green);text-transform:uppercase;background:rgba(0,0,0,.2)">Publicados (1)</div>
+      <table class="tbl"><thead><tr><th>Negócio</th><th>Status</th><th style="text-align:right">Score</th><th style="text-align:right">Preço</th><th>Validade</th><th></th></tr></thead>
+      <tbody><tr><td><strong style="color:#fff;display:block">SaaS Gestão p/ Clínicas</strong><span style="font-size:9px;color:var(--ink4)">TECNOLOGIA · Florianópolis SC</span></td><td><span class="bge bgg">Publicado</span></td><td style="text-align:right;font-weight:700;color:var(--green)">74</td><td style="text-align:right">R$ 1.300.000</td><td style="font-size:9px;color:var(--ink4)">até 16/03/2027</td><td><button class="btn ba bsm" onclick="go('aval',null)">◆ Abrir</button></td></tr></tbody></table>
+    </div>
+  </div>
+  <div id="an-aval" class="an-view" style="display:none">
+    <div style="background:var(--s1);border:1px solid var(--b1)">
+      <div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--amber);text-transform:uppercase;background:rgba(0,0,0,.2)">Em Avaliação (2)</div>
+      <table class="tbl"><thead><tr><th>Negócio</th><th>Status</th><th>Consultor</th><th>Iniciado</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><strong style="color:#fff">Barbearia Premium · 3 Unid.</strong></td><td><span class="bge bga">Em Avaliação</span></td><td style="color:var(--ink3)">Thiago Mann</td><td style="font-size:9px;color:var(--ink4)">10/03/2026</td><td><button class="btn ba bsm">◆ Abrir</button></td></tr>
+        <tr><td><strong style="color:#fff">Distribuidora Insumos</strong></td><td><span class="bge bgd">Rascunho</span></td><td style="color:var(--ink3)">Thiago Mann</td><td style="font-size:9px;color:var(--ink4)">05/03/2026</td><td><button class="btn ba bsm">◆ Abrir</button></td></tr>
+      </tbody></table>
+    </div>
+  </div>
+  <div id="an-alt" class="an-view" style="display:none">
+    <div style="background:var(--s1);border:1px solid var(--b1)">
+      <div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--blue);text-transform:uppercase;background:rgba(0,0,0,.2)">Solicitações de Alteração (1)</div>
+      <table class="tbl"><thead><tr><th>Negócio</th><th>Vendedor</th><th>Mensagem</th><th>Data</th><th></th></tr></thead>
+      <tbody><tr><td><strong style="color:#fff">SaaS Gestão p/ Clínicas</strong></td><td style="color:var(--ink3)">Rafael Mendes</td><td style="color:var(--ink2);max-width:280px;font-size:11px">Gostaria de ajustar o preço pedido para R$ 1.200.000 e incluir equipamentos no pacote.</td><td style="font-size:9px;color:var(--ink4)">15/03/2026</td><td><div style="display:flex;gap:4px"><button class="btn bsm bb">Responder</button><button class="btn ba bsm">Abrir</button></div></td></tr></tbody></table>
+    </div>
+  </div>
+  <div id="an-pend" class="an-view" style="display:none">
+    <div style="background:var(--s1);border:1px solid var(--b1)">
+      <div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--purple);text-transform:uppercase;background:rgba(0,0,0,.2)">Pendentes de Aprovação (0)</div>
+      <div class="ld-txt">Nenhum anúncio aguardando aprovação</div>
+    </div>
+  </div>
+</div>
+
+<!-- CLIENTES -->
+<div class="view" id="v-clientes" style="max-width:900px">
+  <div style="display:flex;gap:6px;margin-bottom:12px">
+    <input class="fi" placeholder="Buscar por nome ou e-mail..." style="max-width:280px;text-transform:none">
+    <div style="display:flex;background:rgba(0,0,0,.3);border:1px solid var(--b1);margin-left:auto">
+      <button class="pbtn on" onclick="clTab('comp',this)">Compradores</button>
+      <button class="pbtn" onclick="clTab('vend',this)">Vendedores</button>
+      <button class="pbtn" onclick="clTab('all',this)">Todos</button>
+    </div>
+  </div>
+  <div style="background:var(--s1);border:1px solid var(--b1)">
+    <table class="tbl">
+      <thead><tr><th>Nome</th><th>E-mail</th><th>Tipo</th><th>Cadastro</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><strong style="color:#fff">João Silva</strong></td><td style="color:var(--ink3);font-size:11px">joao@empresa.com</td><td><span class="bge bgb">Comprador</span></td><td style="font-size:9px;color:var(--ink4)">10/02/2026</td><td><span class="bge bgg">Ativo</span></td><td><button class="btn bsm" onclick="abrirChatCliente('João Silva')">✉ Chat</button></td></tr>
+        <tr><td><strong style="color:#fff">Rafael Mendes</strong></td><td style="color:var(--ink3);font-size:11px">rafael@saas.com.br</td><td><span class="bge bga">Vendedor</span></td><td style="font-size:9px;color:var(--ink4)">01/03/2026</td><td><span class="bge bgg">Ativo</span></td><td><button class="btn bsm" onclick="abrirChatCliente('Rafael Mendes')">✉ Chat</button></td></tr>
+        <tr><td><strong style="color:#fff">Ana Souza</strong></td><td style="color:var(--ink3);font-size:11px">ana@gmail.com</td><td><span class="bge bgb">Comprador</span></td><td style="font-size:9px;color:var(--ink4)">14/03/2026</td><td><span class="bge bgg">Ativo</span></td><td><button class="btn bsm" onclick="abrirChatCliente('Ana Souza')">✉ Chat</button></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- CHATS -->
+<div class="view" id="v-chats" style="max-width:900px">
+  <div style="display:grid;grid-template-columns:260px 1fr;gap:0;background:var(--s1);border:1px solid var(--b1);height:500px">
+    <div style="border-right:1px solid var(--b1);display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--ink3);text-transform:uppercase;background:rgba(0,0,0,.2)">Conversas</div>
+      <div style="overflow-y:auto;flex:1" id="chat-list">
+        <div class="chat-li on" data-who="Rafael Mendes" onclick="selChat(this)" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04);background:rgba(251,191,36,.06);border-left:3px solid var(--amber)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px"><strong style="font-size:11px;color:#fff">Rafael Mendes</strong><span style="font-size:9px;color:var(--ink4)">11:33</span></div>
+          <div style="font-size:10px;color:var(--ink3)">Vendedor · SaaS Gestão Clínicas</div>
+          <div style="font-size:10px;color:var(--ink4);margin-top:2px">Obrigado pela aprovação...</div>
+        </div>
+        <div class="chat-li" data-who="João Silva" onclick="selChat(this)" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04);border-left:3px solid transparent">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px"><strong style="font-size:11px;color:#fff">João Silva</strong><span style="font-size:9px;color:var(--ink4)">09:15</span></div>
+          <div style="font-size:10px;color:var(--ink3)">Comprador · Interesse em SaaS</div>
+          <div style="font-size:10px;color:var(--ink4);margin-top:2px">Quando posso ver o dossiê?</div>
+        </div>
+        <div class="chat-li" data-who="Ana Souza" onclick="selChat(this)" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04);border-left:3px solid transparent">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px"><strong style="font-size:11px;color:#fff">Ana Souza</strong><span style="font-size:9px;color:var(--ink4)">Ontem</span></div>
+          <div style="font-size:10px;color:var(--ink3)">Comprador · Barbearia</div>
+          <div style="font-size:10px;color:var(--ink4);margin-top:2px">Fechado! Reunião amanhã.</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:10px 14px;border-bottom:1px solid var(--b1);background:rgba(0,0,0,.2);display:flex;align-items:center;justify-content:space-between">
+        <div><div id="chat-nome" style="font-size:11px;font-weight:700;color:#fff">Rafael Mendes</div><div style="font-size:9px;color:var(--ink4)">Vendedor · SaaS Gestão p/ Clínicas</div></div>
+      </div>
+      <div id="chat-msgs" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px">
+        <div style="align-self:flex-start;max-width:75%"><div style="font-size:8px;color:var(--ink4);margin-bottom:2px">Rafael Mendes · 11:33</div><div style="background:var(--s2);border:1px solid var(--b1);padding:8px 11px;font-size:11px;color:var(--ink2);line-height:1.5">Recebi a notificação de aprovação. Obrigado! Quando o anúncio vai ao ar?</div></div>
+        <div style="align-self:flex-end;max-width:75%"><div style="font-size:8px;color:var(--ink4);margin-bottom:2px;text-align:right">Você · 11:45</div><div style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.2);padding:8px 11px;font-size:11px;color:var(--ink2);line-height:1.5">Já está publicado! Acesse 1negocio.com.br para visualizar. Boa sorte!</div></div>
+      </div>
+      <div style="padding:8px 12px;border-top:1px solid var(--b1);display:flex;gap:6px;background:rgba(0,0,0,.15)">
+        <input id="chat-inp" class="fi" placeholder="Mensagem..." style="flex:1;text-transform:none" onkeydown="if(event.key==='Enter')enviarChat()">
+        <button class="btn ba bsm" onclick="enviarChat()">Enviar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MESAS -->
+<div class="view" id="v-mesas" style="max-width:900px">
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button class="btn ba" onclick="abrirNovaMesa()">+ Abrir Mesa</button>
+  </div>
+  <div id="mesa-nova" style="display:none;background:var(--s1);border:1px solid var(--b1);padding:14px;margin-bottom:12px">
+    <div style="font-size:8px;letter-spacing:.14em;color:var(--amber);text-transform:uppercase;margin-bottom:10px">Nova Mesa de Negociação</div>
+    <div class="fr">
+      <div class="fg"><div class="fla">Anúncio / Negócio</div>
+        <select class="fi" style="background:var(--s2);color:var(--ink)"><option>SaaS Gestão p/ Clínicas</option><option>Barbearia Premium</option></select>
+      </div>
+      <div class="fg"><div class="fla">Comprador (Lead)</div>
+        <select class="fi" style="background:var(--s2);color:var(--ink)"><option>João Silva</option><option>Ana Souza</option></select>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn ba bsm" onclick="criarMesa()">◆ Criar Mesa e Abrir Chat</button>
+      <button class="btn bsm" onclick="document.getElementById('mesa-nova').style.display='none'">Cancelar</button>
+    </div>
+  </div>
+  <div style="background:var(--s1);border:1px solid var(--b1)">
+    <div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--ink3);text-transform:uppercase;background:rgba(0,0,0,.2)">Mesas Ativas</div>
+    <table class="tbl">
+      <thead><tr><th>Negócio</th><th>Comprador</th><th>Status</th><th>Última msg</th><th></th></tr></thead>
+      <tbody id="mesas-lista">
+        <tr id="mesa-1"><td><strong style="color:#fff">SaaS Gestão p/ Clínicas</strong></td><td style="color:var(--ink3)">João Silva</td><td><span class="bge bgg">Aberta</span></td><td style="font-size:9px;color:var(--ink4)">Há 2h</td><td><div style="display:flex;gap:4px"><button class="btn bb bsm" onclick="abrirMesaChat('mesa-1')">Chat</button><button class="btn br bsm" onclick="encerrarMesa('mesa-1')">Encerrar</button></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <!-- MESA CHAT (3 vias) -->
+  <div id="mesa-chat-wrap" style="display:none;background:var(--s1);border:1px solid rgba(251,191,36,.3);margin-top:12px">
+    <div style="padding:8px 12px;border-bottom:1px solid var(--b1);background:rgba(251,191,36,.06);display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--amber)" id="mesa-chat-title">Mesa: SaaS Gestão p/ Clínicas × João Silva</div>
+        <div style="font-size:9px;color:var(--ink4)">Chat 3 vias — Admin · Vendedor · Comprador — nomes e contatos não expostos entre partes</div>
+      </div>
+      <button class="btn bsm" onclick="document.getElementById('mesa-chat-wrap').style.display='none'">✕</button>
+    </div>
+    <div style="height:280px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px" id="mesa-msgs">
+      <div style="text-align:center;font-size:9px;color:var(--ink4);letter-spacing:.08em;text-transform:uppercase;padding:4px 0">Mesa aberta em 16/03/2026 às 09:15 · Documentação disponível</div>
+      <div style="align-self:flex-start;max-width:70%"><div style="font-size:8px;color:var(--ink4);margin-bottom:2px">Vendedor (rafael@saas.com.br) · 09:20</div><div style="background:var(--s2);border:1px solid var(--b1);padding:8px 11px;font-size:11px;color:var(--ink2);line-height:1.5">Olá! Fico feliz com o interesse. Estou disponível para conversar.</div></div>
+      <div style="align-self:flex-end;max-width:70%;margin-left:auto"><div style="font-size:8px;color:var(--ink4);margin-bottom:2px;text-align:right">Comprador (joao@empresa.com) · 09:35</div><div style="background:rgba(96,165,250,.07);border:1px solid rgba(96,165,250,.2);padding:8px 11px;font-size:11px;color:var(--ink2);line-height:1.5">Ótimo! Já vi o dossiê. Tenho algumas perguntas sobre o churn histórico.</div></div>
+    </div>
+    <div style="padding:8px 12px;border-top:1px solid var(--b1);display:flex;gap:6px;background:rgba(0,0,0,.15)">
+      <input id="mesa-msg-inp" class="fi" placeholder="Mensagem como Admin..." style="flex:1;text-transform:none" onkeydown="if(event.key==='Enter')enviarMesaMsg()">
+      <button class="btn ba bsm" onclick="enviarMesaMsg()">Enviar</button>
+    </div>
+  </div>
+</div>
+
+<!-- AGENDA -->
+<div class="view" id="v-agenda" style="max-width:900px">
+  <div style="background:var(--s1);border:1px solid var(--b1)">
+    <div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--blue);text-transform:uppercase;background:rgba(0,0,0,.2)">Agenda — cal.com/1negocio</div>
+    <iframe src="https://cal.com/1negocio?theme=dark" style="width:100%;height:500px;border:none;background:var(--s1)" allow="camera;microphone;fullscreen;payment" title="Agenda"></iframe>
+  </div>
+</div>
+
+<!-- PAINEL LEGADO (redirect) -->
+<div class="view" id="v-painel" style="max-width:900px">
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px">
+    <div style="background:var(--s1);border:1px solid var(--b1);padding:14px;position:relative;overflow:hidden">
+      <div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:rgba(249,250,251,.5)"></div>
+      <div style="font-size:24px;font-weight:700;color:var(--ink);line-height:1.1;margin-bottom:4px">3</div>
+      <div style="font-size:8px;letter-spacing:.14em;color:var(--ink4);text-transform:uppercase">Total</div>
+    </div>
+    <div style="background:var(--s1);border:1px solid var(--b1);padding:14px;position:relative;overflow:hidden">
+      <div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--green)"></div>
+      <div style="font-size:24px;font-weight:700;color:var(--green);line-height:1.1;margin-bottom:4px">1</div>
+      <div style="font-size:8px;letter-spacing:.14em;color:var(--ink4);text-transform:uppercase">Publicados</div>
+    </div>
+    <div style="background:var(--s1);border:1px solid var(--b1);padding:14px;position:relative;overflow:hidden">
+      <div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--amber)"></div>
+      <div style="font-size:24px;font-weight:700;color:var(--amber);line-height:1.1;margin-bottom:4px">2</div>
+      <div style="font-size:8px;letter-spacing:.14em;color:var(--ink4);text-transform:uppercase">Em Avaliação</div>
+    </div>
+    <div style="background:var(--s1);border:1px solid var(--b1);padding:14px;position:relative;overflow:hidden">
+      <div style="position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--blue)"></div>
+      <div style="font-size:24px;font-weight:700;color:var(--blue);line-height:1.1;margin-bottom:4px">2</div>
+      <div style="font-size:8px;letter-spacing:.14em;color:var(--ink4);text-transform:uppercase">Leads</div>
+    </div>
+  </div>
+  <div style="background:var(--s1);border:1px solid var(--b1)">
+    <div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--ink3);text-transform:uppercase;background:rgba(0,0,0,.2)">Negócios recentes</div>
+    <table class="tbl">
+      <thead><tr><th>Negócio</th><th>Status</th><th style="text-align:right">Score</th><th style="text-align:right">Preço</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><strong style="color:#fff;display:block">SaaS Gestão p/ Clínicas</strong><span style="font-size:9px;color:var(--ink4)">TECNOLOGIA · Florianópolis SC</span></td><td><span class="bge bgg">Publicado</span></td><td style="text-align:right;font-weight:700;color:var(--green)">74</td><td style="text-align:right">R$ 1.300.000</td><td><button class="btn ba bsm" onclick="go('aval',null)">◆ Abrir</button></td></tr>
+        <tr><td><strong style="color:#fff;display:block">Barbearia Premium · 3 Unid.</strong><span style="font-size:9px;color:var(--ink4)">SERVIÇOS · Salvador BA</span></td><td><span class="bge bga">Em Avaliação</span></td><td style="text-align:right;font-weight:700;color:var(--amber)">52</td><td style="text-align:right">R$ 280.000</td><td><button class="btn ba bsm" onclick="go('aval',null)">◆ Abrir</button></td></tr>
+        <tr><td><strong style="color:#fff;display:block">Distribuidora Insumos</strong><span style="font-size:9px;color:var(--ink4)">INDÚSTRIA · São Paulo SP</span></td><td><span class="bge bgd">Rascunho</span></td><td style="text-align:right;color:var(--ink4)">—</td><td style="text-align:right;color:var(--ink4)">—</td><td><button class="btn ba bsm" onclick="go('aval',null)">◆ Abrir</button></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- AVALIAÇÃO -->
+<div class="view" id="v-aval" style="max-width:860px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+    <div style="font-family:var(--fh);font-size:14px;font-weight:800;color:#fff">◆ SaaS Gestão p/ Clínicas</div>
+    <div class="statusbar">
+      <div class="ss on-r" id="st-r" onclick="setStatus('r')">Rascunho</div>
+      <div class="ss" id="st-a" onclick="setStatus('a')">Aguard. Aprovação</div>
+      <div class="ss" id="st-p" onclick="setStatus('p')">Publicado</div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn" onclick="toggleAll()">⊞ Expandir todos</button>
+      <button class="btn bg_">✓ Salvar</button>
+      <button class="btn ba" onclick="alert('Gerando documento de aprovação...')">✉ Gerar Doc. Aprovação</button>
+    </div>
+  </div>
+
+  <!-- BLOCO 1: VENDEDOR -->
+  <div class="bloco c-blue" id="b1">
+    <div class="bloco-hd" onclick="tog('b1')">
+      <span class="bloco-num">01</span>
+      <span class="bloco-title">Vendedor Responsável</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('vendedor','Informações sobre o vendedor extraídas das fontes')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input class="fi" placeholder="Buscar por nome ou e-mail..." style="flex:1;text-transform:none">
+        <button class="btn bb bsm">+ Criar</button>
+      </div>
+      <div style="padding:7px 10px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);display:flex;align-items:center;gap:8px;font-size:11px">
+        <span style="color:var(--green);font-size:13px">✓</span>
+        <span style="color:#fff;font-weight:600">Rafael Mendes — rafael@saas.com.br</span>
+        <button class="btn bsm" style="margin-left:auto">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BLOCO 2: FONTES -->
+  <div class="bloco c-blue" id="b2">
+    <div class="bloco-hd" onclick="tog('b2')">
+      <span class="bloco-num">02</span>
+      <span class="bloco-title">Fontes de Dados</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('fontes','Resumo das informações encontradas nas fontes carregadas')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div class="fontes-upload" onclick="alert('Upload de arquivo')" style="margin-bottom:10px">
+        <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--green);margin-bottom:4px">◆ Soltar arquivos aqui ou clicar para selecionar</div>
+        <div style="font-size:9px;color:var(--ink4)">PDF, DOCX, TXT, MP3 (transcrição automática)</div>
+      </div>
+      <div class="fonte-card t">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="bge bgb">Transcrição</span>
+          <span style="font-size:10px;font-weight:600;color:#fff">Reunião 12/03</span>
+          <button style="margin-left:auto;background:none;border:none;color:var(--ink4);cursor:pointer;font-size:11px">✕</button>
+        </div>
+        <div style="font-size:9px;color:var(--ink4);line-height:1.5">...MRR em torno de 48K mensais, crescendo 8% ao mês. Churn abaixo de 2%...</div>
+      </div>
+      <div class="fonte-card g">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="bge bgg">Email</span>
+          <span style="font-size:10px;font-weight:600;color:#fff">Follow-up financeiro</span>
+          <button style="margin-left:auto;background:none;border:none;color:var(--ink4);cursor:pointer;font-size:11px">✕</button>
+        </div>
+        <div style="font-size:9px;color:var(--ink4);line-height:1.5">...faturamento 2024: R$ 576K. Resultado líq. ~R$ 22K/mês...</div>
+      </div>
+      <div class="info-tip">◆ O Copiloto IA lê todas as fontes e preenche os campos automaticamente. Clique em "◆ IA" em qualquer bloco para ver o que foi extraído sobre aquele tema.</div>
+    </div>
+  </div>
+
+  <!-- BLOCO 3: DADOS DA EMPRESA -->
+  <div class="bloco c-amber" id="b3">
+    <div class="bloco-hd" onclick="tog('b3')">
+      <span class="bloco-num">03</span>
+      <span class="bloco-title">Dados da Empresa</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('empresa','Nome: SaaS Gestão para Clínicas Ltda\nCNPJ: 34.987.234/0001-55\nFundação: 2021\nCidade: Florianópolis, SC\nCategoria: TECNOLOGIA — SaaS B2B\nFundador: Rafael Mendes (único sócio)')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div class="fr">
+        <div class="fg" style="flex:3"><div class="fla">Nome Interno</div><input class="fi" value="SaaS Gestão para Clínicas Ltda" style="text-transform:none"></div>
+        <div class="fg" style="flex:2"><div class="fla">Tag Pública</div><input class="fi" value="SaaS p/ Clínicas · 340 Assinantes" style="text-transform:none"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><div class="fl">CNPJ</div><input class="fi" value="34.987.234/0001-55" style="text-transform:none"></div>
+        <div class="fg" style="max-width:80px"><div class="fl">Fundação</div><input class="fi" type="number" value="2021"></div>
+        <div class="fg" style="max-width:56px"><div class="fl">UF</div><input class="fi" value="SC" maxlength="2"></div>
+        <div class="fg"><div class="fl">Cidade</div><input class="fi" value="Florianópolis" style="text-transform:none"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><div class="fl">Categoria</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>TECNOLOGIA</option><option>ALIMENTAÇÃO</option><option>SAÚDE</option><option>SERVIÇOS</option><option>VAREJO</option><option>INDÚSTRIA</option></select></div>
+        <div class="fg"><div class="fl">Subcategoria</div><input class="fi" value="SaaS B2B" style="text-transform:none"></div>
+        <div class="fg"><div class="fl">Regime Fiscal</div><select class="fi" id="regime-sel" style="background:var(--s2);color:var(--ink)" onchange="toggleRegime()"><option value="">Selecione...</option><option value="simples">Simples Nacional</option><option value="presumido">Lucro Presumido</option><option value="real">Lucro Real</option></select></div>
+      </div>
+      <div id="regime-detalhes" style="display:none;margin-top:8px">
+        <div id="regime-obs-dre" style="padding:7px 10px;border-left:2px solid rgba(251,191,36,.4);background:rgba(251,191,36,.04);font-size:9px;color:var(--ink3);line-height:1.6;margin-bottom:8px"></div>
+        <div class="fr">
+          <div class="fg"><div class="fla">% Impostos s/ Fat.</div><input class="fi" type="text" id="aliq-fat" placeholder="Ex: 6,0%" style="text-transform:none"></div>
+          <div class="fg"><div class="fla">% Impostos s/ Folha</div><input class="fi" type="text" id="aliq-folha" placeholder="Ex: 27,8%" style="text-transform:none"></div>
+          <div class="fg"><div class="fla">% Impostos s/ Lucro</div><input class="fi" type="text" id="aliq-lucro" placeholder="Ex: 15,0%" style="text-transform:none"></div>
+        </div>
+        <div class="fr">
+          <div class="fg" style="max-width:200px"><div class="fl">Benefício / Isenção?</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>Não</option><option>Sim</option></select></div>
+        </div>
+        <div class="fg"><div class="fl">Observações tributárias</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="Detalhes, benefícios, obrigações específicas..."></textarea></div>
+      </div>
+      <div class="fr" style="margin-top:8px">
+        <div class="fg" style="max-width:180px"><div class="fl">Plano 1Negócio</div><select class="fi" style="background:var(--s2);color:var(--ink)" onchange="atualizaComissao(this)"><option value="10">Gratuito (10%)</option><option value="5">Guiado R$588 (5%)</option></select></div>
+        <div class="fg" style="max-width:100px"><div class="fl">Comissão %</div><input class="fi" id="a-comissao" value="10" readonly style="opacity:.55"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BLOCO 3B: TENDÊNCIA DE CRESCIMENTO -->
+  <div class="bloco c-green" id="b3b">
+    <div class="bloco-hd" onclick="tog('b3b')">
+      <span class="bloco-num">03B</span>
+      <span class="bloco-title">Tendência de Crescimento</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('crescimento','Faturamento -12 meses: ~R$390K/ano. Hoje: ~R$576K/ano. Crescimento: +47% no período. Ritmo: +8%/mês consistente. Churn estável abaixo de 2%. Tendência: Alta.')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div style="margin-bottom:12px">
+        <div class="flg" style="margin-bottom:8px">Status Geral de Crescimento</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap" id="crescimento-status">
+          <button class="crescimento-btn" data-val="alta" onclick="selCrescimento(this)" style="padding:7px 14px;font-family:var(--f);font-size:9px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.4);color:var(--green);transition:all .12s">↑↑ Alta</button>
+          <button class="crescimento-btn" data-val="media_alta" onclick="selCrescimento(this)" style="padding:7px 14px;font-family:var(--f);font-size:9px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.2);color:rgba(52,211,153,.7);transition:all .12s">↑ Média Alta</button>
+          <button class="crescimento-btn" data-val="neutra" onclick="selCrescimento(this)" style="padding:7px 14px;font-family:var(--f);font-size:9px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;background:rgba(255,255,255,.05);border:1px solid var(--b1);color:var(--ink3);transition:all .12s">→ Neutra</button>
+          <button class="crescimento-btn" data-val="leve_baixa" onclick="selCrescimento(this)" style="padding:7px 14px;font-family:var(--f);font-size:9px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);color:rgba(248,113,113,.7);transition:all .12s">↓ Leve Baixa</button>
+          <button class="crescimento-btn" data-val="alta_baixa" onclick="selCrescimento(this)" style="padding:7px 14px;font-family:var(--f);font-size:9px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.4);color:var(--red);transition:all .12s">↓↓ Alta Baixa</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div style="background:rgba(0,0,0,.2);border:1px solid var(--b1);padding:10px 12px">
+          <div style="font-size:7px;letter-spacing:.14em;color:var(--ink4);text-transform:uppercase;margin-bottom:8px">12 Meses Atrás</div>
+          <div class="fr" style="margin:0;gap:6px">
+            <div class="fg"><div class="flb" style="font-size:7px">Fat. Mensal</div><input class="fi nin" type="text" placeholder="32.000" oninput="maskN(this)" onblur="fmtBlur(this)" style="font-size:11px"></div>
+            <div class="fg"><div class="flb" style="font-size:7px">Result. Líq.</div><input class="fi nin" type="text" placeholder="8.000" oninput="maskN(this)" onblur="fmtBlur(this)" style="font-size:11px"></div>
+            <div class="fg"><div class="flb" style="font-size:7px">Clientes</div><input class="fi" type="text" placeholder="180" style="font-size:11px"></div>
+          </div>
+        </div>
+        <div style="background:rgba(52,211,153,.04);border:1px solid rgba(52,211,153,.15);padding:10px 12px">
+          <div style="font-size:7px;letter-spacing:.14em;color:var(--green);text-transform:uppercase;margin-bottom:8px">Hoje</div>
+          <div class="fr" style="margin:0;gap:6px">
+            <div class="fg"><div class="flg" style="font-size:7px">Fat. Mensal</div><input class="fi nin" type="text" value="48.000" oninput="maskN(this)" onblur="fmtBlur(this)" style="font-size:11px"></div>
+            <div class="fg"><div class="flg" style="font-size:7px">Result. Líq.</div><input class="fi nin" type="text" value="22.000" oninput="maskN(this)" onblur="fmtBlur(this)" style="font-size:11px"></div>
+            <div class="fg"><div class="flg" style="font-size:7px">Clientes</div><input class="fi" type="text" value="340" style="font-size:11px"></div>
+          </div>
+        </div>
+      </div>
+      <div class="fr">
+        <div class="fg"><div class="fl">Ritmo de crescimento mensal</div><input class="fi" type="text" value="+8%/mês (orgânico)" style="text-transform:none"></div>
+        <div class="fg"><div class="fl">Sazonalidade?</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>Não — estável ao longo do ano</option><option>Sim — especificar abaixo</option></select></div>
+      </div>
+      <div class="fg" style="margin-bottom:8px"><div class="fla">Motivos do crescimento / queda</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="O que explica a tendência observada? O que mudou nos últimos 12 meses?">Crescimento orgânico via indicação. Lançamento de integração com planos de saúde em Q2/2025 acelerou aquisição.</textarea></div>
+      <div class="fg"><div class="fl">Perspectivas para os próximos 12 meses</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="O que o dono projeta? Oportunidades de aceleração ou riscos de desaceleração..."></textarea></div>
+    </div>
+  </div>
+
+  <!-- BLOCO 4: QUADRO SOCIETÁRIO -->
+  <div class="bloco c-amber" id="b4">
+    <div class="bloco-hd" onclick="tog('b4')">
+      <span class="bloco-num">04</span>
+      <span class="bloco-title">Quadro Societário</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('socios','Rafael Mendes — 100% — Único sócio, CEO, ativo na empresa. Fundador desde 2021.')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:10px">
+          <thead><tr style="background:rgba(0,0,0,.2)">
+            <th class="tbl th" style="padding:5px 10px;text-align:left;font-size:7px;letter-spacing:.1em;color:var(--ink4);text-transform:uppercase;border-bottom:1px solid var(--b1)">Nome</th>
+            <th style="padding:5px 8px;text-align:center;font-size:7px;letter-spacing:.1em;color:var(--ink4);text-transform:uppercase;border-bottom:1px solid var(--b1);width:50px">%</th>
+            <th style="padding:5px 8px;text-align:center;font-size:7px;letter-spacing:.1em;color:var(--ink4);text-transform:uppercase;border-bottom:1px solid var(--b1);width:44px">Líder</th>
+            <th style="padding:5px 8px;text-align:center;font-size:7px;letter-spacing:.1em;color:var(--ink4);text-transform:uppercase;border-bottom:1px solid var(--b1);width:44px">Ativo</th>
+            <th style="padding:5px 10px;text-align:left;font-size:7px;letter-spacing:.1em;color:var(--ink4);text-transform:uppercase;border-bottom:1px solid var(--b1)">Função</th>
+            <th style="width:26px;border-bottom:1px solid var(--b1)"></th>
+          </tr></thead>
+          <tbody id="socios-body">
+            <tr>
+              <td style="padding:3px 8px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi" style="font-size:10px;padding:3px 6px;text-transform:none" value="Rafael Mendes"></td>
+              <td style="padding:3px 5px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi" style="font-size:10px;padding:3px 5px;text-align:center" type="text" value="100"></td>
+              <td style="padding:3px;text-align:center;border-bottom:1px solid rgba(255,255,255,.04)"><input type="checkbox" checked style="cursor:pointer;accent-color:var(--amber)"></td>
+              <td style="padding:3px;text-align:center;border-bottom:1px solid rgba(255,255,255,.04)"><input type="checkbox" checked style="cursor:pointer;accent-color:var(--green)"></td>
+              <td style="padding:3px 8px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi" style="font-size:10px;padding:3px 6px;text-transform:none" value="CEO / Produto"></td>
+              <td style="padding:3px;border-bottom:1px solid rgba(255,255,255,.04)"><button onclick="this.closest('tr').remove()" style="background:none;border:none;color:var(--ink4);cursor:pointer;font-size:10px">✕</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:6px 0"><button class="btn ba bsm" onclick="addSocio()">+ Sócio</button></div>
+    </div>
+  </div>
+
+  <!-- BLOCO 5: DESCRIÇÃO -->
+  <div class="bloco c-green" id="b5">
+    <div class="bloco-hd" onclick="tog('b5')">
+      <span class="bloco-num">05</span>
+      <span class="bloco-title">Descrição do Negócio</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('descricao','SaaS vertical para gestão de clínicas de saúde. 340 clientes ativos em modelo de recorrência mensal (MRR R$ 48K). Produto maduro com NPS 82, churn abaixo de 2% ao mês e crescimento orgânico de 8%/mês.')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div class="fg" style="margin-bottom:8px"><div class="flg">Descrição geral do negócio (campo público no anúncio)</div><textarea id="desc-geral" class="fi" rows="4" style="text-transform:none" placeholder="Descreva o negócio, modelo, diferenciais e contexto.">SaaS vertical para gestão de clínicas de saúde. 340 clientes ativos em modelo de recorrência mensal (MRR R$ 48K). Produto maduro com NPS 82, churn abaixo de 2% ao mês e crescimento orgânico de 8%/mês sem marketing pago.</textarea></div>
+      <div class="fg"><div class="flg">Pontos positivos da operação (após diagnóstico de saúde)</div><textarea id="pontos-pos" class="fi" rows="4" style="text-transform:none" placeholder="Liste os pontos fortes identificados no diagnóstico...">• MRR crescendo 8% ao mês organicamente
+• Churn abaixo de 2% — base extremamente fidelizada
+• Sem dívidas bancárias — estrutura financeira limpa
+• Equipe técnica independente do fundador
+• Contratos de suporte com 3 clínicas-âncora</textarea></div>
+    </div>
+  </div>
+
+  <!-- BLOCO 6: PRODUTOS E CLIENTES -->
+  <div class="bloco c-blue" id="b6">
+    <div class="bloco-hd" onclick="tog('b6')">
+      <span class="bloco-num">06</span>
+      <span class="bloco-title">Produtos, Clientes e Comercial</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('comercial','Produto principal: plataforma SaaS mensal (R$141/cliente). Canal principal: indicação (70%), Google (20%), direto (10%). Sem dependência de nenhum cliente acima de 5% da receita. Processo comercial informal — sem CRM ou playbook definido.')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div class="fg" style="margin-bottom:8px"><div class="flb">Quais são os produtos / serviços? Quais mais representam?</div><textarea class="fi" rows="3" style="text-transform:none" placeholder="Descreva os produtos, planos, serviços. Qual é o carro-chefe..."></textarea></div>
+      <div class="fr">
+        <div class="fg"><div class="flb">Existe processo comercial formal?</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>Não — informalmente</option><option>Sim — CRM e playbook</option><option>Parcialmente</option></select></div>
+        <div class="fg"><div class="flb">Banco de dados de clientes?</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>Sim — estruturado</option><option>Parcialmente</option><option>Não</option></select></div>
+      </div>
+      <div class="fg" style="margin-bottom:8px"><div class="flb">Canais de venda e quanto representam</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="Ex: Indicação 60%, Google 25%, Inside Sales 15%..."></textarea></div>
+      <div class="fr">
+        <div class="fg"><div class="flb">Concentração de clientes</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>Baixa — nenhum acima de 10%</option><option>Média — 1-2 clientes acima de 20%</option><option>Alta — cliente dominante</option></select></div>
+        <div class="fg"><div class="flb">Ticket médio</div><input class="fi" value="R$ 141/mês" style="text-transform:none"></div>
+      </div>
+      <div class="fg"><div class="flb">Riscos e dependências comerciais</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="Clientes críticos, contratos com vencimento, sazonalidade..."></textarea></div>
+    </div>
+  </div>
+
+  <!-- BLOCO 7: PRECIFICAÇÃO / CMV -->
+  <div class="bloco c-amber" id="b7">
+    <div class="bloco-hd" onclick="tog('b7')">
+      <span class="bloco-num">07</span>
+      <span class="bloco-title">Lógica de Precificação e CMV</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('precificacao','CMV estimado: R$4.800/mês (infra cloud + suporte). Markup de 10× sobre custo. Preço não reajustado há 14 meses. Não existe análise formal de margem por produto.')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div class="fg" style="margin-bottom:8px"><div class="fla">Como o dono define o preço? (deixe ele explicar livremente)</div><textarea class="fi" rows="3" style="text-transform:none" placeholder="Markup? Margem de contribuição? Benchmarking com mercado? Intuição? Histórico? Deixe o cliente explicar a lógica dele..."></textarea></div>
+      <div class="fr">
+        <div class="fg"><div class="fla">CMV estimado mensal</div><input class="fi" type="text" placeholder="Ex: 4.800" oninput="maskN(this)" onblur="fmtBlur(this)"></div>
+        <div class="fg"><div class="fla">Margem bruta estimada %</div><input class="fi" type="text" placeholder="Ex: 90%"></div>
+      </div>
+      <div class="fg" style="margin-bottom:8px"><div class="fl">Composição do CMV (o que está incluído?)</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="Infra cloud, licenças, suporte, terceiros, materiais..."></textarea></div>
+      <div class="fg"><div class="fl">Observações sobre precificação</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="Reajuste histórico, comparativo com concorrência, oportunidade de subida..."></textarea></div>
+    </div>
+  </div>
+
+  <!-- BLOCO 8: CONCORRENTES -->
+  <div class="bloco c-purple" id="b8">
+    <div class="bloco-hd" onclick="tog('b8')">
+      <span class="bloco-num">08</span>
+      <span class="bloco-title">Concorrentes e Posicionamento</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('concorrentes','Mencionou 2 concorrentes diretos (Medhid e ClinicaFácil). Diferencial: integrações específicas com planos de saúde. NPS 82 vs estimativa de NPS concorrência de 55-60. Preço posicionado no meio do mercado.')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div class="fg" style="margin-bottom:8px"><div style="color:var(--purple);font-size:7px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:3px">Principais concorrentes</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="Nome dos concorrentes diretos e indiretos..."></textarea></div>
+      <div class="fg" style="margin-bottom:8px"><div style="color:var(--purple);font-size:7px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:3px">Diferenciais competitivos</div><textarea class="fi" rows="3" style="text-transform:none" placeholder="O que você faz melhor? Por que clientes te escolhem em vez da concorrência?..."></textarea></div>
+      <div class="fr">
+        <div class="fg"><div class="fl">Posicionamento de preço</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>Premium — acima do mercado</option><option>Meio — alinhado ao mercado</option><option>Baixo custo — abaixo do mercado</option></select></div>
+      </div>
+      <div class="fg"><div style="color:var(--purple);font-size:7px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:3px">Ameaças e riscos competitivos</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="Quem pode entrar no mercado? O que pode te tornar obsoleto?..."></textarea></div>
+    </div>
+  </div>
+
+  <!-- BLOCO 9: ALVARÁS -->
+  <div class="bloco c-red" id="b9">
+    <div class="bloco-hd" onclick="tog('b9')">
+      <span class="bloco-num">09</span>
+      <span class="bloco-title">Alvarás, Licenças e Liberações</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('alvaras','Empresa de software — sem alvarás especiais exigidos. LGPD em conformidade parcial. Não há licenças da ANVISA nem outras regulamentações setoriais pendentes.')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div class="fr">
+        <div class="fg"><div class="flr">A empresa exige licenças especiais?</div><select class="fi" style="background:var(--s2);color:var(--ink)" onchange="toggleAlvaras(this)"><option value="nao">Não — atividade comum</option><option value="sim">Sim — especificar abaixo</option></select></div>
+      </div>
+      <div id="alvaras-det" style="display:none">
+        <div class="fr">
+          <div class="fg"><div class="flr">Tipo de licença / órgão</div><input class="fi" placeholder="Ex: Vigilância Sanitária, CRM, ANATEL..." style="text-transform:none"></div>
+          <div class="fg"><div class="flr">Status atual</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>Vigente e em dia</option><option>Pendente de renovação</option><option>Vencido — em regularização</option><option>Não possui (irregularidade)</option></select></div>
+        </div>
+        <div class="fr">
+          <div class="fg"><div class="flr">Prazo de vencimento</div><input class="fi" type="date"></div>
+          <div class="fg"><div class="fl">Processo de renovação</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="Como é o processo burocrático? Prazo, custo, dificuldade..."></textarea></div>
+        </div>
+        <div class="fg"><div class="fl">Possibilidade de transferência com a venda?</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>Sim — transferível</option><option>Requer novo processo pelo comprador</option><option>Não — vinculado ao CPF do dono</option></select></div>
+      </div>
+      <div class="fg" style="margin-top:8px"><div class="fl">Observações regulatórias adicionais</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="LGPD, certidões, contrato social atualizado, situação na Receita Federal..."></textarea></div>
+    </div>
+  </div>
+
+  <!-- BLOCO 10: QUADRO COLABORADORES -->
+  <div class="bloco c-blue" id="b10">
+    <div class="bloco-hd" onclick="tog('b10')">
+      <span class="bloco-num">10</span>
+      <span class="bloco-title">Quadro de Colaboradores</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('colaboradores','8 colaboradores. Equipe técnica: 3 devs (PJ). Suporte: 2 (CLT). CS: 1 (CLT). Folha estimada: R$28.000/mês. Risco de saída: 1 dev sênior está há 3 anos e é chave no produto.')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:10px">
+          <thead><tr style="background:rgba(0,0,0,.2)">
+            <th style="padding:5px 10px;text-align:left;font-size:7px;letter-spacing:.1em;color:var(--ink4);text-transform:uppercase;border-bottom:1px solid var(--b1)">Nome</th>
+            <th style="padding:5px 8px;text-align:left;font-size:7px;letter-spacing:.1em;color:var(--ink4);text-transform:uppercase;border-bottom:1px solid var(--b1)">Cargo</th>
+            <th style="padding:5px 8px;text-align:center;font-size:7px;letter-spacing:.1em;color:var(--ink4);text-transform:uppercase;border-bottom:1px solid var(--b1);width:60px">T.Casa</th>
+            <th style="padding:5px 8px;text-align:center;font-size:7px;letter-spacing:.1em;color:var(--ink4);text-transform:uppercase;border-bottom:1px solid var(--b1);width:50px">Regime</th>
+            <th style="padding:5px 8px;text-align:right;font-size:7px;letter-spacing:.1em;color:var(--ink4);text-transform:uppercase;border-bottom:1px solid var(--b1);width:80px">Valor/Mês</th>
+            <th style="width:26px;border-bottom:1px solid var(--b1)"></th>
+          </tr></thead>
+          <tbody id="colab-body">
+            <tr><td style="padding:3px 8px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi" style="font-size:10px;padding:3px 6px;text-transform:none" value="Ana Lima"></td><td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi" style="font-size:10px;padding:3px 6px;text-transform:none" value="Dev Backend"></td><td style="padding:3px 5px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi" style="font-size:10px;padding:3px 4px;text-align:center;text-transform:none" value="3 anos"></td><td style="padding:3px 4px;border-bottom:1px solid rgba(255,255,255,.04)"><select class="fi" style="font-size:9px;padding:3px 4px;background:var(--s2);color:var(--ink)"><option>PJ</option><option>CLT</option></select></td><td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi nin" style="font-size:10px;padding:3px 5px;text-align:right" type="text" value="9.000" oninput="maskN(this)"></td><td style="padding:3px;border-bottom:1px solid rgba(255,255,255,.04)"><button onclick="this.closest('tr').remove()" style="background:none;border:none;color:var(--ink4);cursor:pointer;font-size:10px">✕</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:6px 0;display:flex;gap:8px;align-items:center">
+        <button class="btn bb bsm" onclick="addColaborador()">+ Colaborador</button>
+        <span style="font-size:9px;color:var(--ink4)">Folha total estimada: <strong id="folha-total" style="color:var(--blue)">—</strong></span>
+      </div>
+      <div class="fg" style="margin-top:4px"><div class="fl">Observações sobre equipe</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="Riscos de saída, planos de carreira, remuneração variável..."></textarea></div>
+    </div>
+  </div>
+
+  <!-- BLOCO 11: PONTO COMERCIAL -->
+  <div class="bloco c-gray" id="b11">
+    <div class="bloco-hd" onclick="tog('b11')">
+      <span class="bloco-num">11</span>
+      <span class="bloco-title">Ponto Comercial</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('ponto','Home office — sem ponto comercial físico. Escritório em coworking esporádico no valor de R$800/mês.')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div class="fr">
+        <div class="fg" style="flex:3"><div class="fl">Localização</div><input class="fi" placeholder="Endereço ou Home Office" style="text-transform:none"></div>
+        <div class="fg" style="max-width:80px"><div class="fl">Metragem m²</div><input class="fi" type="text" placeholder="120" oninput="maskN(this)"></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><div class="fl">Locação/Mês</div><input class="fi nin" type="text" placeholder="0" oninput="maskN(this)" onblur="fmtBlur(this)"></div>
+        <div class="fg"><div class="fl">Condomínio</div><input class="fi nin" type="text" placeholder="0" oninput="maskN(this)" onblur="fmtBlur(this)"></div>
+        <div class="fg"><div class="fl">IPTU/Mês</div><input class="fi nin" type="text" placeholder="0" oninput="maskN(this)" onblur="fmtBlur(this)"></div>
+        <div class="fg"><div class="fl">Reajuste</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>IGPM</option><option>IPCA</option><option>Livre</option></select></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><div class="fl">Prazo do Contrato</div><input class="fi" placeholder="Ex: 3 anos — vence dez/2026" style="text-transform:none"></div>
+        <div class="fg"><div class="fl">Relação c/ Proprietário</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>Boa</option><option>Neutra</option><option>Ruim</option><option>Próprio</option></select></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><div class="flg">Pontos Fortes</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="Localização, visibilidade, fluxo..."></textarea></div>
+        <div class="fg"><div class="flr">Pontos Fracos</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="Limitações, acesso, concorrência..."></textarea></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BLOCO 12: DRE -->
+  <div class="bloco c-green" id="b12">
+    <div class="bloco-hd" onclick="tog('b12')">
+      <span class="bloco-num">12</span>
+      <span class="bloco-title">DRE Gerencial</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('dre','Faturamento bruto: R$ 48.000/mês\nImpostos: ~R$ 3.200 (6,67% — Simples)\nFolha: R$ 28.000\nInfra cloud: R$ 4.800\nGerais: ~R$ 2.000\nResultado Operacional estimado: ~R$ 10.000/mês')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+        <div class="ptgl"><button class="pbtn on" id="pbm" onclick="setPer('m')">Mensal</button><button class="pbtn" id="pba" onclick="setPer('a')">Anual</button></div>
+        <button class="btn bb bsm" onclick="dreAddCol()">+ Canal</button>
+        <button class="btn bsm" onclick="dreAddRow()">+ Linha</button>
+      </div>
+      <div style="overflow-x:auto"><table class="dtbl" id="dtbl"></table></div>
+    </div>
+  </div>
+
+  <!-- BLOCO 13: BALANÇO -->
+  <div class="bloco c-red" id="b13">
+    <div class="bloco-hd" onclick="tog('b13')">
+      <span class="bloco-num">13</span>
+      <span class="bloco-title">Balanço Patrimonial</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('balanco','Ativos identificados: Caixa ~R$48K, Aplicações ~R$120K, Equipamentos ~R$15K. Sem passivos bancários. Patrimônio líquido estimado: R$183K')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div class="bal-grid">
+        <div>
+          <div class="bal-col-hd at">Ativos <button onclick="balAddRow('at')" style="background:none;border:none;color:var(--green);cursor:pointer;font-size:12px;padding:0 3px">+</button></div>
+          <div id="bal-at-rows">
+            <div class="bal-row"><span style="font-size:10px;color:var(--ink2)">Caixa / Bancos</span><input class="bal-inp nin" type="text" value="48.000" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row"><span style="font-size:10px;color:var(--ink2)">Aplicações Financeiras</span><input class="bal-inp nin" type="text" value="120.000" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row"><span style="font-size:10px;color:var(--ink2)">Contas a Receber</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row"><span style="font-size:10px;color:var(--ink2)">Estoque (preço custo)</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row"><span style="font-size:10px;color:var(--ink2)">Consórcios</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row"><span style="font-size:10px;color:var(--ink2)">Automóveis</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row"><span style="font-size:10px;color:var(--ink2)">Imóveis</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row"><span style="font-size:10px;color:var(--ink2)">Ponto Comercial</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row"><span style="font-size:10px;color:var(--ink2)">Equipamentos</span><input class="bal-inp nin" type="text" value="15.000" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row"><span style="font-size:10px;color:var(--ink2)">Outros Ativos</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+          </div>
+        </div>
+        <div>
+          <div class="bal-col-hd pas">Passivos <button onclick="balAddRow('pas')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:0 3px">+</button></div>
+          <div id="bal-pas-rows">
+            <div class="bal-row pas"><span style="font-size:10px;color:var(--ink2)">Dívida Tributária</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row pas"><span style="font-size:10px;color:var(--ink2)">Dívidas c/ Bancos</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row pas"><span style="font-size:10px;color:var(--ink2)">Dívidas c/ Terceiros</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row pas"><span style="font-size:10px;color:var(--ink2)">Contas a Pagar</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row pas"><span style="font-size:10px;color:var(--ink2)">Parcelas Investimento</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row pas"><span style="font-size:10px;color:var(--ink2)">Rescisões</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row pas"><span style="font-size:10px;color:var(--ink2)">Obrig. Trabalhistas</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+            <div class="bal-row pas"><span style="font-size:10px;color:var(--ink2)">Outros Passivos</span><input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()"></div>
+          </div>
+        </div>
+      </div>
+      <div class="bal-total">
+        <div class="bal-tc"><span style="font-size:7px;letter-spacing:.1em;color:var(--green);text-transform:uppercase">Total Ativos</span><span id="bal-at-total" style="font-weight:700;color:var(--green)">R$ 183.000</span></div>
+        <div class="bal-tc pas"><span style="font-size:7px;letter-spacing:.1em;color:var(--red);text-transform:uppercase">Total Passivos</span><span id="bal-pas-total" style="font-weight:700;color:var(--red)">R$ 0</span></div>
+      </div>
+      <div class="bal-pl"><span style="font-size:8px;letter-spacing:.1em;color:var(--ink3);text-transform:uppercase">Patrimônio Líquido</span><span id="bal-pl" style="font-size:16px;font-weight:700;color:var(--green)">R$ 183.000</span></div>
+    </div>
+  </div>
+
+  <!-- BLOCO 14: OPORTUNIDADES -->
+  <div class="bloco c-green" id="b14">
+    <div class="bloco-hd" onclick="tog('b14')">
+      <span class="bloco-num">14</span>
+      <span class="bloco-title">Oportunidades e Visão do Dono</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('oportunidades','Oportunidade mencionada: integração com mais planos de saúde pode abrir 5× o TAM. Ponto crítico: fundador não consegue sair de operações. Se tivesse recurso: contrataria VP de Vendas e formalizaria o playbook.')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div class="fg" style="margin-bottom:8px"><div class="flg">O que o dono vê como oportunidade?</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="Mercados não explorados, expansão geográfica, novos produtos, parcerias..."></textarea></div>
+      <div class="fg" style="margin-bottom:8px"><div class="fla">O que ele vê como ponto crítico / maior risco?</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="O que mais preocupa sobre o futuro do negócio..."></textarea></div>
+      <div class="fg"><div class="flb">Se dinheiro não fosse problema, o que faria hoje para alavancar?</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="Contrataria quem? Abriria onde? Lançaria o quê?..."></textarea></div>
+    </div>
+  </div>
+
+  <!-- BLOCO 15: VENDA -->
+  <div class="bloco c-purple" id="b15">
+    <div class="bloco-hd" onclick="tog('b15')">
+      <span class="bloco-num">15</span>
+      <span class="bloco-title">Contexto e Motivação da Venda</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('venda','Motivo: novo projeto de IA. Sem pressão financeira. Expectativa R$1,3M. Aceita parcelamento e transição. Nunca tentou vender antes. Urgência: média.')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div class="fr">
+        <div class="fg"><div class="fl">Motivo</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>FOCO EM OUTRO NEGÓCIO</option><option>SAÍDA ESTRATÉGICA</option><option>MUDANÇA DE VIDA</option><option>NECESSIDADE DE CAPITAL</option></select></div>
+        <div class="fg"><div class="fl">Urgência</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>Média — 6 a 12 meses</option><option>Baixa</option><option>Alta</option></select></div>
+        <div class="fg"><div class="fl">Abertura</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>Firme mas aberto</option><option>Negociável</option><option>Inegociável</option></select></div>
+      </div>
+      <div class="fr">
+        <div class="fg"><div class="fla">Expectativa do vendedor</div><input class="fi nin" type="text" value="1.300.000" oninput="maskN(this)" onblur="fmtBlur(this)"></div>
+        <div class="fg" style="max-width:130px"><div class="fl">Parcelamento?</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>Sim</option><option>Não</option></select></div>
+        <div class="fg" style="max-width:130px"><div class="fl">Transição?</div><select class="fi" style="background:var(--s2);color:var(--ink)"><option>Sim</option><option>Não</option></select></div>
+      </div>
+      <div style="padding:8px 10px;background:rgba(167,139,250,.05);border:1px solid rgba(167,139,250,.18);margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <div style="font-size:7px;letter-spacing:.14em;color:var(--purple);text-transform:uppercase;font-weight:700">Tipo de Venda</div>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:var(--ink2)"><input type="radio" name="tipo-venda" value="total" checked onclick="toggleVendaTipo()" style="accent-color:var(--purple)"> Total</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:var(--ink2)"><input type="radio" name="tipo-venda" value="parcial" onclick="toggleVendaTipo()" style="accent-color:var(--purple)"> Parcial</label>
+        </div>
+        <div id="venda-parcial-det" style="display:none"><div class="fg"><div class="fl">Estrutura da venda parcial</div><textarea class="fi" rows="2" style="text-transform:none" placeholder="% societária, unidade específica, linha de produto..."></textarea></div></div>
+      </div>
+      <div class="fg"><div class="fl">Contexto completo</div><textarea class="fi" rows="3" style="text-transform:none">Fundador quer focar em novo projeto de IA. Sem pressão financeira. Produto maduro, equipe que pode continuar operando.</textarea></div>
+    </div>
+  </div>
+
+  <!-- BLOCO 16: SCORE 10 PILARES -->
+  <div class="bloco c-amber" id="b16">
+    <div class="bloco-hd" onclick="tog('b16')">
+      <span class="bloco-num">16</span>
+      <span class="bloco-title">Score de Saúde — 10 Pilares</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();iaNotas()" title="Observações IA">◆ IA Sugerir Notas</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div class="sbox">
+        <div>
+          <div style="font-size:7px;letter-spacing:.14em;color:var(--ink4);text-transform:uppercase;margin-bottom:3px">Score Final</div>
+          <div style="display:flex;align-items:baseline;gap:5px">
+            <div id="scn" class="sbig" style="color:var(--green)">--</div>
+            <div style="font-size:12px;color:var(--ink4)">/100</div>
+          </div>
+        </div>
+        <div style="flex:1">
+          <div class="sbarbg"><div class="sbarfill" id="scbar" style="width:0%;background:var(--green)"></div></div>
+          <div id="sclbl" style="font-size:8px;letter-spacing:.1em;color:var(--green);text-transform:uppercase;margin-top:4px">—</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:150px 32px 1fr 46px 42px;padding:4px 0;border-bottom:1px solid var(--b2);font-size:7px;letter-spacing:.1em;color:var(--ink4);text-transform:uppercase;gap:5px">
+        <div>Pilar</div><div style="text-align:center">Peso</div><div>Nota</div><div style="text-align:center">Val</div><div></div>
+      </div>
+      <div id="plist"></div>
+    </div>
+  </div>
+
+  <!-- BLOCO 17: PUBLICAÇÃO -->
+  <div class="bloco c-green" id="b17">
+    <div class="bloco-hd" onclick="tog('b17')">
+      <span class="bloco-num">17</span>
+      <span class="bloco-title">Publicação e Precificação</span>
+      <button class="bloco-ia" onclick="event.stopPropagation();showIA('publicacao','Análise gerada: Pedido 24% abaixo da avaliação. MRR crescendo 8%/mês. Avaliação 1N: R$1,0M–R$1,7M.')" title="Observações IA">◆ IA</button>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body">
+      <div class="fg" style="margin-bottom:8px"><div class="flg">Análise 1Negócio (público — aparece no card)</div><textarea class="fi" rows="3" style="text-transform:none">Pedido 24% abaixo da avaliação. MRR crescendo 8%/mês, churn abaixo de 2%. Produto maduro com NPS acima de 80.</textarea></div>
+      <div class="fg" style="margin-bottom:8px"><div class="fla">Ponto de Atenção (dossiê expandido)</div><textarea class="fi" rows="2" style="text-transform:none">Dependência do fundador nas vendas. Roadmap sem gestão formal.</textarea></div>
+      <div class="fg" style="margin-bottom:8px"><div class="fl">Tese de Investimento (nível 3)</div><textarea class="fi" rows="2" style="text-transform:none">SaaS vertical escalável. Comprador estratégico pode dobrar base via distribuição.</textarea></div>
+      <div style="padding:10px 12px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);margin-bottom:8px">
+        <div class="fla" style="margin-bottom:7px">◆ Valor Desejado / Faixa de Avaliação</div>
+        <div class="fr" style="margin:0">
+          <div class="fg"><div class="fla">Preço Pedido</div><input class="fi nin" type="text" value="1.300.000" oninput="maskN(this)" onblur="fmtBlur(this)"></div>
+          <div class="fg"><div class="flg">Aval. Mín 1N</div><input class="fi nin" type="text" value="1.020.000" oninput="maskN(this)" onblur="fmtBlur(this)"></div>
+          <div class="fg"><div class="flg">Aval. Máx 1N</div><input class="fi nin" type="text" value="1.700.000" oninput="maskN(this)" onblur="fmtBlur(this)"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn bg_" style="flex:1">✓ Salvar rascunho</button>
+        <button class="btn ba" style="flex:1" onclick="alert('Gerando documento de aprovação...')">✉ Gerar Doc. Aprovação</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="bloco c-gray" id="blog">
+    <div class="bloco-hd" onclick="tog('blog')">
+      <span class="bloco-num">◌</span>
+      <span class="bloco-title">Log do Anúncio</span>
+      <span class="bloco-toggle">▾</span>
+    </div>
+    <div class="bloco-body" style="padding:0">
+      <div id="log-container">
+        <div class="log-item"><div class="ld a"></div><div><div class="log-txt">Rascunho criado — Thiago Mann</div><div class="log-time">15/03/2026 às 14:23</div></div></div>
+        <div class="log-item"><div class="ld a"></div><div><div class="log-txt">DRE preenchida via Copiloto IA — v1 → v2</div><div class="log-time">15/03/2026 às 15:41</div></div></div>
+        <div class="log-item"><div class="ld a"></div><div><div class="log-txt">Pilares preenchidos — Score: 74/100</div><div class="log-time">15/03/2026 às 16:02</div></div></div>
+        <div class="log-item"><div class="ld b"></div><div><div class="log-txt">Enviado para aprovação — Rafael Mendes notificado</div><div class="log-time">16/03/2026 às 09:15</div></div></div>
+        <div class="log-item"><div class="ld g"></div><div><div class="log-txt">Aprovado pelo vendedor — mandato assinado</div><div class="log-time">16/03/2026 às 11:33</div></div></div>
+        <div class="log-item"><div class="ld g"></div><div><div class="log-txt">Publicado — válido até 16/03/2027</div><div class="log-time">16/03/2026 às 11:45</div></div></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /v-aval -->
+
+<!-- AGENDA -->
+<div class="view" id="v-agenda" style="max-width:900px">
+  <div style="background:var(--s1);border:1px solid var(--b1)">
+    <div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--blue);text-transform:uppercase;background:rgba(0,0,0,.2)">Agenda — cal.com/1negocio</div>
+    <iframe src="https://cal.com/1negocio?theme=dark" style="width:100%;height:500px;border:none;background:var(--s1)" allow="camera;microphone;fullscreen;payment" title="Agenda"></iframe>
+  </div>
+</div>
+
+<!-- MESAS -->
+<div class="view" id="v-mesas" style="max-width:900px">
+  <div style="background:var(--s1);border:1px solid var(--b1)">
+    <div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--ink3);text-transform:uppercase;background:rgba(0,0,0,.2)">Mesas de Negociação</div>
+    <table class="tbl">
+      <thead><tr><th>Negócio</th><th>Comprador</th><th>Status</th><th>Última msg</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><strong style="color:#fff">SaaS Gestão p/ Clínicas</strong></td><td style="color:var(--ink3)">João Silva</td><td><span class="bge bgg">Aberta</span></td><td style="color:var(--ink4);font-size:9px">Há 2h</td><td><button class="btn bb bsm">Abrir</button></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="view" id="v-negocios" style="max-width:900px"><div style="background:var(--s1);border:1px solid var(--b1)"><div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--ink3);text-transform:uppercase;background:rgba(0,0,0,.2)">Todos os Negócios</div><div class="ld-txt">Configure chave API para carregar dados reais</div></div></div>
+<div class="view" id="v-leads" style="max-width:900px"><div style="background:var(--s1);border:1px solid var(--b1)"><div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--ink3);text-transform:uppercase;background:rgba(0,0,0,.2)">Leads</div><div class="ld-txt">Configure chave API para carregar dados reais</div></div></div>
+<div class="view" id="v-usuarios" style="max-width:900px"><div style="background:var(--s1);border:1px solid var(--b1)"><div style="padding:8px 12px;border-bottom:1px solid var(--b1);font-size:8px;letter-spacing:.14em;color:var(--ink3);text-transform:uppercase;background:rgba(0,0,0,.2)">Usuários</div><div class="ld-txt">Configure chave API para carregar dados reais</div></div></div>
+
+</div></div>
+
+<!-- IA PANEL -->
+<div id="ia-panel">
+  <div class="ia-hd">
+    <div class="ia-hd-t" id="ia-panel-title">◆ Copiloto — Bloco</div>
+    <button onclick="document.getElementById('ia-panel').classList.remove('open')" style="background:none;border:none;color:var(--ink4);cursor:pointer;font-size:13px">✕</button>
+  </div>
+  <div class="ia-body" id="ia-panel-body"><div class="ia-empty">Clique em ◆ IA em qualquer bloco</div></div>
+</div>
+
+<!-- COPILOTO -->
+<div id="cp">
+  <div class="cphd">
+    <div class="cphdtxt">◆ Copiloto IA</div>
+    <button onclick="toggleCp()" style="background:none;border:none;color:var(--ink4);cursor:pointer;font-size:14px">✕</button>
+  </div>
+  <div id="cpmsgs" class="cpmsgs">
+    <div class="cpm sys">Copiloto ativo · 2 fontes carregadas</div>
+    <div class="cpm ai" style="white-space:pre-wrap">Analisei as fontes. Identifico:
+• MRR: R$ 48.000/mês (+8%/mês)
+• Churn: &lt;2%
+• Resultado líq.: ~R$ 22.000/mês
+
+Deseja que eu preencha a DRE ou sugira as notas dos pilares?</div>
+  </div>
+  <div class="cptype" id="cptyping" style="display:none">◆ digitando...</div>
+  <div class="cpwrap">
+    <textarea class="cpinp" id="cpinp" rows="2" placeholder="Pergunte ou peça ajuda..."></textarea>
+    <button class="cpsend" onclick="sendCp()">↑</button>
+  </div>
+</div>
+
+<script>
+setInterval(function(){ document.getElementById('ttime').textContent = new Date().toLocaleTimeString('pt-BR'); }, 1000);
+
+function go(id, btn) {
+  document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('on'); v.style.display=''; });
+  // hide old painel
+  var pv=document.getElementById('v-painel'); if(pv) pv.style.display='none';
+  var v = document.getElementById('v-' + id);
+  if (v) v.classList.add('on');
+  document.querySelectorAll('.tn').forEach(function(b){ b.classList.remove('on'); });
+  if (btn) btn.classList.add('on');
+  document.querySelectorAll('.si').forEach(function(s){ s.classList.remove('on'); });
+}
+
+function tog(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('open');
+  if (id === 'b12' && el.classList.contains('open')) dreRend();
+  if (id === 'b16' && el.classList.contains('open')) rendP();
+  if (id === 'b13' && el.classList.contains('open')) balCalc();
+}
+
+var _allOpen = false;
+function selCrescimento(btn) {
+  document.querySelectorAll('.crescimento-btn').forEach(function(b){ b.style.outline='none';b.style.boxShadow='none'; });
+  btn.style.outline = '2px solid currentColor';
+  btn.style.boxShadow = '0 0 0 3px rgba(255,255,255,.08)';
+}
+function toggleAll() {
+  _allOpen = !_allOpen;
+  var ids = ['b1','b2','b3','b3b','b4','b5','b6','b7','b8','b9','b10','b11','b12','b13','b14','b15','b16','b17'];
+  ids.forEach(function(id){
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (_allOpen) el.classList.add('open');
+    else el.classList.remove('open');
+  });
+  if (_allOpen) { dreRend(); rendP(); balCalc(); }
+}
+
+function setStatus(s) {
+  ['r','a','p'].forEach(function(x){ var el=document.getElementById('st-'+x); if(el){el.className='ss';} });
+  var el = document.getElementById('st-' + s);
+  if (el) el.className = 'ss on-' + s;
+  var msgs = {r:'Voltou para rascunho', a:'Enviado para aprovação — Vendedor notificado', p:'Publicado — válido por 1 ano'};
+  logEntry(s === 'a' ? 'b' : s === 'p' ? 'g' : 'a', msgs[s]);
+}
+
+function logEntry(cor, txt) {
+  var c = document.getElementById('log-container');
+  if (!c) return;
+  var d = document.createElement('div');
+  d.className = 'log-item';
+  d.innerHTML = '<div class="ld ' + cor + '"></div><div><div class="log-txt">' + txt + '</div><div class="log-time">' + new Date().toLocaleString('pt-BR') + '</div></div>';
+  c.appendChild(d);
+  c.scrollTop = c.scrollHeight;
+}
+
+function showIA(bloco, content) {
+  var panel = document.getElementById('ia-panel');
+  var title = document.getElementById('ia-panel-title');
+  var body = document.getElementById('ia-panel-body');
+  title.textContent = '◆ IA — ' + bloco.charAt(0).toUpperCase() + bloco.slice(1);
+  body.innerHTML = '';
+  var msgs = content ? content.split('\n\n') : [];
+  if (!msgs.length || !content) {
+    body.innerHTML = '<div class="ia-empty">Nenhuma observação extraída das fontes para este bloco</div>';
+  } else {
+    content.split('\n').forEach(function(line) {
+      if (!line.trim()) return;
+      var d = document.createElement('div');
+      d.className = 'ia-msg';
+      d.style.whiteSpace = 'pre-wrap';
+      d.textContent = line;
+      body.appendChild(d);
+    });
+  }
+  panel.classList.add('open');
+  var cp = document.getElementById('cp');
+  if (cp) cp.classList.remove('open');
+}
+
+function atualizaComissao(sel) {
+  document.getElementById('a-comissao').value = sel.value;
+}
+
+var _regimeObs = {
+  simples: 'DRE: No Simples Nacional os impostos s/ faturamento incluem PIS, COFINS, CSLL, IRPJ e ISS/ICMS numa alíquota única (ex: 6,67% no Anexo III). Encargos patronais reduzidos.',
+  presumido: 'DRE: Lucro Presumido — IRPJ e CSLL incidem sobre presunção de lucro (ex: 32% para serviços). PIS/COFINS cumulativo. Encargos patronais completos (INSS 20% + FGTS 8%).',
+  real: 'DRE: Lucro Real — IRPJ (15%+10%) e CSLL (9%) sobre lucro efetivo. PIS/COFINS não-cumulativo com créditos. Mais complexo mas correto para margens baixas.'
+};
+function toggleRegime() {
+  var sel = document.getElementById('regime-sel');
+  var det = document.getElementById('regime-detalhes');
+  var obs = document.getElementById('regime-obs-dre');
+  if (!sel || !det) return;
+  if (sel.value) { det.style.display = 'block'; if (obs) obs.textContent = _regimeObs[sel.value] || ''; }
+  else det.style.display = 'none';
+}
+
+function toggleAlvaras(sel) {
+  var det = document.getElementById('alvaras-det');
+  if (det) det.style.display = sel.value === 'sim' ? 'block' : 'none';
+}
+
+function toggleVendaTipo() {
+  var radios = document.querySelectorAll('input[name="tipo-venda"]');
+  var val = '';
+  radios.forEach(function(r){ if(r.checked) val = r.value; });
+  var det = document.getElementById('venda-parcial-det');
+  if (det) det.style.display = val === 'parcial' ? 'block' : 'none';
+}
+
+function maskN(el) {
+  var raw = el.value.replace(/\D/g, '');
+  el.dataset.raw = raw;
+  if (!raw) { el.value = ''; return; }
+  el.value = parseInt(raw, 10).toLocaleString('pt-BR');
+}
+function fmtBlur(el) {
+  var raw = el.dataset.raw || el.value.replace(/\./g,'');
+  if (!raw) return;
+  el.value = parseInt(raw, 10).toLocaleString('pt-BR');
+  balCalc();
+}
+function getRaw(el) {
+  return parseInt((el.dataset.raw || el.value.replace(/\./g,'')) || '0', 10) || 0;
+}
+function fv(v) {
+  if (!v && v !== 0) return '—';
+  v = Number(v);
+  var a = Math.abs(v), s;
+  if (a >= 1e6) s = 'R$ ' + (a / 1e6).toFixed(1).replace('.', ',') + 'M';
+  else s = 'R$ ' + a.toLocaleString('pt-BR');
+  return v < 0 ? '(' + s + ')' : s;
+}
+
+function addSocio() {
+  var tb = document.getElementById('socios-body');
+  if (!tb) return;
+  var tr = document.createElement('tr');
+  tr.innerHTML = '<td style="padding:3px 8px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi" style="font-size:10px;padding:3px 6px;text-transform:none" placeholder="Nome..."></td>'
+    +'<td style="padding:3px 5px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi" style="font-size:10px;padding:3px 5px;text-align:center" type="text" placeholder="0"></td>'
+    +'<td style="padding:3px;text-align:center;border-bottom:1px solid rgba(255,255,255,.04)"><input type="checkbox" style="cursor:pointer;accent-color:var(--amber)"></td>'
+    +'<td style="padding:3px;text-align:center;border-bottom:1px solid rgba(255,255,255,.04)"><input type="checkbox" style="cursor:pointer;accent-color:var(--green)"></td>'
+    +'<td style="padding:3px 8px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi" style="font-size:10px;padding:3px 6px;text-transform:none" placeholder="Função..."></td>'
+    +'<td style="padding:3px;border-bottom:1px solid rgba(255,255,255,.04)"><button onclick="this.closest(\'tr\').remove()" style="background:none;border:none;color:var(--ink4);cursor:pointer;font-size:10px">✕</button></td>';
+  tb.appendChild(tr);
+}
+
+function addColaborador() {
+  var tb = document.getElementById('colab-body');
+  if (!tb) return;
+  var tr = document.createElement('tr');
+  tr.innerHTML = '<td style="padding:3px 8px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi" style="font-size:10px;padding:3px 6px;text-transform:none" placeholder="Nome..."></td>'
+    +'<td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi" style="font-size:10px;padding:3px 6px;text-transform:none" placeholder="Cargo..."></td>'
+    +'<td style="padding:3px 5px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi" style="font-size:10px;padding:3px 4px;text-align:center;text-transform:none" placeholder="1 ano"></td>'
+    +'<td style="padding:3px 4px;border-bottom:1px solid rgba(255,255,255,.04)"><select class="fi" style="font-size:9px;padding:3px 4px;background:var(--s2);color:var(--ink)"><option>CLT</option><option>PJ</option><option>Sócio</option></select></td>'
+    +'<td style="padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.04)"><input class="fi nin" style="font-size:10px;padding:3px 5px;text-align:right" type="text" placeholder="0" oninput="maskN(this)"></td>'
+    +'<td style="padding:3px;border-bottom:1px solid rgba(255,255,255,.04)"><button onclick="this.closest(\'tr\').remove()" style="background:none;border:none;color:var(--ink4);cursor:pointer;font-size:10px">✕</button></td>';
+  tb.appendChild(tr);
+}
+
+function balCalc() {
+  var atRows = document.querySelectorAll('#bal-at-rows .bal-inp');
+  var pasRows = document.querySelectorAll('#bal-pas-rows .bal-inp');
+  var at = 0, pas = 0;
+  atRows.forEach(function(i){ at += getRaw(i); });
+  pasRows.forEach(function(i){ pas += getRaw(i); });
+  var pl = at - pas;
+  var atEl = document.getElementById('bal-at-total');
+  var pasEl = document.getElementById('bal-pas-total');
+  var plEl = document.getElementById('bal-pl');
+  if (atEl) atEl.textContent = fv(at);
+  if (pasEl) pasEl.textContent = fv(pas);
+  if (plEl) { plEl.textContent = fv(Math.abs(pl)); plEl.style.color = pl >= 0 ? 'var(--green)' : 'var(--red)'; }
+}
+
+function balAddRow(side) {
+  var n = prompt('Nome do item:');
+  if (!n || !n.trim()) return;
+  var container = document.getElementById('bal-' + side + '-rows');
+  if (!container) return;
+  var div = document.createElement('div');
+  div.className = 'bal-row' + (side === 'pas' ? ' pas' : '');
+  div.innerHTML = '<span style="font-size:10px;color:var(--ink2);cursor:pointer" onclick="var nn=prompt(\'Renomear:\',this.textContent);if(nn)this.textContent=nn.trim()">' + n.trim() + '</span>'
+    + '<input class="bal-inp nin" type="text" value="0" oninput="maskN(this)" onblur="balCalc()">';
+  container.appendChild(div);
+}
+
+var _per = 'm';
+var _cols = [{ id: 'c1', nm: 'Principal' }];
+var _rows = [
+  { id: 'r1',  nm: 'Receita Bruta / MRR',     t: 'soma', g: 'fat', v: { c1: 48000 } },
+  { id: 'rFAT',nm: '= FATURAMENTO BRUTO',      t: 'res',  g: 'fat' },
+  { id: 'r2',  nm: 'Impostos s/ Venda',         t: 'ded',  g: 'ded', v: { c1: 3200 } },
+  { id: 'r3',  nm: 'Comissões',                 t: 'ded',  g: 'ded', v: { c1: 0 } },
+  { id: 'rRL', nm: '= RECEITA LÍQUIDA',         t: 'res',  g: 'ded' },
+  { id: 'r4',  nm: 'CMV / Infra Cloud',         t: 'ded',  g: 'cmv', v: { c1: 4800 }, exp: true },
+  { id: 'rMB', nm: '= MARGEM BRUTA',            t: 'res',  g: 'cmv' },
+  { id: 'r5',  nm: 'Folha + Encargos',          t: 'ded',  g: 'desp', v: { c1: 28000 }, exp: true },
+  { id: 'r6',  nm: 'Pró-Labore',                t: 'ded',  g: 'desp', v: { c1: 0 } },
+  { id: 'r7',  nm: 'Aluguel',                   t: 'ded',  g: 'desp', v: { c1: 0 } },
+  { id: 'r8',  nm: 'Gerais (software, mkt...)', t: 'ded',  g: 'desp', v: { c1: 2000 }, exp: true },
+  { id: 'r9',  nm: 'Terceiros',                 t: 'ded',  g: 'desp', v: { c1: 0 } },
+  { id: 'rRO', nm: '= RESULTADO OPERACIONAL',   t: 'res',  g: 'desp' },
+  { id: 'r10', nm: 'Parcelas de Dívida',        t: 'ded',  g: 'liq',  v: { c1: 0 } },
+  { id: 'r11', nm: 'Impostos sobre Lucro',      t: 'ded',  g: 'liq',  v: { c1: 0 } },
+  { id: 'r12', nm: 'Outras Retiradas',          t: 'ded',  g: 'liq',  v: { c1: 0 } },
+  { id: 'rLL', nm: '= LUCRO LÍQUIDO',           t: 'res',  g: 'liq' }
+];
+function setPer(p) {
+  _per = p;
+  document.getElementById('pbm').className = 'pbtn' + (p === 'm' ? ' on' : '');
+  document.getElementById('pba').className = 'pbtn' + (p === 'a' ? ' on' : '');
+  dreRend();
+}
+function dreAddCol() {
+  var n = prompt('Nome do canal ou produto:');
+  if (!n || !n.trim()) return;
+  var id = 'c' + Date.now();
+  _cols.push({ id: id, nm: n.trim() });
+  _rows.forEach(function(r){ if (r.v && !r.v[id]) r.v[id] = null; });
+  dreRend();
+}
+function dreAddRow() {
+  var n = prompt('Nome da nova linha:');
+  if (!n || !n.trim()) return;
+  var idx = _rows.findIndex(function(r){ return r.id === 'rLL'; });
+  var nr = { id: 'r' + Date.now(), nm: n.trim(), t: 'ded', g: 'liq', v: {}, cus: true };
+  _cols.forEach(function(c){ nr.v[c.id] = null; });
+  _rows.splice(idx, 0, nr);
+  dreRend();
+}
+function dreMove(id, dir) {
+  var idx = _rows.findIndex(function(r){ return r.id === id; });
+  var ni = idx + dir;
+  if (ni < 0 || ni >= _rows.length || _rows[ni].t === 'res') return;
+  var tmp = _rows[idx]; _rows[idx] = _rows[ni]; _rows[ni] = tmp;
+  dreRend();
+}
+function dreSetV(rid, cid, val) {
+  var row = _rows.find(function(r){ return r.id === rid; });
+  if (row) { if (!row.v) row.v = {}; row.v[cid] = parseFloat(val) || null; }
+  dreCalc();
+}
+function dreCalc() {
+  _cols.forEach(function(c) {
+    var cid = c.id;
+    var sum = function(g, types) {
+      return _rows.filter(function(r){ return r.g === g && types.indexOf(r.t) >= 0; })
+        .reduce(function(a, r){ return a + (r.v ? parseFloat(r.v[cid]) || 0 : 0); }, 0);
+    };
+    var fat = sum('fat', ['soma']);
+    var ded = sum('ded', ['ded']);
+    var rl = fat - ded;
+    var cmv = sum('cmv', ['ded', 'sublinha']);
+    var mb = rl - cmv;
+    var desp = sum('desp', ['ded', 'sublinha']);
+    var ro = mb - desp;
+    var liq = sum('liq', ['ded', 'sublinha']);
+    var ll = ro - liq;
+    var mp = { rFAT: fat, rRL: rl, rMB: mb, rRO: ro, rLL: ll };
+    _rows.forEach(function(r){ if (r.t === 'res' && mp[r.id] != null) { if (!r._c) r._c = {}; r._c[cid] = mp[r.id]; } });
+  });
+}
+function fvN(v) {
+  if (v == null || isNaN(v)) return '—';
+  v = Number(v);
+  var a = Math.abs(v), s;
+  if (a >= 1e6) s = 'R$ ' + (a / 1e6).toFixed(1).replace('.', ',') + 'M';
+  else s = 'R$ ' + a.toLocaleString('pt-BR');
+  return v < 0 ? '(' + s + ')' : s;
+}
+function dreRend() {
+  dreCalc();
+  var t = document.getElementById('dtbl');
+  if (!t) return;
+  var multi = _cols.length > 1;
+  var cf = _per === 'm' ? 12 : 1 / 12;
+  var cl = _per === 'm' ? 'Total Anual ×12' : 'Total Mensal ÷12';
+  var h = '<thead><tr><th style="text-align:left">Linha</th>';
+  _cols.forEach(function(c) {
+    h += '<th style="color:var(--ink);font-weight:500;text-transform:none;font-size:10px;cursor:pointer" onclick="var n=prompt(\'Renomear:\',\'' + c.nm + '\');if(n&&n.trim()){c.nm=n.trim();dreRend();}">' + c.nm + '</th>';
+  });
+  if (multi) h += '<th style="color:var(--green)">Total</th>';
+  h += '<th style="color:var(--blue);border-left:1px solid var(--b1)">' + cl + '</th>';
+  h += '<th style="width:70px"></th></tr></thead><tbody>';
+  _rows.forEach(function(r) {
+    var isRes = r.t === 'res';
+    var tot = 0;
+    var cv0 = isRes ? (r._c && r._c[_cols[0].id] != null ? r._c[_cols[0].id] : 0) : (r.v ? parseFloat(r.v[_cols[0].id]) || 0 : 0);
+    var resNeg = isRes && r._c && Object.values(r._c).some(function(x){ return x < 0; });
+    h += '<tr class="' + (isRes ? 'res' : '') + (resNeg ? ' neg' : '') + '">';
+    if (r.cus) {
+      h += '<td><span style="cursor:pointer;color:var(--ink3)" onclick="var n=prompt(\'Renomear:\',\'' + r.nm.replace(/'/g,"&#39;") + '\');if(n&&n.trim())this.textContent=n.trim();">' + r.nm + '</span>';
+      if (!isRes) h += ' <span style="color:var(--ink4);font-size:7px">(−)</span>';
+      h += '</td>';
+    } else {
+      h += '<td>' + r.nm + (r.t === 'ded' ? ' <span style="color:var(--ink4);font-size:7px">(−)</span>' : '') + '</td>';
+    }
+    _cols.forEach(function(c) {
+      var cv = isRes ? (r._c && r._c[c.id] != null ? r._c[c.id] : 0) : (r.v ? parseFloat(r.v[c.id]) || 0 : 0);
+      tot += cv;
+      if (isRes) {
+        h += '<td style="color:' + (cv >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fvN(cv) + '</td>';
+      } else {
+        var dispV = r.v && r.v[c.id] != null ? Number(r.v[c.id]).toLocaleString('pt-BR') : '';
+        h += '<td style="padding:2px 5px"><input class="dinp" type="text" value="' + dispV + '" placeholder="0"'
+          + ' oninput="var raw=this.value.replace(/\\D/g,\'\');if(raw)this.value=parseInt(raw,10).toLocaleString(\'pt-BR\');dreSetV(\'' + r.id + '\',\'' + c.id + '\',raw||\'0\');">'
+          + '</td>';
+      }
+    });
+    if (multi) h += '<td style="color:' + (tot >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fvN(tot) + '</td>';
+    var base = multi ? tot : cv0;
+    h += '<td style="color:var(--blue);border-left:1px solid var(--b1);opacity:.8">' + fvN(base * cf) + '</td>';
+    h += '<td style="padding:2px 3px;white-space:nowrap">';
+    if (!isRes) {
+      h += '<button onclick="dreMove(\'' + r.id + '\',-1)" style="background:none;border:none;color:var(--ink4);cursor:pointer;font-size:9px;padding:1px 2px" title="Subir">↑</button>';
+      h += '<button onclick="dreMove(\'' + r.id + '\',1)" style="background:none;border:none;color:var(--ink4);cursor:pointer;font-size:9px;padding:1px 2px" title="Descer">↓</button>';
+    }
+    if (r.exp) h += '<button onclick="addSub(\'' + r.id + '\')" style="background:none;border:none;color:var(--ink4);cursor:pointer;font-size:9px;padding:1px 2px" title="Sub-linha">+</button>';
+    if (r.cus) h += '<button onclick="rmRow(\'' + r.id + '\')" style="background:none;border:none;color:var(--ink4);cursor:pointer;font-size:9px;padding:1px 2px">✕</button>';
+    h += '</td></tr>';
+  });
+  h += '</tbody>';
+  t.innerHTML = h;
+}
+function addSub(pid) {
+  var n = prompt('Nome da sub-linha:');
+  if (!n || !n.trim()) return;
+  var par = _rows.find(function(r){ return r.id === pid; });
+  if (!par) return;
+  var nr = { id: 'r' + Date.now(), nm: '  └ ' + n.trim(), t: 'sublinha', g: par.g, v: {}, par: pid, cus: true };
+  _cols.forEach(function(c){ nr.v[c.id] = null; });
+  var idx = _rows.findIndex(function(r){ return r.id === pid; });
+  _rows.splice(idx + 1, 0, nr);
+  dreRend();
+}
+function rmRow(id) {
+  _rows = _rows.filter(function(r){ return r.id !== id && r.par !== id; });
+  dreRend();
+}
+
+var PILS = [
+  { id: 'resultado_operacional', nm: 'Resultado Operacional', p: 20 },
+  { id: 'comercial_receita',     nm: 'Comercial / Receita',   p: 15 },
+  { id: 'dependencia_socios',    nm: 'Depend. dos Sócios',    p: 15 },
+  { id: 'gestao',                nm: 'Gestão',                p: 12 },
+  { id: 'processos_operacao',    nm: 'Processos e Operação',  p: 10 },
+  { id: 'equipe',                nm: 'Equipe',                p: 8  },
+  { id: 'risco_juridico',        nm: 'Risco Jurídico',        p: 8  },
+  { id: 'estrutura_divida',      nm: 'Estrutura de Dívida',   p: 6  },
+  { id: 'produto_valor',         nm: 'Produto / Valor',       p: 4  },
+  { id: 'estrutura_patrimonial', nm: 'Estrut. Patrimonial',   p: 2  }
+];
+var _pn = { resultado_operacional:7, comercial_receita:8, dependencia_socios:5, gestao:6, processos_operacao:6, equipe:7, risco_juridico:8, estrutura_divida:9, produto_valor:8, estrutura_patrimonial:7 };
+var _po = {};
+function rendP() {
+  var el = document.getElementById('plist');
+  if (!el) return;
+  var h = '';
+  PILS.forEach(function(p) {
+    var n = _pn[p.id] != null ? _pn[p.id] : 5;
+    var cor = n >= 7 ? 'var(--green)' : n >= 4 ? 'var(--amber)' : 'var(--red)';
+    h += '<div style="border-bottom:1px solid rgba(255,255,255,.04)">';
+    h += '<div class="pr">';
+    h += '<div style="font-size:9px;color:var(--ink2)">' + p.nm + '</div>';
+    h += '<div style="font-size:7px;color:var(--ink4);text-align:center">' + p.p + '%</div>';
+    h += '<input type="range" min="0" max="10" step="0.5" value="' + n + '" data-pid="' + p.id + '" oninput="onSl(this)" style="accent-color:' + cor + '">';
+    h += '<div id="pv-' + p.id + '" style="font-size:13px;font-weight:700;text-align:center;color:' + cor + '">' + n.toFixed(1) + '</div>';
+    h += '<button class="obsbtn" data-pid="' + p.id + '" onclick="togObs(this)">obs</button>';
+    h += '</div>';
+    h += '<div id="po-' + p.id + '" style="display:none;padding:3px 0 6px"><textarea class="fi" rows="1" data-pid="' + p.id + '" oninput="onObs(this)" placeholder="Justificativa..." style="font-size:10px;text-transform:none">' + (_po[p.id] || '') + '</textarea></div>';
+    h += '</div>';
+  });
+  el.innerHTML = h;
+  calcSc();
+}
+function onSl(el) {
+  var pid = el.getAttribute('data-pid');
+  var n = parseFloat(el.value);
+  _pn[pid] = n;
+  var cor = n >= 7 ? 'var(--green)' : n >= 4 ? 'var(--amber)' : 'var(--red)';
+  el.style.accentColor = cor;
+  var ne = document.getElementById('pv-' + pid);
+  if (ne) { ne.textContent = n.toFixed(1); ne.style.color = cor; }
+  calcSc();
+}
+function onObs(el) { _po[el.getAttribute('data-pid')] = el.value; }
+function togObs(btn) {
+  var pid = btn.getAttribute('data-pid');
+  var el = document.getElementById('po-' + pid);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+function calcSc() {
+  var tot = 0, pw = 0;
+  PILS.forEach(function(p){ tot += (_pn[p.id] || 5) * p.p; pw += p.p; });
+  var s = Math.round(tot / pw * 10);
+  var cor = s >= 70 ? 'var(--green)' : s >= 45 ? 'var(--amber)' : 'var(--red)';
+  var sn = document.getElementById('scn');
+  if (sn) { sn.textContent = s; sn.style.color = cor; }
+  var sb = document.getElementById('scbar');
+  if (sb) { sb.style.width = s + '%'; sb.style.background = cor; }
+  var sl = document.getElementById('sclbl');
+  if (sl) { var l = s >= 80 ? 'Sólida' : s >= 65 ? 'Consolidada' : s >= 45 ? 'Em Transição' : 'Fragilizada'; sl.textContent = l; sl.style.color = cor; }
+}
+function iaNotas() {
+  toggleCp();
+  addMsg('sys', 'Analisando fontes → sugerindo notas...');
+  setTimeout(function() {
+    var sug = { resultado_operacional:8, comercial_receita:9, dependencia_socios:5, gestao:6, processos_operacao:5, equipe:7, risco_juridico:8, estrutura_divida:9, produto_valor:8, estrutura_patrimonial:6 };
+    Object.keys(sug).forEach(function(k){ _pn[k] = sug[k]; });
+    rendP();
+    var scn = document.getElementById('scn');
+    addMsg('ai', '✓ Notas sugeridas para os 10 pilares.\n\n◉ Destaques:\n• Comercial: 9.0 — MRR +8%/mês\n• Dívida: 9.0 — sem passivo\n\n⚠ Atenção:\n• Depend. Sócios: 5.0\n\nScore: ' + (scn ? scn.textContent : '--') + '/100');
+    logEntry('a', 'Pilares sugeridos pela IA — Score: ' + (scn ? scn.textContent : '--') + '/100');
+  }, 1200);
+}
+
+function toggleCp() {
+  var cp = document.getElementById('cp');
+  var ia = document.getElementById('ia-panel');
+  if (ia) ia.classList.remove('open');
+  cp.classList.toggle('open');
+  if (cp.classList.contains('open')) document.getElementById('cpinp').focus();
+}
+function addMsg(tipo, txt) {
+  var el = document.getElementById('cpmsgs');
+  var d = document.createElement('div');
+  d.className = 'cpm ' + tipo;
+  d.style.whiteSpace = 'pre-wrap';
+  d.textContent = txt;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+function sendCp() {
+  var inp = document.getElementById('cpinp');
+  var txt = inp.value.trim();
+  if (!txt) return;
+  inp.value = '';
+  addMsg('user', txt);
+  document.getElementById('cptyping').style.display = 'block';
+  setTimeout(function() {
+    document.getElementById('cptyping').style.display = 'none';
+    var tl = txt.toLowerCase();
+    var r;
+    if (tl.indexOf('dre') >= 0 || tl.indexOf('financ') >= 0) r = 'Receita Bruta: R$ 48.000/mês\nImpostos: ~R$ 3.200\nFolha: R$ 28.000\nGerais: R$ 2.000\nCMV: ~R$ 4.800\nResultado Op.: ~R$ 10.000/mês';
+    else if (tl.indexOf('pilar') >= 0 || tl.indexOf('score') >= 0) r = 'Clique em "◆ IA Sugerir Notas" no Bloco 16 para que eu analise as fontes e preencha os 10 pilares.';
+    else if (tl.indexOf('valor') >= 0 || tl.indexOf('dcf') >= 0) r = 'DCF estimado:\n• EBITDA anual: ~R$ 120K\n• WACC SaaS: 15%\n• Crescimento: 8%/ano\n• Valor: R$ 1,0M – R$ 1,7M\n\nPedido de R$ 1,3M está na faixa.';
+    else r = 'Tenho 2 fontes disponíveis. Posso ajudar com:\n• DRE — preencher demonstração\n• Pilares — sugerir notas\n• Valor — calcular DCF\n• Descrição — gerar texto';
+    addMsg('ai', r);
+  }, 800 + Math.random() * 500);
+}
+document.getElementById('cpinp').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCp(); }
+});
+
+
+function anTab(tab, btn) {
+  document.querySelectorAll('.an-view').forEach(function(v){ v.style.display='none'; });
+  var el = document.getElementById('an-' + tab);
+  if (el) el.style.display = 'block';
+  ['pub','aval','alt','pend'].forEach(function(t){ var b=document.getElementById('an-tab-'+t); if(b) b.className='pbtn'; });
+  if (btn) btn.className = 'pbtn on';
+}
+function clTab(tab, btn) {
+  document.querySelectorAll('.pbtn').forEach(function(b){ if(b.parentNode===btn.parentNode) b.className='pbtn'; });
+  if (btn) btn.className = 'pbtn on';
+}
+function selChat(el) {
+  document.querySelectorAll('.chat-li').forEach(function(li){
+    li.style.background='';li.style.borderLeft='3px solid transparent';
+  });
+  el.style.background='rgba(251,191,36,.06)';el.style.borderLeft='3px solid var(--amber)';
+  var who = el.getAttribute('data-who');
+  var nome = document.getElementById('chat-nome');
+  if (nome) nome.textContent = who;
+}
+function abrirChatCliente(who) {
+  go('chats', null);
+  document.querySelectorAll('.tn').forEach(function(b){ b.classList.remove('on'); });
+  var chatLis = document.querySelectorAll('.chat-li');
+  chatLis.forEach(function(li){ if(li.getAttribute('data-who')===who) selChat(li); });
+}
+function enviarChat() {
+  var inp = document.getElementById('chat-inp');
+  var txt = inp.value.trim();
+  if (!txt) return;
+  inp.value = '';
+  var msgs = document.getElementById('chat-msgs');
+  var d = document.createElement('div');
+  d.style.cssText = 'align-self:flex-end;max-width:75%';
+  d.innerHTML = '<div style="font-size:8px;color:var(--ink4);margin-bottom:2px;text-align:right">Você · agora</div>'
+    + '<div style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.2);padding:8px 11px;font-size:11px;color:var(--ink2);line-height:1.5">' + txt + '</div>';
+  msgs.appendChild(d);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function abrirNovaMesa() {
+  var el = document.getElementById('mesa-nova');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+function criarMesa() {
+  document.getElementById('mesa-nova').style.display = 'none';
+  var lista = document.getElementById('mesas-lista');
+  var mid = 'mesa-' + Date.now();
+  var tr = document.createElement('tr');
+  tr.id = mid;
+  tr.innerHTML = '<td><strong style="color:#fff">Nova Mesa</strong></td>'
+    + '<td style="color:var(--ink3)">Comprador</td>'
+    + '<td><span class="bge bgg">Aberta</span></td>'
+    + '<td style="font-size:9px;color:var(--ink4)">Agora</td>'
+    + '<td><div style="display:flex;gap:4px">'
+    + '<button class="btn bb bsm" data-action="chat">Chat</button>'
+    + '<button class="btn br bsm" data-action="encerrar">Encerrar</button>'
+    + '</div></td>';
+  tr.querySelector('[data-action=chat]').addEventListener('click', function(){ abrirMesaChat(mid); });
+  tr.querySelector('[data-action=encerrar]').addEventListener('click', function(){ encerrarMesa(mid); });
+  lista.appendChild(tr);
+  abrirMesaChat(mid);
+  logEntry('b', 'Mesa criada — Admin vinculou anúncio a comprador');
+}
+function abrirMesaChat(id) {
+  var w = document.getElementById('mesa-chat-wrap');
+  if (w) w.style.display = 'block';
+  var msgs = document.getElementById('mesa-msgs');
+  if (msgs) msgs.scrollTop = msgs.scrollHeight;
+}
+function encerrarMesa(id) {
+  if (!confirm('Encerrar esta mesa?')) return;
+  var tr = document.getElementById(id);
+  if (tr) {
+    var tds = tr.querySelectorAll('td');
+    if (tds[2]) tds[2].innerHTML = '<span class="bge bgd">Encerrada</span>';
+    if (tds[4]) tds[4].innerHTML = '<span style="font-size:9px;color:var(--ink4)">Encerrada</span>';
+  }
+  document.getElementById('mesa-chat-wrap').style.display = 'none';
+  logEntry('r', 'Mesa encerrada pelo admin');
+}
+function enviarMesaMsg() {
+  var inp = document.getElementById('mesa-msg-inp');
+  var txt = inp.value.trim();
+  if (!txt) return;
+  inp.value = '';
+  var msgs = document.getElementById('mesa-msgs');
+  var d = document.createElement('div');
+  d.style.cssText = 'align-self:flex-end;max-width:70%;margin-left:auto';
+  d.innerHTML = '<div style="font-size:8px;color:var(--ink4);margin-bottom:2px;text-align:right">Admin · agora</div>'
+    + '<div style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.2);padding:8px 11px;font-size:11px;color:var(--ink2);line-height:1.5">' + txt + '</div>';
+  msgs.appendChild(d);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+// ── SUPABASE CONFIG ───────────────────────────────────────────────
+var SB = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+var SK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzA3NjE2MywiZXhwIjoyMDg4NjUyMTYzfQ.b79syG5GuQZYLd3QvbRMTi66E_sdKa-Nh-Q1XbDcM2Y';
+var _negId = null;
+
+async function sbApi(path, opts) {
+  var h = { 'apikey': SK, 'Authorization': 'Bearer '+SK, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+  if (opts && opts.headers) Object.assign(h, opts.headers);
+  try {
+    var r = await fetch(SB+'/rest/v1/'+path, Object.assign({headers:h},opts||{}));
+    if (!r.ok) { console.error('SB',r.status); return null; }
+    var ct = r.headers.get('content-type')||'';
+    return ct.includes('json') ? r.json() : true;
+  } catch(e) { console.error(e); return null; }
+}
+
+function fmtN(v) {
+  if (!v && v!==0) return '—';
+  v = Number(v);
+  var a = Math.abs(v);
+  var s = a>=1e6 ? 'R$'+(a/1e6).toFixed(1).replace('.',',')+'M' : 'R$'+a.toLocaleString('pt-BR');
+  return v<0?'('+s+')':s;
+}
+
+function stBadge(s) {
+  var m = {rascunho:'bgd',em_avaliacao:'bga',aguardando_aprovacao:'bgb',aguardando_publicacao:'bgb',publicado:'bgg',expirado:'bgr',em_revisao:'bgp'};
+  return '<span class="bge '+(m[s]||'bgd')+'">'+(s||'—').replace(/_/g,' ')+'</span>';
+}
+
+function toast(msg) {
+  var t = document.getElementById('_toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = '_toast';
+    t.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;background:#111110;border:1px solid rgba(255,255,255,.15);padding:9px 16px;font-family:var(--f);font-size:11px;color:var(--ink);opacity:0;transform:translateY(6px);transition:all .2s;pointer-events:none;max-width:260px';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity='1'; t.style.transform='translateY(0)';
+  setTimeout(function(){ t.style.opacity='0'; t.style.transform='translateY(6px)'; }, 2800);
+}
+
+async function loadFinanceiro() {
+  var trans = await sbApi('transacoes?order=created_at.desc&limit=50');
+  if (!trans) return;
+  var pago = trans.filter(function(t){return t.status==='pago';});
+  var totalMes = pago.reduce(function(a,t){return a+Number(t.valor||0);},0);
+  var guiados = pago.filter(function(t){return t.tipo==='guiado_588';}).length;
+  var avals = pago.filter(function(t){return t.tipo==='avaliacao_397';}).length;
+  var kpis = document.querySelectorAll('.kpi-n');
+  if (kpis[0]) kpis[0].textContent = guiados+avals;
+  var tb = document.querySelector('#v-financeiro table tbody');
+  if (!tb || !trans.length) return;
+  tb.innerHTML = trans.map(function(t) {
+    var cor = t.status==='pago'?'var(--green)':t.status==='cancelado'?'var(--red)':'var(--amber)';
+    var tipo = t.tipo==='guiado_588'?'Guiado':t.tipo==='avaliacao_397'?'Aval. R$397':'Comissão';
+    var tipoCls = t.tipo==='guiado_588'?'bga':'bgb';
+    var stCls = t.status==='pago'?'bgg':t.status==='cancelado'?'bgr':'bga';
+    return '<tr><td style="color:var(--ink4);font-size:10px">'+new Date(t.created_at).toLocaleDateString('pt-BR')+'</td>'
+      +'<td><span class="bge '+tipoCls+'">'+tipo+'</span></td>'
+      +'<td>'+(t.descricao||'—')+'</td><td>—</td>'
+      +'<td style="text-align:right;font-weight:600;color:'+cor+'">'+fmtN(t.valor)+'</td>'
+      +'<td><span class="bge '+stCls+'">'+t.status+'</span></td></tr>';
+  }).join('');
+}
+
+async function loadAnuncios() {
+  var data = await sbApi('negocios?select=id,nome,tag,categoria,cidade,status,score_saude,preco_pedido,expira_em,created_at&order=created_at.desc');
+  if (!data) return;
+  var renderTb = function(id, rows) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (!rows.length) { el.innerHTML='<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--ink4);font-size:10px">Nenhum registro</td></tr>'; return; }
+    el.innerHTML = rows.map(function(n) {
+      var sc=n.score_saude, scC=sc>=70?'var(--green)':sc>=45?'var(--amber)':'var(--red)';
+      var nid=n.id;
+      var r='<tr>';
+      r+='<td><strong style="color:#fff;display:block">'+(n.tag||n.nome||'—')+'</strong>';
+      r+='<span style="font-size:9px;color:var(--ink4)">'+(n.categoria||'')+(n.cidade?' · '+n.cidade:'')+'</span></td>';
+      r+=stBadge(n.status)+'</td>';
+      r+='<td style="text-align:right;font-weight:700;color:'+scC+'">'+(sc||'—')+'</td>';
+      r+='<td style="text-align:right">'+(n.preco_pedido?fmtN(n.preco_pedido):'—')+'</td>';
+      r+='<td style="font-size:9px;color:var(--ink4)">'+(n.expira_em?'até '+new Date(n.expira_em).toLocaleDateString('pt-BR'):'')+'</td>';
+      r+='<td><button class="btn ba bsm" id="opn-'+nid+'" onclick="document.getElementById(\'opn-'+nid+'\').setAttribute(\'data-load\',\'1\');abrirNeg(\''+nid+'\')">◆ Abrir</button></td></tr>';
+      return r;
+    }).join('');
+  };
+  renderTb('an-pub-body', data.filter(function(n){return n.status==='publicado';}));
+  renderTb('an-aval-body', data.filter(function(n){return ['rascunho','em_avaliacao','aguardando_aprovacao','em_revisao','aguardando_publicacao'].indexOf(n.status)>=0;}));
+}
+
+async function loadClientes() {
+  var data = await sbApi('usuarios?order=created_at.desc&limit=200');
+  if (!data) return;
+  var tb = document.querySelector('#v-clientes table tbody');
+  if (!tb) return;
+  tb.innerHTML = data.map(function(u) {
+    var tipoCls=u.tipo==='sell'?'bga':'bgb', tipoTxt=u.tipo==='sell'?'Vendedor':'Comprador';
+    var unom = (u.nome||'').replace(/'/g,"\\'");
+    return '<tr><td><strong style="color:#fff">'+(u.nome||'—')+'</strong></td>'
+      +'<td style="color:var(--ink3);font-size:11px">'+(u.email||'—')+'</td>'
+      +'<td><span class="bge '+tipoCls+'">'+tipoTxt+'</span></td>'
+      +'<td style="font-size:9px;color:var(--ink4)">'+new Date(u.created_at).toLocaleDateString('pt-BR')+'</td>'
+      +'<td><span class="bge bgg">Ativo</span></td>'
+      +'<td><button class="btn bsm" onclick="abrirChatCliente(\''+unom+'\')">✉ Chat</button></td></tr>';
+  }).join('');
+}
+
+async function loadMesas() {
+  var data = await sbApi('mesas_negociacao?select=*,negocios(tag,nome),comprador:usuarios!mesas_negociacao_comprador_id_fkey(nome,email)&order=created_at.desc');
+  if (!data) return;
+  var tb = document.getElementById('mesas-lista');
+  if (!tb) return;
+  if (!data.length) { tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--ink4);font-size:10px">Nenhuma mesa</td></tr>'; return; }
+  tb.innerHTML = data.map(function(m) {
+    var neg=m.negocios||{}, cmp=m.comprador||{};
+    var sCls=m.status==='ativa'?'bgg':m.status==='encerrada'?'bgd':'bga';
+    var mid=m.id;
+    var r='<tr id="mesa-db-'+mid+'">';
+    r+='<td><strong style="color:#fff">'+(neg.tag||neg.nome||'—')+'</strong></td>';
+    r+='<td style="color:var(--ink3)">'+(cmp.nome||'—')+'</td>';
+    r+='<td><span class="bge '+sCls+'">'+m.status+'</span></td>';
+    r+='<td style="font-size:9px;color:var(--ink4)">'+new Date(m.created_at).toLocaleDateString('pt-BR')+'</td>';
+    r+='<td><div style="display:flex;gap:4px">';
+    r+='<button class="btn bb bsm" id="mc-'+mid+'" onclick="abrirMesaChat(\''+mid+'\')">Chat</button>';
+    if (m.status==='ativa') r+='<button class="btn br bsm" id="me-'+mid+'" onclick="encerrarMesaDB(\''+mid+'\')">Encerrar</button>';
+    r+='</div></td></tr>';
+    return r;
+  }).join('');
+}
+
+async function encerrarMesaDB(id) {
+  if (!confirm('Encerrar esta mesa?')) return;
+  await sbApi('mesas_negociacao?id=eq.'+id, {method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify({status:'encerrada',encerrada_em:new Date().toISOString()})});
+  logEntry('r','Mesa encerrada pelo admin');
+  loadMesas();
+  document.getElementById('mesa-chat-wrap').style.display='none';
+  toast('Mesa encerrada');
+}
+
+async function abrirNeg(id) {
+  _negId = id;
+  var data = await sbApi('negocios?id=eq.'+id+'&limit=1');
+  if (!data||!data[0]) return;
+  var n = data[0];
+  var map = {descricao_geral:'desc-geral',pontos_positivos:'pontos-pos',analise_1n:'pub-analise',atencao_1n:'pub-atencao',tese:'pub-tese'};
+  Object.keys(map).forEach(function(k){var el=document.getElementById(map[k]);if(el&&n[k]!=null)el.value=n[k];});
+  if (n.score_saude) {
+    var scn=document.getElementById('scn'); if(scn){scn.textContent=n.score_saude;}
+  }
+  setStatus(n.status==='publicado'?'p':n.status==='aguardando_aprovacao'?'a':'r');
+  go('aval',null);
+  toast('◆ Negócio carregado — '+id.substring(0,8));
+}
+
+async function salvarNegocio() {
+  var payload = {updated_at:new Date().toISOString()};
+  [['descricao_geral','desc-geral'],['pontos_positivos','pontos-pos'],
+   ['analise_1n','pub-analise'],['atencao_1n','pub-atencao'],['tese','pub-tese']
+  ].forEach(function(f){var el=document.getElementById(f[1]);if(el)payload[f[0]]=el.value||null;});
+  var scn=document.getElementById('scn');
+  if(scn&&scn.textContent!=='--') payload.score_saude=parseInt(scn.textContent)||null;
+  var res;
+  if (_negId) {
+    res = await sbApi('negocios?id=eq.'+_negId,{method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify(payload)});
+    if (res!==null) { await salvarPilares(); logEntry('a','Rascunho salvo — '+new Date().toLocaleTimeString('pt-BR')); }
+  } else {
+    payload.status='rascunho'; payload.nome='Novo Negócio';
+    res = await sbApi('negocios',{method:'POST',body:JSON.stringify(payload)});
+    if(res&&res[0]){_negId=res[0].id; logEntry('g','Negócio criado: '+_negId.substring(0,8));}
+  }
+  toast(res!==null?'✓ Salvo':'✗ Erro — veja o console');
+}
+
+async function salvarPilares() {
+  if (!_negId) return;
+  var ps = PILS.map(function(p) {
+    return sbApi('negocio_pilares',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({negocio_id:_negId,pilar:p.id,nota:_pn[p.id]||5,observacao:_po[p.id]||null,sugerido_ia:false})});
+  });
+  await Promise.all(ps);
+}
+
+// Override go() to auto-load data
+(function(){
+  var orig = go;
+  go = function(id, btn) {
+    orig(id, btn);
+    if (id==='financeiro') loadFinanceiro();
+    if (id==='anuncios') loadAnuncios();
+    if (id==='clientes') loadClientes();
+    if (id==='mesas') loadMesas();
+  };
+})();
+
+
+dreRend();
+rendP();
+balCalc();
+
+
+// ── ADMIN AUTH ────────────────────────────────────────────────────
+var _ADMIN_CREDS = [
+  { email: 'admin@1negocio.com.br', senha: 'Admin@1N2026' },
+  { email: 'thiago@1negocio.com.br', senha: 'Admin@1N2026' }
+];
+
+function showApp() {
+  document.getElementById('admin-login').style.display = 'none';
+  var app = document.getElementById('app-wrap');
+  app.classList.remove('hidden');
+  app.style.display = '';
+  loadFinanceiro();
+  loadAnuncios();
+}
+
+function showLogin(msg) {
+  document.getElementById('app-wrap').style.display = 'none';
+  document.getElementById('app-wrap').classList.add('hidden');
+  document.getElementById('admin-login').style.display = 'flex';
+  if (msg) document.getElementById('al-err').textContent = msg;
+}
+
+function adminLogin() {
+  var email = (document.getElementById('al-email').value || '').trim().toLowerCase();
+  var senha = document.getElementById('al-senha').value;
+  var err   = document.getElementById('al-err');
+  err.textContent = '';
+  if (!email || !senha) { err.textContent = 'Preencha e-mail e senha.'; return; }
+  var ok = _ADMIN_CREDS.find(function(c){ return c.email === email && c.senha === senha; });
+  if (!ok) { err.textContent = 'E-mail ou senha incorretos.'; return; }
+  sessionStorage.setItem('1n_admin_auth', '1');
+  showApp();
+}
+
+function adminLogout() {
+  sessionStorage.removeItem('1n_admin_auth');
+  showLogin('');
+  document.getElementById('al-email').value = '';
+  document.getElementById('al-senha').value = '';
+}
+
+// Attach events only after DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  // Button click
+  var btn = document.getElementById('al-btn');
+  if (btn) btn.addEventListener('click', adminLogin);
+
+  // Enter key on password field
+  var inp = document.getElementById('al-senha');
+  if (inp) inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') adminLogin();
+  });
+  var inpE = document.getElementById('al-email');
+  if (inpE) inpE.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') adminLogin();
+  });
+
+  // Session check
+  if (sessionStorage.getItem('1n_admin_auth') === '1') {
+    showApp();
+  } else {
+    showLogin('');
+  }
+});
+</script>
+</div><!-- /app-wrap -->
+</body>
+</html>
