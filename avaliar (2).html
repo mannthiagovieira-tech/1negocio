@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negócio · Avalie seu negócio — Quanto vale o seu patrimônio?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Instrument+Serif:ital@0;1&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0c0c0a;--bg2:#111110;--bg3:#161614;
+  --ink:rgba(255,255,255,.88);--ink2:rgba(255,255,255,.46);
+  --ink3:rgba(255,255,255,.22);--ink4:rgba(255,255,255,.08);
+  --sep:rgba(255,255,255,.07);
+  --green:#10b981;--amber:#f59e0b;--blue:#60a5fa;--red:#f87171;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+
+/* ── TICKER ── */
+#ticker{
+  position:fixed;top:0;left:0;right:0;z-index:600;
+  height:26px;background:#060606;
+  border-bottom:1px solid rgba(16,185,129,.15);
+  overflow:hidden;display:flex;align-items:center;
+}
+#ticker::before,#ticker::after{content:'';position:absolute;top:0;bottom:0;width:50px;z-index:10;pointer-events:none;}
+#ticker::before{left:0;background:linear-gradient(90deg,#060606,transparent)}
+#ticker::after{right:0;background:linear-gradient(270deg,#060606,transparent)}
+.tk-label{
+  position:absolute;left:0;top:0;bottom:0;z-index:20;
+  display:flex;align-items:center;padding:0 12px;
+  background:#060606;border-right:1px solid rgba(16,185,129,.15);
+  font-family:'Syne',sans-serif;font-size:7px;font-weight:700;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--green);white-space:nowrap;
+}
+.tk-track{display:flex;width:max-content;animation:tkr 80s linear infinite;padding-left:100px}
+#ticker:hover .tk-track{animation-play-state:paused}
+@keyframes tkr{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.tk-item{display:flex;align-items:center;gap:8px;padding:0 20px;height:26px;border-right:1px solid rgba(255,255,255,.04);flex-shrink:0;font-size:9px}
+
+/* ── NAV ── */
+nav{
+  position:fixed;top:26px;left:0;right:0;z-index:500;height:46px;
+  display:flex;align-items:center;
+  background:rgba(12,12,10,.98);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--sep);
+}
+.logo{
+  font-family:'Syne',sans-serif;font-weight:800;font-size:14px;
+  letter-spacing:-.02em;color:#fff;
+  display:flex;align-items:center;gap:8px;padding:0 20px;
+  border-right:1px solid var(--sep);height:100%;flex-shrink:0;
+}
+.logo em{font-style:normal;color:var(--green)}
+.pulse{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 2.4s ease infinite;flex-shrink:0}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.6)}}
+.nav-links{display:flex;align-items:center;flex:1;overflow:hidden}
+.nl{
+  font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink2);background:none;border:none;cursor:pointer;
+  padding:0 18px;height:46px;border-right:1px solid var(--sep);
+  transition:color .15s;white-space:nowrap;flex-shrink:0;
+  text-decoration:none;display:flex;align-items:center;
+}
+.nl:hover{color:var(--ink)}
+.nl.on{color:var(--green)}
+.nl.amber{color:var(--amber)}
+.nav-entrar{
+  background:transparent;border-right:1px solid var(--sep);color:var(--ink3);
+  font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;
+  padding:0 16px;height:46px;cursor:pointer;transition:all .13s;
+  display:flex;align-items:center;white-space:nowrap;
+  border-left:none;border-top:none;border-bottom:none;
+}
+.nav-entrar:hover{color:var(--ink)}
+.nav-cta{
+  font-family:'Syne',sans-serif;font-weight:800;
+  background:var(--green);color:#fff;border:none;
+  padding:0 22px;height:46px;cursor:pointer;
+  transition:all .2s;flex-shrink:0;white-space:nowrap;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  min-width:200px;
+}
+.nav-cta:hover{background:#0ea572;box-shadow:0 0 18px rgba(16,185,129,.3)}
+.nav-cta-main{font-size:11px;letter-spacing:.05em;text-transform:uppercase;line-height:1;font-weight:800}
+.nav-cta-sub{font-size:6.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.75;line-height:1;font-weight:400}
+
+/* ── LAYOUT ── */
+.page{padding-top:144px}
+.container{max-width:1060px;margin:0 auto;padding:0 40px}
+.container-sm{max-width:720px;margin:0 auto;padding:0 40px}
+.section{padding:64px 0;border-bottom:1px solid var(--sep)}
+.section:last-of-type{border-bottom:none}
+
+/* ── ANIMAÇÕES ── */
+@keyframes fu{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.fu{animation:fu .5s ease both}
+.fu1{animation-delay:.1s}.fu2{animation-delay:.2s}.fu3{animation-delay:.3s}.fu4{animation-delay:.4s}
+
+/* ── SEC LABEL ── */
+.sec-label{
+  font-size:8px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink3);
+  margin-bottom:24px;display:flex;align-items:center;gap:10px;
+}
+.sec-label::before{content:'';width:14px;height:1px;background:var(--green);flex-shrink:0}
+.sec-label::after{content:'';flex:1;height:.5px;background:var(--sep)}
+
+/* ── HERO ── */
+.hero{
+  padding:80px 0 64px;border-bottom:1px solid var(--sep);
+  background:linear-gradient(180deg,rgba(16,185,129,.04) 0%,transparent 60%);
+}
+.hero-eyebrow{
+  font-size:8px;letter-spacing:.24em;text-transform:uppercase;color:var(--green);
+  display:flex;align-items:center;gap:8px;margin-bottom:20px;
+}
+.hero-eyebrow::before{content:'';width:16px;height:1px;background:var(--green)}
+.hero h1{
+  font-family:'Syne',sans-serif;font-size:clamp(42px,5.5vw,76px);
+  font-weight:800;line-height:1.05;letter-spacing:-.02em;
+  color:#fff;margin-bottom:20px;
+}
+.hero h1 em{color:var(--green);font-style:italic;font-family:'Instrument Serif',serif}
+.hero-sub{
+  font-size:13px;color:var(--ink2);line-height:1.8;
+  max-width:540px;margin-bottom:40px;font-weight:300;
+}
+.hero-ctas{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn-primary{
+  background:var(--green);color:#000;
+  font-family:'Syne',sans-serif;font-size:10px;font-weight:800;
+  letter-spacing:.12em;text-transform:uppercase;
+  padding:14px 28px;border:none;cursor:pointer;
+  transition:all .15s;display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+}
+.btn-primary:hover{background:#0ea572;box-shadow:0 0 20px rgba(16,185,129,.2)}
+.btn-sec{
+  background:transparent;border:.5px solid var(--sep);color:var(--ink2);
+  font-family:'Syne',sans-serif;font-size:10px;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;
+  padding:14px 28px;cursor:pointer;transition:all .15s;
+  display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+}
+.btn-sec:hover{border-color:rgba(255,255,255,.2);color:var(--ink)}
+
+/* ── O QUE VOCÊ RECEBE ── */
+.recebe-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:1px;background:var(--sep);
+}
+.recebe-card{
+  background:var(--bg2);padding:28px 32px;
+  border-left:3px solid transparent;transition:border-color .2s;
+}
+.recebe-card:hover{border-left-color:var(--green)}
+.recebe-n{
+  font-family:'Syne',sans-serif;font-size:24px;font-weight:800;
+  letter-spacing:-.01em;margin-bottom:10px;line-height:1;
+}
+.recebe-title{
+  font-family:'Syne',sans-serif;font-size:11px;font-weight:800;
+  letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;color:#fff;
+}
+.recebe-desc{font-size:11px;color:var(--ink2);line-height:1.7;font-weight:300}
+
+/* ── PLANOS ── */
+.planos-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.plano-card{border:.5px solid var(--sep);padding:36px;position:relative;transition:border-color .2s}
+.plano-card:hover{border-color:rgba(255,255,255,.15)}
+.plano-card.prof{border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.02)}
+.plano-card.prof:hover{border-color:rgba(245,158,11,.5)}
+.plano-eyebrow{font-size:8px;letter-spacing:.22em;text-transform:uppercase;margin-bottom:14px}
+.plano-nome{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;text-transform:uppercase;margin-bottom:6px;color:#fff}
+.plano-preco{font-family:'Syne',sans-serif;font-size:44px;font-weight:800;letter-spacing:-.03em;margin-bottom:4px;line-height:1}
+.plano-sub{font-size:10px;color:var(--ink3);margin-bottom:24px;font-weight:300}
+.plano-items{list-style:none;display:flex;flex-direction:column;gap:9px;margin-bottom:28px}
+.plano-item{font-size:11px;color:var(--ink2);display:flex;gap:8px;line-height:1.5;font-weight:300}
+.pi{flex-shrink:0;margin-top:1px}
+.plano-cta{
+  display:block;width:100%;text-align:center;padding:14px;
+  font-family:'Syne',sans-serif;font-size:10px;font-weight:800;
+  letter-spacing:.12em;text-transform:uppercase;
+  text-decoration:none;transition:opacity .15s;border:none;cursor:pointer;
+}
+.plano-cta:hover{opacity:.88}
+/* badge "mais popular" */
+.plano-badge{
+  position:absolute;top:-1px;right:20px;
+  font-family:'Syne',sans-serif;font-size:7px;font-weight:800;
+  letter-spacing:.18em;text-transform:uppercase;padding:3px 10px;
+}
+
+/* ── JORNADA ── */
+.jornada-step{display:flex;gap:28px;padding:28px 0;border-bottom:.5px solid var(--sep);align-items:flex-start}
+.jornada-step:last-child{border-bottom:none}
+.jornada-n{
+  font-family:'Syne',sans-serif;font-size:36px;font-weight:800;
+  color:rgba(16,185,129,.15);flex-shrink:0;width:48px;line-height:1;transition:color .2s;
+}
+.jornada-step:hover .jornada-n{color:rgba(16,185,129,.4)}
+.jornada-title{font-family:'Syne',sans-serif;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px;color:#fff}
+.jornada-desc{font-size:11px;color:var(--ink2);line-height:1.7;font-weight:300}
+.jornada-tag{
+  display:inline-block;margin-top:8px;font-size:8px;font-weight:700;
+  letter-spacing:.1em;padding:2px 8px;
+  background:rgba(16,185,129,.08);color:var(--green);
+  border:.5px solid rgba(16,185,129,.2);text-transform:uppercase;
+}
+
+/* ── MÉTRICAS ── */
+.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--sep)}
+.metric-card{background:var(--bg2);padding:22px;text-align:center}
+.metric-n{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;letter-spacing:-.02em;margin-bottom:5px;line-height:1}
+.metric-l{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
+
+/* ── CTA FINAL ── */
+.cta-final{padding:80px 0;text-align:center}
+.cta-final h2{font-family:'Syne',sans-serif;font-size:clamp(32px,4vw,52px);font-weight:800;letter-spacing:-.02em;margin-bottom:14px;color:#fff}
+.cta-final h2 em{color:var(--green);font-style:italic;font-family:'Instrument Serif',serif}
+.cta-final p{font-size:12px;color:var(--ink2);margin-bottom:32px;line-height:1.7;font-weight:300}
+
+/* ── FOOTER ── */
+footer{
+  padding:24px 40px;border-top:.5px solid var(--sep);
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);
+  flex-wrap:wrap;gap:12px;
+}
+.f-logo{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:#fff;display:flex;align-items:center;gap:5px}
+.f-logo em{color:var(--green);font-style:normal}
+.f-links{display:flex;gap:20px;flex-wrap:wrap}
+.f-link{color:var(--ink3);transition:color .15s}
+.f-link:hover{color:var(--ink)}
+.f-link.on{color:var(--green)}
+
+/* ── RESPONSIVO ── */
+@media(max-width:900px){
+  .nl:nth-child(n+4){display:none}
+  .recebe-grid{grid-template-columns:1fr 1fr}
+  .metrics-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:768px){
+  .nl{display:none}
+  .nav-cta-sub{display:none}
+  .nav-cta{min-width:auto;padding:0 16px}
+  .planos-grid{grid-template-columns:1fr}
+  .recebe-grid{grid-template-columns:1fr}
+  .metrics-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:600px){
+  .nav-entrar{display:none}
+  .container,.container-sm{padding:0 20px}
+  footer{padding:20px}
+  .hero{padding:48px 0 40px}
+}
+@media(max-width:440px){
+  .metrics-grid{grid-template-columns:1fr 1fr}
+  .metric-n{font-size:22px}
+  .plano-preco{font-size:36px}
+}
+</style>
+</head>
+<body>
+
+<!-- TICKER -->
+<div id="ticker">
+  <div class="tk-label">AO VIVO</div>
+  <div class="tk-track" id="tk-track"></div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <a class="logo" href="/index.html"><em>1</em>NEGÓCIO <div class="pulse"></div></a>
+  <div class="nav-links">
+    <a class="nl on" href="/avaliar.html">Avalie</a>
+    <a class="nl" href="/vender.html">Venda</a>
+    <a class="nl" href="/index.html">Compre</a>
+    <a class="nl amber" href="/index.html#blog">Inteligência</a>
+    <a class="nl" href="/fale-conosco.html">Fale conosco</a>
+  </div>
+  <button class="nav-entrar" id="nav-entrar" onclick="window.location.href='/portal-usuario.html'">Entrar</button>
+  <button class="nav-cta" onclick="window.location.href='/diagnostico.html'">
+    <span class="nav-cta-main">Avalie Gratuitamente</span>
+    <span class="nav-cta-sub">Publique grátis + 10% · ou R$49/mês + 5%</span>
+  </button>
+</nav>
+
+<div class="page">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="container">
+      <div class="hero-eyebrow fu">Avaliação de empresas · M&A para PMEs</div>
+      <h1 class="fu fu1">
+        Quanto vale<br>o seu <em>negócio?</em>
+      </h1>
+      <p class="hero-sub fu fu2">
+        Esclareça isso em 5 minutos. Você descobre o valor — e melhor, descobre o porquê. O que está sustentando, o que está comprimindo e o que pode ser feito antes de vender para maximizar o seu patrimônio.
+      </p>
+      <div class="hero-ctas fu fu3">
+        <a href="/diagnostico.html" class="btn-primary">Avaliar gratuitamente — 5 min →</a>
+        <a href="#profissional" class="btn-sec">Avaliação profissional — R$397</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- O QUE VOCÊ RECEBE -->
+  <div class="section">
+    <div class="container">
+      <div class="sec-label">O que você recebe na avaliação gratuita</div>
+      <div class="recebe-grid">
+        <div class="recebe-card">
+          <div class="recebe-n" style="color:var(--green)">Valor real</div>
+          <div class="recebe-title">Quanto vale seu negócio</div>
+          <div class="recebe-desc">O valor do negócio calculado com base em resultados reais e múltiplos do seu segmento — e o valor porteira fechada que o comprador efetivamente paga, considerando ativos e passivos.</div>
+        </div>
+        <div class="recebe-card">
+          <div class="recebe-n" style="color:var(--blue)">10 pilares</div>
+          <div class="recebe-title">Saúde do negócio</div>
+          <div class="recebe-desc">Score ponderado de 0 a 100 em 10 dimensões — sócio-dependência, comercial, resultado financeiro, risco legal, concentração de clientes, escalabilidade e mais.</div>
+        </div>
+        <div class="recebe-card">
+          <div class="recebe-n" style="color:var(--amber)">Próximos passos</div>
+          <div class="recebe-title">Oportunidades e perfil do comprador</div>
+          <div class="recebe-desc">Os três maiores pontos para aumentar o valor do negócio antes de vender, e o perfil do comprador ideal — quem tem mais chance de fazer uma oferta real.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PLANOS DE AVALIAÇÃO -->
+  <div id="profissional" class="section">
+    <div class="container">
+      <div class="sec-label">Opções de avaliação</div>
+      <div class="planos-grid">
+
+        <!-- PROFISSIONAL — aparece primeiro, é o premium -->
+        <div class="plano-card prof">
+          <div class="plano-badge" style="background:var(--amber);color:#000">Avaliação aprofundada</div>
+          <div class="plano-eyebrow" style="color:var(--amber)">Com especialista · Agendado</div>
+          <div class="plano-nome">Profissional</div>
+          <div class="plano-preco" style="color:var(--amber)">R$397</div>
+          <div class="plano-sub">Valor único · Sem taxa de sucesso</div>
+          <ul class="plano-items">
+            <li class="plano-item"><span class="pi" style="color:var(--amber)">↗</span>Não precisa preencher nada — basta pagar e agendar</li>
+            <li class="plano-item"><span class="pi" style="color:var(--amber)">↗</span>Reunião com especialista 1Negócio (60 min)</li>
+            <li class="plano-item"><span class="pi" style="color:var(--amber)">↗</span>Laudo completo em PDF por e-mail em até 48h</li>
+            <li class="plano-item"><span class="pi" style="color:var(--amber)">↗</span>DRE auditada com análise de contratos e ativos</li>
+            <li class="plano-item"><span class="pi" style="color:var(--amber)">↗</span>Válido como referência em processos de due diligence</li>
+          </ul>
+          <a href="https://buy.stripe.com/9B6cN47X05dm3a9a0r5os03" target="_blank" class="plano-cta" style="background:var(--amber);color:#000">Contratar avaliação — R$397 →</a>
+        </div>
+
+        <!-- GRATUITO -->
+        <div class="plano-card">
+          <div class="plano-eyebrow" style="color:var(--green)">Pré-avaliação automatizada · Agora</div>
+          <div class="plano-nome">Gratuito</div>
+          <div class="plano-preco" style="color:var(--green)">R$0</div>
+          <div class="plano-sub">Resultado imediato · Suficiente para iniciar o processo de venda</div>
+          <ul class="plano-items">
+            <li class="plano-item"><span class="pi" style="color:var(--green)">↗</span>Valor do negócio calculado com dados reais de mercado</li>
+            <li class="plano-item"><span class="pi" style="color:var(--green)">↗</span>Score de saúde em 10 dimensões</li>
+            <li class="plano-item"><span class="pi" style="color:var(--green)">↗</span>DRE validada com seus números</li>
+            <li class="plano-item"><span class="pi" style="color:var(--green)">↗</span>Oportunidades para maximizar o valor antes de vender</li>
+            <li class="plano-item"><span class="pi" style="color:var(--green)">↗</span>Perfil do comprador ideal</li>
+            <li class="plano-item"><span class="pi" style="color:var(--green)">↗</span>Opção de publicar ou solicitar laudo PDF em seguida</li>
+          </ul>
+          <a href="/diagnostico.html" class="plano-cta" style="background:var(--green);color:#000">Começar agora — 5 min →</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- COMO FUNCIONA -->
+  <div class="section" style="background:rgba(16,185,129,.02)">
+    <div class="container-sm">
+      <div class="sec-label">Como funciona a avaliação gratuita</div>
+      <div>
+        <div class="jornada-step">
+          <div class="jornada-n">1</div>
+          <div>
+            <div class="jornada-title">Diagnóstico interativo</div>
+            <div class="jornada-desc">Responda sobre o negócio — tipo, faturamento, equipe, clientes, ativos, dívidas. Tudo por cliques. Sem upload de documentos, sem contador.</div>
+            <span class="jornada-tag">menos de 5 minutos</span>
+          </div>
+        </div>
+        <div class="jornada-step">
+          <div class="jornada-n">2</div>
+          <div>
+            <div class="jornada-title">Você valida os números</div>
+            <div class="jornada-desc">Antes do resultado, mostramos a DRE montada com seus dados. Você ajusta o que estiver errado — campos editáveis, sem jargão contábil.</div>
+          </div>
+        </div>
+        <div class="jornada-step">
+          <div class="jornada-n">3</div>
+          <div>
+            <div class="jornada-title">Resultado imediato</div>
+            <div class="jornada-desc">Valor do negócio, valor porteira fechada, faixa de negociação, score de saúde em 10 dimensões, perfil do comprador ideal e três oportunidades para maximizar o valor.</div>
+          </div>
+        </div>
+        <div class="jornada-step">
+          <div class="jornada-n">4</div>
+          <div>
+            <div class="jornada-title">Você decide o que fazer</div>
+            <div class="jornada-desc">Publicar gratuitamente, contratar o plano guiado, solicitar laudo em PDF ou simplesmente guardar a avaliação. Sem pressão, sem prazo.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MÉTRICAS -->
+  <div class="section">
+    <div class="container">
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-n" style="color:var(--green)">2.714+</div>
+          <div class="metric-l">Negócios avaliados</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-n" style="color:var(--blue)">R$4,8B</div>
+          <div class="metric-l">Volume avaliado</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-n" style="color:var(--amber)">5 min</div>
+          <div class="metric-l">Tempo médio</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-n">100%</div>
+          <div class="metric-l">Confidencial</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA FINAL -->
+  <div class="cta-final">
+    <div class="container-sm">
+      <div style="font-size:8px;letter-spacing:.26em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">Comece agora</div>
+      <h2>Descubra o que vale o <em>seu negócio</em></h2>
+      <p>Gratuito. Em menos de 5 minutos. Sem precisar de documentos ou contador.</p>
+      <a href="/diagnostico.html" class="btn-primary" style="font-size:11px;padding:16px 36px">Avaliar meu negócio gratuitamente →</a>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <a href="/index.html" class="f-logo"><em>1</em>NEGÓCIO</a>
+  <div class="f-links">
+    <a href="/avaliar.html" class="f-link on">Avalie</a>
+    <a href="/vender.html" class="f-link">Venda</a>
+    <a href="/index.html" class="f-link">Compre</a>
+    <a href="/fale-conosco.html" class="f-link">Fale conosco</a>
+  </div>
+  <span>© 2026 1Negócio · M&A de PMEs · Brasil</span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+var SUPA_URL='https://dbijmgqlcrgjlcfrastg.supabase.co';
+var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+var sb=supabase.createClient(SUPA_URL,SUPA_KEY);
+
+// Auth
+(async function(){
+  try{
+    var res=await sb.auth.getSession();
+    if(res.data&&res.data.session){
+      var u=res.data.session.user;
+      var btn=document.getElementById('nav-entrar');
+      if(btn){btn.textContent=u.email.split('@')[0];btn.onclick=function(){window.location.href='/portal-usuario.html';};}
+    }
+  }catch(e){}
+})();
+
+// Ticker
+(function(){
+  var items=[
+    {cat:'Serviços B2B',nome:'Contabilidade Digital · 620 PJ',ask:'3,0M',aval:'3,1M',up:true},
+    {cat:'Tecnologia',nome:'SaaS Clínicas · 340 Assinantes',ask:'1,3M',aval:'1,7M',up:true},
+    {cat:'Alimentação',nome:'Barbearia Premium · 3 Un.',ask:'280K',aval:'450K',up:true},
+    {cat:'Indústria',nome:'Gráfica Digital · ISO 9001',ask:'1,15M',aval:'1,1M',up:false},
+    {cat:'Saúde',nome:'Clínica Integrativa · Curitiba',ask:'2,1M',aval:'2,2M',up:true},
+  ];
+  var h='';
+  [0,1].forEach(function(){
+    items.forEach(function(it){
+      var pct=Math.abs(Math.round((parseFloat(it.aval)-parseFloat(it.ask))/parseFloat(it.ask)*100))||4;
+      h+='<div class="tk-item">'
+        +'<span style="font-size:6px;letter-spacing:.14em;text-transform:uppercase;color:var(--green)">'+it.cat+'</span>'
+        +'<span style="font-family:\'Syne\',sans-serif;font-size:10px;font-weight:600;color:rgba(255,255,255,.55)">'+it.nome+'</span>'
+        +'<span style="color:rgba(255,255,255,.15)">·</span>'
+        +'<span style="font-size:8.5px;color:rgba(255,255,255,.2);text-decoration:line-through">'+it.ask+'</span>'
+        +'<span style="font-size:8px;color:rgba(255,255,255,.2)">→</span>'
+        +'<span style="font-size:9.5px;color:#fff;font-weight:500">'+it.aval+'</span>'
+        +'<span style="font-size:7px;color:'+(it.up?'var(--green)':'var(--red)')+'">'+( it.up?'▲':'▼')+pct+'%</span>'
+        +'</div>';
+    });
+  });
+  document.getElementById('tk-track').innerHTML=h;
+})();
+</script>
+</body>
+</html>
