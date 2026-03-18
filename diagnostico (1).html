@@ -1,0 +1,1908 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negócio · Quanto vale o seu negócio?</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ═══════════════════════════════════════
+   VARIÁVEIS & RESET
+═══════════════════════════════════════ */
+:root {
+  --bg: #0c0c0a;
+  --bg2: #111110;
+  --bg3: #161614;
+  --ink: rgba(255,255,255,.90);
+  --ink2: rgba(255,255,255,.50);
+  --ink3: rgba(255,255,255,.25);
+  --sep: rgba(255,255,255,.07);
+  --bdr: rgba(255,255,255,.12);
+  --green: #10b981;
+  --green-dim: #059669;
+  --green-glow: rgba(16,185,129,.12);
+  --amber: #f59e0b;
+  --blue: #60a5fa;
+  --red: #f87171;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ═══════════════════════════════════════
+   BARRA DE PROGRESSO
+═══════════════════════════════════════ */
+.prog-wrap {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 3px; background: var(--sep); z-index: 200;
+}
+.prog-fill {
+  height: 100%; background: var(--green);
+  transition: width .5s cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 0 12px rgba(16,185,129,.8);
+  width: 0%;
+}
+
+/* ═══════════════════════════════════════
+   HEADER
+═══════════════════════════════════════ */
+.hdr {
+  position: fixed; top: 3px; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 32px;
+  background: rgba(12,12,10,.95);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--sep);
+}
+.hdr-logo {
+  font-family: 'Syne', sans-serif;
+  font-size: 15px; font-weight: 800;
+  letter-spacing: -.02em;
+}
+.hdr-logo span { color: var(--green); }
+.hdr-step {
+  font-size: 10px; letter-spacing: .15em;
+  color: var(--ink3); text-transform: uppercase;
+}
+.hdr-user {
+  font-size: 11px; color: var(--ink3);
+  display: flex; align-items: center; gap: 12px;
+}
+.hdr-user-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green);
+}
+.btn-sair {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink3);
+  background: none; border: none; cursor: pointer;
+  transition: color .15s;
+}
+.btn-sair:hover { color: var(--red); }
+
+/* ═══════════════════════════════════════
+   TELA GERAL
+═══════════════════════════════════════ */
+.tela {
+  display: none;
+  min-height: 100vh;
+}
+.tela.ativa { display: flex; }
+
+/* ═══════════════════════════════════════
+   TELA AUTH
+═══════════════════════════════════════ */
+#tela-auth {
+  align-items: center; justify-content: center;
+  flex-direction: column;
+  padding: 100px 24px 60px;
+  background: var(--bg);
+}
+.auth-hero {
+  text-align: center;
+  max-width: 480px;
+  margin-bottom: 48px;
+}
+.auth-eyebrow {
+  font-size: 9px; letter-spacing: .22em;
+  text-transform: uppercase; color: var(--green);
+  margin-bottom: 16px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.auth-eyebrow::before, .auth-eyebrow::after {
+  content: ''; width: 24px; height: 1px; background: var(--green);
+}
+.auth-titulo {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(28px, 5vw, 44px);
+  line-height: 1.2; color: var(--ink);
+  margin-bottom: 12px;
+}
+.auth-titulo em { color: var(--green); font-style: italic; }
+.auth-sub {
+  font-size: 13px; color: var(--ink2);
+  line-height: 1.7; text-align: center;
+}
+.auth-box {
+  width: 100%; max-width: 400px;
+  background: var(--bg2);
+  border: 1px solid var(--bdr);
+  padding: 32px;
+}
+.auth-tabs {
+  display: flex; margin-bottom: 24px;
+  border-bottom: 1px solid var(--sep);
+}
+.auth-tab {
+  flex: 1; padding: 10px;
+  text-align: center;
+  font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink3); cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all .15s;
+}
+.auth-tab.ativo {
+  color: var(--green);
+  border-bottom-color: var(--green);
+}
+.form-field { margin-bottom: 14px; }
+.form-label {
+  display: block; font-size: 9px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink3); margin-bottom: 6px;
+}
+.form-input {
+  width: 100%; background: rgba(255,255,255,.04);
+  border: 1px solid var(--bdr);
+  color: var(--ink); font-family: 'DM Mono', monospace;
+  font-size: 13px; padding: 11px 14px;
+  outline: none; transition: border-color .2s;
+}
+.form-input:focus { border-color: rgba(16,185,129,.5); background: var(--green-glow); }
+.btn-auth {
+  width: 100%; background: var(--green); color: #000;
+  font-family: 'Syne', sans-serif; font-size: 12px;
+  font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase; padding: 14px;
+  border: none; cursor: pointer; margin-top: 4px;
+  transition: background .15s;
+}
+.btn-auth:hover { background: var(--green-dim); }
+.auth-erro {
+  color: var(--red); font-size: 11px;
+  margin-top: 10px; display: none;
+  text-align: center;
+}
+.auth-nota {
+  font-size: 10px; color: var(--ink3);
+  text-align: center; margin-top: 16px;
+  line-height: 1.6;
+}
+
+/* ═══════════════════════════════════════
+   TELA FORMULÁRIO
+═══════════════════════════════════════ */
+#tela-form {
+  flex-direction: column;
+  align-items: center;
+  padding: 100px 24px 80px;
+  min-height: 100vh;
+}
+.form-wrap {
+  width: 100%; max-width: 600px;
+}
+
+/* Bloco / etapa */
+.etapa {
+  display: none;
+  animation: entrada .3s ease;
+}
+.etapa.ativa { display: block; }
+@keyframes entrada {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.eyebrow-etapa {
+  font-size: 9px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--green);
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.eyebrow-etapa::before {
+  content: ''; width: 16px; height: 1px;
+  background: var(--green); flex-shrink: 0;
+}
+
+.pergunta {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(22px, 3.5vw, 34px);
+  line-height: 1.25; color: var(--ink);
+  margin-bottom: 8px;
+}
+.pergunta em { color: var(--green); font-style: italic; }
+
+.dica {
+  font-size: 12px; color: var(--ink2);
+  line-height: 1.7; margin-bottom: 24px;
+}
+.dica strong { color: var(--amber); }
+
+/* Cards de opção */
+.opcoes {
+  display: grid; gap: 8px; margin-bottom: 8px;
+}
+.opcoes.c2 { grid-template-columns: 1fr 1fr; }
+.opcoes.c3 { grid-template-columns: 1fr 1fr 1fr; }
+.opcoes.c1 { grid-template-columns: 1fr; }
+
+.opcao {
+  border: 1px solid var(--sep);
+  background: rgba(255,255,255,.025);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all .12s;
+  display: flex; align-items: flex-start;
+  gap: 10px; text-align: left;
+  position: relative; width: 100%;
+}
+.opcao:hover {
+  border-color: rgba(16,185,129,.4);
+  background: rgba(16,185,129,.05);
+}
+.opcao.sel {
+  border-color: rgba(16,185,129,.6);
+  background: rgba(16,185,129,.1);
+}
+.opcao-ico { font-size: 20px; flex-shrink: 0; line-height: 1; }
+.opcao-t {
+  font-family: 'Syne', sans-serif;
+  font-size: 12px; font-weight: 700;
+  color: var(--ink); margin-bottom: 2px;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.opcao-s { font-size: 10px; color: var(--ink2); line-height: 1.4; }
+.opcao-ck {
+  position: absolute; top: 10px; right: 10px;
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 1px solid var(--bdr);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 7px; color: var(--green);
+}
+.opcao.sel .opcao-ck {
+  background: var(--green); border-color: var(--green); color: #000;
+}
+
+/* Escala de resposta (pilares) */
+.escala {
+  display: flex; gap: 6px; margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.escala-op {
+  flex: 1; min-width: 80px;
+  border: 1px solid var(--sep);
+  background: rgba(255,255,255,.025);
+  padding: 10px 8px; cursor: pointer;
+  text-align: center; transition: all .12s;
+}
+.escala-op:hover {
+  border-color: rgba(16,185,129,.4);
+  background: rgba(16,185,129,.05);
+}
+.escala-op.sel {
+  border-color: rgba(16,185,129,.6);
+  background: rgba(16,185,129,.1);
+}
+.escala-n {
+  font-family: 'Syne', sans-serif;
+  font-size: 18px; font-weight: 800;
+  color: var(--green); display: block; margin-bottom: 3px;
+}
+.escala-desc {
+  font-size: 9px; color: var(--ink2);
+  line-height: 1.3; letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Inputs numéricos e texto */
+.campo { margin-bottom: 14px; }
+.campo label {
+  display: block; font-size: 9px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink3); margin-bottom: 6px;
+}
+.campo input, .campo textarea, .campo select {
+  width: 100%; background: rgba(255,255,255,.04);
+  border: 1px solid var(--bdr); color: var(--ink);
+  font-family: 'DM Mono', monospace; font-size: 14px;
+  padding: 12px 14px; outline: none; transition: border-color .2s;
+}
+.campo input:focus, .campo textarea:focus, .campo select:focus {
+  border-color: rgba(16,185,129,.5);
+  background: var(--green-glow);
+}
+.campo textarea { min-height: 70px; resize: vertical; line-height: 1.6; }
+.campo select option { background: #111; }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+/* Prefix R$ */
+.input-prefix {
+  position: relative;
+}
+.input-prefix::before {
+  content: 'R$'; position: absolute;
+  left: 14px; top: 50%; transform: translateY(-50%);
+  color: var(--ink3); font-size: 12px;
+  pointer-events: none;
+}
+.input-prefix input { padding-left: 38px; }
+
+/* Nota contextual */
+.nota {
+  border-left: 2px solid rgba(16,185,129,.35);
+  padding: 8px 14px; font-size: 11px;
+  color: var(--ink2); line-height: 1.65;
+  margin-bottom: 16px;
+}
+.nota.amber { border-left-color: rgba(245,158,11,.5); color: var(--amber); }
+
+/* Botões de navegação */
+.btn-row {
+  display: flex; align-items: center;
+  gap: 10px; margin-top: 24px; flex-wrap: wrap;
+}
+.btn-prox {
+  background: var(--green); color: #000;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; font-weight: 500;
+  letter-spacing: .14em; text-transform: uppercase;
+  padding: 14px 28px; border: none; cursor: pointer;
+  transition: all .13s;
+}
+.btn-prox:hover { background: var(--green-dim); }
+.btn-volt {
+  background: transparent; color: var(--ink2);
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: .12em; text-transform: uppercase;
+  padding: 14px 18px; border: 1px solid var(--bdr);
+  cursor: pointer; transition: all .13s;
+}
+.btn-volt:hover { color: var(--ink); }
+.btn-pular {
+  background: transparent; color: var(--ink3);
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: .1em; text-transform: uppercase;
+  padding: 14px 0; border: none; cursor: pointer;
+  opacity: .7; transition: opacity .12s; margin-left: auto;
+}
+.btn-pular:hover { opacity: 1; }
+
+/* Separador de seção */
+.secao-titulo {
+  font-family: 'Syne', sans-serif;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: .2em; text-transform: uppercase;
+  color: var(--ink3);
+  padding: 20px 0 12px;
+  border-bottom: 1px solid var(--sep);
+  margin-bottom: 20px;
+}
+
+/* ═══════════════════════════════════════
+   TELA RESULTADO
+═══════════════════════════════════════ */
+#tela-resultado {
+  flex-direction: column;
+  align-items: center;
+  padding: 100px 24px 100px;
+}
+.resultado-wrap { width: 100%; max-width: 620px; }
+
+.res-eyebrow {
+  font-size: 9px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--green);
+  margin-bottom: 20px;
+  display: flex; align-items: center; gap: 8px;
+}
+.res-eyebrow::before { content: ''; width: 20px; height: 1px; background: var(--green); }
+
+/* Card principal */
+.res-card-principal {
+  border: 1px solid rgba(16,185,129,.25);
+  background: rgba(16,185,129,.04);
+  padding: 32px; margin-bottom: 12px;
+}
+.res-label { font-size: 10px; letter-spacing: .15em; text-transform: uppercase; color: var(--ink3); margin-bottom: 6px; }
+.res-valor {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(40px, 7vw, 64px);
+  line-height: 1; color: var(--green);
+  margin-bottom: 6px;
+}
+.res-valor-sub { font-size: 12px; color: var(--ink2); margin-bottom: 20px; }
+
+/* Breakdown */
+.res-breakdown {
+  border-top: 1px solid var(--sep);
+  padding-top: 16px;
+}
+.res-breakdown-titulo {
+  font-size: 9px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink3);
+  margin-bottom: 10px;
+}
+.res-linha {
+  display: flex; justify-content: space-between;
+  align-items: center; padding: 7px 0;
+  border-bottom: 1px solid var(--sep);
+  font-size: 12px;
+}
+.res-linha:last-child { border: none; }
+.res-linha-label { color: var(--ink2); }
+.res-linha-val { color: var(--ink); font-weight: 500; }
+.res-linha-val.verde { color: var(--green); }
+.res-linha-val.vermelho { color: var(--red); }
+.res-linha.total .res-linha-label {
+  font-family: 'Syne', sans-serif; font-weight: 700;
+  color: var(--ink); font-size: 13px;
+}
+.res-linha.total .res-linha-val {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  color: var(--green); font-size: 15px;
+}
+
+/* Cards secundários */
+.res-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.res-mini {
+  background: var(--bg2); border: 1px solid var(--sep);
+  padding: 16px 18px;
+}
+.res-mini-label { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink3); margin-bottom: 6px; }
+.res-mini-val {
+  font-family: 'Syne', sans-serif; font-size: 20px;
+  font-weight: 800; color: var(--ink);
+}
+.res-mini-val.verde { color: var(--green); }
+.res-mini-val.amber { color: var(--amber); }
+
+/* Saúde / pilares */
+.res-saude {
+  background: var(--bg2); border: 1px solid var(--sep);
+  padding: 20px; margin-bottom: 12px;
+}
+.res-saude-topo {
+  display: flex; align-items: flex-end;
+  justify-content: space-between; margin-bottom: 16px;
+}
+.res-saude-titulo { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink3); }
+.res-saude-nota {
+  font-family: 'Syne', sans-serif; font-size: 32px;
+  font-weight: 800; line-height: 1;
+}
+.res-pilar { margin-bottom: 10px; }
+.res-pilar-top { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.res-pilar-nome { font-size: 10px; color: var(--ink2); letter-spacing: 0; text-transform: none; }
+.res-pilar-pts { font-size: 10px; color: var(--green); }
+.res-barra { height: 2px; background: var(--sep); }
+.res-barra-fill { height: 100%; background: var(--green); transition: width 1s ease .3s; }
+
+/* Alertas e observações */
+.res-alerta {
+  background: rgba(245,158,11,.06);
+  border: 1px solid rgba(245,158,11,.2);
+  padding: 14px 18px; font-size: 12px;
+  color: var(--amber); line-height: 1.7;
+  margin-bottom: 12px;
+}
+.res-obs {
+  background: var(--bg2); border: 1px solid var(--sep);
+  padding: 14px 18px; font-size: 11px;
+  color: var(--ink2); line-height: 1.75;
+  margin-bottom: 24px;
+}
+
+/* CTAs */
+.res-ctas-titulo {
+  font-family: 'Syne', sans-serif; font-size: 12px;
+  font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink);
+  margin-bottom: 16px;
+}
+.res-cta-cards { display: flex; flex-direction: column; gap: 8px; }
+.cta-card {
+  border: 1px solid var(--sep);
+  background: var(--bg2); padding: 18px 20px;
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 12px;
+  cursor: pointer; transition: all .15s;
+  flex-wrap: wrap;
+}
+.cta-card:hover { border-color: var(--bdr); background: var(--bg3); }
+.cta-card.destaque {
+  border-color: rgba(16,185,129,.4);
+  background: rgba(16,185,129,.06);
+}
+.cta-card.destaque:hover { background: rgba(16,185,129,.1); }
+.cta-info { flex: 1; }
+.cta-titulo {
+  font-family: 'Syne', sans-serif; font-size: 13px;
+  font-weight: 700; color: var(--ink); margin-bottom: 3px;
+}
+.cta-sub { font-size: 11px; color: var(--ink2); line-height: 1.5; }
+.cta-preco {
+  font-family: 'Syne', sans-serif; font-size: 16px;
+  font-weight: 800; color: var(--ink); white-space: nowrap;
+}
+.cta-preco.verde { color: var(--green); }
+.cta-badge {
+  font-size: 8px; letter-spacing: .1em;
+  text-transform: uppercase; padding: 3px 8px;
+  background: var(--green); color: #000;
+  font-weight: 700; margin-left: 8px;
+}
+.cta-btn {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: .1em; text-transform: uppercase;
+  padding: 10px 20px; border: none; cursor: pointer;
+  transition: all .15s; white-space: nowrap;
+}
+.cta-btn.verde { background: var(--green); color: #000; }
+.cta-btn.verde:hover { background: var(--green-dim); }
+.cta-btn.outline {
+  background: transparent; color: var(--ink2);
+  border: 1px solid var(--bdr);
+}
+.cta-btn.outline:hover { color: var(--ink); border-color: var(--ink3); }
+
+/* Modal valor pedido */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.75); z-index: 300;
+  display: none; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal-overlay.aberto { display: flex; }
+.modal {
+  background: var(--bg2); border: 1px solid var(--bdr);
+  width: 100%; max-width: 460px; padding: 32px;
+}
+.modal-titulo {
+  font-family: 'Syne', sans-serif; font-size: 16px;
+  font-weight: 800; margin-bottom: 8px;
+}
+.modal-sub { font-size: 12px; color: var(--ink2); line-height: 1.65; margin-bottom: 24px; }
+.modal-btns { display: flex; gap: 8px; margin-top: 20px; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--bg2); border: 1px solid var(--bdr);
+  border-left: 3px solid var(--green);
+  padding: 12px 20px; font-size: 12px;
+  z-index: 999; transform: translateY(80px);
+  opacity: 0; transition: all .3s;
+  pointer-events: none;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--sep); }
+
+@media (max-width: 520px) {
+  .opcoes.c2 { grid-template-columns: 1fr; }
+  .opcoes.c3 { grid-template-columns: 1fr 1fr; }
+  .g2 { grid-template-columns: 1fr; }
+  .g3 { grid-template-columns: 1fr 1fr; }
+  .res-grid { grid-template-columns: 1fr; }
+  .hdr { padding: 12px 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- PROGRESSO -->
+<div class="prog-wrap"><div class="prog-fill" id="prog"></div></div>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-logo"><span>1</span>NEGÓCIO</div>
+  <div class="hdr-step" id="hdr-step">Avaliação do seu negócio</div>
+  <div class="hdr-user" id="hdr-user" style="display:none">
+    <div class="hdr-user-dot"></div>
+    <span id="hdr-email"></span>
+    <button class="btn-sair" onclick="sair()">Sair</button>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════
+     TELA 1 — AUTH
+═══════════════════════════════════════ -->
+<div class="tela ativa" id="tela-auth">
+  <div class="auth-hero">
+    <div class="auth-eyebrow">Avaliação gratuita</div>
+    <div class="auth-titulo">Quanto vale o seu <em>negócio?</em></div>
+    <div class="auth-sub">
+      Responda algumas perguntas e descubra o valor real da sua empresa — com metodologia profissional, em minutos.
+    </div>
+  </div>
+
+  <div class="auth-box">
+    <div class="auth-tabs">
+      <div class="auth-tab ativo" id="tab-criar" onclick="mudarAba('criar')">Criar conta</div>
+      <div class="auth-tab" id="tab-entrar" onclick="mudarAba('entrar')">Já tenho conta</div>
+    </div>
+
+    <div id="form-criar">
+      <div class="form-field">
+        <label class="form-label">Seu nome</label>
+        <input class="form-input" type="text" id="auth-nome" placeholder="Como prefere ser chamado">
+      </div>
+      <div class="form-field">
+        <label class="form-label">E-mail</label>
+        <input class="form-input" type="email" id="auth-email-c" placeholder="seu@email.com">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Senha</label>
+        <input class="form-input" type="password" id="auth-senha-c" placeholder="Mínimo 8 caracteres">
+      </div>
+      <button class="btn-auth" id="btn-criar" onclick="criarConta()">Criar conta e começar →</button>
+    </div>
+
+    <div id="form-entrar" style="display:none">
+      <div class="form-field">
+        <label class="form-label">E-mail</label>
+        <input class="form-input" type="email" id="auth-email-e" placeholder="seu@email.com">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Senha</label>
+        <input class="form-input" type="password" id="auth-senha-e" placeholder="Sua senha">
+      </div>
+      <button class="btn-auth" id="btn-entrar" onclick="fazerLogin()">Entrar e continuar →</button>
+    </div>
+
+    <div class="auth-erro" id="auth-erro"></div>
+    <div class="auth-nota">Seus dados são privados. Só você e a equipe 1Negócio veem as informações.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     TELA 2 — FORMULÁRIO
+═══════════════════════════════════════ -->
+<div class="tela" id="tela-form">
+<div class="form-wrap">
+
+<!-- ETAPA 1: Tipo do negócio -->
+<div class="etapa ativa" id="e1">
+  <div class="eyebrow-etapa">Etapa 1 de 7 · Identificação</div>
+  <div class="pergunta">Qual é o <em>ramo</em> do seu negócio?</div>
+  <div class="dica">Selecione a opção que melhor descreve o que você faz. Sem complicação.</div>
+
+  <div class="opcoes c2" id="opcoes-categoria">
+    <button class="opcao" onclick="selecionarCategoria('alimentacao',this)">
+      <span class="opcao-ico">🍽️</span>
+      <div><div class="opcao-t">Alimentação</div><div class="opcao-s">Restaurante, padaria, lanchonete, bar, delivery...</div></div>
+      <span class="opcao-ck">✓</span>
+    </button>
+    <button class="opcao" onclick="selecionarCategoria('comercio',this)">
+      <span class="opcao-ico">🛍️</span>
+      <div><div class="opcao-t">Comércio & Varejo</div><div class="opcao-s">Loja, mercado, farmácia, e-commerce...</div></div>
+      <span class="opcao-ck">✓</span>
+    </button>
+    <button class="opcao" onclick="selecionarCategoria('beleza_saude',this)">
+      <span class="opcao-ico">💆</span>
+      <div><div class="opcao-t">Beleza & Saúde</div><div class="opcao-s">Salão, barbearia, clínica, academia, farmácia...</div></div>
+      <span class="opcao-ck">✓</span>
+    </button>
+    <button class="opcao" onclick="selecionarCategoria('pet',this)">
+      <span class="opcao-ico">🐾</span>
+      <div><div class="opcao-t">Pet</div><div class="opcao-s">Pet shop, veterinária, banho e tosa...</div></div>
+      <span class="opcao-ck">✓</span>
+    </button>
+    <button class="opcao" onclick="selecionarCategoria('industria',this)">
+      <span class="opcao-ico">🏭</span>
+      <div><div class="opcao-t">Indústria & Fabricação</div><div class="opcoa-s">Fábrica, confecção, gráfica, manufatura...</div></div>
+      <span class="opcao-ck">✓</span>
+    </button>
+    <button class="opcao" onclick="selecionarCategoria('educacao',this)">
+      <span class="opcao-ico">📚</span>
+      <div><div class="opcao-t">Educação</div><div class="opcoa-s">Escola, creche, cursos, idiomas...</div></div>
+      <span class="opcao-ck">✓</span>
+    </button>
+    <button class="opcao" onclick="selecionarCategoria('distribuicao',this)">
+      <span class="opcao-ico">🚚</span>
+      <div><div class="opcao-t">Distribuição & Atacado</div><div class="opcao-s">Distribuidora, atacado, representante...</div></div>
+      <span class="opcao-ck">✓</span>
+    </button>
+    <button class="opcao" onclick="selecionarCategoria('tecnologia',this)">
+      <span class="opcao-ico">💻</span>
+      <div><div class="opcao-t">Tecnologia & Digital</div><div class="opcao-s">Software, app, agência digital, e-commerce...</div></div>
+      <span class="opcao-ck">✓</span>
+    </button>
+    <button class="opcao" onclick="selecionarCategoria('hospedagem',this)">
+      <span class="opcao-ico">🏨</span>
+      <div><div class="opcao-t">Hospedagem & Turismo</div><div class="opcao-s">Hotel, pousada, hostel, agência de viagem...</div></div>
+      <span class="opcao-ck">✓</span>
+    </button>
+    <button class="opcao" onclick="selecionarCategoria('outro',this)">
+      <span class="opcao-ico">⚙️</span>
+      <div><div class="opcao-t">Outro tipo de negócio</div><div class="opcao-s">Construção, serviços, agro, B2B...</div></div>
+      <span class="opcao-ck">✓</span>
+    </button>
+  </div>
+
+  <!-- Pergunta detalhe (aparece após selecionar) -->
+  <div id="detalhe-wrap" style="display:none;margin-top:20px">
+    <div class="campo">
+      <label>Descreva melhor o seu negócio <span style="color:var(--ink3)">(em poucas palavras)</span></label>
+      <input type="text" id="detalhe-negocio" placeholder="Ex: Loja de roupas femininas, Padaria artesanal, Clínica de fisioterapia...">
+    </div>
+
+    <!-- Franquia -->
+    <div class="campo">
+      <label>É um negócio franqueado?</label>
+      <div class="opcoes c2" style="margin-top:4px">
+        <button class="opcao" onclick="sel2('franquia','nao',this)">
+          <div><div class="opcao-t">Não</div><div class="opcao-s">Negócio próprio, independente</div></div>
+          <span class="opcao-ck">✓</span>
+        </button>
+        <button class="opcao" onclick="sel2('franquia','sim',this)">
+          <div><div class="opcao-t">Sim, é franquia</div><div class="opcao-s">Operação licenciada de uma marca</div></div>
+          <span class="opcao-ck">✓</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-prox" onclick="irPara(2)">Continuar →</button>
+  </div>
+</div>
+
+<!-- ETAPA 2: Dados básicos -->
+<div class="etapa" id="e2">
+  <div class="eyebrow-etapa">Etapa 2 de 7 · Sobre a empresa</div>
+  <div class="pergunta">Agora me conta um pouco sobre a <em>operação</em></div>
+  <div class="dica">Não precisa ser exato — uma boa estimativa já é suficiente para essa etapa.</div>
+
+  <div class="g2">
+    <div class="campo">
+      <label>Cidade</label>
+      <input type="text" id="cidade" placeholder="Ex: São Paulo">
+    </div>
+    <div class="campo">
+      <label>Estado</label>
+      <select id="estado">
+        <option value="">Selecione</option>
+        <option>AC</option><option>AL</option><option>AM</option><option>AP</option>
+        <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+        <option>GO</option><option>MA</option><option>MG</option><option>MS</option>
+        <option>MT</option><option>PA</option><option>PB</option><option>PE</option>
+        <option>PI</option><option>PR</option><option>RJ</option><option>RN</option>
+        <option>RO</option><option>RR</option><option>RS</option><option>SC</option>
+        <option>SE</option><option>SP</option><option>TO</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="campo">
+      <label>Há quantos anos o negócio existe?</label>
+      <input type="number" id="anos-operacao" placeholder="Ex: 5" min="0" max="100">
+    </div>
+    <div class="campo">
+      <label>Quantos colaboradores no total?</label>
+      <input type="number" id="total-colaboradores" placeholder="Ex: 8" min="0">
+    </div>
+  </div>
+
+  <div class="campo">
+    <label>Tipo de contrato dos colaboradores</label>
+    <div class="opcoes c3" style="margin-top:4px">
+      <button class="opcao" onclick="sel2('contrato','clt',this)">
+        <div><div class="opcao-t">Só CLT</div></div><span class="opcoa-ck">✓</span>
+      </button>
+      <button class="opcao" onclick="sel2('contrato','misto',this)">
+        <div><div class="opcao-t">CLT + PJ/terceiros</div></div><span class="opcoa-ck">✓</span>
+      </button>
+      <button class="opcao" onclick="sel2('contrato','pj',this)">
+        <div><div class="opcao-t">Só PJ/terceiros</div></div><span class="opcoa-ck">✓</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="campo">
+    <label>Tem local físico?</label>
+    <div class="opcoes c2" style="margin-top:4px">
+      <button class="opcao" onclick="sel2('local_fisico','proprio',this)">
+        <div><div class="opcao-t">Sim, imóvel próprio</div></div><span class="opcao-ck">✓</span>
+      </button>
+      <button class="opcao" onclick="sel2('local_fisico','alugado',this)">
+        <div><div class="opcao-t">Sim, alugado</div></div><span class="opcao-ck">✓</span>
+      </button>
+      <button class="opcao" onclick="sel2('local_fisico','home',this)">
+        <div><div class="opcao-t">Trabalho de casa / sem ponto</div></div><span class="opcao-ck">✓</span>
+      </button>
+      <button class="opcao" onclick="sel2('local_fisico','online',this)">
+        <div><div class="opcao-t">100% online / digital</div></div><span class="opcao-ck">✓</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-volt" onclick="irPara(1)">← Voltar</button>
+    <button class="btn-prox" onclick="irPara(3)">Continuar →</button>
+  </div>
+</div>
+
+<!-- ETAPA 3: Faturamento e resultado -->
+<div class="etapa" id="e3">
+  <div class="eyebrow-etapa">Etapa 3 de 7 · Financeiro</div>
+  <div class="pergunta">O que o negócio <em>fatura e gasta</em> por mês?</div>
+  <div class="dica">Use a média dos últimos 12 meses. Se preferir, use o último mês completo. <strong>Honestidade aqui vale mais do que impressionar</strong> — o valor que calculamos depende dessas informações.</div>
+
+  <div class="secao-titulo">Receita</div>
+
+  <div class="g2">
+    <div class="campo">
+      <label>Faturamento bruto mensal</label>
+      <div class="input-prefix"><input type="number" id="fat-mensal" placeholder="0" min="0"></div>
+    </div>
+    <div class="campo">
+      <label>Regime tributário</label>
+      <select id="regime">
+        <option value="">Não sei / Não informar</option>
+        <option value="simples">Simples Nacional</option>
+        <option value="presumido">Lucro Presumido</option>
+        <option value="real">Lucro Real</option>
+        <option value="mei">MEI</option>
+        <option value="pf">Pessoa Física</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="cmv-wrap">
+    <div class="secao-titulo" id="cmv-titulo">Custos diretos do produto/serviço</div>
+    <div class="campo">
+      <label id="cmv-label">Custo da mercadoria vendida — CMV (compras, matéria-prima, insumos, fretes, comissões)</label>
+      <div class="input-prefix"><input type="number" id="cmv" placeholder="0" min="0"></div>
+    </div>
+  </div>
+
+  <div class="secao-titulo">Despesas operacionais mensais</div>
+
+  <div class="g2">
+    <div class="campo">
+      <label>Folha de pagamento total <span style="color:var(--ink3)">(sem pró-labore dos sócios)</span></label>
+      <div class="input-prefix"><input type="number" id="folha" placeholder="0" min="0"></div>
+    </div>
+    <div class="campo">
+      <label>Aluguel + condomínio + encargos</label>
+      <div class="input-prefix"><input type="number" id="aluguel" placeholder="0" min="0"></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="campo">
+      <label>Contas fixas <span style="color:var(--ink3)">(luz, água, internet, sistemas, telefone)</span></label>
+      <div class="input-prefix"><input type="number" id="contas-fixas" placeholder="0" min="0"></div>
+    </div>
+    <div class="campo">
+      <label>Terceiros fixos <span style="color:var(--ink3)">(contador, advogado, consultores)</span></label>
+      <div class="input-prefix"><input type="number" id="terceiros" placeholder="0" min="0"></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="campo">
+      <label>Marketing e publicidade</label>
+      <div class="input-prefix"><input type="number" id="marketing" placeholder="0" min="0"></div>
+    </div>
+    <div class="campo">
+      <label>Outras despesas operacionais</label>
+      <div class="input-prefix"><input type="number" id="outras-desp" placeholder="0" min="0"></div>
+    </div>
+  </div>
+
+  <div class="secao-titulo">Abaixo da linha (não entram no resultado operacional)</div>
+  <div class="nota amber">Essas despesas existem e são reais, mas não entram no cálculo do resultado da operação em si — elas aparecem separadas na análise.</div>
+  <div class="g2">
+    <div class="campo">
+      <label>Parcelas de dívidas mensais</label>
+      <div class="input-prefix"><input type="number" id="parcelas" placeholder="0" min="0"></div>
+    </div>
+    <div class="campo">
+      <label>Pró-labore e retiradas dos sócios</label>
+      <div class="input-prefix"><input type="number" id="prolabore" placeholder="0" min="0"></div>
+    </div>
+  </div>
+  <div class="campo">
+    <label>Investimentos recorrentes no negócio <span style="color:var(--ink3)">(reformas, máquinas, compras grandes)</span></label>
+    <div class="input-prefix"><input type="number" id="investimentos" placeholder="0" min="0"></div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-volt" onclick="irPara(2)">← Voltar</button>
+    <button class="btn-prox" onclick="irPara(4)">Continuar →</button>
+  </div>
+</div>
+
+<!-- ETAPA 4: Ativos e passivos -->
+<div class="etapa" id="e4">
+  <div class="eyebrow-etapa">Etapa 4 de 7 · O que o negócio tem e deve</div>
+  <div class="pergunta"><em>Ativos</em> e passivos do negócio</div>
+  <div class="dica">Liste o que o negócio <strong>tem de valor</strong> e o que ele <strong>deve</strong>. Uma estimativa honesta já serve — não precisamos de balanço formal aqui. <strong>Dívidas não são problema</strong> — na prática, elas podem facilitar a negociação para o comprador.</div>
+
+  <div class="secao-titulo">O que o negócio tem (ativos)</div>
+  <div class="g2">
+    <div class="campo"><label>Máquinas e equipamentos</label><div class="input-prefix"><input type="number" id="at-maquinas" placeholder="0" min="0"></div></div>
+    <div class="campo"><label>Móveis e utensílios</label><div class="input-prefix"><input type="number" id="at-moveis" placeholder="0" min="0"></div></div>
+    <div class="campo"><label>Veículos</label><div class="input-prefix"><input type="number" id="at-veiculos" placeholder="0" min="0"></div></div>
+    <div class="campo"><label>TI e tecnologia</label><div class="input-prefix"><input type="number" id="at-ti" placeholder="0" min="0"></div></div>
+    <div class="campo"><label>Reformas e benfeitorias</label><div class="input-prefix"><input type="number" id="at-reformas" placeholder="0" min="0"></div></div>
+    <div class="campo"><label>Estoque <span style="color:var(--ink3)">(preço de custo)</span></label><div class="input-prefix"><input type="number" id="at-estoque" placeholder="0" min="0"></div></div>
+    <div class="campo"><label>Contas a receber de clientes</label><div class="input-prefix"><input type="number" id="at-receber" placeholder="0" min="0"></div></div>
+    <div class="campo"><label>Caixa e aplicações financeiras</label><div class="input-prefix"><input type="number" id="at-caixa" placeholder="0" min="0"></div></div>
+  </div>
+  <div class="campo"><label>Imóvel próprio vinculado ao negócio <span style="color:var(--ink3)">(valor de mercado)</span></label><div class="input-prefix"><input type="number" id="at-imovel" placeholder="0" min="0"></div></div>
+
+  <div class="secao-titulo">O que o negócio deve (passivos)</div>
+  <div class="nota">Dívidas são normais e fazem parte da maioria dos negócios. Seja honesto — isso vai ajudar o comprador a entender o negócio de verdade.</div>
+  <div class="g2">
+    <div class="campo"><label>Contas a pagar a fornecedores</label><div class="input-prefix"><input type="number" id="pa-fornecedores" placeholder="0" min="0"></div></div>
+    <div class="campo"><label>Dívidas tributárias e fiscais</label><div class="input-prefix"><input type="number" id="pa-tributario" placeholder="0" min="0"></div></div>
+    <div class="campo"><label>Empréstimos e financiamentos</label><div class="input-prefix"><input type="number" id="pa-bancario" placeholder="0" min="0"></div></div>
+    <div class="campo"><label>Outras dívidas</label><div class="input-prefix"><input type="number" id="pa-outros" placeholder="0" min="0"></div></div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-volt" onclick="irPara(3)">← Voltar</button>
+    <button class="btn-prox" onclick="irPara(5)">Continuar →</button>
+  </div>
+</div>
+
+<!-- ETAPA 5: Pilares de saúde (parte 1) -->
+<div class="etapa" id="e5">
+  <div class="eyebrow-etapa">Etapa 5 de 7 · Saúde do negócio</div>
+  <div class="pergunta">Vamos entender como o negócio <em>funciona na prática</em></div>
+  <div class="dica">Seja honesto. Isso é para te ajudar — não para te julgar. Quanto mais preciso, mais útil o resultado.</div>
+
+  <!-- Pilar 1: Dependência dos sócios — PESO 40% -->
+  <div class="secao-titulo">Dependência dos sócios no dia a dia</div>
+  <div class="dica" style="margin-bottom:16px">Se o dono sumisse por 30 dias, o que aconteceria com o negócio?</div>
+  <div class="escala" id="esc-p1">
+    <button class="escala-op" onclick="selEscala('p1',0,this)"><span class="escala-n">0</span><span class="escala-desc">Tudo para. Sou indispensável em tudo.</span></button>
+    <button class="escala-op" onclick="selEscala('p1',2,this)"><span class="escala-n">2</span><span class="escala-desc">Para em grande parte. Só coisas simples seguem.</span></button>
+    <button class="escala-op" onclick="selEscala('p1',4,this)"><span class="escala-n">4</span><span class="escala-desc">Continua parcialmente com dificuldade.</span></button>
+    <button class="escala-op" onclick="selEscala('p1',6,this)"><span class="escala-n">6</span><span class="escala-desc">Funciona, mas com supervisão frequente minha.</span></button>
+    <button class="escala-op" onclick="selEscala('p1',8,this)"><span class="escala-n">8</span><span class="escala-desc">Funciona bem. Me ausentei antes por dias ou semanas.</span></button>
+    <button class="escala-op" onclick="selEscala('p1',10,this)"><span class="escala-n">10</span><span class="escala-desc">Operação 100% independente. Gestão profissional.</span></button>
+  </div>
+
+  <!-- Pilar 2: Comercial -->
+  <div class="secao-titulo" style="margin-top:24px">Capacidade de gerar vendas</div>
+  <div class="dica" style="margin-bottom:16px">Como as vendas chegam até você hoje?</div>
+  <div class="escala" id="esc-p2">
+    <button class="escala-op" onclick="selEscala('p2',0,this)"><span class="escala-n">0</span><span class="escala-desc">Indicação aleatória. Sem processo definido.</span></button>
+    <button class="escala-op" onclick="selEscala('p2',2,this)"><span class="escala-n">2</span><span class="escala-desc">1 canal básico, resultado inconsistente.</span></button>
+    <button class="escala-op" onclick="selEscala('p2',4,this)"><span class="escala-n">4</span><span class="escala-desc">Alguns canais, mas sem métricas ou previsibilidade.</span></button>
+    <button class="escala-op" onclick="selEscala('p2',6,this)"><span class="escala-n">6</span><span class="escala-desc">Canal estruturado com resultado razoável e previsível.</span></button>
+    <button class="escala-op" onclick="selEscala('p2',8,this)"><span class="escala-n">8</span><span class="escala-desc">Multicanal, com métricas e meta mensal.</span></button>
+    <button class="escala-op" onclick="selEscala('p2',10,this)"><span class="escala-n">10</span><span class="escala-desc">Máquina de vendas. Processo, time, métricas e previsão.</span></button>
+  </div>
+
+  <!-- Pilar 3: Produto/Oferta -->
+  <div class="secao-titulo" style="margin-top:24px">Clareza e força da oferta</div>
+  <div class="dica" style="margin-bottom:16px">O que você vende é claro, diferente e bem estruturado?</div>
+  <div class="escala" id="esc-p3">
+    <button class="escala-op" onclick="selEscala('p3',0,this)"><span class="escala-n">0</span><span class="escala-desc">Confuso. Pouco diferenciado do concorrente.</span></button>
+    <button class="escala-op" onclick="selEscala('p3',2,this)"><span class="escala-n">2</span><span class="escala-desc">Produto ok, mas sem posicionamento claro.</span></button>
+    <button class="escala-op" onclick="selEscala('p3',4,this)"><span class="escala-n">4</span><span class="escala-desc">Boa entrega, mas pouco estruturado formalmente.</span></button>
+    <button class="escala-op" onclick="selEscala('p3',6,this)"><span class="escala-n">6</span><span class="escala-desc">Oferta clara, com diferenciais percebidos pelos clientes.</span></button>
+    <button class="escala-op" onclick="selEscala('p3',8,this)"><span class="escala-n">8</span><span class="escala-desc">Bem estruturado, validado, com recorrência ou escala.</span></button>
+    <button class="escala-op" onclick="selEscala('p3',10,this)"><span class="escala-n">10</span><span class="escala-desc">Oferta premium, clara, escalável, com marca forte.</span></button>
+  </div>
+
+  <!-- Pilar 4: Gestão e Processos -->
+  <div class="secao-titulo" style="margin-top:24px">Organização e processos internos</div>
+  <div class="dica" style="margin-bottom:16px">As coisas funcionam por processo ou na memória das pessoas?</div>
+  <div class="escala" id="esc-p4">
+    <button class="escala-op" onclick="selEscala('p4',0,this)"><span class="escala-n">0</span><span class="escala-desc">Caótico. Sem controles ou processos definidos.</span></button>
+    <button class="escala-op" onclick="selEscala('p4',2,this)"><span class="escala-n">2</span><span class="escala-desc">Muito na memória das pessoas. Pouco documentado.</span></button>
+    <button class="escala-op" onclick="selEscala('p4',4,this)"><span class="escala-n">4</span><span class="escala-desc">Controles básicos, mas inconsistentes.</span></button>
+    <button class="escala-op" onclick="selEscala('p4',6,this)"><span class="escala-n">6</span><span class="escala-desc">Processos nas áreas principais. Algum sistema de gestão.</span></button>
+    <button class="escala-op" onclick="selEscala('p4',8,this)"><span class="escala-n">8</span><span class="escala-desc">Processos bem definidos, indicadores e rotina gerencial.</span></button>
+    <button class="escala-op" onclick="selEscala('p4',10,this)"><span class="escala-n">10</span><span class="escala-desc">Gestão profissional. Tudo documentado e medido.</span></button>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-volt" onclick="irPara(4)">← Voltar</button>
+    <button class="btn-prox" onclick="irPara(6)">Continuar →</button>
+  </div>
+</div>
+
+<!-- ETAPA 6: Pilares de saúde (parte 2) -->
+<div class="etapa" id="e6">
+  <div class="eyebrow-etapa">Etapa 6 de 7 · Saúde do negócio</div>
+  <div class="pergunta">Mais algumas perguntas sobre <em>risco e estrutura</em></div>
+
+  <!-- Pilar 5: Financeiro/Resultado -->
+  <div class="secao-titulo">Resultado financeiro real</div>
+  <div class="dica" style="margin-bottom:16px">Não é faturamento — é quanto sobra de verdade no final do mês.</div>
+  <div class="escala" id="esc-p5">
+    <button class="escala-op" onclick="selEscala('p5',0,this)"><span class="escala-n">0</span><span class="escala-desc">Prejuízo ou sem controle algum.</span></button>
+    <button class="escala-op" onclick="selEscala('p5',2,this)"><span class="escala-n">2</span><span class="escala-desc">Às vezes sobra, às vezes não. Muito irregular.</span></button>
+    <button class="escala-op" onclick="selEscala('p5',4,this)"><span class="escala-n">4</span><span class="escala-desc">Lucro positivo mas pequeno ou instável.</span></button>
+    <button class="escala-op" onclick="selEscala('p5',6,this)"><span class="escala-n">6</span><span class="escala-desc">Resultado positivo e razoavelmente previsível.</span></button>
+    <button class="escala-op" onclick="selEscala('p5',8,this)"><span class="escala-n">8</span><span class="escala-desc">Margem saudável, resultado previsível e controlado.</span></button>
+    <button class="escala-op" onclick="selEscala('p5',10,this)"><span class="escala-n">10</span><span class="escala-desc">Alta margem, crescente, com controle financeiro total.</span></button>
+  </div>
+
+  <!-- Pilar 6: Balanço -->
+  <div class="secao-titulo" style="margin-top:24px">Qualidade do patrimônio</div>
+  <div class="dica" style="margin-bottom:16px">O negócio tem mais para receber do que para pagar?</div>
+  <div class="escala" id="esc-p6">
+    <button class="escala-op" onclick="selEscala('p6',0,this)"><span class="escala-n">0</span><span class="escala-desc">Passivo maior que ativo. Situação crítica.</span></button>
+    <button class="escala-op" onclick="selEscala('p6',2,this)"><span class="escala-n">2</span><span class="escala-desc">Passivo relevante, ativos de baixo valor.</span></button>
+    <button class="escala-op" onclick="selEscala('p6',4,this)"><span class="escala-n">4</span><span class="escala-desc">Estrutura próxima do neutro. Equilibrado.</span></button>
+    <button class="escala-op" onclick="selEscala('p6',6,this)"><span class="escala-n">6</span><span class="escala-desc">Ativos ligeiramente superiores ao passivo.</span></button>
+    <button class="escala-op" onclick="selEscala('p6',8,this)"><span class="escala-n">8</span><span class="escala-desc">Ativos relevantes e bem superiores ao passivo.</span></button>
+    <button class="escala-op" onclick="selEscala('p6',10,this)"><span class="escala-n">10</span><span class="escala-desc">Balanço excelente. Ativos sólidos, pouco ou sem dívida.</span></button>
+  </div>
+
+  <!-- Pilar 7: Endividamento -->
+  <div class="secao-titulo" style="margin-top:24px">Como está a dívida do negócio?</div>
+  <div class="dica" style="margin-bottom:16px">Dívida não é problema se estiver bem estruturada. Me conta como está.</div>
+  <div class="escala" id="esc-p7">
+    <button class="escala-op" onclick="selEscala('p7',0,this)"><span class="escala-n">0</span><span class="escala-desc">Dívida alta, cara e pressionando o caixa todo mês.</span></button>
+    <button class="escala-op" onclick="selEscala('p7',2,this)"><span class="escala-n">2</span><span class="escala-desc">Várias dívidas, parcelas pesadas, pouco controle.</span></button>
+    <button class="escala-op" onclick="selEscala('p7',4,this)"><span class="escala-n">4</span><span class="escala-desc">Tem dívida relevante, mas está organizada.</span></button>
+    <button class="escala-op" onclick="selEscala('p7',6,this)"><span class="escala-n">6</span><span class="escala-desc">Dívida moderada, parcelas dentro do caixa.</span></button>
+    <button class="escala-op" onclick="selEscala('p7',8,this)"><span class="escala-n">8</span><span class="escala-desc">Pouca dívida, bem estruturada, baixo custo.</span></button>
+    <button class="escala-op" onclick="selEscala('p7',10,this)"><span class="escala-n">10</span><span class="escala-desc">Sem dívidas relevantes. Negócio capitalizado.</span></button>
+  </div>
+
+  <!-- Pilar 8: Risco Jurídico -->
+  <div class="secao-titulo" style="margin-top:24px">Situação legal e fiscal</div>
+  <div class="dica" style="margin-bottom:16px">Tem algum problema jurídico ou tributário aberto?</div>
+  <div class="escala" id="esc-p8">
+    <button class="escala-op" onclick="selEscala('p8',0,this)"><span class="escala-n">0</span><span class="escala-desc">Vários problemas abertos — ações, dívidas fiscais grandes.</span></button>
+    <button class="escala-op" onclick="selEscala('p8',2,this)"><span class="escala-n">2</span><span class="escala-desc">Problemas conhecidos, em andamento sem solução.</span></button>
+    <button class="escala-op" onclick="selEscala('p8',4,this)"><span class="escala-n">4</span><span class="escala-desc">Alguns riscos mapeados, em tratativa.</span></button>
+    <button class="escala-op" onclick="selEscala('p8',6,this)"><span class="escala-n">6</span><span class="escala-desc">Situação ok, alguns pontos de atenção menores.</span></button>
+    <button class="escala-op" onclick="selEscala('p8',8,this)"><span class="escala-n">8</span><span class="escala-desc">Tudo em dia. Sem processos ou passivos relevantes.</span></button>
+    <button class="escala-op" onclick="selEscala('p8',10,this)"><span class="escala-n">10</span><span class="escala-desc">Compliance total. Estrutura jurídica sólida.</span></button>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-volt" onclick="irPara(5)">← Voltar</button>
+    <button class="btn-prox" onclick="irPara(7)">Continuar →</button>
+  </div>
+</div>
+
+<!-- ETAPA 7: Pilares de saúde (parte 3) + contexto final -->
+<div class="etapa" id="e7">
+  <div class="eyebrow-etapa">Etapa 7 de 7 · Últimas perguntas</div>
+  <div class="pergunta">Quase lá! Só mais algumas sobre <em>clientes e crescimento</em></div>
+
+  <!-- Pilar 9: Concentração de receita -->
+  <div class="secao-titulo">Dependência de clientes</div>
+  <div class="dica" style="margin-bottom:16px">O negócio tem muitos clientes ou depende de poucos?</div>
+  <div class="escala" id="esc-p9">
+    <button class="escala-op" onclick="selEscala('p9',0,this)"><span class="escala-n">0</span><span class="escala-desc">1 ou 2 clientes fazem mais de 70% do faturamento.</span></button>
+    <button class="escala-op" onclick="selEscala('p9',2,this)"><span class="escala-n">2</span><span class="escala-desc">3 a 5 clientes concentram mais de 60% da receita.</span></button>
+    <button class="escala-op" onclick="selEscala('p9',4,this)"><span class="escala-n">4</span><span class="escala-desc">Alguns clientes grandes, mas com mais diversificação.</span></button>
+    <button class="escala-op" onclick="selEscala('p9',6,this)"><span class="escala-n">6</span><span class="escala-desc">Receita razoavelmente distribuída entre vários clientes.</span></button>
+    <button class="escala-op" onclick="selEscala('p9',8,this)"><span class="escala-n">8</span><span class="escala-desc">Base de clientes sólida. Nenhum representa mais de 15%.</span></button>
+    <button class="escala-op" onclick="selEscala('p9',10,this)"><span class="escala-n">10</span><span class="escala-desc">Receita totalmente pulverizada. Centenas de clientes ativos.</span></button>
+  </div>
+
+  <!-- Pilar 10: Potencial de crescimento -->
+  <div class="secao-titulo" style="margin-top:24px">Potencial de crescer</div>
+  <div class="dica" style="margin-bottom:16px">O negócio consegue crescer sem ter que dobrar os custos?</div>
+  <div class="escala" id="esc-p10">
+    <button class="escala-op" onclick="selEscala('p10',0,this)"><span class="escala-n">0</span><span class="escala-desc">Travado. Já no limite da capacidade sem estrutura.</span></button>
+    <button class="escala-op" onclick="selEscala('p10',2,this)"><span class="escala-n">2</span><span class="escala-desc">Cresce pouco. Precisa de muito mais pra crescer mais.</span></button>
+    <button class="escala-op" onclick="selEscala('p10',4,this)"><span class="escala-n">4</span><span class="escala-desc">Crescimento proporcional ao esforço e ao custo.</span></button>
+    <button class="escala-op" onclick="selEscala('p10',6,this)"><span class="escala-n">6</span><span class="escala-desc">Tem capacidade ociosa ou alavancagem possível.</span></button>
+    <button class="escala-op" onclick="selEscala('p10',8,this)"><span class="escala-n">8</span><span class="escala-desc">Modelo escalável com margem crescente.</span></button>
+    <button class="escala-op" onclick="selEscala('p10',10,this)"><span class="escala-n">10</span><span class="escala-desc">Altamente escalável. Crescimento com custo marginal baixo.</span></button>
+  </div>
+
+  <!-- Motivo e contexto -->
+  <div class="secao-titulo" style="margin-top:24px">Por que está pensando em vender?</div>
+  <div class="campo">
+    <div class="opcoes c1" id="opcoes-motivo">
+      <button class="opcao" onclick="sel2('motivo','aposentadoria',this)"><div><div class="opcao-t">Aposentadoria ou mudança de vida</div></div><span class="opcao-ck">✓</span></button>
+      <button class="opcao" onclick="sel2('motivo','societario',this)"><div><div class="opcao-t">Mudança societária / saída de sócio</div></div><span class="opcao-ck">✓</span></button>
+      <button class="opcao" onclick="sel2('motivo','oportunidade',this)"><div><div class="opcao-t">Surgiu uma oportunidade melhor</div></div><span class="opcao-ck">✓</span></button>
+      <button class="opcao" onclick="sel2('motivo','financeiro',this)"><div><div class="opcao-t">Dificuldade financeira</div></div><span class="opcao-ck">✓</span></button>
+      <button class="opcao" onclick="sel2('motivo','explorando',this)"><div><div class="opcao-t">Só estou explorando / curiosidade</div></div><span class="opcao-ck">✓</span></button>
+    </div>
+  </div>
+
+  <div class="campo">
+    <label>Qual a urgência para vender? <span style="color:var(--ink3)">(1 = sem pressa · 10 = preciso vender logo)</span></label>
+    <div class="escala" id="esc-urgencia" style="margin-top:8px">
+      <button class="escala-op" onclick="selEscala('urgencia',1,this)"><span class="escala-n">1</span></button>
+      <button class="escala-op" onclick="selEscala('urgencia',3,this)"><span class="escala-n">3</span></button>
+      <button class="escala-op" onclick="selEscala('urgencia',5,this)"><span class="escala-n">5</span></button>
+      <button class="escala-op" onclick="selEscala('urgencia',7,this)"><span class="escala-n">7</span></button>
+      <button class="escala-op" onclick="selEscala('urgencia',10,this)"><span class="escala-n">10</span></button>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-volt" onclick="irPara(6)">← Voltar</button>
+    <button class="btn-prox" onclick="calcularEMostrar()">Ver o resultado →</button>
+  </div>
+</div>
+
+</div><!-- /form-wrap -->
+</div><!-- /tela-form -->
+
+<!-- ═══════════════════════════════════════
+     TELA 3 — RESULTADO
+═══════════════════════════════════════ -->
+<div class="tela" id="tela-resultado">
+<div class="resultado-wrap" id="resultado-conteudo">
+  <!-- Preenchido pelo JS -->
+</div>
+</div>
+
+<!-- MODAL VALOR PEDIDO -->
+<div class="modal-overlay" id="modal-pedido">
+  <div class="modal">
+    <div class="modal-titulo">Qual é o seu preço de venda?</div>
+    <div class="modal-sub">
+      Na 1Negócio, todos os anúncios trabalham com <strong>porteira fechada</strong> — o comprador paga o valor de venda e assume tudo: ativos e passivos. Qual o valor que você espera receber pelo negócio nesse formato?
+    </div>
+    <div class="nota" style="margin-bottom:8px">Nossa avaliação estimou: <strong id="modal-valor-avaliado" style="color:var(--green)">—</strong></div>
+    <div class="campo">
+      <label>Seu preço pedido (porteira fechada)</label>
+      <div class="input-prefix"><input type="number" id="preco-pedido" placeholder="0" min="0"></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-volt" onclick="fecharModal()">Cancelar</button>
+      <button class="btn-prox" onclick="confirmarPublicacao()">Solicitar publicação →</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// ⚙️ CONFIGURAÇÕES DO MOTOR DE AVALIAÇÃO
+// (visíveis também no painel admin — não alterar sem atualizar ambos)
+// ═══════════════════════════════════════════════════════════
+const CONFIG = {
+  versao: '1.0 · Março 2026',
+
+  // Múltiplos base por categoria (resultado ajustado anual)
+  // Ajustar trimestralmente com base em WACC real do mercado
+  multiplos: {
+    alimentacao:   { min: 1.5, max: 3.0, label: 'Alimentação' },
+    comercio:      { min: 1.5, max: 3.0, label: 'Comércio & Varejo' },
+    beleza_saude:  { min: 2.0, max: 3.5, label: 'Beleza & Saúde' },
+    pet:           { min: 2.0, max: 3.5, label: 'Pet' },
+    industria:     { min: 2.5, max: 4.5, label: 'Indústria & Fabricação' },
+    educacao:      { min: 2.5, max: 4.0, label: 'Educação' },
+    distribuicao:  { min: 2.0, max: 3.5, label: 'Distribuição & Atacado' },
+    tecnologia:    { min: 3.0, max: 6.0, label: 'Tecnologia & Digital' },
+    hospedagem:    { min: 2.0, max: 3.5, label: 'Hospedagem & Turismo' },
+    outro:         { min: 1.5, max: 3.0, label: 'Outro' },
+  },
+
+  // Pesos dos 10 pilares de saúde (deve somar 100%)
+  pesos: {
+    p1: 40,  // Dependência dos sócios — KEY MAN RISK
+    p2: 8,   // Comercial / Geração de receita
+    p3: 6,   // Produto / Oferta
+    p4: 7,   // Gestão e processos
+    p5: 10,  // Financeiro / Resultado
+    p6: 7,   // Balanço patrimonial
+    p7: 7,   // Estrutura de endividamento
+    p8: 5,   // Risco jurídico / tributário
+    p9: 5,   // Concentração de receita
+    p10: 5,  // Potencial de crescimento
+  },
+
+  // Tabela de prêmio de maturidade (score → multiplicador)
+  premios: [
+    { min: 0,  max: 29, mult: 0.80, label: 'Crítico' },
+    { min: 30, max: 44, mult: 0.88, label: 'Baixo' },
+    { min: 45, max: 59, mult: 0.95, label: 'Básico' },
+    { min: 60, max: 69, mult: 1.00, label: 'Regular' },
+    { min: 70, max: 79, mult: 1.08, label: 'Bom' },
+    { min: 80, max: 89, mult: 1.18, label: 'Ótimo' },
+    { min: 90, max: 100,mult: 1.30, label: 'Excelente' },
+  ],
+
+  // Alíquotas estimadas por regime (sobre faturamento)
+  aliquotas: {
+    simples:  0.10,
+    presumido: 0.18,
+    real:     0.22,
+    mei:      0.05,
+    pf:       0.15,
+    '':       0.15,  // não informado → conservador
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+// SUPABASE
+// ═══════════════════════════════════════════════════════════
+const SUPA_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+let usuarioAtual = null;
+let etapaAtual = 1;
+let totalEtapas = 7;
+
+// Dados coletados
+const D = {
+  categoria: null, detalhe: null, franquia: null,
+  cidade: null, estado: null, anos: null, colaboradores: null,
+  contrato: null, local_fisico: null,
+  fat_mensal: 0, regime: '', cmv: 0, folha: 0, aluguel: 0,
+  contas_fixas: 0, terceiros: 0, marketing: 0, outras_desp: 0,
+  parcelas: 0, prolabore: 0, investimentos: 0,
+  at_maquinas: 0, at_moveis: 0, at_veiculos: 0, at_ti: 0,
+  at_reformas: 0, at_estoque: 0, at_receber: 0, at_caixa: 0, at_imovel: 0,
+  pa_fornecedores: 0, pa_tributario: 0, pa_bancario: 0, pa_outros: 0,
+  p1: null, p2: null, p3: null, p4: null, p5: null,
+  p6: null, p7: null, p8: null, p9: null, p10: null,
+  motivo: null, urgencia: null,
+};
+
+// ═══════════════════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════════════════
+async function init() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    usuarioAtual = session.user;
+    mostrarApp();
+  }
+}
+
+function mudarAba(aba) {
+  document.getElementById('tab-criar').classList.toggle('ativo', aba === 'criar');
+  document.getElementById('tab-entrar').classList.toggle('ativo', aba === 'entrar');
+  document.getElementById('form-criar').style.display = aba === 'criar' ? 'block' : 'none';
+  document.getElementById('form-entrar').style.display = aba === 'entrar' ? 'block' : 'none';
+  document.getElementById('auth-erro').style.display = 'none';
+}
+
+async function criarConta() {
+  const nome = document.getElementById('auth-nome').value.trim();
+  const email = document.getElementById('auth-email-c').value.trim();
+  const senha = document.getElementById('auth-senha-c').value;
+  const erro = document.getElementById('auth-erro');
+  const btn = document.getElementById('btn-criar');
+
+  if (!nome) { mostrarErroAuth('Informe seu nome.'); return; }
+  if (!email || !email.includes('@')) { mostrarErroAuth('Informe um e-mail válido.'); return; }
+  if (senha.length < 8) { mostrarErroAuth('A senha precisa ter pelo menos 8 caracteres.'); return; }
+
+  btn.textContent = 'Criando conta...'; btn.disabled = true;
+  erro.style.display = 'none';
+
+  const { data, error } = await sb.auth.signUp({
+    email, password: senha,
+    options: { data: { full_name: nome } }
+  });
+
+  if (error) {
+    if (error.message.includes('already')) {
+      mostrarErroAuth('Este e-mail já tem cadastro. Tente entrar na aba "Já tenho conta".');
+    } else {
+      mostrarErroAuth(error.message);
+    }
+    btn.textContent = 'Criar conta e começar →'; btn.disabled = false;
+    return;
+  }
+
+  usuarioAtual = data.user;
+  await sb.from('usuarios').upsert({
+    id: usuarioAtual.id, email, nome, tipo: 'sell',
+    updated_at: new Date().toISOString()
+  });
+
+  mostrarApp();
+}
+
+async function fazerLogin() {
+  const email = document.getElementById('auth-email-e').value.trim();
+  const senha = document.getElementById('auth-senha-e').value;
+  const btn = document.getElementById('btn-entrar');
+
+  if (!email || !senha) { mostrarErroAuth('Preencha e-mail e senha.'); return; }
+
+  btn.textContent = 'Entrando...'; btn.disabled = true;
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
+
+  if (error) {
+    mostrarErroAuth('E-mail ou senha incorretos.');
+    btn.textContent = 'Entrar e continuar →'; btn.disabled = false;
+    return;
+  }
+
+  usuarioAtual = data.user;
+  mostrarApp();
+}
+
+function mostrarErroAuth(msg) {
+  const el = document.getElementById('auth-erro');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function mostrarApp() {
+  document.getElementById('tela-auth').classList.remove('ativa');
+  document.getElementById('tela-form').classList.add('ativa');
+  document.getElementById('hdr-user').style.display = 'flex';
+  document.getElementById('hdr-email').textContent = usuarioAtual.email;
+}
+
+async function sair() {
+  await sb.auth.signOut();
+  usuarioAtual = null;
+  document.getElementById('tela-form').classList.remove('ativa');
+  document.getElementById('tela-resultado').classList.remove('ativa');
+  document.getElementById('tela-auth').classList.add('ativa');
+  document.getElementById('hdr-user').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════
+// NAVEGAÇÃO DE ETAPAS
+// ═══════════════════════════════════════════════════════════
+function irPara(n) {
+  // Salvar dados da etapa atual antes de avançar
+  coletarDadosEtapa(etapaAtual);
+
+  document.getElementById('e' + etapaAtual).classList.remove('ativa');
+  etapaAtual = n;
+  document.getElementById('e' + n).classList.add('ativa');
+  document.getElementById('hdr-step').textContent = 'Etapa ' + n + ' de ' + totalEtapas;
+  document.getElementById('prog').style.width = ((n / (totalEtapas + 1)) * 100) + '%';
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  salvarRascunho();
+}
+
+function coletarDadosEtapa(n) {
+  const g = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
+  const gn = (id) => { const v = parseFloat(g(id)); return isNaN(v) ? 0 : v; };
+
+  if (n === 2) {
+    D.cidade = g('cidade');
+    D.estado = g('estado');
+    D.anos = gn('anos-operacao');
+    D.colaboradores = gn('total-colaboradores');
+  }
+  if (n === 3) {
+    D.fat_mensal = gn('fat-mensal');
+    D.regime = g('regime');
+    D.cmv = gn('cmv');
+    D.folha = gn('folha');
+    D.aluguel = gn('aluguel');
+    D.contas_fixas = gn('contas-fixas');
+    D.terceiros = gn('terceiros');
+    D.marketing = gn('marketing');
+    D.outras_desp = gn('outras-desp');
+    D.parcelas = gn('parcelas');
+    D.prolabore = gn('prolabore');
+    D.investimentos = gn('investimentos');
+  }
+  if (n === 4) {
+    D.at_maquinas = gn('at-maquinas');
+    D.at_moveis = gn('at-moveis');
+    D.at_veiculos = gn('at-veiculos');
+    D.at_ti = gn('at-ti');
+    D.at_reformas = gn('at-reformas');
+    D.at_estoque = gn('at-estoque');
+    D.at_receber = gn('at-receber');
+    D.at_caixa = gn('at-caixa');
+    D.at_imovel = gn('at-imovel');
+    D.pa_fornecedores = gn('pa-fornecedores');
+    D.pa_tributario = gn('pa-tributario');
+    D.pa_bancario = gn('pa-bancario');
+    D.pa_outros = gn('pa-outros');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// SELEÇÕES DE OPÇÕES
+// ═══════════════════════════════════════════════════════════
+function selecionarCategoria(cat, btn) {
+  document.querySelectorAll('#opcoes-categoria .opcao').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  D.categoria = cat;
+  document.getElementById('detalhe-wrap').style.display = 'block';
+
+  // Ajusta label do CMV por tipo
+  const cmvTitulo = document.getElementById('cmv-titulo');
+  const cmvLabel = document.getElementById('cmv-label');
+  const cmvWrap = document.getElementById('cmv-wrap');
+  if (['alimentacao','comercio','industria','distribuicao','pet'].includes(cat)) {
+    cmvWrap.style.display = 'block';
+    cmvTitulo.textContent = cat === 'alimentacao' ? 'Custo dos ingredientes e insumos' :
+                            cat === 'industria' ? 'Custo de matéria-prima e produção' :
+                            'Custo da mercadoria (CMV)';
+  } else {
+    cmvWrap.style.display = 'none';
+    D.cmv = 0;
+  }
+}
+
+function sel2(campo, val, btn) {
+  const grupo = btn.parentElement;
+  grupo.querySelectorAll('.opcao').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  D[campo] = val;
+  if (campo === 'detalhe') D.detalhe = val;
+}
+
+document.getElementById('detalhe-negocio').addEventListener('input', function() {
+  D.detalhe = this.value;
+});
+
+function selEscala(campo, val, btn) {
+  const grupo = document.getElementById('esc-' + campo);
+  group = btn.parentElement;
+  group.querySelectorAll('.escala-op').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  D[campo] = val;
+}
+
+// ═══════════════════════════════════════════════════════════
+// MOTOR DE CÁLCULO
+// ═══════════════════════════════════════════════════════════
+function calcular() {
+  // Coletar dados finais
+  coletarDadosEtapa(7);
+
+  const cat = D.categoria || 'outro';
+  const fat = D.fat_mensal;
+  const regime = D.regime || '';
+
+  // 1. Impostos estimados
+  const aliquota = CONFIG.aliquotas[regime] || CONFIG.aliquotas[''];
+  const impostos_mes = fat * aliquota;
+
+  // 2. Resultado Operacional Ajustado (mensal)
+  const result_mes = fat
+    - impostos_mes
+    - D.cmv
+    - D.folha
+    - D.aluguel
+    - D.contas_fixas
+    - D.terceiros
+    - D.marketing
+    - D.outras_desp;
+
+  const result_anual = result_mes * 12;
+
+  // 3. Geração de caixa real (mensal, informacional)
+  const caixa_mes = result_mes - D.parcelas - D.investimentos - D.prolabore;
+
+  // 4. Múltiplo do setor
+  const mult_cfg = CONFIG.multiplos[cat] || CONFIG.multiplos['outro'];
+  const mult_base = (mult_cfg.min + mult_cfg.max) / 2;
+
+  // 5. Score de saude (0 a 100)
+  const pilares = ['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10'];
+  let score_ponderado = 0;
+  let pilares_preenchidos = 0;
+
+  pilares.forEach(p => {
+    const val = D[p];
+    if (val !== null && val !== undefined) {
+      score_ponderado += (val / 10) * CONFIG.pesos[p];
+      pilares_preenchidos++;
+    }
+  });
+
+  // Se não preencheu todos, assume 5 nos faltantes (neutro)
+  if (pilares_preenchidos < 10) {
+    pilares.forEach(p => {
+      if (D[p] === null || D[p] === undefined) {
+        score_ponderado += (5 / 10) * CONFIG.pesos[p];
+      }
+    });
+  }
+
+  const score = Math.round(score_ponderado);
+
+  // 6. Prêmio de maturidade
+  const premio_cfg = CONFIG.premios.find(p => score >= p.min && score <= p.max) || CONFIG.premios[0];
+  const premio = premio_cfg.mult;
+
+  // 7. Valor do negócio
+  const valor_negocio = Math.max(0, result_anual * mult_base * premio);
+
+  // 8. Balanço patrimonial
+  const total_ativos = D.at_maquinas + D.at_moveis + D.at_veiculos + D.at_ti +
+                       D.at_reformas + D.at_estoque + D.at_receber + D.at_caixa + D.at_imovel;
+  const total_passivos = D.pa_fornecedores + D.pa_tributario + D.pa_bancario + D.pa_outros;
+  const balanco = total_ativos - total_passivos;
+
+  // 9. Valor de venda (porteira fechada)
+  const valor_venda = valor_negocio + balanco;
+
+  return {
+    cat, fat_mensal: fat, regime,
+    impostos_mes, result_mes, result_anual,
+    caixa_mes,
+    mult_base, mult_cfg,
+    score, premio, premio_cfg,
+    valor_negocio,
+    total_ativos, total_passivos, balanco,
+    valor_venda,
+    pilares_scores: pilares.map(p => ({ id: p, val: D[p] !== null ? D[p] : 5 }))
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// TELA DE RESULTADO
+// ═══════════════════════════════════════════════════════════
+function calcularEMostrar() {
+  coletarDadosEtapa(7);
+
+  const R = calcular();
+  const conteudo = document.getElementById('resultado-conteudo');
+
+  const nomePilares = {
+    p1:'Dependência dos Sócios', p2:'Comercial / Vendas',
+    p3:'Produto / Oferta', p4:'Gestão e Processos',
+    p5:'Financeiro / Resultado', p6:'Balanço Patrimonial',
+    p7:'Estrutura de Dívida', p8:'Risco Jurídico / Fiscal',
+    p9:'Concentração de Receita', p10:'Potencial de Crescimento'
+  };
+
+  const scoreCor = R.score >= 70 ? 'var(--green)' : R.score >= 50 ? 'var(--amber)' : 'var(--red)';
+  const balancoCor = R.balanco >= 0 ? 'verde' : 'vermelho';
+  const balacoSinal = R.balanco >= 0 ? '+' : '';
+
+  conteudo.innerHTML = `
+    <div class="res-eyebrow">Avaliação concluída · Porteira fechada</div>
+
+    <!-- VALOR DE VENDA PRINCIPAL -->
+    <div class="res-card-principal">
+      <div class="res-label">Valor de Venda estimado</div>
+      <div class="res-valor">${fmtBRL(R.valor_venda)}</div>
+      <div class="res-valor-sub">Porteira fechada — comprador assume ativos e passivos</div>
+
+      <div class="res-breakdown">
+        <div class="res-breakdown-titulo">Como chegamos neste número</div>
+        <div class="res-linha">
+          <span class="res-linha-label">Resultado operacional ajustado (anual)</span>
+          <span class="res-linha-val">${fmtBRL(R.result_anual)}</span>
+        </div>
+        <div class="res-linha">
+          <span class="res-linha-label">× Múltiplo do setor (${R.mult_cfg.label})</span>
+          <span class="res-linha-val">${R.mult_base.toFixed(1)}×</span>
+        </div>
+        <div class="res-linha">
+          <span class="res-linha-label">× Prêmio de saúde (score ${R.score})</span>
+          <span class="res-linha-val">${R.premio.toFixed(2)}×</span>
+        </div>
+        <div class="res-linha">
+          <span class="res-linha-label">= Valor do negócio</span>
+          <span class="res-linha-val verde">${fmtBRL(R.valor_negocio)}</span>
+        </div>
+        <div class="res-linha">
+          <span class="res-linha-label">+ Ativos do negócio</span>
+          <span class="res-linha-val verde">+${fmtBRL(R.total_ativos)}</span>
+        </div>
+        <div class="res-linha">
+          <span class="res-linha-label">− Passivos (dívidas e obrigações)</span>
+          <span class="res-linha-val ${R.total_passivos > 0 ? 'vermelho' : ''}">−${fmtBRL(R.total_passivos)}</span>
+        </div>
+        <div class="res-linha total">
+          <span class="res-linha-label">= Valor de Venda</span>
+          <span class="res-linha-val">${fmtBRL(R.valor_venda)}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARDS SECUNDÁRIOS -->
+    <div class="res-grid">
+      <div class="res-mini">
+        <div class="res-mini-label">Resultado operacional / mês</div>
+        <div class="res-mini-val ${R.result_mes >= 0 ? 'verde' : ''}">${fmtBRL(R.result_mes)}</div>
+      </div>
+      <div class="res-mini">
+        <div class="res-mini-label">Geração de caixa real / mês</div>
+        <div class="res-mini-val ${R.caixa_mes >= 0 ? '' : ''}" style="color:${R.caixa_mes >= 0 ? 'var(--green)' : 'var(--amber)'}">${fmtBRL(R.caixa_mes)}</div>
+      </div>
+      <div class="res-mini">
+        <div class="res-mini-label">Múltiplo aplicado</div>
+        <div class="res-mini-val">${R.mult_base.toFixed(1)}× · ${R.mult_cfg.label}</div>
+      </div>
+      <div class="res-mini">
+        <div class="res-mini-label">Balanço patrimonial</div>
+        <div class="res-mini-val ${balancoCor}">${balacoSinal}${fmtBRL(R.balanco)}</div>
+      </div>
+    </div>
+
+    ${R.caixa_mes < 0 ? `
+    <div class="res-alerta">
+      ⚠️ A geração de caixa real está negativa — isso significa que após pagar dívidas, pró-labore e reinvestimentos, o negócio consome mais do que gera. Isso é comum e pode ser resolvido. Um novo gestor pode enxergar isso como uma oportunidade de melhoria.
+    </div>` : ''}
+
+    <!-- SAÚDE DO NEGÓCIO -->
+    <div class="res-saude">
+      <div class="res-saude-topo">
+        <div>
+          <div class="res-saude-titulo">Nota de Saúde / Maturidade</div>
+          <div style="font-size:11px;color:var(--ink2);margin-top:3px">${R.premio_cfg.label} · Prêmio ${R.premio.toFixed(2)}×</div>
+        </div>
+        <div class="res-saude-nota" style="color:${scoreCor}">${R.score}<span style="font-size:16px;color:var(--ink3)">/100</span></div>
+      </div>
+      ${R.pilares_scores.map(p => `
+        <div class="res-pilar">
+          <div class="res-pilar-top">
+            <span class="res-pilar-nome">${nomePilares[p.id]}</span>
+            <span class="res-pilar-pts">${p.val}/10</span>
+          </div>
+          <div class="res-barra"><div class="res-barra-fill" style="width:${p.val*10}%"></div></div>
+        </div>`).join('')}
+    </div>
+
+    <!-- OBSERVAÇÕES -->
+    <div class="res-obs">
+      <strong style="color:var(--ink)">Importante:</strong> Esta é uma estimativa baseada nas informações fornecidas. O valor real pode variar conforme o processo de due diligence, condições do mercado e a negociação com o comprador. A 1Negócio não se responsabiliza pela precisão do valor final — recomendamos contratar uma avaliação profissional para negócios acima de R$ 500 mil.
+    </div>
+
+    <!-- CTAs -->
+    <div class="res-ctas-titulo">O que você quer fazer agora?</div>
+    <div class="res-cta-cards">
+
+      <div class="cta-card destaque" onclick="abrirModalPublicacao()">
+        <div class="cta-info">
+          <div class="cta-titulo">Publicar meu anúncio <span style="font-size:11px;color:var(--ink3)">(gratuito)</span></div>
+          <div class="cta-sub">Publique na plataforma e receba propostas de compradores qualificados. Taxa de sucesso de 10% apenas se vender.</div>
+        </div>
+        <button class="cta-btn verde">Publicar grátis →</button>
+      </div>
+
+      <div class="cta-card destaque" style="border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.04)" onclick="contratarGuiado()">
+        <div class="cta-info">
+          <div class="cta-titulo">Plano Guiado <span class="cta-badge" style="background:var(--amber)">Recomendado</span></div>
+          <div class="cta-sub">Consultor dedicado, destaque por 12 meses na plataforma e taxa de sucesso reduzida para 5%.</div>
+        </div>
+        <div class="cta-preco" style="color:var(--amber)">R$ 588 <span style="font-size:11px;color:var(--ink3)">ou 12×49</span></div>
+      </div>
+
+      <div class="cta-card" onclick="comprarRelatorio()">
+        <div class="cta-info">
+          <div class="cta-titulo">Relatório em PDF</div>
+          <div class="cta-sub">Receba este resultado em um laudo completo em PDF para usar como você quiser.</div>
+        </div>
+        <div class="cta-preco">R$ 99</div>
+      </div>
+
+      <div class="cta-card" onclick="contratarAvaliacao()">
+        <div class="cta-info">
+          <div class="cta-titulo">Avaliação Profissional Completa</div>
+          <div class="cta-sub">Avaliação aprofundada com consultor especializado. Laudo robusto sem publicação do anúncio.</div>
+        </div>
+        <div class="cta-preco">R$ 397</div>
+      </div>
+
+      <div class="cta-card" onclick="irParaHome()">
+        <div class="cta-info">
+          <div class="cta-titulo" style="color:var(--ink2)">Só quero ver o resultado por enquanto</div>
+          <div class="cta-sub">Você pode voltar quando quiser pelo portal.</div>
+        </div>
+        <button class="cta-btn outline">Ir para o início →</button>
+      </div>
+
+    </div>
+  `;
+
+  // Mostrar tela resultado
+  document.getElementById('tela-form').classList.remove('ativa');
+  document.getElementById('tela-resultado').classList.add('ativa');
+  document.getElementById('prog').style.width = '100%';
+  document.getElementById('hdr-step').textContent = 'Resultado da avaliação';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Salvar avaliação no banco
+  salvarAvaliacao(R);
+}
+
+// ═══════════════════════════════════════════════════════════
+// BANCO DE DADOS
+// ═══════════════════════════════════════════════════════════
+async function salvarRascunho() {
+  if (!usuarioAtual) return;
+  try {
+    const payload = {
+      vendedor_id: usuarioAtual.id,
+      nome: D.detalhe || D.categoria || 'Rascunho',
+      categoria: D.categoria,
+      cidade: D.cidade,
+      estado: D.estado,
+      faturamento_anual: D.fat_mensal * 12,
+      status: 'rascunho',
+      plano: 'gratuito',
+      comissao_pct: 10,
+      score_saude: 0,
+      notas_admin: JSON.stringify({ rascunho: true, dados: D }),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Upsert por vendedor_id (só um rascunho ativo por vez)
+    const { data: existente } = await sb.from('negocios')
+      .select('id').eq('vendedor_id', usuarioAtual.id).eq('status', 'rascunho').single();
+
+    if (existente) {
+      await sb.from('negocios').update(payload).eq('id', existente.id);
+    } else {
+      payload.created_at = new Date().toISOString();
+      await sb.from('negocios').insert(payload);
+    }
+  } catch(e) { /* silencioso */ }
+}
+
+async function salvarAvaliacao(R) {
+  if (!usuarioAtual) return;
+  try {
+    const payload = {
+      vendedor_id: usuarioAtual.id,
+      nome: D.detalhe || CONFIG.multiplos[D.categoria]?.label || 'Negócio',
+      categoria: D.categoria,
+      cidade: D.cidade,
+      estado: D.estado,
+      faturamento_anual: D.fat_mensal * 12,
+      resultado_liquido_mensal: R.result_mes,
+      folha_pagamento: D.folha,
+      aluguel_mensal: D.aluguel,
+      funcionarios: D.colaboradores,
+      motivo_venda: D.motivo,
+      urgencia: String(D.urgencia || 5),
+      status: 'em_avaliacao',
+      plano: 'gratuito',
+      comissao_pct: 10,
+      score_saude: R.score,
+      avaliacao_min: Math.round(R.valor_venda * 0.85),
+      avaliacao_max: Math.round(R.valor_venda * 1.15),
+      ativo_maquinas: D.at_maquinas,
+      ativo_equipamentos: D.at_moveis,
+      ativo_veiculos: D.at_veiculos,
+      ativo_ti: D.at_ti,
+      ativo_reformas: D.at_reformas,
+      ativo_estoque: D.at_estoque,
+      ativo_receber: D.at_receber,
+      ativo_caixa: D.at_caixa,
+      ativo_imovel: D.at_imovel,
+      dividas: D.pa_bancario + D.pa_tributario + D.pa_fornecedores + D.pa_outros,
+      notas_admin: JSON.stringify({
+        resultado_operacional_mensal: R.result_mes,
+        resultado_operacional_anual: R.result_anual,
+        caixa_real_mensal: R.caixa_mes,
+        multiplo_aplicado: R.mult_base,
+        premio_saude: R.premio,
+        valor_negocio: R.valor_negocio,
+        total_ativos: R.total_ativos,
+        total_passivos: R.total_passivos,
+        balanco: R.balanco,
+        valor_venda: R.valor_venda,
+        score: R.score,
+        pilares: R.pilares_scores,
+        dados_brutos: D,
+        config_versao: CONFIG.versao,
+      }),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Remove rascunho anterior e insere completo
+    await sb.from('negocios').delete()
+      .eq('vendedor_id', usuarioAtual.id).eq('status', 'rascunho');
+
+    payload.created_at = new Date().toISOString();
+    const { data } = await sb.from('negocios').insert(payload).select('id').single();
+    if (data?.id) {
+      window._negocioId = data.id;
+    }
+  } catch(e) { console.error('salvarAvaliacao', e); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// AÇÕES DO RESULTADO
+// ═══════════════════════════════════════════════════════════
+function abrirModalPublicacao() {
+  const R = calcular();
+  document.getElementById('modal-valor-avaliado').textContent = fmtBRL(R.valor_venda);
+  document.getElementById('modal-pedido').classList.add('aberto');
+}
+
+function fecharModal() {
+  document.getElementById('modal-pedido').classList.remove('aberto');
+}
+
+async function confirmarPublicacao() {
+  const preco = parseFloat(document.getElementById('preco-pedido').value) || 0;
+  if (preco <= 0) { toast('Informe o valor que você espera receber.'); return; }
+
+  if (window._negocioId) {
+    await sb.from('negocios').update({ preco_pedido: preco, status: 'em_avaliacao' }).eq('id', window._negocioId);
+
+    // Alerta no admin
+    await sb.from('admin_agenda').insert({
+      tipo: 'gratuito', status: 'pendente',
+      nome_cliente: D.detalhe || CONFIG.multiplos[D.categoria]?.label || 'Negócio',
+      email_cliente: usuarioAtual.email,
+      notas_admin: `Publicação gratuita · ${D.cidade || ''} · Fat: ${fmtBRL(D.fat_mensal)}/mês · Preço pedido: ${fmtBRL(preco)}`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  fecharModal();
+  toast('Publicação solicitada! Nossa equipe entrará em contato em até 48h.');
+
+  setTimeout(() => {
+    document.getElementById('tela-resultado').classList.remove('ativa');
+    window.location.href = '/portal-usuario.html';
+  }, 2500);
+}
+
+function contratarGuiado() {
+  window.open('https://buy.stripe.com/7sYdR8elo21aeSRegH5os02', '_blank');
+}
+
+function comprarRelatorio() {
+  window.open('https://buy.stripe.com/9B6fZgfpsdJScKJegH5os04', '_blank');
+}
+
+function contratarAvaliacao() {
+  window.open('https://buy.stripe.com/9B6cN47X05dm3a9a0r5os03', '_blank');
+}
+
+function irParaHome() {
+  window.location.href = '/portal-usuario.html';
+}
+
+// ═══════════════════════════════════════════════════════════
+// UTILITÁRIOS
+// ═══════════════════════════════════════════════════════════
+function fmtBRL(v) {
+  if (!v && v !== 0) return '—';
+  const abs = Math.abs(v);
+  const sinal = v < 0 ? '-' : '';
+  if (abs >= 1e6) return sinal + 'R$ ' + (abs/1e6).toFixed(2).replace('.',',') + ' Mi';
+  if (abs >= 1e3) return sinal + 'R$ ' + (abs/1e3).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,'.') + ' mil';
+  return sinal + 'R$ ' + abs.toLocaleString('pt-BR', { minimumFractionDigits: 0 });
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
