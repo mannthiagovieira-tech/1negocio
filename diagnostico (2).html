@@ -1,0 +1,1801 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negocio - Quanto vale o seu negocio?</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#0c0c0a; --bg2:#111110; --bg3:#161614;
+  --ink:rgba(255,255,255,.90); --ink2:rgba(255,255,255,.50);
+  --ink3:rgba(255,255,255,.25); --ink4:rgba(255,255,255,.08);
+  --sep:rgba(255,255,255,.07); --bdr:rgba(255,255,255,.12);
+  --green:#10b981; --gdim:#059669; --gglow:rgba(16,185,129,.12);
+  --amber:#f59e0b; --blue:#60a5fa; --red:#f87171;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh;overflow-x:hidden}
+body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace;font-size:13px}
+
+/* PROGRESS */
+.prog-wrap{position:fixed;top:0;left:0;right:0;height:3px;background:var(--sep);z-index:300}
+.prog-fill{height:100%;background:var(--green);transition:width .5s cubic-bezier(.4,0,.2,1);box-shadow:0 0 12px rgba(16,185,129,.8);width:0%}
+
+/* HEADER */
+.hdr{position:fixed;top:3px;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:14px 28px;background:rgba(12,12,10,.96);backdrop-filter:blur(20px);border-bottom:1px solid var(--sep)}
+.hdr-logo{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;letter-spacing:-.02em;color:#fff;text-decoration:none}
+.hdr-logo em{color:var(--green);font-style:normal}
+.hdr-mid{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink3)}
+.hdr-right{display:flex;align-items:center;gap:12px}
+.hdr-dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.hdr-email{font-size:10px;color:var(--ink3)}
+.btn-link{background:none;border:none;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);cursor:pointer;transition:color .15s;padding:0}
+.btn-link:hover{color:var(--red)}
+
+/* TELA PRINCIPAL */
+.screen{display:none;min-height:100vh;align-items:center;justify-content:center;padding:90px 20px 60px;flex-direction:column}
+.screen.on{display:flex}
+
+/* CARD DA PERGUNTA */
+.qcard{width:100%;max-width:560px;animation:up .28s ease}
+@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.qcard.out{animation:dn .2s ease forwards}
+@keyframes dn{to{opacity:0;transform:translateY(-10px)}}
+
+.eyebrow{font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:var(--green);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.eyebrow::before{content:'';width:16px;height:1px;background:var(--green);flex-shrink:0}
+
+.q-title{font-family:'Instrument Serif',serif;font-size:clamp(22px,4vw,34px);line-height:1.22;color:var(--ink);margin-bottom:8px}
+.q-title em{color:var(--green);font-style:italic}
+.q-hint{font-size:12px;color:var(--ink2);line-height:1.7;margin-bottom:22px}
+.q-hint strong{color:var(--amber)}
+
+/* OPCOES GRID */
+.opts{display:grid;gap:7px;margin-bottom:12px}
+.opts.c1{grid-template-columns:1fr}
+.opts.c2{grid-template-columns:1fr 1fr}
+.opts.c3{grid-template-columns:1fr 1fr 1fr}
+.opts.c4{grid-template-columns:1fr 1fr 1fr 1fr}
+
+.opt{border:1px solid var(--sep);background:rgba(255,255,255,.025);padding:13px 15px;cursor:pointer;transition:all .12s;display:flex;align-items:flex-start;gap:10px;text-align:left;position:relative;width:100%}
+.opt:hover{border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.05)}
+.opt.sel{border-color:rgba(16,185,129,.6);background:rgba(16,185,129,.1)}
+.opt-ico{font-size:20px;flex-shrink:0;line-height:1;margin-top:1px}
+.opt-t{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink);margin-bottom:2px;line-height:1.3}
+.opt-s{font-size:10px;color:var(--ink2);line-height:1.4;text-transform:none;letter-spacing:normal;font-family:'DM Mono',monospace}
+.opt-ck{position:absolute;top:9px;right:9px;width:14px;height:14px;border-radius:50%;border:1px solid var(--bdr);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--green);flex-shrink:0}
+.opt.sel .opt-ck{background:var(--green);border-color:var(--green);color:#000}
+
+/* ESTADO GRID */
+.estados-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:6px;margin-bottom:12px}
+.est-btn{border:1px solid var(--sep);background:rgba(255,255,255,.025);padding:10px 6px;cursor:pointer;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:var(--ink2);text-align:center;transition:all .12s;letter-spacing:.04em}
+.est-btn:hover{border-color:rgba(16,185,129,.4);color:var(--green)}
+.est-btn.sel{border-color:rgba(16,185,129,.6);background:rgba(16,185,129,.1);color:var(--green)}
+
+/* CIDADES */
+.cidades-wrap{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;max-height:320px;overflow-y:auto}
+.cid-btn{border:1px solid var(--sep);background:rgba(255,255,255,.025);padding:10px 14px;cursor:pointer;font-size:12px;color:var(--ink2);text-align:left;transition:all .12s;text-transform:none;letter-spacing:normal;font-family:'DM Mono',monospace}
+.cid-btn:hover{border-color:rgba(16,185,129,.4);color:var(--green)}
+.cid-btn.sel{border-color:rgba(16,185,129,.6);background:rgba(16,185,129,.1);color:var(--green)}
+.cid-search{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--bdr);color:var(--ink);font-family:'DM Mono',monospace;font-size:13px;padding:10px 14px;outline:none;margin-bottom:8px;transition:border-color .2s}
+.cid-search:focus{border-color:rgba(16,185,129,.5)}
+
+/* INPUT */
+.inp-wrap{position:relative;margin-bottom:12px}
+.inp-label{display:block;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px}
+.inp{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--bdr);color:var(--ink);font-family:'DM Mono',monospace;font-size:16px;padding:14px 16px;outline:none;transition:border-color .2s;-webkit-appearance:none}
+.inp:focus{border-color:rgba(16,185,129,.5);background:var(--gglow)}
+.inp.prefix{padding-left:44px}
+.inp-prefix-txt{position:absolute;left:16px;bottom:15px;color:var(--ink3);font-size:13px;pointer-events:none}
+.inp-suffix-txt{position:absolute;right:16px;bottom:15px;color:var(--ink3);font-size:11px;pointer-events:none}
+textarea.inp{min-height:80px;resize:vertical;line-height:1.6;font-size:13px}
+select.inp{cursor:pointer}
+select.inp option{background:#111}
+
+/* COUNTER ROWS */
+.ctr-wrap{border:1px solid var(--sep);background:var(--bg2);margin-bottom:12px}
+.ctr-row{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--sep)}
+.ctr-row:last-child{border-bottom:none}
+.ctr-info{}
+.ctr-t{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink)}
+.ctr-s{font-size:10px;color:var(--ink3);margin-top:2px;text-transform:none;letter-spacing:normal}
+.ctr-ctrl{display:flex;align-items:center;gap:0}
+.ctr-btn{width:36px;height:36px;background:var(--bg3);border:1px solid var(--bdr);color:var(--ink);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s;font-weight:300;line-height:1}
+.ctr-btn:hover{border-color:var(--green);color:var(--green)}
+.ctr-v{width:44px;text-align:center;font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--ink);background:var(--bg2);border-top:1px solid var(--bdr);border-bottom:1px solid var(--bdr);height:36px;display:flex;align-items:center;justify-content:center}
+
+/* REGUA / SLIDER */
+.slider-wrap{margin-bottom:16px}
+.slider-labels{display:flex;justify-content:space-between;font-size:9px;color:var(--ink3);margin-bottom:8px;text-transform:none;letter-spacing:0}
+.slider{-webkit-appearance:none;width:100%;height:4px;background:var(--sep);outline:none;cursor:pointer}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;background:var(--green);border-radius:50%;cursor:pointer;box-shadow:0 0 0 4px rgba(16,185,129,.2)}
+.slider::-moz-range-thumb{width:24px;height:24px;background:var(--green);border-radius:50%;cursor:pointer;border:none}
+.slider-val{text-align:center;font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:var(--green);margin-top:12px}
+.slider-val-sub{text-align:center;font-size:11px;color:var(--ink2);margin-top:4px}
+
+/* NOTA */
+.nota{border-left:2px solid rgba(16,185,129,.35);padding:8px 14px;font-size:11px;color:var(--ink2);line-height:1.65;margin-bottom:14px;text-transform:none;letter-spacing:normal}
+.nota.amber{border-left-color:rgba(245,158,11,.5);color:var(--amber)}
+.nota.blue{border-left-color:rgba(96,165,250,.4);color:var(--blue)}
+
+/* BTNs NAVEGACAO */
+.btn-row{display:flex;align-items:center;gap:10px;margin-top:20px;flex-wrap:wrap}
+.btn-next{background:var(--green);color:#000;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;padding:14px 28px;border:none;cursor:pointer;transition:all .13s}
+.btn-next:hover{background:var(--gdim)}
+.btn-next:disabled{opacity:.4;cursor:not-allowed}
+.btn-back{background:transparent;color:var(--ink2);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:14px 18px;border:1px solid var(--bdr);cursor:pointer;transition:all .13s}
+.btn-back:hover{color:var(--ink)}
+.btn-skip{background:transparent;color:var(--ink3);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:14px 0;border:none;cursor:pointer;transition:opacity .12s;margin-left:auto}
+.btn-skip:hover{color:var(--ink2)}
+
+/* AUTH */
+.auth-wrap{width:100%;max-width:400px}
+.auth-hero{text-align:center;margin-bottom:40px}
+.auth-eyebrow{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--green);margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:8px}
+.auth-eyebrow::before,.auth-eyebrow::after{content:'';width:24px;height:1px;background:var(--green)}
+.auth-title{font-family:'Instrument Serif',serif;font-size:clamp(26px,5vw,40px);line-height:1.2;margin-bottom:10px}
+.auth-title em{color:var(--green);font-style:italic}
+.auth-sub{font-size:12px;color:var(--ink2);line-height:1.7}
+.auth-box{background:var(--bg2);border:1px solid var(--bdr);padding:28px 28px}
+.auth-tabs{display:flex;border-bottom:1px solid var(--sep);margin-bottom:20px}
+.auth-tab{flex:1;padding:9px;text-align:center;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;font-family:'DM Mono',monospace}
+.auth-tab.on{color:var(--green);border-bottom-color:var(--green)}
+.auth-err{color:var(--red);font-size:11px;margin-top:10px;display:none;text-align:center}
+.auth-nota{font-size:10px;color:var(--ink3);text-align:center;margin-top:14px;line-height:1.6}
+
+/* TELA LOADING */
+.loading-wrap{text-align:center;max-width:400px}
+.loading-ico{font-size:40px;margin-bottom:20px;animation:pulse 2s ease infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}
+.loading-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;margin-bottom:8px}
+.loading-sub{font-size:12px;color:var(--ink2);line-height:1.7}
+.loading-bar{width:100%;height:2px;background:var(--sep);margin-top:24px;overflow:hidden}
+.loading-bar-fill{height:100%;background:var(--green);animation:load 6s ease forwards}
+@keyframes load{0%{width:0%}60%{width:75%}90%{width:90%}100%{width:100%}}
+.loading-steps{margin-top:20px;display:flex;flex-direction:column;gap:6px}
+.loading-step{font-size:11px;color:var(--ink3);opacity:0;transition:opacity .4s;display:flex;align-items:center;gap:8px}
+.loading-step.on{opacity:1;color:var(--green)}
+.loading-step::before{content:'';width:4px;height:4px;border-radius:50%;background:currentColor;flex-shrink:0}
+
+/* REVISAO */
+.rev-block{border:1px solid var(--sep);background:var(--bg2);padding:16px 18px;margin-bottom:8px}
+.rev-label{font-family:'Syne',sans-serif;font-size:8px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px}
+.rev-narrative{font-size:13px;color:rgba(255,255,255,.75);line-height:1.7;text-transform:none;letter-spacing:normal;margin-bottom:10px}
+.rev-narrative strong{color:#fff}
+.rev-narrative em{color:var(--green);font-style:normal}
+.rev-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.rev-mini{background:var(--bg3);padding:10px 12px}
+.rev-mini-l{font-size:9px;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
+.rev-mini-v{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--ink)}
+.rev-mini-v.g{color:var(--green)}
+.chip{display:inline-block;padding:3px 9px;background:rgba(255,255,255,.07);border:1px solid var(--sep);font-size:10px;color:var(--ink2);text-transform:none;letter-spacing:normal;margin:2px}
+.chip.g{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.25);color:var(--green)}
+
+/* RESULTADO — tela A (historia) */
+.res-a-wrap{width:100%;max-width:580px;animation:up .4s ease;padding-bottom:60px}
+.res-section{border:1px solid var(--sep);background:var(--bg2);padding:18px 20px;margin-bottom:8px}
+.res-section-title{font-family:'Syne',sans-serif;font-size:8px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;margin-bottom:10px}
+.res-section-title.g{color:var(--green)}
+.res-section-title.a{color:var(--amber)}
+.res-section-title.b{color:var(--blue)}
+.res-narrative{font-size:13px;color:rgba(255,255,255,.7);line-height:1.8;text-transform:none;letter-spacing:normal}
+.res-narrative strong{color:#fff}
+.res-narrative em{color:var(--green);font-style:normal}
+.opp-item{padding:10px 14px;border-left:2px solid var(--amber);background:rgba(245,158,11,.04);margin-bottom:6px}
+.opp-t{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:3px}
+.opp-d{font-size:11px;color:var(--ink2);line-height:1.6;text-transform:none;letter-spacing:normal}
+.stat-row{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.stat-box{flex:1;min-width:120px;background:var(--bg3);border:1px solid var(--sep);padding:12px 14px}
+.stat-box-l{font-size:9px;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px}
+.stat-box-v{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--ink)}
+.stat-box-v.g{color:var(--green)}
+.stat-box-v.a{color:var(--amber)}
+
+/* RESULTADO — tela B (valor) */
+.res-b-wrap{width:100%;max-width:580px;animation:up .4s ease;padding-bottom:80px}
+.res-valor-card{border:1px solid rgba(16,185,129,.25);background:rgba(16,185,129,.04);padding:28px 28px;margin-bottom:10px}
+.res-valor-eyebrow{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--green);margin-bottom:6px}
+.res-valor-label{font-size:11px;color:var(--ink2);margin-bottom:6px}
+.res-valor-num{font-family:'Instrument Serif',serif;font-size:clamp(38px,7vw,60px);line-height:1;color:var(--green);margin-bottom:4px}
+.res-valor-sub{font-size:11px;color:var(--ink2);margin-bottom:20px}
+.breakdown{border-top:1px solid var(--sep);padding-top:14px}
+.breakdown-title{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px}
+.bk-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--sep);font-size:12px}
+.bk-row:last-child{border:none}
+.bk-l{color:var(--ink2)}
+.bk-v{color:var(--ink);font-weight:500}
+.bk-v.g{color:var(--green)}
+.bk-v.r{color:var(--red)}
+.bk-row.total .bk-l{font-family:'Syne',sans-serif;font-weight:700;color:var(--ink);font-size:13px}
+.bk-row.total .bk-v{font-family:'Syne',sans-serif;font-weight:800;color:var(--green);font-size:16px}
+.res-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.res-mini-card{background:var(--bg2);border:1px solid var(--sep);padding:14px 16px}
+.res-mini-card-l{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px}
+.res-mini-card-v{font-family:'Syne',sans-serif;font-size:20px;font-weight:800}
+.cta-list{display:flex;flex-direction:column;gap:7px;margin-top:16px}
+.cta-card{border:1px solid var(--sep);background:var(--bg2);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;transition:all .15s;flex-wrap:wrap}
+.cta-card:hover{border-color:var(--bdr);background:var(--bg3)}
+.cta-card.dest{border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.06)}
+.cta-card.dest:hover{background:rgba(16,185,129,.1)}
+.cta-card.dest2{border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.04)}
+.cta-card.dest2:hover{background:rgba(245,158,11,.08)}
+.cta-info{flex:1}
+.cta-t{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--ink);margin-bottom:3px}
+.cta-s{font-size:11px;color:var(--ink2);line-height:1.5}
+.cta-price{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;white-space:nowrap}
+.cta-badge{font-size:8px;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;background:var(--amber);color:#000;font-weight:700;margin-left:6px;vertical-align:middle}
+.btn-cta{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:10px 18px;border:none;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn-cta.g{background:var(--green);color:#000}
+.btn-cta.g:hover{background:var(--gdim)}
+.btn-cta.o{background:transparent;color:var(--ink2);border:1px solid var(--bdr)}
+.btn-cta.o:hover{color:var(--ink)}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:400;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-bg.on{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--bdr);width:100%;max-width:440px;padding:28px}
+.modal-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;margin-bottom:8px}
+.modal-sub{font-size:12px;color:var(--ink2);line-height:1.7;margin-bottom:20px}
+.modal-btns{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:1px solid var(--bdr);border-left:3px solid var(--green);padding:12px 20px;font-size:12px;z-index:999;transform:translateY(60px);opacity:0;transition:all .3s;pointer-events:none}
+.toast.on{transform:translateY(0);opacity:1}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--sep)}
+
+@media(max-width:520px){
+  .opts.c2{grid-template-columns:1fr}
+  .opts.c3{grid-template-columns:1fr 1fr}
+  .hdr{padding:12px 16px}
+  .res-mini-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="prog-wrap"><div class="prog-fill" id="prog"></div></div>
+
+<header class="hdr">
+  <a href="/index.html" class="hdr-logo"><em>1</em>NEGOCIO</a>
+  <div class="hdr-mid" id="hdr-mid">Avaliacao do negocio</div>
+  <div class="hdr-right" id="hdr-right" style="display:none">
+    <div class="hdr-dot"></div>
+    <span class="hdr-email" id="hdr-email"></span>
+    <button class="btn-link" onclick="sair()">Sair</button>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════
+     TELA AUTH
+══════════════════════════════════════════════ -->
+<div class="screen on" id="s-auth">
+<div class="auth-wrap">
+  <div class="auth-hero">
+    <div class="auth-eyebrow">Avaliacao gratuita</div>
+    <div class="auth-title">Quanto vale o seu <em>negocio?</em></div>
+    <div class="auth-sub">Responda algumas perguntas e descubra o valor real da sua empresa com metodologia profissional, em minutos.</div>
+  </div>
+  <div class="auth-box">
+    <div class="auth-tabs">
+      <div class="auth-tab on" id="tab-new" onclick="aba('new')">Criar conta</div>
+      <div class="auth-tab" id="tab-in" onclick="aba('in')">Ja tenho conta</div>
+    </div>
+    <div id="form-new">
+      <div class="inp-wrap"><label class="inp-label">Seu nome</label><input class="inp" type="text" id="a-nome" placeholder="Como prefere ser chamado"></div>
+      <div class="inp-wrap"><label class="inp-label">E-mail</label><input class="inp" type="email" id="a-email-n" placeholder="seu@email.com"></div>
+      <div class="inp-wrap"><label class="inp-label">Senha</label><input class="inp" type="password" id="a-senha-n" placeholder="Minimo 8 caracteres" onkeydown="if(event.key==='Enter')criar()"></div>
+      <button class="btn-next" style="width:100%;margin-top:4px" id="btn-criar" onclick="criar()">Criar conta e comecar</button>
+    </div>
+    <div id="form-in" style="display:none">
+      <div class="inp-wrap"><label class="inp-label">E-mail</label><input class="inp" type="email" id="a-email-i" placeholder="seu@email.com"></div>
+      <div class="inp-wrap"><label class="inp-label">Senha</label><input class="inp" type="password" id="a-senha-i" placeholder="Sua senha" onkeydown="if(event.key==='Enter')entrar()"></div>
+      <button class="btn-next" style="width:100%;margin-top:4px" id="btn-entrar" onclick="entrar()">Entrar e continuar</button>
+    </div>
+    <div class="auth-err" id="auth-err"></div>
+    <div class="auth-nota">Seus dados sao privados. So voce e a equipe 1Negocio tem acesso.</div>
+  </div>
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     TELA FORMULARIO
+══════════════════════════════════════════════ -->
+<div class="screen" id="s-form">
+  <div class="qcard" id="qcard"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     TELA REVISAO
+══════════════════════════════════════════════ -->
+<div class="screen" id="s-rev">
+  <div class="qcard" id="rev-card" style="max-width:580px"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     TELA LOADING / ANALISE
+══════════════════════════════════════════════ -->
+<div class="screen" id="s-load">
+<div class="loading-wrap">
+  <div class="loading-ico">🔍</div>
+  <div class="loading-title">Analisando seu negocio</div>
+  <div class="loading-sub">Estamos calculando o valor com base nas suas respostas. Isso leva alguns segundos.</div>
+  <div class="loading-bar"><div class="loading-bar-fill" id="load-bar"></div></div>
+  <div class="loading-steps">
+    <div class="loading-step" id="ls1">Calculando resultado operacional ajustado</div>
+    <div class="loading-step" id="ls2">Aplicando multiplo do setor</div>
+    <div class="loading-step" id="ls3">Avaliando saude e maturidade</div>
+    <div class="loading-step" id="ls4">Calculando balanco patrimonial</div>
+    <div class="loading-step" id="ls5">Gerando valor de venda</div>
+  </div>
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     TELA RESULTADO A — Historia do negocio
+══════════════════════════════════════════════ -->
+<div class="screen" id="s-res-a">
+  <div class="res-a-wrap" id="res-a-content"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     TELA RESULTADO B — Valor de venda
+══════════════════════════════════════════════ -->
+<div class="screen" id="s-res-b">
+  <div class="res-b-wrap" id="res-b-content"></div>
+</div>
+
+<!-- MODAL PUBLICACAO -->
+<div class="modal-bg" id="modal-pub">
+<div class="modal">
+  <div class="modal-title">Qual o seu preco de venda?</div>
+  <div class="modal-sub">Na 1Negocio trabalhamos com <strong>porteira fechada</strong>: o comprador paga um valor unico e entra no negocio hoje, assumindo tudo — ativos e passivos. Nao ha divisao de dividas ou separacao de bens.<br><br>Quanto voce espera receber por esse negocio nesse formato?</div>
+  <div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);padding:10px 14px;font-size:11px;color:var(--ink2);margin-bottom:14px">Nossa avaliacao estima: <strong id="modal-est" style="color:var(--green)">--</strong></div>
+  <div class="inp-wrap">
+    <label class="inp-label">Seu preco pedido</label>
+    <div style="position:relative"><span class="inp-prefix-txt">R$</span><input class="inp prefix" type="text" id="preco-input" placeholder="0" oninput="maskMoney(this)"></div>
+  </div>
+  <div class="modal-btns">
+    <button class="btn-back" onclick="fecharModal()">Cancelar</button>
+    <button class="btn-next" onclick="confirmarPublicacao()">Solicitar publicacao</button>
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// CONFIG DO MOTOR DE AVALIACAO
+// Visivel tambem no painel admin — versao e parametros
+// ══════════════════════════════════════════════════════════
+var CONFIG = {
+  versao: '1.1 - Marco 2026',
+
+  // Multiplos base por categoria (resultado ajustado anual)
+  // Calibrar trimestralmente com WACC real do mercado
+  multiplos: {
+    alimentacao:  {min:1.5, max:3.0, label:'Alimentacao'},
+    comercio:     {min:1.5, max:3.0, label:'Comercio e Varejo'},
+    beleza_saude: {min:2.0, max:3.5, label:'Beleza e Saude'},
+    pet:          {min:2.0, max:3.5, label:'Pet'},
+    industria:    {min:2.5, max:4.5, label:'Industria e Fabricacao'},
+    educacao:     {min:2.5, max:4.0, label:'Educacao'},
+    distribuicao: {min:2.0, max:3.5, label:'Distribuicao e Atacado'},
+    tecnologia:   {min:3.0, max:6.0, label:'Tecnologia e Digital'},
+    hospedagem:   {min:2.0, max:3.5, label:'Hospedagem e Turismo'},
+    outro:        {min:1.5, max:3.0, label:'Outro'}
+  },
+
+  // Pesos dos pilares de saude (soma 100)
+  // P1 = 40% por ser o mais critico (Key Man Risk)
+  pesos: {p1:40,p2:8,p3:6,p4:7,p5:10,p6:7,p7:7,p8:5,p9:5,p10:5},
+
+  // Premio de maturidade aplicado SOBRE o multiplo (nao no valor final)
+  // Multiplo ajustado = Multiplo base * premio
+  premios: [
+    {min:0,  max:29, fator:0.80, label:'Critico'},
+    {min:30, max:44, fator:0.88, label:'Baixo'},
+    {min:45, max:59, fator:0.95, label:'Basico'},
+    {min:60, max:69, fator:1.00, label:'Regular'},
+    {min:70, max:79, fator:1.08, label:'Bom'},
+    {min:80, max:89, fator:1.18, label:'Otimo'},
+    {min:90, max:100,fator:1.30, label:'Excelente'}
+  ],
+
+  // Aliquotas estimadas por regime (sobre faturamento bruto)
+  aliquotas: {simples:0.10,presumido:0.18,real:0.22,mei:0.05,pf:0.15,'':0.15}
+};
+
+// ══════════════════════════════════════════════════════════
+// SUPABASE
+// ══════════════════════════════════════════════════════════
+var SUPA_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+var sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// ══════════════════════════════════════════════════════════
+// ESTADO
+// ══════════════════════════════════════════════════════════
+var USER = null;
+var NEG_ID = null;
+var RESULTADO = null;
+var qIdx = 0;
+var hist = [];
+
+// Dados coletados
+var D = {
+  categoria:'', detalhe:'', franquia:'', franquia_nome:'',
+  origem:'', ano:'',
+  estado:'', cidade:'',
+  imovel:'', imovel_m2:0, imovel_desc:'', imovel_aluguel:0, imovel_valor:0,
+  clt:0, pj:0, socios:0,
+  fat:0, regime:'', tem_cmv:'', markup_comp:0, markup_venda:0, cmv_pct:0, cmv_val:0,
+  folha:0, aluguel:0, contas:0, terceiros:0, mkt:0, outras:0,
+  parcelas:0, prolabore:0, invest:0,
+  at_maq:0, at_mov:0, at_veic:0, at_ti:0, at_ref:0, at_est:0, at_rec:0, at_cx:0,
+  pa_forn:0, pa_trib:0, pa_banc:0, pa_out:0,
+  p1:null,p2:null,p3:null,p4:null,p5:null,p6:null,p7:null,p8:null,p9:null,p10:null,
+  motivo:'', urgencia:5,
+  preco_esperado:0
+};
+
+// ══════════════════════════════════════════════════════════
+// CIDADES POR ESTADO
+// ══════════════════════════════════════════════════════════
+var CIDADES = {
+  AC:['Rio Branco','Cruzeiro do Sul','Sena Madureira','Tarauaca','Feijo'],
+  AL:['Maceio','Arapiraca','Palmeira dos Indios','Rio Largo','Penedo','Uniao dos Palmares'],
+  AM:['Manaus','Parintins','Itacoatiara','Manacapuru','Coari','Tefe','Tabatinga'],
+  AP:['Macapa','Santana','Laranjal do Jari','Oiapoque','Porto Grande'],
+  BA:['Salvador','Feira de Santana','Vitoria da Conquista','Camacari','Itabuna','Juazeiro','Lauro de Freitas','Ilheus','Barreiras','Porto Seguro','Alagoinhas'],
+  CE:['Fortaleza','Caucaia','Juazeiro do Norte','Maracanau','Sobral','Crato','Itapipoca','Maranguape'],
+  DF:['Brasilia','Ceilandia','Taguatinga','Samambaia','Planaltina','Gama','Aguas Claras','Sobradinho'],
+  ES:['Vitoria','Serra','Vila Velha','Cariacica','Linhares','Sao Mateus','Guarapari','Cachoeiro de Itapemirim'],
+  GO:['Goiania','Aparecida de Goiania','Anapolis','Rio Verde','Luziania','Aguas Lindas de Goias','Trindade','Formosa','Itumbiara'],
+  MA:['Sao Luis','Imperatriz','Sao Jose de Ribamar','Timon','Caxias','Codo','Paco do Lumiar','Acailandia'],
+  MG:['Belo Horizonte','Uberlandia','Contagem','Juiz de Fora','Betim','Montes Claros','Ribeirao das Neves','Uberaba','Governador Valadares','Ipatinga','Sete Lagoas','Divinopolis','Pocos de Caldas'],
+  MS:['Campo Grande','Dourados','Tres Lagoas','Corumba','Ponta Pora','Navirai'],
+  MT:['Cuiaba','Varzea Grande','Rondonopolis','Sinop','Tangara da Serra','Caceres','Sorriso'],
+  PA:['Belem','Ananindeua','Santarem','Maraba','Castanhal','Parauapebas','Itaituba','Abaetetuba'],
+  PB:['Joao Pessoa','Campina Grande','Santa Rita','Patos','Bayeux','Sousa','Cajazeiras'],
+  PE:['Recife','Caruaru','Olinda','Petrolina','Paulista','Jaboatao dos Guararapes','Garanhuns','Timbauba'],
+  PI:['Teresina','Parnaiba','Picos','Piripiri','Floriano','Campo Maior'],
+  PR:['Curitiba','Londrina','Maringa','Ponta Grossa','Cascavel','Sao Jose dos Pinhais','Foz do Iguacu','Colombo','Guarapuava','Paranagua','Araucaria','Toledo','Apucarana'],
+  RJ:['Rio de Janeiro','Sao Goncalo','Duque de Caxias','Nova Iguacu','Niteroi','Belford Roxo','Sao Joao de Meriti','Campos dos Goytacazes','Petropolis','Volta Redonda','Mage','Cabo Frio','Macae','Angra dos Reis'],
+  RN:['Natal','Mossoro','Parnamirim','Sao Goncalo do Amarante','Caico','Macaiba'],
+  RO:['Porto Velho','Ji-Parana','Ariquemes','Vilhena','Cacoal','Rolim de Moura'],
+  RR:['Boa Vista','Rorainopolis','Caracarai','Alto Alegre'],
+  RS:['Porto Alegre','Caxias do Sul','Pelotas','Canoas','Santa Maria','Gravatai','Viarao','Novo Hamburgo','Sao Leopoldo','Rio Grande','Alvorada','Passo Fundo','Sapucaia do Sul','Uruguaiana','Santa Cruz do Sul','Bage'],
+  SC:['Florianopolis','Joinville','Blumenau','Sao Jose','Criciuma','Chapeco','Itajai','Lages','Jaragua do Sul','Palhoca','Camboriu','Brusque','Tubarao'],
+  SE:['Aracaju','Nossa Senhora do Socorro','Lagarto','Itabaiana','Sao Cristovao'],
+  SP:['Sao Paulo','Guarulhos','Campinas','Sao Bernardo do Campo','Santo Andre','Sao Jose dos Campos','Osasco','Ribeirao Preto','Sorocaba','Maua','Sao Jose do Rio Preto','Santos','Mogi das Cruzes','Diadema','Jundiai','Bauru','Piracicaba','Sao Vicente','Franca','Guaruja','Taubate','Limeira','Suzano','Praia Grande','Barueri','Marilia','Sao Carlos','Americana','Cotia','Itu'],
+  TO:['Palmas','Araguaina','Gurupi','Porto Nacional','Paraiso do Tocantins']
+};
+
+var ESTADOS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
+
+// ══════════════════════════════════════════════════════════
+// FLOW DAS PERGUNTAS
+// ══════════════════════════════════════════════════════════
+var FLOW = [
+  'categoria','detalhe','franquia',
+  'origem','estado','cidade',
+  'imovel',        // tipo
+  'imovel_det',    // detalhes condicionais
+  'colaboradores',
+  'fat','regime',
+  'cmv_pergunta',  // so para comercio/industria/alimentacao/distribuicao/pet
+  'folha','aluguel_desp','outras_desp',
+  'parcelas','prolabore',
+  'ativos','passivos',
+  'p1','p2','p3','p4','p5','p6','p7','p8','p9','p10',
+  'motivo','preco_esperado',
+  'revisao'
+];
+
+// ══════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════
+async function init() {
+  var res = await sb.auth.getSession();
+  if (res.data && res.data.session) {
+    USER = res.data.session.user;
+    iniciarForm();
+  }
+}
+
+function aba(t) {
+  document.getElementById('tab-new').classList.toggle('on', t==='new');
+  document.getElementById('tab-in').classList.toggle('on', t==='in');
+  document.getElementById('form-new').style.display = t==='new'?'block':'none';
+  document.getElementById('form-in').style.display = t==='in'?'block':'none';
+  document.getElementById('auth-err').style.display = 'none';
+}
+
+async function criar() {
+  var nome = document.getElementById('a-nome').value.trim();
+  var email = document.getElementById('a-email-n').value.trim();
+  var senha = document.getElementById('a-senha-n').value;
+  var btn = document.getElementById('btn-criar');
+  var err = document.getElementById('auth-err');
+  err.style.display = 'none';
+  if (!nome) { showAuthErr('Informe seu nome.'); return; }
+  if (!email || !email.includes('@')) { showAuthErr('E-mail invalido.'); return; }
+  if (senha.length < 8) { showAuthErr('Senha precisa ter pelo menos 8 caracteres.'); return; }
+  btn.textContent = 'Criando...'; btn.disabled = true;
+  var res = await sb.auth.signUp({email,password:senha,options:{data:{full_name:nome}}});
+  if (res.error) {
+    if (res.error.message && res.error.message.includes('already')) {
+      showAuthErr('E-mail ja cadastrado. Tente entrar na aba "Ja tenho conta".');
+    } else { showAuthErr(res.error.message); }
+    btn.textContent = 'Criar conta e comecar'; btn.disabled = false; return;
+  }
+  USER = res.data.user;
+  await sb.from('usuarios').upsert({id:USER.id,email,nome,tipo:'sell',updated_at:new Date().toISOString()});
+  iniciarForm();
+}
+
+async function entrar() {
+  var email = document.getElementById('a-email-i').value.trim();
+  var senha = document.getElementById('a-senha-i').value;
+  var btn = document.getElementById('btn-entrar');
+  document.getElementById('auth-err').style.display = 'none';
+  if (!email || !senha) { showAuthErr('Preencha e-mail e senha.'); return; }
+  btn.textContent = 'Entrando...'; btn.disabled = true;
+  var res = await sb.auth.signInWithPassword({email,password:senha});
+  if (res.error) { showAuthErr('E-mail ou senha incorretos.'); btn.textContent='Entrar e continuar'; btn.disabled=false; return; }
+  USER = res.data.user;
+  iniciarForm();
+}
+
+function showAuthErr(msg) {
+  var el = document.getElementById('auth-err');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+async function sair() {
+  await sb.auth.signOut();
+  USER = null;
+  mostrarTela('s-auth');
+  document.getElementById('hdr-right').style.display = 'none';
+}
+
+function iniciarForm() {
+  document.getElementById('hdr-right').style.display = 'flex';
+  document.getElementById('hdr-email').textContent = USER.email;
+  qIdx = 0;
+  hist = [];
+  mostrarTela('s-form');
+  renderQ();
+}
+
+// ══════════════════════════════════════════════════════════
+// NAVEGACAO
+// ══════════════════════════════════════════════════════════
+function mostrarTela(id) {
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('on');});
+  document.getElementById(id).classList.add('on');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function setProgresso(n, total) {
+  document.getElementById('prog').style.width = ((n/total)*100)+'%';
+  document.getElementById('hdr-mid').textContent = n+' de '+total;
+}
+
+function proximo() {
+  hist.push(qIdx);
+  qIdx++;
+  // Pular perguntas condicionais
+  while (qIdx < FLOW.length) {
+    var id = FLOW[qIdx];
+    if (id === 'imovel_det' && !['proprio','alugado'].includes(D.imovel)) { qIdx++; continue; }
+    if (id === 'cmv_pergunta' && ['beleza_saude','tecnologia','educacao','hospedagem','outro'].includes(D.categoria)) { qIdx++; continue; }
+    break;
+  }
+  if (qIdx >= FLOW.length) {
+    irParaRevisao();
+  } else {
+    renderQ();
+    salvarRascunho();
+  }
+}
+
+function voltar() {
+  if (hist.length > 0) {
+    qIdx = hist.pop();
+    renderQ();
+  }
+}
+
+function irParaRevisao() {
+  mostrarTela('s-rev');
+  renderRevisao();
+  document.getElementById('prog').style.width = '95%';
+  document.getElementById('hdr-mid').textContent = 'Confirmar dados';
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDERIZADOR DE PERGUNTAS
+// ══════════════════════════════════════════════════════════
+function renderQ() {
+  var id = FLOW[qIdx];
+  var total = FLOW.length;
+  setProgresso(qIdx+1, total);
+  var card = document.getElementById('qcard');
+
+  // Animacao saida
+  card.classList.add('out');
+  setTimeout(function() {
+    card.classList.remove('out');
+    card.innerHTML = buildQ(id);
+  }, 180);
+}
+
+function buildQ(id) {
+  switch(id) {
+
+  // ── CATEGORIA ────────────────────────────────────────────
+  case 'categoria': return tela(
+    'Sobre o negocio',
+    'Qual e o <em>ramo</em> do seu negocio?',
+    'Escolha a opcao que mais combina.',
+    '<div class="opts c2">'+[
+      ['alimentacao','Alimentacao','Restaurante, padaria, lanchonete, bar...'],
+      ['comercio','Comercio e Varejo','Loja, mercado, e-commerce, farmacia...'],
+      ['beleza_saude','Beleza e Saude','Salao, barbearia, clinica, academia...'],
+      ['pet','Pet','Pet shop, veterinaria, banho e tosa...'],
+      ['industria','Industria e Fabricacao','Fabrica, confeccao, grafica, manufatura...'],
+      ['educacao','Educacao','Escola, creche, cursos, idiomas...'],
+      ['distribuicao','Distribuicao e Atacado','Distribuidora, atacado, representante...'],
+      ['tecnologia','Tecnologia e Digital','Software, app, agencia digital...'],
+      ['hospedagem','Hospedagem e Turismo','Hotel, pousada, hostel, agencia de viagem...'],
+      ['outro','Outro tipo','Construcao, servicos, agro, B2B...']
+    ].map(function(o){
+      return '<button class="opt'+(D.categoria===o[0]?' sel':'')+'" onclick="selOpt(this,\'categoria\',\''+o[0]+'\',true)">'
+        +'<div><div class="opt-t">'+o[1]+'</div><div class="opt-s">'+o[2]+'</div></div>'
+        +'<span class="opt-ck">&#10003;</span></button>';
+    }).join('')+'</div>');
+
+  // ── DETALHE ───────────────────────────────────────────────
+  case 'detalhe': return tela(
+    'Sobre o negocio',
+    'Descreva melhor o que voce <em>faz</em>',
+    'Em poucas palavras, como voce descreveria o seu negocio para um amigo?',
+    '<div class="inp-wrap"><label class="inp-label">Descricao do negocio</label>'
+    +'<input class="inp" type="text" id="f-detalhe" placeholder="Ex: Loja de roupas femininas, Padaria artesanal, Clinica de fisioterapia..." value="'+esc(D.detalhe)+'" oninput="D.detalhe=this.value" autofocus>'
+    +'</div>',
+    function(){return D.detalhe && D.detalhe.trim().length>2;}
+  );
+
+  // ── FRANQUIA ──────────────────────────────────────────────
+  case 'franquia': return tela(
+    'Sobre o negocio',
+    'E um negocio <em>franqueado?</em>',
+    '',
+    '<div class="opts c2">'+[
+      ['nao','Nao','Marca propria, independente'],
+      ['sim','Sim, e franquia','Opera com licenca de uma franqueadora']
+    ].map(function(o){
+      return '<button class="opt'+(D.franquia===o[0]?' sel':'')+'" onclick="selOpt(this,\'franquia\',\''+o[0]+'\','+(o[0]==='sim'?'false':'true')+')">'
+        +'<div><div class="opt-t">'+o[1]+'</div><div class="opt-s">'+o[2]+'</div></div>'
+        +'<span class="opt-ck">&#10003;</span></button>';
+    }).join('')+'</div>'
+    +(D.franquia==='sim'?'<div class="inp-wrap" style="margin-top:10px"><label class="inp-label">Nome da franqueadora</label><input class="inp" type="text" id="f-franq-nome" placeholder="Ex: Subway, Cacau Show, O Boticario..." value="'+esc(D.franquia_nome)+'" oninput="D.franquia_nome=this.value"></div>':'')
+  );
+
+  // ── ORIGEM + ANO ──────────────────────────────────────────
+  case 'origem': return tela(
+    'A historia',
+    'Esta empresa voce <em>fundou ou comprou?</em>',
+    '',
+    '<div class="opts c2">'+[
+      ['fundei','Fundei','Criei do zero'],
+      ['comprei','Comprei','Adquiri de outra pessoa']
+    ].map(function(o){
+      return '<button class="opt'+(D.origem===o[0]?' sel':'')+'" onclick="selOpt(this,\'origem\',\''+o[0]+'\',false)">'
+        +'<div><div class="opt-t">'+o[1]+'</div><div class="opt-s">'+o[2]+'</div></div>'
+        +'<span class="opt-ck">&#10003;</span></button>';
+    }).join('')+'</div>'
+    +(D.origem?'<div class="inp-wrap" style="margin-top:14px"><label class="inp-label">Em qual ano?</label>'
+    +'<div class="opts c3" style="margin-top:4px">'
+    +[2024,2023,2022,2021,2020,2019,2018,2017,2016,2015].map(function(y){
+      return '<button class="opt'+(D.ano==y?' sel':'')+'" style="padding:10px 6px;justify-content:center" onclick="D.ano=\''+y+'\';renderQ()">'
+        +'<div class="opt-t" style="font-size:13px">'+y+'</div>'
+        +'<span class="opt-ck">&#10003;</span></button>';
+    }).join('')
+    +'<button class="opt'+(D.ano&&D.ano<2015?' sel':'')+'" style="padding:10px 6px;justify-content:center;grid-column:span 3" onclick="D.ano=prompt(\'Digite o ano:\');renderQ()">'
+    +'<div class="opt-t">Outro ano</div><span class="opt-ck">&#10003;</span></button>'
+    +'</div></div>':''),
+    function(){return D.origem&&D.ano;}
+  );
+
+  // ── ESTADO ────────────────────────────────────────────────
+  case 'estado': return tela(
+    'Localizacao',
+    'Em qual <em>estado</em> fica o negocio?',
+    '',
+    '<div class="estados-grid">'
+    +ESTADOS.map(function(e){
+      return '<button class="est-btn'+(D.estado===e?' sel':'')+'" onclick="D.estado=\''+e+'\';D.cidade=\'\';proximo()">'+e+'</button>';
+    }).join('')+'</div>'
+  );
+
+  // ── CIDADE ────────────────────────────────────────────────
+  case 'cidade':
+    var cids = (CIDADES[D.estado]||[]).slice().sort();
+    return tela(
+    'Localizacao',
+    'E em qual <em>cidade?</em>',
+    '',
+    '<input class="cid-search" placeholder="Buscar cidade..." oninput="filtrarCidades(this.value)">'
+    +'<div class="cidades-wrap" id="cids-wrap">'
+    +cids.map(function(c){
+      return '<button class="cid-btn'+(D.cidade===c?' sel':'')+'" onclick="D.cidade=\''+c.replace(/'/g,"\\'")+'\'  ;proximo()">'+c+'</button>';
+    }).join('')
+    +'<button class="cid-btn" onclick="D.cidade=prompt(\'Digite o nome da cidade:\');if(D.cidade)proximo()">Outra cidade...</button>'
+    +'</div>'
+  );
+
+  // ── IMOVEL TIPO ───────────────────────────────────────────
+  case 'imovel': return tela(
+    'A operacao',
+    'O negocio tem <em>local fisico?</em>',
+    '',
+    '<div class="opts c1">'+[
+      ['proprio','Sim, tenho imovel proprio','O predio ou sala e de propriedade do negocio ou dos socios'],
+      ['alugado','Sim, e alugado','Pago aluguel mensalmente'],
+      ['sem_ponto','Nao tenho ponto fixo','Trabalho de casa, em campo ou sem endereco comercial'],
+      ['online','100% online','Nao ha operacao presencial']
+    ].map(function(o){
+      return '<button class="opt'+(D.imovel===o[0]?' sel':'')+'" onclick="selOpt(this,\'imovel\',\''+o[0]+'\','+(['proprio','alugado'].includes(o[0])?'false':'true')+')">'
+        +'<div><div class="opt-t">'+o[1]+'</div><div class="opt-s">'+o[2]+'</div></div>'
+        +'<span class="opt-ck">&#10003;</span></button>';
+    }).join('')+'</div>'
+  );
+
+  // ── IMOVEL DETALHES ───────────────────────────────────────
+  case 'imovel_det':
+    var isPropr = D.imovel==='proprio';
+    return tela(
+    'A operacao',
+    'Me conte sobre o <em>espaco</em>',
+    '',
+    '<div class="inp-wrap"><label class="inp-label">Quantos metros quadrados?</label>'
+    +'<div style="position:relative"><input class="inp" type="text" id="f-m2" placeholder="Ex: 120" value="'+(D.imovel_m2||'')+'" oninput="D.imovel_m2=parseNum(this.value)" style="padding-right:60px"><span class="inp-suffix-txt">m2</span></div></div>'
+    +'<div class="inp-wrap"><label class="inp-label">Como voce descreveria a localizacao?</label>'
+    +'<input class="inp" type="text" id="f-idesc" placeholder="Ex: Avenida principal, galeria em shopping, casa comercial no centro..." value="'+esc(D.imovel_desc)+'" oninput="D.imovel_desc=this.value"></div>'
+    +(isPropr
+      ?'<div class="inp-wrap"><label class="inp-label">Se fosse alugar este imovel, quanto cobraria por mes?</label>'
+        +'<div style="position:relative"><span class="inp-prefix-txt">R$</span><input class="inp prefix" type="text" id="f-ialug" value="'+(D.imovel_aluguel?fmtNum(D.imovel_aluguel):'')+'" placeholder="0" oninput="D.imovel_aluguel=parseNum(this.value);D.aluguel=D.imovel_aluguel"></div></div>'
+        +'<div class="nota">O valor do imovel proprio sera considerado nos ativos do negocio. Vamos perguntar o valor de mercado mais adiante.</div>'
+      :'<div class="inp-wrap"><label class="inp-label">Qual o valor mensal do aluguel?</label>'
+        +'<div style="position:relative"><span class="inp-prefix-txt">R$</span><input class="inp prefix" type="text" id="f-ialug2" value="'+(D.imovel_aluguel?fmtNum(D.imovel_aluguel):'')+'" placeholder="0" oninput="D.imovel_aluguel=parseNum(this.value);D.aluguel=D.imovel_aluguel"></div></div>')
+  );
+
+  // ── COLABORADORES ─────────────────────────────────────────
+  case 'colaboradores': return tela(
+    'A equipe',
+    'Quantos <em>colaboradores</em> trabalham aqui?',
+    'Inclua todos — fixos, terceiros e socios que trabalham no dia a dia.',
+    '<div class="ctr-wrap">'
+    +[
+      ['clt','CLT','Carteira assinada'],
+      ['pj','PJ ou terceiros','Autonomos com contrato'],
+      ['socios','Socios ativos','Que trabalham na operacao']
+    ].map(function(r){
+      return '<div class="ctr-row">'
+        +'<div class="ctr-info"><div class="ctr-t">'+r[1]+'</div><div class="ctr-s">'+r[2]+'</div></div>'
+        +'<div class="ctr-ctrl">'
+        +'<button class="ctr-btn" onclick="ctr(\''+r[0]+'\',-1)">&#8722;</button>'
+        +'<div class="ctr-v" id="ctr-'+r[0]+'">'+D[r[0]]+'</div>'
+        +'<button class="ctr-btn" onclick="ctr(\''+r[0]+'\',1)">+</button>'
+        +'</div></div>';
+    }).join('')+'</div>'
+  );
+
+  // ── FATURAMENTO ───────────────────────────────────────────
+  case 'fat': return tela(
+    'Financeiro',
+    'Qual o <em>faturamento medio</em> mensal?',
+    '<strong>Quanto o negocio recebe</strong> dos clientes em media por mes. Use os ultimos 12 meses como referencia.',
+    '<div class="inp-wrap">'
+    +'<label class="inp-label">Faturamento bruto por mes</label>'
+    +'<div style="position:relative"><span class="inp-prefix-txt">R$</span>'
+    +'<input class="inp prefix" type="text" id="f-fat" value="'+(D.fat?fmtNum(D.fat):'')+'" placeholder="0" oninput="D.fat=parseNum(this.value)" autofocus>'
+    +'</div></div>',
+    function(){return D.fat>0;}
+  );
+
+  // ── REGIME ────────────────────────────────────────────────
+  case 'regime': return tela(
+    'Financeiro',
+    'Qual o <em>regime tributario</em> da empresa?',
+    'Isso define a aliquota de impostos que usaremos no calculo. Se nao souber, selecione "Nao sei" e usaremos uma estimativa conservadora.',
+    '<div class="opts c1">'+[
+      ['simples','Simples Nacional','Regime especial para MPEs'],
+      ['presumido','Lucro Presumido','IRPJ calculado sobre receita presumida'],
+      ['real','Lucro Real','IRPJ calculado sobre lucro apurado'],
+      ['mei','MEI - Microempreendedor Individual','Faturamento ate R$ 144 mil/ano'],
+      ['pf','Pessoa Fisica','Opera como autonomo, sem CNPJ'],
+      ['','Nao sei / Prefiro nao informar','Usaremos estimativa de 15%']
+    ].map(function(o){
+      return '<button class="opt'+(D.regime===o[0]?' sel':'')+'" onclick="selOpt(this,\'regime\',\''+o[0]+'\',true)">'
+        +'<div><div class="opt-t">'+o[1]+'</div><div class="opt-s">'+o[2]+'</div></div>'
+        +'<span class="opt-ck">&#10003;</span></button>';
+    }).join('')+'</div>'
+  );
+
+  // ── CMV ───────────────────────────────────────────────────
+  case 'cmv_pergunta': return tela(
+    'Financeiro',
+    'Voce sabe quanto custa o que <em>voce vende?</em>',
+    'Queremos entender o custo da mercadoria ou insumo. A forma mais facil: <strong>se voce comprou por R$10, voce vende por quanto?</strong>',
+    '<div class="opts c2">'+[
+      ['sim','Sei calcular o meu custo','Tenho uma ideia clara do meu markup'],
+      ['nao','Prefiro pular esta','Trabalho mais com servico ou nao acompanho']
+    ].map(function(o){
+      return '<button class="opt'+(D.tem_cmv===o[0]?' sel':'')+'" onclick="selCMV(this,\''+o[0]+'\')">'
+        +'<div><div class="opt-t">'+o[1]+'</div></div>'
+        +'<span class="opt-ck">&#10003;</span></button>';
+    }).join('')+'</div>'
+    +(D.tem_cmv==='sim'
+      ?'<div style="border:1px solid var(--sep);background:var(--bg2);padding:16px;margin-top:10px">'
+        +'<div style="font-size:11px;color:var(--ink2);margin-bottom:14px;text-transform:none;letter-spacing:normal">Se voce <strong style="color:#fff">comprou por R$ 10</strong>, vende em media por quanto?</div>'
+        +'<div class="inp-wrap"><label class="inp-label">Compra (custo) - media</label><div style="position:relative"><span class="inp-prefix-txt">R$</span><input class="inp prefix" type="text" id="f-comp" value="'+(D.markup_comp?fmtNum(D.markup_comp):'')+'" placeholder="10" oninput="D.markup_comp=parseNum(this.value);calcCMV()"></div></div>'
+        +'<div class="inp-wrap"><label class="inp-label">Venda (preco) - media</label><div style="position:relative"><span class="inp-prefix-txt">R$</span><input class="inp prefix" type="text" id="f-vend" value="'+(D.markup_venda?fmtNum(D.markup_venda):'')+'" placeholder="Ex: 22" oninput="D.markup_venda=parseNum(this.value);calcCMV()"></div></div>'
+        +(D.markup_comp>0&&D.markup_venda>0
+          ?'<div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);padding:12px 14px;font-size:11px;color:var(--ink2);text-transform:none;letter-spacing:normal">'
+            +'CMV estimado: <strong style="color:var(--green)">'+fmtPct(100-D.markup_comp/D.markup_venda*100)+'% do faturamento</strong> &rarr; aprox. <strong style="color:var(--green)">R$ '+fmtNum(Math.round(D.fat*(D.markup_comp/D.markup_venda)))+'/mes</strong></div>'
+          :'')
+        +'</div>'
+      :'')
+  );
+
+  // ── FOLHA ─────────────────────────────────────────────────
+  case 'folha': return tela(
+    'Financeiro',
+    'Quanto o negocio gasta com <em>a equipe</em> por mes?',
+    'Some salarios, beneficios, encargos e pagamentos PJ. <strong>Nao inclua o pro-labore</strong> dos socios — vamos perguntar isso separado.',
+    '<div class="inp-wrap"><label class="inp-label">Folha total de pagamento</label>'
+    +'<div style="position:relative"><span class="inp-prefix-txt">R$</span>'
+    +'<input class="inp prefix" type="text" id="f-folha" value="'+(D.folha?fmtNum(D.folha):'')+'" placeholder="0" oninput="D.folha=parseNum(this.value)">'
+    +'</div></div>',
+    null, true
+  );
+
+  // ── OUTRAS DESPESAS ───────────────────────────────────────
+  case 'aluguel_desp': return tela(
+    'Financeiro',
+    'Quais sao os <em>custos fixos mensais?</em>',
+    'Pense em tudo que voce paga todo mes para manter a operacao rodando.',
+    ['aluguel','Aluguel e encargos',D.aluguel||0,D.imovel!=='alugado'],
+     'desp_multi',
+    [
+      ['aluguel','Aluguel + condominio + encargos',D.aluguel||0, D.imovel==='alugado'],
+      ['contas','Contas fixas (luz, agua, internet, sistemas)',D.contas||0,false],
+      ['terceiros','Terceiros fixos (contador, advogado)',D.terceiros||0,false]
+    ]
+  );
+
+  case 'outras_desp': return tela(
+    'Financeiro',
+    'E com <em>marketing e outras despesas?</em>',
+    '',
+    'desp_multi2',
+    [
+      ['mkt','Investimento em marketing e publicidade',D.mkt||0,false],
+      ['outras','Outras despesas operacionais',D.outras||0,false]
+    ]
+  );
+
+  case 'parcelas': return tela(
+    'Financeiro',
+    'O negocio tem <em>dividas com parcelas mensais?</em>',
+    'Quanto sai por mes em parcelas de emprestimos, financiamentos ou cartoes. Isso <strong>nao entra no resultado operacional</strong>, mas e importante para entender o caixa real.',
+    '<div class="opts c2" style="margin-bottom:10px">'+[
+      ['nao','Nao tenho dividas parceladas',''],
+      ['sim','Sim, tenho','Vou informar o valor']
+    ].map(function(o){
+      var isSim=o[0]==='sim';
+      var isSelSim=D.parcelas>0;
+      var isSelNao=D.parcelas===0&&D.tem_parcelas==='nao';
+      return '<button class="opt'+((!isSim&&isSelNao)||(isSim&&isSelSim)?' sel':'')+'" onclick="selParcelas(\''+o[0]+'\')">'
+        +'<div><div class="opt-t">'+o[1]+'</div>'+(o[2]?'<div class="opt-s">'+o[2]+'</div>':'')+'</div>'
+        +'<span class="opt-ck">&#10003;</span></button>';
+    }).join('')+'</div>'
+    +(D.parcelas>0||D.tem_parcelas==='sim'
+      ?'<div class="inp-wrap"><label class="inp-label">Total de parcelas por mes</label>'
+        +'<div style="position:relative"><span class="inp-prefix-txt">R$</span>'
+        +'<input class="inp prefix" type="text" id="f-parc" value="'+(D.parcelas?fmtNum(D.parcelas):'')+'" placeholder="0" oninput="D.parcelas=parseNum(this.value)">'
+        +'</div></div>'
+        +'<div class="nota amber">Dividas nao sao necessariamente um problema. Podem ate facilitar a negociacao com o comprador ao parcelar a aquisicao.</div>'
+      :''),
+    null, true
+  );
+
+  case 'prolabore': return tela(
+    'Financeiro',
+    'Quanto os socios retiram <em>por mes?</em>',
+    'Some o pro-labore e todas as retiradas mensais dos socios. Pode ser so a sua se for sozinho.',
+    '<div class="inp-wrap"><label class="inp-label">Pro-labore + retiradas dos socios (total)</label>'
+    +'<div style="position:relative"><span class="inp-prefix-txt">R$</span>'
+    +'<input class="inp prefix" type="text" id="f-prol" value="'+(D.prolabore?fmtNum(D.prolabore):'')+'" placeholder="0" oninput="D.prolabore=parseNum(this.value)">'
+    +'</div></div>'
+    +'<div class="nota">O pro-labore e retirado do resultado depois — nao e custo da operacao em si.</div>',
+    null, true
+  );
+
+  // ── ATIVOS ────────────────────────────────────────────────
+  case 'ativos': return tela(
+    'Patrimonio',
+    'O que o negocio <em>tem de valor?</em>',
+    'Liste os principais bens. Estimativas honestas sao suficientes.',
+    '<div class="nota blue">Preencha so o que for relevante. Se nao tiver, deixe em zero.</div>'
+    +[
+      ['at_maq','Maquinas e equipamentos'],
+      ['at_mov','Moveis e utensilios'],
+      ['at_veic','Veiculos'],
+      ['at_ti','Tecnologia e sistemas (hardware/licencas)'],
+      ['at_ref','Reformas e benfeitorias'],
+      ['at_est','Estoque (preco de custo)'],
+      ['at_rec','Contas a receber de clientes'],
+      ['at_cx','Caixa e aplicacoes financeiras']
+    ].map(function(f){
+      return '<div class="inp-wrap"><label class="inp-label">'+f[1]+'</label>'
+        +'<div style="position:relative"><span class="inp-prefix-txt">R$</span>'
+        +'<input class="inp prefix" type="text" value="'+(D[f[0]]?fmtNum(D[f[0]]):'')+'" placeholder="0" oninput="D.'+f[0]+'=parseNum(this.value)"></div></div>';
+    }).join('')
+    +(D.imovel==='proprio'
+      ?'<div class="inp-wrap"><label class="inp-label">Imovel proprio (valor de mercado)</label>'
+        +'<div style="position:relative"><span class="inp-prefix-txt">R$</span>'
+        +'<input class="inp prefix" type="text" value="'+(D.imovel_valor?fmtNum(D.imovel_valor):'')+'" placeholder="0" oninput="D.imovel_valor=parseNum(this.value)"></div></div>'
+      :''),
+    null, true
+  );
+
+  // ── PASSIVOS ──────────────────────────────────────────────
+  case 'passivos': return tela(
+    'Patrimonio',
+    'E o que o negocio <em>deve?</em>',
+    'Seja honesto. Dividas sao normais e fazem parte do balanco. O comprador assume tudo no conceito de porteira fechada.',
+    '<div class="nota amber">Nao inclua as parcelas mensais que voce ja informou. Aqui queremos o saldo total da divida.</div>'
+    +[
+      ['pa_forn','Contas a pagar a fornecedores'],
+      ['pa_trib','Dividas tributarias e fiscais (saldo total)'],
+      ['pa_banc','Emprestimos e financiamentos (saldo total)'],
+      ['pa_out','Outras dividas']
+    ].map(function(f){
+      return '<div class="inp-wrap"><label class="inp-label">'+f[1]+'</label>'
+        +'<div style="position:relative"><span class="inp-prefix-txt">R$</span>'
+        +'<input class="inp prefix" type="text" value="'+(D[f[0]]?fmtNum(D[f[0]]):'')+'" placeholder="0" oninput="D.'+f[0]+'=parseNum(this.value)"></div></div>';
+    }).join(''),
+    null, true
+  );
+
+  // ══════════════════════════════════════════════════════════
+  // PILARES DE SAUDE
+  // ══════════════════════════════════════════════════════════
+
+  case 'p1': return pilar('p1',
+    'No dia a dia, <em>o negocio precisa de voce</em> para funcionar?',
+    'Pense no que aconteceria se voce sumisse por 30 dias.',
+    [
+      [0,'Tudo pararia. Sou indispensavel em tudo.'],
+      [2,'Para em grande parte. Equipe faz so o basico.'],
+      [4,'Continua com dificuldade e supervisao constante.'],
+      [6,'Funciona, mas frequentemente me ligam para decidir.'],
+      [8,'Funciona bem. Ja fiquei ausente por semanas.'],
+      [10,'Operacao 100% independente. Gestao profissional.']
+    ]
+  );
+
+  case 'p2': return pilarSlider('p2',
+    'Como voce avaliaria a <em>capacidade de gerar vendas</em> do negocio?',
+    'Pense em previsibilidade, canais ativos e processo comercial.',
+    'Venda no boca a boca, sem processo definido',
+    'Maquina de vendas multicanal com metricas'
+  );
+
+  case 'p3': return pilar('p3',
+    'O que voce vende e <em>claro e diferenciado</em> para o cliente?',
+    'Um produto ou servico bem posicionado e mais facil de vender e de passar para um novo dono.',
+    [
+      [0,'Confuso. Parece igual ao concorrente.'],
+      [2,'Produto ok, mas sem posicionamento claro.'],
+      [4,'Boa entrega, pouco estruturado.'],
+      [6,'Oferta clara, com diferenciais percebidos.'],
+      [8,'Bem estruturado, validado, com recorrencia.'],
+      [10,'Oferta premium, marca forte, escalavel.']
+    ]
+  );
+
+  case 'p4': return pilarSlider('p4',
+    'Como estao a <em>organizacao e os processos</em> internos?',
+    'O quanto o negocio depende da memoria de uma pessoa para funcionar.',
+    'Caotico, tudo na cabeca das pessoas',
+    'Processos documentados, indicadores, gestao profissional'
+  );
+
+  case 'p5': return pilar('p5',
+    'Como voce avaliaria o <em>resultado financeiro real</em> do negocio?',
+    'Nao e faturamento. E quanto sobra de verdade no fim do mes.',
+    [
+      [0,'Prejuizo ou descontrole total.'],
+      [2,'As vezes sobra, as vezes nao. Muito irregular.'],
+      [4,'Lucro pequeno ou instavel.'],
+      [6,'Resultado positivo e previsivel.'],
+      [8,'Margem saudavel, crescente e controlada.'],
+      [10,'Alta margem, historico solido de resultado.']
+    ]
+  );
+
+  case 'p6': return pilarSlider('p6',
+    'Os <em>bens do negocio</em> superam as dividas?',
+    'Pense em maquinas, estoque, caixa versus o que o negocio deve.',
+    'Passivo maior que ativo, situacao critica',
+    'Ativos solidos, pouco ou sem divida'
+  );
+
+  case 'p7': return pilar('p7',
+    'Como esta a <em>situacao das dividas</em> do negocio?',
+    'Uma divida bem estruturada e diferente de uma que sufoca o caixa todo mes.',
+    [
+      [0,'Alta, cara e pressionando o caixa todo mes.'],
+      [2,'Varias dividas, parcelas pesadas.'],
+      [4,'Tem divida relevante, mas organizada.'],
+      [6,'Divida moderada, parcelas dentro do caixa.'],
+      [8,'Pouca divida, bem estruturada.'],
+      [10,'Sem dividas relevantes. Negocio capitalizado.']
+    ]
+  );
+
+  case 'p8': return pilarSlider('p8',
+    'Como voce avaliaria a <em>situacao legal e fiscal</em> do negocio?',
+    'Pense em impostos em dia, contratos, possiveis processos.',
+    'Varios problemas abertos, risco alto',
+    'Tudo em dia, compliance ok, sem passivos'
+  );
+
+  case 'p9': return pilar('p9',
+    'O negocio <em>depende muito de poucos clientes</em>?',
+    'Muita dependencia de um cliente e um risco direto para o comprador.',
+    [
+      [0,'1 ou 2 clientes fazem mais de 70% do faturamento.'],
+      [2,'3 a 5 clientes concentram mais de 60% da receita.'],
+      [4,'Alguma concentracao relevante, mas dispersa.'],
+      [6,'Receita distribuida entre varios clientes.'],
+      [8,'Nenhum cliente representa mais de 15%.'],
+      [10,'Centenas de clientes ativos, receita pulverizada.']
+    ]
+  );
+
+  case 'p10': return pilarSlider('p10',
+    'O negocio conseguiria <em>crescer sem dobrar os custos?</em>',
+    'Escalabilidade e o que justifica multiplos maiores em M&A.',
+    'Travado no limite, crescimento custoso',
+    'Altamente escalavel, custo marginal baixo'
+  );
+
+  // ── MOTIVO ────────────────────────────────────────────────
+  case 'motivo': return tela(
+    'Intenção de venda',
+    'Por que voce esta pensando em <em>vender?</em>',
+    '',
+    '<div class="opts c1">'+[
+      ['aposentadoria','Aposentadoria ou mudanca de vida',''],
+      ['societario','Mudanca societaria ou saida de socio',''],
+      ['oportunidade','Surgiu uma oportunidade melhor',''],
+      ['financeiro','Dificuldade financeira',''],
+      ['explorando','So estou explorando / curioso','']
+    ].map(function(o){
+      return '<button class="opt'+(D.motivo===o[0]?' sel':'')+'" onclick="selOpt(this,\'motivo\',\''+o[0]+'\',true)">'
+        +'<div><div class="opt-t">'+o[1]+'</div></div>'
+        +'<span class="opt-ck">&#10003;</span></button>';
+    }).join('')+'</div>'
+  );
+
+  // ── PRECO ESPERADO ────────────────────────────────────────
+  case 'preco_esperado': return tela(
+    'Sua expectativa',
+    'Por quanto voce imagina <em>vender o negocio?</em>',
+    '<strong>Porteira fechada</strong>: o comprador paga um valor unico e entra hoje — assumindo tudo. Os bens ficam, as dividas ficam, a operacao fica. Com base nisso, qual seria o seu preco ideal?',
+    '<div class="nota blue">Nao se preocupe em acertar — nossa avaliacao vai te mostrar uma referencia tecnica logo em seguida. Isso e a sua expectativa inicial.</div>'
+    +'<div class="inp-wrap"><label class="inp-label">Valor esperado (porteira fechada)</label>'
+    +'<div style="position:relative"><span class="inp-prefix-txt">R$</span>'
+    +'<input class="inp prefix" type="text" id="f-preco" value="'+(D.preco_esperado?fmtNum(D.preco_esperado):'')+'" placeholder="0" oninput="D.preco_esperado=parseNum(this.value)">'
+    +'</div></div>'
+    +'<div class="opts c2" style="margin-top:6px">'
+    +'<button class="opt'+(D.preco_esperado===0&&D.tem_preco==='nao'?' sel':'')+'" onclick="D.preco_esperado=0;D.tem_preco=\'nao\';renderQ()">'
+    +'<div><div class="opt-t">Nao sei ainda</div><div class="opt-s">Quero ver a avaliacao primeiro</div></div>'
+    +'<span class="opt-ck">&#10003;</span></button>'
+    +'</div>',
+    null, true
+  );
+
+  default: return '<div>Pergunta nao encontrada: '+id+'</div>';
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// HELPERS DE RENDERIZACAO
+// ══════════════════════════════════════════════════════════
+function tela(eyebrow, title, hint, body, validator, canSkip) {
+  var btnNext = '<button class="btn-next" id="btn-prox" onclick="tentarProximo()">Continuar</button>';
+  var btnBack = qIdx > 0 ? '<button class="btn-back" onclick="voltar()">Voltar</button>' : '';
+  var btnSkip = canSkip ? '<button class="btn-skip" onclick="proximo()">Pular</button>' : '';
+  return '<div class="eyebrow">'+eyebrow+'</div>'
+    +'<div class="q-title">'+title+'</div>'
+    +(hint?'<div class="q-hint">'+hint+'</div>':'')
+    +body
+    +'<div class="btn-row">'+btnBack+btnNext+btnSkip+'</div>';
+}
+
+function pilar(campo, title, hint, opcoes) {
+  var eyebrow = 'Saude do negocio';
+  var body = '<div class="opts c1">'
+    +opcoes.map(function(o){
+      return '<button class="opt'+(D[campo]===o[0]?' sel':'')+'" onclick="selPilar(this,\''+campo+'\','+o[0]+',true)">'
+        +'<div><div class="opt-s" style="font-size:12px;color:var(--ink)">'+o[1]+'</div></div>'
+        +'<span class="opt-ck">&#10003;</span></button>';
+    }).join('')+'</div>';
+  return tela(eyebrow, title, hint, body);
+}
+
+function pilarSlider(campo, title, hint, labelMin, labelMax) {
+  var val = D[campo]!==null ? D[campo] : 5;
+  return tela(
+    'Saude do negocio', title, hint,
+    '<div class="slider-wrap">'
+    +'<div class="slider-labels"><span>'+labelMin+'</span><span>'+labelMax+'</span></div>'
+    +'<input class="slider" type="range" min="0" max="10" step="1" value="'+val+'" oninput="D.'+campo+'=parseInt(this.value);document.getElementById(\'sv-'+campo+'\').textContent=this.value">'
+    +'<div class="slider-val" id="sv-'+campo+'">'+val+'</div>'
+    +'<div class="slider-val-sub">de 0 a 10</div>'
+    +'</div>'
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+// ACOES
+// ══════════════════════════════════════════════════════════
+function selOpt(btn, campo, val, auto) {
+  btn.closest('.opts').querySelectorAll('.opt').forEach(function(b){b.classList.remove('sel');});
+  btn.classList.add('sel');
+  D[campo] = val;
+  if (auto) { setTimeout(proximo, 220); }
+}
+
+function selPilar(btn, campo, val, auto) {
+  btn.closest('.opts').querySelectorAll('.opt').forEach(function(b){b.classList.remove('sel');});
+  btn.classList.add('sel');
+  D[campo] = val;
+  if (auto) { setTimeout(proximo, 220); }
+}
+
+function selCMV(btn, val) {
+  document.querySelectorAll('#qcard .opts .opt').forEach(function(b){b.classList.remove('sel');});
+  btn.classList.add('sel');
+  D.tem_cmv = val;
+  if (val === 'nao') { D.cmv_val = 0; D.cmv_pct = 0; setTimeout(proximo, 220); }
+  else renderQ();
+}
+
+function selParcelas(val) {
+  D.tem_parcelas = val;
+  if (val === 'nao') { D.parcelas = 0; }
+  renderQ();
+}
+
+function calcCMV() {
+  if (D.markup_comp > 0 && D.markup_venda > 0) {
+    D.cmv_pct = D.markup_comp / D.markup_venda;
+    D.cmv_val = Math.round(D.fat * D.cmv_pct);
+  }
+  renderQ();
+}
+
+function ctr(campo, delta) {
+  D[campo] = Math.max(0, (D[campo]||0) + delta);
+  var el = document.getElementById('ctr-'+campo);
+  if (el) el.textContent = D[campo];
+}
+
+function filtrarCidades(txt) {
+  var cids = (CIDADES[D.estado]||[]);
+  var filtered = txt ? cids.filter(function(c){return c.toLowerCase().includes(txt.toLowerCase());}) : cids;
+  var wrap = document.getElementById('cids-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = filtered.map(function(c){
+    return '<button class="cid-btn'+(D.cidade===c?' sel':'')+'" onclick="D.cidade=\''+c.replace(/'/g,"\\'")+'\'  ;proximo()">'+c+'</button>';
+  }).join('')+'<button class="cid-btn" onclick="D.cidade=prompt(\'Digite o nome da cidade:\');if(D.cidade)proximo()">Outra cidade...</button>';
+}
+
+function tentarProximo() {
+  var id = FLOW[qIdx];
+  // Validacoes especificas
+  if (id==='detalhe' && (!D.detalhe||D.detalhe.trim().length<2)) { toast('Descreva o negocio em poucas palavras.'); return; }
+  if (id==='fat' && D.fat<=0) { toast('Informe o faturamento mensal.'); return; }
+  proximo();
+}
+
+// ══════════════════════════════════════════════════════════
+// REVISAO
+// ══════════════════════════════════════════════════════════
+function renderRevisao() {
+  var card = document.getElementById('rev-card');
+  var total = (D.clt||0)+(D.pj||0)+(D.socios||0);
+  var origemTxt = D.origem==='fundei'?'Empresa fundada':'Empresa adquirida';
+  var catLabel = CONFIG.multiplos[D.categoria]?CONFIG.multiplos[D.categoria].label:'—';
+
+  card.innerHTML = '<div class="eyebrow">Confirmar dados</div>'
+    +'<div class="q-title">E isso mesmo?</div>'
+    +'<div class="q-hint">Confira o que entendemos do seu negocio antes de gerar a avaliacao.</div>'
+
+    +'<div class="rev-block">'
+    +'<div class="rev-label">Identidade</div>'
+    +'<div class="rev-narrative">'
+    +origemTxt+(D.ano?' em <strong>'+D.ano+'</strong>':'')+', '
+    +'atuando em <em>'+(D.detalhe||catLabel)+'</em>'
+    +(D.cidade?' em <strong>'+D.cidade+' / '+D.estado+'</strong>':'')+'. '
+    +(D.franquia==='sim'?'Franquia <strong>'+D.franquia_nome+'</strong>.':'Marca propria.')
+    +'</div>'
+    +'<div>'
+    +'<span class="chip g">'+catLabel+'</span>'
+    +(D.franquia==='sim'?'<span class="chip">Franquia</span>':'')
+    +(total>0?'<span class="chip">'+total+' colaboradores</span>':'')
+    +'</div>'
+    +'</div>'
+
+    +'<div class="rev-block">'
+    +'<div class="rev-label">Financeiro</div>'
+    +'<div class="rev-grid">'
+    +mini('Faturamento/mes','R$ '+fmtNum(D.fat),'g')
+    +mini('Folha + equipe','R$ '+fmtNum(D.folha))
+    +mini('Regime',regiLabel(D.regime))
+    +mini('Parcelas/mes','R$ '+fmtNum(D.parcelas))
+    +mini('Pro-labore','R$ '+fmtNum(D.prolabore))
+    +mini('Outras despesas','R$ '+fmtNum((D.aluguel||0)+(D.contas||0)+(D.terceiros||0)+(D.mkt||0)+(D.outras||0)))
+    +'</div>'
+    +'</div>'
+
+    +'<div class="rev-block">'
+    +'<div class="rev-label">Patrimonio</div>'
+    +'<div class="rev-grid">'
+    +mini('Total ativos','R$ '+fmtNum(somaAtivos()))
+    +mini('Total passivos','R$ '+fmtNum(somaPassivos()))
+    +mini('Balanco','R$ '+fmtNum(somaAtivos()-somaPassivos()))
+    +'</div>'
+    +'</div>'
+
+    +(D.preco_esperado>0?'<div class="rev-block"><div class="rev-label">Sua expectativa</div>'
+    +'<div class="rev-narrative">Voce espera vender por <strong style="color:var(--green)">R$ '+fmtNum(D.preco_esperado)+'</strong> (porteira fechada)</div></div>':'')
+
+    +'<div class="btn-row">'
+    +'<button class="btn-back" onclick="voltarDoForm()">Editar algo</button>'
+    +'<button class="btn-next" onclick="confirmarEGerar()">Confirmar e gerar avaliacao</button>'
+    +'</div>';
+}
+
+function mini(l,v,cls) {
+  return '<div class="rev-mini"><div class="rev-mini-l">'+l+'</div><div class="rev-mini-v '+(cls||'')+'">'+v+'</div></div>';
+}
+
+function voltarDoForm() {
+  qIdx = FLOW.length - 1;
+  hist.push(qIdx);
+  mostrarTela('s-form');
+  renderQ();
+}
+
+function confirmarEGerar() {
+  mostrarTela('s-load');
+  document.getElementById('prog').style.width = '98%';
+  document.getElementById('hdr-mid').textContent = 'Calculando...';
+
+  // Animar loading steps
+  var steps = ['ls1','ls2','ls3','ls4','ls5'];
+  steps.forEach(function(id, i) {
+    setTimeout(function() {
+      document.getElementById(id).classList.add('on');
+    }, (i+1)*1200);
+  });
+
+  // Calcular e mostrar resultado apos delay
+  setTimeout(function() {
+    RESULTADO = calcular();
+    salvarAvaliacao();
+    renderResultadoA();
+  }, 7000);
+}
+
+// ══════════════════════════════════════════════════════════
+// MOTOR DE CALCULO
+// ══════════════════════════════════════════════════════════
+function calcular() {
+  var cat = D.categoria||'outro';
+  var fat = D.fat||0;
+  var regime = D.regime||'';
+
+  // 1. Impostos
+  var aliq = CONFIG.aliquotas[regime] !== undefined ? CONFIG.aliquotas[regime] : 0.15;
+  var impostos = fat * aliq;
+
+  // 2. CMV (calculado pelo markup ou informado)
+  var cmv = D.cmv_val || (D.cmv_pct ? fat * D.cmv_pct : 0);
+
+  // 3. Resultado operacional ajustado (mensal)
+  var desp_op = (D.folha||0)+(D.aluguel||0)+(D.contas||0)+(D.terceiros||0)+(D.mkt||0)+(D.outras||0);
+  var result_mes = fat - impostos - cmv - desp_op;
+  var result_anual = result_mes * 12;
+
+  // 4. Geracao de caixa real (mensal - informacional)
+  var caixa_mes = result_mes - (D.parcelas||0) - (D.invest||0) - (D.prolabore||0);
+
+  // 5. Multiplo base do setor
+  var mcfg = CONFIG.multiplos[cat] || CONFIG.multiplos['outro'];
+  var mult_base = (mcfg.min + mcfg.max) / 2;
+
+  // 6. Score de saude (0 a 100)
+  var score = calcScore();
+
+  // 7. Premio de maturidade aplicado SOBRE o multiplo (nao no valor final)
+  var pcfg = CONFIG.premios.find(function(p){return score>=p.min&&score<=p.max;})||CONFIG.premios[0];
+  var mult_ajustado = mult_base * pcfg.fator;
+
+  // 8. Valor do negocio = resultado ajustado anual * multiplo ajustado
+  var valor_negocio = Math.max(0, result_anual * mult_ajustado);
+
+  // 9. Balanco patrimonial
+  var ativos = somaAtivos();
+  var passivos = somaPassivos();
+  var balanco = ativos - passivos;
+
+  // 10. Valor de venda (porteira fechada) = valor negocio + balanco
+  var valor_venda = valor_negocio + balanco;
+
+  return {
+    cat: cat, catLabel: mcfg.label,
+    fat, regime, impostos, cmv, desp_op,
+    result_mes, result_anual, caixa_mes,
+    mult_base, mult_ajustado, pcfg, score,
+    valor_negocio, ativos, passivos, balanco, valor_venda,
+    pilares: calcPilares()
+  };
+}
+
+function calcScore() {
+  var score = 0;
+  ['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10'].forEach(function(p){
+    var val = D[p] !== null && D[p] !== undefined ? D[p] : 5;
+    score += (val/10) * CONFIG.pesos[p];
+  });
+  return Math.round(score);
+}
+
+function calcPilares() {
+  var nomes = {
+    p1:'Dependencia dos socios',p2:'Comercial / Vendas',p3:'Produto / Oferta',
+    p4:'Gestao e processos',p5:'Financeiro / Resultado',p6:'Balanco patrimonial',
+    p7:'Estrutura de divida',p8:'Risco juridico / fiscal',
+    p9:'Concentracao de receita',p10:'Potencial de crescimento'
+  };
+  return ['p1','p2','p3','p4','p5','p6','p7','p8','p9','p10'].map(function(p){
+    return {id:p, nome:nomes[p], val:D[p]!==null?D[p]:5, peso:CONFIG.pesos[p]};
+  });
+}
+
+function somaAtivos() {
+  return (D.at_maq||0)+(D.at_mov||0)+(D.at_veic||0)+(D.at_ti||0)+(D.at_ref||0)
+    +(D.at_est||0)+(D.at_rec||0)+(D.at_cx||0)+(D.imovel_valor||0);
+}
+
+function somaPassivos() {
+  return (D.pa_forn||0)+(D.pa_trib||0)+(D.pa_banc||0)+(D.pa_out||0);
+}
+
+// ══════════════════════════════════════════════════════════
+// RESULTADO — TELA A: Historia e analise
+// ══════════════════════════════════════════════════════════
+function renderResultadoA() {
+  mostrarTela('s-res-a');
+  document.getElementById('prog').style.width = '100%';
+  document.getElementById('hdr-mid').textContent = 'Resultado';
+  var R = RESULTADO;
+  var cont = document.getElementById('res-a-content');
+
+  // Oportunidades de melhoria
+  var opps = getOportunidades(R);
+  // Perfil do comprador
+  var buyer = getBuyerProfile(R);
+
+  cont.innerHTML = '<div class="eyebrow" style="margin-top:0">Seu negocio</div>'
+    +'<div style="font-family:\'Syne\',sans-serif;font-size:22px;font-weight:800;color:#fff;margin-bottom:4px">'+(D.detalhe||R.catLabel)+'</div>'
+    +'<p style="font-size:12px;color:var(--ink2);margin-bottom:20px;text-transform:none;letter-spacing:normal;line-height:1.6">'
+    +(D.origem==='fundei'?'Fundada':'Adquirida')+(D.ano?' em '+D.ano:'')+' &bull; '
+    +(D.cidade?D.cidade+' / '+D.estado:D.estado||'Brasil')+' &bull; '
+    +((D.clt||0)+(D.pj||0)+(D.socios||0))+' colaboradores'
+    +'</p>'
+
+    // Identidade
+    +'<div class="res-section">'
+    +'<div class="res-section-title g">O que entendemos do negocio</div>'
+    +'<div class="res-narrative">'+buildNarrativa(R)+'</div>'
+    +'</div>'
+
+    // Financeiro snapshot
+    +'<div class="stat-row">'
+    +statBox('Faturamento/mes','R$ '+fmtBRL(R.fat),'g')
+    +statBox('Resultado operacional/mes','R$ '+fmtBRL(R.result_mes),R.result_mes>=0?'g':'')
+    +statBox('Geracao de caixa/mes','R$ '+fmtBRL(R.caixa_mes),R.caixa_mes>=0?'':'a')
+    +statBox('Multiplo ajustado',R.mult_ajustado.toFixed(2)+'x','')
+    +'</div>'
+
+    // Saude do negocio
+    +'<div class="res-section">'
+    +'<div class="res-section-title b">Nota de saude &amp; maturidade: <strong style="font-size:20px;color:'+(R.score>=70?'var(--green)':R.score>=50?'var(--amber)':'var(--red)')+'">'+R.score+'/100</strong> &mdash; '+R.pcfg.label+'</div>'
+    +R.pilares.map(function(p){
+      return '<div style="margin-bottom:8px">'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:3px">'
+        +'<span style="font-size:10px;color:var(--ink2)">'+p.nome+'</span>'
+        +'<span style="font-size:10px;color:var(--green)">'+p.val+'/10</span>'
+        +'</div>'
+        +'<div style="height:2px;background:var(--sep)">'
+        +'<div style="height:100%;background:var(--green);width:'+p.val*10+'%;transition:width 1s ease"></div>'
+        +'</div></div>';
+    }).join('')
+    +'<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--sep);font-size:11px;color:var(--ink2)">'
+    +'Premio de maturidade aplicado: <strong style="color:var(--green)">x'+R.pcfg.fator+'</strong> sobre o multiplo setorial ('+R.mult_base.toFixed(1)+'x &rarr; '+R.mult_ajustado.toFixed(2)+'x)'
+    +'</div>'
+    +'</div>'
+
+    // Oportunidades
+    +(opps.length?'<div class="res-section"><div class="res-section-title a">Onde enxergamos oportunidades</div>'
+    +opps.map(function(o){
+      return '<div class="opp-item"><div class="opp-t">'+o.t+'</div><div class="opp-d">'+o.d+'</div></div>';
+    }).join('')+'</div>':'')
+
+    // Comprador ideal
+    +'<div class="res-section">'
+    +'<div class="res-section-title g">Perfil do comprador ideal</div>'
+    +'<div class="res-narrative">'+buyer+'</div>'
+    +'</div>'
+
+    // Por que publicar agora
+    +'<div class="res-section" style="border-color:rgba(16,185,129,.3);background:rgba(16,185,129,.04)">'
+    +'<div class="res-section-title g">Por que publicar agora na 1Negocio?</div>'
+    +'<div class="res-narrative">'
+    +'O setor de <em>'+R.catLabel+'</em> esta entre os mais buscados na nossa plataforma. '
+    +'Compradores qualificados acessam novos anuncios nas primeiras 48 horas apos a publicacao. '
+    +'<strong>Seu negocio tem um perfil que desperta interesse</strong> — a nota de saude '+R.score+'/100 e o faturamento de R$ '+fmtBRL(R.fat)+'/mes estao acima da media dos anuncios recebidos.<br><br>'
+    +'Com o <strong>Plano Guiado</strong>, refinamos essa avaliacao com um consultor, melhoramos a apresentacao e damos destaque por 12 meses — aumentando significativamente as chances de fechar no preco certo.'
+    +'</div>'
+    +'</div>'
+
+    +'<div class="btn-row" style="margin-top:20px">'
+    +'<button class="btn-next" onclick="verValor()">Ver o valor do negocio &rarr;</button>'
+    +'</div>';
+}
+
+function verValor() { renderResultadoB(); }
+
+// ══════════════════════════════════════════════════════════
+// RESULTADO — TELA B: Valor
+// ══════════════════════════════════════════════════════════
+function renderResultadoB() {
+  mostrarTela('s-res-b');
+  var R = RESULTADO;
+  var cont = document.getElementById('res-b-content');
+  var scoreCor = R.score>=70?'var(--green)':R.score>=50?'var(--amber)':'var(--red)';
+
+  cont.innerHTML = '<div class="res-valor-card">'
+    +'<div class="res-valor-eyebrow">Valor de Venda (porteira fechada)</div>'
+    +'<div class="res-valor-label">Comprador paga e entra hoje — assume ativos e passivos</div>'
+    +'<div class="res-valor-num">'+fmtBRL(R.valor_venda)+'</div>'
+    +'<div class="res-valor-sub">Faixa estimada: R$ '+fmtBRL(R.valor_venda*.88)+' a R$ '+fmtBRL(R.valor_venda*1.12)+'</div>'
+
+    +'<div class="breakdown">'
+    +'<div class="breakdown-title">Como chegamos neste numero</div>'
+    +'<div class="bk-row"><span class="bk-l">Resultado operacional ajustado (anual)</span><span class="bk-v">'+fmtBRL(R.result_anual)+'</span></div>'
+    +'<div class="bk-row"><span class="bk-l">x Multiplo do setor ('+R.catLabel+')</span><span class="bk-v">'+R.mult_base.toFixed(1)+'x</span></div>'
+    +'<div class="bk-row"><span class="bk-l">x Premio de saude (score '+R.score+')</span><span class="bk-v">'+R.pcfg.fator.toFixed(2)+'x &rarr; multiplo ajustado '+R.mult_ajustado.toFixed(2)+'x</span></div>'
+    +'<div class="bk-row"><span class="bk-l">= Valor do negocio</span><span class="bk-v g">'+fmtBRL(R.valor_negocio)+'</span></div>'
+    +'<div class="bk-row"><span class="bk-l">+ Ativos do negocio</span><span class="bk-v g">+'+fmtBRL(R.ativos)+'</span></div>'
+    +'<div class="bk-row"><span class="bk-l">- Passivos (dividas e obrigacoes)</span><span class="bk-v '+(R.passivos>0?'r':'')+'">-'+fmtBRL(R.passivos)+'</span></div>'
+    +'<div class="bk-row total"><span class="bk-l">= Valor de Venda</span><span class="bk-v">'+fmtBRL(R.valor_venda)+'</span></div>'
+    +'</div>'
+    +'</div>'
+
+    +(D.preco_esperado>0
+      ?'<div style="background:var(--bg2);border:1px solid var(--sep);padding:14px 18px;margin-bottom:10px;font-size:12px">'
+        +'<div style="color:var(--ink3);font-size:9px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px">Sua expectativa</div>'
+        +'<div>Voce esperava <strong style="color:'+(D.preco_esperado>R.valor_venda*1.2?'var(--amber)':D.preco_esperado<R.valor_venda*.8?'var(--red)':'var(--green)')+'">R$ '+fmtBRL(D.preco_esperado)+'</strong> &mdash; '
+        +(D.preco_esperado>R.valor_venda*1.2?'acima da nossa avaliacao. O Plano Guiado pode ajudar a justificar esse valor no mercado.'
+          :D.preco_esperado<R.valor_venda*.8?'voce pode estar subestimando. Nossa avaliacao sugere um valor maior.'
+          :'alinhado com nossa avaliacao. Bom sinal!')+'</div>'
+        +'</div>'
+      :'')
+
+    +'<div class="res-mini-grid">'
+    +'<div class="res-mini-card"><div class="res-mini-card-l">Resultado operacional/mes</div><div class="res-mini-card-v" style="color:var(--green)">'+fmtBRL(R.result_mes)+'</div></div>'
+    +'<div class="res-mini-card"><div class="res-mini-card-l">Geracao de caixa/mes</div><div class="res-mini-card-v" style="color:'+(R.caixa_mes>=0?'var(--green)':'var(--amber)')+'">'+fmtBRL(R.caixa_mes)+'</div></div>'
+    +'<div class="res-mini-card"><div class="res-mini-card-l">Nota de saude</div><div class="res-mini-card-v" style="color:'+scoreCor+'">'+R.score+' / 100</div></div>'
+    +'<div class="res-mini-card"><div class="res-mini-card-l">Multiplo final aplicado</div><div class="res-mini-card-v">'+R.mult_ajustado.toFixed(2)+'x</div></div>'
+    +'</div>'
+
+    // CTAs
+    +'<div style="font-family:\'Syne\',sans-serif;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);margin:20px 0 12px">O que voce quer fazer agora?</div>'
+    +'<div class="cta-list">'
+
+    +'<div class="cta-card dest" onclick="abrirModalPublicacao()">'
+    +'<div class="cta-info"><div class="cta-t">Publicar meu anuncio <span style="font-size:11px;color:var(--ink3)">(gratuito)</span></div>'
+    +'<div class="cta-s">Publique na plataforma e receba propostas. Taxa de 10% so se vender.</div></div>'
+    +'<button class="btn-cta g">Publicar gratis</button>'
+    +'</div>'
+
+    +'<div class="cta-card dest2">'
+    +'<div class="cta-info"><div class="cta-t">Plano Guiado <span class="cta-badge">Recomendado</span></div>'
+    +'<div class="cta-s">Consultor dedicado, destaque por 12 meses, 5% de taxa. Refinamos essa avaliacao com voce.</div></div>'
+    +'<div><div class="cta-price" style="color:var(--amber)">R$ 588</div><div style="font-size:9px;color:var(--ink3)">ou 12x R$ 49</div></div>'
+    +'</div>'
+
+    +'<div class="cta-card" onclick="comprarRelatorio()">'
+    +'<div class="cta-info"><div class="cta-t">Relatorio em PDF</div>'
+    +'<div class="cta-s">Receba este resultado em laudo completo para usar como quiser.</div></div>'
+    +'<div class="cta-price">R$ 99</div>'
+    +'</div>'
+
+    +'<div class="cta-card" onclick="contratarAvaliacao()">'
+    +'<div class="cta-info"><div class="cta-t">Avaliacao Profissional Completa</div>'
+    +'<div class="cta-s">Avaliacao aprofundada com consultor. Laudo robusto, sem publicacao.</div></div>'
+    +'<div class="cta-price">R$ 397</div>'
+    +'</div>'
+
+    +'<div class="cta-card" onclick="irPortal()">'
+    +'<div class="cta-info"><div class="cta-t" style="color:var(--ink2)">Salvar e ver depois</div>'
+    +'<div class="cta-s">Resultado salvo no seu portal. Volte quando quiser.</div></div>'
+    +'<button class="btn-cta o">Ir ao portal</button>'
+    +'</div>'
+
+    +'</div>'
+
+    +'<div style="font-size:10px;color:var(--ink3);margin-top:20px;line-height:1.7;padding:12px 0;border-top:1px solid var(--sep)">'
+    +'Esta e uma estimativa baseada nas informacoes fornecidas. O valor real pode variar conforme due diligence e negociacao. A 1Negocio nao se responsabiliza pelo valor final.'
+    +'</div>';
+}
+
+// ══════════════════════════════════════════════════════════
+// ANALISES DE CONTEXTO
+// ══════════════════════════════════════════════════════════
+function buildNarrativa(R) {
+  var partes = [];
+  partes.push((D.origem==='fundei'?'Negocio fundado':'Negocio adquirido')+(D.ano?' em '+D.ano:'')+', '
+    +'no segmento de <em>'+R.catLabel+'</em>'
+    +(D.cidade?' em '+D.cidade+'/'+D.estado:'')+'.');
+  if (D.detalhe) partes.push('Se trata de <strong>'+D.detalhe+'</strong>'+((D.franquia==='sim'&&D.franquia_nome)?', operando como franquia '+D.franquia_nome:'')+'.');
+  var total = (D.clt||0)+(D.pj||0)+(D.socios||0);
+  if (total>0) partes.push('Conta com <strong>'+total+' colaboradores</strong>'+(D.clt?' ('+D.clt+' CLT':'')+( D.pj?', '+D.pj+' PJ':(D.clt?')':''))+( D.clt?' )':'')+' na operacao.');
+  partes.push('Fatura em media <strong>R$ '+fmtBRL(R.fat)+'</strong> por mes e gera um resultado operacional de <strong style="color:'+(R.result_mes>=0?'var(--green)':'var(--red)')+'">R$ '+fmtBRL(R.result_mes)+'/mes</strong> antes do pro-labore e parcelas.');
+  if (R.caixa_mes<0) partes.push('A <strong style="color:var(--amber)">geracao de caixa real e negativa</strong> — o que indica pressao financeira, mas pode ser resolvida com uma gestao focada. Muitos compradores veem isso como oportunidade de melhoria.');
+  return partes.join(' ');
+}
+
+function getOportunidades(R) {
+  var opps = [];
+  if ((D.p1||0)<6) opps.push({t:'Reduzir dependencia dos socios', d:'Negocios que operam sem o dono valem significativamente mais. Processos documentados e equipe com autonomia aumentam o multiplo diretamente.'});
+  if ((D.p9||0)<5) opps.push({t:'Diversificar base de clientes', d:'Alta concentracao em poucos clientes e um fator de risco citado por compradores. Reduzir a dependencia pode elevar o multiplo em ate 0,5x.'});
+  if ((D.p5||0)<5) opps.push({t:'Estabilizar o resultado financeiro', d:'Resultado inconsistente dificulta a precificacao. Dois ou tres meses de resultado positivo e documentado aumentam a confianca do comprador.'});
+  if (R.passivos > R.result_anual*2) opps.push({t:'Organizar o endividamento', d:'Dividas acima de 2x o resultado anual comprimem o valor de venda. Uma renegociacao antes da venda pode aumentar o retorno liquido.'});
+  if ((D.p4||0)<5) opps.push({t:'Documentar processos', d:'Empresas com manual de operacao e processos claros transmitem mais seguranca. Um comprador paga mais por um negocio que ele consegue operar desde o primeiro dia.'});
+  return opps.slice(0,4);
+}
+
+function getBuyerProfile(R) {
+  var cat = D.categoria||'outro';
+  var perfiles = {
+    alimentacao:'Empreendedores com experiencia no setor de alimentacao ou restaurantes. Investidores buscando ativos com fluxo de caixa imediato. Grupos de expansao de redes regionais.',
+    comercio:'Empreendedores de primeira viagem buscando negocio estruturado. Investidores anjos em busca de diversificacao. Empresas do mesmo setor que querem expandir geograficamente.',
+    beleza_saude:'Profissionais da area que desejam ser donos do proprio negocio. Grupos de clinicas em expansao. Investidores interessados em recorrencia e fidelizacao.',
+    pet:'Veterinarios e profissionais do segmento. Redes de pet shops em expansao. Investidores atraidos pelo crescimento do setor.',
+    industria:'Compradores estrategicos do mesmo setor. Fundos de private equity mid-market. Distribuidores que querem verticalizar a operacao.',
+    educacao:'Investidores educacionais e grupos de ensino. Empreendedores migrando para o setor por estabilidade. Fundos de impacto com foco em educacao.',
+    distribuicao:'Grandes distribuidoras buscando complementar portfolio. Fabricantes que querem controlar a distribuicao. Investidores com experiencia em logistica.',
+    tecnologia:'Fundos de venture capital e private equity. Empresas de tecnologia em busca de aquisicoes complementares. Empreendedores com perfil tecnico.',
+    hospedagem:'Investidores do setor imobiliario e hoteleiro. Redes de hospedagem em expansao regional. Pessoas fisicas buscando renda passiva.',
+    outro:'Empreendedores generalistas com capital disponivel. Investidores pessoa fisica. Compradores estrategicos do mesmo nicho.'
+  };
+  return perfiles[cat]||perfiles['outro'];
+}
+
+// ══════════════════════════════════════════════════════════
+// ACOES DOS CTAs
+// ══════════════════════════════════════════════════════════
+function abrirModalPublicacao() {
+  document.getElementById('modal-est').textContent = 'R$ '+fmtBRL(RESULTADO.valor_venda);
+  document.getElementById('modal-pub').classList.add('on');
+}
+
+function fecharModal() { document.getElementById('modal-pub').classList.remove('on'); }
+
+async function confirmarPublicacao() {
+  var inp = document.getElementById('preco-input').value;
+  var preco = parseNum(inp);
+  if (preco <= 0) { toast('Informe o valor que voce espera receber.'); return; }
+  D.preco_esperado = preco;
+  if (NEG_ID) {
+    await sb.from('negocios').update({preco_pedido:preco,status:'em_avaliacao'}).eq('id',NEG_ID);
+    await sb.from('admin_agenda').insert({
+      tipo:'gratuito',status:'pendente',
+      nome_cliente:D.detalhe||RESULTADO.catLabel||'Negocio',
+      email_cliente:USER.email,
+      notas_admin:'Publicacao solicitada via diagnostico. Fat: R$'+fmtBRL(D.fat)+'/mes. Preco pedido: R$'+fmtBRL(preco)+'. Score: '+RESULTADO.score,
+      created_at:new Date().toISOString(),updated_at:new Date().toISOString()
+    });
+  }
+  fecharModal();
+  toast('Publicacao solicitada! Nossa equipe entrara em contato em ate 48h.');
+  setTimeout(function(){window.location.href='/portal-usuario.html';}, 2500);
+}
+
+function comprarRelatorio() { window.open('https://buy.stripe.com/9B6fZgfpsdJScKJegH5os04','_blank'); }
+function contratarAvaliacao() { window.open('https://buy.stripe.com/9B6cN47X05dm3a9a0r5os03','_blank'); }
+function irPortal() { window.location.href='/portal-usuario.html'; }
+
+// ══════════════════════════════════════════════════════════
+// BANCO DE DADOS
+// ══════════════════════════════════════════════════════════
+async function salvarRascunho() {
+  if (!USER) return;
+  try {
+    var payload = {
+      vendedor_id:USER.id, nome:D.detalhe||D.categoria||'Rascunho',
+      categoria:D.categoria, cidade:D.cidade, estado:D.estado,
+      faturamento_anual:(D.fat||0)*12, status:'rascunho', plano:'gratuito',
+      comissao_pct:10, score_saude:0,
+      notas_admin:JSON.stringify({rascunho:true,dados:D,progresso:qIdx}),
+      updated_at:new Date().toISOString()
+    };
+    if (NEG_ID) {
+      await sb.from('negocios').update(payload).eq('id',NEG_ID);
+    } else {
+      payload.created_at = new Date().toISOString();
+      var res = await sb.from('negocios').insert(payload).select('id').single();
+      if (res.data) NEG_ID = res.data.id;
+    }
+  } catch(e) {}
+}
+
+async function salvarAvaliacao() {
+  if (!USER || !RESULTADO) return;
+  try {
+    var R = RESULTADO;
+    var payload = {
+      vendedor_id:USER.id, nome:D.detalhe||R.catLabel||'Negocio',
+      categoria:D.categoria, cidade:D.cidade, estado:D.estado,
+      faturamento_anual:(D.fat||0)*12, resultado_liquido_mensal:R.result_mes,
+      folha_pagamento:D.folha, aluguel_mensal:D.aluguel,
+      funcionarios:(D.clt||0)+(D.pj||0)+(D.socios||0),
+      motivo_venda:D.motivo, urgencia:String(D.urgencia||5),
+      status:'em_avaliacao', plano:'gratuito', comissao_pct:10,
+      score_saude:R.score,
+      avaliacao_min:Math.round(R.valor_venda*.85),
+      avaliacao_max:Math.round(R.valor_venda*1.15),
+      preco_pedido:D.preco_esperado||null,
+      dividas:R.passivos,
+      notas_admin:JSON.stringify({
+        resultado_op_mensal:R.result_mes, resultado_op_anual:R.result_anual,
+        caixa_real:R.caixa_mes, mult_base:R.mult_base, mult_ajustado:R.mult_ajustado,
+        premio_fator:R.pcfg.fator, premio_label:R.pcfg.label,
+        valor_negocio:R.valor_negocio, ativos:R.ativos, passivos:R.passivos,
+        balanco:R.balanco, valor_venda:R.valor_venda,
+        score:R.score, pilares:R.pilares,
+        dados_brutos:D, config_versao:CONFIG.versao
+      }),
+      updated_at:new Date().toISOString()
+    };
+    if (NEG_ID) {
+      await sb.from('negocios').update(payload).eq('id',NEG_ID);
+    } else {
+      payload.created_at = new Date().toISOString();
+      var r2 = await sb.from('negocios').insert(payload).select('id').single();
+      if (r2.data) NEG_ID = r2.data.id;
+    }
+  } catch(e) { console.error('salvarAvaliacao',e); }
+}
+
+// ══════════════════════════════════════════════════════════
+// HELPERS DE FORMATACAO
+// ══════════════════════════════════════════════════════════
+function fmtBRL(v) {
+  if (!v && v!==0) return '--';
+  var s = v<0?'-':'';
+  var a = Math.abs(v);
+  if (a>=1e6) return s+'R$ '+(a/1e6).toFixed(2).replace('.',',')+'M';
+  if (a>=1e3) return s+'R$ '+(a/1e3).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,'.')+' mil';
+  return s+'R$ '+a.toLocaleString('pt-BR',{minimumFractionDigits:0});
+}
+
+function fmtNum(v) {
+  if (!v) return '0';
+  return Math.round(v).toLocaleString('pt-BR');
+}
+
+function fmtPct(v) {
+  return Math.round(v)+'%';
+}
+
+function parseNum(s) {
+  if (!s) return 0;
+  return parseFloat(String(s).replace(/\./g,'').replace(',','.')) || 0;
+}
+
+function maskMoney(el) {
+  var v = el.value.replace(/\D/g,'');
+  if (!v) { el.value=''; return; }
+  v = parseInt(v);
+  el.value = v.toLocaleString('pt-BR');
+}
+
+function esc(s) { return String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+function regiLabel(r) {
+  var m={simples:'Simples',presumido:'L.Presumido',real:'L.Real',mei:'MEI',pf:'P.Fisica','':'Estimado'};
+  return m[r]||r||'--';
+}
+
+function statBox(l,v,cls) {
+  return '<div class="stat-box"><div class="stat-box-l">'+l+'</div><div class="stat-box-v '+(cls||'')+'">'+v+'</div></div>';
+}
+
+function toast(msg) {
+  var el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('on');
+  setTimeout(function(){el.classList.remove('on');},3500);
+}
+
+// Campos de despesas multiplas (evita repeticao)
+function buildQ_desps(campos) {
+  return campos.map(function(f){
+    return '<div class="inp-wrap"><label class="inp-label">'+f[1]+(f[3]?' <span style="color:var(--ink3)">(ja preenchido)</span>':'')+'</label>'
+      +(f[3]?'<div style="padding:12px 14px;background:var(--bg3);color:var(--ink2);font-size:13px">R$ '+fmtNum(D[f[0]])+'</div>'
+      :'<div style="position:relative"><span class="inp-prefix-txt">R$</span>'
+      +'<input class="inp prefix" type="text" value="'+(D[f[0]]?fmtNum(D[f[0]]):'')+'" placeholder="0" oninput="D.'+f[0]+'=parseNum(this.value)"></div>')
+      +'</div>';
+  }).join('');
+}
+
+// Sobrescrever case aluguel_desp e outras_desp para usar buildQ_desps
+var _buildQ_orig = buildQ;
+buildQ = function(id) {
+  if (id==='aluguel_desp') return tela(
+    'Financeiro','Quais sao os <em>custos fixos</em> mensais?',
+    'Pense em tudo que voce paga todo mes para manter a operacao rodando.',
+    buildQ_desps([
+      ['aluguel','Aluguel + condominio + encargos',0,D.imovel==='alugado'&&D.aluguel>0],
+      ['contas','Contas fixas (luz, agua, internet, sistemas)',0,false],
+      ['terceiros','Terceiros fixos (contador, advogado, consultorias)',0,false]
+    ]),
+    null, true
+  );
+  if (id==='outras_desp') return tela(
+    'Financeiro','E <em>marketing</em> e outras despesas?','',
+    buildQ_desps([
+      ['mkt','Marketing e publicidade',0,false],
+      ['outras','Outras despesas operacionais',0,false]
+    ]),
+    null, true
+  );
+  return _buildQ_orig(id);
+};
+
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
