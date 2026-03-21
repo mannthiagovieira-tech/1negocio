@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negócio · Admin</title>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-7DGLH0W7KE"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-7DGLH0W7KE');</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ── TEMA ────────────────────────────────────────────── */
+:root {
+  --bg:#080807; --s1:#0f0f0d; --s2:#141412; --s3:#1a1a18;
+  --ink:rgba(255,255,255,.88); --ink2:rgba(255,255,255,.55); --ink3:rgba(255,255,255,.28); --ink4:rgba(255,255,255,.14);
+  --sep:rgba(255,255,255,.07); --sep2:rgba(255,255,255,.12); --bdr:rgba(255,255,255,.18);
+  --green:#10b981; --gg:rgba(16,185,129,.08); --gglow:rgba(16,185,129,.05);
+  --amber:#f59e0b; --ag:rgba(245,158,11,.08);
+  --blue:#60a5fa; --bg-blue:rgba(96,165,250,.08);
+  --red:#f87171; --rg:rgba(248,113,113,.08);
+  --purple:#a78bfa; --pg:rgba(167,139,250,.08);
+  --sl:240px; --sl-col:46px; --hh:50px; --fh:32px;
+  --trans:.13s ease;
+}
+[data-theme="light"] {
+  --bg:#f5f4f0; --s1:#ffffff; --s2:#f0efe9; --s3:#e8e7e0;
+  --ink:rgba(0,0,0,.85); --ink2:rgba(0,0,0,.55); --ink3:rgba(0,0,0,.35); --ink4:rgba(0,0,0,.1);
+  --sep:rgba(0,0,0,.07); --sep2:rgba(0,0,0,.12); --bdr:rgba(0,0,0,.18);
+  --gg:rgba(16,185,129,.07); --gglow:rgba(16,185,129,.04);
+  --ag:rgba(245,158,11,.07); --bg-blue:rgba(96,165,250,.07); --rg:rgba(248,113,113,.07); --pg:rgba(167,139,250,.07);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;-webkit-font-smoothing:antialiased;}
+body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace;font-size:18px;display:flex;flex-direction:column;}
+a{color:inherit;text-decoration:none;}
+::-webkit-scrollbar{width:3px;height:3px;}
+::-webkit-scrollbar-thumb{background:var(--sep2);}
+::-webkit-scrollbar-track{background:transparent;}
+input,textarea,select{font-family:'DM Mono',monospace;font-size:17px;color:var(--ink);background:var(--s2);border:.5px solid var(--sep);outline:none;transition:border-color var(--trans);}
+input:focus,textarea:focus,select:focus{border-color:rgba(16,185,129,.4);}
+input::placeholder,textarea::placeholder{color:var(--ink3);}
+button{cursor:pointer;font-family:'DM Mono',monospace;}
+
+/* ── LOGIN ───────────────────────────────────────────── */
+#login-wrap{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;}
+.lbox{width:340px;}
+.llogo{font-family:'Syne',sans-serif;font-size:32px;font-weight:800;letter-spacing:.04em;margin-bottom:3px;}
+.llogo em{color:var(--green);font-style:normal;}
+.ltag{font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink3);margin-bottom:36px;}
+.lf{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
+.lf label{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);}
+.lf input{padding:10px 12px;font-size:20px;}
+.lbtn{width:100%;background:var(--green);color:#000;font-family:'Syne',sans-serif;font-size:17px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:11px;border:none;margin-top:4px;transition:background var(--trans);}
+.lbtn:hover{background:#0ea472;}
+.lerr{font-size:16px;color:var(--red);margin-top:8px;display:none;}
+
+/* ── LAYOUT ──────────────────────────────────────────── */
+#app{display:none;flex-direction:column;height:100%;}
+#app.visible{display:flex;}
+
+/* HEADER */
+.hdr{height:var(--hh);background:var(--s1);border-bottom:.5px solid var(--sep);display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0;z-index:10;}
+.hlogo{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;letter-spacing:.04em;white-space:nowrap;}
+.hlogo em{color:var(--green);font-style:normal;}
+.hkpis{display:flex;flex:1;overflow:hidden;}
+.hk{padding:0 10px;border-right:.5px solid var(--sep);text-align:center;min-width:0;flex-shrink:0;}
+.hk:last-child{border-right:none;}
+.hk-l{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);white-space:nowrap;margin-bottom:1px;}
+.hk-v{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;white-space:nowrap;}
+.hk-v.g{color:var(--green);} .hk-v.a{color:var(--amber);} .hk-v.r{color:var(--red);}
+.hactions{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.htag{font-size:13px;padding:2px 8px;border:.5px solid;letter-spacing:.06em;text-transform:uppercase;}
+.htag.r{border-color:rgba(248,113,113,.35);color:var(--red);background:var(--rg);}
+.htag.a{border-color:rgba(245,158,11,.35);color:var(--amber);background:var(--ag);}
+.htag.g{border-color:rgba(16,185,129,.35);color:var(--green);background:var(--gg);}
+.theme-btn{width:28px;height:28px;background:var(--s2);border:.5px solid var(--sep);display:flex;align-items:center;justify-content:center;font-size:20px;transition:all var(--trans);}
+.theme-btn:hover{border-color:var(--bdr);}
+.avatar{width:28px;height:28px;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#000;font-family:'Syne',sans-serif;flex-shrink:0;}
+
+/* BODY */
+.body{flex:1;display:flex;overflow:hidden;}
+
+/* ── MESA DE TRABALHO ────────────────────────────────── */
+.mesa{background:var(--s1);border-right:.5px solid var(--sep);display:flex;flex-direction:column;flex-shrink:0;transition:width .2s ease;overflow:hidden;}
+.mesa.expanded{width:var(--sl);}
+.mesa.collapsed{width:var(--sl-col);}
+
+/* Mesa expandida */
+.mesa-hdr{height:40px;border-bottom:.5px solid var(--sep);display:flex;align-items:center;padding:0 10px;gap:6px;flex-shrink:0;}
+.mesa-title{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);flex:1;white-space:nowrap;overflow:hidden;}
+.mesa-collapse{width:20px;height:20px;border:.5px solid var(--sep);background:none;display:flex;align-items:center;justify-content:center;font-size:17px;color:var(--ink3);transition:all var(--trans);flex-shrink:0;}
+.mesa-collapse:hover{border-color:var(--bdr);color:var(--ink);}
+
+.mesa-filters{padding:6px 8px;border-bottom:.5px solid var(--sep);display:flex;gap:3px;flex-wrap:wrap;flex-shrink:0;}
+.chip{font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border:.5px solid var(--sep);color:var(--ink3);background:none;transition:all var(--trans);}
+.chip:hover{border-color:var(--sep2);color:var(--ink2);}
+.chip.on{border-color:var(--green);color:var(--green);background:var(--gg);}
+.chip.alt{border-color:rgba(245,158,11,.25);color:var(--amber);}
+.chip.laudo{border-color:rgba(96,165,250,.25);color:var(--blue);}
+.chip.nda{border-color:rgba(167,139,250,.25);color:var(--purple);}
+.chip.ins{border-color:rgba(248,113,113,.25);color:var(--red);}
+.chip.grat{border-color:rgba(16,185,129,.2);color:var(--green);}
+.chip.hist{border-color:var(--sep);color:var(--ink3);}
+
+.task-list{flex:1;overflow-y:auto;}
+
+/* Grupos de prioridade */
+.task-grp{padding:7px 10px 4px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink4);border-bottom:.5px solid var(--sep);background:var(--s2);}
+
+/* Tarefa */
+.task{padding:11px 12px;border-bottom:.5px solid var(--sep);cursor:pointer;border-left:2px solid transparent;transition:background var(--trans);position:relative;}
+.task:hover{background:var(--s2);}
+.task.on{background:var(--gglow);border-left-color:var(--green);}
+.task.pri-1{border-left-color:var(--red);}
+.task.pri-1.on{border-left-color:var(--green);}
+.task.aguardando{opacity:.55;}
+.task-tag{display:inline-block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:1px 5px;margin-bottom:4px;}
+.tt-mesa{background:var(--rg);color:var(--red);}
+.tt-interesse{background:var(--ag);color:var(--amber);}
+.tt-alt{background:var(--ag);color:var(--amber);}
+.tt-laudo{background:var(--bg-blue);color:var(--blue);}
+.tt-nda{background:var(--pg);color:var(--purple);}
+.tt-grat{background:var(--gg);color:var(--green);}
+.tt-msg{background:var(--s3);color:var(--ink3);}
+.tt-aguardando{background:var(--s3);color:var(--ink3);}
+.task-name{font-size:16px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;}
+.task.on .task-name{color:var(--ink);}
+.task-sub{font-size:13px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+.task-meta{display:flex;align-items:center;gap:4px;margin-top:3px;}
+.task-age{font-size:11px;color:var(--ink4);}
+.task-nl{width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0;}
+.task-parado{font-size:11px;color:var(--amber);margin-left:auto;}
+
+/* Mesa recolhida */
+.mesa-col-inner{display:flex;flex-direction:column;align-items:center;padding:6px 0;gap:3px;height:100%;}
+.col-slot{width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;transition:background var(--trans);}
+.col-slot:hover{background:var(--s2);}
+.col-slot.on{background:var(--gglow);}
+.col-ico{font-size:20px;line-height:1;}
+.col-badge{position:absolute;top:3px;right:3px;min-width:13px;height:13px;border-radius:7px;font-size:10px;font-weight:700;font-family:'Syne',sans-serif;display:flex;align-items:center;justify-content:center;color:#000;padding:0 3px;}
+.col-badge.r{background:var(--red);color:#fff;}
+.col-badge.a{background:var(--amber);}
+.col-badge.g{background:var(--green);}
+.col-badge.b{background:var(--blue);}
+.col-badge.p{background:var(--purple);}
+.col-sep{width:20px;height:.5px;background:var(--sep);margin:4px 0;}
+.col-expand{width:28px;height:28px;border:.5px solid var(--sep);background:none;display:flex;align-items:center;justify-content:center;font-size:17px;color:var(--ink3);margin-top:auto;margin-bottom:6px;}
+.col-expand:hover{border-color:var(--bdr);}
+
+/* ── CENTRO ──────────────────────────────────────────── */
+.centro{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+
+/* Centro vazio */
+.centro-empty{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;}
+.centro-empty-ico{font-size:44px;opacity:.15;}
+.centro-empty-txt{font-size:16px;color:var(--ink4);letter-spacing:.1em;text-transform:uppercase;}
+
+/* Header do contexto */
+.ctx-hdr{height:42px;background:var(--s2);border-bottom:.5px solid var(--sep);display:flex;align-items:center;padding:0 12px;gap:8px;flex-shrink:0;}
+.ctx-tag{font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border:.5px solid;white-space:nowrap;}
+.ctx-nome{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--ink);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.ctx-acts{display:flex;gap:5px;flex-shrink:0;}
+
+.btn{font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:5px 10px;border:.5px solid;background:none;transition:all var(--trans);font-family:'DM Mono',monospace;white-space:nowrap;}
+.btn:hover{opacity:.8;}
+.btn.g{border-color:rgba(16,185,129,.45);color:var(--green);}
+.btn.r{border-color:rgba(248,113,113,.35);color:var(--red);}
+.btn.n{border-color:var(--sep2);color:var(--ink2);}
+.btn.b{border-color:rgba(96,165,250,.35);color:var(--blue);}
+.btn.a{border-color:rgba(245,158,11,.35);color:var(--amber);}
+.btn.p{border-color:rgba(167,139,250,.35);color:var(--purple);}
+.btn.solid-g{background:var(--green);border-color:var(--green);color:#000;}
+
+/* Corpo do contexto */
+.ctx-body{flex:1;overflow-y:auto;padding:12px;}
+.ctx-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.ctx-card{background:var(--s1);border:.5px solid var(--sep);padding:11px 13px;}
+.ctx-card.full{grid-column:1/-1;}
+.ctx-card.half{grid-column:span 1;}
+.cc-l{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:7px;}
+.cc-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:.5px solid var(--sep);font-size:16px;}
+.cc-row:last-child{border-bottom:none;}
+.cc-k{color:var(--ink3);}
+.cc-v{color:var(--ink2);}
+.cc-v.g{color:var(--green);font-family:'Syne',sans-serif;font-weight:800;}
+.cc-v.a{color:var(--amber);font-family:'Syne',sans-serif;font-weight:800;}
+.cc-v.b{color:var(--blue);}
+.cc-v.r{color:var(--red);}
+
+.req-box{background:var(--s2);border:.5px solid var(--sep);padding:10px 12px;font-size:17px;color:var(--ink2);line-height:1.7;}
+.resp-area{width:100%;min-height:52px;padding:8px 10px;resize:vertical;line-height:1.6;font-size:17px;margin-top:6px;}
+
+/* Footer do contexto */
+.ctx-foot{height:44px;background:var(--s2);border-top:.5px solid var(--sep);display:flex;align-items:center;padding:0 12px;gap:6px;flex-shrink:0;}
+.ctx-hint{font-size:13px;color:var(--ink4);margin-right:auto;}
+.encerrar-btn{font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border:.5px solid var(--sep);color:var(--ink3);background:none;font-family:'DM Mono',monospace;}
+.encerrar-btn:hover{border-color:var(--red);color:var(--red);}
+
+/* Dropdown de encerramento */
+.close-dropdown{position:absolute;bottom:42px;right:12px;background:var(--s1);border:.5px solid var(--sep2);min-width:180px;z-index:50;display:none;}
+.close-dropdown.open{display:block;}
+.cd-item{padding:8px 12px;font-size:16px;color:var(--ink2);cursor:pointer;border-bottom:.5px solid var(--sep);}
+.cd-item:last-child{border-bottom:none;}
+.cd-item:hover{background:var(--s2);color:var(--ink);}
+
+/* Seção aguardando usuário */
+.aguardando-banner{background:rgba(245,158,11,.06);border-bottom:.5px solid rgba(245,158,11,.15);padding:7px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.ab-icon{font-size:17px;}
+.ab-txt{font-size:14px;color:var(--amber);flex:1;}
+.ab-count{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--amber);}
+
+/* ── COLETA ADMIN EMBUTIDA ───────────────────────────── */
+.coleta-frame{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.coleta-topbar{height:42px;background:var(--s2);border-bottom:.5px solid var(--sep);display:flex;align-items:center;padding:0 12px;gap:8px;flex-shrink:0;}
+.coleta-nome{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--ink);flex:1;}
+.coleta-st{font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border:.5px solid rgba(245,158,11,.3);color:var(--amber);}
+.dre-strip{height:40px;background:var(--s1);border-bottom:.5px solid rgba(16,185,129,.1);display:flex;align-items:center;padding:0 12px;flex-shrink:0;}
+.dk{flex:1;padding:0 8px;border-right:.5px solid var(--sep);min-width:0;}
+.dk:last-child{border-right:none;}
+.dk-l{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);white-space:nowrap;}
+.dk-v{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;white-space:nowrap;}
+.dk-v.g{color:var(--green);} .dk-v.r{color:var(--red);}
+.coleta-body{flex:1;display:flex;overflow:hidden;}
+.coleta-steps{width:148px;background:var(--s1);border-right:.5px solid var(--sep);overflow-y:auto;flex-shrink:0;}
+.coleta-sg{padding:5px 10px 3px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);background:var(--s2);border-bottom:.5px solid var(--sep);}
+.step{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;border-left:2px solid transparent;border-bottom:.5px solid var(--sep);transition:all var(--trans);}
+.step:hover{background:var(--s2);}
+.step.on{background:var(--gglow);border-left-color:var(--green);}
+.step.done .sn{background:var(--gg);border-color:rgba(16,185,129,.3);color:var(--green);}
+.sn{width:22px;height:22px;border-radius:50%;background:var(--s2);border:.5px solid var(--sep);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink3);font-family:'Syne',sans-serif;font-weight:800;flex-shrink:0;}
+.step.on .sn{background:var(--green);border-color:var(--green);color:#000;}
+.sl-txt{font-size:14px;color:var(--ink2);line-height:1.3;}
+.step.on .sl-txt{color:var(--ink);}
+.coleta-content{flex:1;overflow-y:auto;padding:14px;}
+.coleta-etapa{display:none;}
+.coleta-etapa.on{display:block;}
+.e-hdr{margin-bottom:14px;}
+.e-num{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink3);margin-bottom:2px;}
+.e-titulo{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;letter-spacing:-.02em;margin-bottom:5px;}
+.e-desc{font-size:14px;color:var(--ink3);line-height:1.7;}
+.campos{display:flex;flex-direction:column;gap:9px;}
+.cg{display:grid;gap:9px;}
+.cg2{grid-template-columns:1fr 1fr;} .cg3{grid-template-columns:1fr 1fr 1fr;}
+.c{display:flex;flex-direction:column;gap:3px;}
+.cl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);}
+.inp{padding:8px 10px;width:100%;}
+select.inp{cursor:pointer;}
+textarea.inp{resize:vertical;min-height:65px;line-height:1.6;}
+.e-nav{display:flex;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:.5px solid var(--sep);}
+.btn-nxt{background:var(--green);color:#000;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:8px 16px;border:none;}
+.btn-prv{background:none;border:.5px solid var(--sep);color:var(--ink3);font-family:'Syne',sans-serif;font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:8px 16px;}
+.btn-prv:hover{border-color:var(--sep2);}
+
+/* ── SIDEBAR IA/DOCS ─────────────────────────────────── */
+.sr{width:230px;background:var(--s1);border-left:.5px solid var(--sep);display:flex;flex-direction:column;flex-shrink:0;}
+.sr-tabs{display:flex;border-bottom:.5px solid var(--sep);flex-shrink:0;}
+.sr-tab{flex:1;padding:8px 4px;text-align:center;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);border-right:.5px solid var(--sep);cursor:pointer;transition:all var(--trans);}
+.sr-tab:last-child{border-right:none;}
+.sr-tab.on{background:var(--s2);color:var(--ink);}
+.sr-pnl{display:none;flex:1;overflow-y:auto;flex-direction:column;}
+.sr-pnl.on{display:flex;}
+.sr-neg-ctx{margin:8px;background:var(--gg);border:.5px solid rgba(16,185,129,.2);padding:8px 10px;flex-shrink:0;}
+.sr-neg-l{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--green);margin-bottom:4px;}
+.sr-neg-n{font-size:16px;color:var(--ink);font-family:'Syne',sans-serif;font-weight:800;}
+.sr-neg-sub{font-size:13px;color:var(--ink3);margin-top:1px;}
+.ia-chat{flex:1;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:4px;}
+.ia-m{padding:7px 9px;font-size:16px;line-height:1.6;}
+.ia-m.a{background:rgba(16,185,129,.04);border:.5px solid rgba(16,185,129,.12);}
+.ia-m.u{background:var(--s2);border:.5px solid var(--sep);}
+.ia-nm{font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:2px;}
+.ia-m.a .ia-nm{color:var(--green);}
+.ia-m.u .ia-nm{color:var(--ink3);}
+.ia-sug{padding:6px;border-top:.5px solid var(--sep);flex-shrink:0;}
+.ia-sg-t{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:4px;}
+.ia-sg-i{font-size:14px;color:var(--blue);cursor:pointer;padding:3px 0;border-bottom:.5px solid var(--sep);}
+.ia-sg-i:last-child{border-bottom:none;}
+.ia-inp-w{padding:6px;border-top:.5px solid var(--sep);flex-shrink:0;}
+.ia-inp{width:100%;min-height:48px;padding:6px 8px;resize:none;line-height:1.6;font-size:16px;}
+.ia-send{width:100%;background:var(--green);color:#000;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:7px;border:none;margin-top:4px;}
+
+/* Conversa 1:1 */
+.conv-body{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;}
+.conv-msg{padding:7px 10px;font-size:16px;line-height:1.6;max-width:85%;}
+.conv-msg.admin{background:var(--gg);border:.5px solid rgba(16,185,129,.2);align-self:flex-end;}
+.conv-msg.user{background:var(--s2);border:.5px solid var(--sep);align-self:flex-start;}
+.conv-msg-nm{font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:2px;}
+.conv-msg.admin .conv-msg-nm{color:var(--green);}
+.conv-msg.user .conv-msg-nm{color:var(--ink3);}
+.conv-msg-ts{font-size:11px;color:var(--ink4);margin-top:2px;}
+.conv-acoes{padding:7px;border-top:.5px solid var(--sep);display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;}
+.conv-btn{flex:1;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:5px 6px;border:.5px solid;background:none;font-family:'DM Mono',monospace;text-align:center;min-width:60px;}
+.conv-btn.b{border-color:rgba(96,165,250,.3);color:var(--blue);}
+.conv-btn.p{border-color:rgba(167,139,250,.3);color:var(--purple);}
+.conv-btn.g{border-color:rgba(16,185,129,.3);color:var(--green);}
+.conv-inp-w{padding:6px;border-top:.5px solid var(--sep);flex-shrink:0;}
+.conv-inp{width:100%;min-height:42px;padding:6px 8px;resize:none;line-height:1.6;font-size:16px;}
+.conv-send{width:100%;background:var(--green);color:#000;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:6px;border:none;margin-top:4px;}
+
+/* Negócio no contexto de conversa */
+.neg-ctx-panel{border-top:.5px solid var(--sep);padding:8px;flex-shrink:0;}
+.neg-ctx-hdr{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;}
+.neg-ctx-link{color:var(--blue);cursor:pointer;}
+.neg-ctx-row{display:flex;justify-content:space-between;font-size:14px;padding:2px 0;}
+.neg-ctx-k{color:var(--ink3);}
+.neg-ctx-v{color:var(--ink2);}
+.neg-ctx-v.g{color:var(--green);}
+
+/* FOOTER */
+.footer{height:var(--fh);background:var(--s1);border-top:.5px solid var(--sep);display:flex;align-items:center;padding:0 12px;gap:10px;flex-shrink:0;}
+.f-dot{width:4px;height:4px;border-radius:50%;}
+.f-txt{font-size:11px;letter-spacing:.06em;color:var(--ink3);}
+.f-sep{color:var(--ink4);}
+
+/* Aguardando usuario painel */
+#page-aguardando{padding:12px;}
+.ag-item{background:var(--s1);border:.5px solid var(--sep);padding:11px 13px;margin-bottom:6px;display:flex;align-items:flex-start;gap:10px;}
+.ag-item.critico{border-color:rgba(248,113,113,.25);background:var(--rg);}
+.ag-tag{font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;margin-bottom:4px;display:inline-block;}
+.ag-nome{font-size:17px;color:var(--ink);margin-bottom:2px;}
+.ag-sub{font-size:14px;color:var(--ink3);}
+.ag-dias{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--amber);line-height:1;white-space:nowrap;}
+.ag-dias.critico{color:var(--red);}
+.ag-dias-label{font-size:11px;color:var(--ink3);text-align:center;}
+.ag-acts{margin-left:auto;display:flex;flex-direction:column;gap:4px;}
+
+/* Toast */
+.tw{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:200;pointer-events:none;}
+.t{background:var(--s3);border:.5px solid var(--sep2);padding:7px 14px;font-size:17px;color:var(--ink2);opacity:0;transform:translateY(6px);transition:all .2s;white-space:nowrap;}
+.t.show{opacity:1;transform:translateY(0);}
+.t.err{border-color:rgba(248,113,113,.3);color:var(--red);}
+
+/* Spin */
+.spin{display:inline-block;width:12px;height:12px;border:1.5px solid var(--sep2);border-top-color:var(--green);border-radius:50%;animation:sp .6s linear infinite;}
+@keyframes sp{to{transform:rotate(360deg)}}
+.ld{padding:16px;text-align:center;}
+.dots span{width:3px;height:3px;background:var(--green);border-radius:50%;display:inline-block;animation:d .8s infinite;margin:0 1px;}
+.dots span:nth-child(2){animation-delay:.15s;}
+.dots span:nth-child(3){animation-delay:.3s;}
+@keyframes d{0%,80%,100%{opacity:.2}40%{opacity:1}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-wrap">
+  <div class="lbox">
+    <div class="llogo"><em>1</em>NEGÓCIO</div>
+    <div class="ltag">Painel Admin</div>
+    <div class="lf"><label>Email</label><input type="email" id="l-email" placeholder="thiago@1negocio.com.br" onkeydown="if(event.key==='Enter')login()"></div>
+    <div class="lf"><label>Senha</label><input type="password" id="l-senha" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()"></div>
+    <button class="lbtn" onclick="login()">Entrar</button>
+    <div class="lerr" id="l-err">Email ou senha incorretos.</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="hlogo"><em>1</em>NEGÓCIO <span style="font-size:13px;font-weight:400;color:var(--ink3);margin-left:4px">· Admin</span></div>
+    <div class="hkpis" id="hkpis">
+      <div class="hk"><div class="hk-l">Faturado/mês</div><div class="hk-v g" id="h-rmes">—</div></div>
+      <div class="hk"><div class="hk-l">Faturado/ano</div><div class="hk-v" id="h-rano">—</div></div>
+      <div class="hk"><div class="hk-l">Comissão pipeline</div><div class="hk-v a" id="h-com">—</div></div>
+      <div class="hk"><div class="hk-l">À venda</div><div class="hk-v" id="h-pub">—</div></div>
+      <div class="hk"><div class="hk-l">Em negociação</div><div class="hk-v a" id="h-neg">—</div></div>
+      <div class="hk"><div class="hk-l">Conversão</div><div class="hk-v g" id="h-conv">—</div></div>
+    </div>
+    <div class="hactions">
+      <div class="htag r" id="h-tarefas" style="display:none">0 tarefas</div>
+      <div class="htag a" id="h-aguardando" style="display:none;cursor:pointer" onclick="mostrarAguardando()">0 parados</div>
+      <button class="theme-btn" onclick="toggleTheme()" id="theme-btn" title="Alternar tema">☾</button>
+      <div class="avatar" id="h-avatar">TM</div>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div class="body">
+
+    <!-- MESA DE TRABALHO -->
+    <div class="mesa expanded" id="mesa">
+
+      <!-- Expandida -->
+      <div id="mesa-exp">
+        <div class="mesa-hdr">
+          <span class="mesa-title">Mesa de trabalho</span>
+          <button class="mesa-collapse" onclick="toggleMesa()" title="Recolher">‹</button>
+        </div>
+        <div class="mesa-filters" id="mesa-filters">
+          <button class="chip on" onclick="filtrarTarefas('all',this)">Todas</button>
+          <button class="chip" onclick="filtrarTarefas('mesa',this)">Mesas</button>
+          <button class="chip interesse" onclick="filtrarTarefas('interesse',this)">Interesse</button>
+          <button class="chip alt" onclick="filtrarTarefas('alteracao',this)">Alt.</button>
+          <button class="chip laudo" onclick="filtrarTarefas('laudo',this)">Laudos</button>
+          <button class="chip nda" onclick="filtrarTarefas('nda',this)">NDA</button>
+          <button class="chip ins" onclick="filtrarTarefas('insolvente',this)">Ins.</button>
+          <button class="chip grat" onclick="filtrarTarefas('gratuito',this)">Grat.</button>
+          <button class="chip hist" onclick="filtrarTarefas('historico',this)">Hist.</button>
+        </div>
+        <div class="task-list" id="task-list">
+          <div class="ld"><span class="spin"></span></div>
+        </div>
+      </div>
+
+      <!-- Recolhida -->
+      <div id="mesa-col" style="display:none;height:100%">
+        <div class="mesa-col-inner">
+          <div class="col-slot" onclick="filtrarETrocar('mesa')" title="Mesas abertas">
+            <span class="col-ico">⚡</span>
+            <span class="col-badge r" id="cb-mesa" style="display:none">0</span>
+          </div>
+          <div class="col-slot" onclick="filtrarETrocar('interesse')" title="Interessados">
+            <span class="col-ico">💬</span>
+            <span class="col-badge a" id="cb-int" style="display:none">0</span>
+          </div>
+          <div class="col-slot" onclick="filtrarETrocar('laudo')" title="Laudos R$99">
+            <span class="col-ico">📄</span>
+            <span class="col-badge b" id="cb-lau" style="display:none">0</span>
+          </div>
+          <div class="col-slot" onclick="filtrarETrocar('nda')" title="NDA">
+            <span class="col-ico">🔐</span>
+            <span class="col-badge p" id="cb-nda" style="display:none">0</span>
+          </div>
+          <div class="col-slot" onclick="filtrarETrocar('gratuito')" title="Gratuitos">
+            <span class="col-ico">◎</span>
+            <span class="col-badge g" id="cb-gra" style="display:none">0</span>
+          </div>
+          <div class="col-slot" onclick="filtrarETrocar('alteracao')" title="Alterações">
+            <span class="col-ico">✏</span>
+            <span class="col-badge a" id="cb-alt" style="display:none">0</span>
+          </div>
+          <div class="col-sep"></div>
+          <button class="col-expand" onclick="toggleMesa()" title="Expandir mesa">›</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- CENTRO -->
+    <div class="centro" id="centro">
+
+      <!-- Estado vazio (default) -->
+      <div class="centro-empty" id="ctx-empty">
+        <div class="centro-empty-ico">◈</div>
+        <div class="centro-empty-txt">Selecione uma tarefa na mesa</div>
+        <div style="margin-top:12px;display:flex;gap:6px;">
+          <button class="btn g" onclick="abrirColeta(null)">+ Novo negócio</button>
+          <button class="btn n" onclick="mostrarAguardando()">Ver parados</button>
+        </div>
+      </div>
+
+      <!-- Contexto de tarefa (dinâmico) -->
+      <div id="ctx-tarefa" style="display:none;flex-direction:column;height:100%;overflow:hidden;"></div>
+
+      <!-- Aguardando usuário -->
+      <div id="page-aguardando" style="display:none;overflow-y:auto;"></div>
+
+      <!-- Coleta admin embutida -->
+      <div id="ctx-coleta" style="display:none;flex-direction:column;height:100%;overflow:hidden;"></div>
+
+    </div>
+
+    <!-- SIDEBAR DIREITA: IA + Docs + Conversa contextual -->
+    <div class="sr" id="sr">
+      <div class="sr-tabs">
+        <div class="sr-tab on" id="srt-ia" onclick="srTab('ia')">IA</div>
+        <div class="sr-tab" id="srt-conv" onclick="srTab('conv')">Conversa</div>
+        <div class="sr-tab" id="srt-neg" onclick="srTab('neg')">Negócio</div>
+        <div class="sr-tab" id="srt-docs" onclick="srTab('docs')">Docs</div>
+      </div>
+
+      <!-- IA -->
+      <div class="sr-pnl on" id="srp-ia">
+        <div id="sr-neg-ctx" style="display:none" class="sr-neg-ctx">
+          <div class="sr-neg-l">Contexto ativo</div>
+          <div class="sr-neg-n" id="sr-neg-nome">—</div>
+          <div class="sr-neg-sub" id="sr-neg-sub">—</div>
+        </div>
+        <div class="ia-sug" id="ia-sug">
+          <div class="ia-sg-t">Ações rápidas</div>
+          <div class="ia-sg-i" onclick="askIA('Gere um título editorial para este negócio.')">→ Gerar título</div>
+          <div class="ia-sg-i" onclick="askIA('Gere uma descrição anônima para o teaser.')">→ Gerar teaser</div>
+          <div class="ia-sg-i" onclick="askIA('Quais os principais pontos de atenção para um comprador?')">→ Pontos de atenção</div>
+          <div class="ia-sg-i" onclick="askIA('Qual o perfil ideal do comprador para este negócio?')">→ Perfil do comprador</div>
+          <div class="ia-sg-i" onclick="askIA('O preço pedido está alinhado com o valuation?')">→ Avaliar preço</div>
+        </div>
+        <div class="ia-chat" id="ia-chat">
+          <div class="ia-m a"><div class="ia-nm">IA 1Negócio</div>Pronto. Selecione um negócio ou tarefa para contextualizar a análise.</div>
+        </div>
+        <div class="ia-inp-w">
+          <textarea class="ia-inp" id="ia-txt" placeholder="Pergunte sobre o negócio... (Ctrl+Enter)" onkeydown="if(event.ctrlKey&&event.key==='Enter')askIA()" rows="3"></textarea>
+          <button class="ia-send" onclick="askIA()">Enviar ↑</button>
+        </div>
+      </div>
+
+      <!-- Conversa contextual -->
+      <div class="sr-pnl" id="srp-conv">
+        <div class="conv-acoes" id="conv-acoes" style="display:none">
+          <button class="conv-btn p" onclick="solicitarNDA()" title="Solicitar NDA ao comprador">Solicitar NDA</button>
+          <button class="conv-btn b" onclick="compartilharLaudo()" title="Enviar laudo sem dados sensíveis">Laudo</button>
+          <button class="conv-btn g" onclick="iniciarMesa()" title="Criar mesa e incluir vendedor">Iniciar mesa</button>
+        </div>
+        <div class="conv-body" id="conv-body">
+          <div style="padding:16px;text-align:center;font-size:16px;color:var(--ink3)">Selecione uma tarefa de conversa</div>
+        </div>
+        <div class="neg-ctx-panel" id="conv-neg-ctx" style="display:none">
+          <div class="neg-ctx-hdr">
+            Negócio relacionado
+            <span class="neg-ctx-link" id="conv-neg-link" onclick="">Abrir →</span>
+          </div>
+          <div id="conv-neg-rows"></div>
+        </div>
+        <div class="conv-inp-w">
+          <textarea class="conv-inp" id="conv-inp" placeholder="Responder..." rows="2"></textarea>
+          <button class="conv-send" onclick="enviarConv()">Enviar →</button>
+        </div>
+      </div>
+
+      <!-- Dados do negócio -->
+      <div class="sr-pnl" id="srp-neg">
+        <div id="srp-neg-body" style="padding:10px;">
+          <div style="font-size:16px;color:var(--ink3);text-align:center;padding:16px">Selecione um negócio</div>
+        </div>
+      </div>
+
+      <!-- Docs -->
+      <div class="sr-pnl" id="srp-docs">
+        <div style="padding:10px;text-align:center;font-size:16px;color:var(--ink3)">
+          <div style="border:.5px dashed var(--sep2);padding:14px;cursor:pointer" onclick="document.getElementById('doc-inp').click()">
+            Arraste ou clique<br>DRE · balanço · contratos
+            <input type="file" id="doc-inp" multiple style="display:none">
+          </div>
+        </div>
+        <div id="docs-list" style="flex:1;overflow-y:auto;"></div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="f-dot" id="f-dot" style="background:var(--sep2)"></div>
+    <div class="f-txt" id="f-status">Conectando...</div>
+    <div class="f-sep">·</div>
+    <div class="f-txt" id="f-counts">—</div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+      <div class="f-txt" id="f-sync">—</div>
+      <button class="btn n" style="font-size:11px;padding:3px 8px" onclick="abrirColeta(null)">+ Novo negócio</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="tw"><div class="t" id="toast"></div></div>
+
+<script>
+const SU='https://dbijmgqlcrgjlcfrastg.supabase.co';
+const SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+const SV='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzA3NjE2MywiZXhwIjoyMDg4NjUyMTYzfQ.b79syG5GuQZYLd3QvbRMTi66E_sdKa-Nh-Q1XbDcM2Y';
+const sb=supabase.createClient(SU,SK);
+
+// ── ESTADO GLOBAL ──────────────────────────────────────
+var TAREFAS=[], FILTRO='all', TAREFA_ATIVA=null, CONV_ID=null, CONV_NEG=null, MESA_EXPANDIDA=true;
+var ADMIN_ID=null, ADMIN_NOME='';
+
+// ── TEMA ───────────────────────────────────────────────
+function toggleTheme(){
+  var th=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',th);
+  document.getElementById('theme-btn').textContent=th==='dark'?'☾':'☀';
+  localStorage.setItem('1n-theme',th);
+}
+(function(){
+  var t=localStorage.getItem('1n-theme')||'dark';
+  document.documentElement.setAttribute('data-theme',t);
+  document.getElementById('theme-btn').textContent=t==='dark'?'☾':'☀';
+})();
+
+// ── LOGIN ──────────────────────────────────────────────
+async function login(){
+  var email=document.getElementById('l-email').value.trim();
+  var senha=document.getElementById('l-senha').value;
+  var err=document.getElementById('l-err');
+  err.style.display='none';
+  var {data,error}=await sb.auth.signInWithPassword({email,password:senha});
+  if(error){err.style.display='block';return;}
+  ADMIN_ID=data.user.id;
+  ADMIN_NOME=(data.user.user_metadata?.nome||data.user.email||'Admin').substring(0,2).toUpperCase();
+  document.getElementById('h-avatar').textContent=ADMIN_NOME;
+  document.getElementById('login-wrap').style.display='none';
+  document.getElementById('app').classList.add('visible');
+  iniciar();
+}
+
+sb.auth.onAuthStateChange((evt,session)=>{
+  if(session&&evt==='SIGNED_IN'){
+    ADMIN_ID=session.user.id;
+    ADMIN_NOME=(session.user.user_metadata?.nome||session.user.email||'Admin').substring(0,2).toUpperCase();
+    document.getElementById('h-avatar').textContent=ADMIN_NOME;
+    document.getElementById('login-wrap').style.display='none';
+    document.getElementById('app').classList.add('visible');
+    iniciar();
+  }
+});
+
+// ── INICIALIZAÇÃO ──────────────────────────────────────
+async function iniciar(){
+  await Promise.all([loadKPIs(), loadTarefas(), loadAguardandoCount()]);
+  document.getElementById('f-dot').style.background='var(--green)';
+  document.getElementById('f-status').textContent='Supabase · online';
+  document.getElementById('f-sync').textContent='Sync: '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  setInterval(()=>{ loadTarefas(); loadAguardandoCount(); }, 45000);
+}
+
+// ── KPIs ───────────────────────────────────────────────
+async function loadKPIs(){
+  var agora=new Date(), mes=agora.getMonth()+1, ano=agora.getFullYear();
+  var d1=ano+'-'+String(mes).padStart(2,'0')+'-01';
+
+  var [{data:tr},{count:pub},{count:neg},{count:aini},{count:afim}]=await Promise.all([
+    sb.from('transacoes').select('valor,created_at').gte('created_at',d1),
+    sb.from('negocios').select('id',{count:'exact'}).eq('status','publicado'),
+    sb.from('negocios').select('id',{count:'exact'}).eq('status','em_negociacao'),
+    sb.from('negocios').select('id',{count:'exact'}).neq('vendedor_id','aaaaaaaa-0000-0000-0000-000000000001').not('score_saude','is',null).gt('score_saude',0),
+    sb.from('negocios').select('id',{count:'exact'}).neq('vendedor_id','aaaaaaaa-0000-0000-0000-000000000001').not('score_saude','is',null).gt('score_saude',0).not('status','in','("rascunho")'),
+  ]);
+
+  var rmes=(tr||[]).filter(t=>new Date(t.created_at)>=new Date(d1)).reduce((s,t)=>s+parseFloat(t.valor||0),0);
+  var rano=(tr||[]).reduce((s,t)=>s+parseFloat(t.valor||0),0);
+
+  var {data:negData}=await sb.from('negocios').select('valor_venda,plano').eq('status','em_negociacao');
+  var com=(negData||[]).reduce((s,n)=>s+parseFloat(n.valor_venda||0)*(n.plano==='guiado'?0.05:0.10),0);
+
+  var pct=aini>0?Math.round((afim/aini)*100):0;
+
+  document.getElementById('h-rmes').textContent=fk(rmes);
+  document.getElementById('h-rano').textContent=fk(rano);
+  document.getElementById('h-com').textContent=fk(com);
+  document.getElementById('h-pub').textContent=pub||0;
+  document.getElementById('h-neg').textContent=neg||0;
+  document.getElementById('h-conv').textContent=pct+'%';
+  document.getElementById('f-counts').textContent=(pub||0)+' publicados · '+(neg||0)+' negociações · '+(aini||0)+' avaliações';
+}
+
+// ── TAREFAS ────────────────────────────────────────────
+// Prioridade: 1=mesa, 2=interesse, 3=laudo, 4=nda, 5=alteracao, 6=gratuito, 7=msg
+var PRIORIDADE={'mesa':1,'interesse':2,'laudo':3,'nda':4,'alteracao':5,'gratuito':6,'mensagem':7};
+
+async function loadTarefas(){
+  var tarefas=[];
+
+  // 1. Mesas com mensagem nova (prioridade máxima)
+  var {data:mesas}=await sb.from('chat_mesas').select('id,negocio_id,aberta_em,negocios(nome_negocio,detalhe,nome)').eq('status','aberta').order('aberta_em',{ascending:false});
+  for(var m of (mesas||[])){
+    var {count:nl}=await sb.from('chat_mesas_mensagens').select('id',{count:'exact'}).eq('mesa_id',m.id).eq('lida',false).neq('remetente','admin');
+    var nomeNeg=m.negocios?.nome_negocio||m.negocios?.detalhe||m.negocios?.nome||'Mesa '+m.id.slice(0,6);
+    tarefas.push({id:'mesa-'+m.id,tipo:'mesa',prioridade:1,nome:'Mesa · '+nomeNeg,sub:'Negociação ativa',idade:m.aberta_em,nl:nl>0,ref_id:m.id,ref_tipo:'mesa',status:'aberta'});
+  }
+
+  // 2. Conversas de interesse (comprador pediu mais info)
+  var {data:convs}=await sb.from('admin_conversas').select('id,usuario_id,negocio_id,assunto,created_at,ultima_msg_em,ultima_msg_remetente,usuarios(nome,email),negocios(nome_negocio,detalhe,nome)').eq('tipo','interesse').neq('status','encerrado').order('ultima_msg_em',{ascending:false,nullsFirst:false});
+  for(var cv of (convs||[])){
+    var nomeU=cv.usuarios?.nome||cv.usuarios?.email||'Comprador';
+    var nomeN=cv.negocios?.nome_negocio||cv.negocios?.detalhe||cv.negocios?.nome||'Negócio';
+    var nl=cv.ultima_msg_remetente==='usuario';
+    var aguardando=cv.ultima_msg_remetente==='admin'&&cv.ultima_msg_em?diasAtras(cv.ultima_msg_em):null;
+    tarefas.push({id:'conv-'+cv.id,tipo:'interesse',prioridade:2,nome:nomeU+' · '+nomeN,sub:'Interesse em saber mais',idade:cv.ultima_msg_em||cv.created_at,nl,aguardando,ref_id:cv.id,ref_tipo:'conversa',status:'aberta',negocio_id:cv.negocio_id});
+  }
+
+  // 3. Laudos pagos sem entrega
+  var {data:laudos}=await sb.from('admin_agenda').select('id,nome_cliente,negocio_id,created_at').eq('tipo','laudo_99').eq('status','pendente').order('created_at',{ascending:false});
+  for(var l of (laudos||[])){
+    tarefas.push({id:'ag-'+l.id,tipo:'laudo',prioridade:3,nome:l.nome_cliente||'Cliente',sub:'Laudo R$99 pago · entregar PDF',idade:l.created_at,nl:false,ref_id:l.id,ref_tipo:'agenda',negocio_id:l.negocio_id,status:'pendente'});
+  }
+
+  // 4. NDA / Teasers aguardando aprovação
+  var {data:ndas}=await sb.from('solicitacoes_info').select('id,comprador_id,negocio_id,status,created_at,usuarios(nome,email),negocios(nome_negocio,detalhe,nome)').eq('status','aguardando').order('created_at',{ascending:false});
+  for(var n of (ndas||[])){
+    var nomeC=n.usuarios?.nome||n.usuarios?.email||'Comprador';
+    var nomeNg=n.negocios?.nome_negocio||n.negocios?.detalhe||n.negocios?.nome||'Negócio';
+    tarefas.push({id:'nda-'+n.id,tipo:'nda',prioridade:4,nome:nomeC+' → '+nomeNg,sub:'Solicitação de teaser aguardando',idade:n.created_at,nl:false,ref_id:n.id,ref_tipo:'nda',negocio_id:n.negocio_id,status:'aguardando'});
+  }
+
+  // 5. Alterações solicitadas
+  var {data:alts}=await sb.from('negocios').select('id,nome_negocio,detalhe,nome,alteracao_texto,alteracao_solicitada_em,usuarios(nome,email)').not('alteracao_texto','is',null).order('alteracao_solicitada_em',{ascending:false});
+  for(var a of (alts||[])){
+    var nomeV=a.usuarios?.nome||a.usuarios?.email||'Vendedor';
+    var nomeNg=a.nome_negocio||a.detalhe||a.nome||'Negócio';
+    tarefas.push({id:'alt-'+a.id,tipo:'alteracao',prioridade:5,nome:nomeNg,sub:nomeV+' · '+trunc(a.alteracao_texto,40),idade:a.alteracao_solicitada_em,nl:false,ref_id:a.id,ref_tipo:'alteracao',negocio_id:a.id,status:'pendente'});
+  }
+
+  // 6. Gratuitos em avaliação
+  var {data:grats}=await sb.from('negocios').select('id,nome_negocio,detalhe,nome,created_at,usuarios(nome,email)').eq('status','em_avaliacao').neq('vendedor_id','aaaaaaaa-0000-0000-0000-000000000001').order('created_at',{ascending:false}).limit(20);
+  for(var g of (grats||[])){
+    var nomeV=g.usuarios?.nome||g.usuarios?.email||'Vendedor';
+    var nomeNg=g.nome_negocio||g.detalhe||g.nome||'Negócio';
+    tarefas.push({id:'grat-'+g.id,tipo:'gratuito',prioridade:6,nome:nomeNg,sub:nomeV+' · aguardando avaliação',idade:g.created_at,nl:false,ref_id:g.id,ref_tipo:'gratuito',negocio_id:g.id,status:'pendente'});
+  }
+
+  // 7. Mensagens gerais não respondidas
+  var {data:msgs}=await sb.from('admin_conversas').select('id,usuario_id,assunto,ultima_msg_em,ultima_msg_remetente,usuarios(nome,email)').eq('ultima_msg_remetente','usuario').not('tipo','eq','interesse').order('ultima_msg_em',{ascending:false}).limit(10);
+  for(var mg of (msgs||[])){
+    var nomeU=mg.usuarios?.nome||mg.usuarios?.email||'Usuário';
+    tarefas.push({id:'msg-'+mg.id,tipo:'mensagem',prioridade:7,nome:nomeU,sub:mg.assunto||'Mensagem sem resposta',idade:mg.ultima_msg_em,nl:true,ref_id:mg.id,ref_tipo:'conversa',status:'aberta'});
+  }
+
+  // Ordenar: prioridade ASC, depois mais recente DESC
+  tarefas.sort((a,b)=>a.prioridade-b.prioridade||(new Date(b.idade)-new Date(a.idade)));
+  TAREFAS=tarefas;
+  renderTarefas();
+  atualizarBadges();
+  atualizarContadorHeader();
+}
+
+function renderTarefas(){
+  var el=document.getElementById('task-list');
+  var lista=FILTRO==='all'?TAREFAS:FILTRO==='historico'?[]:TAREFAS.filter(t=>t.tipo===FILTRO);
+  if(!lista.length){
+    el.innerHTML='<div class="ld" style="flex-direction:column;gap:4px;"><div style="font-size:28px;opacity:.2">✓</div><div style="font-size:14px;color:var(--ink3)">Fila vazia</div></div>';
+    return;
+  }
+
+  var priAtual=null, html='';
+  var priLabels={1:'⚡ Mesas ativas',2:'💬 Interessados',3:'📄 Laudos',4:'🔐 NDA/Teasers',5:'✏ Alterações',6:'◎ Gratuitos',7:'Mensagens'};
+
+  lista.forEach(t=>{
+    if(t.prioridade!==priAtual){
+      priAtual=t.prioridade;
+      html+='<div class="task-grp">'+priLabels[t.prioridade]+'</div>';
+    }
+    var isOn=TAREFA_ATIVA&&TAREFA_ATIVA.id===t.id;
+    var tagClass={'mesa':'tt-mesa','interesse':'tt-interesse','laudo':'tt-laudo','nda':'tt-nda','alteracao':'tt-alt','gratuito':'tt-grat','mensagem':'tt-msg'}[t.tipo]||'tt-msg';
+    var tagLabel={'mesa':'Mesa aberta','interesse':'Interesse','laudo':'Laudo R$99','nda':'Teaser/NDA','alteracao':'Alteração','gratuito':'Gratuito','mensagem':'Mensagem'}[t.tipo]||t.tipo;
+    var agDias=t.aguardando&&t.aguardando>0?('<span class="task-parado">⏸ '+t.aguardando+'d</span>'):'';
+    html+='<div class="task'+(isOn?' on':'')+(t.prioridade===1?' pri-1':'')+(t.aguardando?' aguardando':'')+'" onclick="selecionarTarefa(\''+t.id+'\')">'+
+      '<span class="task-tag '+tagClass+'">'+tagLabel+'</span>'+
+      (t.nl?'<div class="task-nl" style="position:absolute;top:9px;right:8px;"></div>':'')+
+      '<div class="task-name">'+esc(t.nome)+'</div>'+
+      '<div class="task-sub">'+esc(t.sub)+'</div>'+
+      '<div class="task-meta"><span class="task-age">'+fmtIdade(t.idade)+'</span>'+agDias+'</div>'+
+      '</div>';
+  });
+  el.innerHTML=html;
+}
+
+function filtrarTarefas(filtro, btn){
+  FILTRO=filtro;
+  document.querySelectorAll('.mesa-filters .chip').forEach(c=>c.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  renderTarefas();
+}
+
+function filtrarETrocar(tipo){
+  FILTRO=tipo;
+  toggleMesa();
+}
+
+function atualizarBadges(){
+  var counts={mesa:0,interesse:0,laudo:0,nda:0,gratuito:0,alteracao:0};
+  TAREFAS.forEach(t=>{if(counts[t.tipo]!==undefined)counts[t.tipo]++;});
+  Object.keys(counts).forEach(k=>{
+    var map={mesa:'cb-mesa',interesse:'cb-int',laudo:'cb-lau',nda:'cb-nda',gratuito:'cb-gra',alteracao:'cb-alt'};
+    var el=document.getElementById(map[k]);
+    if(el){el.textContent=counts[k];el.style.display=counts[k]>0?'flex':'none';}
+  });
+}
+
+function atualizarContadorHeader(){
+  var total=TAREFAS.length;
+  var htag=document.getElementById('h-tarefas');
+  htag.textContent=total+' tarefa'+(total!==1?'s':'');
+  htag.style.display=total>0?'flex':'none';
+}
+
+// ── SELECIONAR TAREFA ──────────────────────────────────
+async function selecionarTarefa(tid){
+  var t=TAREFAS.find(x=>x.id===tid);
+  if(!t)return;
+  TAREFA_ATIVA=t;
+  renderTarefas();
+  mostrarContextoTarefa(t);
+}
+
+async function mostrarContextoTarefa(t){
+  ocultarTudo();
+  var el=document.getElementById('ctx-tarefa');
+  el.style.display='flex';
+  el.innerHTML='<div class="ld"><span class="spin"></span></div>';
+
+  // Atualizar contexto da IA
+  document.getElementById('sr-neg-ctx').style.display='block';
+  document.getElementById('sr-neg-nome').textContent=t.nome;
+  document.getElementById('sr-neg-sub').textContent=t.tipo.toUpperCase();
+
+  if(t.ref_tipo==='alteracao') await renderCtxAlteracao(t,el);
+  else if(t.ref_tipo==='gratuito') await renderCtxGratuito(t,el);
+  else if(t.ref_tipo==='nda') await renderCtxNDA(t,el);
+  else if(t.ref_tipo==='agenda') await renderCtxLaudo(t,el);
+  else if(t.ref_tipo==='conversa'||t.ref_tipo==='mesa') await renderCtxConversa(t,el);
+  else el.innerHTML='<div class="ld">Sem implementação para tipo '+t.tipo+'</div>';
+}
+
+// ── CONTEXTOS DE TAREFA ────────────────────────────────
+async function renderCtxAlteracao(t,el){
+  var {data:n}=await sb.from('negocios').select('*,usuarios(nome,email,whatsapp)').eq('id',t.ref_id).single();
+  if(!n){el.innerHTML='<div class="ld">Negócio não encontrado</div>';return;}
+  el.innerHTML=ctxHdr('Alteração de anúncio','alt',n.nome_negocio||n.detalhe||n.nome,
+    btn('n','Abrir coleta','abrirColeta("'+n.id+'")')+
+    btn('r','Recusar','recusarAlteracao("'+n.id+'")')+
+    btn('g','✓ Publicar','publicarAlteracao("'+n.id+'")')+
+    btn('g','✓ Publicar + responder','publicarAltComResp("'+n.id+'")')
+  )+
+  '<div class="ctx-body"><div class="ctx-grid">'+
+  cardFull('O que o vendedor quer alterar','<div class="req-box">'+esc(n.alteracao_texto||'—')+'</div>')+
+  card2('Negócio',
+    row('Status',badge_status(n.status))+row('ISE',colorVal(n.score_saude,'a'))+
+    row('Valuation',colorVal(fk(n.valor_venda),'g'))+row('Plano',n.plano||'—')
+  )+
+  card2('Vendedor',
+    row('Nome',n.usuarios?.nome||'—')+
+    row('Email','<a href="mailto:'+esc(n.usuarios?.email||'')+'" style="color:var(--blue)">'+esc(n.usuarios?.email||'—')+'</a>')+
+    (n.usuarios?.whatsapp?row('WhatsApp','<a href="https://wa.me/55'+n.usuarios.whatsapp.replace(/\D/g,'')+'" target="_blank" style="color:var(--green)">'+esc(n.usuarios.whatsapp)+'</a>'):'')
+  )+
+  cardFull('Resposta ao vendedor (opcional)','<textarea class="inp resp-area" id="resp-alt" placeholder="Mensagem para o vendedor..."></textarea>')
+  +'</div></div>'+
+  ctxFoot('Ação rápida · ou "Abrir coleta" para editar completo',
+    encerrarBtn([['Publicada'],['Recusada'],['Sem resposta do vendedor']])
+  );
+}
+
+async function renderCtxGratuito(t,el){
+  var {data:n}=await sb.from('negocios').select('*,usuarios(nome,email,whatsapp)').eq('id',t.ref_id).single();
+  if(!n){el.innerHTML='<div class="ld">Negócio não encontrado</div>';return;}
+  var dados=null;
+  try{var na=typeof n.notas_admin==='string'?JSON.parse(n.notas_admin):n.notas_admin;if(na?.rascunho&&na?.dados)dados=na.dados;}catch(e){}
+  var fat=dados?.fat||0; var margem=dados?.margem_liquida||0;
+  el.innerHTML=ctxHdr('Publicação gratuita','grat',n.nome_negocio||n.detalhe||n.nome||'Negócio',
+    btn('n','Abrir coleta','abrirColeta("'+n.id+'")')+
+    btn('b','Abrir conversa','abrirConvGratuito("'+n.id+'","'+n.vendedor_id+'")')+
+    btn('g','✓ Publicar agora','publicarDireto("'+n.id+'")')
+  )+
+  '<div class="ctx-body"><div class="ctx-grid">'+
+  card2('Diagnóstico',
+    row('Categoria',n.categoria||'—')+row('Local',(n.cidade||'')+(n.estado?' · '+n.estado:''))+
+    row('Fat./mês',fk(fat))+row('Ano abertura',dados?.ano||'—')+row('Plano',n.plano||'gratuito')
+  )+
+  card2('Vendedor',
+    row('Nome',n.usuarios?.nome||'—')+
+    row('Email','<a href="mailto:'+esc(n.usuarios?.email||'')+'" style="color:var(--blue)">'+esc(n.usuarios?.email||'—')+'</a>')+
+    (n.usuarios?.whatsapp?row('WhatsApp','<a href="https://wa.me/55'+n.usuarios.whatsapp.replace(/\D/g,'')+'" target="_blank" style="color:var(--green)">'+esc(n.usuarios.whatsapp)+'</a>'):'')+
+    row('Solicitado',fmtd(n.created_at))
+  )+
+  cardFull('Dados financeiros do diagnóstico',
+    '<div class="req-box" style="font-size:16px">'+
+    'Fat. mensal: '+fk(fat)+'  ·  '+
+    'Parcelas: '+fk(dados?.parcelas||0)+'  ·  '+
+    'Imóvel: '+(dados?.imovel||'—')+'  ·  '+
+    'Pró-labore: '+fk(dados?.prolabore||0)+
+    '</div>'
+  )+
+  cardFull('Notas internas','<textarea class="inp resp-area" id="nota-grat" placeholder="Anotações sobre este negócio..."></textarea>')
+  +'</div></div>'+
+  ctxFoot('Abra a coleta para ver todos os dados do diagnóstico',
+    encerrarBtn([['Publicado'],['Rejeitado'],['Sem resposta do vendedor']])
+  );
+}
+
+async function renderCtxNDA(t,el){
+  var {data:s}=await sb.from('solicitacoes_info').select('*,usuarios(nome,email,whatsapp),negocios(nome_negocio,detalhe,nome,categoria,cidade,estado,valor_venda,score_saude)').eq('id',t.ref_id).single();
+  if(!s){el.innerHTML='<div class="ld">Solicitação não encontrada</div>';return;}
+  var nomeC=s.usuarios?.nome||s.usuarios?.email||'Comprador';
+  var nomeN=s.negocios?.nome_negocio||s.negocios?.detalhe||s.negocios?.nome||'Negócio';
+  el.innerHTML=ctxHdr('Solicitação de teaser','nda',nomeC+' → '+nomeN,
+    btn('n','Abrir conversa','abrirConvInteresse("'+s.comprador_id+'","'+s.negocio_id+'")')+
+    btn('r','Recusar','recusarNDA("'+s.id+'")')+
+    btn('g','✓ Liberar teaser','liberarNDA("'+s.id+'")')
+  )+
+  '<div class="ctx-body"><div class="ctx-grid">'+
+  card2('Comprador',
+    row('Nome',s.usuarios?.nome||'—')+
+    row('Email','<a href="mailto:'+esc(s.usuarios?.email||'')+'" style="color:var(--blue)">'+esc(s.usuarios?.email||'—')+'</a>')+
+    (s.usuarios?.whatsapp?row('WhatsApp','<a href="https://wa.me/55'+s.usuarios.whatsapp.replace(/\D/g,'')+'" target="_blank" style="color:var(--green)">'+esc(s.usuarios.whatsapp)+'</a>'):'')+
+    row('Solicitado',fmtd(s.created_at))
+  )+
+  card2('Negócio em questão',
+    row('Categoria',s.negocios?.categoria||'—')+row('Local',(s.negocios?.cidade||'')+(s.negocios?.estado?' · '+s.negocios.estado:''))+
+    row('ISE',colorVal(s.negocios?.score_saude,'a'))+row('Valuation',colorVal(fk(s.negocios?.valor_venda),'g'))
+  )+
+  cardFull('NDA assinado',
+    '<div class="req-box">'+
+    (s.nda_doc_url?'<a href="'+esc(s.nda_doc_url)+'" target="_blank" style="color:var(--blue)">Ver documento assinado →</a>':'Documento NDA não enviado ainda.')+
+    '</div>'
+  )
+  +'</div></div>'+
+  ctxFoot('Verifique o NDA antes de liberar o teaser',
+    encerrarBtn([['Aprovado — teaser liberado'],['Recusado — não qualificado'],['Recusado — NDA inválido']])
+  );
+}
+
+async function renderCtxLaudo(t,el){
+  var {data:ag}=await sb.from('admin_agenda').select('*').eq('id',t.ref_id).single();
+  var neg=null;
+  if(ag?.negocio_id){var {data}=await sb.from('negocios').select('id,nome_negocio,detalhe,nome,categoria,cidade,estado,valor_venda,score_saude').eq('id',ag.negocio_id).single();neg=data;}
+  el.innerHTML=ctxHdr('Laudo R$99 · Entregar','laudo',ag?.nome_cliente||'Cliente',
+    (neg?btn('b','Prévia do laudo','window.open("/laudo-preview.html?id='+neg.id+'&modo=vendedor","_blank")'):'Sem negócio vinculado')+
+    btn('g','✓ Marcar entregue','concluirLaudo("'+ag.id+'")')
+  )+
+  '<div class="ctx-body"><div class="ctx-grid">'+
+  card2('Cliente',
+    row('Nome',ag?.nome_cliente||'—')+
+    (ag?.email_cliente?row('Email','<a href="mailto:'+esc(ag.email_cliente)+'" style="color:var(--blue)">'+esc(ag.email_cliente)+'</a>'):'')+
+    (ag?.whatsapp_cliente?row('WhatsApp','<a href="https://wa.me/55'+ag.whatsapp_cliente.replace(/\D/g,'')+'" target="_blank" style="color:var(--green)">'+esc(ag.whatsapp_cliente)+'</a>'):'')+
+    row('Pagamento',fmtd(ag?.created_at))
+  )+(neg?
+  card2('Negócio',
+    row('Categoria',neg.categoria||'—')+row('Local',(neg.cidade||'')+(neg.estado?' · '+neg.estado:''))+
+    row('ISE',colorVal(neg.score_saude,'a'))+row('Valuation',colorVal(fk(neg.valor_venda),'g'))
+  ):'')
+  +'</div></div>'+
+  '<div class="ctx-body" style="padding-top:0;"><div class="ctx-card full"><div class="cc-l">Processo de entrega</div><div style="font-size:16px;color:var(--ink2);line-height:1.8">1. Clique em "Prévia do laudo" para abrir o PDF<br>2. No navegador: Ctrl+P → Salvar como PDF<br>3. Envie por e-mail ao cliente<br>4. Clique "Marcar entregue"</div></div></div>'+
+  ctxFoot('Entregue manualmente por e-mail · automação via Resend planejada',
+    encerrarBtn([['Entregue por email'],['Reembolsado'],['Pendente — aguardando dados']])
+  );
+}
+
+async function renderCtxConversa(t,el){
+  // Carregar mensagens
+  var msgs=[];
+  if(t.ref_tipo==='mesa'){
+    var {data:m}=await sb.from('chat_mesas_mensagens').select('*').eq('mesa_id',t.ref_id).eq('canal','geral').order('created_at',{ascending:true}).limit(30);
+    msgs=(m||[]).map(x=>({texto:x.texto,remetente:x.remetente==='admin'?'admin':'user',nome:x.nome||x.remetente,ts:x.created_at}));
+  } else {
+    var {data:m}=await sb.from('admin_mensagens').select('*').eq('conversa_id',t.ref_id).order('created_at',{ascending:true}).limit(30);
+    msgs=(m||[]).map(x=>({texto:x.texto,remetente:x.remetente==='admin'?'admin':'user',nome:x.remetente==='admin'?'Admin':x.remetente,ts:x.created_at}));
+  }
+
+  CONV_ID=t.ref_id; CONV_NEG=t.negocio_id||null;
+  var tipoLabel=t.ref_tipo==='mesa'?'Mesa de negociação':'Conversa · '+t.tipo;
+  var ehInteresse=t.tipo==='interesse';
+
+  el.innerHTML=ctxHdr(tipoLabel,t.tipo,t.nome,
+    (t.negocio_id?btn('n','Abrir negócio','abrirColeta("'+t.negocio_id+'")'):'')
+  )+
+  '<div style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:6px;" id="ctx-msgs">'+
+  msgs.map(m=>'<div class="conv-msg '+(m.remetente==='admin'?'admin':'user')+'">'+
+    '<div class="conv-msg-nm">'+(m.remetente==='admin'?'Admin':esc(m.nome))+'</div>'+
+    esc(m.texto)+'<div class="conv-msg-ts">'+fmtd(m.ts)+'</div></div>'
+  ).join('')+'</div>'+
+  (ehInteresse?
+    '<div style="padding:7px 12px;border-top:.5px solid var(--sep);display:flex;gap:5px;flex-shrink:0;">'+
+    '<button class="btn p" onclick="solicitarNDAComprador(\''+t.negocio_id+'\')">Solicitar NDA</button>'+
+    '<button class="btn b" onclick="enviarLaudoComprador(\''+t.negocio_id+'\')">Enviar laudo</button>'+
+    '<button class="btn g" onclick="iniciarMesaDeConversa(\''+t.ref_id+'\',\''+t.negocio_id+'\')">Iniciar mesa</button>'+
+    '</div>':'')+
+  '<div style="padding:8px 12px;border-top:.5px solid var(--sep);display:flex;gap:6px;align-items:flex-end;flex-shrink:0;">'+
+  '<textarea class="inp" id="msg-inp" style="flex:1;min-height:42px;padding:7px 9px;resize:none;font-size:17px;line-height:1.6" placeholder="Responder..." rows="2"></textarea>'+
+  '<button class="btn solid-g" onclick="enviarMsg(\''+t.ref_id+'\',\''+t.ref_tipo+'\')">Enviar →</button>'+
+  '</div>'+
+  ctxFoot('',encerrarBtn(t.tipo==='mesa'?
+    [['Negócio vendido'],['Comprador desistiu'],['Vendedor desistiu'],['Acordo não fechado']]:
+    [['Respondida'],['Mesa iniciada'],['Comprador desistiu'],['Não qualificado']]
+  ));
+
+  // Scroll para o fim
+  setTimeout(()=>{var m=document.getElementById('ctx-msgs');if(m)m.scrollTop=m.scrollHeight;},50);
+
+  // Mostrar ações de interesse no sidebar
+  if(ehInteresse){srTab('conv');document.getElementById('conv-acoes').style.display='flex';}
+
+  // Contexto do negócio no sidebar
+  if(t.negocio_id) carregarNegCtxSidebar(t.negocio_id);
+}
+
+// ── HELPER BUILDERS ───────────────────────────────────
+function ctxHdr(tipo,tipoCls,nome,acoes){
+  var cores={mesa:'rgba(248,113,113,.35)','color-mesa':'var(--red)',interesse:'rgba(245,158,11,.35)','color-interesse':'var(--amber)',laudo:'rgba(96,165,250,.35)','color-laudo':'var(--blue)',nda:'rgba(167,139,250,.35)','color-nda':'var(--purple)',grat:'rgba(16,185,129,.35)','color-grat':'var(--green)',alt:'rgba(245,158,11,.35)','color-alt':'var(--amber)'};
+  return '<div class="ctx-hdr"><div class="ctx-tag" style="border-color:'+cores[tipoCls]+';color:'+cores['color-'+tipoCls]+'">'+esc(tipo)+'</div><div class="ctx-nome">'+esc(nome)+'</div><div class="ctx-acts">'+acoes+'</div></div>';
+}
+function btn(tipo,label,onclick){return '<button class="btn '+tipo+'" onclick="'+onclick+'">'+label+'</button>';}
+function card2(label,rows){return '<div class="ctx-card half"><div class="cc-l">'+label+'</div>'+rows+'</div>';}
+function cardFull(label,content){return '<div class="ctx-card full"><div class="cc-l">'+label+'</div>'+content+'</div>';}
+function row(k,v){return '<div class="cc-row"><span class="cc-k">'+k+'</span><span class="cc-v">'+v+'</span></div>';}
+function colorVal(v,cls){return '<span class="cc-v '+cls+'">'+v+'</span>';}
+function badge_status(s){var c={publicado:'g',em_avaliacao:'a',rascunho:'',em_negociacao:'b'}[s]||'';return '<span class="cc-v '+c+'">'+s+'</span>';}
+function ctxFoot(hint,extra){
+  return '<div class="ctx-foot" style="position:relative">'+
+    '<span class="ctx-hint">'+hint+'</span>'+
+    extra+
+    '</div>';
+}
+function encerrarBtn(opcoes){
+  var id='cd-'+Math.random().toString(36).slice(2,7);
+  return '<button class="encerrar-btn" onclick="toggleDropdown(\''+id+'\')">Encerrar tarefa ▾</button>'+
+    '<div class="close-dropdown" id="'+id+'">'+
+    opcoes.map(o=>'<div class="cd-item" onclick="encerrarTarefa(\''+esc(o[0]||'Encerrado')+'\',\''+id+'\')">'+esc(o[0])+'</div>').join('')+
+    '</div>';
+}
+function toggleDropdown(id){var el=document.getElementById(id);el.classList.toggle('open');}
+
+// ── AÇÕES DE TAREFA ────────────────────────────────────
+async function publicarAlteracao(id){
+  await sb.from('negocios').update({status:'publicado',alteracao_texto:null,updated_at:new Date().toISOString()}).eq('id',id);
+  toast('Alteração publicada!');encerrarTarefaAtiva('Publicada');
+}
+async function publicarAltComResp(id){
+  var resp=document.getElementById('resp-alt')?.value?.trim();
+  var pl={status:'publicado',alteracao_texto:null,updated_at:new Date().toISOString()};
+  if(resp)pl.revisao_texto=resp;
+  await sb.from('negocios').update(pl).eq('id',id);
+  if(resp){
+    var {data:n}=await sb.from('negocios').select('vendedor_id').eq('id',id).single();
+    if(n?.vendedor_id) await enviarMsgAdmin(n.vendedor_id,resp,'alteracao');
+  }
+  toast('Publicado'+(resp?' com resposta!':'!'));encerrarTarefaAtiva('Publicada');
+}
+async function recusarAlteracao(id){
+  await sb.from('negocios').update({alteracao_texto:null,updated_at:new Date().toISOString()}).eq('id',id);
+  toast('Alteração recusada.');encerrarTarefaAtiva('Recusada');
+}
+async function publicarDireto(id){
+  await sb.from('negocios').update({status:'publicado',publicado_em:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',id);
+  toast('✓ Publicado! IA enriquecendo...');
+  fetch(SU+'/functions/v1/enriquecer-teaser',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SV},body:JSON.stringify({negocio_id:id})}).catch(()=>{});
+  encerrarTarefaAtiva('Publicado');
+}
+async function liberarNDA(id){
+  await sb.from('solicitacoes_info').update({status:'liberado',liberado_em:new Date().toISOString()}).eq('id',id);
+  toast('Teaser liberado!');encerrarTarefaAtiva('Aprovado — teaser liberado');
+}
+async function recusarNDA(id){
+  await sb.from('solicitacoes_info').update({status:'recusado'}).eq('id',id);
+  toast('Teaser recusado.');encerrarTarefaAtiva('Recusado');
+}
+async function concluirLaudo(id){
+  await sb.from('admin_agenda').update({status:'concluido',concluido_em:new Date().toISOString()}).eq('id',id);
+  toast('Laudo marcado como entregue!');encerrarTarefaAtiva('Entregue por email');
+}
+
+async function enviarMsg(refId, refTipo){
+  var txt=document.getElementById('msg-inp')?.value?.trim();
+  if(!txt){toast('Digite uma mensagem.',true);return;}
+  var now=new Date().toISOString();
+  if(refTipo==='mesa'){
+    await sb.from('chat_mesas_mensagens').insert({mesa_id:refId,remetente:'admin',nome:'Admin',texto:txt,canal:'geral',tipo_conteudo:'texto',created_at:now});
+  } else {
+    await sb.from('admin_mensagens').insert({conversa_id:refId,remetente:'admin',texto:txt,created_at:now});
+    await sb.from('admin_conversas').update({ultima_msg_remetente:'admin',ultima_msg_em:now,aguardando_usuario_desde:now}).eq('id',refId);
+  }
+  document.getElementById('msg-inp').value='';
+  // Adicionar msg visualmente
+  var cont=document.getElementById('ctx-msgs');
+  if(cont){
+    var div=document.createElement('div');
+    div.className='conv-msg admin';
+    div.innerHTML='<div class="conv-msg-nm">Admin</div>'+esc(txt)+'<div class="conv-msg-ts">Agora</div>';
+    cont.appendChild(div);cont.scrollTop=cont.scrollHeight;
+  }
+  toast('Mensagem enviada');
+}
+
+async function enviarMsgAdmin(userId, texto, tipo){
+  var now=new Date().toISOString();
+  var {data:conv}=await sb.from('admin_conversas').select('id').eq('usuario_id',userId).maybeSingle();
+  var convId=conv?.id;
+  if(!convId){
+    var {data:nc}=await sb.from('admin_conversas').insert({usuario_id:userId,tipo:tipo||'geral',ultima_msg_remetente:'admin',ultima_msg_em:now,aguardando_usuario_desde:now,created_at:now}).select('id').single();
+    convId=nc?.id;
+  } else {
+    await sb.from('admin_conversas').update({ultima_msg_remetente:'admin',ultima_msg_em:now,aguardando_usuario_desde:now}).eq('id',convId);
+  }
+  if(convId) await sb.from('admin_mensagens').insert({conversa_id:convId,remetente:'admin',texto,created_at:now});
+}
+
+function abrirConvGratuito(negId, userId){
+  // Marcar como bola no usuário e abrir conversa
+  toast('Conversa aberta · tarefa marcada como aguardando usuário');
+  sb.from('admin_conversas').upsert({usuario_id:userId,negocio_id:negId,tipo:'gratuito',ultima_msg_remetente:'admin',ultima_msg_em:new Date().toISOString(),aguardando_usuario_desde:new Date().toISOString(),created_at:new Date().toISOString()}).then(()=>loadTarefas());
+}
+
+function abrirConvInteresse(compradorId, negId){
+  srTab('conv');document.getElementById('conv-acoes').style.display='flex';
+  CONV_ID=null;CONV_NEG=negId;
+  carregarNegCtxSidebar(negId);
+}
+
+// Cria conversa de interesse quando comprador clica em "Pedir mais informações"
+// Chamado pelo portal do comprador ou pelo admin para abrir manualmente
+async function criarConvInteresse(compradorId, negId, msgInicial){
+  var now=new Date().toISOString();
+  // Verificar se já existe conversa de interesse para este par comprador+negócio
+  var {data:exist}=await sb.from('admin_conversas')
+    .select('id').eq('usuario_id',compradorId).eq('negocio_id',negId).eq('tipo','interesse').maybeSingle();
+  if(exist) return exist.id; // já existe
+
+  // Criar conversa
+  var {data:conv,error}=await sb.from('admin_conversas').insert({
+    usuario_id:compradorId, negocio_id:negId, tipo:'interesse',
+    assunto:'Interesse em saber mais',
+    ultima_msg_remetente:'usuario', ultima_msg_em:now,
+    created_at:now, updated_at:now
+  }).select('id').single();
+  if(error||!conv) return null;
+
+  // Mensagem automática do comprador
+  var msg=msgInicial||'Tenho interesse neste negócio e gostaria de saber mais informações.';
+  await sb.from('admin_mensagens').insert({
+    conversa_id:conv.id, remetente:'usuario', texto:msg, created_at:now
+  });
+  return conv.id;
+}
+
+function solicitarNDAComprador(negId){toast('🔐 Fluxo NDA disparado — link enviado ao comprador (em breve)');}
+function enviarLaudoComprador(negId){toast('📄 Laudo enviado ao comprador (versão sem dados sensíveis)');}
+function iniciarMesaDeConversa(convId,negId){toast('⚡ Mesa iniciada — vendedor será notificado');}
+
+// ── ENCERRAMENTO DE TAREFA ─────────────────────────────
+async function encerrarTarefa(motivo, dropdownId){
+  document.getElementById(dropdownId)?.classList.remove('open');
+  if(!TAREFA_ATIVA)return;
+  await encerrarNoBanco(TAREFA_ATIVA, motivo);
+  toast('Encerrado: '+motivo);
+  encerrarTarefaAtiva(motivo);
+}
+
+async function encerrarNoBanco(t, motivo){
+  var now=new Date().toISOString();
+  try{
+    if(t.ref_tipo==='agenda'){
+      await sb.from('admin_agenda').update({status:'encerrado',notas_admin:motivo,concluido_em:now,updated_at:now}).eq('id',t.ref_id);
+    } else if(t.ref_tipo==='alteracao'){
+      // já tratado pelas ações específicas — só log
+    } else if(t.ref_tipo==='nda'){
+      await sb.from('solicitacoes_info').update({status:'encerrado'}).eq('id',t.ref_id);
+    } else if(t.ref_tipo==='gratuito'){
+      // não muda status do negócio, só registra na agenda se existir
+      var {data:ag}=await sb.from('admin_agenda').select('id').eq('negocio_id',t.ref_id).eq('tipo','gratuito').maybeSingle();
+      if(ag) await sb.from('admin_agenda').update({status:'encerrado',notas_admin:motivo,concluido_em:now}).eq('id',ag.id);
+    } else if(t.ref_tipo==='conversa'){
+      await sb.from('admin_conversas').update({status:'encerrado',ultima_msg_em:now,aguardando_usuario_desde:null}).eq('id',t.ref_id);
+    } else if(t.ref_tipo==='mesa'){
+      if(motivo==='Negócio vendido'){
+        await sb.from('chat_mesas').update({status:'encerrada',encerrada_em:now}).eq('id',t.ref_id);
+        // Marcar negócio como vendido
+        var {data:mesa}=await sb.from('chat_mesas').select('negocio_id').eq('id',t.ref_id).single();
+        if(mesa?.negocio_id) await sb.from('negocios').update({status:'vendido',updated_at:now}).eq('id',mesa.negocio_id);
+      } else {
+        await sb.from('chat_mesas').update({status:'encerrada',encerrada_em:now,notas_admin:motivo}).eq('id',t.ref_id);
+      }
+    }
+  }catch(e){console.warn('Erro ao encerrar no banco:',e);}
+}
+
+function encerrarTarefaAtiva(motivo){
+  if(!TAREFA_ATIVA)return;
+  TAREFAS=TAREFAS.filter(t=>t.id!==TAREFA_ATIVA.id);
+  TAREFA_ATIVA=null;
+  renderTarefas();atualizarBadges();atualizarContadorHeader();
+  ocultarTudo();
+  document.getElementById('ctx-empty').style.display='flex';
+}
+
+// ── AGUARDANDO USUÁRIO ─────────────────────────────────
+async function loadAguardandoCount(){
+  var limites={aguardando_aprovacao:3,gratuito:2,interesse:2,nda:5};
+  var total=0;
+
+  // Negocios aguardando aprovação do vendedor
+  var {data:ag}=await sb.from('negocios').select('id,aguardando_aprovacao_desde').eq('status','aguardando_aprovacao').not('aguardando_aprovacao_desde','is',null);
+  total+=(ag||[]).filter(n=>diasAtras(n.aguardando_aprovacao_desde)>=limites.aguardando_aprovacao).length;
+
+  // Conversas com última msg do admin há X dias
+  var {data:cv}=await sb.from('admin_conversas').select('id,ultima_msg_em,tipo').eq('ultima_msg_remetente','admin').not('ultima_msg_em','is',null);
+  total+=(cv||[]).filter(c=>diasAtras(c.ultima_msg_em)>=(limites[c.tipo]||2)).length;
+
+  var htag=document.getElementById('h-aguardando');
+  if(total>0){htag.textContent=total+' parado'+(total!==1?'s':'');htag.style.display='flex';}
+  else htag.style.display='none';
+}
+
+async function mostrarAguardando(){
+  ocultarTudo();
+  var el=document.getElementById('page-aguardando');
+  el.style.display='block';
+  el.innerHTML='<div style="font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px;padding:2px 0;">Demandas paradas — bola com o usuário</div><div class="ld"><span class="spin"></span></div>';
+
+  var rows=[];
+
+  // Aguardando aprovação do vendedor
+  var {data:ag}=await sb.from('negocios').select('id,nome_negocio,detalhe,nome,aguardando_aprovacao_desde,vendedor_id,usuarios(nome,email)').eq('status','aguardando_aprovacao').not('aguardando_aprovacao_desde','is',null);
+  (ag||[]).forEach(n=>{
+    var d=diasAtras(n.aguardando_aprovacao_desde);
+    if(d>=3) rows.push({tipo:'Aprovação vendedor',tipoCls:'tt-grat',nome:n.usuarios?.nome||n.usuarios?.email||'Vendedor',sub:(n.nome_negocio||n.detalhe||n.nome||'Negócio')+' · aguardando aprovação para publicar',dias:d,critico:d>=7,acao1:'Ver negócio',onclick1:'abrirColeta("'+n.id+'")',acao2:'Reenviar lembrete',onclick2:'remindVendedor("'+n.id+'")'});
+  });
+
+  // Conversas paradas
+  var {data:cv}=await sb.from('admin_conversas').select('id,usuario_id,tipo,assunto,ultima_msg_em,negocio_id,usuarios(nome,email)').eq('ultima_msg_remetente','admin').not('ultima_msg_em','is',null);
+  (cv||[]).forEach(c=>{
+    var d=diasAtras(c.ultima_msg_em); var limite={gratuito:2,interesse:2,nda:5}[c.tipo]||2;
+    if(d>=limite) rows.push({tipo:'Sem resposta · '+c.tipo,tipoCls:'tt-msg',nome:c.usuarios?.nome||c.usuarios?.email||'Usuário',sub:(c.assunto||'Conversa aberta')+' · aguardando resposta',dias:d,critico:d>=5,acao1:'Ver conversa',onclick1:'verConversa("'+c.id+'")',acao2:'Reenviar lembrete',onclick2:'remindUsuario("'+c.id+'")'});
+  });
+
+  rows.sort((a,b)=>b.dias-a.dias);
+
+  if(!rows.length){el.innerHTML='<div style="text-align:center;padding:24px;font-size:16px;color:var(--ink3)">✓ Nenhuma demanda parada no momento</div>';return;}
+  el.innerHTML='<div style="font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px;padding:2px 0;">Demandas paradas — bola com o usuário</div>'+
+  rows.map(r=>'<div class="ag-item'+(r.critico?' critico':'')+'">'+
+    '<div style="flex:1;min-width:0">'+
+    '<span class="ag-tag '+r.tipoCls+'">'+r.tipo+'</span>'+
+    '<div class="ag-nome">'+esc(r.nome)+'</div>'+
+    '<div class="ag-sub">'+esc(r.sub)+'</div>'+
+    '</div>'+
+    '<div style="text-align:center;flex-shrink:0">'+
+    '<div class="ag-dias'+(r.critico?' critico':'')+'">'+r.dias+'</div>'+
+    '<div class="ag-dias-label">dias</div>'+
+    '</div>'+
+    '<div class="ag-acts">'+
+    '<button class="btn '+(r.critico?'r':'n')+'" onclick="'+r.onclick1+'" style="font-size:13px">'+r.acao1+' →</button>'+
+    '<button class="btn a" onclick="'+r.onclick2+'" style="font-size:13px">'+r.acao2+'</button>'+
+    '</div></div>'
+  ).join('');
+}
+
+async function remindVendedor(negId){
+  var {data:n}=await sb.from('negocios').select('vendedor_id,nome_negocio,detalhe,nome').eq('id',negId).single();
+  if(!n?.vendedor_id)return;
+  var nomeNeg=n.nome_negocio||n.detalhe||n.nome||'seu negócio';
+  await enviarMsgAdmin(n.vendedor_id,'Olá! Seu anúncio "'+nomeNeg+'" está aguardando sua aprovação para publicação. Acesse o portal para confirmar.','gratuito');
+  toast('Lembrete enviado ao vendedor!');
+}
+async function remindUsuario(convId){
+  var {data:cv}=await sb.from('admin_conversas').select('usuario_id,assunto').eq('id',convId).single();
+  if(!cv)return;
+  await sb.from('admin_mensagens').insert({conversa_id:convId,remetente:'admin',texto:'Olá! Ficamos no aguardo da sua resposta. Qualquer dúvida estou à disposição.',created_at:new Date().toISOString()});
+  await sb.from('admin_conversas').update({ultima_msg_remetente:'admin',ultima_msg_em:new Date().toISOString(),aguardando_usuario_desde:new Date().toISOString()}).eq('id',convId);
+  toast('Lembrete enviado!');
+}
+
+// ── COLETA ADMIN EMBUTIDA ──────────────────────────────
+function abrirColeta(negId){
+  ocultarTudo();
+  var frame=document.getElementById('ctx-coleta');
+  frame.style.display='flex';
+  if(!negId){
+    frame.innerHTML='<div style="padding:12px;text-align:center;font-size:17px;color:var(--ink2)">'+
+      'Clique para abrir a coleta de novo negócio:<br><br>'+
+      '<a href="/coleta-admin.html" target="_blank" class="btn g" style="display:inline-block;text-decoration:none;padding:8px 16px">Abrir coleta em nova aba →</a>'+
+      '</div>';
+  } else {
+    frame.innerHTML='<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">'+
+      '<div style="font-size:17px;color:var(--ink2)">Abrindo coleta-admin para este negócio...</div>'+
+      '<a href="/coleta-admin.html?id='+negId+'" target="_blank" class="btn g" style="display:inline-block;text-decoration:none;padding:8px 16px;margin-top:6px">Abrir coleta →</a>'+
+      '<div style="font-size:14px;color:var(--ink3);margin-top:4px">Todos os dados do diagnóstico estarão pré-preenchidos</div>'+
+      '</div>';
+  }
+}
+
+// ── SIDEBAR IA ─────────────────────────────────────────
+function srTab(id){
+  ['ia','conv','neg','docs'].forEach(t=>{
+    document.getElementById('srt-'+t)?.classList.toggle('on',t===id);
+    document.getElementById('srp-'+t)?.classList.toggle('on',t===id);
+  });
+}
+
+async function askIA(q){
+  var pergunta=q||document.getElementById('ia-txt').value.trim();
+  if(!pergunta)return;
+  document.getElementById('ia-txt').value='';
+  srTab('ia');
+  addIAMsg('u',esc(pergunta));
+  var el=addIAMsg('a','<span class="dots"><span></span><span></span><span></span></span>');
+  var ctx='';
+  if(TAREFA_ATIVA?.nome) ctx='Contexto: '+TAREFA_ATIVA.nome+' ('+TAREFA_ATIVA.tipo+'). ';
+  try{
+    var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:700,messages:[{role:'user',content:'Você é consultor de M&A da 1Negócio. '+ctx+pergunta}]})});
+    var d=await r.json();
+    el.innerHTML='<div class="ia-nm">IA 1Negócio</div>'+(d.content?.[0]?.text||'Sem resposta.');
+  }catch(e){el.innerHTML='<div class="ia-nm">IA</div>Erro: '+e.message;}
+}
+
+function addIAMsg(tipo,txt){
+  var chat=document.getElementById('ia-chat');
+  var div=document.createElement('div');div.className='ia-m '+tipo;
+  div.innerHTML='<div class="ia-nm">'+(tipo==='a'?'IA 1Negócio':'Admin')+'</div>'+txt;
+  chat.appendChild(div);chat.scrollTop=chat.scrollHeight;return div;
+}
+
+async function carregarNegCtxSidebar(negId){
+  if(!negId)return;
+  var {data:n}=await sb.from('negocios').select('nome_negocio,detalhe,nome,categoria,cidade,estado,valor_venda,score_saude,faturamento_anual,plano').eq('id',negId).single();
+  if(!n)return;
+  var nome=n.nome_negocio||n.detalhe||n.nome||'—';
+  document.getElementById('srp-neg-body').innerHTML=
+    '<div class="sr-neg-ctx" style="margin:8px"><div class="sr-neg-l">Negócio</div><div class="sr-neg-n">'+esc(nome)+'</div><div class="sr-neg-sub">'+(n.categoria||'')+(n.cidade?' · '+n.cidade:'')+(n.estado?' · '+n.estado:'')+'</div></div>'+
+    '<div style="padding:8px">'+
+    negRow('Fat. anual',fk(n.faturamento_anual),'g')+negRow('Valuation',fk(n.valor_venda),'g')+
+    negRow('ISE',(n.score_saude||'—')+'/100','a')+negRow('Plano',n.plano||'gratuito','')+
+    '</div>';
+  document.getElementById('conv-neg-ctx').style.display='block';
+  document.getElementById('conv-neg-rows').innerHTML=negRow('Fat.',fk(n.faturamento_anual),'g')+negRow('ISE',(n.score_saude||'—'),'a')+negRow('Valuation',fk(n.valor_venda),'g');
+  document.getElementById('conv-neg-link').onclick=function(){abrirColeta(negId);};
+}
+
+function negRow(k,v,cls){return '<div class="neg-ctx-row"><span class="neg-ctx-k">'+k+'</span><span class="neg-ctx-v '+(cls||'')+'">'+v+'</span></div>';}
+
+// ── MESA EXPAND/COLLAPSE ───────────────────────────────
+function toggleMesa(){
+  MESA_EXPANDIDA=!MESA_EXPANDIDA;
+  var mesa=document.getElementById('mesa');
+  var exp=document.getElementById('mesa-exp');
+  var col=document.getElementById('mesa-col');
+  if(MESA_EXPANDIDA){
+    mesa.classList.remove('collapsed');mesa.classList.add('expanded');
+    exp.style.display='';col.style.display='none';
+  } else {
+    mesa.classList.remove('expanded');mesa.classList.add('collapsed');
+    exp.style.display='none';col.style.display='block';
+  }
+}
+
+// ── HELPERS ────────────────────────────────────────────
+function ocultarTudo(){
+  ['ctx-empty','ctx-tarefa','page-aguardando','ctx-coleta'].forEach(id=>{
+    var el=document.getElementById(id);
+    if(el) el.style.display='none';
+  });
+}
+
+function diasAtras(ts){
+  if(!ts)return 0;
+  return Math.floor((Date.now()-new Date(ts).getTime())/(1000*60*60*24));
+}
+function fmtd(ts){
+  if(!ts)return '—';
+  return new Date(ts).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+function fmtIdade(ts){
+  if(!ts)return '—';
+  var d=diasAtras(ts);
+  if(d===0){var h=Math.floor((Date.now()-new Date(ts).getTime())/3600000);return h<1?'agora':`há ${h}h`;}
+  if(d===1)return 'ontem';
+  if(d<7)return `há ${d}d`;
+  return new Date(ts).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+}
+function fk(v){
+  if(!v&&v!==0)return '—';
+  var a=Math.abs(v),s=v<0?'-':'';
+  if(a>=1e6)return s+'R$'+(a/1e6).toFixed(1).replace('.',',')+'M';
+  if(a>=1e3)return s+'R$'+Math.round(a/1e3)+'K';
+  return s+'R$'+Math.round(a);
+}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function trunc(s,n){s=s||'';return s.length>n?s.substring(0,n)+'...':s;}
+function toast(msg,err){
+  var t=document.getElementById('toast');t.textContent=msg;
+  t.className='t'+(err?' err':'');t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+</script>
+</body>
+</html>
