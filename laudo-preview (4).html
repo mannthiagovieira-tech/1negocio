@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prévia de Laudo · 1Negócio</title>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-7DGLH0W7KE"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-7DGLH0W7KE');</script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c0c0a;--s1:#111110;--s2:#161614;--s3:#1c1c19;
+  --ink:#f5f4ef;--ink2:rgba(245,244,239,.6);--ink3:rgba(245,244,239,.28);--ink4:rgba(245,244,239,.12);
+  --sep:rgba(255,255,255,.07);--bdr:rgba(255,255,255,.14);
+  --green:#10b981;--gdim:rgba(16,185,129,.15);
+  --amber:#f59e0b;--blue:#60a5fa;--red:#f87171;--violet:#6366f1;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{-webkit-font-smoothing:antialiased;}
+body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace;font-size:12px;min-height:100vh;}
+
+/* ── TOPBAR FIXA ── */
+.topbar{
+  position:fixed;top:0;left:0;right:0;z-index:500;
+  background:rgba(12,12,10,.97);backdrop-filter:blur(12px);
+  border-bottom:.5px solid var(--sep);
+  padding:10px 20px;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.topbar-logo{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;letter-spacing:.02em;}
+.topbar-logo em{color:var(--green);font-style:normal;}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+.btn-fechar{
+  font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  padding:7px 16px;border:.5px solid var(--bdr);background:transparent;
+  color:var(--ink2);cursor:pointer;transition:all .15s;
+}
+.btn-fechar:hover{background:var(--s2);color:var(--ink);}
+.badge-previa{
+  font-size:8px;letter-spacing:.16em;text-transform:uppercase;
+  padding:4px 10px;border:.5px solid rgba(245,158,11,.35);
+  color:var(--amber);background:rgba(245,158,11,.06);
+}
+
+/* Marca d'água aplicada via JS só sobre o valor */
+.val-wm-wrap{position:relative;overflow:hidden;}
+.val-wm-overlay{
+  position:absolute;top:0;left:0;right:0;bottom:0;
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:none;z-index:2;
+}
+.val-wm-text{
+  font-family:'Syne',sans-serif;font-size:14px;font-weight:800;
+  color:rgba(255,255,255,.18);letter-spacing:.12em;text-transform:uppercase;
+  transform:rotate(-25deg);white-space:nowrap;user-select:none;
+  text-align:center;line-height:1.6;
+}
+
+/* ── DOCUMENTO ── */
+.doc{
+  max-width:820px;margin:0 auto;
+  padding:80px 24px 100px;
+}
+
+/* ── PÁGINAS ── */
+.page{
+  background:var(--s1);
+  border:.5px solid var(--sep);
+  margin-bottom:3px;
+  position:relative;
+  overflow:hidden;
+}
+
+/* ── CABEÇALHO DA PÁGINA ── */
+.page-header{
+  padding:16px 24px;border-bottom:.5px solid var(--sep);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.page-num{
+  font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink3);
+}
+.page-label{
+  font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--green);
+}
+
+/* ── BLOCOS ── */
+.bloco{padding:24px;border-bottom:.5px solid var(--sep);}
+.bloco:last-child{border-bottom:none;}
+.bloco-titulo{
+  font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink3);
+  margin-bottom:16px;display:flex;align-items:center;gap:8px;
+}
+.bloco-titulo::before{content:'';display:block;width:16px;height:1px;background:var(--sep);}
+
+/* ── CAPA ── */
+.capa-glow{
+  position:absolute;top:-100px;right:-100px;width:400px;height:400px;
+  background:radial-gradient(circle,rgba(16,185,129,.06) 0%,transparent 65%);
+  pointer-events:none;
+}
+.capa-top{
+  padding:32px 28px 0;
+  display:flex;align-items:flex-start;justify-content:space-between;
+  margin-bottom:28px;
+}
+.capa-logo{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;}
+.capa-logo em{color:var(--green);font-style:normal;}
+.capa-selos{display:flex;flex-direction:column;gap:4px;align-items:flex-end;}
+.selo{font-size:8px;font-family:'Syne',sans-serif;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:3px 10px;border:.5px solid;}
+.selo-previa{color:var(--amber);border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.06);}
+.selo-data{color:var(--ink3);border-color:var(--sep);}
+
+.capa-body{padding:0 28px 32px;}
+.capa-eyebrow{
+  font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:var(--green);
+  margin-bottom:12px;display:flex;align-items:center;gap:10px;
+}
+.capa-eyebrow::before{content:'';display:block;width:20px;height:1px;background:var(--green);}
+.capa-titulo{
+  font-family:'Syne',sans-serif;font-size:clamp(24px,4vw,40px);font-weight:800;
+  letter-spacing:-.03em;line-height:1.1;color:var(--ink);margin-bottom:8px;
+}
+.capa-sub{font-size:11px;color:var(--ink3);line-height:1.7;margin-bottom:20px;}
+.capa-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px;}
+.ctag{font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border:.5px solid var(--sep);color:var(--ink3);}
+.ctag-g{border-color:rgba(16,185,129,.3);color:var(--green);background:rgba(16,185,129,.04);}
+.capa-aviso{
+  padding:10px 14px;border-left:2px solid rgba(245,158,11,.35);
+  background:rgba(245,158,11,.03);font-size:10px;color:rgba(245,158,11,.65);line-height:1.7;
+}
+
+/* ── GRID IDENTIF ── */
+.id-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--sep);}
+.id-item{padding:12px 16px;background:var(--s1);}
+.id-label{font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px;}
+.id-valor{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--ink);}
+.id-sub{font-size:10px;color:var(--ink3);margin-top:2px;}
+
+/* ── IA BLOCO ── */
+.ia-secao{padding:20px 24px;border-bottom:.5px solid var(--sep);}
+.ia-secao-titulo{font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--blue);margin-bottom:12px;}
+.ia-texto{font-size:11px;color:var(--ink2);line-height:1.85;}
+.ia-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--sep);margin-top:12px;}
+.ia-stat{padding:10px 14px;background:var(--s1);}
+.ia-stat-l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:4px;}
+.ia-stat-v{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--ink);}
+.ia-lista{margin-top:10px;display:flex;flex-direction:column;gap:5px;}
+.ia-lista-item{display:flex;gap:8px;font-size:11px;color:var(--ink2);line-height:1.6;}
+.ia-lista-item::before{content:'→';color:var(--green);flex-shrink:0;}
+
+/* ── ISE ── */
+.ise-hero{
+  padding:28px 24px;
+  background:rgba(0,0,0,.2);
+  position:relative;overflow:hidden;
+  border-bottom:.5px solid var(--sep);
+}
+.ise-glow{
+  position:absolute;top:-40px;right:-40px;width:200px;height:200px;
+  background:radial-gradient(circle,rgba(16,185,129,.12) 0%,transparent 70%);
+  pointer-events:none;
+}
+.ise-eyebrow{font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px;}
+.ise-row{display:flex;align-items:flex-end;gap:16px;margin-bottom:14px;}
+.ise-numero{
+  font-family:'Syne',sans-serif;font-size:64px;font-weight:800;
+  line-height:.9;letter-spacing:-.04em;
+}
+.ise-info{padding-bottom:6px;}
+.ise-nivel{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;letter-spacing:-.01em;}
+.ise-de100{font-size:10px;color:var(--ink3);margin-top:3px;}
+.ise-niveis{display:flex;gap:2px;margin-bottom:12px;}
+.ise-nivel-item{
+  flex:1;padding:5px 6px;
+  font-family:'Syne',sans-serif;font-size:7px;font-weight:800;
+  text-transform:uppercase;letter-spacing:.05em;
+}
+.ise-barra-wrap{height:3px;background:var(--sep);overflow:hidden;margin-bottom:20px;}
+.ise-barra{height:100%;background:linear-gradient(90deg,#6366f1,var(--green));}
+
+/* ── PILARES ── */
+.pilares{display:flex;flex-direction:column;gap:8px;padding:20px 24px;border-bottom:.5px solid var(--sep);}
+.pilar-row{display:grid;grid-template-columns:1fr 28px;gap:10px;align-items:center;}
+.pilar-nome{font-size:10px;color:var(--ink3);margin-bottom:4px;}
+.pilar-bar-wrap{height:2px;background:var(--sep);overflow:hidden;}
+.pilar-bar{height:100%;}
+.pilar-nota{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;text-align:right;}
+
+/* ── ANÁLISE ISE ── */
+.analise-bloco{padding:20px 24px;border-bottom:.5px solid var(--sep);}
+.analise-titulo{font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px;}
+.analise-item{
+  padding:12px 0;border-bottom:.5px solid var(--sep);
+  display:flex;gap:12px;align-items:flex-start;
+}
+.analise-item:last-child{border-bottom:none;padding-bottom:0;}
+.analise-dot{
+  width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:4px;
+}
+.analise-texto{font-size:11px;color:var(--ink2);line-height:1.7;}
+.analise-label{font-family:'Syne',sans-serif;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;}
+
+/* ── DRE ── */
+.dre{padding:20px 24px;border-bottom:.5px solid var(--sep);}
+.dre-header{
+  display:grid;grid-template-columns:1fr 90px 100px;gap:8px;
+  font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);
+  padding-bottom:8px;border-bottom:.5px solid var(--sep);margin-bottom:6px;
+}
+.dre-row{
+  display:grid;grid-template-columns:1fr 90px 100px;gap:8px;align-items:center;
+  padding:6px 0;border-bottom:.5px solid rgba(255,255,255,.03);font-size:11px;
+}
+.dre-row:last-child{border-bottom:none;}
+.dre-row.total{
+  border-top:.5px solid rgba(255,255,255,.1);
+  margin-top:4px;padding-top:10px;
+}
+.dre-label{color:var(--ink3);}
+.dre-label.bold{color:var(--ink);font-weight:600;}
+.dre-val{text-align:right;font-family:'Syne',sans-serif;font-weight:800;font-size:12px;}
+.dre-anual{text-align:right;font-size:10px;color:var(--ink3);}
+
+/* ── BP ── */
+.bp{padding:20px 24px;}
+.bp-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--sep);margin-top:12px;}
+.bp-item{padding:14px 16px;background:var(--s1);}
+.bp-label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px;}
+.bp-valor{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;}
+
+/* ── VALUATION ── */
+.val-hero{
+  padding:36px 28px 28px;
+  background:linear-gradient(160deg,rgba(16,185,129,.05) 0%,transparent 60%);
+  position:relative;overflow:hidden;
+  border-bottom:.5px solid var(--sep);
+}
+.val-glow{
+  position:absolute;top:-60px;right:-60px;width:300px;height:300px;
+  background:radial-gradient(circle,rgba(16,185,129,.1) 0%,transparent 70%);
+  pointer-events:none;
+}
+.val-top{
+  position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(16,185,129,.5),transparent);
+}
+.val-eyebrow{font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:rgba(16,185,129,.7);margin-bottom:6px;}
+.val-sub{font-size:10px;color:var(--ink3);margin-bottom:20px;}
+.val-numero{
+  font-family:'Syne',sans-serif;
+  font-size:clamp(48px,10vw,80px);
+  font-weight:800;color:var(--green);
+  line-height:.9;letter-spacing:-.05em;
+  margin-bottom:16px;
+  text-shadow:0 0 60px rgba(16,185,129,.25);
+}
+.val-faixa{
+  display:inline-flex;align-items:center;gap:10px;
+  background:rgba(255,255,255,.03);border:.5px solid var(--sep);
+  padding:6px 14px;margin-bottom:20px;
+}
+.val-faixa-l{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);}
+.val-faixa-v{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--ink2);}
+
+.val-tag{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;border-left:2px solid;
+  background:rgba(255,255,255,.02);
+  font-size:11px;margin-top:8px;
+}
+
+/* ── BREAKDOWN ── */
+.breakdown{padding:20px 24px;border-bottom:.5px solid var(--sep);}
+.breakdown-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 0;border-bottom:.5px solid rgba(255,255,255,.04);
+}
+.breakdown-row:last-child{border-bottom:none;}
+.breakdown-row.destaque{
+  border-top:.5px solid rgba(255,255,255,.1);
+  margin-top:4px;padding-top:14px;
+}
+.breakdown-l{font-size:11px;color:var(--ink3);}
+.breakdown-l.bold{color:var(--ink);font-weight:600;font-size:12px;}
+.breakdown-sub{font-size:9px;color:var(--ink3);margin-top:2px;}
+.breakdown-v{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;white-space:nowrap;}
+
+/* ── DISCLAIMER ── */
+.disclaimer{
+  padding:16px 24px;border-bottom:.5px solid var(--sep);
+  border-left:2px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.01);
+}
+.disclaimer-titulo{font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:8px;}
+.disclaimer-texto{font-size:10px;color:var(--ink3);line-height:1.8;}
+
+/* ── OPORTUNIDADES ── */
+.opps{padding:20px 24px;border-bottom:.5px solid var(--sep);}
+.opp-item{
+  padding:12px 0;border-bottom:.5px solid rgba(245,158,11,.06);
+  display:flex;gap:12px;align-items:flex-start;
+}
+.opp-item:last-child{border-bottom:none;padding-bottom:0;}
+.opp-dot{width:5px;height:5px;background:var(--amber);border-radius:50%;flex-shrink:0;margin-top:5px;}
+.opp-titulo{font-family:'Syne',sans-serif;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--amber);margin-bottom:3px;}
+.opp-desc{font-size:11px;color:rgba(255,255,255,.4);line-height:1.7;}
+
+/* ── ASSINATURA ── */
+.assinatura{padding:24px;border-bottom:.5px solid var(--sep);}
+.ass-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:center;}
+.ass-logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;}
+.ass-logo em{color:var(--green);font-style:normal;}
+.ass-desc{font-size:10px;color:var(--ink3);line-height:1.7;margin-top:4px;}
+.ass-dir{text-align:right;}
+.ass-validade{font-size:9px;color:var(--ink3);margin-bottom:8px;}
+.ass-linha{height:1px;background:var(--bdr);margin-bottom:8px;}
+.ass-nome{font-family:'Syne',sans-serif;font-size:11px;font-weight:800;}
+.ass-cargo{font-size:9px;color:var(--ink3);}
+
+/* ── CTAs ── */
+.ctas{padding:24px;}
+.ctas-titulo{font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px;}
+.ctas-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px;}
+.cta-item{
+  padding:18px;cursor:pointer;
+  border:.5px solid var(--sep);
+  transition:background .15s;position:relative;overflow:hidden;
+}
+.cta-item:hover{background:var(--s2);}
+.cta-item.destaque{border-color:rgba(16,185,129,.3);background:rgba(16,185,129,.03);}
+.cta-item.destaque:hover{background:rgba(16,185,129,.06);}
+.cta-item.azul{border-color:rgba(96,165,250,.25);background:rgba(96,165,250,.03);}
+.cta-top{position:absolute;top:0;left:0;right:0;height:1px;}
+.cta-badge{
+  position:absolute;top:-1px;right:8px;
+  font-family:'Syne',sans-serif;font-size:7px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+  background:var(--amber);color:#000;padding:2px 8px;
+}
+.cta-label{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px;}
+.cta-titulo{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;line-height:1.1;margin-bottom:5px;}
+.cta-desc{font-size:10px;color:var(--ink3);line-height:1.6;margin-bottom:12px;}
+.cta-btn{
+  display:inline-block;
+  font-family:'Syne',sans-serif;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+  padding:8px 14px;
+}
+
+/* ── KPIs 4 ── */
+.kpis4{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--sep);border-bottom:.5px solid var(--sep);}
+.kpi-item{padding:16px;background:var(--s1);}
+.kpi-label{font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px;}
+.kpi-valor{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;letter-spacing:-.02em;}
+
+/* ── LOADING ── */
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;}
+.spinner{width:28px;height:28px;border:2px solid var(--sep);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── PRINT ── */
+@media print{
+  .topbar,.watermark{display:none!important;}
+  body{background:#fff!important;color:#111!important;}
+  .doc{padding:16px;}
+  .page,.bloco,.ia-secao,.val-hero,.ctas,.assinatura,.disclaimer{border-color:#e5e5e5!important;}
+  :root{--bg:#fff;--s1:#fafafa;--s2:#f5f5f5;--ink:#111;--ink2:#444;--ink3:#888;--sep:#e5e5e5;--green:#059669;}
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR FIXA -->
+<div class="topbar">
+  <div class="topbar-logo"><em>1</em>NEGÓCIO</div>
+  <div class="topbar-right">
+    <span class="badge-previa">Prévia de Laudo</span>
+    <button class="btn-fechar" onclick="window.close();history.back();">← Fechar prévia</button>
+  </div>
+</div>
+
+<!-- Marca d'água aplicada só sobre o valor via JS -->
+
+<!-- DOCUMENTO -->
+<div class="doc" id="doc">
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div style="font-size:11px;color:var(--ink3)">Carregando laudo...</div>
+  </div>
+</div>
+
+<script>
+var SUPA_URL='https://dbijmgqlcrgjlcfrastg.supabase.co';
+var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzA3NjE2MywiZXhwIjoyMDg4NjUyMTYzfQ.b79syG5GuQZYLd3QvbRMTi66E_sdKa-Nh-Q1XbDcM2Y';
+
+var params=new URLSearchParams(window.location.search);
+var NEG_ID=params.get('id');
+
+// ── UTILS ──────────────────────────────────────────────────────
+function fmtBRL(v){
+  if(!v&&v!==0)return'—';
+  var a=Math.abs(v),s=v<0?'-':'';
+  if(a>=1e6)return s+'R$ '+(a/1e6).toFixed(1).replace('.',',')+'M';
+  if(a>=1e3)return s+'R$ '+Math.round(a/1e3).toLocaleString('pt-BR')+' mil';
+  return s+'R$ '+Math.round(a).toLocaleString('pt-BR');
+}
+function fmtNum(v){if(!v&&v!==0)return'0';return Math.round(v).toLocaleString('pt-BR');}
+
+var ISE_NIVEIS=[
+  {min:0,max:40,label:'Vulnerável',cor:'#6366f1'},
+  {min:41,max:60,label:'Em desenvolvimento',cor:'#3b82f6'},
+  {min:61,max:80,label:'Estruturada',cor:'#f59e0b'},
+  {min:81,max:100,label:'Sólida',cor:'#10b981'},
+];
+function iseInfo(s){
+  return ISE_NIVEIS.find(function(n){return s>=n.min&&s<=n.max;})||ISE_NIVEIS[0];
+}
+
+var PILARES_NOMES={
+  p1:'Independência operacional',p2:'Comercial e vendas',p3:'Produto e oferta',
+  p4:'Gestão e processos',p5:'Resultado financeiro',p6:'Balanço patrimonial',
+  p7:'Estrutura de dívida',p8:'Situação legal e fiscal',p9:'Concentração de receita',p10:'Escalabilidade'
+};
+
+function corPilar(v){
+  if(v<=2)return'#6366f1';if(v<=4)return'#3b82f6';if(v<=6)return'#f59e0b';
+  if(v<=8)return'#10b981';return'#34d399';
+}
+
+// ── COMENTÁRIOS POR PILAR ──────────────────────────────────────
+var COMENTARIOS={
+  p1:{
+    0:'É necessário estruturar a operação para funcionar sem a presença diária dos sócios. A dependência do fundador é o principal fator de risco percebido por potenciais compradores.',
+    2:'A empresa apresenta oportunidade de melhoria na autonomia operacional. Com a equipe resolvendo apenas situações básicas, há espaço relevante para desenvolvimento de lideranças internas.',
+    4:'A operação apresenta oportunidade de melhoria na independência do sócio. Reduzir a necessidade de contato constante durante ausências pode valorizar significativamente o negócio.',
+    6:'A operação funciona adequadamente, mas ainda depende do sócio para decisões estratégicas. Evoluir para maior autonomia é um caminho natural de maturidade.',
+    8:'A empresa demonstra boa estrutura operacional com capacidade de funcionar sem o sócio por períodos relevantes. Este é um diferencial valorizado no mercado.',
+    10:'Diferencial competitivo: a operação é totalmente autônoma e a gestão está estabelecida independentemente dos sócios fundadores. Este ponto eleva consideravelmente o perfil de atratividade do negócio.'
+  },
+  p2:{
+    0:'É necessário estruturar um processo comercial. A ausência de metodologia de vendas representa risco de concentração de resultados e dificulta projeções futuras.',
+    2:'A empresa apresenta oportunidade de melhoria no processo comercial. Formalizar como o negócio conquista e retém clientes é fundamental para previsibilidade.',
+    4:'Há oportunidade de melhoria na estrutura comercial. Um processo mais definido permitiria maior previsibilidade de receita e facilidade de replicação.',
+    6:'O comercial apresenta processo razoável. Há espaço para evolução na sistematização, o que pode trazer maior previsibilidade de resultados.',
+    8:'A empresa possui processo comercial bem estruturado. A consistência na aquisição e retenção de clientes é um ponto positivo relevante.',
+    10:'Diferencial: processo comercial sólido e previsível, com metodologia clara de aquisição e retenção. Isso representa segurança relevante para o comprador.'
+  },
+  p3:{
+    0:'É necessário clarificar e estruturar a oferta da empresa. A dificuldade em descrever o que é entregue ao cliente representa risco de percepção de valor e posicionamento.',
+    2:'A empresa apresenta oportunidade de melhoria no posicionamento da oferta. Estruturar e comunicar claramente o que entrega ao cliente pode aumentar o valor percebido.',
+    4:'Há oportunidade de melhoria na padronização da entrega. Definir processos e diferenciais claros torna o negócio mais replicável e atrativo.',
+    6:'A oferta é clara e reconhecida pelos clientes. Há espaço para formalizar ainda mais os diferenciais e estruturar a recorrência.',
+    8:'A empresa possui oferta bem estruturada com possibilidade de escala. Isso representa um ponto relevante na análise de potencial de crescimento.',
+    10:'Diferencial: produto ou serviço muito bem posicionado com marca consolidada. Este ativo intangível contribui diretamente para a valorização do negócio.'
+  },
+  p4:{
+    0:'É necessário documentar processos e implantar rotinas de gestão. A operação rodando na memória das pessoas representa risco operacional e de transição.',
+    2:'A empresa apresenta oportunidade significativa na gestão de processos. Formalizar rotinas reduz dependência de pessoas-chave e aumenta o valor percebido.',
+    4:'Há oportunidade de melhoria na gestão interna. Avançar na documentação de processos e uso de indicadores pode elevar o nível de maturidade operacional.',
+    6:'A gestão apresenta nível adequado de organização. Evoluir em documentação e indicadores de desempenho é o próximo passo natural.',
+    8:'A empresa demonstra bom nível de gestão com processos definidos. Isso facilita a transição em um processo de venda.',
+    10:'Diferencial: gestão profissionalizada com processos documentados e indicadores acompanhados. Este nível de maturidade é altamente valorizado por compradores.'
+  },
+  p5:{
+    0:'É necessário reestruturar o resultado financeiro. Prejuízo recorrente sem controle representa alto risco operacional e compromete o valor de venda.',
+    2:'A empresa apresenta oportunidade de melhoria na consistência financeira. Resultados variáveis dificultam projeções e reduzem a confiança do comprador.',
+    4:'Há oportunidade de melhoria na margem e consistência do resultado. Evoluir para um resultado mais previsível e robusto é fundamental.',
+    6:'O resultado financeiro é positivo e relativamente previsível. Há espaço para melhoria de margens e consistência.',
+    8:'A empresa apresenta resultado financeiro saudável e consistente. Este é um dos critérios mais importantes na análise de valor.',
+    10:'Diferencial: resultado sólido, crescente e bem monitorado. A robustez financeira é o principal driver de valorização do negócio.'
+  },
+  p8:{
+    0:'É necessário regularizar a situação legal e fiscal. Pendências abertas representam passivo relevante que impacta diretamente o processo de due diligence.',
+    2:'A empresa apresenta oportunidade de melhoria na gestão jurídica e fiscal. Endereçar pendências antes de um processo de venda é altamente recomendável.',
+    4:'Há pontos de atenção na situação legal ou fiscal. Regularizá-los antes de iniciar uma negociação reduz riscos e aumenta o poder de barganha.',
+    6:'A situação legal e fiscal apresenta nível adequado. Manter em dia e documentar é fundamental para um processo de due diligence tranquilo.',
+    8:'A empresa demonstra boa organização jurídica e fiscal. Isso facilita e acelera processos de due diligence.',
+    10:'Diferencial: situação legal e fiscal exemplar. Empresas sem pendências e bem documentadas têm processos de venda significativamente mais ágeis.'
+  },
+  p9:{
+    0:'É necessário diversificar a base de clientes. Concentração acima de 70% em 1-2 clientes representa risco elevado de receita que compradores precificam com desconto relevante.',
+    2:'A empresa apresenta oportunidade de melhoria na diversificação de clientes. Alta concentração é um dos principais riscos apontados em processos de M&A.',
+    4:'Há oportunidade de melhoria na distribuição de receita. Reduzir a dependência dos principais clientes aumenta a resiliência e o valor percebido.',
+    6:'A receita está bem distribuída sem dependência excessiva de clientes individuais. Este é um ponto positivo relevante.',
+    8:'A empresa possui base de clientes diversificada. Nenhum cliente com participação superior a 15% representa boa resiliência de receita.',
+    10:'Diferencial: receita pulverizada e recorrente com base ampla de clientes ativos. Este perfil é altamente valorizado por compradores que buscam previsibilidade.'
+  },
+  p10:{
+    low:'A empresa apresenta oportunidade de melhoria no potencial de escala. Identificar caminhos de crescimento sem aumento proporcional de custos pode elevar o múltiplo de avaliação.',
+    mid:'A empresa demonstra algum potencial de escala. Estruturar e formalizar esses caminhos de crescimento pode valorizar o negócio.',
+    high:'Diferencial: o negócio apresenta bom potencial de escalabilidade. Compradores com perfil de crescimento tendem a valorizar este atributo.'
+  }
+};
+
+function comentarioPilar(id, val){
+  var c=COMENTARIOS[id];
+  if(!c)return null;
+  if(id==='p10'){
+    if(val<=30)return c.low;
+    if(val<=60)return c.mid;
+    return c.high;
+  }
+  // Para sliders (p2, p4, p8, p10): mapear para faixas
+  if(id==='p2'||id==='p4'||id==='p8'){
+    if(val<=2)return c[0];if(val<=4)return c[2];if(val<=6)return c[4];
+    if(val<=8)return c[6];return c[8]||c[10];
+  }
+  // Para cards: valor exato
+  if(c[val]!==undefined)return c[val];
+  // Fallback por faixa
+  var chaves=Object.keys(c).map(Number).sort(function(a,b){return a-b;});
+  var closest=chaves.reduce(function(prev,curr){return Math.abs(curr-val)<Math.abs(prev-val)?curr:prev;});
+  return c[closest];
+}
+
+// ── OPORTUNIDADES ──────────────────────────────────────────────
+function getOportunidades(n, score_pilares){
+  var opps=[];
+  if(!score_pilares)return opps;
+  try{
+    var pilares=typeof score_pilares==='string'?JSON.parse(score_pilares):score_pilares;
+    // Ordenar por valor ascendente → piores primeiro
+    var sorted=[...pilares].sort(function(a,b){return (a.val||0)-(b.val||0);});
+    var pilar_map={
+      p1:{t:'Independência operacional',d:'Estruturar processos e delegar decisões pode aumentar significativamente o valor percebido pelo comprador.'},
+      p2:{t:'Processo comercial',d:'Formalizar o processo de vendas traz previsibilidade de receita — um dos critérios mais valorizados em M&A.'},
+      p3:{t:'Posicionamento da oferta',d:'Clarificar e padronizar a entrega ao cliente facilita a transição e aumenta o valor intangível do negócio.'},
+      p4:{t:'Gestão e processos internos',d:'Documentar processos reduz a dependência de pessoas-chave e acelera due diligence.'},
+      p5:{t:'Resultado financeiro',d:'Melhorar margens e consistência do resultado impacta diretamente o múltiplo de avaliação.'},
+      p6:{t:'Balanço patrimonial',d:'Organizar ativos e passivos com clareza facilita a negociação e reduz risco percebido.'},
+      p7:{t:'Estrutura de dívida',d:'Reduzir o nível de endividamento antes da venda pode aumentar o valor líquido recebido.'},
+      p8:{t:'Situação legal e fiscal',d:'Regularizar pendências antes de iniciar negociações evita descontos no preço final.'},
+      p9:{t:'Concentração de receita',d:'Diversificar a base de clientes reduz risco e pode elevar o múltiplo de avaliação.'},
+      p10:{t:'Potencial de escala',d:'Identificar e documentar caminhos de crescimento atrai compradores estratégicos.'}
+    };
+    sorted.slice(0,4).forEach(function(p){
+      var m=pilar_map[p.id];
+      if(m&&(p.val||0)<7)opps.push({t:m.t,d:m.d});
+    });
+  }catch(e){}
+  return opps.slice(0,4);
+}
+
+// ── RENDER PRINCIPAL ───────────────────────────────────────────
+function renderDoc(n){
+  var score=n.score_saude||0;
+  var ise=iseInfo(score);
+  var catLabel=n.categoria||'Negócio';
+  var dataHoje=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+  var anos=n.ano_inicio?(new Date().getFullYear()-parseInt(n.ano_inicio))+' anos':null;
+  var fatMes=n.faturamento_anual?Math.round(n.faturamento_anual/12):0;
+  var resOp=n.resultado_liquido_mensal||0;
+  var gerCx=resOp-(n.parcelas_mensais||0)-(n.prolabore_mensal||0);
+  var impostos=n.impostos_mensais||Math.round(fatMes*0.12);
+  var custos=fatMes-(resOp+impostos+(n.cmv_mensal||0));
+  var venda=n.valor_venda||n.preco_pedido||0;
+  var faixaMin=Math.round(venda*.88);
+  var faixaMax=Math.round(venda*1.12);
+  var ativos=n.ativo_imovel||n.ativos_json?parseBP(n,'ativos'):0;
+  var passivos=n.divida_total||n.passivos_json?parseBP(n,'passivos'):0;
+  var balanco=ativos-passivos;
+  var ctx=n.teaser_contexto_ia||null;
+  var opps=getOportunidades(n, n.score_pilares);
+
+  // Pilares
+  var pilares_raw=[];
+  try{pilares_raw=typeof n.score_pilares==='string'?JSON.parse(n.score_pilares):n.score_pilares||[];}catch(e){}
+
+  // 3 melhores e 3 piores
+  var sorted_asc=[...pilares_raw].sort(function(a,b){return (a.val||0)-(b.val||0);});
+  var sorted_desc=[...pilares_raw].sort(function(a,b){return (b.val||0)-(a.val||0);});
+  var tres_piores=sorted_asc.slice(0,3).filter(function(p){return (p.val||0)<7;});
+  var tres_melhores=sorted_desc.slice(0,3).filter(function(p){return (p.val||0)>=6;});
+
+  var html='';
+
+  // ════════════════════════════════════════════════
+  // PÁGINA 1 — IDENTIFICAÇÃO + CONTEXTO IA
+  // ════════════════════════════════════════════════
+  html+='<div class="page">';
+  html+='<div class="page-header"><span class="page-label">1Negócio · Laudo de Avaliação</span><span class="page-num">Página 1 de 4 · Prévia</span></div>';
+
+  // Capa
+  html+='<div class="capa-glow"></div>';
+  html+='<div class="capa-top">';
+  html+='<div class="capa-logo"><em>1</em>NEGÓCIO</div>';
+  html+='<div class="capa-selos">';
+  html+='<span class="selo selo-previa">Prévia · Documento preliminar</span>';
+  html+='<span class="selo selo-data">'+dataHoje+'</span>';
+  html+='</div></div>';
+
+  html+='<div class="capa-body">';
+  html+='<div class="capa-eyebrow">Avaliação de negócio</div>';
+  // Nome do negócio aparece nos modos previa e vendedor
+  if((MODO==='previa'||MODO==='vendedor')&&n.nome){
+    html+='<div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:rgba(16,185,129,.5);margin-bottom:4px">'+catLabel+'</div>';
+    html+='<div class="capa-titulo">'+n.nome+'</div>';
+  } else {
+    html+='<div class="capa-titulo">'+catLabel+(n.cidade?' · '+n.cidade:'')+'</div>';
+  }
+  html+='<div class="capa-sub">Avaliação técnica pela metodologia 1Negócio · ISE + Valuation por Resultado Operacional</div>';
+  html+='<div class="capa-tags">';
+  html+='<span class="ctag ctag-g">ISE '+score+'/100 · '+ise.label+'</span>';
+  if(n.cidade)html+='<span class="ctag">'+n.cidade+(n.estado?' / '+n.estado:'')+'</span>';
+  if(anos)html+='<span class="ctag">'+anos+'</span>';
+  if(n.funcionarios)html+='<span class="ctag">'+n.funcionarios+' colaboradores</span>';
+  html+='</div>';
+  // "Preparado para" nos modos previa e vendedor
+  if(MODO==='previa'||MODO==='vendedor'){
+    var nomeUser=n.prepared_for_nome||'';
+    var emailUser=n.prepared_for_email||'';
+    if(nomeUser||emailUser){
+      html+='<div style="font-size:9px;color:var(--ink3);margin-bottom:8px;padding:6px 10px;border:.5px solid var(--sep);display:inline-flex;align-items:center;gap:8px">';
+      html+='<span style="color:var(--ink3)">Preparado para</span>';
+      html+='<span style="color:var(--ink2);font-family:\'Syne\',sans-serif;font-weight:800">'+(nomeUser||emailUser)+'</span>';
+      if(nomeUser&&emailUser)html+='<span style="color:var(--ink3)">·</span><span style="color:var(--ink3)">'+emailUser+'</span>';
+      html+='</div>';
+    }
+  }
+  html+='<div class="capa-aviso">Documento de caráter preliminar. Dados cadastrais sensíveis omitidos conforme política de sigilo 1Negócio. Válido por 90 dias a partir da data de emissão.</div>';
+  html+='</div>';
+
+  // Grid de identificação
+  html+='<div class="bloco">';
+  html+='<div class="bloco-titulo">Identificação do negócio</div>';
+  html+='<div class="id-grid">';
+  html+='<div class="id-item"><div class="id-label">Segmento</div><div class="id-valor">'+catLabel+'</div></div>';
+  html+='<div class="id-item"><div class="id-label">Localização</div><div class="id-valor">'+(n.cidade?n.cidade+(n.estado?' / '+n.estado:''):'—')+'</div></div>';
+  if(anos)html+='<div class="id-item"><div class="id-label">Tempo de operação</div><div class="id-valor">'+anos+'</div></div>';
+  if(n.funcionarios)html+='<div class="id-item"><div class="id-label">Equipe</div><div class="id-valor">'+n.funcionarios+' pessoas</div></div>';
+  html+='<div class="id-item" style="grid-column:1/-1"><div class="id-label">Nome / Razão social</div><div class="id-valor" style="font-size:11px;font-weight:400;color:var(--ink3);font-family:\'DM Mono\',monospace">Omitido · disponível após processo de due diligence</div></div>';
+  html+='</div></div>';
+
+  // Contexto IA
+  if(ctx&&!ctx.erro){
+    // 1. LOCALIZAÇÃO — leitura primeiro
+    if(ctx.localizacao){
+      html+='<div class="ia-secao">';
+      html+='<div class="ia-secao-titulo">Mercado local · '+(n.cidade||n.estado||'')+'</div>';
+      html+='<div class="ia-texto">'+ctx.localizacao.contexto+'</div>';
+      if(ctx.localizacao.potencial_mercado){
+        html+='<div class="ia-texto" style="margin-top:8px;font-size:10px;color:rgba(96,165,250,.7);font-style:italic">'+ctx.localizacao.potencial_mercado+'</div>';
+      }
+      if(ctx.localizacao.vantagens_locais&&ctx.localizacao.vantagens_locais.length){
+        html+='<div class="ia-lista">';
+        ctx.localizacao.vantagens_locais.forEach(function(v){html+='<div class="ia-lista-item">'+v+'</div>';});
+        html+='</div>';
+      }
+      html+='</div>';
+    }
+    // 2. SETOR — com nota sutil ligando ao contexto local acima
+    if(ctx.setor){
+      html+='<div class="ia-secao">';
+      html+='<div class="ia-secao-titulo">Contexto do setor · '+catLabel+'</div>';
+      // Nota sutil de ligação se tiver localização
+      if(ctx.localizacao){
+        html+='<div style="font-size:9px;color:rgba(255,255,255,.25);margin-bottom:8px;font-style:italic">No contexto local acima, insere-se em um mercado nacional com as seguintes características:</div>';
+      }
+      html+='<div class="ia-texto">'+ctx.setor.tendencia+'</div>';
+      html+='<div class="ia-grid">';
+      if(ctx.setor.crescimento_anual)html+='<div class="ia-stat"><div class="ia-stat-l">Crescimento anual</div><div class="ia-stat-v">'+ctx.setor.crescimento_anual+'</div></div>';
+      if(ctx.setor.multiplos_referencia)html+='<div class="ia-stat"><div class="ia-stat-l">Payback de referência</div><div class="ia-stat-v">'+ctx.setor.multiplos_referencia+'</div></div>';
+      html+='</div>';
+      if(ctx.setor.drivers_demanda&&ctx.setor.drivers_demanda.length){
+        html+='<div class="ia-lista">';
+        ctx.setor.drivers_demanda.forEach(function(d){html+='<div class="ia-lista-item">'+d+'</div>';});
+        html+='</div>';
+      }
+      html+='</div>';
+    }
+    // 3. MACRO
+    if(ctx.macroeconomico){
+      html+='<div class="ia-secao">';
+      html+='<div class="ia-secao-titulo">Contexto macroeconômico</div>';
+      html+='<div class="ia-texto">'+ctx.macroeconomico.contexto+'</div>';
+      if(ctx.macroeconomico.oportunidade)html+='<div class="ia-texto" style="margin-top:8px;color:rgba(16,185,129,.7)">'+ctx.macroeconomico.oportunidade+'</div>';
+      html+='</div>';
+    }
+  } else {
+    html+='<div class="ia-secao">';
+    html+='<div class="ia-secao-titulo">Contexto de mercado</div>';
+    html+='<div class="ia-texto" style="color:var(--ink3)">Enriquecimento por análise de mercado será gerado na versão completa do laudo.</div>';
+    html+='</div>';
+  }
+  html+='</div>'; // fecha page 1
+
+  // ════════════════════════════════════════════════
+  // PÁGINA 2 — ISE + ANÁLISE + DRE + BP
+  // ════════════════════════════════════════════════
+  html+='<div class="page">';
+  html+='<div class="page-header"><span class="page-label">Solidez empresarial · Financeiro</span><span class="page-num">Página 2 de 4 · Prévia</span></div>';
+
+  // ISE Hero
+  html+='<div class="ise-hero">';
+  html+='<div class="ise-glow"></div>';
+  html+='<div class="ise-eyebrow">Índice de Solidez Empresarial — ISE</div>';
+  html+='<div class="ise-row">';
+  html+='<div class="ise-numero" style="color:'+ise.cor+'">'+score+'</div>';
+  html+='<div class="ise-info">';
+  html+='<div class="ise-nivel" style="color:'+ise.cor+'">'+ise.label+'</div>';
+  html+='<div class="ise-de100">de 100 · score de maturidade operacional</div>';
+  html+='</div></div>';
+  // Níveis
+  html+='<div class="ise-niveis">';
+  ISE_NIVEIS.forEach(function(n_ise,i){
+    var atual=score>=n_ise.min&&score<=n_ise.max;
+    var passado=score>n_ise.max;
+    html+='<div class="ise-nivel-item" style="background:'+(atual?'rgba(16,185,129,.1)':passado?'rgba(255,255,255,.03)':'rgba(0,0,0,.2)')+';border:.5px solid '+(atual?'rgba(16,185,129,.35)':passado?'rgba(255,255,255,.06)':'rgba(255,255,255,.03)')+';color:'+(atual?ise.cor:passado?'rgba(255,255,255,.2)':'rgba(255,255,255,.1)')+'">'+( atual?'► ':'')+n_ise.label+'</div>';
+  });
+  html+='</div>';
+  html+='<div class="ise-barra-wrap"><div class="ise-barra" style="width:'+score+'%"></div></div>';
+  html+='</div>';
+
+  // Pilares
+  html+='<div class="pilares">';
+  html+='<div style="font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px">Análise por dimensão</div>';
+  pilares_raw.forEach(function(p){
+    var cor=corPilar(p.val||0);
+    var v=p.val!==undefined?p.val:0;
+    var vDisplay=p.id==='p10'?Math.round(v/10):v;
+    html+='<div class="pilar-row">';
+    html+='<div><div class="pilar-nome">'+(PILARES_NOMES[p.id]||p.nome||p.id)+(p.id==='p6'||p.id==='p7'?'<span style="font-size:8px;color:var(--ink3);margin-left:6px">calc. auto</span>':'')+'</div>';
+    html+='<div class="pilar-bar-wrap"><div class="pilar-bar" style="width:'+(p.id==='p10'?v:v*10)+'%;background:'+cor+'"></div></div></div>';
+    html+='<div class="pilar-nota" style="color:'+cor+'">'+vDisplay+'</div>';
+    html+='</div>';
+  });
+  html+='</div>';
+
+  // Análise ISE — 3 piores + 3 melhores
+  if(tres_piores.length||tres_melhores.length){
+    html+='<div class="analise-bloco">';
+    html+='<div class="analise-titulo">Análise 1Negócio · pontos de atenção e diferenciais</div>';
+    tres_piores.forEach(function(p){
+      var coment=comentarioPilar(p.id, p.val||0);
+      if(!coment)return;
+      html+='<div class="analise-item">';
+      html+='<div class="analise-dot" style="background:'+corPilar(p.val||0)+'"></div>';
+      html+='<div>';
+      html+='<div class="analise-label" style="color:'+corPilar(p.val||0)+'">'+(PILARES_NOMES[p.id]||p.id)+'</div>';
+      html+='<div class="analise-texto">'+coment+'</div>';
+      html+='</div></div>';
+    });
+    tres_melhores.forEach(function(p){
+      var coment=comentarioPilar(p.id, p.val||0);
+      if(!coment)return;
+      html+='<div class="analise-item">';
+      html+='<div class="analise-dot" style="background:'+corPilar(p.val||0)+'"></div>';
+      html+='<div>';
+      html+='<div class="analise-label" style="color:'+corPilar(p.val||0)+'">'+(PILARES_NOMES[p.id]||p.id)+'</div>';
+      html+='<div class="analise-texto">'+coment+'</div>';
+      html+='</div></div>';
+    });
+    html+='</div>';
+  }
+
+  // DRE
+  html+='<div class="dre">';
+  html+='<div style="font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:12px">DRE Resumida · base mensal</div>';
+  html+='<div class="dre-header"><span>Linha</span><span style="text-align:right">Mensal</span><span style="text-align:right">Anual</span></div>';
+  html+=dreRow('(+) Faturamento bruto',fmtBRL(fatMes),fmtBRL(fatMes*12),'var(--ink)',false);
+  if(n.cmv_mensal&&n.cmv_mensal>0)html+=dreRow('(-) Custo de mercadoria','- '+fmtBRL(n.cmv_mensal),'- '+fmtBRL(n.cmv_mensal*12),'var(--red)',false);
+  html+=dreRow('(-) Impostos estimados','- '+fmtBRL(impostos),'- '+fmtBRL(impostos*12),'var(--red)',false);
+  if(custos>0)html+=dreRow('(-) Despesas fixas','- '+fmtBRL(Math.abs(custos)),'- '+fmtBRL(Math.abs(custos)*12),'var(--red)',false);
+  html+=dreRow('= Resultado Operacional',fmtBRL(resOp),fmtBRL(resOp*12),resOp>=0?'var(--green)':'var(--red)',true);
+  if(n.parcelas_mensais||n.prolabore_mensal){
+    if(n.parcelas_mensais)html+=dreRow('(-) Parcelas de dívidas','- '+fmtBRL(n.parcelas_mensais),'','var(--amber)',false);
+    if(n.prolabore_mensal)html+=dreRow('(-) Pró-labore','- '+fmtBRL(n.prolabore_mensal),'','var(--amber)',false);
+    html+=dreRow('= Geração de caixa',fmtBRL(gerCx),fmtBRL(gerCx*12),gerCx>=0?'var(--green)':'var(--amber)',true);
+  }
+  html+='</div>';
+
+  // BP
+  if(ativos>0||passivos>0){
+    html+='<div class="bp">';
+    html+='<div style="font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:12px">Balanço Patrimonial</div>';
+    html+='<div class="bp-grid">';
+    html+='<div class="bp-item"><div class="bp-label">Total de ativos</div><div class="bp-valor" style="color:var(--green)">'+fmtBRL(ativos)+'</div></div>';
+    html+='<div class="bp-item"><div class="bp-label">Dívidas e obrigações</div><div class="bp-valor" style="color:var(--red)">'+fmtBRL(passivos)+'</div></div>';
+    html+='<div class="bp-item"><div class="bp-label">Patrimônio líquido</div><div class="bp-valor" style="color:'+(balanco>=0?'var(--green)':'var(--red)')+'">'+fmtBRL(balanco)+'</div></div>';
+    html+='</div></div>';
+  }
+  html+='</div>'; // fecha page 2
+
+  // ════════════════════════════════════════════════
+  // PÁGINA 3 — VALUATION
+  // ════════════════════════════════════════════════
+  html+='<div class="page">';
+  html+='<div class="page-header"><span class="page-label">Valuation · Porteira fechada</span><span class="page-num">Página 3 de 4 · Prévia</span></div>';
+
+  // Valor hero
+  html+='<div class="val-hero">';
+  html+='<div class="val-glow"></div>';
+  html+='<div class="val-top"></div>';
+  html+='<div class="val-eyebrow">Valor de Venda Estimado</div>';
+  html+='<div class="val-sub">Metodologia 1Negócio · Resultado Operacional × Múltiplo ajustado + Balanço</div>';
+  // Marca d'água só no modo previa, só sobre o número
+  if(MODO==='previa'){
+    html+='<div class="val-wm-wrap">';
+    html+='<div class="val-numero" style="position:relative;z-index:1">'+fmtBRL(venda)+'</div>';
+    html+='<div class="val-wm-overlay"><div class="val-wm-text">PRÉVIA · 1NEGOCIO.COM.BR<br>PRÉVIA · 1NEGOCIO.COM.BR</div></div>';
+    html+='</div>';
+  } else {
+    html+='<div class="val-numero">'+fmtBRL(venda)+'</div>';
+  }
+  html+='<div class="val-faixa"><span class="val-faixa-l">Faixa</span><span class="val-faixa-v">'+fmtBRL(faixaMin)+'</span><span style="font-size:10px;color:var(--ink3)">–</span><span class="val-faixa-v">'+fmtBRL(faixaMax)+'</span></div>';
+  if(n.preco_pedido&&n.preco_pedido>0){
+    var diff=((n.preco_pedido-venda)/venda)*100;
+    var tagCor=Math.abs(diff)<=10?'var(--green)':diff>10?'var(--amber)':'var(--blue)';
+    var tagTxt=Math.abs(diff)<=10?'Alinhado com a avaliação técnica':diff>10?'Expectativa acima da avaliação':'Expectativa abaixo — possível subavaliação';
+    html+='<div class="val-tag" style="border-color:'+tagCor+';background:rgba(255,255,255,.02)">';
+    html+='<span style="font-size:10px;color:var(--ink3)">Expectativa do vendedor: </span>';
+    html+='<span style="font-family:\'Syne\',sans-serif;font-weight:800;color:'+tagCor+'">'+fmtBRL(n.preco_pedido)+'</span>';
+    html+='<span style="font-size:10px;color:'+tagCor+';margin-left:8px">'+tagTxt+'</span>';
+    html+='</div>';
+  }
+  html+='</div>';
+
+  // Breakdown
+  html+='<div class="breakdown">';
+  html+='<div style="font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);margin-bottom:14px">Como chegamos neste valor</div>';
+  html+=bRow('Resultado operacional anual',fmtBRL(resOp*12),'base do cálculo','var(--ink2)',false);
+  html+=bRow('Múltiplo do negócio',n.mult_ajustado?n.mult_ajustado.toFixed(2)+'×':'—','potencial do setor combinado com maturidade operacional','var(--ink2)',false);
+  html+=bRow('Valor do negócio',fmtBRL(n.valor_negocio||venda-balanco),'enterprise value','var(--blue)',true);
+  if(ativos>0||passivos>0)html+=bRow('Balanço patrimonial',(balanco>=0?'+':'')+fmtBRL(balanco),'ativos '+fmtBRL(ativos)+' · passivos '+fmtBRL(passivos),balanco>=0?'var(--green)':'var(--amber)',false);
+  html+='<div class="breakdown-row destaque">';
+  html+='<div><div class="breakdown-l bold">Valor de Venda · Porteira fechada</div><div class="breakdown-sub">O comprador paga e entra assumindo ativos, passivos e operação</div></div>';
+  html+='<div class="breakdown-v" style="color:var(--green);font-size:18px">'+fmtBRL(venda)+'</div>';
+  html+='</div>';
+  html+='</div>';
+
+  // 4 KPIs
+  html+='<div class="kpis4">';
+  [{l:'Resultado op./mês',v:fmtBRL(resOp),c:resOp>=0?'var(--green)':'var(--red)'},
+   {l:'Geração de caixa/mês',v:fmtBRL(gerCx),c:gerCx>=0?'var(--green)':'var(--amber)'},
+   {l:'Score ISE',v:score+' / 100',c:ise.cor},
+   {l:'Múltiplo final',v:n.mult_ajustado?n.mult_ajustado.toFixed(2)+'×':'—',c:'var(--ink2)'}
+  ].forEach(function(k){
+    html+='<div class="kpi-item"><div class="kpi-label">'+k.l+'</div><div class="kpi-valor" style="color:'+k.c+'">'+k.v+'</div></div>';
+  });
+  html+='</div>';
+
+  // Disclaimer metodologia
+  html+='<div class="disclaimer">';
+  html+='<div class="disclaimer-titulo">Nota metodológica</div>';
+  html+='<div class="disclaimer-texto">O valor de venda estimado é calculado pela metodologia 1Negócio, que combina o Resultado Operacional anual ajustado com um múltiplo setorial ponderado pelo Índice de Solidez Empresarial (ISE). O balanço patrimonial líquido é somado ao valor do negócio para compor o valor final de porteira fechada. Este documento tem caráter preliminar e informativo. O valor real de uma transação pode variar em função de due diligence, negociação e condições de mercado no momento da venda.</div>';
+  html+='</div>';
+  html+='</div>'; // fecha page 3
+
+  // ════════════════════════════════════════════════
+  // PÁGINA 4 — OPORTUNIDADES + PERFIL + ASSINATURA + CTAs
+  // ════════════════════════════════════════════════
+  html+='<div class="page">';
+  html+='<div class="page-header"><span class="page-label">Oportunidades · Próximos passos</span><span class="page-num">Página 4 de 4 · Prévia</span></div>';
+
+  // Oportunidades
+  if(opps.length){
+    html+='<div class="opps">';
+    html+='<div style="font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--amber);margin-bottom:14px">Onde identificamos oportunidades de melhoria</div>';
+    opps.forEach(function(o){
+      html+='<div class="opp-item"><div class="opp-dot"></div><div>';
+      html+='<div class="opp-titulo">'+o.t+'</div>';
+      html+='<div class="opp-desc">'+o.d+'</div>';
+      html+='</div></div>';
+    });
+    html+='</div>';
+  }
+
+  // Perfil do comprador ideal
+  if(ctx&&ctx.perfil_comprador_ideal){
+    html+='<div class="bloco">';
+    html+='<div class="bloco-titulo">Perfil do comprador ideal · análise IA</div>';
+    html+='<div style="font-size:12px;color:var(--ink2);line-height:1.8;margin-bottom:10px">'+ctx.perfil_comprador_ideal.descricao+'</div>';
+    if(ctx.perfil_comprador_ideal.motivacoes&&ctx.perfil_comprador_ideal.motivacoes.length){
+      html+='<div class="ia-lista">';
+      ctx.perfil_comprador_ideal.motivacoes.forEach(function(m){html+='<div class="ia-lista-item">'+m+'</div>';});
+      html+='</div>';
+    }
+    html+='</div>';
+  }
+
+  // Assinatura
+  html+='<div class="assinatura">';
+  html+='<div class="ass-grid">';
+  html+='<div>';
+  html+='<div class="ass-logo"><em>1</em>NEGÓCIO</div>';
+  html+='<div class="ass-desc">Marketplace de M&A para PMEs brasileiras<br>Metodologia ISE + Valuation por Resultado Operacional<br>1N Forste Soluções em Gestão Ltda. · CNPJ 09.447.246/0001-70</div>';
+  html+='</div>';
+  html+='<div class="ass-dir">';
+  html+='<div class="ass-validade">Emitido em '+dataHoje+' · Válido por 90 dias</div>';
+  html+='<div class="ass-linha"></div>';
+  html+='<div class="ass-nome">1Negócio · Equipe de Avaliação</div>';
+  html+='<div class="ass-cargo">Metodologia proprietária · uso restrito ao destinatário</div>';
+  html+='</div>';
+  html+='</div></div>';
+
+  // CTAs
+  html+='<div class="ctas">';
+  html+='<div class="ctas-titulo">Próximos passos</div>';
+  html+='<div class="ctas-grid">';
+  // PDF completo
+  html+='<div class="cta-item" onclick="window.open(\'https://buy.stripe.com/9B6fZgfpsdJScKJegH5os04\',\'_blank\')">';
+  html+='<div class="cta-top" style="background:linear-gradient(90deg,transparent,rgba(255,255,255,.2),transparent)"></div>';
+  html+='<div class="cta-label">Laudo completo · R$99</div>';
+  html+='<div class="cta-titulo">PDF com metodologia completa</div>';
+  html+='<div class="cta-desc">Documento técnico com assinatura 1Negócio para apresentação a sócios, bancos e investidores.</div>';
+  html+='<div class="cta-btn" style="background:rgba(255,255,255,.08);color:var(--ink)">Solicitar laudo completo →</div>';
+  html+='</div>';
+  // Publicar
+  html+='<div class="cta-item destaque" onclick="window.close();history.back();">';
+  html+='<div class="cta-top" style="background:linear-gradient(90deg,transparent,rgba(16,185,129,.5),transparent)"></div>';
+  html+='<div class="cta-badge">Recomendado</div>';
+  html+='<div class="cta-label" style="color:rgba(16,185,129,.6)">Plano Guiado · R$588</div>';
+  html+='<div class="cta-titulo" style="color:var(--green)">Publicar com consultor dedicado</div>';
+  html+='<div class="cta-desc">Comissão reduzida de 5% + consultor 1Negócio durante todo o processo de venda.</div>';
+  html+='<div class="cta-btn" style="background:var(--green);color:#000">Ver opções de publicação →</div>';
+  html+='</div>';
+  html+='</div></div>';
+
+  html+='</div>'; // fecha page 4
+
+  document.getElementById('doc').innerHTML=html;
+}
+
+// ── HELPERS DE LAYOUT ──────────────────────────────────────────
+function dreRow(label,vMes,vAno,cor,bold){
+  var bs=bold?'font-weight:700;':'';
+  return'<div class="dre-row'+(bold?' total':'')+'">'
+    +'<span class="dre-label'+(bold?' bold':'')+'" style="'+bs+'">'+label+'</span>'
+    +'<span class="dre-val" style="color:'+cor+'">'+vMes+'</span>'
+    +'<span class="dre-anual">'+vAno+'</span>'
+    +'</div>';
+}
+function bRow(label,valor,sub,cor,bold){
+  return'<div class="breakdown-row'+(bold?' destaque':'')+'">'
+    +'<div><div class="breakdown-l'+(bold?' bold':'')+'">'+label+'</div>'+(sub?'<div class="breakdown-sub">'+sub+'</div>':'')+'</div>'
+    +'<div class="breakdown-v" style="color:'+cor+'">'+valor+'</div>'
+    +'</div>';
+}
+function parseBP(n, tipo){
+  try{
+    if(tipo==='ativos'&&n.ativos_json){
+      var a=typeof n.ativos_json==='string'?JSON.parse(n.ativos_json):n.ativos_json;
+      return Object.values(a).reduce(function(s,v){return s+(parseFloat(v)||0);},0);
+    }
+    if(tipo==='passivos'&&n.passivos_json){
+      var p=typeof n.passivos_json==='string'?JSON.parse(n.passivos_json):n.passivos_json;
+      return Object.values(p).reduce(function(s,v){return s+(parseFloat(v)||0);},0);
+    }
+  }catch(e){}
+  if(tipo==='ativos')return(n.ativo_imovel||0)+(n.ativo_equipamentos||0)+(n.ativo_estoque||0);
+  return n.divida_total||n.dividas||0;
+}
+
+// ── CARREGAR DADOS ─────────────────────────────────────────────
+async function carregarNegocio(){
+  if(!NEG_ID){
+    document.getElementById('doc').innerHTML='<div style="padding:60px;text-align:center;color:var(--ink3)">ID do negócio não informado na URL.<br><br><a href="/" style="color:var(--green)">← Voltar para início</a></div>';
+    return;
+  }
+  try{
+    var r=await fetch(SUPA_URL+'/rest/v1/negocios?id=eq.'+NEG_ID+'&select=*&limit=1',{
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    });
+    var rows=await r.json();
+    if(!rows||!rows.length){
+      document.getElementById('doc').innerHTML='<div style="padding:60px;text-align:center;color:var(--ink3)">Negócio não encontrado.<br><br><a href="/" style="color:var(--green)">← Voltar</a></div>';
+      return;
+    }
+    var neg = rows[0];
+    // Buscar dados do usuário para "Preparado para" (modos previa e vendedor)
+    if(MODO==='previa'||MODO==='vendedor'){
+      try{
+        var sessResp = await fetch(SUPA_URL+'/auth/v1/user',{
+          headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+        });
+        // Tenta pegar do localStorage do Supabase (sessão do browser)
+        var stored = Object.keys(localStorage).find(function(k){return k.includes('supabase.auth.token');});
+        if(stored){
+          var sess = JSON.parse(localStorage.getItem(stored));
+          var u = sess&&sess.currentSession&&sess.currentSession.user;
+          if(u){
+            neg.prepared_for_nome = (u.user_metadata&&(u.user_metadata.nome||u.user_metadata.full_name))||'';
+            neg.prepared_for_email = u.email||'';
+          }
+        }
+      }catch(e){}
+    }
+    renderDoc(neg);
+  }catch(e){
+    document.getElementById('doc').innerHTML='<div style="padding:60px;text-align:center;color:var(--red)">Erro ao carregar: '+e.message+'</div>';
+  }
+}
+
+carregarNegocio();
+</script>
+</body>
+</html>
