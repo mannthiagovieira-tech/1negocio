@@ -1256,6 +1256,7 @@ async function init(){
 
 // Verifica se veio com ?id= (continuar rascunho) ou se tem rascunho salvo
 async function iniciarFormOuRascunho(){
+  try{
   var params = new URLSearchParams(window.location.search);
   var idParam = params.get('id');
 
@@ -1285,7 +1286,11 @@ async function iniciarFormOuRascunho(){
     }
   }catch(e){}
 
-  iniciarForm();
+  }catch(e){
+    console.error('iniciarFormOuRascunho erro:',e);
+    // Fallback: mostrar formulário diretamente
+    iniciarForm();
+  }
 }
 
 function mostrarTelaRascunho(id, nome, codigo){
@@ -1384,17 +1389,20 @@ async function loginGoogle(){
 
 async function criar(){
   var nome=document.getElementById('a-nome').value.trim();
-  var email=document.getElementById('a-email-n').value.trim();
+  var email=document.getElementById('a-email-n').value.trim().toLowerCase();
   var senha=document.getElementById('a-senha-n').value;
   var confirma=document.getElementById('a-senha-c').value;
   var btn=document.getElementById('btn-criar');
   document.getElementById('auth-err').style.display='none';
   if(!nome){showAuthErr('Informe seu nome.');return;}
-  if(!email||!email.includes('@')){showAuthErr('E-mail inválido.');return;}
+  // Validação de email mais rigorosa
+  var emailRegex=/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  if(!email||!emailRegex.test(email)){showAuthErr('E-mail inválido. Use o formato: nome@dominio.com');return;}
   if(senha.length<8){showAuthErr('Senha precisa ter pelo menos 8 caracteres.');return;}
   if(senha!==confirma){showAuthErr('As senhas não coincidem.');return;}
   btn.textContent='Criando...';btn.disabled=true;
-  var res=await sb.auth.signUp({email,password:senha,options:{data:{full_name:nome}}});
+  // Normalizar email para minúsculas
+  var res=await sb.auth.signUp({email:email,password:senha,options:{data:{full_name:nome}}});
   if(res.error){
     var msg=res.error.message||'Erro ao criar conta.';
     if(msg.includes('already')||msg.includes('registered'))msg='E-mail já cadastrado. Clique em "Já tenho conta".';
@@ -1404,16 +1412,14 @@ async function criar(){
     btn.textContent='Começar avaliação →';btn.disabled=false;return;
   }
   USER=res.data.user;
-  // Se o Supabase retornar session null, e-mail de confirmação está ativo
   if(!res.data.session){
     showAuthErr('✓ Conta criada! Verifique seu e-mail para confirmar antes de entrar.');
     btn.textContent='Começar avaliação →';btn.disabled=false;
-    // Trocar para aba login
     aba('in');
     document.getElementById('a-email-i').value=email;
     return;
   }
-  await sb.from('usuarios').upsert({id:USER.id,email,nome,tipo:'sell',updated_at:new Date().toISOString()});
+  await sb.from('usuarios').upsert({id:USER.id,email:email,nome:nome,tipo:'sell',updated_at:new Date().toISOString()});
   iniciarForm();
 }
 
