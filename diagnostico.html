@@ -1651,40 +1651,21 @@ function buildQ(id){
 
   case 'origem': return q(
     'A história','Desde quando esse <em>negócio existe?</em>','',
-    '<div style="margin-bottom:20px">'
-    +'<label class="inp-label" style="margin-bottom:8px;display:block">Digite o ano de abertura</label>'
-    +'<div style="display:flex;gap:8px;align-items:center">'
-    +'<input type="number" id="inp-ano" class="inp" placeholder="Ex: 2010" min="1950" max="2025" value="'+(D.ano||'')+'" style="font-size:20px;width:140px;text-align:center;letter-spacing:.1em" '
-    +'oninput="D.ano=parseInt(this.value)||null" onkeydown="if(event.key===\'Enter\'&&D.ano){event.preventDefault();proximo()}">'
-    +'<button onclick="if(D.ano){proximo()}" style="padding:12px 20px;background:var(--green);color:#000;border:none;font-family:\'Syne\',sans-serif;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;cursor:pointer">Continuar \u2192</button>'
-    +'</div>'
-    +'<div style="font-size:10px;color:var(--ink3);margin-top:6px">Qualquer ano de 1950 até hoje</div>'
-    +'</div>'
-    +'<div style="border-top:1px solid var(--sep);padding-top:16px">'
-    +'<div style="font-size:9px;color:var(--ink3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px">Ou selecione um ano recente</div>'
+    '<div style="display:flex;flex-direction:column;gap:20px">'
     +'<div class="opts c5" style="margin-top:0">'
     +[2025,2024,2023,2022,2021].map(function(y){
-      return '<button class="opt'+(D.ano==y?' sel':'')+'\" style="padding:8px 4px;justify-content:center" onclick="D.ano='+y+';proximo()">'
-        +'<div class="opt-t" style="font-size:13px">'+y+'</div><span class="opt-ck">&#10003;</span></button>';
+      return '<button class="opt'+(D.ano==y?' sel':'')+'" style="padding:10px 4px;justify-content:center" onclick="D.ano='+y+';proximo()">'
+        +'<div class="opt-t" style="font-size:15px;font-weight:700">'+y+'</div><span class="opt-ck">&#10003;</span></button>';
     }).join('')
     +'</div>'
-    +'<div class="opts c5" style="margin-top:6px">'
-    +[2020,2019,2018,2017,2016].map(function(y){
-      return '<button class="opt'+(D.ano==y?' sel':'')+'\" style="padding:8px 4px;justify-content:center" onclick="D.ano='+y+';proximo()">'
-        +'<div class="opt-t" style="font-size:13px">'+y+'</div><span class="opt-ck">&#10003;</span></button>';
-    }).join('')
+    +'<div style="border-top:1px solid var(--sep);padding-top:16px">'
+    +'<label class="inp-label" style="margin-bottom:8px;display:block;font-size:9px;color:var(--ink3);letter-spacing:.12em;text-transform:uppercase">Outro ano — digite abaixo</label>'
+    +'<div style="display:flex;gap:8px;align-items:center">'
+    +'<input type="number" id="inp-ano" class="inp" placeholder="Ex: 2010" min="1950" max="2025" value="'+(D.ano&&D.ano<2021?D.ano:'')+'" style="font-size:18px;width:140px;text-align:center;letter-spacing:.1em" '
+    +'oninput="D.ano=parseInt(this.value)||null" onkeydown="if(event.key===\'Enter\'&&D.ano){event.preventDefault();proximo()}">'
+    +'<button onclick="if(D.ano){proximo()}" style="padding:11px 20px;background:var(--green);color:#000;border:none;font-family:\'Syne\',sans-serif;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;cursor:pointer">OK \u2192</button>'
     +'</div>'
-    +'<div class="opts c5" style="margin-top:6px">'
-    +[2015,2014,2013,2012,2011].map(function(y){
-      return '<button class="opt'+(D.ano==y?' sel':'')+'\" style="padding:8px 4px;justify-content:center" onclick="D.ano='+y+';proximo()">'
-        +'<div class="opt-t" style="font-size:13px">'+y+'</div><span class="opt-ck">&#10003;</span></button>';
-    }).join('')
-    +'</div>'
-    +'<div class="opts c5" style="margin-top:6px">'
-    +[2010,2009,2008,2007,2006].map(function(y){
-      return '<button class="opt'+(D.ano==y?' sel':'')+'\" style="padding:8px 4px;justify-content:center" onclick="D.ano='+y+';proximo()">'
-        +'<div class="opt-t" style="font-size:13px">'+y+'</div><span class="opt-ck">&#10003;</span></button>';
-    }).join('')
+    +'<div style="font-size:10px;color:var(--ink3);margin-top:6px">De 1950 até hoje</div>'
     +'</div>'
     +'</div>',
     function(){return !!D.ano;}
@@ -2975,14 +2956,16 @@ function renderResultadoA(){
     // Usar contexto IA pré-carregado se disponível, senão chamar
     if(window._ctxIAPreloaded){
       var _ctxParaSalvar=window._ctxIAPreloaded;
-      exibirContextoIA(_ctxParaSalvar);
       window._ctxIAPreloaded=null;
-      // Salvar no banco
-      if(NEG_ID){
-        sb.from('negocios').update({
-          teaser_contexto_ia:JSON.stringify(_ctxParaSalvar)
-        }).eq('id',NEG_ID).then(function(){});
-      }
+      // Usar setTimeout para garantir que o DOM foi montado
+      setTimeout(function(){
+        exibirContextoIA(_ctxParaSalvar);
+        if(NEG_ID){
+          sb.from('negocios').update({
+            teaser_contexto_ia:JSON.stringify(_ctxParaSalvar)
+          }).eq('id',NEG_ID).then(function(){});
+        }
+      }, 100);
     } else {
       setTimeout(chamarIADiagnostico, 500);
     }
@@ -3181,15 +3164,71 @@ function renderResultadoB(){
   html+='<span style="color:rgba(255,255,255,.2);font-size:10px">–</span>';
   html+='<span style="font-size:12px;color:rgba(255,255,255,.6);font-family:\'Syne\',sans-serif;font-weight:700">'+fmtBRL(faixa_max)+'</span>';
   html+='</div>';
-  // Tag preço pedido
+  // Tag preço pedido com termômetro
   if(D.preco_esperado>0){
     var diff=((D.preco_esperado-R.valor_venda)/R.valor_venda)*100;
-    var tagCor=Math.abs(diff)<=10?'#10b981':diff>10?'#f59e0b':'#60a5fa';
-    var tagTxt=Math.abs(diff)<=10?'Na faixa — alinhado com nossa avaliação':diff>10?'Acima da nossa avaliação':'Você pode estar subestimando seu negócio — anuncie conosco e vamos extrair o melhor valor do que você construiu até aqui';
-    html+='<div style="border-left:2px solid '+tagCor+';padding:8px 14px;background:rgba(255,255,255,.03)">';
-    html+='<span style="font-size:10px;color:rgba(255,255,255,.3)">Sua expectativa: </span>';
-    html+='<span style="font-family:\'Syne\',sans-serif;font-weight:800;color:'+tagCor+'">'+fmtBRL(D.preco_esperado)+'</span>';
-    html+='<div style="font-size:10px;color:'+tagCor+';opacity:.8;margin-top:2px">'+tagTxt+'</div>';
+
+    // Definir zona com os termos da home
+    var zona, zonaCor, zonaDesc, zonaIcon;
+    if(diff<-10){
+      zona='Oportunidade de mercado';
+      zonaCor='#60a5fa';
+      zonaDesc='Você pode estar subestimando o que construiu. Com a estratégia certa, podemos extrair muito mais valor.';
+      zonaIcon='📈';
+    } else if(diff<=-0){
+      zona='Dentro da faixa';
+      zonaCor='#10b981';
+      zonaDesc='Expectativa alinhada com a avaliação técnica. Ótimo ponto de partida para negociações.';
+      zonaIcon='✓';
+    } else if(diff<=15){
+      zona='Levemente acima';
+      zonaCor='#f59e0b';
+      zonaDesc='Valor ligeiramente acima da nossa avaliação. Negociável com o comprador certo e os argumentos certos.';
+      zonaIcon='~';
+    } else {
+      zona='Acima da avaliação';
+      zonaCor='#f87171';
+      zonaDesc='Expectativa significativamente acima do valuation técnico. Vamos trabalhar juntos para preparar o negócio e justificar esse valor.';
+      zonaIcon='!';
+    }
+
+    // Termômetro visual
+    var perc=Math.min(100,Math.max(0,50+diff/2)); // mapear diff em posição 0-100%
+    html+='<div style="border:.5px solid rgba(255,255,255,.08);padding:16px;background:rgba(255,255,255,.02);margin-bottom:4px">';
+    html+='<div style="font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:10px">Sua expectativa vs avaliação técnica</div>';
+
+    // Barra do termômetro
+    html+='<div style="position:relative;height:6px;background:rgba(255,255,255,.06);margin-bottom:8px;overflow:visible">';
+    // Zonas coloridas
+    html+='<div style="position:absolute;left:0;top:0;width:35%;height:100%;background:rgba(96,165,250,.25)"></div>';
+    html+='<div style="position:absolute;left:35%;top:0;width:25%;height:100%;background:rgba(16,185,129,.25)"></div>';
+    html+='<div style="position:absolute;left:60%;top:0;width:20%;height:100%;background:rgba(245,158,11,.25)"></div>';
+    html+='<div style="position:absolute;left:80%;top:0;width:20%;height:100%;background:rgba(248,113,113,.2)"></div>';
+    // Marcador nossa avaliação
+    html+='<div style="position:absolute;left:50%;top:-4px;width:2px;height:14px;background:rgba(255,255,255,.4)"></div>';
+    // Marcador expectativa
+    html+='<div style="position:absolute;left:'+Math.min(95,Math.max(5,perc))+'%;top:-5px;width:12px;height:16px;background:'+zonaCor+';transform:translateX(-50%);border-radius:2px"></div>';
+    html+='</div>';
+
+    // Labels
+    html+='<div style="display:flex;justify-content:space-between;font-size:8px;color:rgba(255,255,255,.2);margin-bottom:10px">';
+    html+='<span>Oportunidade</span><span>Dentro da faixa</span><span>Levemente acima</span><span>Acima</span>';
+    html+='</div>';
+
+    // Badge zona + valores
+    html+='<div style="display:flex;align-items:center;justify-content:space-between;gap:12px">';
+    html+='<div>';
+    html+='<div style="display:inline-flex;align-items:center;gap:6px;background:'+zonaCor+'18;border:.5px solid '+zonaCor+'44;padding:4px 10px;margin-bottom:6px">';
+    html+='<span style="font-size:10px;font-family:\'Syne\',sans-serif;font-weight:800;color:'+zonaCor+'">'+zonaIcon+' '+zona+'</span>';
+    html+='</div>';
+    html+='<div style="font-size:10px;color:rgba(255,255,255,.4);line-height:1.6">'+zonaDesc+'</div>';
+    html+='</div>';
+    html+='<div style="text-align:right;flex-shrink:0">';
+    html+='<div style="font-size:8px;color:rgba(255,255,255,.25);margin-bottom:2px">Sua expectativa</div>';
+    html+='<div style="font-family:\'Syne\',sans-serif;font-size:16px;font-weight:800;color:'+zonaCor+'">'+fmtBRL(D.preco_esperado)+'</div>';
+    html+='<div style="font-size:9px;color:rgba(255,255,255,.25)">'+(diff>=0?'+':'')+Math.round(diff)+'% vs avaliação</div>';
+    html+='</div>';
+    html+='</div>';
     html+='</div>';
   }
   html+='</div>';
@@ -3365,6 +3404,8 @@ function getBuyerProfile(R){
 
 // ══════════════ CTAs ══════════════
 function abrirModalPublicacao(){
+  if(!RESULTADO){toast('Erro: resultado não calculado. Recarregue a página.');return;}
+  if(!USER){toast('Você precisa estar logado para publicar.');return;}
   document.getElementById('modal-est').textContent=fmtBRL(RESULTADO.valor_venda);
   document.getElementById('modal-pub').classList.add('on');
 }
@@ -3378,7 +3419,11 @@ async function confirmarPublicacao(){
 
   // Se não tem NEG_ID, tentar salvar primeiro
   if(!NEG_ID){
-    try{ await salvarAvaliacao(); }catch(e){}
+    if(!USER){
+      toast('Você precisa estar logado para publicar. Faça login e tente novamente.');
+      return;
+    }
+    try{ await salvarAvaliacao(); }catch(e){console.error('salvarAvaliacao erro:',e);}
   }
 
   if(!NEG_ID){
