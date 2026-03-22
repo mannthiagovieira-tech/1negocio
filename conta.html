@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negócio · Minha conta</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0c0c0a;--bg2:#111110;--bg3:#161614;--bg4:#1c1c1a;
+  --ink:rgba(255,255,255,.88);--ink2:rgba(255,255,255,.52);--ink3:rgba(255,255,255,.24);--ink4:rgba(255,255,255,.08);
+  --sep:rgba(255,255,255,.07);--bdr:rgba(255,255,255,.1);
+  --green:#10b981;--amber:#f59e0b;--blue:#60a5fa;--red:#f87171;
+  --sb:220px;--nav:52px;
+}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace;overflow:hidden;text-transform:uppercase;letter-spacing:.05em}
+a{color:inherit;text-decoration:none}
+input,select,textarea{background:rgba(255,255,255,.04);border:1px solid var(--bdr);padding:10px 14px;color:var(--ink);font-family:'DM Mono',monospace;font-size:12px;outline:none;transition:border-color .2s;text-transform:none;letter-spacing:normal;border-radius:0;width:100%}
+input:focus,select:focus,textarea:focus{border-color:rgba(16,185,129,.5);background:rgba(16,185,129,.04)}
+input::placeholder,textarea::placeholder{color:var(--ink3)}
+select option{background:#111;text-transform:none}
+button{cursor:pointer;font-family:'DM Mono',monospace}
+.q{text-transform:none!important;letter-spacing:normal!important;font-family:'Syne',sans-serif!important;font-weight:800!important}
+.q em{color:var(--green);font-style:italic}
+
+/* ── AUTH ─────────────────────────────────────────────────── */
+#auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--bg)}
+.auth-box{width:100%;max-width:400px;border:.5px solid var(--sep)}
+.auth-top{padding:28px 28px 20px;border-bottom:1px solid var(--sep);text-align:center}
+.auth-logo{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;display:flex;align-items:center;justify-content:center;gap:4px;margin-bottom:6px}
+.auth-logo em{color:var(--green);font-style:normal}
+.auth-sub{font-size:9px;color:var(--ink3);letter-spacing:.16em}
+.auth-body{padding:28px}
+.auth-screen{display:none}.auth-screen.active{display:block}
+.auth-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;text-transform:uppercase;margin-bottom:18px}
+.auth-field{margin-bottom:12px}
+.auth-label{font-size:8px;letter-spacing:.14em;color:var(--ink3);display:block;margin-bottom:5px}
+.auth-err{font-size:10px;color:var(--red);margin-bottom:10px;text-transform:none;letter-spacing:normal;display:none}
+.auth-btn{width:100%;background:var(--green);border:none;color:#000;font-family:'Syne',sans-serif;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;padding:13px;transition:all .13s;margin-top:4px}
+.auth-btn:hover{background:#34d399}
+.auth-link{font-size:10px;color:var(--ink3);text-align:center;margin-top:12px;cursor:pointer;transition:color .12s;text-transform:none;letter-spacing:normal}
+.auth-link:hover{color:var(--ink2)}
+.auth-link span{color:var(--green)}
+
+/* ── PORTAL SHELL ─────────────────────────────────────────── */
+#portal{display:none;height:100vh;flex-direction:column}
+#portal.active{display:flex}
+
+/* NAV TOP */
+.nav-top{height:var(--nav);background:var(--bg2);border-bottom:1px solid var(--sep);display:flex;align-items:center;padding:0 20px;gap:16px;flex-shrink:0;z-index:50}
+.nav-logo{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:#fff;display:flex;align-items:center;gap:6px;text-decoration:none}
+.nav-logo em{color:var(--green);font-style:normal}
+.nav-pulse{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 2.8s ease infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.2;transform:scale(.7)}}
+.nav-spacer{flex:1}
+.nav-notif{position:relative;width:34px;height:34px;background:transparent;border:.5px solid var(--sep);color:var(--ink3);font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.nav-notif:hover{border-color:rgba(255,255,255,.2);color:var(--ink)}
+.nav-notif-dot{position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--red);display:none}
+.nav-user{display:flex;align-items:center;gap:8px;padding:6px 12px;border:.5px solid var(--sep);cursor:pointer;transition:all .12s}
+.nav-user:hover{border-color:rgba(255,255,255,.2)}
+.nav-avatar{width:26px;height:26px;border-radius:50%;background:rgba(16,185,129,.15);border:.5px solid rgba(16,185,129,.3);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:9px;font-weight:800;color:var(--green)}
+.nav-uname{font-size:10px;color:var(--ink2);text-transform:none;letter-spacing:normal}
+.nav-chat-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border:.5px solid rgba(16,185,129,.25);background:rgba(16,185,129,.06);color:var(--green);font-family:'Syne',sans-serif;font-size:8px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;transition:all .12s}
+.nav-chat-btn:hover{background:rgba(16,185,129,.12)}
+
+/* MAIN AREA */
+.portal-body{flex:1;display:flex;overflow:hidden}
+
+/* SIDEBAR */
+.sidebar{width:var(--sb);background:var(--bg2);border-right:1px solid var(--sep);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0}
+.sb-section{padding:14px 0 6px}
+.sb-label{font-size:7px;letter-spacing:.22em;color:var(--ink3);padding:0 16px;margin-bottom:4px;text-transform:uppercase}
+.sb-item{display:flex;align-items:center;gap:8px;width:100%;padding:9px 16px;background:transparent;border:none;color:var(--ink3);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;text-align:left;transition:all .12s;position:relative}
+.sb-item:hover{color:var(--ink);background:rgba(255,255,255,.03)}
+.sb-item.active{color:var(--ink);background:rgba(255,255,255,.05);border-left:2px solid var(--green)}
+.sb-item.active .sb-ico{color:var(--green)}
+.sb-ico{width:14px;height:14px;flex-shrink:0;opacity:.6}
+.sb-item.active .sb-ico{opacity:1}
+.sb-badge{font-size:7px;font-weight:700;padding:1px 5px;border-radius:2px;margin-left:auto;font-family:'Syne',sans-serif;letter-spacing:.06em;text-transform:uppercase}
+.sb-badge.red{background:rgba(248,113,113,.15);color:var(--red);border:.5px solid rgba(248,113,113,.2)}
+.sb-badge.amber{background:rgba(245,158,11,.15);color:var(--amber);border:.5px solid rgba(245,158,11,.2)}
+.sb-badge.green{background:rgba(16,185,129,.15);color:var(--green);border:.5px solid rgba(16,185,129,.2)}
+.sb-badge.blue{background:rgba(96,165,250,.15);color:var(--blue);border:.5px solid rgba(96,165,250,.2)}
+.sb-divider{height:1px;background:var(--sep);margin:6px 0}
+/* Nested sub-item */
+.sb-sub{padding-left:32px;font-size:8.5px}
+/* Anuncio selector */
+.sb-neg-sel{margin:4px 10px;background:rgba(255,255,255,.03);border:.5px solid var(--sep);padding:8px 10px;cursor:pointer;transition:all .12s}
+.sb-neg-sel:hover{border-color:rgba(255,255,255,.18)}
+.sb-neg-sel .sn-name{font-size:9px;color:var(--ink2);text-transform:none;letter-spacing:normal;margin-bottom:3px;line-height:1.4}
+.sb-neg-sel .sn-status{font-size:7px;letter-spacing:.12em;color:var(--ink3);text-transform:uppercase}
+.sb-neg-sel.active-neg{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.05)}
+.sb-neg-sel.active-neg .sn-name{color:var(--ink)}
+.sb-neg-sel .sn-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;margin-top:2px}
+.sb-bottom{margin-top:auto;padding:12px 0;border-top:.5px solid var(--sep)}
+
+/* CONTENT AREA */
+.content{flex:1;overflow-y:auto;padding:32px 40px;background:var(--bg)}
+.view{display:none}.view.active{display:block;animation:fu .3s ease}
+@keyframes fu{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+/* PAGE HEADER */
+.page-hdr{margin-bottom:28px}
+.page-eyebrow{font-size:8px;letter-spacing:.22em;color:var(--green);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.page-eyebrow::before{content:'';width:16px;height:1px;background:var(--green);display:inline-block}
+.page-title{font-family:'Syne',sans-serif;font-size:clamp(22px,3vw,32px);font-weight:800;color:#fff;text-transform:uppercase;margin-bottom:6px}
+.page-desc{font-size:11px;color:var(--ink2);text-transform:none;letter-spacing:normal;line-height:1.65;max-width:560px}
+
+/* GRID STATS */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--sep);margin-bottom:24px}
+.stat-box{background:var(--bg2);padding:16px 18px}
+.stat-n{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;margin-bottom:4px}
+.stat-l{font-size:8px;letter-spacing:.14em;color:var(--ink3)}
+
+/* CARDS */
+.card{background:var(--bg2);border:.5px solid var(--sep);padding:22px;margin-bottom:14px}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.card-title{font-family:'Syne',sans-serif;font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ink2)}
+.card-badge{font-size:7px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;font-family:'Syne',sans-serif}
+.card-badge.green{background:rgba(16,185,129,.12);color:var(--green);border:.5px solid rgba(16,185,129,.2)}
+.card-badge.amber{background:rgba(245,158,11,.12);color:var(--amber);border:.5px solid rgba(245,158,11,.2)}
+.card-badge.blue{background:rgba(96,165,250,.12);color:var(--blue);border:.5px solid rgba(96,165,250,.2)}
+.card-badge.red{background:rgba(248,113,113,.1);color:var(--red);border:.5px solid rgba(248,113,113,.2)}
+.card-badge.dim{background:rgba(255,255,255,.05);color:var(--ink3);border:.5px solid var(--sep)}
+
+/* STATUS TRACKER */
+.status-track{display:flex;flex-direction:column;gap:0}
+.st-step{display:flex;gap:14px;padding:12px 0;border-bottom:.5px solid var(--sep);align-items:flex-start}
+.st-step:last-child{border-bottom:none}
+.st-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.st-dot.done{background:var(--green)}
+.st-dot.active{background:var(--amber);animation:pulse 1.5s ease infinite}
+.st-dot.pending{background:var(--sep);border:.5px solid var(--bdr)}
+.st-t{font-family:'Syne',sans-serif;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px}
+.st-d{font-size:11px;color:var(--ink2);text-transform:none;letter-spacing:normal;line-height:1.55}
+
+/* ACTION BUTTON */
+.action-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;font-family:'Syne',sans-serif;font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;border:none;transition:all .13s}
+.action-btn.green{background:var(--green);color:#000}
+.action-btn.green:hover{background:#34d399}
+.action-btn.blue{background:var(--blue);color:#000}
+.action-btn.blue:hover{background:#93c5fd}
+.action-btn.outline{background:transparent;border:.5px solid var(--sep);color:var(--ink2)}
+.action-btn.outline:hover{border-color:rgba(255,255,255,.25);color:var(--ink)}
+.action-btn.red{background:transparent;border:.5px solid rgba(248,113,113,.3);color:var(--red)}
+.action-btn.red:hover{background:rgba(248,113,113,.08)}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{font-family:'Syne',sans-serif;font-size:7px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);padding:8px 12px;border-bottom:.5px solid var(--sep);text-align:left}
+.tbl td{padding:10px 12px;border-bottom:.5px solid rgba(255,255,255,.03);color:var(--ink2);text-transform:none;letter-spacing:normal}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(255,255,255,.02)}
+
+/* CHAT */
+.chat-wrap{display:flex;flex-direction:column;height:calc(100vh - var(--nav) - 160px)}
+.chat-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;background:var(--bg);border:.5px solid var(--sep)}
+.chat-msg{max-width:72%;padding:10px 14px;font-size:11px;text-transform:none;letter-spacing:normal;line-height:1.6}
+.chat-msg.me{align-self:flex-end;background:rgba(16,185,129,.12);border:.5px solid rgba(16,185,129,.2)}
+.chat-msg.other{align-self:flex-start;background:var(--bg2);border:.5px solid var(--sep)}
+.chat-msg.system{align-self:center;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);background:transparent;border:.5px solid var(--sep);padding:4px 12px}
+.chat-msg-meta{font-size:9px;color:var(--ink3);margin-top:4px;text-transform:uppercase;letter-spacing:.08em}
+.chat-input-row{display:flex;gap:8px;margin-top:8px}
+.chat-input-row textarea{flex:1;resize:none;min-height:40px;max-height:100px;padding:8px 12px;font-size:12px}
+.chat-send{padding:0 16px;background:var(--green);border:none;color:#000;font-family:'Syne',sans-serif;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;flex-shrink:0}
+.chat-send:hover{background:#34d399}
+
+/* FORM */
+.form-row{margin-bottom:14px}
+.form-label{font-size:8px;letter-spacing:.14em;color:var(--ink3);display:block;margin-bottom:5px}
+.form-hint{font-size:10px;color:var(--ink3);margin-top:4px;text-transform:none;letter-spacing:normal;line-height:1.5}
+.form-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:60px 20px}
+.empty-ico{font-size:32px;opacity:.25;margin-bottom:12px}
+.empty-t{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px}
+.empty-d{font-size:11px;color:var(--ink3);text-transform:none;letter-spacing:normal;line-height:1.6}
+
+/* INICIO / START */
+.start-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+.start-card{border:.5px solid var(--sep);padding:28px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden}
+.start-card:hover{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.02)}
+.start-card.green-card{border-color:rgba(16,185,129,.3);background:rgba(16,185,129,.04)}
+.start-card.blue-card{border-color:rgba(96,165,250,.25);background:rgba(96,165,250,.04)}
+.start-card-line{position:absolute;top:0;left:0;right:0;height:2px}
+.sc-ico{font-size:28px;margin-bottom:14px;opacity:.7}
+.sc-t{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;text-transform:uppercase;margin-bottom:6px}
+.sc-d{font-size:11px;color:var(--ink2);text-transform:none;letter-spacing:normal;line-height:1.65;margin-bottom:16px}
+.sc-cta{font-family:'Syne',sans-serif;font-size:8px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+
+/* TESE */
+.tese-card{border:.5px solid var(--sep);padding:18px;margin-bottom:10px;transition:all .12s}
+.tese-card:hover{border-color:rgba(255,255,255,.18)}
+.tese-card.active-tese{border-color:rgba(96,165,250,.35);background:rgba(96,165,250,.04)}
+.tese-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.tese-name{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink)}
+.tese-meta{font-size:10px;color:var(--ink3);text-transform:none;letter-spacing:normal;line-height:1.55}
+
+/* DOSSIE */
+.dossie-row{display:flex;align-items:center;gap:14px;padding:14px;border-bottom:.5px solid var(--sep)}
+.dossie-row:last-child{border-bottom:none}
+.dossie-co{flex:1}
+.dossie-co-name{font-size:11px;color:var(--ink);font-weight:500;text-transform:none;letter-spacing:normal;margin-bottom:3px}
+.dossie-co-seg{font-size:9px;color:var(--ink3);letter-spacing:.08em}
+.dossie-actions{display:flex;gap:6px}
+
+/* NDA */
+.nda-upload{border:1.5px dashed var(--sep);padding:32px;text-align:center;cursor:pointer;transition:all .13s}
+.nda-upload:hover{border-color:rgba(16,185,129,.35);background:rgba(16,185,129,.03)}
+.nda-upload-ico{font-size:28px;opacity:.3;margin-bottom:8px}
+.nda-upload-t{font-family:'Syne',sans-serif;font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:4px}
+.nda-upload-d{font-size:10px;color:var(--ink3);text-transform:none;letter-spacing:normal}
+
+/* TERMO */
+.termo-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;font-family:'Syne',sans-serif;font-size:8px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;border:.5px solid rgba(16,185,129,.25);background:rgba(16,185,129,.08);color:var(--green)}
+.termo-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--sep);font-size:11px}
+.termo-row:last-child{border-bottom:none}
+.termo-l{color:var(--ink3)}
+.termo-r{color:var(--ink);text-transform:none;letter-spacing:normal}
+
+/* NOTIF DROPDOWN */
+.notif-dd{position:absolute;top:var(--nav);right:60px;z-index:200;background:var(--bg2);border:.5px solid var(--sep);width:300px;display:none;flex-direction:column;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.notif-dd.open{display:flex}
+.notif-hdr{padding:10px 14px;border-bottom:.5px solid var(--sep);font-family:'Syne',sans-serif;font-size:8px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)}
+.notif-item{padding:12px 14px;border-bottom:.5px solid rgba(255,255,255,.03);cursor:pointer;transition:all .12s}
+.notif-item:hover{background:rgba(255,255,255,.03)}
+.notif-item:last-child{border-bottom:none}
+.ni-t{font-size:11px;color:var(--ink);text-transform:none;letter-spacing:normal;margin-bottom:3px}
+.ni-d{font-size:9px;color:var(--ink3);text-transform:none;letter-spacing:normal}
+
+/* TOAST */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg2);border:.5px solid var(--sep);padding:10px 20px;font-size:11px;color:var(--ink2);z-index:999;display:none;text-transform:none;letter-spacing:normal;animation:fu .2s ease}
+
+@media(max-width:900px){
+  .sidebar{display:none}
+  .stats-row{grid-template-columns:1fr 1fr}
+  .start-grid,.form-2col{grid-template-columns:1fr}
+  .content{padding:20px 16px}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════ AUTH ══════════════════════════════ -->
+<div id="auth-wrap">
+  <div class="auth-box">
+    <div class="auth-top">
+      <div class="auth-logo"><em>1</em>NEGÓCIO</div>
+      <div class="auth-sub">Portal do usuário · acesso seguro</div>
+    </div>
+    <div class="auth-body">
+      <!-- LOGIN -->
+      <div class="auth-screen active" id="scr-login">
+        <div class="auth-title">Entrar</div>
+        <div class="auth-err" id="login-err"></div>
+        <div class="auth-field"><label class="auth-label">E-mail</label><input type="email" id="login-email" placeholder="seu@email.com.br" autocomplete="email"></div>
+        <div class="auth-field"><label class="auth-label">Senha</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+        <button class="auth-btn" id="btn-login" onclick="doLogin()">Entrar →</button>
+        <div style="display:flex;align-items:center;gap:10px;margin:14px 0">
+          <div style="flex:1;height:1px;background:var(--sep)"></div>
+          <span style="font-size:9px;color:var(--ink3);letter-spacing:.1em">OU</span>
+          <div style="flex:1;height:1px;background:var(--sep)"></div>
+        </div>
+        <button onclick="doLoginGoogle()" style="width:100%;background:transparent;border:.5px solid var(--bdr);color:var(--ink2);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .13s" onmouseover="this.style.borderColor='rgba(255,255,255,.3)';this.style.color='var(--ink)'" onmouseout="this.style.borderColor='var(--bdr)';this.style.color='var(--ink2)'">
+          <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Continuar com Google
+        </button>
+        <div class="auth-link" onclick="switchAuth('cadastro')" style="margin-top:10px">Não tem conta? <span>Criar conta</span></div>
+        <div class="auth-link" onclick="switchAuth('forgot')" style="margin-top:4px">Esqueceu a senha? <span>Recuperar</span></div>
+      </div>
+      <!-- CADASTRO -->
+      <div class="auth-screen" id="scr-cadastro">
+        <div class="auth-title">Criar conta</div>
+        <div class="auth-err" id="cad-err"></div>
+        <button onclick="doLoginGoogle()" style="width:100%;background:transparent;border:.5px solid var(--bdr);color:var(--ink2);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px">
+          <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Cadastrar com Google
+        </button>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <div style="flex:1;height:1px;background:var(--sep)"></div>
+          <span style="font-size:9px;color:var(--ink3);letter-spacing:.1em">OU</span>
+          <div style="flex:1;height:1px;background:var(--sep)"></div>
+        </div>
+        <div class="auth-field"><label class="auth-label">Seu nome</label><input type="text" id="cad-nome" placeholder="Nome completo"></div>
+        <div class="auth-field"><label class="auth-label">E-mail</label><input type="email" id="cad-email" placeholder="seu@email.com.br"></div>
+        <div class="auth-field"><label class="auth-label">Senha</label><input type="password" id="cad-pass" placeholder="Mínimo 8 caracteres"></div>
+        <button class="auth-btn" id="btn-cad" onclick="doCadastro()" style="background:var(--blue);color:#000">Criar conta →</button>
+        <div class="auth-link" onclick="switchAuth('login')">Já tem conta? <span>Entrar</span></div>
+      </div>
+      <!-- FORGOT -->
+      <div class="auth-screen" id="scr-forgot">
+        <div class="auth-title">Recuperar senha</div>
+        <div class="auth-err" id="forgot-err"></div>
+        <div class="auth-field"><label class="auth-label">E-mail cadastrado</label><input type="email" id="forgot-email" placeholder="seu@email.com.br"></div>
+        <button class="auth-btn" id="btn-forgot" onclick="doForgot()">Enviar link →</button>
+        <div class="auth-link" onclick="switchAuth('login')">← Voltar ao login</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ PORTAL ════════════════════════════ -->
+<div id="portal">
+
+  <!-- TOP NAV -->
+  <div class="nav-top">
+    <a class="nav-logo" href="/index.html"><em>1</em>NEGÓCIO <div class="nav-pulse"></div></a>
+    <div class="nav-spacer"></div>
+    <button class="nav-chat-btn" onclick="showView('suporte',null)">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Suporte
+    </button>
+    <button class="nav-notif" onclick="toggleNotif()" title="Notificações">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <div class="nav-notif-dot" id="notif-dot"></div>
+    </button>
+    <div class="nav-user" onclick="showView('conta',null)">
+      <div class="nav-avatar" id="nav-av">?</div>
+      <span class="nav-uname" id="nav-uname">Carregando</span>
+    </div>
+    <button class="action-btn outline" onclick="doLogout()" style="padding:6px 12px;font-size:8px;margin-left:8px">Sair</button>
+  </div>
+
+  <!-- NOTIF DROPDOWN -->
+  <div class="notif-dd" id="notif-dd">
+    <div class="notif-hdr">Notificações</div>
+    <div id="notif-list"><div class="notif-item"><div class="ni-t" style="color:var(--ink3)">Nenhuma notificação</div></div></div>
+  </div>
+
+  <div class="portal-body">
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar" id="sidebar">
+
+      <!-- START -->
+      <div class="sb-section">
+        <div class="sb-label">Início</div>
+        <button class="sb-item active" onclick="showView('inicio',this)">
+          <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+          Início
+        </button>
+      </div>
+
+      <div class="sb-divider"></div>
+
+      <!-- VENDENDO -->
+      <div class="sb-section">
+        <div class="sb-label" style="color:rgba(16,185,129,.6)">Vendendo</div>
+        <button class="sb-item" onclick="showView('novo-anuncio',this)">
+          <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Novo anúncio
+        </button>
+        <button class="sb-item" onclick="showView('meus-anuncios',this)" id="sb-meus-anuncios">
+          <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+          Meus anúncios
+          <span class="sb-badge amber" id="sb-badge-neg" style="display:none">0</span>
+        </button>
+        <!-- Sub-items aparecem quando um anúncio está selecionado -->
+        <div id="sb-neg-subs" style="display:none">
+          <div id="sb-neg-list" style="padding:4px 0"></div>
+          <button class="sb-item sb-sub" onclick="showView('status-anuncio',this)">
+            <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+            Status
+            <span class="sb-badge red" id="sb-badge-status" style="display:none">!</span>
+          </button>
+          <button class="sb-item sb-sub" onclick="showView('metricas',this)">
+            <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Métricas
+          </button>
+          <button class="sb-item sb-sub" onclick="showView('mesas-venda',this)">
+            <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Mesas em andamento
+            <span class="sb-badge blue" id="sb-badge-mesas-v" style="display:none">0</span>
+          </button>
+          <button class="sb-item sb-sub" onclick="showView('termos',this)">
+            <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            Termos de adesão
+          </button>
+        </div>
+      </div>
+
+      <div class="sb-divider"></div>
+
+      <!-- COMPRANDO -->
+      <div class="sb-section">
+        <div class="sb-label" style="color:rgba(96,165,250,.6)">Comprando</div>
+        <button class="sb-item" onclick="showView('teses',this)">
+          <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Teses de investimento
+        </button>
+        <button class="sb-item" onclick="showView('dossies',this)">
+          <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          Dossiês
+          <span class="sb-badge blue" id="sb-badge-dossie" style="display:none">0</span>
+        </button>
+        <button class="sb-item" onclick="showView('mesas-compra',this)">
+          <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Mesas em andamento
+          <span class="sb-badge blue" id="sb-badge-mesas-c" style="display:none">0</span>
+        </button>
+        <button class="sb-item" onclick="showView('nda',this)">
+          <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          NDA
+        </button>
+      </div>
+
+      <!-- BOTTOM -->
+      <div class="sb-bottom">
+        <button class="sb-item" onclick="showView('suporte',this)">
+          <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Chat com suporte
+        </button>
+        <button class="sb-item" onclick="showView('conta',this)">
+          <svg class="sb-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Minha conta
+        </button>
+      </div>
+    </nav>
+
+    <!-- ══════════ CONTENT ══════════ -->
+    <div class="content">
+
+      <!-- INÍCIO -->
+      <div class="view active" id="view-inicio">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Bem-vindo</div>
+          <div class="page-title" id="start-title">Olá!</div>
+          <div class="page-desc">O que você quer fazer hoje?</div>
+        </div>
+        <div class="start-grid">
+          <div class="start-card green-card" onclick="showView('novo-anuncio',null)">
+            <div class="start-card-line" style="background:linear-gradient(90deg,var(--green),transparent)"></div>
+            <div class="sc-ico">🏷️</div>
+            <div class="sc-t" style="color:var(--green)">Vender um negócio</div>
+            <div class="sc-d">Publique seu diagnóstico, conecte com compradores qualificados e negocie com sigilo total.</div>
+            <div class="sc-cta" style="color:var(--green)">Publicar anúncio →</div>
+          </div>
+          <div class="start-card blue-card" onclick="showView('teses',null)">
+            <div class="start-card-line" style="background:linear-gradient(90deg,var(--blue),transparent)"></div>
+            <div class="sc-ico">🔍</div>
+            <div class="sc-t" style="color:var(--blue)">Comprar um negócio</div>
+            <div class="sc-d">Cadastre sua tese de investimento, navegue o catálogo e solicite dossiês dos negócios que te interessam.</div>
+            <div class="sc-cta" style="color:var(--blue)">Ver catálogo →</div>
+          </div>
+        </div>
+        <!-- Quick stats -->
+        <div id="inicio-stats" style="margin-top:24px;display:none">
+          <div class="stats-row" style="grid-template-columns:repeat(3,1fr)">
+            <div class="stat-box"><div class="stat-n" id="is-anuncios" style="color:var(--green)">0</div><div class="stat-l">Meus anúncios</div></div>
+            <div class="stat-box"><div class="stat-n" id="is-dossies" style="color:var(--blue)">0</div><div class="stat-l">Dossiês solicitados</div></div>
+            <div class="stat-box"><div class="stat-n" id="is-mesas" style="color:var(--amber)">0</div><div class="stat-l">Mesas em andamento</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NOVO ANÚNCIO -->
+      <div class="view" id="view-novo-anuncio">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Vendendo</div>
+          <div class="page-title">Publicar anúncio</div>
+          <div class="page-desc">Escolha como quer prosseguir.</div>
+        </div>
+        <div class="start-grid">
+          <div class="start-card" style="border-color:rgba(16,185,129,.3);background:rgba(16,185,129,.04);cursor:pointer" onclick="window.location.href='/diagnostico.html'">
+            <div class="sc-ico">📋</div>
+            <div class="sc-t">Diagnóstico online</div>
+            <div class="sc-d">Preencha o formulário interativo em 5–8 minutos. Resultado imediato com EV, Equity e score de saúde.</div>
+            <div class="sc-cta" style="color:var(--green)">Iniciar diagnóstico gratuito →</div>
+          </div>
+          <div class="start-card" style="border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.04);cursor:pointer" onclick="window.open('https://buy.stripe.com/7sYdR8elo21aeSRegH5os02','_blank')">
+            <div class="sc-ico">🤝</div>
+            <div class="sc-t">Plano guiado</div>
+            <div class="sc-d">Pague R$588 e aguarde o agendamento. Nossa equipe conduz tudo, 5% de comissão na venda.</div>
+            <div class="sc-cta" style="color:var(--amber)">Contratar plano guiado →</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MEUS ANÚNCIOS -->
+      <div class="view" id="view-meus-anuncios">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Vendendo</div>
+          <div class="page-title">Meus anúncios</div>
+          <div class="page-desc">Selecione um anúncio para ver detalhes, métricas e mesas.</div>
+        </div>
+        <div id="lista-anuncios"></div>
+      </div>
+
+      <!-- STATUS ANÚNCIO -->
+      <div class="view" id="view-status-anuncio">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Vendendo · <span id="status-neg-nome">—</span></div>
+          <div class="page-title">Status do anúncio</div>
+        </div>
+        <div id="status-content"></div>
+      </div>
+
+      <!-- MÉTRICAS -->
+      <div class="view" id="view-metricas">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Vendendo · <span id="metricas-neg-nome">—</span></div>
+          <div class="page-title">Métricas</div>
+        </div>
+        <div id="metricas-content"></div>
+      </div>
+
+      <!-- MESAS VENDA -->
+      <div class="view" id="view-mesas-venda">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Vendendo · <span id="mesas-v-neg-nome">—</span></div>
+          <div class="page-title">Mesas em andamento</div>
+          <div class="page-desc">Conversas e negociações abertas sobre este anúncio.</div>
+        </div>
+        <div id="mesas-venda-content"></div>
+      </div>
+
+      <!-- TERMOS -->
+      <div class="view" id="view-termos">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Vendendo · <span id="termos-neg-nome">—</span></div>
+          <div class="page-title">Termos de adesão</div>
+          <div class="page-desc">Compromissos firmados a partir da abertura das primeiras mesas de negociação.</div>
+        </div>
+        <div id="termos-content"></div>
+      </div>
+
+      <!-- TESES -->
+      <div class="view" id="view-teses">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Comprando</div>
+          <div class="page-title">Teses de investimento</div>
+          <div class="page-desc">Defina seu perfil de busca. Você pode ter mais de uma tese ativa.</div>
+        </div>
+        <div style="margin-bottom:16px">
+          <button class="action-btn blue" onclick="abrirFormTese()">+ Nova tese</button>
+        </div>
+        <div id="teses-list"></div>
+        <!-- Form nova tese -->
+        <div id="form-tese" style="display:none;border:.5px solid rgba(96,165,250,.25);background:rgba(96,165,250,.04);padding:24px;margin-top:16px">
+          <div class="card-title" style="margin-bottom:16px">Nova tese de investimento</div>
+          <div class="form-2col">
+            <div class="form-row"><label class="form-label">Nome da tese</label><input type="text" id="tese-nome" placeholder="Ex: Alimentação SP, Tech SaaS..."></div>
+            <div class="form-row"><label class="form-label">Setor de interesse</label>
+              <select id="tese-setor">
+                <option value="">Todos os setores</option>
+                <option>Alimentação</option><option>Varejo</option><option>Saúde</option>
+                <option>Tecnologia / SaaS</option><option>Educação</option><option>Serviços</option>
+                <option>Indústria</option><option>Franquia</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-2col">
+            <div class="form-row"><label class="form-label">Ticket disponível</label>
+              <select id="tese-ticket">
+                <option>Até R$200K</option><option>R$200K – R$500K</option>
+                <option>R$500K – R$1M</option><option>R$1M – R$3M</option><option>Acima de R$3M</option>
+              </select>
+            </div>
+            <div class="form-row"><label class="form-label">Localização</label><input type="text" id="tese-local" placeholder="Ex: São Paulo, qualquer estado..."></div>
+          </div>
+          <div class="form-row"><label class="form-label">Observações</label><textarea id="tese-obs" rows="2" placeholder="Critérios adicionais, preferências de modelo de negócio..."></textarea></div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="action-btn blue" onclick="salvarTese()">Salvar tese</button>
+            <button class="action-btn outline" onclick="document.getElementById('form-tese').style.display='none'">Cancelar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DOSSIÊS -->
+      <div class="view" id="view-dossies">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Comprando</div>
+          <div class="page-title">Dossiês</div>
+          <div class="page-desc">Solicitações de dossiê, status de acesso e conversas.</div>
+        </div>
+        <div id="dossies-content"></div>
+      </div>
+
+      <!-- CHAT DOSSIÊ (sub-view inline) -->
+      <div class="view" id="view-chat-dossie">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Comprando · <span id="chat-dossie-co">—</span></div>
+          <div class="page-title">Conversa sobre dossiê</div>
+        </div>
+        <div class="chat-wrap">
+          <div class="chat-msgs" id="msgs-dossie"><div class="chat-msg system">Início da conversa</div></div>
+          <div class="chat-input-row">
+            <textarea id="inp-dossie" placeholder="Mensagem..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMsgDossie();}"></textarea>
+            <button class="chat-send" onclick="enviarMsgDossie()">Enviar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MESAS COMPRA -->
+      <div class="view" id="view-mesas-compra">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Comprando</div>
+          <div class="page-title">Mesas em andamento</div>
+          <div class="page-desc">Negociações abertas com empresas de interesse.</div>
+        </div>
+        <div id="mesas-compra-content"></div>
+      </div>
+
+      <!-- CHAT MESA (sub-view inline) -->
+      <div class="view" id="view-chat-mesa">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Mesa de negociação · <span id="chat-mesa-co">—</span></div>
+          <div class="page-title">Chat da mesa</div>
+        </div>
+        <div class="chat-wrap">
+          <div class="chat-msgs" id="msgs-mesa"><div class="chat-msg system">Início da conversa</div></div>
+          <div class="chat-input-row">
+            <textarea id="inp-mesa" placeholder="Mensagem..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMsgMesa();}"></textarea>
+            <button class="chat-send" onclick="enviarMsgMesa()">Enviar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- NDA -->
+      <div class="view" id="view-nda">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Comprando</div>
+          <div class="page-title">NDA — Documentos</div>
+          <div class="page-desc">Faça upload dos seus documentos para preenchimento automático de NDA nas solicitações de dossiê.</div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><div class="card-title">Documento de identificação</div><span class="card-badge" id="nda-doc-status" style="background:rgba(255,255,255,.05);color:var(--ink3);border:.5px solid var(--sep)">Não enviado</span></div>
+          <div class="nda-upload" onclick="document.getElementById('nda-file-in').click()">
+            <div class="nda-upload-ico">📄</div>
+            <div class="nda-upload-t">Clique para enviar</div>
+            <div class="nda-upload-d">RG, CNH ou Passaporte · PDF ou imagem · máx 5MB</div>
+            <input type="file" id="nda-file-in" style="display:none" accept=".pdf,.jpg,.jpeg,.png" onchange="uploadNDA(this)">
+          </div>
+          <div id="nda-doc-info" style="display:none;margin-top:10px;font-size:10px;color:var(--ink3);text-transform:none;letter-spacing:normal"></div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><div class="card-title">Como funciona</div></div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;gap:10px;font-size:11px;text-transform:none;letter-spacing:normal;color:var(--ink2)"><span style="color:var(--blue);flex-shrink:0;font-family:'Syne',sans-serif;font-weight:800">1</span>Você faz upload do seu documento aqui uma única vez.</div>
+            <div style="display:flex;gap:10px;font-size:11px;text-transform:none;letter-spacing:normal;color:var(--ink2)"><span style="color:var(--blue);flex-shrink:0;font-family:'Syne',sans-serif;font-weight:800">2</span>Ao solicitar um dossiê, o NDA é pré-preenchido com seus dados automaticamente.</div>
+            <div style="display:flex;gap:10px;font-size:11px;text-transform:none;letter-spacing:normal;color:var(--ink2)"><span style="color:var(--blue);flex-shrink:0;font-family:'Syne',sans-serif;font-weight:800">3</span>Você assina digitalmente e acessa o dossiê completo após aprovação da 1Negócio.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUPORTE / CHAT ADMIN -->
+      <div class="view" id="view-suporte">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Suporte</div>
+          <div class="page-title">Chat com a 1Negócio</div>
+          <div class="page-desc">Tire dúvidas, acompanhe seu processo ou envie documentos.</div>
+        </div>
+        <div class="chat-wrap">
+          <div class="chat-msgs" id="msgs-suporte">
+            <div class="chat-msg system">Início da conversa</div>
+            <div class="chat-msg other"><strong>1Negócio</strong><br>Olá! Como podemos ajudar você hoje?<div class="chat-msg-meta">1Negócio · agora</div></div>
+          </div>
+          <div class="chat-input-row">
+            <textarea id="inp-suporte" placeholder="Mensagem..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMsgSuporteLocal();}"></textarea>
+            <button class="chat-send" onclick="enviarMsgSuporteLocal()">Enviar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MINHA CONTA -->
+      <div class="view" id="view-conta">
+        <div class="page-hdr">
+          <div class="page-eyebrow">Configurações</div>
+          <div class="page-title">Minha conta</div>
+        </div>
+        <div style="max-width:480px">
+          <div class="card">
+            <div class="card-hdr"><div class="card-title">Dados pessoais</div></div>
+            <div class="form-row"><label class="form-label">Nome</label><input type="text" id="conta-nome" placeholder="Seu nome"></div>
+            <div class="form-row"><label class="form-label">WhatsApp</label><input type="text" id="conta-wpp" placeholder="+55 11 99999-9999"></div>
+            <button class="action-btn green" style="margin-top:4px" onclick="salvarPerfil()">Salvar dados</button>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><div class="card-title">E-mail e senha</div></div>
+            <div class="form-row"><label class="form-label">E-mail atual</label><input type="email" id="conta-email" readonly style="opacity:.5;cursor:not-allowed"></div>
+            <div class="form-row"><label class="form-label">Nova senha</label><input type="password" id="conta-pass" placeholder="Deixe em branco para manter"></div>
+            <div class="form-row"><label class="form-label">Confirmar nova senha</label><input type="password" id="conta-pass2" placeholder="Repita a nova senha"></div>
+            <button class="action-btn outline" onclick="alterarSenha()">Alterar senha</button>
+          </div>
+          <div class="card" style="border-color:rgba(248,113,113,.15)">
+            <div class="card-hdr"><div class="card-title" style="color:var(--red)">Zona de risco</div></div>
+            <div style="font-size:11px;color:var(--ink3);text-transform:none;letter-spacing:normal;margin-bottom:12px;line-height:1.6">Ao sair, você precisará fazer login novamente para acessar o portal.</div>
+            <button class="action-btn red" onclick="doLogout()">Sair da conta</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /portal-body -->
+</div><!-- /portal -->
+
+<div id="toast"></div>
+
+<script>
+var SB_URL='https://dbijmgqlcrgjlcfrastg.supabase.co';
+var SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+var sb;
+try {
+  if(!window.supabase) throw new Error('SDK nao carregou');
+  sb = window.supabase.createClient(SB_URL, SB_ANON);
+} catch(e) {
+  document.getElementById('auth-wrap').innerHTML = '<div style="padding:60px;text-align:center;color:#f87171;font-family:monospace;font-size:13px">Erro ao carregar o sistema.<br><br><button onclick="location.reload()" style="background:#10b981;border:none;color:#000;padding:10px 24px;font-size:13px;cursor:pointer;font-family:monospace">Recarregar página</button></div>';
+}
+
+var SESSION=null;
+var NEG_SELECIONADO=null; // negócio ativo na sidebar
+var NEGOCIOS_USER=[];
+var MESAS_ATIVAS=[];
+var DOSSIES_USER=[];
+var TESES_USER=[];
+
+// ── AUTH ─────────────────────────────────────────────────────────────────────
+
+function switchAuth(s){
+  document.querySelectorAll('.auth-screen').forEach(function(el){el.classList.remove('active');});
+  document.getElementById('scr-'+s).classList.add('active');
+  document.querySelectorAll('.auth-err').forEach(function(e){e.style.display='none';});
+}
+
+function setBtnLoading(id,txt){
+  var b=document.getElementById(id);if(!b)return;
+  b._orig=b.textContent;b.textContent=txt;b.disabled=true;
+}
+function setBtnDone(id){
+  var b=document.getElementById(id);if(!b)return;
+  b.textContent=b._orig||'→';b.disabled=false;
+}
+
+async function doLoginGoogle(){
+  var res=await sb.auth.signInWithOAuth({
+    provider:'google',
+    options:{redirectTo:'https://1negocio.com.br/auth-callback.html'}
+  });
+  if(res.error){
+    var err=document.getElementById('login-err');
+    err.textContent=res.error.message;err.style.display='block';
+  }
+}
+
+async function doLogin(){
+  var email=document.getElementById('login-email').value.trim();
+  var pass=document.getElementById('login-pass').value;
+  var err=document.getElementById('login-err');
+  if(!email||!pass){err.textContent='Preencha e-mail e senha.';err.style.display='block';return;}
+  if(!sb){err.textContent='Sistema não carregou. Recarregue a página.';err.style.display='block';return;}
+  setBtnLoading('btn-login','Entrando...');
+  var res=await sb.auth.signInWithPassword({email:email,password:pass});
+  setBtnDone('btn-login');
+  if(res.error){err.textContent=res.error.message||'Credenciais incorretas.';err.style.display='block';return;}
+  err.style.display='none';
+  enterPortal(res.data.user);
+}
+
+async function doCadastro(){
+  var nome=document.getElementById('cad-nome').value.trim();
+  var email=document.getElementById('cad-email').value.trim();
+  var pass=document.getElementById('cad-pass').value;
+  var err=document.getElementById('cad-err');
+  if(!nome||!email||!pass){err.textContent='Preencha todos os campos.';err.style.display='block';return;}
+  if(pass.length<8){err.textContent='Senha mínimo 8 caracteres.';err.style.display='block';return;}
+  setBtnLoading('btn-cad','Criando conta...');
+  var res=await sb.auth.signUp({email:email,password:pass,options:{data:{full_name:nome}}});
+  setBtnDone('btn-cad');
+  if(res.error){err.textContent=res.error.message;err.style.display='block';return;}
+  // Insert into public.usuarios
+  await sb.from('usuarios').upsert({id:res.data.user.id,email:email,nome:nome,tipo:'sell',updated_at:new Date().toISOString()});
+  showToast('Conta criada! Verifique seu e-mail se necessário.');
+  switchAuth('login');
+}
+
+async function doForgot(){
+  var email=document.getElementById('forgot-email').value.trim();
+  var err=document.getElementById('forgot-err');
+  if(!email){err.textContent='Informe o e-mail.';err.style.display='block';return;}
+  setBtnLoading('btn-forgot','Enviando...');
+  var res=await sb.auth.resetPasswordForEmail(email,{redirectTo:'https://1negocio.com.br/portal-usuario.html'});
+  setBtnDone('btn-forgot');
+  if(res.error){err.textContent=res.error.message;err.style.display='block';return;}
+  err.style.display='none';
+  showToast('Link de recuperação enviado para '+email);
+  switchAuth('login');
+}
+
+async function doLogout(){
+  await sb.auth.signOut();
+  SESSION=null;NEG_SELECIONADO=null;
+  document.getElementById('portal').classList.remove('active');
+  document.getElementById('portal').style.display='none';
+  document.getElementById('auth-wrap').style.display='flex';
+}
+
+// ── PORTAL ENTRY ─────────────────────────────────────────────────────────────
+
+async function enterPortal(authUser){
+  SESSION=authUser;
+  document.getElementById('auth-wrap').style.display='none';
+  document.getElementById('portal').style.display='flex';
+  document.getElementById('portal').classList.add('active');
+
+  // Load profile from public.usuarios
+  var pres=await sb.from('usuarios').select('*').eq('id',authUser.id).single();
+  var profile=pres.data||{};
+  var nome=(profile.nome||authUser.email||'Usuário').split(' ')[0];
+  var initials=nome.slice(0,2).toUpperCase();
+
+  document.getElementById('nav-av').textContent=initials;
+  document.getElementById('nav-uname').textContent=nome;
+  document.getElementById('start-title').textContent='Olá, '+nome+'!';
+  document.getElementById('conta-nome').value=profile.nome||'';
+  document.getElementById('conta-wpp').value=profile.whatsapp||'';
+  document.getElementById('conta-email').value=authUser.email||'';
+
+  SESSION._profile=profile;
+
+  // Load data
+  await loadAllData();
+}
+
+async function loadAllData(){
+  await Promise.all([loadNegocios(), loadDossies(), loadMesas(), loadTeses()]);
+  renderInicioStats();
+}
+
+// ── DATA LOADERS ──────────────────────────────────────────────────────────────
+
+async function loadNegocios(){
+  var res=await sb.from('negocios').select('id,codigo,nome,status,plano,categoria,cidade,estado,score_saude,faturamento_anual,funil_visualizacoes,funil_impressoes,funil_cliques,updated_at').eq('vendedor_id',SESSION.id).order('created_at',{ascending:false});
+  NEGOCIOS_USER=res.data||[];
+  var badge=document.getElementById('sb-badge-neg');
+  if(NEGOCIOS_USER.length>0){badge.textContent=NEGOCIOS_USER.length;badge.style.display='flex';}
+  renderListaAnuncios();
+  renderSbNegList();
+}
+
+async function loadDossies(){
+  var res=await sb.from('solicitacoes_info').select('id,negocio_id,status,created_at,nivel').eq('comprador_id',SESSION.id).order('created_at',{ascending:false});
+  DOSSIES_USER=res.data||[];
+  var badge=document.getElementById('sb-badge-dossie');
+  var pending=DOSSIES_USER.filter(function(d){return d.status==='aguardando';}).length;
+  if(pending>0){badge.textContent=pending;badge.style.display='flex';}
+  renderDossies();
+}
+
+async function loadMesas(){
+  var res=await sb.from('chat_mesas').select('id,negocio_id,tipo,status,aberta_em').or('vendedor_id.eq.'+SESSION.id+',comprador_id.eq.'+SESSION.id).eq('status','aberta').order('aberta_em',{ascending:false});
+  MESAS_ATIVAS=res.data||[];
+  var bv=document.getElementById('sb-badge-mesas-v');
+  var bc=document.getElementById('sb-badge-mesas-c');
+  var mv=MESAS_ATIVAS.filter(function(m){return m._is_vend;}).length;
+  var mc=MESAS_ATIVAS.length-mv;
+  if(mv>0){bv.textContent=mv;bv.style.display='flex';}
+  if(mc>0){bc.textContent=mc;bc.style.display='flex';}
+  renderMesasCompra();
+}
+
+async function loadTeses(){
+  // Teses stored in localStorage for now (no DB table yet)
+  var saved=null;
+  try{saved=JSON.parse(localStorage.getItem('1n_teses_'+SESSION.id)||'[]');}catch(e){saved=[];}
+  TESES_USER=saved;
+  renderTeses();
+}
+
+// ── RENDERERS ─────────────────────────────────────────────────────────────────
+
+function renderInicioStats(){
+  var s=document.getElementById('inicio-stats');
+  if(NEGOCIOS_USER.length>0||DOSSIES_USER.length>0||MESAS_ATIVAS.length>0) s.style.display='block';
+  document.getElementById('is-anuncios').textContent=NEGOCIOS_USER.length;
+  document.getElementById('is-dossies').textContent=DOSSIES_USER.length;
+  document.getElementById('is-mesas').textContent=MESAS_ATIVAS.length;
+}
+
+var STATUS_MAP={
+  'rascunho':'Rascunho',
+  'em_avaliacao':'Em avaliação',
+  'aguardando_aprovacao':'Aguardando aprovação',
+  'em_revisao':'Em revisão',
+  'aguardando_publicacao':'Aguardando publicação',
+  'publicado':'Publicado',
+  'em_negociacao':'Em negociação',
+  'proposta_recebida':'Proposta recebida',
+  'pausado':'Pausado',
+  'encerrado':'Encerrado',
+  'vendido':'Vendido',
+  'expirado':'Expirado'
+};
+
+var STATUS_COLOR={
+  'publicado':'green','em_negociacao':'blue','proposta_recebida':'amber',
+  'aguardando_aprovacao':'amber','em_revisao':'amber','em_avaliacao':'blue',
+  'pausado':'dim','encerrado':'dim','vendido':'green','expirado':'dim',
+  'rascunho':'dim','aguardando_publicacao':'amber'
+};
+
+function renderListaAnuncios(){
+  var el=document.getElementById('lista-anuncios');
+  if(!NEGOCIOS_USER.length){
+    el.innerHTML='<div class="empty"><div class="empty-ico">🏷️</div><div class="empty-t">Nenhum anúncio ainda</div><div class="empty-d">Você ainda não tem nenhum negócio publicado.</div><div style="margin-top:14px"><button class="action-btn green" onclick="showView(\'novo-anuncio\',null)">Criar anúncio →</button></div></div>';
+    return;
+  }
+  var html='<div style="display:flex;flex-direction:column;gap:10px">';
+  NEGOCIOS_USER.forEach(function(n){
+    var cor=STATUS_COLOR[n.status]||'dim';
+    var active=NEG_SELECIONADO&&NEG_SELECIONADO.id===n.id;
+    var isRascunho=n.status==='rascunho';
+    if(isRascunho){
+      html+='<div class="card" style="border-color:rgba(245,158,11,.25);background:rgba(245,158,11,.02)">'
+        +'<div class="card-hdr">'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+        +'<div class="card-title">'+escHtml(n.nome||'Avaliacao em andamento')+'</div>'
+        +(n.codigo?'<span style="font-size:9px;color:var(--ink3);font-family:monospace">'+n.codigo+'</span>':'')
+        +'</div>'
+        +'<span class="card-badge amber">Rascunho</span>'
+        +'</div>'
+        +'<div style="font-size:11px;color:var(--ink3);margin-top:3px">'+escHtml(n.categoria||'')+(n.cidade?' · '+escHtml(n.cidade):'')+'</div>'
+        +'<div style="margin-top:10px;display:flex;align-items:center;gap:10px">'
+        +'<button onclick="continuarRascunho(''+n.id+'')" style="background:var(--amber);color:#000;border:none;font-family:Syne,sans-serif;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:7px 14px;cursor:pointer">Continuar avaliacao &#x2192;</button>'
+        +'<span style="font-size:9px;color:var(--ink3)">Salvo automaticamente</span>'
+        +'</div>'
+        +'</div>';
+    } else {
+      html+='<div class="card" style="cursor:pointer;'+(active?'border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.04)':'')+'" onclick="selecionarNeg(''+n.id+'')">'
+        +'<div class="card-hdr">'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+        +'<div class="card-title">'+escHtml(n.nome||'Negocio sem nome')+'</div>'
+        +(n.codigo?'<span style="font-size:9px;color:var(--ink3);font-family:monospace">'+n.codigo+'</span>':'')
+        +'</div>'
+        +'<span class="card-badge '+cor+'">'+( STATUS_MAP[n.status]||n.status)+'</span>'
+        +'</div>'
+        +'<div style="font-size:11px;color:var(--ink3);text-transform:none;letter-spacing:normal">'+escHtml(n.categoria||'')+(n.cidade?' · '+escHtml(n.cidade):'')+'</div>'
+        +'</div>';
+    }
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+function renderSbNegList(){
+  var el=document.getElementById('sb-neg-list');
+  if(!NEGOCIOS_USER.length){el.innerHTML='';document.getElementById('sb-neg-subs').style.display='none';return;}
+  document.getElementById('sb-neg-subs').style.display='block';
+  var html='';
+  NEGOCIOS_USER.forEach(function(n){
+    var active=NEG_SELECIONADO&&NEG_SELECIONADO.id===n.id;
+    var cor=n.status==='publicado'?'var(--green)':n.status==='aguardando_aprovacao'?'var(--amber)':'var(--ink3)';
+    html+='<div class="sb-neg-sel'+(active?' active-neg':'')+'" onclick="selecionarNeg(\''+n.id+'\')">'
+      +'<div style="display:flex;align-items:flex-start;gap:6px">'
+      +'<div class="sn-dot" style="background:'+cor+'"></div>'
+      +'<div><div class="sn-name">'+escHtml((n.nome||'Negócio').slice(0,32))+'</div>'
+      +'<div class="sn-status">'+(STATUS_MAP[n.status]||n.status)+'</div>'
+      +'</div></div></div>';
+  });
+  el.innerHTML=html;
+}
+
+function selecionarNeg(id){
+  NEG_SELECIONADO=NEGOCIOS_USER.find(function(n){return n.id===id;})||null;
+  renderSbNegList();
+  renderListaAnuncios();
+  if(NEG_SELECIONADO){
+    var nome=NEG_SELECIONADO.nome||'Negócio';
+    document.getElementById('status-neg-nome').textContent=nome;
+    document.getElementById('metricas-neg-nome').textContent=nome;
+    document.getElementById('mesas-v-neg-nome').textContent=nome;
+    document.getElementById('termos-neg-nome').textContent=nome;
+    renderStatusAnuncio();
+    renderMetricas();
+    renderMesasVenda();
+    renderTermos();
+  }
+}
+
+function renderStatusAnuncio(){
+  var el=document.getElementById('status-content');
+  if(!NEG_SELECIONADO){el.innerHTML='<div class="empty"><div class="empty-d">Selecione um anúncio primeiro.</div></div>';return;}
+  var n=NEG_SELECIONADO;
+  var statusLabel=STATUS_MAP[n.status]||n.status;
+  var cor=STATUS_COLOR[n.status]||'dim';
+
+  var steps=[
+    {done:true,label:'Diagnóstico preenchido',desc:'Seus dados foram registrados.'},
+    {done:['aguardando_aprovacao','em_revisao','aguardando_publicacao','publicado','em_negociacao','proposta_recebida','vendido'].includes(n.status),active:n.status==='em_avaliacao',label:'Revisão pela equipe 1Negócio',desc:'Nosso time revisa e entra em contato em até 48h.'},
+    {done:['aguardando_publicacao','publicado','em_negociacao','proposta_recebida','vendido'].includes(n.status),active:n.status==='aguardando_aprovacao'||n.status==='em_revisao',label:'Aprovação do anúncio',desc:'Você aprova o anúncio antes de ir ao ar.'},
+    {done:['publicado','em_negociacao','proposta_recebida','vendido'].includes(n.status),active:n.status==='aguardando_publicacao',label:'Publicado no catálogo',desc:'Compradores qualificados recebem alerta.'},
+    {done:n.status==='vendido',active:n.status==='em_negociacao'||n.status==='proposta_recebida',label:'Negociação em andamento',desc:'Proposta recebida ou mesa aberta.'}
+  ];
+
+  var html='<div class="card" style="margin-bottom:14px">'
+    +'<div class="card-hdr"><div class="card-title">Status atual</div><span class="card-badge '+cor+'">'+statusLabel+'</span></div>'
+    +'<div class="status-track">';
+  steps.forEach(function(s){
+    var dotClass=s.done?'done':s.active?'active':'pending';
+    html+='<div class="st-step"><div class="st-dot '+dotClass+'"></div><div>'
+      +'<div class="st-t" style="color:'+(s.done?'var(--green)':s.active?'var(--amber)':'var(--ink3)')+'">'+s.label+'</div>'
+      +'<div class="st-d">'+s.desc+'</div>'
+      +'</div></div>';
+  });
+  html+='</div></div>';
+
+  // Actions based on status
+  html+='<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  if(n.status==='em_avaliacao'||n.status==='rascunho'){
+    html+='<button class="action-btn green" onclick="solicitarPublicacao()">Solicitar publicação →</button>';
+  }
+  if(n.status==='publicado'||n.status==='em_negociacao'){
+    html+='<button class="action-btn outline" onclick="solicitarAlteracao()">Solicitar alteração</button>';
+    html+='<button class="action-btn outline" onclick="showView(\'metricas\',null)">Ver métricas</button>';
+  }
+  if(n.status==='aguardando_aprovacao'){
+    html+='<div class="card" style="border-color:var(--amber);background:rgba(245,158,11,.04);padding:14px 18px;flex:1"><div style="font-family:\'Syne\',sans-serif;font-size:9px;font-weight:700;letter-spacing:.14em;color:var(--amber);margin-bottom:4px">AGUARDANDO SUA APROVAÇÃO</div><div style="font-size:11px;color:rgba(255,255,255,.55);text-transform:none;letter-spacing:normal">Nossa equipe revisou o anúncio. Entre em contato para aprovar a publicação.</div></div>';
+  }
+  html+='</div>';
+
+  el.innerHTML=html;
+}
+
+function renderMetricas(){
+  var el=document.getElementById('metricas-content');
+  if(!NEG_SELECIONADO){el.innerHTML='';return;}
+  var n=NEG_SELECIONADO;
+  if(n.status!=='publicado'&&n.status!=='em_negociacao'&&n.status!=='proposta_recebida'){
+    el.innerHTML='<div class="empty"><div class="empty-ico">📊</div><div class="empty-t">Anúncio não publicado</div><div class="empty-d">Métricas estarão disponíveis após a publicação.</div></div>';
+    return;
+  }
+  var html='<div class="stats-row">'
+    +'<div class="stat-box"><div class="stat-n" style="color:var(--ink)">'+(n.funil_impressoes||0)+'</div><div class="stat-l">Impressões</div></div>'
+    +'<div class="stat-box"><div class="stat-n" style="color:var(--blue)">'+(n.funil_visualizacoes||0)+'</div><div class="stat-l">Visualizações</div></div>'
+    +'<div class="stat-box"><div class="stat-n" style="color:var(--amber)">'+(n.funil_cliques||0)+'</div><div class="stat-l">Cliques</div></div>'
+    +'<div class="stat-box"><div class="stat-n" style="color:var(--green)">'+(n.funil_mesas_abertas||0)+'</div><div class="stat-l">Mesas abertas</div></div>'
+    +'</div>';
+  el.innerHTML=html;
+}
+
+function renderMesasVenda(){
+  var el=document.getElementById('mesas-venda-content');
+  var mesas=MESAS_ATIVAS.filter(function(m){return NEG_SELECIONADO&&m.negocio_id===NEG_SELECIONADO.id;});
+  if(!mesas.length){
+    el.innerHTML='<div class="empty"><div class="empty-ico">💬</div><div class="empty-t">Nenhuma mesa ativa</div><div class="empty-d">Mesas de negociação aparecerão aqui quando compradores se interessarem pelo seu negócio.</div></div>';
+    return;
+  }
+  var html='<div style="display:flex;flex-direction:column;gap:8px">';
+  mesas.forEach(function(m,i){
+    html+='<div class="card" style="cursor:pointer" onclick="abrirChatMesaVenda(\''+m.id+'\')">'
+      +'<div class="card-hdr"><div class="card-title">Mesa #'+(i+1)+'</div><span class="card-badge blue">Ativa</span></div>'
+      +'<div style="font-size:10px;color:var(--ink3);text-transform:none">Aberta em '+new Date(m.aberta_em).toLocaleDateString('pt-BR')+'</div>'
+      +'</div>';
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+function renderTermos(){
+  var el=document.getElementById('termos-content');
+  el.innerHTML='<div class="card"><div class="card-hdr"><div class="card-title">Termos de mandato</div></div>'
+    +'<div style="font-size:11px;color:var(--ink3);text-transform:none;letter-spacing:normal;line-height:1.65">Os termos de adesão são firmados quando a primeira mesa de negociação é aberta para este anúncio. Eles definem as condições de comissão e exclusividade vigentes.</div>'
+    +'<div style="margin-top:16px;display:flex;flex-direction:column;gap:0" id="termos-rows"></div>'
+    +'</div>';
+  // Load from DB
+  if(NEG_SELECIONADO){
+    sb.from('termos_mandato').select('*').eq('negocio_id',NEG_SELECIONADO.id).order('assinado_em',{ascending:false}).then(function(res){
+      var termos=res.data||[];
+      if(!termos.length){document.getElementById('termos-rows').innerHTML='<div style="font-size:11px;color:var(--ink3);text-transform:none;margin-top:8px">Nenhum termo de mandato ainda.</div>';return;}
+      var html='';
+      termos.forEach(function(t){
+        html+='<div class="termo-row"><span class="termo-l">Plano</span><span class="termo-r">'+t.plano+'</span></div>'
+          +'<div class="termo-row"><span class="termo-l">Comissão</span><span class="termo-r">'+t.comissao_pct+'%</span></div>'
+          +'<div class="termo-row"><span class="termo-l">Assinado em</span><span class="termo-r">'+new Date(t.assinado_em).toLocaleDateString('pt-BR')+'</span></div>'
+          +'<div class="termo-row"><span class="termo-l">Válido até</span><span class="termo-r">'+new Date(t.expira_em).toLocaleDateString('pt-BR')+'</span></div>';
+      });
+      document.getElementById('termos-rows').innerHTML=html;
+    });
+  }
+}
+
+function renderDossies(){
+  var el=document.getElementById('dossies-content');
+  if(!DOSSIES_USER.length){
+    el.innerHTML='<div class="empty"><div class="empty-ico">📂</div><div class="empty-t">Nenhum dossiê solicitado</div><div class="empty-d">Ao se interessar por um negócio no catálogo, você pode solicitar o dossiê completo. Ele aparece aqui após aprovação da 1Negócio.</div><div style="margin-top:14px"><a class="action-btn blue" href="/index.html#ficheiro">Ver catálogo →</a></div></div>';
+    return;
+  }
+  var html='<div class="card"><div style="display:flex;flex-direction:column;gap:0">';
+  DOSSIES_USER.forEach(function(d){
+    var cor=d.status==='liberado'?'green':d.status==='recusado'?'red':'amber';
+    var label=d.status==='liberado'?'Liberado':d.status==='recusado'?'Recusado':'Aguardando';
+    html+='<div class="dossie-row">'
+      +'<div class="dossie-co"><div class="dossie-co-name">Negócio #'+d.negocio_id.slice(-6)+'</div><div class="dossie-co-seg">'+new Date(d.created_at).toLocaleDateString('pt-BR')+'</div></div>'
+      +'<span class="card-badge '+cor+'">'+label+'</span>'
+      +'<div class="dossie-actions"><button class="action-btn outline" style="padding:6px 10px;font-size:7px" onclick="abrirChatDossie(\''+d.id+'\')">Chat</button></div>'
+      +'</div>';
+  });
+  html+='</div></div>';
+  el.innerHTML=html;
+}
+
+function renderMesasCompra(){
+  var el=document.getElementById('mesas-compra-content');
+  if(!MESAS_ATIVAS.length){
+    el.innerHTML='<div class="empty"><div class="empty-ico">🤝</div><div class="empty-t">Nenhuma mesa ativa</div><div class="empty-d">Quando uma negociação avançar de um dossiê para mesa formal, ela aparecerá aqui.</div></div>';
+    return;
+  }
+  var html='<div style="display:flex;flex-direction:column;gap:8px">';
+  MESAS_ATIVAS.forEach(function(m,i){
+    html+='<div class="card" style="cursor:pointer" onclick="abrirChatMesaCompra(\''+m.id+'\')">'
+      +'<div class="card-hdr"><div class="card-title">Mesa #'+(i+1)+'</div><span class="card-badge blue">Ativa</span></div>'
+      +'<div style="font-size:10px;color:var(--ink3);text-transform:none">Aberta em '+new Date(m.aberta_em).toLocaleDateString('pt-BR')+'</div>'
+      +'</div>';
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+function renderTeses(){
+  var el=document.getElementById('teses-list');
+  if(!TESES_USER.length){
+    el.innerHTML='<div class="empty" style="padding:28px 0"><div class="empty-ico">🔍</div><div class="empty-t">Nenhuma tese criada</div><div class="empty-d">Crie uma tese para receber alertas de negócios compatíveis.</div></div>';
+    return;
+  }
+  var html='<div style="display:flex;flex-direction:column;gap:10px">';
+  TESES_USER.forEach(function(t,i){
+    html+='<div class="tese-card">'
+      +'<div class="tese-hdr"><div class="tese-name">'+escHtml(t.nome||'Tese '+(i+1))+'</div><button class="action-btn outline" style="padding:4px 10px;font-size:8px" onclick="excluirTese('+i+')">Excluir</button></div>'
+      +'<div class="tese-meta">'+(t.setor?'Setor: '+t.setor+' · ':'')+(t.ticket?'Ticket: '+t.ticket+' · ':'')+(t.local?'Local: '+t.local:'')+'</div>'
+      +(t.obs?'<div style="font-size:11px;color:var(--ink3);text-transform:none;letter-spacing:normal;margin-top:6px">'+escHtml(t.obs)+'</div>':'')
+      +'</div>';
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+// ── ACTIONS ───────────────────────────────────────────────────────────────────
+
+function solicitarPublicacao(){
+  showToast('Solicitação enviada. Nossa equipe entrará em contato em até 48h.');
+}
+
+function solicitarAlteracao(){
+  var obs=prompt('Descreva a alteração desejada:');
+  if(!obs) return;
+  if(NEG_SELECIONADO){
+    sb.from('negocios').update({status:'em_revisao',alteracao_texto:obs,alteracao_solicitada_em:new Date().toISOString()}).eq('id',NEG_SELECIONADO.id).then(function(){
+      showToast('Solicitação de alteração enviada.');
+      loadNegocios();
+    });
+  }
+}
+
+function abrirFormTese(){
+  document.getElementById('form-tese').style.display='block';
+  document.getElementById('form-tese').scrollIntoView({behavior:'smooth'});
+}
+
+function salvarTese(){
+  var tese={
+    nome:document.getElementById('tese-nome').value.trim(),
+    setor:document.getElementById('tese-setor').value,
+    ticket:document.getElementById('tese-ticket').value,
+    local:document.getElementById('tese-local').value.trim(),
+    obs:document.getElementById('tese-obs').value.trim(),
+    ts:Date.now()
+  };
+  if(!tese.nome){showToast('Informe um nome para a tese.');return;}
+  TESES_USER.push(tese);
+  try{localStorage.setItem('1n_teses_'+SESSION.id,JSON.stringify(TESES_USER));}catch(e){}
+  document.getElementById('form-tese').style.display='none';
+  renderTeses();
+  showToast('Tese salva!');
+}
+
+function excluirTese(i){
+  if(!confirm('Excluir esta tese?')) return;
+  TESES_USER.splice(i,1);
+  try{localStorage.setItem('1n_teses_'+SESSION.id,JSON.stringify(TESES_USER));}catch(e){}
+  renderTeses();
+}
+
+function abrirChatDossie(id){
+  window._chatDossieId=id;
+  document.getElementById('chat-dossie-co').textContent='Negócio #'+id.slice(-6);
+  document.getElementById('msgs-dossie').innerHTML='<div class="chat-msg system">Início da conversa</div>';
+  loadMsgsDossie(id);
+  showView('chat-dossie',null);
+}
+
+async function loadMsgsDossie(id){
+  var res=await sb.from('mensagens_dossie').select('*').eq('solicitacao_id',id).order('created_at');
+  var msgs=res.data||[];
+  var el=document.getElementById('msgs-dossie');
+  el.innerHTML='<div class="chat-msg system">Início da conversa</div>';
+  msgs.forEach(function(m){
+    var isMe=m.remetente==='buy';
+    var div=document.createElement('div');
+    div.className='chat-msg '+(isMe?'me':'other');
+    div.innerHTML=escHtml(m.texto)+'<div class="chat-msg-meta">'+(isMe?'Você':m.nome||'1Negócio')+' · '+new Date(m.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</div>';
+    el.appendChild(div);
+  });
+  el.scrollTop=el.scrollHeight;
+}
+
+async function enviarMsgDossie(){
+  var inp=document.getElementById('inp-dossie');
+  var txt=inp.value.trim();if(!txt)return;
+  inp.value='';
+  await sb.from('mensagens_dossie').insert({solicitacao_id:window._chatDossieId,remetente:'buy',nome:SESSION._profile&&SESSION._profile.nome,texto:txt});
+  loadMsgsDossie(window._chatDossieId);
+}
+
+function abrirChatMesaVenda(id){
+  window._chatMesaId=id;
+  document.getElementById('chat-mesa-co').textContent=NEG_SELECIONADO&&NEG_SELECIONADO.nome||'Mesa';
+  document.getElementById('msgs-mesa').innerHTML='<div class="chat-msg system">Início da conversa</div>';
+  loadMsgsMesa(id);
+  showView('chat-mesa',null);
+}
+
+function abrirChatMesaCompra(id){
+  window._chatMesaId=id;
+  document.getElementById('chat-mesa-co').textContent='Mesa de negociação';
+  loadMsgsMesa(id);
+  showView('chat-mesa',null);
+}
+
+async function loadMsgsMesa(id){
+  var res=await sb.from('chat_mesas_mensagens').select('*').eq('mesa_id',id).order('created_at');
+  var msgs=res.data||[];
+  var el=document.getElementById('msgs-mesa');
+  el.innerHTML='<div class="chat-msg system">Início da conversa</div>';
+  msgs.forEach(function(m){
+    var isMe=m.usuario_id===SESSION.id;
+    var div=document.createElement('div');
+    div.className='chat-msg '+(isMe?'me':m.remetente==='sistema'?'system':'other');
+    div.innerHTML=escHtml(m.texto)+(isMe?'<div class="chat-msg-meta">Você</div>':'');
+    el.appendChild(div);
+  });
+  el.scrollTop=el.scrollHeight;
+}
+
+async function enviarMsgMesa(){
+  var inp=document.getElementById('inp-mesa');
+  var txt=inp.value.trim();if(!txt)return;
+  inp.value='';
+  var role=NEG_SELECIONADO?'vendedor':'comprador';
+  await sb.from('chat_mesas_mensagens').insert({mesa_id:window._chatMesaId,usuario_id:SESSION.id,remetente:role,texto:txt});
+  loadMsgsMesa(window._chatMesaId);
+}
+
+function enviarMsgSuporteLocal(){
+  var inp=document.getElementById('inp-suporte');
+  var txt=inp.value.trim();if(!txt)return;
+  inp.value='';
+  var el=document.getElementById('msgs-suporte');
+  var div=document.createElement('div');
+  div.className='chat-msg me';
+  div.innerHTML=escHtml(txt)+'<div class="chat-msg-meta">Você · agora</div>';
+  el.appendChild(div);
+  el.scrollTop=el.scrollHeight;
+  // TODO: persist to admin_conversas
+  setTimeout(function(){
+    var resp=document.createElement('div');
+    resp.className='chat-msg other';
+    resp.innerHTML='<strong>1Negócio</strong><br>Recebemos sua mensagem. Em breve alguém da equipe responde.<div class="chat-msg-meta">1Negócio · agora</div>';
+    el.appendChild(resp);
+    el.scrollTop=el.scrollHeight;
+  },800);
+}
+
+async function uploadNDA(input){
+  var file=input.files[0];
+  if(!file)return;
+  var ext=file.name.split('.').pop().toLowerCase();
+  var path=SESSION.id+'/nda.'+ext;
+  var res=await sb.storage.from('nda-docs').upload(path,file,{upsert:true});
+  if(res.error){showToast('Erro ao enviar: '+res.error.message);return;}
+  document.getElementById('nda-doc-status').textContent='Enviado ✓';
+  document.getElementById('nda-doc-status').className='card-badge green';
+  document.getElementById('nda-doc-info').style.display='block';
+  document.getElementById('nda-doc-info').textContent='Arquivo: '+file.name+' · '+Math.round(file.size/1024)+'KB';
+  showToast('Documento enviado com sucesso!');
+}
+
+async function salvarPerfil(){
+  var nome=document.getElementById('conta-nome').value.trim();
+  var wpp=document.getElementById('conta-wpp').value.trim();
+  var res=await sb.from('usuarios').update({nome:nome,whatsapp:wpp,updated_at:new Date().toISOString()}).eq('id',SESSION.id);
+  if(res.error){showToast('Erro: '+res.error.message);return;}
+  document.getElementById('nav-uname').textContent=nome.split(' ')[0];
+  document.getElementById('nav-av').textContent=nome.slice(0,2).toUpperCase();
+  showToast('Dados salvos!');
+}
+
+async function alterarSenha(){
+  var p1=document.getElementById('conta-pass').value;
+  var p2=document.getElementById('conta-pass2').value;
+  if(!p1){showToast('Informe a nova senha.');return;}
+  if(p1!==p2){showToast('Senhas não coincidem.');return;}
+  if(p1.length<8){showToast('Senha mínimo 8 caracteres.');return;}
+  var res=await sb.auth.updateUser({password:p1});
+  if(res.error){showToast('Erro: '+res.error.message);return;}
+  document.getElementById('conta-pass').value='';
+  document.getElementById('conta-pass2').value='';
+  showToast('Senha alterada com sucesso!');
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+
+function showView(id,btn){
+  document.querySelectorAll('.view').forEach(function(v){v.classList.remove('active');});
+  document.querySelectorAll('.sb-item').forEach(function(b){b.classList.remove('active');});
+  var v=document.getElementById('view-'+id);
+  if(v)v.classList.add('active');
+  if(btn)btn.classList.add('active');
+  // Close notif
+  document.getElementById('notif-dd').classList.remove('open');
+}
+
+function toggleNotif(){
+  document.getElementById('notif-dd').classList.toggle('open');
+}
+
+document.addEventListener('click',function(e){
+  var nd=document.getElementById('notif-dd');
+  var nb=document.querySelector('.nav-notif');
+  if(nd&&nb&&!nd.contains(e.target)&&!nb.contains(e.target)){nd.classList.remove('open');}
+});
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+
+function escHtml(s){
+  if(!s)return'';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg){
+  var el=document.getElementById('toast');
+  el.textContent=msg;el.style.display='block';
+  setTimeout(function(){el.style.display='none';},3000);
+}
+
+// ── BOOT ─────────────────────────────────────────────────────────────────────
+
+(async function(){
+  var {data}=await sb.auth.getSession();
+  if(data&&data.session&&data.session.user){
+    enterPortal(data.session.user);
+  }
+  sb.auth.onAuthStateChange(function(event,session){
+    if(event==='SIGNED_IN'&&session){enterPortal(session.user);}
+    if(event==='SIGNED_OUT'){doLogout();}
+    if(event==='PASSWORD_RECOVERY'){switchAuth('login');showToast('Defina sua nova senha.');}
+  });
+})();
+function continuarRascunho(id){
+  window.location.href='/diagnostico.html?id='+id;
+}
+</script>
+</body>
+</html>
