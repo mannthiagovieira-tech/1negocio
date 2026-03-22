@@ -1131,6 +1131,16 @@ var SUPA_URL='https://dbijmgqlcrgjlcfrastg.supabase.co';
 var SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
 
 // Limpar tokens corrompidos do localStorage (causa do loop de login)
+function mostrarHeaderUsuario(){
+  if(!USER) return;
+  var nome=(USER.user_metadata&&(USER.user_metadata.full_name||USER.user_metadata.nome))||USER.email||'';
+  var label=nome.split('@')[0].split(' ')[0];
+  document.getElementById('hdr-dot').style.display='block';
+  document.getElementById('hdr-email').textContent=label;
+  document.getElementById('btn-sair').style.display='inline-block';
+  document.getElementById('btn-conta').style.display='inline-block';
+}
+
 function limparAuthStorage(){
   try{
     Object.keys(localStorage).forEach(function(k){
@@ -1221,68 +1231,48 @@ function isAdmin(email){
 }
 
 async function init(){
-  // Registrar listener SEMPRE
-  sb.auth.onAuthStateChange(async function(event, session){
-    if(event === 'SIGNED_OUT'){
-      if(USER){ USER = null; limparAuthStorage(); mostrarTela('s-auth'); }
-      return;
-    }
-    if(event === 'TOKEN_REFRESHED' && !session){
+  // Verificar sessão — simples e direto
+  var sessaoOk = false;
+  try{
+    var res = await sb.auth.getSession();
+    if(res.data && res.data.session && res.data.session.user){
+      USER = res.data.session.user;
+      sessaoOk = true;
+    } else if(res.error){
+      // Token corrompido — limpar silenciosamente
       limparAuthStorage();
-      window.location.reload();
-      return;
     }
-    if(session && session.user){
-      USER = session.user;
-      if(window.location.hash && window.location.hash.includes('access_token')){
-        history.replaceState(null,'',window.location.pathname);
-      }
-      // Mostrar usuário no header imediatamente
-      document.getElementById('hdr-dot').style.display='block';
-      var _nome=(USER.user_metadata&&(USER.user_metadata.full_name||USER.user_metadata.nome))||USER.email||'';
-      var _label=_nome.split('@')[0].split(' ')[0];
-      document.getElementById('hdr-email').textContent=_label;
-      document.getElementById('btn-sair').style.display='inline-block';
-      document.getElementById('btn-conta').style.display='inline-block';
-      await iniciarFormOuRascunho();
-    }
-  });
-
-  // Verificar sessão existente (usuário chegando de outra página)
-  // Verificar sessão existente (usuário chegando de outra página)
-  var sessionResult = await sb.auth.getSession();
-  var sessionError = sessionResult.error;
-  var session = sessionResult.data && sessionResult.data.session;
-
-  // Token inválido/corrompido → limpar e mostrar login
-  if(sessionError && (sessionError.message||'').match(/invalid|JWT|expired|missing sub/i)){
+  }catch(e){
     limparAuthStorage();
-    mostrarTela('s-auth');
-    return;
   }
 
-  if(session && session.user){
-    USER = session.user;
-    // Mostrar usuário no header imediatamente
-    document.getElementById('hdr-dot').style.display='block';
-    var _nome=(USER.user_metadata&&(USER.user_metadata.full_name||USER.user_metadata.nome))||USER.email||'';
-    var _label=_nome.split('@')[0].split(' ')[0];
-    document.getElementById('hdr-email').textContent=_label;
-    document.getElementById('btn-sair').style.display='inline-block';
-    document.getElementById('btn-conta').style.display='inline-block';
+  if(sessaoOk){
+    mostrarHeaderUsuario();
     await iniciarFormOuRascunho();
   } else {
-    // Sem sessão — se veio com ?id= (continuar rascunho), guardar e ir para login no portal
     var params = new URLSearchParams(window.location.search);
     var idParam = params.get('id');
     if(idParam){
       sessionStorage.setItem('1n_rascunho_redirect', idParam);
       window.location.href = '/portal-usuario.html';
     } else {
-      // Sem sessão, sem ?id= — mostrar tela de auth normalmente
       mostrarTela('s-auth');
     }
   }
+
+  // Listener apenas para logout e OAuth callback
+  sb.auth.onAuthStateChange(async function(event, session){
+    if(event === 'SIGNED_IN' && session && session.user && !USER){
+      USER = session.user;
+      if(window.location.hash) history.replaceState(null,'',window.location.pathname);
+      mostrarHeaderUsuario();
+      await iniciarFormOuRascunho();
+    }
+    if(event === 'SIGNED_OUT'){
+      limparAuthStorage();
+      window.location.href = '/index.html';
+    }
+  });
 }
 
 // Verifica se veio com ?id= (continuar rascunho) ou se tem rascunho salvo
@@ -1479,17 +1469,12 @@ async function entrar(){
 function showAuthErr(msg){var el=document.getElementById('auth-err');el.textContent=msg;el.style.display='block';}
 
 async function sair(){
-  try{
-    if(sb) await sb.auth.signOut({scope:'local'});
-  }catch(e){}
-  USER=null;
+  // Limpar tudo primeiro — não depender do signOut ter sucesso
   limparAuthStorage();
-  document.getElementById('btn-reiniciar').style.display='none';
-  document.getElementById('hdr-dot').style.display='none';
-  document.getElementById('hdr-email').textContent='';
-  document.getElementById('btn-sair').style.display='none';
-  document.getElementById('btn-conta').style.display='none';
-  mostrarTela('s-auth');
+  USER=null;
+  try{ if(sb) await sb.auth.signOut({scope:'local'}); }catch(e){}
+  // Sempre redirecionar para home — não mostrar s-auth que pode estar presa
+  window.location.href='/index.html';
 }
 
 // ══════════════ IA: GERAR DESCRIÇÃO ══════════════
