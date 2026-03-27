@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negócio · Avaliação</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Cabinet+Grotesk:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080d0a;--bg1:#0e1510;--bg2:#131a14;--bg3:#1a2218;
+  --em:#3dff7a;--em-d:rgba(61,255,122,.08);--em-l:rgba(61,255,122,.25);
+  --am:#ffb03a;--am-d:rgba(255,176,58,.10);
+  --rd:#ff5c5c;--rd-d:rgba(255,92,92,.10);
+  --ink:#f0f5f1;--ink2:#a8b8ac;--ink3:#5a7060;--ink4:#3a4e3e;
+  --line:rgba(255,255,255,.05);--line2:rgba(255,255,255,.10);
+  --r:8px;--r2:14px;--r3:20px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh;background:var(--bg);color:var(--ink);
+  font-family:'Cabinet Grotesk',sans-serif;overflow-x:hidden}
+
+/* grain */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity:.022}
+
+/* glow */
+body::after{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-50%);
+  width:600px;height:400px;border-radius:50%;
+  background:radial-gradient(ellipse,rgba(61,255,122,.06) 0%,transparent 65%);
+  pointer-events:none;z-index:0}
+
+/* topbar */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:100;height:50px;
+  display:flex;align-items:center;justify-content:space-between;padding:0 20px;
+  background:rgba(8,13,10,.8);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--line)}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;letter-spacing:-.02em}
+.logo em{color:var(--em);font-style:normal}
+.progress-wrap{display:flex;align-items:center;gap:10px}
+.progress-bar{width:120px;height:3px;background:var(--line2);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;background:var(--em);border-radius:2px;transition:width .4s ease}
+.progress-txt{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--ink3)}
+
+/* layout */
+.page{position:relative;z-index:1;min-height:100vh;display:flex;
+  align-items:center;justify-content:center;padding:70px 20px 40px}
+.card{width:100%;max-width:480px}
+
+/* tela */
+.tela{display:none;animation:up .3s ease both}
+.tela.ativa{display:block}
+@keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* categoria label */
+.cat-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--ink4);margin-bottom:20px;
+  display:flex;align-items:center;gap:8px}
+.cat-label::after{content:'';flex:1;height:1px;background:var(--line)}
+
+/* numero da tela */
+.t-num{font-family:'DM Mono',monospace;font-size:9px;color:var(--em);
+  letter-spacing:.12em;margin-bottom:10px;opacity:.7}
+
+/* pergunta */
+.t-pergunta{font-family:'Syne',sans-serif;font-weight:700;
+  font-size:clamp(20px,5vw,26px);line-height:1.15;letter-spacing:-.02em;
+  color:var(--ink);margin-bottom:8px}
+.t-sub{font-size:12px;color:var(--ink3);line-height:1.65;margin-bottom:24px}
+
+/* opções múltipla escolha */
+.opcoes{display:flex;flex-direction:column;gap:8px;margin-bottom:24px}
+.opcao{display:flex;align-items:flex-start;gap:12px;
+  background:var(--bg1);border:1px solid var(--line2);border-radius:var(--r2);
+  padding:14px 16px;cursor:pointer;transition:all .15s;text-align:left}
+.opcao:hover{border-color:var(--em-l);background:var(--em-d)}
+.opcao.sel{border-color:var(--em);background:var(--em-d)}
+.opcao-check{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--line2);
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-top:1px;
+  transition:all .15s}
+.opcao.sel .opcao-check{background:var(--em);border-color:var(--em)}
+.opcao.sel .opcao-check::after{content:'';width:7px;height:7px;border-radius:50%;background:#080d0a}
+.opcao-txt{flex:1}
+.opcao-titulo{font-size:13px;font-weight:700;color:var(--ink);line-height:1.2}
+.opcao-desc{font-size:11px;color:var(--ink3);margin-top:3px;line-height:1.5}
+
+/* input */
+.inp-wrap{margin-bottom:20px}
+.inp-lbl{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink3);display:block;margin-bottom:7px}
+.inp{width:100%;background:var(--bg1);border:1px solid var(--line2);
+  border-radius:var(--r2);padding:13px 16px;font-size:15px;color:var(--ink);
+  font-family:'Cabinet Grotesk',sans-serif;font-weight:500;outline:none;
+  transition:border-color .15s,box-shadow .15s;-webkit-appearance:none}
+.inp:focus{border-color:var(--em-l);box-shadow:0 0 0 3px rgba(61,255,122,.06)}
+.inp::placeholder{color:var(--ink4);font-weight:400}
+.inp-hint{font-size:11px;color:var(--ink4);margin-top:6px;line-height:1.5}
+
+/* calculadora CMV */
+.calc-cmv{background:var(--bg1);border:1px solid var(--line2);
+  border-radius:var(--r2);padding:18px;margin-bottom:16px}
+.calc-row{display:grid;grid-template-columns:1fr auto 1fr;
+  align-items:center;gap:10px;margin-bottom:12px}
+.calc-op{font-size:18px;color:var(--ink3);text-align:center;font-weight:300}
+.calc-result{padding:12px 16px;background:var(--em-d);border:1px solid var(--em-l);
+  border-radius:var(--r);display:flex;justify-content:space-between;align-items:center}
+.calc-result-lbl{font-family:'DM Mono',monospace;font-size:9px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--em)}
+.calc-result-val{font-family:'Syne',sans-serif;font-weight:800;
+  font-size:20px;color:var(--em)}
+.calc-alt{font-size:11px;color:var(--ink4);text-align:center;margin-top:12px}
+.calc-alt button{background:none;border:none;color:var(--ink3);
+  font-size:11px;cursor:pointer;text-decoration:underline;
+  font-family:'Cabinet Grotesk',sans-serif}
+
+/* slider */
+.slider-wrap{margin-bottom:20px}
+.slider{width:100%;-webkit-appearance:none;height:4px;
+  border-radius:2px;background:var(--line2);outline:none}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;
+  border-radius:50%;background:var(--em);cursor:pointer;
+  box-shadow:0 0 0 4px rgba(61,255,122,.15)}
+.slider-labels{display:flex;justify-content:space-between;
+  font-size:10px;color:var(--ink4);margin-top:6px;
+  font-family:'DM Mono',monospace}
+.slider-val{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;
+  color:var(--em);text-align:center;margin-bottom:8px}
+
+/* radio inline */
+.radio-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.radio-btn{padding:8px 16px;border-radius:20px;border:1px solid var(--line2);
+  background:var(--bg1);cursor:pointer;font-size:12px;font-weight:600;
+  color:var(--ink2);transition:all .15s}
+.radio-btn:hover{border-color:var(--em-l);color:var(--ink)}
+.radio-btn.sel{border-color:var(--em);background:var(--em-d);color:var(--em)}
+
+/* btn principal */
+.btn{width:100%;background:var(--em);color:#080d0a;border:none;
+  border-radius:var(--r2);padding:15px;font-family:'DM Mono',monospace;
+  font-weight:500;font-size:11px;letter-spacing:.12em;cursor:pointer;
+  transition:all .15s;box-shadow:0 4px 20px rgba(61,255,122,.2)}
+.btn:hover{background:#5fffa0;transform:translateY(-1px)}
+.btn:disabled{background:var(--ink4);box-shadow:none;cursor:not-allowed;transform:none}
+.btn-sec{width:100%;background:transparent;border:1px solid var(--line2);
+  color:var(--ink3);border-radius:var(--r2);padding:12px;
+  font-size:12px;cursor:pointer;margin-top:8px;
+  font-family:'Cabinet Grotesk',sans-serif;font-weight:600;transition:all .15s}
+.btn-sec:hover{border-color:var(--line2);color:var(--ink);background:var(--bg1)}
+
+/* erro */
+.erro{background:var(--rd-d);border:1px solid var(--rd);border-radius:var(--r);
+  padding:10px 14px;font-size:12px;color:var(--rd);margin-bottom:14px;display:none}
+
+/* tag bifurcação */
+.bifurcacao-tag{display:inline-flex;align-items:center;gap:6px;
+  font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--am);background:var(--am-d);
+  border:1px solid rgba(255,176,58,.25);border-radius:20px;padding:4px 10px;
+  margin-bottom:16px}
+
+/* grupo artigo */
+.artigo-group{display:flex;gap:10px;margin-bottom:20px}
+.artigo-btn{flex:1;padding:16px;border:1px solid var(--line2);
+  border-radius:var(--r2);background:var(--bg1);cursor:pointer;
+  text-align:center;transition:all .15s}
+.artigo-btn:hover{border-color:var(--em-l)}
+.artigo-btn.sel{border-color:var(--em);background:var(--em-d)}
+.artigo-btn .artigo-a{font-family:'Syne',sans-serif;font-weight:800;
+  font-size:28px;color:var(--ink2);display:block;margin-bottom:4px;
+  transition:color .15s}
+.artigo-btn.sel .artigo-a{color:var(--em)}
+.artigo-btn .artigo-ex{font-size:10px;color:var(--ink4);
+  font-family:'DM Mono',monospace;letter-spacing:.06em}
+
+/* spinner */
+.spin{width:16px;height:16px;border:2px solid rgba(8,13,10,.2);
+  border-top-color:#080d0a;border-radius:50%;animation:rot .6s linear infinite;
+  display:inline-block;vertical-align:middle;margin-right:6px}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* resumo final */
+.resumo-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:20px}
+.resumo-item{background:var(--bg1);border:1px solid var(--line);
+  border-radius:var(--r);padding:10px 12px}
+.resumo-k{font-size:9px;font-family:'DM Mono',monospace;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink4);margin-bottom:3px}
+.resumo-v{font-size:13px;font-weight:700;color:var(--ink);line-height:1.3}
+
+/* mobile */
+@media(max-width:440px){
+  .t-pergunta{font-size:20px}
+  .calc-row{grid-template-columns:1fr auto 1fr;gap:6px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo"><em>1</em>Negócio</div>
+  <div class="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+    <div class="progress-txt" id="prog-txt">0%</div>
+  </div>
+</div>
+
+<div class="page">
+<div class="card">
+
+<!-- ══ T1 — MOTIVAÇÃO ══════════════════════════════════════════ -->
+<div class="tela ativa" id="t1">
+  <div class="t-num">01 · INÍCIO</div>
+  <h2 class="t-pergunta">Por que você está avaliando agora?</h2>
+  <p class="t-sub">Isso nos ajuda a personalizar a análise para o seu momento.</p>
+  <div class="opcoes">
+    <button class="opcao" onclick="selOpcao(this,'motivacao','vender')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Penso em vender</div>
+        <div class="opcao-desc">Quero entender quanto vale antes de colocar à venda</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'motivacao','socio')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Busco sócio ou investidor</div>
+        <div class="opcao-desc">Quero trazer capital ou um parceiro estratégico</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'motivacao','planejamento')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Planejamento e gestão</div>
+        <div class="opcao-desc">Quero usar o número para tomar decisões melhores</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'motivacao','sucessao')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Sucessão ou herança</div>
+        <div class="opcao-desc">Preciso do valor para planejamento familiar</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'motivacao','curiosidade')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Só curiosidade</div>
+        <div class="opcao-desc">Nunca avaliei formalmente, quero saber</div>
+      </div>
+    </button>
+  </div>
+  <button class="btn" id="btn-t1" disabled onclick="irPara('t2')">CONTINUAR →</button>
+</div>
+
+<!-- ══ T2 — NOME E GÊNERO ══════════════════════════════════════ -->
+<div class="tela" id="t2">
+  <div class="t-num">02 · SEU NEGÓCIO</div>
+  <h2 class="t-pergunta">Como é o nome?<br>E é <em style="color:var(--em);font-style:normal">"a"</em> ou <em style="color:var(--em);font-style:normal">"o"</em>?</h2>
+  <p class="t-sub">Vamos usar isso em toda a análise — então vale confirmar.</p>
+
+  <div class="inp-wrap">
+    <label class="inp-lbl">NOME DO NEGÓCIO</label>
+    <input class="inp" id="inp-nome-neg" type="text" placeholder="Ex: Padaria do João"
+      oninput="atualizarExemplo()" autocomplete="off">
+  </div>
+
+  <div class="artigo-group">
+    <button class="artigo-btn" id="art-a" onclick="selArtigo('a')">
+      <span class="artigo-a">a</span>
+      <span class="artigo-ex" id="ex-a">a Padaria do João</span>
+    </button>
+    <button class="artigo-btn" id="art-o" onclick="selArtigo('o')">
+      <span class="artigo-a">o</span>
+      <span class="artigo-ex" id="ex-o">o Escritório X</span>
+    </button>
+  </div>
+
+  <button class="btn" id="btn-t2" disabled onclick="irPara('t3')">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t1')">← Voltar</button>
+</div>
+
+<!-- ══ T3 — ATIVIDADE PRINCIPAL ═══════════════════════════════ -->
+<div class="tela" id="t3">
+  <div class="t-num">03 · ATIVIDADE</div>
+  <h2 class="t-pergunta">Pra gente entender —<br>sua atividade principal é?</h2>
+  <p class="t-sub">Isso define quais perguntas fazem sentido para o seu negócio.</p>
+  <div class="opcoes">
+    <button class="opcao" onclick="selCategoria(this,'comercializar')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Comercializar</div>
+        <div class="opcao-desc">Vender para o cliente final — loja, e-commerce, atacarejo</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selCategoria(this,'distribuir')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Distribuir</div>
+        <div class="opcao-desc">Vender para revendedores ou fabricantes</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selCategoria(this,'fornecer')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Fornecer para indústria</div>
+        <div class="opcao-desc">Matéria prima, insumos ou componentes</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selCategoria(this,'fabricar')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Fabricar ou industrializar</div>
+        <div class="opcao-desc">Transformar insumos em produto acabado</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selCategoria(this,'servicos_projeto')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Serviços de projeto e consultoria</div>
+        <div class="opcao-desc">Tecnologia, projetos, ensino, corretagem, representação</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selCategoria(this,'servicos_mao_obra')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Serviços de mão de obra</div>
+        <div class="opcao-desc">Postos de trabalho, hora trabalhada, alocação</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selCategoria(this,'locar')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Locar</div>
+        <div class="opcao-desc">Hospedagem, hotelaria, equipamentos, espaços</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selCategoria(this,'plataforma')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Plataforma ou marketplace</div>
+        <div class="opcao-desc">Conecta oferta e demanda, não executa diretamente</div>
+      </div>
+    </button>
+  </div>
+  <button class="btn" id="btn-t3" disabled onclick="bifurcar()">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t2')">← Voltar</button>
+</div>
+
+<!-- ══ T4 — LOCALIZAÇÃO ════════════════════════════════════════ -->
+<div class="tela" id="t4">
+  <div class="t-num">04 · LOCALIZAÇÃO</div>
+  <h2 class="t-pergunta">Onde fica?</h2>
+  <p class="t-sub">Usamos para calibrar benchmarks regionais.</p>
+  <div class="inp-wrap">
+    <label class="inp-lbl">CIDADE</label>
+    <input class="inp" id="inp-cidade" type="text" placeholder="São Paulo" autocomplete="off">
+  </div>
+  <div class="inp-wrap" style="margin-bottom:24px">
+    <label class="inp-lbl">ESTADO</label>
+    <div class="radio-row" id="estados-row">
+      <button class="radio-btn" onclick="selEstado(this,'SP')">SP</button>
+      <button class="radio-btn" onclick="selEstado(this,'RJ')">RJ</button>
+      <button class="radio-btn" onclick="selEstado(this,'MG')">MG</button>
+      <button class="radio-btn" onclick="selEstado(this,'RS')">RS</button>
+      <button class="radio-btn" onclick="selEstado(this,'SC')">SC</button>
+      <button class="radio-btn" onclick="selEstado(this,'PR')">PR</button>
+      <button class="radio-btn" onclick="selEstado(this,'BA')">BA</button>
+      <button class="radio-btn" onclick="selEstado(this,'GO')">GO</button>
+      <button class="radio-btn" onclick="selEstado(this,'outro')">Outro</button>
+    </div>
+  </div>
+  <button class="btn" id="btn-t4" disabled onclick="irProxima('t4')">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t3')">← Voltar</button>
+</div>
+
+<!-- ══ T5 — TEMPO DE OPERAÇÃO ══════════════════════════════════ -->
+<div class="tela" id="t5">
+  <div class="t-num">05 · MATURIDADE</div>
+  <h2 class="t-pergunta">Há quanto tempo opera?</h2>
+  <p class="t-sub">O tempo de operação impacta o múltiplo de avaliação.</p>
+  <div class="slider-wrap">
+    <div class="slider-val" id="anos-val">5 anos</div>
+    <input class="slider" type="range" min="1" max="30" value="5" id="sl-anos"
+      oninput="atualizarAnos(this.value)">
+    <div class="slider-labels"><span>1 ano</span><span>30+ anos</span></div>
+  </div>
+  <div class="opcoes" style="margin-bottom:24px">
+    <button class="opcao" onclick="selOpcao(this,'fundador_original','sim')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Sou o fundador original</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'fundador_original','nao')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Assumi ou comprei o negócio</div>
+      </div>
+    </button>
+  </div>
+  <button class="btn" id="btn-t5" onclick="irProxima('t5')">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t4')">← Voltar</button>
+</div>
+
+<!-- ══ T6 — SÓCIOS ════════════════════════════════════════════ -->
+<div class="tela" id="t6">
+  <div class="t-num">06 · SOCIEDADE</div>
+  <h2 class="t-pergunta">Tem sócios?</h2>
+  <p class="t-sub">A estrutura societária afeta o valor e a negociação.</p>
+  <div class="opcoes">
+    <button class="opcao" onclick="selOpcao(this,'socios','sozinho')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Sou o único sócio</div>
+        <div class="opcao-desc">Empresa com sócio único ou individual</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'socios','2')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">2 sócios</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'socios','3mais')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">3 ou mais sócios</div>
+      </div>
+    </button>
+  </div>
+  <div class="inp-wrap" id="wrap-prolabore" style="display:none">
+    <label class="inp-lbl">PRÓ-LABORE TOTAL DOS SÓCIOS (R$/mês)</label>
+    <input class="inp inp-money" id="inp-prolabore" type="text" placeholder="R$ 0"
+      oninput="maskMoney(this)" autocomplete="off">
+    <div class="inp-hint">Some o pró-labore de todos os sócios que trabalham na operação</div>
+  </div>
+  <button class="btn" id="btn-t6" disabled onclick="irProxima('t6')">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t5')">← Voltar</button>
+</div>
+
+<!-- ══ T7 — FATURAMENTO ════════════════════════════════════════ -->
+<div class="tela" id="t7">
+  <div class="t-num">07 · RECEITA</div>
+  <h2 class="t-pergunta" id="t7-titulo">Qual é o faturamento bruto mensal?</h2>
+  <p class="t-sub" id="t7-sub">Média dos últimos 12 meses. Só faturamento — sem descontar nada.</p>
+  <div class="inp-wrap" style="margin-bottom:24px">
+    <label class="inp-lbl">FATURAMENTO BRUTO MENSAL</label>
+    <input class="inp inp-money" id="inp-fat" type="text" placeholder="R$ 0"
+      oninput="maskMoney(this);calcAnual()" autocomplete="off">
+    <div class="inp-hint" id="fat-anual"></div>
+  </div>
+  <div class="inp-wrap" style="margin-bottom:24px">
+    <label class="inp-lbl">CRESCIMENTO NOS ÚLTIMOS 12 MESES</label>
+    <div class="radio-row">
+      <button class="radio-btn" onclick="selOpcao(this,'crescimento','negativo')">Caindo</button>
+      <button class="radio-btn" onclick="selOpcao(this,'crescimento','estavel')">Estável</button>
+      <button class="radio-btn" onclick="selOpcao(this,'crescimento','10a20')">10–20%</button>
+      <button class="radio-btn" onclick="selOpcao(this,'crescimento','20mais')">+20%</button>
+    </div>
+  </div>
+  <button class="btn" id="btn-t7" disabled onclick="irProxima('t7')">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t6')">← Voltar</button>
+</div>
+
+<!-- ══ T8 — CMV / CUSTO PRINCIPAL ════════════════════════════ -->
+<div class="tela" id="t8">
+  <div class="t-num">08 · CUSTO PRINCIPAL</div>
+  <h2 class="t-pergunta" id="t8-titulo">Qual é o custo do produto vendido?</h2>
+  <p class="t-sub" id="t8-sub">Use a calculadora abaixo para chegar na sua margem bruta automaticamente.</p>
+
+  <div class="calc-cmv" id="calc-produto">
+    <div class="calc-row">
+      <div>
+        <label class="inp-lbl">PREÇO DE VENDA</label>
+        <input class="inp inp-money" id="inp-preco-venda" type="text" placeholder="R$ 0"
+          oninput="maskMoney(this);calcMargem()" autocomplete="off">
+      </div>
+      <div class="calc-op">−</div>
+      <div>
+        <label class="inp-lbl">CUSTO DE COMPRA</label>
+        <input class="inp inp-money" id="inp-preco-compra" type="text" placeholder="R$ 0"
+          oninput="maskMoney(this);calcMargem()" autocomplete="off">
+      </div>
+    </div>
+    <div class="calc-result">
+      <span class="calc-result-lbl">Margem bruta calculada</span>
+      <span class="calc-result-val" id="calc-margem-val">— %</span>
+    </div>
+    <div class="calc-alt">
+      Prefere informar o CMV direto?
+      <button onclick="toggleCmvDireto()">Informar CMV%</button>
+    </div>
+  </div>
+
+  <div id="cmv-direto" style="display:none">
+    <div class="inp-wrap">
+      <label class="inp-lbl">CMV % DO FATURAMENTO</label>
+      <input class="inp" id="inp-cmv-pct" type="number" min="0" max="100" placeholder="45"
+        oninput="calcMargemDireta(this.value)" autocomplete="off">
+      <div class="inp-hint">Custo dos produtos vendidos como percentual do faturamento bruto</div>
+    </div>
+    <div class="calc-result" id="cmv-direto-result" style="display:none">
+      <span class="calc-result-lbl">Margem bruta calculada</span>
+      <span class="calc-result-val" id="cmv-direto-val">— %</span>
+    </div>
+  </div>
+
+  <button class="btn" id="btn-t8" onclick="irProxima('t8')" style="margin-top:8px">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t7')">← Voltar</button>
+</div>
+
+<!-- ══ T9 — CLIENTES ══════════════════════════════════════════ -->
+<div class="tela" id="t9">
+  <div class="t-num">09 · BASE DE CLIENTES</div>
+  <h2 class="t-pergunta" id="t9-titulo">Quantos clientes ativos você tem?</h2>
+  <p class="t-sub" id="t9-sub">Clientes que compraram nos últimos 90 dias.</p>
+
+  <div class="opcoes" id="t9-opcoes">
+    <button class="opcao" onclick="selOpcao(this,'clientes_ativos','menos100')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt"><div class="opcao-titulo">Menos de 100</div></div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'clientes_ativos','100a500')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt"><div class="opcao-titulo">100 a 500</div></div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'clientes_ativos','500a2000')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt"><div class="opcao-titulo">500 a 2.000</div></div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'clientes_ativos','mais2000')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt"><div class="opcao-titulo">Mais de 2.000</div></div>
+    </button>
+  </div>
+
+  <div class="inp-wrap" style="margin-bottom:24px" id="t9-concentracao">
+    <label class="inp-lbl">MAIOR CLIENTE = QUANTO % DO FATURAMENTO?</label>
+    <div class="slider-val" id="conc-val">20%</div>
+    <input class="slider" type="range" min="0" max="100" value="20" id="sl-conc"
+      oninput="document.getElementById('conc-val').textContent=this.value+'%';D.concentracao=parseInt(this.value)">
+    <div class="slider-labels"><span>0%</span><span>100%</span></div>
+    <div class="inp-hint" id="conc-hint"></div>
+  </div>
+
+  <button class="btn" id="btn-t9" disabled onclick="irProxima('t9')">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t8')">← Voltar</button>
+</div>
+
+<!-- ══ T10 — EQUIPE ════════════════════════════════════════════ -->
+<div class="tela" id="t10">
+  <div class="t-num">10 · EQUIPE</div>
+  <h2 class="t-pergunta">Quantas pessoas trabalham no negócio?</h2>
+  <p class="t-sub">Inclua CLT, PJ e temporários. Não inclua sócios.</p>
+  <div class="inp-wrap">
+    <label class="inp-lbl">Nº DE FUNCIONÁRIOS</label>
+    <input class="inp" id="inp-func" type="number" min="0" placeholder="0" autocomplete="off">
+  </div>
+  <div class="inp-wrap" style="margin-bottom:24px">
+    <label class="inp-lbl">FOLHA MENSAL TOTAL (R$/mês)</label>
+    <input class="inp inp-money" id="inp-folha" type="text" placeholder="R$ 0"
+      oninput="maskMoney(this)" autocomplete="off">
+    <div class="inp-hint">Salários + encargos + benefícios. Não inclua pró-labore dos sócios.</div>
+  </div>
+  <button class="btn" onclick="irProxima('t10')">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t9')">← Voltar</button>
+</div>
+
+<!-- ══ T11 — CUSTOS FIXOS ══════════════════════════════════════ -->
+<div class="tela" id="t11">
+  <div class="t-num">11 · CUSTOS FIXOS</div>
+  <h2 class="t-pergunta">Quais são os custos fixos mensais?</h2>
+  <p class="t-sub">Valores que você paga todo mês independente do faturamento.</p>
+  <div class="inp-wrap">
+    <label class="inp-lbl">ALUGUEL / PONTO (R$/mês)</label>
+    <input class="inp inp-money" id="inp-aluguel" type="text" placeholder="R$ 0"
+      oninput="maskMoney(this);calcCF()" autocomplete="off">
+  </div>
+  <div class="inp-wrap">
+    <label class="inp-lbl">OUTROS CUSTOS FIXOS (R$/mês)</label>
+    <input class="inp inp-money" id="inp-outros-cf" type="text" placeholder="R$ 0"
+      oninput="maskMoney(this);calcCF()" autocomplete="off">
+    <div class="inp-hint">Energia, internet, sistema, contabilidade, seguros, etc.</div>
+  </div>
+  <div class="calc-result" id="cf-total-box" style="display:none;margin-bottom:20px">
+    <span class="calc-result-lbl">Total custos fixos</span>
+    <span class="calc-result-val" id="cf-total-val">R$ 0</span>
+  </div>
+  <button class="btn" onclick="irProxima('t11')">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t10')">← Voltar</button>
+</div>
+
+<!-- ══ T12 — REGIME TRIBUTÁRIO ════════════════════════════════ -->
+<div class="tela" id="t12">
+  <div class="t-num">12 · TRIBUTAÇÃO</div>
+  <h2 class="t-pergunta">Qual é o regime tributário?</h2>
+  <div class="opcoes" style="margin-bottom:24px">
+    <button class="opcao" onclick="selOpcao(this,'regime','simples')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Simples Nacional</div>
+        <div class="opcao-desc">Alíquota única sobre o faturamento</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'regime','presumido')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Lucro Presumido</div>
+        <div class="opcao-desc">Tributação sobre margem presumida</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'regime','real')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Lucro Real</div>
+        <div class="opcao-desc">Tributação sobre o lucro apurado</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'regime','mei')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">MEI</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'regime','nao_sei')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Não sei informar</div>
+      </div>
+    </button>
+  </div>
+  <button class="btn" id="btn-t12" disabled onclick="irProxima('t12')">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t11')">← Voltar</button>
+</div>
+
+<!-- ══ T13 — GESTÃO ════════════════════════════════════════════ -->
+<div class="tela" id="t13">
+  <div class="t-num">13 · GESTÃO</div>
+  <h2 class="t-pergunta">Como o negócio é gerido hoje?</h2>
+  <div class="opcoes">
+    <button class="opcao" onclick="selOpcao(this,'gestao','dependente')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Depende de mim para funcionar</div>
+        <div class="opcao-desc">Se eu sair por 30 dias, o negócio para</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'gestao','parcial')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Parcialmente independente</div>
+        <div class="opcao-desc">Funciona, mas minhas decisões são necessárias nas principais questões</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'gestao','independente')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Funciona sem mim no dia a dia</div>
+        <div class="opcao-desc">Tenho gestores e processos que operam sozinhos</div>
+      </div>
+    </button>
+  </div>
+  <div class="opcoes" style="margin-top:4px">
+    <button class="opcao" onclick="selOpcao(this,'sistema','sim')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Uso ERP, CRM ou sistema de gestão</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'sistema','nao')">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Não uso sistema de gestão</div>
+      </div>
+    </button>
+  </div>
+  <button class="btn" id="btn-t13" disabled onclick="irProxima('t13')" style="margin-top:16px">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t12')">← Voltar</button>
+</div>
+
+<!-- ══ T14 — ATIVOS ════════════════════════════════════════════ -->
+<div class="tela" id="t14">
+  <div class="t-num">14 · ATIVOS</div>
+  <h2 class="t-pergunta">O negócio tem ativos relevantes?</h2>
+  <p class="t-sub">Itens que teriam valor de venda separados do negócio.</p>
+  <div class="inp-wrap">
+    <label class="inp-lbl">IMÓVEL PRÓPRIO (valor de mercado)</label>
+    <input class="inp inp-money" id="inp-imovel" type="text" placeholder="R$ 0"
+      oninput="maskMoney(this);calcAtivos()" autocomplete="off">
+    <div class="inp-hint">Deixe em branco ou R$ 0 se não tiver ou se for alugado</div>
+  </div>
+  <div class="inp-wrap">
+    <label class="inp-lbl">EQUIPAMENTOS E MAQUINÁRIO (valor de mercado)</label>
+    <input class="inp inp-money" id="inp-equip" type="text" placeholder="R$ 0"
+      oninput="maskMoney(this);calcAtivos()" autocomplete="off">
+  </div>
+  <div class="inp-wrap">
+    <label class="inp-lbl">ESTOQUE (valor de custo atual)</label>
+    <input class="inp inp-money" id="inp-estoque" type="text" placeholder="R$ 0"
+      oninput="maskMoney(this);calcAtivos()" autocomplete="off">
+  </div>
+  <div class="inp-wrap">
+    <label class="inp-lbl">OUTROS ATIVOS (veículos, marcas, carteira de clientes)</label>
+    <input class="inp inp-money" id="inp-outros-at" type="text" placeholder="R$ 0"
+      oninput="maskMoney(this);calcAtivos()" autocomplete="off">
+  </div>
+  <div class="calc-result" id="ativos-total" style="display:none;margin-bottom:20px">
+    <span class="calc-result-lbl">Total de ativos</span>
+    <span class="calc-result-val" id="ativos-total-val">R$ 0</span>
+  </div>
+  <button class="btn" onclick="irProxima('t14')">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t13')">← Voltar</button>
+</div>
+
+<!-- ══ T15 — PASSIVOS ══════════════════════════════════════════ -->
+<div class="tela" id="t15">
+  <div class="t-num">15 · PASSIVOS</div>
+  <h2 class="t-pergunta">O negócio tem dívidas ou obrigações?</h2>
+  <p class="t-sub">Passivos são descontados do valor de venda. Seja honesto — é o seu dinheiro.</p>
+  <div class="inp-wrap">
+    <label class="inp-lbl">EMPRÉSTIMOS E FINANCIAMENTOS (saldo devedor)</label>
+    <input class="inp inp-money" id="inp-emprestimos" type="text" placeholder="R$ 0"
+      oninput="maskMoney(this);calcPassivos()" autocomplete="off">
+  </div>
+  <div class="inp-wrap">
+    <label class="inp-lbl">PARCELAMENTOS DE IMPOSTOS (saldo)</label>
+    <input class="inp inp-money" id="inp-parcelamentos" type="text" placeholder="R$ 0"
+      oninput="maskMoney(this);calcPassivos()" autocomplete="off">
+  </div>
+  <div class="inp-wrap">
+    <label class="inp-lbl">OUTROS PASSIVOS (processos, fornecedores em atraso)</label>
+    <input class="inp inp-money" id="inp-outros-pv" type="text" placeholder="R$ 0"
+      oninput="maskMoney(this);calcPassivos()" autocomplete="off">
+  </div>
+  <div class="calc-result" id="passivos-total" style="display:none;margin-bottom:20px">
+    <span class="calc-result-lbl">Total de passivos</span>
+    <span class="calc-result-val" id="passivos-total-val" style="color:var(--rd)">R$ 0</span>
+  </div>
+  <button class="btn" onclick="irProxima('t15')">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t14')">← Voltar</button>
+</div>
+
+<!-- ══ T16 — EXPECTATIVA ═══════════════════════════════════════ -->
+<div class="tela" id="t16">
+  <div class="t-num">16 · SUA EXPECTATIVA</div>
+  <h2 class="t-pergunta">Quanto você acha que vale?</h2>
+  <p class="t-sub">Sua percepção ajuda a calibrar a análise — não há resposta certa.</p>
+  <div class="opcoes" id="opcoes-expectativa">
+    <button class="opcao" onclick="selOpcao(this,'expectativa','nao_sei');mostrarExpectativaInput(false)">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Não faço ideia — quero descobrir</div>
+      </div>
+    </button>
+    <button class="opcao" onclick="selOpcao(this,'expectativa','tenho_ideia');mostrarExpectativaInput(true)">
+      <div class="opcao-check"></div>
+      <div class="opcao-txt">
+        <div class="opcao-titulo">Tenho uma estimativa em mente</div>
+      </div>
+    </button>
+  </div>
+  <div id="wrap-expectativa" style="display:none">
+    <div class="inp-wrap" style="margin-bottom:24px">
+      <label class="inp-lbl">VALOR ESPERADO</label>
+      <input class="inp inp-money" id="inp-expectativa" type="text" placeholder="R$ 0"
+        oninput="maskMoney(this)" autocomplete="off">
+    </div>
+  </div>
+  <button class="btn" id="btn-t16" disabled onclick="irPara('t17')">CONTINUAR →</button>
+  <button class="btn-sec" onclick="irPara('t15')">← Voltar</button>
+</div>
+
+<!-- ══ T17 — CONFIRMAÇÃO FINAL ════════════════════════════════ -->
+<div class="tela" id="t17">
+  <div class="t-num">17 · CONFIRMAÇÃO</div>
+  <h2 class="t-pergunta">É isso mesmo?</h2>
+  <p class="t-sub">Revise os principais números antes de gerar a avaliação.</p>
+  <div class="resumo-grid" id="resumo-grid"></div>
+  <div style="background:var(--em-d);border:1px solid var(--em-l);border-radius:var(--r2);
+    padding:14px 16px;margin-bottom:20px">
+    <div style="font-size:11px;color:var(--em);font-family:'DM Mono',monospace;
+      letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px">Tudo certo?</div>
+    <div style="font-size:12px;color:var(--ink2);line-height:1.6">
+      Qualquer erro nos números muda o resultado. Se precisar corrigir algo, use o botão voltar.
+    </div>
+  </div>
+  <button class="btn" onclick="gerarAvaliacao()">GERAR MINHA AVALIAÇÃO →</button>
+  <button class="btn-sec" onclick="irPara('t16')">← Voltar e corrigir</button>
+</div>
+
+</div><!-- /card -->
+</div><!-- /page -->
+
+<script>
+// ── STATE ─────────────────────────────────────────────────────────
+const D = {
+  motivacao:null, nome_negocio:'', artigo:'', categoria:null,
+  cidade:'', estado:null, anos:5, fundador_original:null,
+  socios:null, prolabore:0, faturamento:0, crescimento:null,
+  margem_bruta:0, clientes_ativos:null, concentracao:20,
+  funcionarios:0, folha:0, aluguel:0, outros_cf:0,
+  regime:null, gestao:null, sistema:null,
+  imovel:0, equipamentos:0, estoque:0, outros_ativos:0,
+  emprestimos:0, parcelamentos:0, outros_passivos:0,
+  expectativa:null, expectativa_val:0
+};
+
+// Mapa de fluxo por categoria
+// Telas comuns: t1→t2→t3→t4→t5→t6→t7→t8→t9→t10→t11→t12→t13→t14→t15→t16→t17
+const FLUXO_PADRAO = ['t1','t2','t3','t4','t5','t6','t7','t8','t9','t10','t11','t12','t13','t14','t15','t16','t17'];
+
+// Ajustes por categoria nas labels
+const CAT_CONFIG = {
+  comercializar:  { t7_titulo:'Qual é o faturamento bruto mensal?', t8_titulo:'Custo da mercadoria vendida (CMV)', t9_titulo:'Quantos clientes ativos você tem?', t9_sub:'Clientes que compraram nos últimos 90 dias.' },
+  distribuir:     { t7_titulo:'Qual é o faturamento bruto mensal?', t8_titulo:'Custo da mercadoria comprada para revenda', t9_titulo:'Quantos revendedores ou clientes ativos?', t9_sub:'Clientes que compraram nos últimos 90 dias.' },
+  fornecer:       { t7_titulo:'Qual é o faturamento bruto mensal?', t8_titulo:'Custo dos insumos fornecidos', t9_titulo:'Quantos clientes industriais ativos?', t9_sub:'Indústrias que compraram nos últimos 90 dias.' },
+  fabricar:       { t7_titulo:'Qual é o faturamento bruto mensal?', t8_titulo:'Custo de produção (matéria prima + mão de obra direta)', t9_titulo:'Quantos clientes ou distribuidores ativos?', t9_sub:'Clientes que compraram nos últimos 90 dias.' },
+  servicos_projeto:{ t7_titulo:'Qual é o faturamento bruto mensal?', t8_titulo:'Custo direto de entrega dos projetos', t9_titulo:'Quantos contratos ou clientes ativos?', t9_sub:'Contratos vigentes ou clientes com projeto em andamento.' },
+  servicos_mao_obra:{ t7_titulo:'Qual é o faturamento bruto mensal?', t8_titulo:'Custo da folha dos colaboradores alocados', t9_titulo:'Quantos postos de trabalho ativos?', t9_sub:'Postos preenchidos e faturando no momento.' },
+  locar:          { t7_titulo:'Qual é a receita bruta mensal de locações?', t8_titulo:'Custo de manutenção e ocupação', t9_titulo:'Quantas unidades ou espaços alugados?', t9_sub:'Unidades com contrato ativo no momento.' },
+  plataforma:     { t7_titulo:'Qual é a receita bruta mensal (take rate)?', t8_titulo:'Custo de infraestrutura e operação', t9_titulo:'Quantos usuários ativos na plataforma?', t9_sub:'Usuários que transacionaram nos últimos 30 dias.' },
+};
+
+// ── HELPERS ────────────────────────────────────────────────────────
+function $(id){ return document.getElementById(id); }
+
+function fmtMoney(v){
+  if(!v||v===0) return 'R$ 0';
+  if(v>=1e6) return 'R$ '+(v/1e6).toFixed(1).replace('.',',')+'M';
+  if(v>=1e3) return 'R$ '+Math.round(v/1e3)+'K';
+  return 'R$ '+v.toLocaleString('pt-BR');
+}
+
+function parseMoney(s){
+  if(!s) return 0;
+  return parseFloat(String(s).replace(/[^0-9,]/g,'').replace(',','.')) || 0;
+}
+
+function maskMoney(inp){
+  let v = inp.value.replace(/\D/g,'');
+  if(!v){ inp.value=''; return; }
+  let num = parseInt(v)/100;
+  inp.value = 'R$ '+num.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function parseMasked(id){
+  const v = $(id)?.value||'';
+  return parseFloat(v.replace(/[^0-9,]/g,'').replace(',','.')) || 0;
+}
+
+function setProgress(tNum){
+  const total = 17;
+  const pct = Math.round((tNum/total)*100);
+  $('prog-fill').style.width = pct+'%';
+  $('prog-txt').textContent = pct+'%';
+}
+
+// ── NAVEGAÇÃO ──────────────────────────────────────────────────────
+function irPara(id){
+  document.querySelectorAll('.tela').forEach(t=>t.classList.remove('ativa'));
+  const el = $(id);
+  if(el){ el.classList.add('ativa'); el.scrollIntoView({behavior:'smooth',block:'start'}); }
+  const num = parseInt(id.replace('t',''));
+  setProgress(num);
+}
+
+function irProxima(atual){
+  const idx = FLUXO_PADRAO.indexOf(atual);
+  if(idx >= 0 && idx < FLUXO_PADRAO.length-1){
+    irPara(FLUXO_PADRAO[idx+1]);
+  }
+}
+
+// ── SELEÇÃO GENÉRICA ───────────────────────────────────────────────
+function selOpcao(btn, campo, val){
+  const pai = btn.closest('.opcoes, .tela');
+  btn.closest('.opcoes')?.querySelectorAll('.opcao').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  D[campo] = val;
+  // ativar botão da tela atual
+  const telaAtiva = document.querySelector('.tela.ativa');
+  if(telaAtiva){
+    const btnCont = telaAtiva.querySelector('.btn:not(.btn-sec)');
+    if(btnCont) btnCont.disabled = false;
+  }
+  // side effects
+  if(campo==='socios') onSocios(val);
+  if(campo==='motivacao') {}
+  if(campo==='expectativa') {}
+}
+
+function onSocios(val){
+  $('wrap-prolabore').style.display = val!=='sozinho' ? 'block' : 'none';
+}
+
+// ── T2: NOME E ARTIGO ──────────────────────────────────────────────
+function atualizarExemplo(){
+  const nome = $('inp-nome-neg').value.trim() || 'seu negócio';
+  D.nome_negocio = $('inp-nome-neg').value.trim();
+  $('ex-a').textContent = 'a '+nome;
+  $('ex-o').textContent = 'o '+nome;
+  validarT2();
+}
+
+function selArtigo(a){
+  D.artigo = a;
+  $('art-a').classList.toggle('sel', a==='a');
+  $('art-o').classList.toggle('sel', a==='o');
+  validarT2();
+}
+
+function validarT2(){
+  $('btn-t2').disabled = !(D.nome_negocio && D.artigo);
+}
+
+// ── T3: CATEGORIA + BIFURCAÇÃO ─────────────────────────────────────
+function selCategoria(btn, cat){
+  document.querySelectorAll('#t3 .opcao').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  D.categoria = cat;
+  $('btn-t3').disabled = false;
+}
+
+function bifurcar(){
+  const cfg = CAT_CONFIG[D.categoria] || CAT_CONFIG.comercializar;
+  // Atualizar labels das telas
+  if($('t7-titulo')) $('t7-titulo').textContent = cfg.t7_titulo;
+  if($('t8-titulo')) $('t8-titulo').textContent = cfg.t8_titulo;
+  if($('t9-titulo')) $('t9-titulo').textContent = cfg.t9_titulo;
+  if($('t9-sub'))    $('t9-sub').textContent    = cfg.t9_sub;
+  // Ajustes especiais para serviços (sem CMV clássico)
+  if(D.categoria==='servicos_projeto'||D.categoria==='servicos_mao_obra'){
+    $('calc-produto').querySelector('.calc-alt').style.display='none';
+  }
+  irPara('t4');
+}
+
+// ── T4: ESTADO ─────────────────────────────────────────────────────
+function selEstado(btn, uf){
+  document.querySelectorAll('#estados-row .radio-btn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  D.estado = uf;
+  $('btn-t4').disabled = !$('inp-cidade').value.trim();
+}
+
+$('inp-cidade')?.addEventListener('input', function(){
+  D.cidade = this.value.trim();
+  $('btn-t4').disabled = !(D.cidade && D.estado);
+});
+
+// ── T5: ANOS ───────────────────────────────────────────────────────
+function atualizarAnos(v){
+  D.anos = parseInt(v);
+  $('anos-val').textContent = v >= 30 ? '30+ anos' : v+' ano'+(v>1?'s':'');
+}
+
+// ── T7: FATURAMENTO ────────────────────────────────────────────────
+function calcAnual(){
+  const v = parseMasked('inp-fat');
+  D.faturamento = v;
+  if(v > 0){
+    $('fat-anual').textContent = 'Equivale a '+ fmtMoney(v*12) +' por ano';
+    $('btn-t7').disabled = false;
+  } else {
+    $('fat-anual').textContent = '';
+    $('btn-t7').disabled = true;
+  }
+}
+
+// ── T8: CMV ────────────────────────────────────────────────────────
+function calcMargem(){
+  const venda  = parseMasked('inp-preco-venda');
+  const compra = parseMasked('inp-preco-compra');
+  if(venda > 0 && compra >= 0){
+    const margem = ((venda-compra)/venda*100).toFixed(1);
+    $('calc-margem-val').textContent = margem+'%';
+    D.margem_bruta = parseFloat(margem);
+  }
+}
+
+function calcMargemDireta(pct){
+  if(pct>0 && pct<=100){
+    const margem = (100-parseFloat(pct)).toFixed(1);
+    $('cmv-direto-val').textContent = margem+'%';
+    $('cmv-direto-result').style.display = 'flex';
+    D.margem_bruta = parseFloat(margem);
+  }
+}
+
+function toggleCmvDireto(){
+  const d = $('cmv-direto');
+  const c = $('calc-produto');
+  if(d.style.display==='none'){
+    d.style.display='block';
+    c.style.display='none';
+  } else {
+    d.style.display='none';
+    c.style.display='block';
+  }
+}
+
+// ── T9: CONCENTRAÇÃO ───────────────────────────────────────────────
+$('sl-conc')?.addEventListener('input', function(){
+  const v = parseInt(this.value);
+  D.concentracao = v;
+  $('conc-val').textContent = v+'%';
+  const hint = v >= 50 ? '⚠ Alta concentração — risco relevante para o valuation'
+    : v >= 30 ? 'Concentração moderada'
+    : 'Boa diversificação de clientes';
+  $('conc-hint').textContent = hint;
+});
+
+// ── T11: CUSTOS FIXOS ──────────────────────────────────────────────
+function calcCF(){
+  const a = parseMasked('inp-aluguel');
+  const o = parseMasked('inp-outros-cf');
+  D.aluguel = a; D.outros_cf = o;
+  const t = a + o;
+  if(t > 0){
+    $('cf-total-box').style.display = 'flex';
+    $('cf-total-val').textContent = fmtMoney(t);
+  }
+}
+
+// ── T14: ATIVOS ────────────────────────────────────────────────────
+function calcAtivos(){
+  const im = parseMasked('inp-imovel');
+  const eq = parseMasked('inp-equip');
+  const es = parseMasked('inp-estoque');
+  const ot = parseMasked('inp-outros-at');
+  D.imovel=im; D.equipamentos=eq; D.estoque=es; D.outros_ativos=ot;
+  const t = im+eq+es+ot;
+  $('ativos-total').style.display = t>0 ? 'flex' : 'none';
+  $('ativos-total-val').textContent = fmtMoney(t);
+}
+
+// ── T15: PASSIVOS ──────────────────────────────────────────────────
+function calcPassivos(){
+  const e = parseMasked('inp-emprestimos');
+  const p = parseMasked('inp-parcelamentos');
+  const o = parseMasked('inp-outros-pv');
+  D.emprestimos=e; D.parcelamentos=p; D.outros_passivos=o;
+  const t = e+p+o;
+  $('passivos-total').style.display = t>0 ? 'flex' : 'none';
+  $('passivos-total-val').textContent = fmtMoney(t);
+}
+
+// ── T16: EXPECTATIVA ───────────────────────────────────────────────
+function mostrarExpectativaInput(show){
+  $('wrap-expectativa').style.display = show ? 'block' : 'none';
+  $('btn-t16').disabled = false;
+}
+
+// ── T17: RESUMO ────────────────────────────────────────────────────
+function buildResumo(){
+  const items = [
+    { k:'Negócio', v: (D.artigo?D.artigo.toUpperCase()+' ':'')+D.nome_negocio },
+    { k:'Categoria', v: D.categoria?.replace('_',' ') },
+    { k:'Faturamento/mês', v: fmtMoney(D.faturamento) },
+    { k:'Margem bruta', v: D.margem_bruta ? D.margem_bruta+'%' : '—' },
+    { k:'Funcionários', v: ($('inp-func')?.value||'0')+' pessoas' },
+    { k:'Custos fixos/mês', v: fmtMoney(D.aluguel+D.outros_cf) },
+    { k:'Total ativos', v: fmtMoney(D.imovel+D.equipamentos+D.estoque+D.outros_ativos) },
+    { k:'Total passivos', v: fmtMoney(D.emprestimos+D.parcelamentos+D.outros_passivos) },
+  ];
+  const grid = $('resumo-grid');
+  grid.innerHTML = items.map(i=>`
+    <div class="resumo-item">
+      <div class="resumo-k">${i.k}</div>
+      <div class="resumo-v">${i.v||'—'}</div>
+    </div>`).join('');
+}
+
+// Override irPara para construir resumo na t17
+const _irPara = irPara;
+window.irPara = function(id){
+  if(id==='t17') buildResumo();
+  _irPara(id);
+}
+
+// ── GERAR AVALIAÇÃO ────────────────────────────────────────────────
+function gerarAvaliacao(){
+  const btn = document.querySelector('#t17 .btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> GERANDO AVALIAÇÃO...';
+  // Salvar no sessionStorage para os laudos
+  sessionStorage.setItem('1neg_diagnostico', JSON.stringify(D));
+  // Simular processamento
+  setTimeout(()=>{
+    window.location.href = 'laudo-1-negocio.html?dados='+encodeURIComponent(JSON.stringify(D));
+  }, 1800);
+}
+
+// ── INIT ────────────────────────────────────────────────────────────
+// Pré-preencher via URL params
+(function(){
+  const p = new URLSearchParams(window.location.search);
+  if(p.get('nome')){ D.nome_negocio = p.get('nome'); const el=$('inp-nome-neg'); if(el){ el.value=p.get('nome'); atualizarExemplo(); } }
+  if(p.get('negocio')){ D.nome_negocio = p.get('negocio'); const el=$('inp-nome-neg'); if(el){ el.value=p.get('negocio'); atualizarExemplo(); } }
+  if(p.get('lead')) D.codigo_lead = p.get('lead');
+})();
+
+setProgress(1);
+</script>
+</body>
+</html>
