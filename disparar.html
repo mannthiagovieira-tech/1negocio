@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>1Negócio · Disparador SC</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#07090a;color:#eef2ef;font-family:monospace;padding:20px;max-width:900px;margin:0 auto}
+h1{font-size:15px;color:#3dff7a;margin-bottom:3px}
+.sub{font-size:9px;color:#4d6355;margin-bottom:20px;letter-spacing:.08em}
+.layout{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.layout{grid-template-columns:1fr}}
+.card{background:#111518;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px}
+.card-title{font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:#4d6355;margin-bottom:10px}
+.filtros{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.f{font-size:8px;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:20px;cursor:pointer;background:#171c20;border:1px solid rgba(255,255,255,.07);color:#4d6355;transition:all .15s}
+.f.on{background:rgba(61,255,122,.07);border-color:rgba(61,255,122,.3);color:#3dff7a}
+.f.teste{background:rgba(255,176,58,.07);border-color:rgba(255,176,58,.3);color:#ffb03a}
+.f.teste.on{background:rgba(255,176,58,.15);border-color:rgba(255,176,58,.5);color:#ffb03a}
+.lista{height:300px;overflow-y:auto;border:1px solid rgba(255,255,255,.06);border-radius:4px}
+.lista::-webkit-scrollbar{width:3px}
+.lista::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1)}
+.item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;transition:background .1s}
+.item:hover{background:rgba(255,255,255,.02)}
+.item.sel{background:rgba(61,255,122,.05)}
+.item.teste-item{border-left:2px solid rgba(255,176,58,.4)}
+.item-check{width:12px;height:12px;border:1px solid rgba(255,255,255,.15);border-radius:2px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:#3dff7a}
+.item.sel .item-check{background:rgba(61,255,122,.15);border-color:rgba(61,255,122,.4)}
+.item-info{flex:1;min-width:0}
+.item-nome{font-size:10px;color:#eef2ef;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-neg{font-size:8px;color:#4d6355;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-tel{font-size:8px;color:#2d3d34;flex-shrink:0}
+.item-cat{font-size:7px;padding:1px 5px;border-radius:10px;background:#171c20;border:1px solid rgba(255,255,255,.06);color:#4d6355;flex-shrink:0}
+.item-cat.teste-cat{background:rgba(255,176,58,.07);border-color:rgba(255,176,58,.25);color:#ffb03a}
+.sel-info{font-size:9px;color:#4d6355;margin-top:6px;display:flex;align-items:center;justify-content:space-between}
+.sel-info span{color:#3dff7a}
+.btns-sel{display:flex;gap:4px}
+.bs{font-size:7px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:3px;cursor:pointer;background:transparent;border:1px solid rgba(255,255,255,.1);color:#4d6355}
+.bs:hover{color:#eef2ef;border-color:rgba(255,255,255,.2)}
+.bs.am{border-color:rgba(255,176,58,.3);color:#ffb03a}
+.bs.am:hover{background:rgba(255,176,58,.07)}
+textarea{width:100%;background:#07090a;border:1px solid rgba(255,255,255,.1);color:#eef2ef;font-family:monospace;font-size:10px;padding:10px;border-radius:4px;resize:vertical;line-height:1.6;margin-bottom:8px}
+.cfg-row{display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.cfg-row label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:#4d6355}
+input[type=number]{background:#07090a;border:1px solid rgba(255,255,255,.1);color:#eef2ef;font-family:monospace;font-size:11px;padding:5px 8px;border-radius:4px;width:70px}
+.prog-wrap{margin-bottom:10px}
+.prog-bar{height:3px;background:#171c20;border-radius:2px;overflow:hidden;margin-bottom:4px}
+.prog-fill{height:100%;background:#3dff7a;border-radius:2px;transition:width .3s;width:0%}
+.prog-txt{font-size:9px;color:#4d6355;display:flex;justify-content:space-between}
+.action-btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+button{background:#3dff7a;color:#07090a;border:none;border-radius:4px;padding:8px 14px;font-family:monospace;font-size:9px;font-weight:700;letter-spacing:.1em;cursor:pointer}
+button:disabled{opacity:.35;cursor:not-allowed}
+button.sec{background:transparent;border:1px solid rgba(61,255,122,.3);color:#3dff7a}
+button.red{background:#ff5c5c;color:#fff}
+button.am{background:#ffb03a;color:#07090a}
+.log{background:#060a07;border:1px solid rgba(61,255,122,.12);border-radius:4px;padding:10px;height:200px;overflow-y:auto;font-size:9px;line-height:1.9}
+.log::-webkit-scrollbar{width:3px}
+.log::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1)}
+.log .ok{color:#3dff7a}
+.log .err{color:#ff5c5c}
+.log .info{color:#4d6355}
+.log .warn{color:#ffb03a}
+.fila-resumo{font-size:9px;color:#4d6355;padding:6px 0;border-top:1px solid rgba(255,255,255,.05);margin-top:6px}
+.fila-resumo strong{color:#ffb03a}
+.sep{height:1px;background:rgba(255,255,255,.06);margin:8px 0}
+</style>
+</head>
+<body>
+
+<h1>1Negócio · Disparador WhatsApp · Santa Catarina</h1>
+<div class="sub">Z-API · 5511952136406 · 144 contatos · DDD 47 + 48</div>
+
+<div class="layout">
+
+<div>
+  <div class="card">
+    <div class="card-title">Filtrar contatos</div>
+
+    <div class="filtros">
+      <div class="f on" data-group="ddd" data-val="" onclick="setFiltro(this,'ddd')">Todos DDDs</div>
+      <div class="f" data-group="ddd" data-val="48" onclick="setFiltro(this,'ddd')">DDD 048 · Floripa</div>
+      <div class="f" data-group="ddd" data-val="47" onclick="setFiltro(this,'ddd')">DDD 047 · Blumenau</div>
+    </div>
+
+    <div class="filtros">
+      <div class="f on" data-group="cat" data-val="" onclick="setFiltro(this,'cat')">Todas categorias</div>
+      <div class="f teste" data-group="cat" data-val="Teste" onclick="setFiltro(this,'cat')">⚡ Teste</div>
+      <div class="f" data-group="cat" data-val="Indústria" onclick="setFiltro(this,'cat')">Indústria</div>
+      <div class="f" data-group="cat" data-val="Varejo" onclick="setFiltro(this,'cat')">Varejo</div>
+      <div class="f" data-group="cat" data-val="Alimentação" onclick="setFiltro(this,'cat')">Alimentação</div>
+      <div class="f" data-group="cat" data-val="Serviços" onclick="setFiltro(this,'cat')">Serviços</div>
+      <div class="f" data-group="cat" data-val="Saúde" onclick="setFiltro(this,'cat')">Saúde</div>
+    </div>
+
+    <div class="lista" id="lista"></div>
+
+    <div class="sel-info">
+      <div><span id="sel-count">0</span> selecionados de <span id="vis-count">0</span> visíveis</div>
+      <div class="btns-sel">
+        <button class="bs am" onclick="selSoTeste()">Só teste</button>
+        <button class="bs" onclick="selTodos()">Todos</button>
+        <button class="bs" onclick="selNenhum()">Nenhum</button>
+        <button class="bs" onclick="selN(50)">Primeiros 50</button>
+      </div>
+    </div>
+    <div class="fila-resumo" id="fila-resumo"></div>
+  </div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+  <div class="card">
+    <div class="card-title">Mensagem · use {nome} para personalizar</div>
+    <textarea id="msg" rows="7">{nome}, tudo bem?
+
+Descubra quanto vale o seu negócio.
+
+5 minutos para o número mais importante da sua jornada empreendedora.
+
+👉 1negocio.com.br/entre</textarea>
+    <div class="cfg-row">
+      <label>Delay (seg)</label>
+      <input type="number" id="delay" value="8" min="3" max="60">
+      <label style="margin-left:8px">Limite</label>
+      <input type="number" id="limite" value="50" min="1" max="200">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Disparo</div>
+    <div class="prog-wrap">
+      <div class="prog-bar"><div class="prog-fill" id="prog"></div></div>
+      <div class="prog-txt"><span id="prog-n">0 / 0</span><span id="prog-status">Aguardando</span></div>
+    </div>
+    <div class="action-btns">
+      <button class="am" id="btn-teste" onclick="dispararTeste()">⚡ TESTAR (só meu número)</button>
+      <button id="btn-start" onclick="iniciar()">▶ DISPARAR SELECIONADOS</button>
+      <button class="sec" id="btn-pause" onclick="pausar()" disabled>⏸ PAUSAR</button>
+      <button class="red" id="btn-stop" onclick="parar()" disabled>■ PARAR</button>
+    </div>
+    <div class="log" id="log"><div class="info">// Pronto. Use ⚡ TESTAR para enviar só para seu número antes de disparar para todos.</div></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const ZAPI_INST = '3F0B96941C16821DCD449E74568994AE';
+const ZAPI_TOK  = '0BE4998D03035703BC118D92';
+const ZAPI_CLI  = 'Faec2ddf321a34553a2e4fbe4244abd17S';
+const MEU_NUM   = '5548999279320';
+
+const TODOS = [{"nome": "Thiago", "telefone": "5548999279320", "ddd": "48", "negocio": "Teste · 1Negócio", "cat": "Teste", "valor": ""}, {"nome": "rafaela", "telefone": "5548999494044", "ddd": "48", "negocio": "Venda Autorizada Samsung", "cat": "Indústria", "valor": "R$ 1.800.000,00"}, {"nome": "Carlos", "telefone": "5547992611278", "ddd": "47", "negocio": "Pub à Venda Próximo à FURB", "cat": "Saúde", "valor": "R$ 195.000,00"}, {"nome": "HUMBERTO", "telefone": "5548991361003", "ddd": "48", "negocio": "Em vez de investir em uma franquia, invista em uma", "cat": "Alimentação", "valor": "R$ 90.000,00"}, {"nome": "Valdirene", "telefone": "5547984175680", "ddd": "47", "negocio": "Auto Estética Automotiva", "cat": "Indústria", "valor": "R$ 250.000,00"}, {"nome": "GILBERTO", "telefone": "5547988154725", "ddd": "47", "negocio": "Venda", "cat": "Indústria", "valor": "R$ 430.000,00"}, {"nome": "Maria", "telefone": "5547988218088", "ddd": "47", "negocio": "Venda loja online infantil - marca original", "cat": "Indústria", "valor": "R$ 9.000,00"}, {"nome": "Allan", "telefone": "5548984165000", "ddd": "48", "negocio": "Cafeteria na Pedra Branca", "cat": "Varejo", "valor": "R$ 190.000,00"}, {"nome": "Cátia", "telefone": "5547984117239", "ddd": "47", "negocio": "Imóvel comercial e residencial com mercado e loja", "cat": "Saúde", "valor": "R$ 750.000,00"}, {"nome": "Jeniffer", "telefone": "5547997372380", "ddd": "47", "negocio": "E-commerce Mercado Livre Gold", "cat": "Indústria", "valor": "R$ 180.000,00"}, {"nome": "Casa", "telefone": "5548988284491", "ddd": "48", "negocio": "Restaurante de Assados", "cat": "Indústria", "valor": "R$ 120.000,00"}, {"nome": "Gilmara", "telefone": "5548984212827", "ddd": "48", "negocio": "Loja de Moda Infantil e juvenil", "cat": "Saúde", "valor": "R$ 55.000,00"}, {"nome": "Caroline", "telefone": "5547992654066", "ddd": "47", "negocio": "Vendo loja completa de produto de limpeza", "cat": "Indústria", "valor": "R$ 60.000,00"}, {"nome": "TIME", "telefone": "5548988281077", "ddd": "48", "negocio": "Hamburgueria consolidada em Florianópolis", "cat": "Indústria", "valor": "R$ 850.000,00"}, {"nome": "Natanael", "telefone": "5547992281014", "ddd": "47", "negocio": "Loja festas comércio", "cat": "Varejo", "valor": "R$ 50.000,00"}, {"nome": "Tao", "telefone": "5548991753396", "ddd": "48", "negocio": "Restaurante de açaí", "cat": "Indústria", "valor": "R$ 500.000,00"}, {"nome": "Arthur", "telefone": "5547999725246", "ddd": "47", "negocio": "Empresa Alimentação Saudável congelada - Faturamen", "cat": "Indústria", "valor": "R$ 750.000,00"}, {"nome": "Graziella", "telefone": "5548988487105", "ddd": "48", "negocio": "Salão de Beleza", "cat": "Indústria", "valor": "R$ 250.000,00"}, {"nome": "Top", "telefone": "5547999961838", "ddd": "47", "negocio": "MEGA AUTO CENTER, MECÂNICA, PNEUS E ELETRÍCA A VEN", "cat": "Indústria", "valor": "R$ 380.000,00"}, {"nome": "Bruno", "telefone": "5548992002569", "ddd": "48", "negocio": "Sorveteria consolidada há 7 anos no Norte da Ilha", "cat": "Indústria", "valor": "R$ 370.000,00"}, {"nome": "VANIA", "telefone": "5548984230726", "ddd": "48", "negocio": "Cafeteria a venda", "cat": "Indústria", "valor": "R$ 230.000,00"}, {"nome": "Marcio", "telefone": "5548999730887", "ddd": "48", "negocio": "Cafeteria de Alto Padrão", "cat": "Indústria", "valor": "R$ 1.300.000,00"}, {"nome": "vanessa", "telefone": "5548984444417", "ddd": "48", "negocio": "Venda loja de 20 anos", "cat": "Indústria", "valor": "R$ 380.000,00"}, {"nome": "Fernanda", "telefone": "5547996595713", "ddd": "47", "negocio": "FRANQUIA DE CONTABILIDADE", "cat": "Indústria", "valor": "R$ 10.000,00"}, {"nome": "Marcelo", "telefone": "5548991179255", "ddd": "48", "negocio": "Vendo Consultório em Florianópolis Sul da Ilha", "cat": "Indústria", "valor": "R$ 104.000,00"}, {"nome": "Brayan", "telefone": "5547991603130", "ddd": "47", "negocio": "Ponto comercial para Studios e Salões, estrutura 1", "cat": "Varejo", "valor": "R$ 90.000,00"}, {"nome": "Edson", "telefone": "5547991580640", "ddd": "47", "negocio": "Aluguel de bicicletas e scooters", "cat": "Indústria", "valor": "R$ 700.000,00"}, {"nome": "JOSE", "telefone": "5547991103382", "ddd": "47", "negocio": "LOJA BEM CONCEITUADA COM CLIENTE FIDELIZADO", "cat": "Indústria", "valor": "R$ 200.000,00"}, {"nome": "Solano", "telefone": "5547999670068", "ddd": "47", "negocio": "Pet Shop em Balneário Camboriú", "cat": "Indústria", "valor": "R$ 59.000,00"}, {"nome": "João", "telefone": "5548984112886", "ddd": "48", "negocio": "Oportunidade em área nobre de Floripa", "cat": "Varejo", "valor": "R$ 170.000,00"}, {"nome": "Rafaela", "telefone": "5548991871969", "ddd": "48", "negocio": "Vendo empresa de alimentos importados", "cat": "Indústria", "valor": "R$ 70.000,00"}, {"nome": "Gabriel", "telefone": "5548988235410", "ddd": "48", "negocio": "Centro de Estetica", "cat": "Varejo", "valor": "R$ 50.000,00"}, {"nome": "Sandra", "telefone": "5547992860878", "ddd": "47", "negocio": "Vendo Loja Completa!", "cat": "Indústria", "valor": "R$ 170.000,00"}, {"nome": "Alan", "telefone": "5547997273844", "ddd": "47", "negocio": "Mercado e Açougue à venda", "cat": "Varejo", "valor": "R$ 200.000,00"}, {"nome": "lauri", "telefone": "5548996764131", "ddd": "48", "negocio": "Padaria no coração do Estreito", "cat": "Varejo", "valor": "R$ 380.000,00"}, {"nome": "Luiz", "telefone": "5547991526626", "ddd": "47", "negocio": "Vendo açougue completo", "cat": "Indústria", "valor": "R$ 360.000,00"}, {"nome": "Carlos", "telefone": "5548996214435", "ddd": "48", "negocio": "Invista no Seu Próprio Paraíso Flutuante: Negócio", "cat": "Indústria", "valor": "R$ 350.000,00"}, {"nome": "Hoyttaler", "telefone": "5548991557534", "ddd": "48", "negocio": "LOJA DE STREETWEAR À VENDA – SHOPPING PARQUE DAS B", "cat": "Varejo", "valor": "R$ 140.000,00"}, {"nome": "Marcello", "telefone": "5547997809696", "ddd": "47", "negocio": "VENDA DE CAFETERIA EM SHOPPING DE ALTO PADRÃO", "cat": "Indústria", "valor": "R$ 350.000,00"}, {"nome": "Demetrius", "telefone": "5548991196613", "ddd": "48", "negocio": "MERCADO DE ALTO PADRÃO A VENDA", "cat": "Varejo", "valor": "R$ 1.550.000,00"}, {"nome": "Thierry", "telefone": "5547996725584", "ddd": "47", "negocio": "Loja de Roupas Masculina em Joinville", "cat": "Indústria", "valor": "R$ 200.000,00"}, {"nome": "jm", "telefone": "5548984844847", "ddd": "48", "negocio": "EMPRESA DIGITAL SUPLEMENTO RECORDE FATURAMENTO", "cat": "Indústria", "valor": "R$ 90.000,00"}, {"nome": "Carlos", "telefone": "5547991264927", "ddd": "47", "negocio": "CLÍNICA ODONTOLÓGICA COMPLETA À VENDA", "cat": "Indústria", "valor": "R$ 4.000.000,00"}, {"nome": "Camila", "telefone": "5547992508815", "ddd": "47", "negocio": "“Espaço Completo para Eventos ou Restaurante na Pr", "cat": "Varejo", "valor": "R$ 199.000,00"}, {"nome": "FERNANDA", "telefone": "5547997782479", "ddd": "47", "negocio": "Marca | CNPJ | Linha de produtos | Clientes ativos", "cat": "Indústria", "valor": "R$ 150.000,00"}, {"nome": "Yannick", "telefone": "5548998252270", "ddd": "48", "negocio": "Venda deymaq que locação de equipamento", "cat": "Indústria", "valor": "R$ 3.499.000,00"}, {"nome": "Alessandra", "telefone": "5547996022899", "ddd": "47", "negocio": "Excelente Restaurante Árabe com Gestão Padronizada", "cat": "Indústria", "valor": "R$ 750.000,00"}, {"nome": "Disgo", "telefone": "5547996482324", "ddd": "47", "negocio": "Venda industria metalurgica", "cat": "Indústria", "valor": "R$ 6.950.000,00"}, {"nome": "geovana", "telefone": "5547997853275", "ddd": "47", "negocio": "Negócio Lucrativo Franquia", "cat": "Varejo", "valor": "R$ 40.000,00"}, {"nome": "RUDINEI", "telefone": "5548991234318", "ddd": "48", "negocio": "Linda cafeteria muito bem montada, no centro de Pa", "cat": "Indústria", "valor": "R$ 99.000,00"}, {"nome": "luizlosa", "telefone": "5548991687097", "ddd": "48", "negocio": "lanchonet e pastelaria", "cat": "Indústria", "valor": "R$ 300.000,00"}, {"nome": "jonas", "telefone": "5547992829262", "ddd": "47", "negocio": "Mercado a venda", "cat": "Indústria", "valor": "R$ 450.000,00"}, {"nome": "T", "telefone": "5548999279320", "ddd": "48", "negocio": "Teste 123", "cat": "Indústria", "valor": "R$ 1.000.000,00"}, {"nome": "Douglas", "telefone": "5548984680615", "ddd": "48", "negocio": "Vendo Franquia com Faturamento anual de R$ 1.744.1", "cat": "Indústria", "valor": "R$ 300.000,00"}, {"nome": "Guilherme", "telefone": "5548996208160", "ddd": "48", "negocio": "Pizzaria no Coração de Floripa!", "cat": "Indústria", "valor": "R$ 500.000,00"}, {"nome": "Denilson", "telefone": "5547988564365", "ddd": "47", "negocio": "Vendo minha Empresa de terceirização", "cat": "Varejo", "valor": "R$ 500.000,00"}, {"nome": "Thayse", "telefone": "5547997273356", "ddd": "47", "negocio": "Vendo Loja de Celular (acessórios e assistência)", "cat": "Varejo", "valor": "R$ 35.000,00"}, {"nome": "Opala", "telefone": "5548991565300", "ddd": "48", "negocio": "Clínica veterinária Completa com creche pet", "cat": "Indústria", "valor": "R$ 490.000,00"}, {"nome": "Leonardo", "telefone": "5547988609292", "ddd": "47", "negocio": "Restaurante Alto Padrão Balneário Camboriu", "cat": "Indústria", "valor": "R$ 2.200.000,00"}, {"nome": "Patricia", "telefone": "5548991379133", "ddd": "48", "negocio": "Negócio sustentável à venda - Empresa de brindes e", "cat": "Serviços", "valor": "R$ 120.000,00"}, {"nome": "Lana", "telefone": "5548996789576", "ddd": "48", "negocio": "Negócio Pronto para Crescer – Empresa de Recreação", "cat": "Indústria", "valor": "R$ 340.000,00"}, {"nome": "William", "telefone": "5547992261272", "ddd": "47", "negocio": "Loja de Produtos de Limpeza e Piscina", "cat": "Varejo", "valor": "R$ 30.000,00"}, {"nome": "Murilo", "telefone": "5547996960157", "ddd": "47", "negocio": "Franquia de Recursos Humanos em Balneário Camboriú", "cat": "Indústria", "valor": "R$ 44.900,00"}, {"nome": "Victor", "telefone": "5548988102468", "ddd": "48", "negocio": "Indústria de produção de suplementos alimentares [", "cat": "Serviços", "valor": "R$ 760.000,00"}, {"nome": "Hygor", "telefone": "5548985022630", "ddd": "48", "negocio": "VENDE-SE LOJA DE STREETWEAR LUCRATIVA – FATURAMENT", "cat": "Indústria", "valor": "R$ 90.000,00"}, {"nome": "Vini", "telefone": "5548991130584", "ddd": "48", "negocio": "Rooftop bar Frente Mar", "cat": "Indústria", "valor": "R$ 350.000,00"}, {"nome": "Andre", "telefone": "5548998223222", "ddd": "48", "negocio": "Restaurante no melhor bairro de Florianopolis", "cat": "Indústria", "valor": "R$ 200.000,00"}, {"nome": "Alexandre", "telefone": "5547988147408", "ddd": "47", "negocio": "Ponto Comercial De Sorveteria Completa Em Curitiba", "cat": "Indústria", "valor": "R$ 79.000,00"}, {"nome": "Renato", "telefone": "5548996441155", "ddd": "48", "negocio": "Vendo cozinha industrial com contratos fixos de li", "cat": "Indústria", "valor": "R$ 2.300.000,00"}, {"nome": "Guilherme", "telefone": "5548988255821", "ddd": "48", "negocio": "Oportunidade! Cafeteria Funcionando em Localização", "cat": "Indústria", "valor": "R$ 175.000,00"}, {"nome": "Marcio", "telefone": "5547999183658", "ddd": "47", "negocio": "Vendo Empreiteira de Mao de Obra com Contrato de 1", "cat": "Indústria", "valor": "R$ 700.000,00"}, {"nome": "Jean", "telefone": "5548984588830", "ddd": "48", "negocio": "Loja de Acessórios e Assistência Técnica de Celula", "cat": "Varejo", "valor": "R$ 65.000,00"}, {"nome": "ADRIANA", "telefone": "5547988452007", "ddd": "47", "negocio": "Clínica Médica multiespecialidades", "cat": "Indústria", "valor": "R$ 890.000,00"}, {"nome": "Jairo", "telefone": "5548991683585", "ddd": "48", "negocio": "Vende se panificadora", "cat": "Indústria", "valor": "R$ 290.000,00"}, {"nome": "DANIELE", "telefone": "5547988318852", "ddd": "47", "negocio": "vendo Fabrica de Moveis", "cat": "Indústria", "valor": "R$ 7.000.000,00"}, {"nome": "Marcio", "telefone": "5548999617667", "ddd": "48", "negocio": "Empresa Tecnologia", "cat": "Indústria", "valor": "R$ 0,00"}, {"nome": "rafael", "telefone": "5548991275860", "ddd": "48", "negocio": "Lanchonete com alto faturamento 9% de lucratividad", "cat": "Indústria", "valor": "R$ 600.000,00"}, {"nome": "Alexandre", "telefone": "5548984477386", "ddd": "48", "negocio": "teste alexandre", "cat": "Indústria", "valor": "R$ 0,00"}, {"nome": "MAICON", "telefone": "5547996022074", "ddd": "47", "negocio": "Fabrica e lojas sorvete", "cat": "Indústria", "valor": "R$ 2.000.000,00"}, {"nome": "King", "telefone": "5548991848494", "ddd": "48", "negocio": "Marca de Acessórios Pet Premium em Santa Catarina", "cat": "Alimentação", "valor": "R$ 480.000,00"}, {"nome": "ANA", "telefone": "5547991473531", "ddd": "47", "negocio": "ESCOLA DE ED. INFANTIL", "cat": "Indústria", "valor": "R$ 280.000,00"}, {"nome": "Leandro", "telefone": "5548998684620", "ddd": "48", "negocio": "Marca | Suplemento", "cat": "Indústria", "valor": "R$ 50.000,00"}, {"nome": "Josemar", "telefone": "5547996206631", "ddd": "47", "negocio": "VENDO OU TROCO / LOJA CONSOLIDADA EM BAL. CAMBORIÚ", "cat": "Indústria", "valor": "R$ 600.000,00"}, {"nome": "Fernanda", "telefone": "5547999964136", "ddd": "47", "negocio": "Vendo E-commerce de itens de decoração para o lar", "cat": "Indústria", "valor": "R$ 12.000,00"}, {"nome": "Jonatas", "telefone": "5547996138015", "ddd": "47", "negocio": "Estética Automotiva", "cat": "Indústria", "valor": "R$ 1.100.000,00"}, {"nome": "Paulo", "telefone": "5548991637174", "ddd": "48", "negocio": "ERP Contábil - CLICKMOV", "cat": "Serviços", "valor": "R$ 480.000,00"}, {"nome": "Olivia", "telefone": "5547997349582", "ddd": "47", "negocio": "VENDE PONTO DE LANCHONETE", "cat": "Varejo", "valor": "R$ 70.000,00"}, {"nome": "MABY", "telefone": "5547992011148", "ddd": "47", "negocio": "Cafeteria a 200m da praia| itapema, meia praia, SC", "cat": "Varejo", "valor": "R$ 200.000,00"}, {"nome": "Marcelo", "telefone": "5548991036384", "ddd": "48", "negocio": "Hamburgueria e Açaíteria em Área nobre de Florianó", "cat": "Indústria", "valor": "R$ 185.000,00"}, {"nome": "Valter", "telefone": "5548999387036", "ddd": "48", "negocio": "✨ Trabalhe numa empresa 5 estrelas ao lado da Lago", "cat": "Indústria", "valor": "R$ 150.000,00"}, {"nome": "Caroline", "telefone": "5548991141979", "ddd": "48", "negocio": "Passo ponto - Cafeteria", "cat": "Varejo", "valor": "R$ 135.000,00"}, {"nome": "USEMIX", "telefone": "5548999717539", "ddd": "48", "negocio": "Loja de Roupas e Acessórios Femininos Centro Flori", "cat": "Indústria", "valor": "R$ 1.000.000,00"}, {"nome": "RICCARDO", "telefone": "5547996330445", "ddd": "47", "negocio": "Vendo empresa de engenharia elétrica consolida", "cat": "Indústria", "valor": "R$ 350.000,00"}, {"nome": "José", "telefone": "5547999423809", "ddd": "47", "negocio": "Cafeteria Lucrativa - Publico Ativo", "cat": "Indústria", "valor": "R$ 180.000,00"}, {"nome": "José", "telefone": "5547989260427", "ddd": "47", "negocio": "Conhecida loja de Cookies com unidades em Itajaí e", "cat": "Indústria", "valor": "R$ 570.000,00"}, {"nome": "Dicimoveis", "telefone": "5547991740424", "ddd": "47", "negocio": "Sorveteria montada à venda em Blumenau/SC", "cat": "Indústria", "valor": "R$ 220.000,00"}, {"nome": "andré", "telefone": "5547988536046", "ddd": "47", "negocio": "Escola de idiomas", "cat": "Indústria", "valor": "R$ 180.000,00"}, {"nome": "José", "telefone": "5548991928505", "ddd": "48", "negocio": "Vendo Empresa na fabricação de produtos em Inox", "cat": "Indústria", "valor": "R$ 3.000.000,00"}, {"nome": "Ronaldo", "telefone": "5547991172938", "ddd": "47", "negocio": "Vende-se empresa de Desenvolvimento e Hospedagem d", "cat": "Indústria", "valor": "R$ 110.000,00"}, {"nome": "Gustavo", "telefone": "5548991193336", "ddd": "48", "negocio": "Vendo complexo esportivo consolidado a 11 anos e l", "cat": "Varejo", "valor": "R$ 149.900,00"}, {"nome": "Sidney", "telefone": "5548991855014", "ddd": "48", "negocio": "Casa Árabe exclusiva na região", "cat": "Indústria", "valor": "R$ 0,00"}, {"nome": "Caroline", "telefone": "5547991952661", "ddd": "47", "negocio": "Escola de Idiomas", "cat": "Varejo", "valor": "R$ 160.000,00"}, {"nome": "YNB", "telefone": "5548992097566", "ddd": "48", "negocio": "PONTO COMERCIAL – Florianópolis", "cat": "Varejo", "valor": "R$ 260.000,00"}, {"nome": "Bernardo", "telefone": "5547992164304", "ddd": "47", "negocio": "VENDA DE FRANQUIA COM FATURAMENTO DE MAIS DE R$3mi", "cat": "Indústria", "valor": "R$ 780.000,00"}, {"nome": "Lucas", "telefone": "5547997457578", "ddd": "47", "negocio": "Empresa de Parque de Trampolins Shopping Park Euro", "cat": "Indústria", "valor": "R$ 350.000,00"}, {"nome": "Miguel", "telefone": "5547992428546", "ddd": "47", "negocio": "Venda de 50% de sociedade de Casa de Repouso", "cat": "Indústria", "valor": "R$ 2.000.000,00"}, {"nome": "Roberto", "telefone": "5548991013531", "ddd": "48", "negocio": "Fábrica de Dadinhos de Tapioca Congelado", "cat": "Indústria", "valor": "R$ 95.000,00"}, {"nome": "Alexandre", "telefone": "5548991957049", "ddd": "48", "negocio": "Academia de musculação", "cat": "Indústria", "valor": "R$ 285.000,00"}, {"nome": "Lucas", "telefone": "5548991248845", "ddd": "48", "negocio": "Clínica Odonto Ingleses/Floripa | 3 Consultórios", "cat": "Varejo", "valor": "R$ 500.000,00"}, {"nome": "PapelariaPradella", "telefone": "5547984195997", "ddd": "47", "negocio": "Papelaria e Variedades", "cat": "Indústria", "valor": "R$ 200.000,00"}, {"nome": "Gustavo", "telefone": "5547991966147", "ddd": "47", "negocio": "Franquia de Energia Solar Disponível — Operação Es", "cat": "Indústria", "valor": "R$ 52.000,00"}, {"nome": "Nelson", "telefone": "5548991979000", "ddd": "48", "negocio": "Assistência Técnica de Notebooks em Florianópolis", "cat": "Indústria", "valor": "R$ 1.400.000,00"}, {"nome": "franciele", "telefone": "5547999052529", "ddd": "47", "negocio": "farmacia com programa farmacia popular", "cat": "Indústria", "valor": "R$ 197.000,00"}, {"nome": "Marcelo", "telefone": "5547984942818", "ddd": "47", "negocio": "Comércio atacadista de bijuterias", "cat": "Indústria", "valor": "R$ 135.000,00"}, {"nome": "Carlos", "telefone": "5548999707701", "ddd": "48", "negocio": "distribuidora de chopp e água", "cat": "Indústria", "valor": "R$ 1.200.000,00"}, {"nome": "Jurema", "telefone": "5547999764362", "ddd": "47", "negocio": "Dedetizadora em Camboriú-SC", "cat": "Indústria", "valor": "R$ 450.000,00"}, {"nome": "sao", "telefone": "5547999969838", "ddd": "47", "negocio": "Loja de Variedades Completa e Ativa em Jaraguá do", "cat": "Indústria", "valor": "R$ 350.000,00"}, {"nome": "PREPARA", "telefone": "5547991449007", "ddd": "47", "negocio": "FRANQUIA DE ESCOLA", "cat": "Indústria", "valor": "R$ 300.000,00"}, {"nome": "Laiara", "telefone": "5547999540154", "ddd": "47", "negocio": "H2L Cosplay Profissional", "cat": "Indústria", "valor": "R$ 1.600.000,00"}, {"nome": "Recargas", "telefone": "5548998140207", "ddd": "48", "negocio": "loja de impressão e papelaria", "cat": "Indústria", "valor": "R$ 120.000,00"}, {"nome": "SeaGarden", "telefone": "5547988114196", "ddd": "47", "negocio": "GARDEN FOOD PARK", "cat": "Varejo", "valor": "R$ 500.000,00"}, {"nome": "CAMILA", "telefone": "5548988213305", "ddd": "48", "negocio": "Delivery de comida brasileira com clientela fixa", "cat": "Indústria", "valor": "R$ 450.000,00"}, {"nome": "Fernanda", "telefone": "5547996530110", "ddd": "47", "negocio": "Sushi com 12 anos de nome", "cat": "Indústria", "valor": "R$ 85.000,00"}, {"nome": "luciana", "telefone": "5547991577344", "ddd": "47", "negocio": "Restaurante Consolidado á Venda- Operação Ativa", "cat": "Indústria", "valor": "R$ 600.000,00"}, {"nome": "Ednilson", "telefone": "5547999451591", "ddd": "47", "negocio": "Lavanderia de Auto Atendimento", "cat": "Indústria", "valor": "R$ 180.000,00"}, {"nome": "Paulo", "telefone": "5548991923615", "ddd": "48", "negocio": "Escola EAD c/ Pós-Graduação e Cursos Preparatórios", "cat": "Indústria", "valor": "R$ 1,00"}, {"nome": "Jacson", "telefone": "5548991787179", "ddd": "48", "negocio": "Supermercado bem localizado na praia dos ingleses.", "cat": "Indústria", "valor": "R$ 1.400.000,00"}, {"nome": "hyago", "telefone": "5548996397877", "ddd": "48", "negocio": "Clinica de Emagrecimento", "cat": "Indústria", "valor": "R$ 550.000,00"}, {"nome": "Nelson", "telefone": "5548996596454", "ddd": "48", "negocio": "Operação Comercial Ativa", "cat": "Indústria", "valor": "R$ 360.000,00"}, {"nome": "Andre", "telefone": "5548984825030", "ddd": "48", "negocio": "Empresa do ramo alimentício consolidada – Grande F", "cat": "Alimentação", "valor": "R$ 1.650.000,00"}, {"nome": "Luna", "telefone": "5548991880502", "ddd": "48", "negocio": "Restaurante de gastronomia oriental contemporâneo", "cat": "Varejo", "valor": "R$ 140.000,00"}, {"nome": "São", "telefone": "5548996152675", "ddd": "48", "negocio": "Passo ponto comercial Restaurante pizzaria lanchon", "cat": "Varejo", "valor": "R$ 100.000,00"}, {"nome": "Life", "telefone": "5548999212429", "ddd": "48", "negocio": "Empresa de Suplementos para fertilidade", "cat": "Indústria", "valor": "R$ 90.000,00"}, {"nome": "Jakson", "telefone": "5547991282185", "ddd": "47", "negocio": "Ruleria - Modelo exclusivo e com potencial de expa", "cat": "Serviços", "valor": "R$ 290.000,00"}, {"nome": "Hiago", "telefone": "5547999321391", "ddd": "47", "negocio": "Tradicional Loja de Roupas em Joinville", "cat": "Indústria", "valor": "R$ 399.000,00"}, {"nome": "joao", "telefone": "5548999463165", "ddd": "48", "negocio": "LOJA DE AÇAÍ PARA RETIRADA", "cat": "Alimentação", "valor": "R$ 65.000,00"}, {"nome": "CAROLINE", "telefone": "5548988465529", "ddd": "48", "negocio": "LOJA DE ROUPAS CONSOLIDADA, COM MARCA REGISTRADA", "cat": "Indústria", "valor": "R$ 1.200.000,00"}, {"nome": "Ana", "telefone": "5548991624658", "ddd": "48", "negocio": "Mini Cafeteria (Porteira Fechada)", "cat": "Varejo", "valor": "R$ 45.000,00"}, {"nome": "Hávila", "telefone": "5548988763740", "ddd": "48", "negocio": "Provedor e prestadora serviços de internet", "cat": "Indústria", "valor": "R$ 3.200.000,00"}, {"nome": "Ednaldo", "telefone": "5547996890633", "ddd": "47", "negocio": "Brew PUB Cerveja Artesanal", "cat": "Indústria", "valor": "R$ 480.000,00"}, {"nome": "Eriqui", "telefone": "5548999433583", "ddd": "48", "negocio": "Negócio Estruturado na Área da Saúde – Operação At", "cat": "Indústria", "valor": "R$ 200.000,00"}, {"nome": "Michely", "telefone": "5548996178073", "ddd": "48", "negocio": "Loja multimarcas de moda íntima 5 anos de mercado", "cat": "Indústria", "valor": "R$ 380.000,00"}, {"nome": "Edinelson", "telefone": "5547991072481", "ddd": "47", "negocio": "Industria Consolidada de Aquecimento Industrial", "cat": "Indústria", "valor": "R$ 7.000.000,00"}, {"nome": "Artur", "telefone": "5547992072423", "ddd": "47", "negocio": "Grupo Empresarial Equipe10 atuação em diversos seg", "cat": "Indústria", "valor": "R$ 1.700.000,00"}];
+
+let filtDDD = '', filtCat = '';
+let selecionados = new Set();
+let visiveis = [];
+let rodando = false, pausado = false, idx = 0;
+
+function setFiltro(el, grupo) {
+  document.querySelectorAll(`[data-group="${grupo}"]`).forEach(e => e.classList.remove('on'));
+  el.classList.add('on');
+  if (grupo === 'ddd') filtDDD = el.dataset.val;
+  else filtCat = el.dataset.val;
+  renderLista();
+}
+
+function renderLista() {
+  visiveis = TODOS.filter(c =>
+    (!filtDDD || c.ddd === filtDDD) &&
+    (!filtCat || c.cat === filtCat)
+  );
+  document.getElementById('vis-count').textContent = visiveis.length;
+  const ul = document.getElementById('lista');
+  ul.innerHTML = '';
+  visiveis.forEach(c => {
+    const isTeste = c.cat === 'Teste';
+    const div = document.createElement('div');
+    div.className = 'item' + (selecionados.has(c.telefone) ? ' sel' : '') + (isTeste ? ' teste-item' : '');
+    div.innerHTML = `
+      <div class="item-check">${selecionados.has(c.telefone) ? '✓' : ''}</div>
+      <div class="item-info">
+        <div class="item-nome">${c.nome}${isTeste ? ' ⚡' : ''}</div>
+        <div class="item-neg">${c.negocio}</div>
+      </div>
+      <div class="item-cat ${isTeste ? 'teste-cat' : ''}">${c.cat}</div>
+      <div class="item-tel">${c.ddd}</div>
+    `;
+    div.onclick = () => toggleSel(c.telefone);
+    ul.appendChild(div);
+  });
+  atualizarContadores();
+}
+
+function toggleSel(tel) {
+  selecionados.has(tel) ? selecionados.delete(tel) : selecionados.add(tel);
+  renderLista();
+}
+
+function selTodos()   { visiveis.forEach(c => selecionados.add(c.telefone)); renderLista(); }
+function selNenhum()  { visiveis.forEach(c => selecionados.delete(c.telefone)); renderLista(); }
+function selN(n)      { selNenhum(); visiveis.slice(0,n).forEach(c => selecionados.add(c.telefone)); renderLista(); }
+function selSoTeste() { selNenhum(); const t = TODOS.find(c => c.cat === 'Teste'); if(t) selecionados.add(t.telefone); renderLista(); }
+
+function atualizarContadores() {
+  document.getElementById('sel-count').textContent = selecionados.size;
+  const limite = parseInt(document.getElementById('limite').value) || 50;
+  document.getElementById('fila-resumo').innerHTML = selecionados.size > 0
+    ? `Fila: <strong>${Math.min(selecionados.size, limite)}</strong> mensagens (limite: ${limite})`
+    : '';
+}
+
+function log(msg, cls='ok') {
+  const div = document.getElementById('log');
+  const el = document.createElement('div');
+  el.className = cls;
+  el.textContent = `[${new Date().toLocaleTimeString('pt-BR')}] ${msg}`;
+  div.appendChild(el);
+  div.scrollTop = div.scrollHeight;
+}
+
+function sleep(s) { return new Promise(r => setTimeout(r, s * 1000)); }
+
+async function enviar(c) {
+  const msg = document.getElementById('msg').value.replace(/{nome}/gi, c.nome);
+  try {
+    const r = await fetch(`https://api.z-api.io/instances/${ZAPI_INST}/token/${ZAPI_TOK}/send-text`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','client-token':ZAPI_CLI},
+      body: JSON.stringify({ phone: c.telefone, message: msg })
+    });
+    const j = await r.json();
+    if (r.ok && j.zaapId) log(`✓ ${c.telefone} · ${c.nome} · ${c.negocio.slice(0,35)}`,'ok');
+    else log(`✗ ${c.telefone} · ${JSON.stringify(j).slice(0,80)}`,'err');
+  } catch(e) { log(`✗ ${c.telefone} · ${e.message}`,'err'); }
+}
+
+async function dispararTeste() {
+  const teste = TODOS.find(c => c.telefone === MEU_NUM);
+  if (!teste) { log('// Número de teste não encontrado.','err'); return; }
+  log(`// Enviando TESTE para ${MEU_NUM}...`,'warn');
+  document.getElementById('btn-teste').disabled = true;
+  await enviar(teste);
+  document.getElementById('btn-teste').disabled = false;
+  log('// Teste concluído. Verifique seu WhatsApp.','warn');
+}
+
+async function iniciar() {
+  const fila = TODOS.filter(c => selecionados.has(c.telefone))
+                    .slice(0, parseInt(document.getElementById('limite').value)||50);
+  if (!fila.length) { log('// Nenhum contato selecionado.','warn'); return; }
+  if (rodando && !pausado) return;
+  rodando = true; pausado = false;
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('btn-teste').disabled = true;
+  document.getElementById('btn-pause').disabled = false;
+  document.getElementById('btn-stop').disabled = false;
+  const delay = parseInt(document.getElementById('delay').value)||8;
+  log(`// Iniciando · ${fila.length - idx} mensagens · delay ${delay}s`,'info');
+
+  while (idx < fila.length && rodando) {
+    if (pausado) { await sleep(1); continue; }
+    document.getElementById('prog').style.width = (idx/fila.length*100)+'%';
+    document.getElementById('prog-n').textContent = `${idx+1} / ${fila.length}`;
+    document.getElementById('prog-status').textContent = 'Enviando...';
+    await enviar(fila[idx]);
+    idx++;
+    if (idx < fila.length && rodando && !pausado) {
+      document.getElementById('prog-status').textContent = `Aguardando ${delay}s`;
+      await sleep(delay);
+    }
+  }
+
+  if (idx >= fila.length && rodando) {
+    document.getElementById('prog').style.width = '100%';
+    document.getElementById('prog-n').textContent = `${fila.length} / ${fila.length}`;
+    document.getElementById('prog-status').textContent = 'Concluído ✓';
+    log(`// ✓ Concluído · ${fila.length} mensagens enviadas`,'warn');
+    rodando = false;
+    document.getElementById('btn-start').disabled = false;
+    document.getElementById('btn-teste').disabled = false;
+    document.getElementById('btn-pause').disabled = true;
+    document.getElementById('btn-stop').disabled = true;
+  }
+}
+
+function pausar() {
+  pausado = !pausado;
+  document.getElementById('btn-pause').textContent = pausado ? '▶ RETOMAR' : '⏸ PAUSAR';
+  log(pausado ? '// Pausado.' : '// Retomando...','warn');
+}
+
+function parar() {
+  rodando = false; pausado = false; idx = 0;
+  document.getElementById('btn-start').disabled = false;
+  document.getElementById('btn-teste').disabled = false;
+  document.getElementById('btn-pause').disabled = true;
+  document.getElementById('btn-stop').disabled = true;
+  document.getElementById('btn-pause').textContent = '⏸ PAUSAR';
+  document.getElementById('prog-status').textContent = 'Parado';
+  log('// Disparo interrompido.','warn');
+}
+
+document.getElementById('limite').addEventListener('input', atualizarContadores);
+renderLista();
+</script>
+</body>
+</html>
