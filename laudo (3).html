@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negócio · Avaliação</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Cabinet+Grotesk:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080d0a;--bg1:#0e1510;--bg2:#131a14;--bg3:#1a2218;
+  --em:#3dff7a;--em-d:rgba(61,255,122,.08);--em-l:rgba(61,255,122,.25);
+  --am:#ffb03a;--am-d:rgba(255,176,58,.10);--am-l:rgba(255,176,58,.25);
+  --rd:#ff5c5c;--rd-d:rgba(255,92,92,.08);--rd-l:rgba(255,92,92,.25);
+  --pu:#a78bfa;--pu-d:rgba(167,139,250,.08);--pu-l:rgba(167,139,250,.28);
+  --ink:#f0f5f1;--ink2:#a8b8ac;--ink3:#5a7060;--ink4:#3a4e3e;
+  --line:rgba(255,255,255,.05);--line2:rgba(255,255,255,.10);
+  --r:8px;--r2:14px;--r3:20px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:'Cabinet Grotesk',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");opacity:.022}
+body::after{content:'';position:fixed;top:-10%;left:50%;transform:translateX(-50%);width:700px;height:400px;border-radius:50%;background:radial-gradient(ellipse,rgba(61,255,122,.04) 0%,transparent 65%);pointer-events:none;z-index:0}
+
+/* LOADING */
+#loading{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:20px}
+.ld-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;letter-spacing:-.03em;color:var(--ink)}
+.ld-logo em{color:var(--em);font-style:normal}
+.ld-msgs{height:18px;position:relative;width:300px;overflow:hidden}
+.ld-msg{position:absolute;left:0;right:0;text-align:center;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--ink4);opacity:0;transition:opacity .35s ease,transform .35s ease;transform:translateY(6px)}
+.ld-msg.active{opacity:1;transform:translateY(0)}
+.ld-track{width:260px;height:2px;background:var(--bg3);border-radius:1px;overflow:hidden}
+.ld-fill{height:100%;background:var(--em);border-radius:1px;width:0%;transition:width .4s ease}
+.ld-pct{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.12em;color:var(--ink4);margin-top:-16px;text-align:center;width:260px}
+
+/* TOPBAR */
+#topbar{position:fixed;top:0;left:0;right:0;z-index:200;display:none;background:rgba(8,13,10,.94);backdrop-filter:blur(20px);border-bottom:1px solid var(--line2)}
+.tb-top{height:46px;padding:0 20px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;letter-spacing:-.02em}
+.logo em{color:var(--em);font-style:normal}
+.tb-chips{display:flex;gap:6px}
+.chip{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;padding:3px 10px;border-radius:var(--r3);border:1px solid var(--line2);color:var(--ink4);background:var(--bg2)}
+.chip.em{border-color:var(--em-l);color:var(--em);background:var(--em-d)}
+
+/* MAIN */
+#main{display:none;padding-top:70px;padding-bottom:80px;max-width:560px;margin:0 auto;position:relative;z-index:1}
+
+/* SEÇÃO */
+.sec{padding:14px 20px;border-bottom:1px solid var(--line)}
+.sh{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink4);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.sh::after{content:'';flex:1;height:1px;background:var(--line)}
+
+/* HERO */
+.hero{padding:24px 20px 28px;border-bottom:1px solid var(--line)}
+.hero-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px}
+.htag{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;background:var(--bg2);color:var(--ink4);padding:3px 9px;border-radius:var(--r3);border:1px solid var(--line2)}
+.htag.em{background:var(--em-d);border-color:var(--em-l);color:var(--em)}
+.hero-name{font-family:'Syne',sans-serif;font-size:30px;font-weight:800;letter-spacing:-.04em;line-height:1.03;color:var(--ink);margin-bottom:4px}
+.hero-meta{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);letter-spacing:.08em;margin-bottom:20px}
+.hero-val-lbl{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink4);margin-bottom:6px}
+.hero-val{font-family:'Syne',sans-serif;font-size:52px;font-weight:800;color:var(--em);letter-spacing:-.06em;line-height:1;margin-bottom:6px}
+.hero-val-sub{font-size:11px;color:var(--ink3);margin-bottom:20px}
+
+/* ISE HERO */
+.hero-ise{display:flex;gap:0;align-items:stretch;background:var(--bg2);border:1px solid var(--em-l);border-radius:var(--r2);overflow:hidden;margin-bottom:16px}
+.hero-ise-score{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 16px;border-right:1px solid var(--em-l);background:var(--em-d);flex-shrink:0;min-width:72px}
+.hero-ise-n{font-family:'Syne',sans-serif;font-size:36px;font-weight:800;color:var(--em);letter-spacing:-.06em;line-height:1}
+.hero-ise-label{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:rgba(61,255,122,.6);margin-top:2px}
+.hero-ise-info{padding:12px 14px;flex:1}
+.hero-ise-nome{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--em);letter-spacing:-.02em;line-height:1;margin-bottom:4px}
+.hero-ise-sub{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);letter-spacing:.06em;margin-bottom:6px}
+.hero-ise-escala{display:flex;gap:4px;flex-wrap:wrap}
+.hie{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:var(--r3)}
+.hie-dim{color:var(--ink4);opacity:.45}
+.hie-ativo{background:var(--em-d);border:1px solid var(--em-l);color:var(--em)}
+
+/* AI BUBBLE */
+.ai-bubble{background:var(--bg2);border:1px solid var(--line2);border-radius:0 var(--r2) var(--r2) var(--r2);padding:12px 14px;position:relative;margin-top:16px;margin-bottom:6px}
+.ai-bubble::before{content:'análise · 1N';position:absolute;top:-12px;left:0;font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.14em;text-transform:uppercase;color:var(--em);opacity:.65}
+.ai-txt{font-size:11px;color:var(--ink3);line-height:1.65}
+
+/* DESTAQUE CARDS */
+.dest{border-radius:var(--r2);padding:11px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.dest.verde{background:var(--em-d);border:1px solid var(--em-l)}
+.dest.am{background:var(--am-d);border:1px solid var(--am-l)}
+.dest.rd{background:var(--rd-d);border:1px solid var(--rd-l)}
+.dest-l{font-size:11px;color:var(--ink3)}
+.dest-l strong{color:var(--ink);display:block;font-size:12px;margin-bottom:2px}
+.dest-r{text-align:right}
+.dest-big{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.dest-big.em{color:var(--em)}
+.dest-big.am{color:var(--am)}
+.dest-big.rd{color:var(--rd)}
+.dest-small{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink3);margin-top:2px}
+
+/* DRE */
+.dr{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--line)}
+.dr:last-child{border:none}
+.dr.tot{border-top:1px solid var(--em-l);border-bottom:none;padding-top:8px;margin-top:4px}
+.dr-l{color:var(--ink3);flex:1;font-size:10px;padding-right:4px;text-transform:uppercase;letter-spacing:.04em}
+.dr-l.hi{color:var(--ink);font-weight:700;font-size:11px}
+.dr-l.dim{color:var(--ink4);font-size:9px;text-transform:none;letter-spacing:0}
+.dr-vs{display:flex;flex-shrink:0}
+.dr-v{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink2);width:90px;text-align:right}
+.dr-v.em{color:var(--em);font-weight:500}
+.dr-v.fade{color:var(--ink4)}
+.dr-hdr{display:flex;justify-content:flex-end;margin-bottom:5px}
+.dr-ch{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);width:90px;text-align:right}
+.cmt{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);padding:3px 2px}
+.cmt::before{content:'// '}
+
+/* TOGGLE */
+.tbtn{display:flex;align-items:center;justify-content:space-between;padding:8px 0;cursor:pointer;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);user-select:none;margin-bottom:8px}
+.tbtn:hover{color:var(--em)}
+.ti{width:18px;height:18px;border-radius:50%;border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--ink4);transition:transform .25s ease;flex-shrink:0}
+.ti.open{transform:rotate(180deg)}
+.tbody{display:none}
+.tbody.open{display:block}
+
+/* BP */
+.bp-wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.bp-col-h{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:8px}
+.bpr{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+.bpr:last-child{border:none}
+.bpr-l{color:var(--ink3)}
+.bpr-v{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink2)}
+.bpr-tot{display:flex;justify-content:space-between;padding:7px 0 0;border-top:1px solid var(--em-l);font-size:11px;font-weight:700}
+.bpr-tot .bpr-v{color:var(--em);font-size:11px}
+.bp-sep{border-left:1px solid var(--line);padding-left:14px}
+
+/* VALUATION */
+.val-sec{background:var(--bg1);border-top:1px solid var(--line2);border-bottom:1px solid var(--line2);padding:20px}
+.val-eye{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink4);margin-bottom:14px}
+.val-equation{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding:14px;background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r2)}
+.val-eq-step{text-align:center;flex:1;min-width:70px}
+.val-eq-num{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--ink);letter-spacing:-.03em;line-height:1;margin-bottom:3px}
+.val-eq-num.em{color:var(--em)}
+.val-eq-lbl{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4)}
+.val-eq-op{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--ink4);flex-shrink:0;padding:0 2px}
+.val-resultado{background:var(--em-d);border:1px solid var(--em-l);border-radius:var(--r2);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.val-res-lbl{font-size:12px;color:var(--ink3);font-weight:600;margin-bottom:2px}
+.val-res-sub{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);margin-top:2px}
+.val-res-num{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--em);letter-spacing:-.04em;line-height:1}
+.val-cmt{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);margin-top:10px}
+.val-cmt::before{content:'// '}
+
+/* ISE PILARES */
+.pb{margin-bottom:7px}
+.pb-hdr{display:flex;justify-content:space-between;margin-bottom:3px}
+.pb-nome{font-size:10px;color:var(--ink3)}
+.pb-score{font-family:'DM Mono',monospace;font-size:10px;font-weight:500}
+.pb-score.ok{color:var(--em)}
+.pb-score.low{color:var(--am)}
+.pb-score.crit{color:var(--rd)}
+.pb-track{height:4px;background:var(--bg2);border-radius:2px;overflow:hidden}
+.pb-fill{height:100%;border-radius:2px}
+.ise-escala{display:flex;gap:3px;margin-bottom:14px}
+.ise-lvl{flex:1;padding:7px 4px;border-radius:var(--r);text-align:center;border:1px solid var(--line)}
+.ise-lvl.ativo{background:var(--em-d);border-color:var(--em-l)}
+.ise-lvl.inativo{opacity:.3}
+.ise-lvl-nome{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink4)}
+.ise-lvl.ativo .ise-lvl-nome{color:var(--em)}
+.ise-lvl-pts{font-family:'Syne',sans-serif;font-size:10px;font-weight:800;color:var(--ink4)}
+.ise-lvl.ativo .ise-lvl-pts{color:var(--em)}
+.ise-top{display:flex;gap:10px;align-items:stretch;margin-bottom:14px}
+.ise-num-box{background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r2);padding:14px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:88px}
+.ise-n{font-family:'Syne',sans-serif;font-size:46px;font-weight:800;color:var(--em);letter-spacing:-.06em;line-height:1}
+.ise-ns{font-family:'DM Mono',monospace;font-size:8px;color:var(--ink4);margin-top:3px;letter-spacing:.06em}
+.ise-info{background:var(--em-d);border:1px solid var(--em-l);border-radius:var(--r2);padding:12px 14px;flex:1}
+.ise-nome{font-family:'Syne',sans-serif;font-size:19px;font-weight:800;color:var(--em);letter-spacing:-.02em;line-height:1.1;margin-bottom:4px}
+.ise-desc{font-size:10px;color:var(--ink3);line-height:1.5}
+
+/* ALERTAS */
+.alt{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.alt:last-child{border:none}
+.alt-ico{width:20px;height:20px;border-radius:var(--r);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;margin-top:1px}
+.alt-ico.r{background:var(--rd-d);border:1px solid var(--rd-l);color:var(--rd)}
+.alt-ico.y{background:var(--am-d);border:1px solid var(--am-l);color:var(--am)}
+.alt-title{font-size:11px;font-weight:700;color:var(--ink);margin-bottom:2px}
+.alt-desc{font-size:10px;color:var(--ink3);line-height:1.5}
+
+/* BLOCO 1SÓCIO */
+.bloco-socio{background:#060b08;border-left:3px solid var(--pu);border-top:1px solid var(--pu-l);border-bottom:1px solid var(--pu-l);border-right:1px solid var(--line2)}
+.bs-header{padding:18px 16px 14px}
+.bs-badge{display:inline-flex;align-items:center;gap:5px;background:var(--pu-d);border:1px solid var(--pu-l);border-radius:var(--r3);padding:3px 10px;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--pu);margin-bottom:12px}
+.bs-dot{width:5px;height:5px;border-radius:50%;background:var(--pu);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.bs-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--ink);letter-spacing:-.02em;margin-bottom:4px;line-height:1.2}
+.bs-sub{font-size:10px;color:var(--ink3);line-height:1.55}
+
+/* BLOCO COMPRADORES */
+.bloco-comp{background:var(--bg3);border-top:1px solid var(--em-l);border-bottom:1px solid var(--em-l);border-left:3px solid var(--em)}
+.bc-header{padding:16px 17px 12px 20px}
+.bc-eye{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--em);opacity:.75;margin-bottom:5px}
+.bc-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--ink);letter-spacing:-.02em;line-height:1.2}
+.bc-tese{padding:14px 20px;border-bottom:1px solid var(--line)}
+.bc-tese-txt{font-size:10px;color:var(--ink3);line-height:1.65}
+.bc-audiencia{padding:12px 20px;background:var(--em-d)}
+.bc-aud-eye{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--em);opacity:.7;margin-bottom:8px}
+.bc-aud-stats{display:flex;gap:1px}
+.bc-aud-stat{flex:1;background:var(--bg2);padding:8px;text-align:center}
+.bc-aud-n{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--em);letter-spacing:-.03em;line-height:1}
+.bc-aud-l{font-family:'DM Mono',monospace;font-size:8px;color:var(--ink4);letter-spacing:.06em;margin-top:2px;text-transform:uppercase}
+
+/* CTAs */
+.ctas-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line2);align-items:stretch}
+.cta-card{padding:20px 16px;display:flex;flex-direction:column;gap:7px;min-height:160px}
+.cta-card.laudo{grid-column:1/-1;background:var(--em)}
+.cta-card.socio{background:var(--pu-d)}
+.cta-card.pub{background:var(--bg2)}
+.cta-eye{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.14em;text-transform:uppercase;opacity:.7}
+.cta-card.laudo .cta-eye{color:#080d0a}
+.cta-card.socio .cta-eye{color:var(--pu)}
+.cta-card.pub .cta-eye{color:var(--ink3)}
+.cta-title{font-family:'Syne',sans-serif;letter-spacing:-.02em;line-height:1.15}
+.cta-card.laudo .cta-title{font-size:20px;font-weight:800;color:#080d0a}
+.cta-card.socio .cta-title{font-size:15px;font-weight:800;color:var(--pu)}
+.cta-card.pub .cta-title{font-size:15px;font-weight:800;color:var(--ink2)}
+.cta-desc{font-size:10px;line-height:1.5}
+.cta-card.laudo .cta-desc{color:rgba(8,13,10,.65)}
+.cta-card.socio .cta-desc{color:var(--ink3)}
+.cta-card.pub .cta-desc{color:var(--ink3)}
+.cta-price{font-family:'Syne',sans-serif;font-weight:800;letter-spacing:-.02em}
+.cta-card.laudo .cta-price{font-size:26px;color:#080d0a}
+.cta-card.socio .cta-price{font-size:14px;color:var(--pu);line-height:1.4}
+.cta-card.pub .cta-price{font-size:13px;color:var(--em);line-height:1.4}
+.cta-btn{border:none;border-radius:var(--r);padding:12px 18px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;cursor:pointer;display:block;width:100%;text-align:center;margin-top:auto}
+.cta-card.laudo .cta-btn{background:#080d0a;color:var(--em)}
+.cta-card.socio .cta-btn{background:var(--pu);color:#080d0a}
+.cta-card.pub .cta-btn{background:transparent;border:1px solid var(--em-l);color:var(--em)}
+
+/* FOOTER */
+.footer-trans{padding:16px 20px;border-top:1px solid var(--line)}
+.trans-titulo{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink4);margin-bottom:10px}
+.trans-item{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:10px}
+.trans-item:last-child{border:none}
+.trans-campo{color:var(--ink3);flex:1}
+.trans-st{font-family:'DM Mono',monospace;font-size:8px;padding:2px 8px;border-radius:var(--r3)}
+.trans-st.ok{background:var(--em-d);border:1px solid var(--em-l);color:var(--em)}
+.trans-st.est{background:var(--am-d);border:1px solid var(--am-l);color:var(--am)}
+.trans-st.auto{background:var(--bg3);border:1px solid var(--line2);color:var(--ink4)}
+
+/* CHECKOUT MASK */
+#checkout-mask,#checkout-pub-mask{position:fixed;inset:0;z-index:9998;background:rgba(8,13,10,.96);backdrop-filter:blur(20px);display:none;align-items:center;justify-content:center;padding:20px}
+#checkout-mask.open,#checkout-pub-mask.open{display:flex}
+.ck-box{background:var(--bg2);border:1px solid var(--em-l);border-radius:20px;padding:32px;max-width:400px;width:100%;text-align:center}
+.ck-badge{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--em);margin-bottom:12px}
+.ck-title{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;letter-spacing:-.03em;color:var(--ink);margin-bottom:6px;line-height:1.2}
+.ck-sub{font-size:11px;color:var(--ink3);line-height:1.65;margin-bottom:20px}
+.ck-price{font-family:'Syne',sans-serif;font-weight:800;font-size:36px;color:var(--em);letter-spacing:-.04em;margin-bottom:4px}
+.ck-price-sub{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);letter-spacing:.1em;margin-bottom:20px}
+.ck-itens{text-align:left;background:var(--bg1);border:1px solid var(--line2);border-radius:var(--r2);padding:14px;margin-bottom:20px}
+.ck-item{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink3);padding:4px 0}
+.ck-item::before{content:'✓';color:var(--em);font-size:10px;flex-shrink:0}
+.ck-btn-pagar{width:100%;background:var(--em);color:#080d0a;border:none;border-radius:var(--r2);padding:16px;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.12em;cursor:pointer;margin-bottom:10px}
+.ck-btn-fechar{background:none;border:none;color:var(--ink4);font-size:11px;cursor:pointer;font-family:'Cabinet Grotesk',sans-serif;padding:6px}
+.ck-btn-fechar:hover{color:var(--ink3)}
+
+/* STICKY */
+#sticky{position:fixed;bottom:0;left:0;right:0;z-index:200;display:none;background:var(--em);padding:12px 20px;align-items:center;justify-content:space-between;gap:12px}
+.sticky-l strong{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:#080d0a;letter-spacing:-.02em;display:block}
+.sticky-l span{font-size:10px;color:rgba(8,13,10,.55);font-family:'DM Mono',monospace;letter-spacing:.04em}
+.sticky-btn{background:#080d0a;color:var(--em);border:none;border-radius:var(--r);padding:10px 20px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.14em;cursor:pointer;white-space:nowrap;flex-shrink:0}
+
+/* ERRO */
+#erro{display:none;padding:60px 20px;text-align:center;color:var(--ink3);position:relative;z-index:1}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="ld-logo"><em>1</em>Negócio</div>
+  <div>
+    <div class="ld-msgs">
+      <div class="ld-msg" id="m0">Analisando sua DRE...</div>
+      <div class="ld-msg" id="m1">Calculando impostos por regime...</div>
+      <div class="ld-msg" id="m2">Comparando com benchmarks do setor...</div>
+      <div class="ld-msg" id="m3">Calculando o Índice de Solidez...</div>
+      <div class="ld-msg" id="m4">Aplicando múltiplo setorial...</div>
+      <div class="ld-msg" id="m5">Sua avaliação está pronta.</div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="ld-track"><div class="ld-fill" id="ld-fill"></div></div>
+    <div style="height:6px"></div>
+    <div class="ld-pct" id="ld-pct">0%</div>
+  </div>
+</div>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <div class="tb-top">
+    <div class="logo"><em>1</em>Negócio · Avaliação</div>
+    <div class="tb-chips">
+      <div class="chip" id="chip-data"></div>
+      <div class="chip em">Gratuito</div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main"></div>
+
+<!-- ERRO -->
+<div id="erro">
+  <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--ink);margin-bottom:10px">Avaliação não encontrada</div>
+  <div style="font-size:12px;margin-bottom:20px">Complete o diagnóstico para gerar sua avaliação.</div>
+  <a href="/entre" style="background:var(--em);color:#080d0a;padding:12px 24px;border-radius:var(--r2);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;text-decoration:none">← VOLTAR AO INÍCIO</a>
+</div>
+
+<!-- CHECKOUT MASK -->
+<div id="checkout-mask">
+  <div class="ck-box">
+    <div class="ck-badge">Laudo Completo · 1Negócio</div>
+    <div class="ck-title">Laudo de Avaliação<br>Completo</div>
+    <div class="ck-sub">Documento oficial com DRE completa, Balanço, ISE e comparativos setoriais. Aceito por compradores e investidores.</div>
+    <div class="ck-price">R$ 99</div>
+    <div class="ck-price-sub">PAGAMENTO ÚNICO · SEM RECORRÊNCIA</div>
+    <div class="ck-itens">
+      <div class="ck-item">DRE ajustada com impostos reais por regime</div>
+      <div class="ck-item">Balanço patrimonial completo</div>
+      <div class="ck-item">ISE — Índice de Solidez Empresarial detalhado</div>
+      <div class="ck-item">Comparativo com benchmarks do setor</div>
+      <div class="ck-item">Metodologia e transparência completa</div>
+      <div class="ck-item">Assinatura digital · PDF para download</div>
+    </div>
+    <button class="ck-btn-pagar" onclick="irParaPagamento()">PAGAR R$ 99 E GERAR LAUDO →</button>
+    <button class="ck-btn-fechar" onclick="fecharCheckout()">Agora não</button>
+  </div>
+</div>
+
+<!-- CHECKOUT PUBLICAR PAGO -->
+<div id="checkout-pub-mask">
+  <div class="ck-box">
+    <div class="ck-badge">Publicação · 1Negócio</div>
+    <div class="ck-title">Publicar com<br>visibilidade máxima</div>
+    <div class="ck-sub">Destaque na plataforma, acesso prioritário a compradores qualificados e 5% de sucesso na venda — vs. 10% no plano gratuito.</div>
+    <div class="ck-price">R$ 588</div>
+    <div class="ck-price-sub">+ 5% DE TAXA DE SUCESSO NA VENDA</div>
+    <div class="ck-itens">
+      <div class="ck-item">Publicação em destaque na plataforma</div>
+      <div class="ck-item">Acesso prioritário a compradores ativos</div>
+      <div class="ck-item">Taxa de sucesso reduzida: 5% vs. 10%</div>
+      <div class="ck-item">Suporte dedicado à negociação</div>
+      <div class="ck-item">Dossiê completo para compradores</div>
+    </div>
+    <button class="ck-btn-pagar" onclick="irParaPublicacaoPaga()">PAGAR R$ 588 E PUBLICAR →</button>
+    <div style="margin:8px 0;font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);letter-spacing:.1em;text-transform:uppercase">ou</div>
+    <button class="ck-btn-pagar" style="background:var(--bg2);color:var(--em);border:1px solid var(--em-l)" onclick="falarPublicar()">PUBLICAR GRÁTIS + 10% →</button>
+    <button class="ck-btn-fechar" onclick="fecharCheckoutPub()">Agora não</button>
+  </div>
+</div>
+
+<!-- STICKY -->
+<div id="sticky">
+  <div class="sticky-l">
+    <strong>Laudo Completo · R$ 99</strong>
+    <span>PDF detalhado · assinado digitalmente</span>
+  </div>
+  <button class="sticky-btn" onclick="abrirCheckoutLaudo()">OBTER LAUDO →</button>
+</div>
+
+<script>
+// ── CONFIGURAÇÃO ───────────────────────────────────────────────────
+// Número WhatsApp da 1Negócio — alterar quando confirmar
+const WPP_1NEG = '5511952136406';
+
+// ── UTILITÁRIOS ────────────────────────────────────────────────────
+function fmtM(v){
+  if(!v||v===0)return'R$ 0';
+  const s=v<0?'-':'';
+  const a=Math.abs(Math.round(v));
+  return s+'R$ '+a.toLocaleString('pt-BR');
+}
+function fmtPct(v){return Math.round(v||0)+'%'}
+
+// ── LOADING ────────────────────────────────────────────────────────
+const msgs=['m0','m1','m2','m3','m4','m5'],durs=[1200,1400,1500,1400,1100,1200];
+const tot=durs.reduce((a,b)=>a+b,0);
+function showMsg(i){msgs.forEach(id=>{const e=document.getElementById(id);if(e)e.classList.remove('active')});const e=document.getElementById(msgs[i]);if(e)e.classList.add('active')}
+function animBar(f,t,d){const bar=document.getElementById('ld-fill'),p=document.getElementById('ld-pct'),t0=performance.now();const fr=now=>{const pg=Math.min((now-t0)/d,1),v=f+(t-f)*pg;bar.style.width=v+'%';p.textContent=Math.round(v)+'%';if(pg<1)requestAnimationFrame(fr)};requestAnimationFrame(fr)}
+function startLoading(cb){let el=0,i=0;const step=()=>{if(i>=msgs.length){cb();return}showMsg(i);const d=durs[i];animBar((el/tot)*100,((el+d)/tot)*100,d);el+=d;i++;setTimeout(step,d)};step()}
+
+function done(){
+  const ld=document.getElementById('loading');
+  ld.style.opacity='0';
+  setTimeout(()=>{
+    ld.style.display='none';
+    document.getElementById('main').style.display='block';
+    document.getElementById('topbar').style.display='block';
+    document.getElementById('sticky').style.display='flex';
+    window.scrollTo(0,0);
+  },400);
+}
+
+function toggle(bid,iid){
+  const b=document.getElementById(bid),i=document.getElementById(iid);
+  if(!b||!i)return;
+  const o=b.classList.contains('open');
+  b.classList.toggle('open',!o);
+  i.classList.toggle('open',!o);
+}
+
+// ── CÁLCULO DE IMPOSTOS ────────────────────────────────────────────
+function calcImpostos(fatMensal, regime){
+  const f=fatMensal*12;
+  if(!fatMensal) return 0;
+  if(regime==='mei') return fatMensal*0.05;
+  if(regime==='simples'){
+    if(f<=180000) return fatMensal*0.06;
+    if(f<=360000) return fatMensal*0.112;
+    if(f<=720000) return fatMensal*0.135;
+    if(f<=1800000) return fatMensal*0.16;
+    return fatMensal*0.21;
+  }
+  if(regime==='presumido') return fatMensal*(0.15*0.32+0.09*0.32+0.0065+0.03);
+  if(regime==='real') return fatMensal*0.15;
+  return fatMensal*0.08; // nao_sei
+}
+
+// ── MÚLTIPLOS SETORIAIS ────────────────────────────────────────────
+const MULTIPLOS = {
+  alimentacao:{base:2.5,setor:'Alimentação'},
+  varejo:{base:2.2,setor:'Varejo e consumo'},
+  saude:{base:3.0,setor:'Saúde e estética'},
+  educacao:{base:3.2,setor:'Educação'},
+  tech:{base:4.5,setor:'Tecnologia'},
+  construcao:{base:2.0,setor:'Construção e reformas'},
+  industrial:{base:2.3,setor:'Serviços industriais'},
+  logistica:{base:2.1,setor:'Logística e transporte'},
+  marketing:{base:3.0,setor:'Marketing e comunicação'},
+  wellness:{base:2.8,setor:'Bem-estar e fitness'},
+  pet:{base:2.6,setor:'Pet'},
+  agro:{base:2.2,setor:'Agronegócio'},
+  entretenimento:{base:2.4,setor:'Entretenimento e lazer'},
+  financeiro:{base:3.5,setor:'Financeiro e jurídico'},
+  consultoria:{base:3.2,setor:'Consultoria'},
+  outro:{base:2.5,setor:'Outro'},
+};
+
+// Modificador pelo tipo de negócio (Q3)
+function modificadorTipo(tipos){
+  if(!tipos||!tipos.length) return 1.0;
+  if(tipos.includes('plataforma')) return 1.3;
+  if(tipos.includes('tech')) return 1.2;
+  if(tipos.includes('servico_projeto')) return 1.1;
+  if(tipos.includes('fabricacao')) return 0.95;
+  if(tipos.includes('comercio')) return 0.9;
+  return 1.0;
+}
+
+// ── ISE ────────────────────────────────────────────────────────────
+function calcISE(D, ro_pct){
+  let score=0;
+
+  // P1 Financeiro 20% — baseado na margem operacional vs benchmark
+  const bench_ro = {alimentacao:12,varejo:8,saude:18,educacao:20,tech:25,construcao:8,industrial:10,logistica:8,marketing:15,wellness:15,pet:12,agro:10,entretenimento:10,financeiro:25,consultoria:20,outro:12};
+  const esperado = bench_ro[D.setor]||12;
+  const p1 = Math.min(10, Math.max(0, (ro_pct/esperado)*7));
+  score += p1*0.20;
+
+  // P2 Resultado/Crescimento 15%
+  const cmap={mais20:9,ate10:7,'10a20':8,estavel:5,caiu10:3,caiu_mais:1};
+  const p2 = cmap[D.crescimento]||5;
+  score += p2*0.15;
+
+  // P3 Comercial/Recorrência 15%
+  const rec = D.recorrencia==='sim' ? Math.min(10,(parseFloat(D.pct_recorrencia)||0)/10+4) : 3;
+  const conc_pen = D.concentracao_pct>70?-3:D.concentracao_pct>50?-1.5:0;
+  const p3 = Math.max(0,Math.min(10,rec+conc_pen));
+  score += p3*0.15;
+
+  // P4 Gestão 15%
+  const proc_map={sim:9,parcial:5,nao:2};
+  const org_map={sim:8,informal:5,nao:2};
+  const p4 = ((proc_map[D.processos]||5)+(org_map[D.organograma]||5))/2;
+  score += p4*0.15;
+
+  // P5 Sócio-dependência 10%
+  const dep_map={independente:10,parcial:4,dependente:1};
+  const p5 = dep_map[D.dependencia]||4;
+  score += p5*0.10;
+
+  // P6 Risco Legal 10%
+  const regime_ok = D.regime&&D.regime!=='nao_sei'?8:4;
+  const alvara_ok = D.alvara==='nao'?10:D.alvara_ok==='sim'?8:3;
+  const processos_pen = D.processos_juridicos==='sim'?-2:0;
+  const decl_ok = D.declarado==='sim'?10:5;
+  const p6 = Math.max(0,Math.min(10,(regime_ok+alvara_ok+decl_ok)/3+processos_pen));
+  score += p6*0.10;
+
+  // P7 Balanço 8%
+  const divida_pen = D.dividas==='sim'&&D.saldo_devedor>0?-2:0;
+  const p7 = Math.max(0,Math.min(10,6+divida_pen));
+  score += p7*0.08;
+
+  // P8 Marca 7%
+  const marca_map={registrada:10,processo:7,sem_registro:3};
+  const rep_map={excelente:10,boa:7,neutra:4,problemas:1};
+  const p8 = ((marca_map[D.marca_inpi]||4)+(rep_map[D.reputacao]||5))/2;
+  score += p8*0.07;
+
+  return {
+    score: Math.round(score*10)/10,
+    p1:Math.round(p1*10)/10,
+    p2:Math.round(p2*10)/10,
+    p3:Math.round(p3*10)/10,
+    p4:Math.round(p4*10)/10,
+    p5:Math.round(p5*10)/10,
+    p6:Math.round(p6*10)/10,
+    p7:Math.round(p7*10)/10,
+    p8:Math.round(p8*10)/10,
+  };
+}
+
+function nomeISE(score){
+  if(score<35) return 'Embrionário';
+  if(score<50) return 'Dependente';
+  if(score<70) return 'Operacional';
+  if(score<85) return 'Consolidado';
+  return 'Estruturado';
+}
+
+function fatorISE(score){
+  if(score<35) return 0.70;
+  if(score<50) return 0.85;
+  if(score<70) return 1.00;
+  if(score<85) return 1.15;
+  return 1.30;
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────
+function render(D){
+  const fat = D.fat_mensal||0;
+  if(!fat){ mostraErro(); return; }
+
+  // Impostos
+  const impostos = calcImpostos(fat, D.regime);
+  const fat_liq  = fat - impostos;
+
+  // CMV
+  const cmv = fat_liq*(D.cmv_pct||0)/100;
+  const mb  = fat_liq - cmv;
+
+  // Custos
+  const desp_pessoal  = (D.folha_total||D.clt_folha||0)+(D.pj_custo||0);
+  const desp_prolabore= D.prolabore||0;
+  const desp_aluguel  = D.aluguel||0;
+  const desp_mkt      = (D.mkt_valor||0)+(D.royalty||0)+(D.mkt_franquia||0);
+  const desp_proc     = fat*(D.pct_proc||0)/100*(D.taxa_proc||0)/100;
+  const desp_comissao = D.comissao_val||(fat*(D.pct_comissao||0)/100);
+  const desp_cf       = (D.facilities||0)+(D.terceirizados||0)+(D.outros_cf||0);
+  const total_desp    = desp_pessoal+desp_prolabore+desp_aluguel+desp_mkt+desp_proc+desp_comissao+desp_cf;
+  const ro_mensal     = mb - total_desp;
+  const ro_anual      = ro_mensal*12;
+  const ro_pct        = fat>0?(ro_mensal/fat*100):0;
+
+  // Parcelas (informativo)
+  const parcelas = D.parcelas_mensais||0;
+
+  // BP
+  const at_caixa  = D.at_caixa||D.caixa||0;
+  const at_cr     = D.at_cr||D.contas_receber||0;
+  const at_estoque= D.at_estoque||D.estoque||0;
+  const at_equip  = D.at_equip||0;
+  const at_imovel = D.at_imovel||0;
+  const at_outros = D.at_outros||0;
+  const total_at  = at_caixa+at_cr+at_estoque+at_equip+at_imovel+at_outros;
+  const pv_forn   = D.pv_forn||D.contas_pagar||0;
+  const pv_fin    = D.pv_fin||D.saldo_devedor||0;
+  const pv_outros = D.pv_outros||0;
+  const total_pv  = pv_forn+pv_fin+pv_outros;
+  const pl        = total_at-total_pv;
+
+  // ISE
+  const ise = calcISE(D, ro_pct);
+  const ise_nome = nomeISE(ise.score);
+  const ise_fator = fatorISE(ise.score);
+
+  // Múltiplo
+  const setor_info = MULTIPLOS[D.setor]||MULTIPLOS.outro;
+  const mult_base  = setor_info.base;
+  const mult_tipo  = modificadorTipo(D.tipo);
+  const mult_final = Math.round(mult_base*mult_tipo*ise_fator*10)/10;
+
+  // Valuation
+  const val_negocio = ro_anual*mult_final;
+  const val_venda   = val_negocio+pl;
+
+  // Data
+  const meses=['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+  const hoje=new Date();
+  const data_str=String(hoje.getDate()).padStart(2,'0')+' '+meses[hoje.getMonth()]+' '+hoje.getFullYear();
+  document.getElementById('chip-data').textContent=data_str;
+
+  // Alertas
+  const alertas=[];
+  if(ise.p5<3) alertas.push({sev:'r',t:'Sócio-dependência crítica',d:'O negócio para sem os sócios por 30 dias. Principal fator de desconto em M&A.'});
+  if(D.concentracao_pct>70) alertas.push({sev:'r',t:'Alta concentração de clientes',d:`${D.concentracao_pct}% do faturamento nos 3 maiores clientes. Risco relevante para compradores.`});
+  if(ro_pct<5) alertas.push({sev:'r',t:'Margem operacional muito baixa',d:`${fmtPct(ro_pct)} de resultado operacional — abaixo do mínimo para negociação eficiente.`});
+  if(desp_aluguel>fat*0.15) alertas.push({sev:'y',t:'Aluguel acima do benchmark',d:`${fmtPct(desp_aluguel/fat*100)} do faturamento vs. ~10% esperado para o setor.`});
+  if(desp_pessoal>fat*0.30) alertas.push({sev:'y',t:'Custo de pessoal elevado',d:`${fmtPct(desp_pessoal/fat*100)} do faturamento. Revisar produtividade por colaborador.`});
+  if(D.declarado==='parcial') alertas.push({sev:'y',t:'Faturamento parcialmente declarado',d:'Parte da receita sem nota fiscal gera risco fiscal na transação e pode comprimir o valor percebido.'});
+  if(pv_fin>ro_anual*2) alertas.push({sev:'y',t:'Endividamento alto',d:`Saldo devedor equivale a ${Math.round(pv_fin/ro_anual*10)/10} anos de resultado operacional.`});
+
+  // Diferença estimativa vs calculado
+  let diff_txt='';
+  if(D.sobra_estimada&&D.sobra_estimada>0){
+    const diff=D.sobra_estimada-ro_mensal;
+    if(Math.abs(diff)>ro_mensal*0.2){
+      diff_txt=`Você estimou ${fmtM(D.sobra_estimada)}/mês sobrando. Nossa DRE calculou ${fmtM(ro_mensal)}/mês. A diferença de ${fmtM(Math.abs(diff))} vem principalmente de ${diff>0?'custos não contabilizados como pró-labore ou impostos subestimados':'um resultado melhor do que o percebido — boa notícia'}.`;
+    }
+  }
+
+  // Nome e artigo
+  const nome_neg = D.nome||'Seu Negócio';
+  const setor_label = setor_info.setor;
+  const cidade_label = [D.cidade,D.estado].filter(Boolean).join(' · ')||'';
+  const anos_label = D.anos_num?D.anos_num+' anos':'';
+  const tipo_label = (D.tipo||[]).includes('servico_projeto')?'Serviços':'';
+
+  // ── RENDER HTML ───────────────────────────────────────────────
+  // Guardar para botões de contato e Stripe
+  window._D_negocio = nome_neg;
+  window._D_lead = D.codigo_lead||D.lead||;
+
+  const main = document.getElementById('main');
+  main.innerHTML = `
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-tags">
+    ${setor_label?`<span class="htag em">${setor_label}</span>`:''}
+    ${tipo_label?`<span class="htag">${tipo_label}</span>`:''}
+    ${cidade_label?`<span class="htag">${cidade_label}</span>`:''}
+    ${anos_label?`<span class="htag">${anos_label}</span>`:''}
+  </div>
+  <div class="hero-name">${nome_neg}</div>
+  <div class="hero-meta">Diagnóstico concluído · ${data_str}</div>
+  <div class="hero-val-lbl">Seu negócio foi avaliado em</div>
+  <div class="hero-val">${fmtM(val_venda)}</div>
+  <div class="hero-val-sub">Valor de venda estimado · negócio em operação + patrimônio</div>
+  <div class="hero-ise">
+    <div class="hero-ise-score">
+      <div class="hero-ise-n">${Math.round(ise.score)}</div>
+      <div class="hero-ise-label">pts ISE</div>
+    </div>
+    <div class="hero-ise-info">
+      <div class="hero-ise-nome">${ise_nome}</div>
+      <div class="hero-ise-sub">Solidez empresarial · fator ${ise_fator.toFixed(2)}x no múltiplo</div>
+      <div class="hero-ise-escala">
+        ${['Embrionário','Dependente','Operacional','Consolidado','Estruturado'].map(n=>`<span class="hie ${n===ise_nome?'hie-ativo':'hie-dim'}">${n}${n===ise_nome?' ✓':''}</span>`).join('')}
+      </div>
+    </div>
+  </div>
+  ${diff_txt?`<div class="ai-bubble"><div class="ai-txt">${diff_txt}</div></div>`:''}
+</div>
+
+<!-- DRE -->
+<div class="sec" id="ancora-dre">
+  <div class="sh">DRE Ajustada</div>
+  <div class="dest verde" style="margin-bottom:8px">
+    <div class="dest-l"><strong>Resultado Operacional</strong>Base do valuation</div>
+    <div class="dest-r">
+      <div class="dest-big em">${fmtM(ro_anual)}</div>
+      <div class="dest-small">${fmtM(ro_mensal)} / mês · ${fmtPct(ro_pct)}</div>
+    </div>
+  </div>
+  <div class="tbtn" onclick="toggle('dre-body','dre-ti')" style="border-top:none">
+    <span>Ver DRE completa</span><div class="ti" id="dre-ti">▼</div>
+  </div>
+  <div class="tbody" id="dre-body">
+    <div class="dr-hdr"><div class="dr-ch">Mensal</div><div class="dr-ch">Anual</div></div>
+    <div class="dr"><div class="dr-l hi">Faturamento Bruto</div><div class="dr-vs"><div class="dr-v">${fmtM(fat)}</div><div class="dr-v">${fmtM(fat*12)}</div></div></div>
+    ${impostos>0?`<div class="dr"><div class="dr-l">(−) Impostos · ${D.regime||'estimado'}</div><div class="dr-vs"><div class="dr-v">${fmtM(impostos)}</div><div class="dr-v">${fmtM(impostos*12)}</div></div></div>`:''}
+    <div class="dr"><div class="dr-l hi">= Receita Líquida</div><div class="dr-vs"><div class="dr-v em">${fmtM(fat_liq)}</div><div class="dr-v em">${fmtM(fat_liq*12)}</div></div></div>
+    ${cmv>0?`<div class="dr"><div class="dr-l">(−) CMV / CPV</div><div class="dr-vs"><div class="dr-v">${fmtM(cmv)}</div><div class="dr-v">${fmtM(cmv*12)}</div></div></div>`:''}
+    <div class="dr"><div class="dr-l hi">= Margem Bruta</div><div class="dr-vs"><div class="dr-v em">${fmtM(mb)}</div><div class="dr-v em">${fmtM(mb*12)}</div></div></div>
+    ${desp_pessoal>0?`<div class="dr"><div class="dr-l">(−) Pessoal CLT + PJ</div><div class="dr-vs"><div class="dr-v">${fmtM(desp_pessoal)}</div><div class="dr-v">${fmtM(desp_pessoal*12)}</div></div></div>`:''}
+    ${desp_prolabore>0?`<div class="dr"><div class="dr-l">(−) Pró-labore sócios</div><div class="dr-vs"><div class="dr-v">${fmtM(desp_prolabore)}</div><div class="dr-v">${fmtM(desp_prolabore*12)}</div></div></div>`:''}
+    ${desp_aluguel>0?`<div class="dr"><div class="dr-l">(−) Aluguel</div><div class="dr-vs"><div class="dr-v">${fmtM(desp_aluguel)}</div><div class="dr-v">${fmtM(desp_aluguel*12)}</div></div></div>`:''}
+    ${desp_mkt>0?`<div class="dr"><div class="dr-l">(−) Marketing e royalties</div><div class="dr-vs"><div class="dr-v">${fmtM(desp_mkt)}</div><div class="dr-v">${fmtM(desp_mkt*12)}</div></div></div>`:''}
+    ${desp_proc>0?`<div class="dr"><div class="dr-l">(−) Taxas de processamento</div><div class="dr-vs"><div class="dr-v">${fmtM(desp_proc)}</div><div class="dr-v">${fmtM(desp_proc*12)}</div></div></div>`:''}
+    ${desp_comissao>0?`<div class="dr"><div class="dr-l">(−) Comissões</div><div class="dr-vs"><div class="dr-v">${fmtM(desp_comissao)}</div><div class="dr-v">${fmtM(desp_comissao*12)}</div></div></div>`:''}
+    ${desp_cf>0?`<div class="dr"><div class="dr-l">(−) Outros custos fixos</div><div class="dr-vs"><div class="dr-v">${fmtM(desp_cf)}</div><div class="dr-v">${fmtM(desp_cf*12)}</div></div></div>`:''}
+    <div class="dr tot"><div class="dr-l hi">= Resultado Operacional</div><div class="dr-vs"><div class="dr-v em">${fmtM(ro_mensal)}</div><div class="dr-v em">${fmtM(ro_anual)}</div></div></div>
+    ${parcelas>0?`<div class="dr" style="margin-top:6px"><div class="dr-l dim">(inf.) Parcelas de dívidas</div><div class="dr-vs"><div class="dr-v fade">${fmtM(parcelas)}</div><div class="dr-v fade">${fmtM(parcelas*12)}</div></div></div>`:''}
+    <div style="margin-top:6px" class="cmt">parcelas informativas — não entram no valuation</div>
+  </div>
+</div>
+
+<!-- BALANÇO -->
+<div class="sec">
+  <div class="sh">Balanço Patrimonial</div>
+  <div class="dest ${pl>=0?'verde':'rd'}" style="margin-bottom:8px">
+    <div class="dest-l"><strong>Patrimônio Líquido</strong>Ativos − Passivos · entra no Valor de Venda</div>
+    <div class="dest-r"><div class="dest-big ${pl>=0?'em':'rd'}">${fmtM(pl)}</div></div>
+  </div>
+  ${total_at>0?`
+  <div class="tbtn" onclick="toggle('bp-body','bp-ti')" style="border-top:none">
+    <span>Ver balanço completo</span><div class="ti" id="bp-ti">▼</div>
+  </div>
+  <div class="tbody" id="bp-body">
+    <div class="bp-wrap">
+      <div>
+        <div class="bp-col-h">Ativos</div>
+        ${at_caixa>0?`<div class="bpr"><div class="bpr-l">Caixa e aplicações</div><div class="bpr-v">${fmtM(at_caixa)}</div></div>`:''}
+        ${at_cr>0?`<div class="bpr"><div class="bpr-l">Contas a receber</div><div class="bpr-v">${fmtM(at_cr)}</div></div>`:''}
+        ${at_estoque>0?`<div class="bpr"><div class="bpr-l">Estoque</div><div class="bpr-v">${fmtM(at_estoque)}</div></div>`:''}
+        ${at_equip>0?`<div class="bpr"><div class="bpr-l">Equipamentos</div><div class="bpr-v">${fmtM(at_equip)}</div></div>`:''}
+        ${at_imovel>0?`<div class="bpr"><div class="bpr-l">Imóveis / Veículos</div><div class="bpr-v">${fmtM(at_imovel)}</div></div>`:''}
+        ${at_outros>0?`<div class="bpr"><div class="bpr-l">Outros</div><div class="bpr-v">${fmtM(at_outros)}</div></div>`:''}
+        <div class="bpr-tot"><div class="bpr-l" style="color:var(--ink);font-weight:700">Total</div><div class="bpr-v">${fmtM(total_at)}</div></div>
+      </div>
+      <div class="bp-sep">
+        <div class="bp-col-h">Passivos</div>
+        ${pv_forn>0?`<div class="bpr"><div class="bpr-l">Fornecedores</div><div class="bpr-v">${fmtM(pv_forn)}</div></div>`:''}
+        ${pv_fin>0?`<div class="bpr"><div class="bpr-l">Dívidas financeiras</div><div class="bpr-v">${fmtM(pv_fin)}</div></div>`:''}
+        ${pv_outros>0?`<div class="bpr"><div class="bpr-l">Outros passivos</div><div class="bpr-v">${fmtM(pv_outros)}</div></div>`:''}
+        <div class="bpr-tot"><div class="bpr-l" style="color:var(--ink);font-weight:700">Total</div><div class="bpr-v">${fmtM(total_pv)}</div></div>
+      </div>
+    </div>
+  </div>`:''}
+</div>
+
+<!-- ISE -->
+<div class="sec">
+  <div class="sh">ISE · Índice de Solidez Empresarial</div>
+  <div class="ise-top">
+    <div class="ise-num-box"><div class="ise-n">${Math.round(ise.score)}</div><div class="ise-ns">de 100 pts</div></div>
+    <div class="ise-info">
+      <div class="ise-nome">${ise_nome}</div>
+      <div class="ise-desc">Fator de ajuste: ${ise_fator.toFixed(2)}x sobre o múltiplo base de ${mult_base}x. Múltiplo final aplicado: ${mult_final}x</div>
+    </div>
+  </div>
+  <div class="ise-escala">
+    ${[['Embrionário','0–34'],['Dependente','35–49'],['Operacional','50–69'],['Consolidado','70–84'],['Estruturado','85–100']].map(([n,p])=>`<div class="ise-lvl ${n===ise_nome?'ativo':'inativo'}"><div class="ise-lvl-nome">${n}</div><div class="ise-lvl-pts">${p}</div></div>`).join('')}
+  </div>
+  <div class="tbtn" onclick="toggle('ise-body','ise-ti')" style="border-top:none">
+    <span>Ver pilares detalhados</span><div class="ti" id="ise-ti">▼</div>
+  </div>
+  <div class="tbody" id="ise-body">
+    ${[
+      ['Expectativa de mercado (20%)',ise.p1],
+      ['Crescimento e tendência (15%)',ise.p2],
+      ['Recorrência e clientes (15%)',ise.p3],
+      ['Gestão e processos (15%)',ise.p4],
+      ['Independência dos sócios (10%)',ise.p5],
+      ['Risco legal e fiscal (10%)',ise.p6],
+      ['Saúde financeira (8%)',ise.p7],
+      ['Marca e reputação (7%)',ise.p8],
+    ].map(([nome,val])=>{
+      const cls=val>=7?'ok':val>=4?'low':'crit';
+      const cor=val>=7?'var(--em)':val>=4?'var(--am)':'var(--rd)';
+      return `<div class="pb"><div class="pb-hdr"><div class="pb-nome">${nome}</div><div class="pb-score ${cls}">${val}</div></div><div class="pb-track"><div class="pb-fill" style="width:${val*10}%;background:${cor}"></div></div></div>`;
+    }).join('')}
+  </div>
+</div>
+
+${alertas.length>0?`
+<!-- ALERTAS -->
+<div class="sec">
+  <div class="sh">${alertas.length} alerta${alertas.length>1?'s':''} identificado${alertas.length>1?'s':''}</div>
+  ${alertas.map(a=>`<div class="alt"><div class="alt-ico ${a.sev}">${a.sev==='r'?'!':'~'}</div><div><div class="alt-title">${a.t}</div><div class="alt-desc">${a.d}</div></div></div>`).join('')}
+</div>`:''}
+
+<!-- VALUATION -->
+<div class="val-sec">
+  <div class="val-eye">Como chegamos a ${fmtM(val_venda)}</div>
+  <div class="val-equation">
+    <div class="val-eq-step">
+      <div class="val-eq-num">${fmtM(ro_anual)}</div>
+      <div class="val-eq-lbl">Resultado Op. Anual</div>
+    </div>
+    <div class="val-eq-op">×</div>
+    <div class="val-eq-step">
+      <div class="val-eq-num em">${mult_final}x</div>
+      <div class="val-eq-lbl">Múltiplo final</div>
+    </div>
+    <div class="val-eq-op">=</div>
+    <div class="val-eq-step">
+      <div class="val-eq-num">${fmtM(val_negocio)}</div>
+      <div class="val-eq-lbl">Valor do negócio</div>
+    </div>
+    ${pl!==0?`<div class="val-eq-op">${pl>=0?'+':'−'}</div>
+    <div class="val-eq-step">
+      <div class="val-eq-num em">${fmtM(Math.abs(pl))}</div>
+      <div class="val-eq-lbl">Patrimônio Líquido</div>
+    </div>`:''}
+  </div>
+  <div class="val-resultado">
+    <div>
+      <div class="val-res-lbl">Valor de Venda · Porteira Fechada</div>
+      <div class="val-res-sub">negócio em operação + patrimônio · metodologia 1Negócio</div>
+    </div>
+    <div class="val-res-num">${fmtM(val_venda)}</div>
+  </div>
+  <div class="val-cmt">múltiplo base ${mult_base}x (${setor_label}) × ajuste tipo ${mult_tipo.toFixed(2)}x × ISE ${ise_fator.toFixed(2)}x = ${mult_final}x</div>
+</div>
+
+<!-- 1SÓCIO -->
+<div class="bloco-socio">
+  <div class="bs-header">
+    <div class="bs-badge"><div class="bs-dot"></div>1Sócio.com.br</div>
+    <div class="bs-title">Quer aumentar este valor antes de vender?</div>
+    <div class="bs-sub">A 1Sócio acompanha o negócio com plano de ação mensal, metas e reavaliação trimestral. O objetivo é incrementar o resultado operacional — e com isso elevar o valor do negócio.</div>
+    <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;background:rgba(167,139,250,.08);border:1px solid var(--pu-l);border-radius:var(--r2);padding:12px 14px;gap:10px">
+      <div style="font-size:10px;color:var(--ink3);line-height:1.5"><strong style="color:var(--ink);display:block;font-size:11px;margin-bottom:1px">Contratar a 1Sócio</strong>R$ 1.621/mês · 12 meses · + 20% do resultado adicional gerado</div>
+      <button style="background:var(--pu);color:#080d0a;border:none;border-radius:var(--r);padding:10px 16px;font-family:'DM Mono',monospace;font-size:9px;font-weight:500;letter-spacing:.1em;cursor:pointer;white-space:nowrap;flex-shrink:0" onclick="falarSocio()">CONTRATAR →</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPRADORES -->
+<div class="bloco-comp">
+  <div class="bc-header">
+    <div class="bc-eye">1Negócio.com.br</div>
+    <div class="bc-title">340 compradores ativos neste segmento</div>
+  </div>
+  <div class="bc-tese" style="padding:14px 20px;border-bottom:1px solid var(--line)">
+    <div class="bc-tese-txt">Sua avaliação já está feita. Quando quiser colocar à venda, os compradores já estão aqui — qualificados e ativos. Publicar é gratuito.</div>
+  </div>
+  <div class="bc-audiencia">
+    <div class="bc-aud-eye">Audiência de compradores · 1Negócio</div>
+    <div class="bc-aud-stats">
+      <div class="bc-aud-stat"><div class="bc-aud-n">4.312</div><div class="bc-aud-l">avaliados</div></div>
+      <div class="bc-aud-stat"><div class="bc-aud-n">R$ 3,1B</div><div class="bc-aud-l">em valor total</div></div>
+      <div class="bc-aud-stat"><div class="bc-aud-n">340</div><div class="bc-aud-l">compradores ativos</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- CTAs -->
+<div class="ctas-grid">
+  <div class="cta-card laudo">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div>
+        <div class="cta-eye">Laudo Completo · PDF</div>
+        <div class="cta-title">Laudo de Avaliação Completo</div>
+        <div class="cta-desc" style="margin-top:4px">DRE + Balanço + ISE + comparativos setoriais + assinatura digital. Aceito por compradores e investidores.</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div class="cta-price">R$ 99</div>
+        <div style="font-family:'DM Mono',monospace;font-size:8px;color:rgba(8,13,10,.5);margin-top:2px">pagamento único</div>
+      </div>
+    </div>
+    <button class="cta-btn" onclick="abrirCheckoutLaudo()">OBTER LAUDO COMPLETO →</button>
+  </div>
+  <div class="cta-card socio">
+    <div class="cta-eye">1Sócio · Consultoria</div>
+    <div class="cta-title">Incrementar valor</div>
+    <div class="cta-desc">Plano personalizado + acompanhamento mensal + reavaliação trimestral.</div>
+    <div class="cta-price">R$ 1.621/mês<br><span style="font-size:10px;font-weight:400;color:var(--ink3)">+ 20% do resultado adicional</span></div>
+    <button class="cta-btn" style="margin-top:auto" onclick="falarSocio()">CONTRATAR 1SÓCIO →</button>
+  </div>
+  <div class="cta-card pub">
+    <div class="cta-eye">1Negócio · Marketplace</div>
+    <div class="cta-title">Publicar e vender</div>
+    <div class="cta-desc">340 compradores ativos. Sua avaliação já está feita.</div>
+    <div class="cta-price">Gratuito + 10%<br><span style="font-size:10px;font-weight:400;color:var(--ink3)">ou R$ 588 + 5%</span></div>
+    <button class="cta-btn" style="margin-top:auto" onclick="abrirCheckoutPub()">PUBLICAR COM DESTAQUE →</button>
+    <button onclick="falarPublicar()" style="background:none;border:none;color:var(--em);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;cursor:pointer;padding:6px;text-decoration:underline;display:block;width:100%;text-align:center">ou publicar grátis + 10%</button>
+  </div>
+</div>
+
+<!-- TRANSPARÊNCIA -->
+<div class="footer-trans">
+  <div class="trans-titulo">Transparência · Origem dos dados</div>
+  ${[
+    ['Faturamento bruto',fat>0,'ok'],
+    ['Regime tributário',!!D.regime,'ok'],
+    ['CMV / Custo direto',D.cmv_pct>0||(D.cmv_modo==='servico'),'ok'],
+    ['Folha de pessoal',desp_pessoal>0,'ok'],
+    ['Aluguel',desp_aluguel>0,'ok'],
+    ['Balanço patrimonial',total_at>0,'ok'],
+    ['Encargos CLT',true,'auto'],
+    ['Impostos por regime',true,'auto'],
+    ['Múltiplo setorial',true,'auto'],
+  ].map(([c,ok,tipo])=>`<div class="trans-item"><div class="trans-campo">${c}</div><div class="trans-st ${ok?tipo:'est'}">${ok?(tipo==='auto'?'Calculado':'Informado'):'Estimativa'}</div></div>`).join('')}
+  <div style="margin-top:8px" class="cmt">estimativas usam médias do setor · metodologia 1Negócio</div>
+</div>
+  `;
+}
+
+function mostraErro(){
+  document.getElementById('loading').style.display='none';
+  document.getElementById('erro').style.display='block';
+}
+
+// ── INIT ──────────────────────────────────────────────────────────
+window.addEventListener('load', async ()=>{
+  const p = new URLSearchParams(window.location.search);
+  const leadParam = p.get('lead');
+  const dadosParam = p.get('dados');
+
+  let D = null;
+
+  // 1. Se tem ?lead= — buscar dados do Supabase
+  if(leadParam){
+    try{
+      const r = await fetch('https://dbijmgqlcrgjlcfrastg.supabase.co/functions/v1/diagnostico-sessao?action=load&slug='+leadParam);
+      const j = await r.json();
+      if(j.found && j.dados && j.dados.fat_mensal){
+        D = j.dados;
+      }
+    }catch(e){ console.warn('load supabase falhou:', e); }
+  }
+
+  // 2. Fallback: ?dados= (URL legacy — pode falhar com JSON grande)
+  if(!D && dadosParam){
+    try{ D = JSON.parse(decodeURIComponent(dadosParam)); }catch(e){}
+  }
+
+  // 3. Fallback: sessionStorage
+  if(!D || !D.fat_mensal){
+    try{
+      const raw = sessionStorage.getItem('1neg_diagnostico');
+      if(raw) D = JSON.parse(raw);
+    }catch(e){}
+  }
+
+  if(!D || !D.fat_mensal){
+    startLoading(()=>{
+      setTimeout(()=>{
+        document.getElementById('loading').style.display='none';
+        document.getElementById('erro').style.display='block';
+      },400);
+    });
+    return;
+  }
+
+  // Tem dados — renderizar
+  startLoading(()=>{
+    render(D);
+    done();
+  });
+});
+
+// ── CHECKOUT ──────────────────────────────────────────────────────
+function abrirCheckoutLaudo(){
+  document.getElementById('checkout-mask').classList.add('open');
+}
+function fecharCheckout(){
+  document.getElementById('checkout-mask').classList.remove('open');
+}
+function abrirCheckoutPub(){
+  document.getElementById('checkout-pub-mask').classList.add('open');
+}
+function fecharCheckoutPub(){
+  document.getElementById('checkout-pub-mask').classList.remove('open');
+}
+function irParaPagamento(){
+  // Stripe Payment Link — Laudo Completo R$ 99
+  // Substitua pela URL do seu Payment Link no Stripe
+  const STRIPE_LAUDO = 'https://buy.stripe.com/9B6fZgfpsdJScKJegH5os04';
+  const negocio = window._D_negocio || '';
+  const lead = window._D_lead || '';
+  // Passa nome do negócio e código do lead como parâmetros para o Stripe
+  const url = STRIPE_LAUDO + '?prefilled_custom_field1=' + encodeURIComponent(negocio) + '&client_reference_id=' + encodeURIComponent(lead);
+  window.open(url, '_blank');
+}
+
+function irParaPublicacaoPaga(){
+  // Stripe Payment Link — Publicação paga R$ 588 + 5%
+  const STRIPE_PUBLICAR = 'https://buy.stripe.com/7sYdR8elo21aeSRegH5os02';
+  const negocio = window._D_negocio || '';
+  const lead = window._D_lead || '';
+  const url = STRIPE_PUBLICAR + '?prefilled_custom_field1=' + encodeURIComponent(negocio) + '&client_reference_id=' + encodeURIComponent(lead);
+  window.open(url, '_blank');
+}
+
+// ── FALAR COM 1NEGÓCIO ─────────────────────────────────────────────
+function falarSocio(){
+  const negocio = window._D_negocio || 'meu negócio';
+  const msg = encodeURIComponent('Olá! Tenho interesse em contratar a 1Sócio para acompanhar ' + negocio + '. Acabei de ver minha avaliação.');
+  window.open('https://wa.me/'+WPP_1NEG+'?text='+msg,'_blank');
+}
+function falarPublicar(){
+  const negocio = window._D_negocio || 'meu negócio';
+  const msg = encodeURIComponent('Olá! Gostaria de publicar ' + negocio + ' na plataforma 1Negócio para venda. Já tenho minha avaliação feita.');
+  window.open('https://wa.me/'+WPP_1NEG+'?text='+msg,'_blank');
+}
+</script>
+</body>
+</html>
