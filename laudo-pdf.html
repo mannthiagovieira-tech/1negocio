@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negócio · Carregando laudo...</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@800&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#07090a;color:#eef2ef;font-family:'Cabinet Grotesk',sans-serif;
+  min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;letter-spacing:-.03em;margin-bottom:32px}
+.logo em{color:#3dff7a;font-style:normal}
+.track{width:200px;height:1px;background:#171c20;margin:0 auto 16px}
+.fill{height:100%;background:#3dff7a;width:0%;transition:width .4s ease}
+.msg{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;color:#2d3d34}
+.err-box{display:none;max-width:360px}
+.err-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:#eef2ef;margin-bottom:10px}
+.err-txt{font-size:11px;color:#4d6355;line-height:1.7;margin-bottom:20px}
+.err-btn{display:inline-block;background:#3dff7a;color:#07090a;border:none;border-radius:12px;
+  padding:12px 24px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;
+  letter-spacing:.1em;cursor:pointer;text-decoration:none}
+</style>
+</head>
+<body>
+<div id="loading">
+  <div class="logo"><em>1</em>Negócio</div>
+  <div class="track"><div class="fill" id="fill"></div></div>
+  <div class="msg" id="msg">Carregando seu laudo...</div>
+</div>
+
+<div class="err-box" id="err">
+  <div class="logo"><em>1</em>Negócio</div>
+  <div class="err-title" id="err-title">Link inválido</div>
+  <div class="err-txt" id="err-txt">Este link pode ter expirado ou ser inválido. Entre em contato conosco pelo WhatsApp.</div>
+  <a class="err-btn" href="https://wa.me/5511952136406">FALAR CONOSCO →</a>
+</div>
+
+<script>
+const SUPA = 'https://dbijmgqlcrgjlcfrastg.supabase.co/functions/v1/ver-laudo';
+
+function setProgress(pct, msg) {
+  document.getElementById('fill').style.width = pct + '%';
+  document.getElementById('msg').textContent = msg;
+}
+
+function showError(title, txt) {
+  document.getElementById('loading').style.display = 'none';
+  const err = document.getElementById('err');
+  err.style.display = 'block';
+  document.getElementById('err-title').textContent = title;
+  document.getElementById('err-txt').textContent = txt;
+}
+
+async function carregar() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+
+  if (!token) {
+    showError('Link inválido', 'Nenhum token encontrado. Use o link que recebeu pelo WhatsApp.');
+    return;
+  }
+
+  setProgress(30, 'Verificando acesso...');
+
+  try {
+    const r = await fetch(SUPA + '?token=' + encodeURIComponent(token));
+
+    setProgress(70, 'Carregando laudo...');
+
+    if (r.status === 404) {
+      showError('Laudo não encontrado', 'Este link não existe ou foi removido. Entre em contato conosco.');
+      return;
+    }
+
+    if (r.status === 402) {
+      showError('Pagamento não confirmado', 'Assim que o pagamento for confirmado, seu laudo ficará disponível aqui. Se já pagou, aguarde alguns minutos e tente novamente.');
+      return;
+    }
+
+    if (!r.ok) {
+      showError('Erro ao carregar', 'Ocorreu um erro inesperado. Tente novamente ou entre em contato conosco.');
+      return;
+    }
+
+    const html = await r.text();
+    setProgress(100, 'Pronto!');
+
+    // Substituir o documento inteiro pelo laudo
+    setTimeout(() => {
+      document.open();
+      document.write(html);
+      document.close();
+    }, 300);
+
+  } catch(e) {
+    showError('Erro de conexão', 'Não foi possível carregar o laudo. Verifique sua internet e tente novamente.');
+  }
+}
+
+carregar();
+</script>
+</body>
+</html>
