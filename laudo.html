@@ -96,12 +96,12 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 
 /* termômetro simplificado */
 .termo{margin-bottom:0}
-.termo-bar{position:relative;height:3px;background:var(--bg3);border-radius:2px;margin-bottom:12px}
+.termo-bar{position:relative;height:8px;background:var(--bg3);border-radius:4px;margin-bottom:14px}
 .termo-bar-fill{position:absolute;left:0;top:0;height:100%;background:var(--em);border-radius:2px}
 .termo-bar-socio{position:absolute;top:0;height:100%;background:var(--pu);opacity:.5;border-radius:0 2px 2px 0}
-.termo-pin{position:absolute;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;border:2px solid var(--bg)}
+.termo-pin{position:absolute;top:50%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;border:2px solid var(--bg)}
 .termo-cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px}
-.tc{background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r2);padding:8px 10px;text-align:center}
+.tc{background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r2);padding:10px 12px;text-align:center}
 .tc.atual{background:var(--em-d);border-color:var(--em-l)}
 .tc.socio{background:var(--pu-d);border-color:var(--pu-l)}
 .tc-val{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;letter-spacing:-.03em;line-height:1;margin-bottom:2px}
@@ -111,10 +111,10 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .tc-lbl{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink4)}
 
 /* ── DIVISOR ──────────────────────────────────── */
-.div{height:1px;background:var(--line2)}
+.div{height:1px;background:var(--line2);margin:8px 0}
 
 /* ── BLOCO GENÉRICO ───────────────────────────── */
-.bloco{border-bottom:1px solid var(--line)}
+.bloco{border-bottom:1px solid var(--line);margin-top:2px}
 
 /* header de seção */
 .bl-hdr{padding:14px 20px 0;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
@@ -590,7 +590,7 @@ function render(D){
 
   // Valuation
   const sc=MULT[D.setor]||MULT.outro;
-  const mB=sc.m, mF=R(mB*iseF,1);
+  const mB=sc.m, mF=R(mB*iseF,2);
   const vOp=roA*mF, vV=vOp+pl;
 
   // Upside 1Sócio
@@ -621,6 +621,15 @@ function render(D){
   const alugPct=fat>0?(alug/fat*100):0;
   const roPctB=roPct;
   const benchF=BENCH_FOLHA[D.setor]||25;
+
+  // Contar oportunidades para CTA 1Sócio
+  let totalAnalises=3;
+  if(cmvPct>0) totalAnalises++;
+  if(folhaPct>0) totalAnalises++;
+  if(alugPct>0) totalAnalises++;
+  if(gCMV>0) totalAnalises++;
+  if(gEsc>0) totalAnalises++;
+  if(gTrib>0) totalAnalises++;
 
   // Meta
   window._lead=D.codigo_lead||D.lead||'';
@@ -667,7 +676,7 @@ function render(D){
     <div class="hi-sep"></div>
     <div class="hi-info">
       <div class="hi-nivel" style="color:${iseC}">${iseN}</div>
-      <div class="hi-sub">Solidez empresarial · fator ${iseF.toFixed(2)}x</div>
+      <div class="hi-sub">Solidez empresarial</div>
       <div class="hi-escala">
         ${['Embrionário','Dependente','Operacional','Consolidado','Estruturado']
           .map(n=>`<span class="he${n===iseN?' on':''}">${n}</span>`).join('')}
@@ -700,15 +709,122 @@ function render(D){
       ${exp>0?`<div class="termo-pin" style="right:0;transform:translateY(-50%);background:var(--ink4)"></div>`:''}
     </div>
     <div class="termo-cards">
-      <div class="tc atual"><div class="tc-val">${fK(vV)}</div><div class="tc-lbl">Avaliação 1Negócio</div></div>
-      ${exp>0?`<div class="tc cliente"><div class="tc-val">${fK(exp)}</div><div class="tc-lbl">Expectativa Proprietário</div></div>`:'<div></div>'}
+      <div class="tc atual"><div class="tc-val">${fK(vV)}</div><div class="tc-lbl">Avaliação 1N</div></div>
       ${upside>0?`<div class="tc socio"><div class="tc-val">${fK(vV2)}</div><div class="tc-lbl">Potencial 1Sócio</div></div>`:'<div></div>'}
+      ${exp>0?`<div class="tc cliente"><div class="tc-val">${fK(exp)}</div><div class="tc-lbl">Sua expectativa</div></div>`:'<div></div>'}
     </div>
     ${disc?`<div style="margin-top:10px;padding:9px 12px;border-radius:var(--r2);background:var(--bg2);border:1px solid var(--line2);font-size:10px;color:var(--ink3);line-height:1.65">${disc}</div>`:''}
   </div>`:''}
 </div>
 
 <div class="div"></div>
+
+<!-- DRE -->
+<div class="bloco">
+  <div class="bl-hdr">
+    <div>
+      <div class="bl-label">DRE Ajustada</div>
+      <div class="bl-title">Resultado Operacional</div>
+    </div>
+    <div style="text-align:right">
+      <div class="bl-num em">${fK(roA)}</div>
+      <div class="bl-sub">${fK(roM)}/mês · ${R(roPct,0)}%</div>
+    </div>
+  </div>
+  <div class="tg" onclick="tg('dre-b','dre-i')">
+    <span>Ver DRE completa</span><div class="tg-ico" id="dre-i">▼</div>
+  </div>
+  <div class="tbody" id="dre-b">
+    <div class="dre-hdr"><div class="dre-ch">Mensal</div><div class="dre-ch">Anual</div></div>
+    <div class="dr"><div class="dr-l hi">Faturamento Bruto</div><div class="dr-vs"><div class="dr-v">${fM(fat)}</div><div class="dr-v">${fM(fat*12)}</div></div></div>
+    ${imp>0?`<div class="dr"><div class="dr-l">(−) Impostos · ${D.regime||'estimado'}</div><div class="dr-vs"><div class="dr-v">${fM(imp)}</div><div class="dr-v">${fM(imp*12)}</div></div></div>`:''}
+    ${com>0?`<div class="dr"><div class="dr-l">(−) Comissões</div><div class="dr-vs"><div class="dr-v">${fM(com)}</div><div class="dr-v">${fM(com*12)}</div></div></div>`:''}
+    ${proc>0?`<div class="dr"><div class="dr-l">(−) Processamento</div><div class="dr-vs"><div class="dr-v">${fM(proc)}</div><div class="dr-v">${fM(proc*12)}</div></div></div>`:''}
+    <div class="dr"><div class="dr-l hi">= Receita Líquida</div><div class="dr-vs"><div class="dr-v em">${fM(fatL)}</div><div class="dr-v em">${fM(fatL*12)}</div></div></div>
+    ${cmv>0?`<div class="dr"><div class="dr-l">(−) CMV / CPV</div><div class="dr-vs"><div class="dr-v">${fM(cmv)}</div><div class="dr-v">${fM(cmv*12)}</div></div></div>`:''}
+    <div class="dr"><div class="dr-l hi">= Margem Bruta</div><div class="dr-vs"><div class="dr-v em">${fM(mb)}</div><div class="dr-v em">${fM(mb*12)}</div></div></div>
+    ${clt>0?`<div class="dr">
+      <div class="dr-l alert">(−) Folha CLT${folhaPct>(benchF+4)?`<span class="dr-badge">${R(folhaPct,0)}% vs. ${benchF}% ref.</span>`:''}
+      </div><div class="dr-vs"><div class="dr-v">${fM(clt)}</div><div class="dr-v">${fM(clt*12)}</div></div></div>
+    <div class="dr"><div class="dr-l dim">&nbsp;&nbsp;↳ Encargos CLT</div><div class="dr-vs"><div class="dr-v fade">${fM(encC)}</div><div class="dr-v fade">${fM(encC*12)}</div></div></div>
+    <div class="dr"><div class="dr-l dim">&nbsp;&nbsp;↳ Provisões CLT</div><div class="dr-vs"><div class="dr-v fade">${fM(provC)}</div><div class="dr-v fade">${fM(provC*12)}</div></div></div>`:''}
+    ${pj>0?`<div class="dr"><div class="dr-l">(−) Equipe PJ</div><div class="dr-vs"><div class="dr-v">${fM(pj)}</div><div class="dr-v">${fM(pj*12)}</div></div></div>`:''}
+    ${alug>0?`<div class="dr">
+      <div class="dr-l alert">(−) Aluguel${alugPct>14?`<span class="dr-badge">${R(alugPct,0)}% vs. 10% ref.</span>`:''}
+      </div><div class="dr-vs"><div class="dr-v">${fM(alug)}</div><div class="dr-v">${fM(alug*12)}</div></div></div>`:''}
+    ${mkt>0?`<div class="dr"><div class="dr-l">(−) Marketing</div><div class="dr-vs"><div class="dr-v">${fM(mkt)}</div><div class="dr-v">${fM(mkt*12)}</div></div></div>`:''}
+    ${(fac+ter+outCF)>0?`<div class="dr"><div class="dr-l">(−) Outros fixos</div><div class="dr-vs"><div class="dr-v">${fM(fac+ter+outCF)}</div><div class="dr-v">${fM((fac+ter+outCF)*12)}</div></div></div>`:''}
+    <div class="dr tot"><div class="dr-l hi">= Resultado Operacional</div><div class="dr-vs"><div class="dr-v em">${fM(roM)}</div><div class="dr-v em">${fM(roA)}</div></div></div>
+    <div style="margin-top:8px">
+      ${parc>0?`<div class="dr"><div class="dr-l dim">(inf.) Parcelas</div><div class="dr-vs"><div class="dr-v fade">${fM(parc)}</div><div class="dr-v fade">${fM(parc*12)}</div></div></div>`:''}
+      ${prol>0?`<div class="dr"><div class="dr-l dim">(inf.) Retiradas sócios</div><div class="dr-vs"><div class="dr-v fade">${fM(prol)}</div><div class="dr-v fade">${fM(prol*12)}</div></div></div>`:''}
+      <div class="cmt">linhas informativas não entram no valuation</div>
+    </div>
+  </div>
+</div>
+
+<!-- BALANÇO -->
+${tAt>0?`
+<div class="bloco">
+  <div class="bl-hdr">
+    <div>
+      <div class="bl-label">Patrimônio</div>
+      <div class="bl-title">Balanço Patrimonial</div>
+    </div>
+    <div style="text-align:right">
+      <div class="bl-num ${pl>=0?'em':'rd'}">${fM(pl)}</div>
+      <div class="bl-sub">Ativos − Passivos · entra no valor de venda</div>
+    </div>
+  </div>
+  <div class="tg" onclick="tg('bp-b','bp-i')">
+    <span>Ver ativos e passivos</span><div class="tg-ico" id="bp-i">▼</div>
+  </div>
+  <div class="tbody" id="bp-b">
+    <div class="bp-grid">
+      <div>
+        <div class="bp-col-h">Ativos</div>
+        ${aC>0?`<div class="bpr"><div class="bpr-l">Caixa</div><div class="bpr-v">${fM(aC)}</div></div>`:''}
+        ${aCR>0?`<div class="bpr"><div class="bpr-l">A receber</div><div class="bpr-v">${fM(aCR)}</div></div>`:''}
+        ${aE>0?`<div class="bpr"><div class="bpr-l">Estoque</div><div class="bpr-v">${fM(aE)}</div></div>`:''}
+        ${aEq>0?`<div class="bpr"><div class="bpr-l">Equipamentos</div><div class="bpr-v">${fM(aEq)}</div></div>`:''}
+        ${aI>0?`<div class="bpr"><div class="bpr-l">Imóveis</div><div class="bpr-v">${fM(aI)}</div></div>`:''}
+        ${aO>0?`<div class="bpr"><div class="bpr-l">Outros</div><div class="bpr-v">${fM(aO)}</div></div>`:''}
+        <div class="bpr-tot"><div class="bpr-l" style="color:var(--ink)">Total</div><div class="bpr-v">${fM(tAt)}</div></div>
+      </div>
+      <div class="bp-sep">
+        <div class="bp-col-h">Passivos</div>
+        ${pF>0?`<div class="bpr"><div class="bpr-l">Fornecedores</div><div class="bpr-v">${fM(pF)}</div></div>`:''}
+        ${pFin>0?`<div class="bpr"><div class="bpr-l">Dívidas</div><div class="bpr-v">${fM(pFin)}</div></div>`:''}
+        ${pO>0?`<div class="bpr"><div class="bpr-l">Outros</div><div class="bpr-v">${fM(pO)}</div></div>`:''}
+        <div class="bpr-tot"><div class="bpr-l" style="color:var(--ink)">Total</div><div class="bpr-v">${fM(tPv)}</div></div>
+      </div>
+    </div>
+  </div>
+</div>`:''}
+
+<!-- VALUATION -->
+<div class="stripe-val">
+  <div class="sv-brand">
+    <div class="sv-logo"><em>1</em>Negócio.com.br</div>
+    <div class="sv-line"></div>
+    <div class="sv-tag">Avaliação de mercado</div>
+  </div>
+  <div class="sv-label">Como chegamos a ${fM(vV)}</div>
+  <div class="sv-eq">
+    <div class="sv-step"><div class="sv-n">${fK(roA)}</div><div class="sv-l">RO anual</div></div>
+    <div class="sv-op">×</div>
+    <div class="sv-step"><div class="sv-n em">${mF}×</div><div class="sv-l">Múltiplo final</div></div>
+    <div class="sv-op">=</div>
+    <div class="sv-step"><div class="sv-n">${fK(vOp)}</div><div class="sv-l">Valor negócio</div></div>
+    ${pl!==0?`<div class="sv-op">${pl>=0?'+':'−'}</div>
+    <div class="sv-step"><div class="sv-n em">${fK(Math.abs(pl))}</div><div class="sv-l">Patrim. líquido</div></div>`:''}
+  </div>
+  <div class="sv-result">
+    <div><div class="sv-r-l">Valor de Venda · Porteira Fechada</div><div class="sv-r-sub">negócio + patrimônio · metodologia 1Negócio</div></div>
+    <div class="sv-r-n">${fM(vV)}</div>
+  </div>
+  <div class="sv-cmt">múltiplo base ${mB}× (${D.setor||'setor'}) × ISE ${iseF.toFixed(2)}× = ${mF}×</div>
+</div>
 
 <!-- 1SÓCIO — ANÁLISE DE POTENCIAL -->
 <div style="background:#060a07;border-left:2px solid var(--pu);border-top:1px solid var(--pu-l);border-bottom:1px solid var(--pu-l)">
@@ -889,139 +1005,12 @@ function render(D){
   <!-- CTA -->
   <div style="padding:14px 20px 16px;border-top:1px solid rgba(167,139,250,.15)">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
-      <div style="font-size:10px;color:var(--ink3);line-height:1.5"><strong style="color:var(--ink);display:block;font-size:11px;margin-bottom:1px">Entenda melhor com a 1Sócio</strong>R$ 1.621/mês · 12 meses · + 20% do resultado adicional</div>
+      <div style="font-size:11px;color:var(--ink);line-height:1.55">Veja mais <strong style="color:var(--pu)">${totalAnalises} oportunidades</strong> que identificamos pro seu negócio</div>
       <button class="sc-btn" onclick="wppSocio()">FALAR COM 1SÓCIO →</button>
     </div>
   </div>
 
 </div>
-<div class="div"></div>
-
-<div style="border-top:2px solid var(--line2);padding:14px 20px 0">
-  <div style="font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink4)">Metodologia 1Negócio</div>
-  <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;letter-spacing:-.02em;color:var(--ink);margin-top:3px;margin-bottom:4px">Como chegamos nesse valor</div>
-</div>
-<!-- DRE -->
-<div class="bloco">
-  <div class="bl-hdr">
-    <div>
-      <div class="bl-label">DRE Ajustada</div>
-      <div class="bl-title">Resultado Operacional</div>
-    </div>
-    <div style="text-align:right">
-      <div class="bl-num em">${fK(roA)}</div>
-      <div class="bl-sub">${fK(roM)}/mês · ${R(roPct,0)}%</div>
-    </div>
-  </div>
-  <div class="tg" onclick="tg('dre-b','dre-i')">
-    <span>Ver DRE completa</span><div class="tg-ico" id="dre-i">▼</div>
-  </div>
-  <div class="tbody" id="dre-b">
-    <div class="dre-hdr"><div class="dre-ch">Mensal</div><div class="dre-ch">Anual</div></div>
-    <div class="dr"><div class="dr-l hi">Faturamento Bruto</div><div class="dr-vs"><div class="dr-v">${fM(fat)}</div><div class="dr-v">${fM(fat*12)}</div></div></div>
-    ${imp>0?`<div class="dr"><div class="dr-l">(−) Impostos · ${D.regime||'estimado'}</div><div class="dr-vs"><div class="dr-v">${fM(imp)}</div><div class="dr-v">${fM(imp*12)}</div></div></div>`:''}
-    ${com>0?`<div class="dr"><div class="dr-l">(−) Comissões</div><div class="dr-vs"><div class="dr-v">${fM(com)}</div><div class="dr-v">${fM(com*12)}</div></div></div>`:''}
-    ${proc>0?`<div class="dr"><div class="dr-l">(−) Processamento</div><div class="dr-vs"><div class="dr-v">${fM(proc)}</div><div class="dr-v">${fM(proc*12)}</div></div></div>`:''}
-    <div class="dr"><div class="dr-l hi">= Receita Líquida</div><div class="dr-vs"><div class="dr-v em">${fM(fatL)}</div><div class="dr-v em">${fM(fatL*12)}</div></div></div>
-    ${cmv>0?`<div class="dr"><div class="dr-l">(−) CMV / CPV</div><div class="dr-vs"><div class="dr-v">${fM(cmv)}</div><div class="dr-v">${fM(cmv*12)}</div></div></div>`:''}
-    <div class="dr"><div class="dr-l hi">= Margem Bruta</div><div class="dr-vs"><div class="dr-v em">${fM(mb)}</div><div class="dr-v em">${fM(mb*12)}</div></div></div>
-    ${clt>0?`<div class="dr">
-      <div class="dr-l alert">(−) Folha CLT${folhaPct>(benchF+4)?`<span class="dr-badge">${R(folhaPct,0)}% vs. ${benchF}% ref.</span>`:''}
-      </div><div class="dr-vs"><div class="dr-v">${fM(clt)}</div><div class="dr-v">${fM(clt*12)}</div></div></div>
-    <div class="dr"><div class="dr-l dim">&nbsp;&nbsp;↳ Encargos CLT</div><div class="dr-vs"><div class="dr-v fade">${fM(encC)}</div><div class="dr-v fade">${fM(encC*12)}</div></div></div>
-    <div class="dr"><div class="dr-l dim">&nbsp;&nbsp;↳ Provisões CLT</div><div class="dr-vs"><div class="dr-v fade">${fM(provC)}</div><div class="dr-v fade">${fM(provC*12)}</div></div></div>`:''}
-    ${pj>0?`<div class="dr"><div class="dr-l">(−) Equipe PJ</div><div class="dr-vs"><div class="dr-v">${fM(pj)}</div><div class="dr-v">${fM(pj*12)}</div></div></div>`:''}
-    ${alug>0?`<div class="dr">
-      <div class="dr-l alert">(−) Aluguel${alugPct>14?`<span class="dr-badge">${R(alugPct,0)}% vs. 10% ref.</span>`:''}
-      </div><div class="dr-vs"><div class="dr-v">${fM(alug)}</div><div class="dr-v">${fM(alug*12)}</div></div></div>`:''}
-    ${mkt>0?`<div class="dr"><div class="dr-l">(−) Marketing</div><div class="dr-vs"><div class="dr-v">${fM(mkt)}</div><div class="dr-v">${fM(mkt*12)}</div></div></div>`:''}
-    ${(fac+ter+outCF)>0?`<div class="dr"><div class="dr-l">(−) Outros fixos</div><div class="dr-vs"><div class="dr-v">${fM(fac+ter+outCF)}</div><div class="dr-v">${fM((fac+ter+outCF)*12)}</div></div></div>`:''}
-    <div class="dr tot"><div class="dr-l hi">= Resultado Operacional</div><div class="dr-vs"><div class="dr-v em">${fM(roM)}</div><div class="dr-v em">${fM(roA)}</div></div></div>
-    <div style="margin-top:8px">
-      ${parc>0?`<div class="dr"><div class="dr-l dim">(inf.) Parcelas</div><div class="dr-vs"><div class="dr-v fade">${fM(parc)}</div><div class="dr-v fade">${fM(parc*12)}</div></div></div>`:''}
-      ${prol>0?`<div class="dr"><div class="dr-l dim">(inf.) Retiradas sócios</div><div class="dr-vs"><div class="dr-v fade">${fM(prol)}</div><div class="dr-v fade">${fM(prol*12)}</div></div></div>`:''}
-      <div class="cmt">linhas informativas não entram no valuation</div>
-    </div>
-  </div>
-</div>
-
-<!-- BALANÇO -->
-${tAt>0?`
-<div class="bloco">
-  <div class="bl-hdr">
-    <div>
-      <div class="bl-label">Patrimônio</div>
-      <div class="bl-title">Balanço Patrimonial</div>
-    </div>
-    <div style="text-align:right">
-      <div class="bl-num ${pl>=0?'em':'rd'}">${fM(pl)}</div>
-      <div class="bl-sub">Ativos − Passivos · entra no valor de venda</div>
-    </div>
-  </div>
-  <div class="tg" onclick="tg('bp-b','bp-i')">
-    <span>Ver ativos e passivos</span><div class="tg-ico" id="bp-i">▼</div>
-  </div>
-  <div class="tbody" id="bp-b">
-    <div class="bp-grid">
-      <div>
-        <div class="bp-col-h">Ativos</div>
-        ${aC>0?`<div class="bpr"><div class="bpr-l">Caixa</div><div class="bpr-v">${fM(aC)}</div></div>`:''}
-        ${aCR>0?`<div class="bpr"><div class="bpr-l">A receber</div><div class="bpr-v">${fM(aCR)}</div></div>`:''}
-        ${aE>0?`<div class="bpr"><div class="bpr-l">Estoque</div><div class="bpr-v">${fM(aE)}</div></div>`:''}
-        ${aEq>0?`<div class="bpr"><div class="bpr-l">Equipamentos</div><div class="bpr-v">${fM(aEq)}</div></div>`:''}
-        ${aI>0?`<div class="bpr"><div class="bpr-l">Imóveis</div><div class="bpr-v">${fM(aI)}</div></div>`:''}
-        ${aO>0?`<div class="bpr"><div class="bpr-l">Outros</div><div class="bpr-v">${fM(aO)}</div></div>`:''}
-        <div class="bpr-tot"><div class="bpr-l" style="color:var(--ink)">Total</div><div class="bpr-v">${fM(tAt)}</div></div>
-      </div>
-      <div class="bp-sep">
-        <div class="bp-col-h">Passivos</div>
-        ${pF>0?`<div class="bpr"><div class="bpr-l">Fornecedores</div><div class="bpr-v">${fM(pF)}</div></div>`:''}
-        ${pFin>0?`<div class="bpr"><div class="bpr-l">Dívidas</div><div class="bpr-v">${fM(pFin)}</div></div>`:''}
-        ${pO>0?`<div class="bpr"><div class="bpr-l">Outros</div><div class="bpr-v">${fM(pO)}</div></div>`:''}
-        <div class="bpr-tot"><div class="bpr-l" style="color:var(--ink)">Total</div><div class="bpr-v">${fM(tPv)}</div></div>
-      </div>
-    </div>
-  </div>
-</div>`:''}
-
-<!-- VALUATION -->
-<div class="stripe-val">
-  <div class="sv-brand">
-    <div class="sv-logo"><em>1</em>Negócio.com.br</div>
-    <div class="sv-line"></div>
-    <div class="sv-tag">Avaliação de mercado</div>
-  </div>
-  <div class="sv-label">Como chegamos a ${fM(vV)}</div>
-  <div class="sv-eq">
-    <div class="sv-step"><div class="sv-n">${fK(roA)}</div><div class="sv-l">RO anual</div></div>
-    <div class="sv-op">×</div>
-    <div class="sv-step"><div class="sv-n em">${mF.toFixed(3)}×</div><div class="sv-l">Fator 1N</div></div>
-    <div class="sv-op">=</div>
-    <div class="sv-step"><div class="sv-n">${fK(vOp)}</div><div class="sv-l">Valor negócio</div></div>
-    ${pl!==0?`<div class="sv-op">${pl>=0?'+':'−'}</div>
-    <div class="sv-step"><div class="sv-n em">${fK(Math.abs(pl))}</div><div class="sv-l">Patrim. líquido</div></div>`:''}
-  </div>
-  <div class="sv-result">
-    <div><div class="sv-r-l">Valor de Venda · Porteira Fechada</div><div class="sv-r-sub">negócio + patrimônio · metodologia 1Negócio</div></div>
-    <div class="sv-r-n">${fM(vV)}</div>
-  </div>
-  <div class="sv-cmt">Fator 1N = ${mB.toFixed(3)}× (${D.setor||'setor'}) × ISE ${iseF.toFixed(3)}× = ${mF.toFixed(3)}×</div>
-</div>
-
-
-<!-- TRANSPARÊNCIA -->
-<div class="trans">
-  <div class="trans-title">Transparência · Origem dos dados</div>
-  ${[['Faturamento bruto',fat>0,'ok'],['Regime tributário',!!D.regime,'ok'],
-     ['CMV / Custo',(D.cmv_pct||0)>0,'ok'],['Folha de pessoal',(clt+pj)>0,'ok'],
-     ['Aluguel',alug>0,'ok'],['Balanço',tAt>0,'ok'],
-     ['Encargos CLT',true,'auto'],['Impostos',true,'auto'],['Múltiplo setorial',true,'auto']]
-    .map(([c,ok,t])=>`<div class="tr-item"><div class="tr-l">${c}</div><div class="tr-s ${ok?t:'est'}">${ok?(t==='auto'?'Calculado':'Informado'):'Estimativa'}</div></div>`).join('')}
-  <div class="cmt" style="margin-top:6px">estimativas usam médias do setor · metodologia 1Negócio</div>
-</div>
-
-<div class="div"></div>
-
 <!-- COMPRADORES -->
 <div class="bloco-em">
   <div class="bc-hdr">
@@ -1035,7 +1024,6 @@ ${tAt>0?`
     <div class="bc-stat"><div class="bc-sn">340</div><div class="bc-sl">compradores</div></div>
   </div>
 </div>
-
 
 <!-- CTAs -->
 <div class="ctas">
@@ -1052,7 +1040,7 @@ ${tAt>0?`
       </div>
     </div>
     <button class="cta-btn" onclick="abreCK('ck-laudo')">OBTER LAUDO →</button>
-    <button style="width:100%;background:var(--em-d);border:1px solid var(--em-l);border-radius:var(--r2);padding:11px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.1em;color:var(--em);cursor:pointer;margin-top:8px" onclick="window.open('/laudo-modelo','_blank')">VER MODELO DO LAUDO PDF →</button>
+    <button style="width:100%;background:var(--em);color:#07090a;border:none;border-radius:var(--r2);padding:12px;font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.12em;cursor:pointer;margin-top:8px" onclick="window.open('/laudo-modelo','_blank')">VER MODELO DO LAUDO PDF →</button>
   </div>
   <div class="cta dark">
     <div class="cta-eye">1Negócio · Gratuito</div>
@@ -1070,6 +1058,16 @@ ${tAt>0?`
   </div>
 </div>
 
+<!-- TRANSPARÊNCIA -->
+<div class="trans">
+  <div class="trans-title">Transparência · Origem dos dados</div>
+  ${[['Faturamento bruto',fat>0,'ok'],['Regime tributário',!!D.regime,'ok'],
+     ['CMV / Custo',(D.cmv_pct||0)>0,'ok'],['Folha de pessoal',(clt+pj)>0,'ok'],
+     ['Aluguel',alug>0,'ok'],['Balanço',tAt>0,'ok'],
+     ['Encargos CLT',true,'auto'],['Impostos',true,'auto'],['Múltiplo setorial',true,'auto']]
+    .map(([c,ok,t])=>`<div class="tr-item"><div class="tr-l">${c}</div><div class="tr-s ${ok?t:'est'}">${ok?(t==='auto'?'Calculado':'Informado'):'Estimativa'}</div></div>`).join('')}
+  <div class="cmt" style="margin-top:6px">estimativas usam médias do setor · metodologia 1Negócio</div>
+</div>
 `;}
 
 // ── ANÁLISE EDITORIAL IA ────────────────────
