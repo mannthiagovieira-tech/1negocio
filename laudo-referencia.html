@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negócio · Avaliação</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Cabinet+Grotesk:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080d0a;--bg1:#0e1510;--bg2:#131a14;--bg3:#1a2218;
+  --em:#3dff7a;--em-d:rgba(61,255,122,.08);--em-l:rgba(61,255,122,.25);
+  --am:#ffb03a;--am-d:rgba(255,176,58,.10);--am-l:rgba(255,176,58,.25);
+  --rd:#ff5c5c;--rd-d:rgba(255,92,92,.08);--rd-l:rgba(255,92,92,.25);
+  --pu:#a78bfa;--pu-d:rgba(167,139,250,.08);--pu-l:rgba(167,139,250,.28);
+  --ink:#f0f5f1;--ink2:#a8b8ac;--ink3:#5a7060;--ink4:#3a4e3e;
+  --line:rgba(255,255,255,.05);--line2:rgba(255,255,255,.10);
+  --r:8px;--r2:14px;--r3:20px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:'Cabinet Grotesk',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");opacity:.022}
+body::after{content:'';position:fixed;top:-10%;left:50%;transform:translateX(-50%);width:700px;height:400px;border-radius:50%;background:radial-gradient(ellipse,rgba(61,255,122,.04) 0%,transparent 65%);pointer-events:none;z-index:0}
+
+/* ── LOADING ── */
+#loading{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:20px;transition:opacity .5s ease}
+.ld-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;letter-spacing:-.03em;color:var(--ink)}
+.ld-logo em{color:var(--em);font-style:normal}
+.ld-msgs{height:18px;position:relative;width:300px;overflow:hidden}
+.ld-msg{position:absolute;left:0;right:0;text-align:center;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--ink4);opacity:0;transition:opacity .35s ease,transform .35s ease;transform:translateY(6px)}
+.ld-msg.active{opacity:1;transform:translateY(0)}
+.ld-track{width:260px;height:2px;background:var(--bg3);border-radius:1px;overflow:hidden}
+.ld-fill{height:100%;background:var(--em);border-radius:1px;width:0%}
+.ld-pct{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.12em;color:var(--ink4);margin-top:-16px;text-align:center;width:260px}
+
+/* ── TOPBAR + JORNADA ── */
+#topbar{position:fixed;top:0;left:0;right:0;z-index:200;display:none;flex-direction:column;background:rgba(8,13,10,.94);backdrop-filter:blur(20px);border-bottom:1px solid var(--line2)}
+.tb-top{height:46px;padding:0 20px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;letter-spacing:-.02em}
+.logo em{color:var(--em);font-style:normal}
+.tb-chips{display:flex;gap:6px}
+.chip{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;padding:3px 10px;border-radius:var(--r3);border:1px solid var(--line2);color:var(--ink4);background:var(--bg2)}
+.chip.em{border-color:var(--em-l);color:var(--em);background:var(--em-d)}
+
+/* jornada no topbar */
+.tb-jornada{
+  display:flex;align-items:center;justify-content:center;
+  padding:6px 20px 8px;gap:0;overflow-x:auto;
+  border-top:1px solid var(--line);
+  scrollbar-width:none;
+}
+.tb-jornada::-webkit-scrollbar{display:none}
+.tj-step{display:flex;align-items:center;gap:0;flex-shrink:0}
+.tj-item{
+  display:flex;align-items:center;gap:5px;
+  padding:3px 8px;border-radius:var(--r3);
+  font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink4);cursor:default;
+}
+.tj-item.active{background:var(--em-d);border:1px solid var(--em-l);color:var(--em)}
+.tj-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+.tj-item.active .tj-dot{animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.tj-sep{width:20px;height:1px;background:var(--line2);flex-shrink:0}
+
+/* ── STICKY LAUDO ── */
+#sticky{position:fixed;bottom:0;left:0;right:0;z-index:200;display:none;background:var(--em);padding:12px 20px;align-items:center;justify-content:space-between;gap:12px}
+.sticky-l strong{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:#080d0a;letter-spacing:-.02em;display:block}
+.sticky-l span{font-size:10px;color:rgba(8,13,10,.55);font-family:'DM Mono',monospace;letter-spacing:.04em}
+.sticky-btn{background:#080d0a;color:var(--em);border:none;border-radius:var(--r);padding:10px 20px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.14em;cursor:pointer;white-space:nowrap;flex-shrink:0}
+
+/* ── MAIN ── */
+#main{display:none;padding-top:80px;padding-bottom:80px;max-width:560px;margin:0 auto;position:relative;z-index:1}
+
+/* ── HERO ── */
+.hero{padding:24px 20px 28px;border-bottom:1px solid var(--line)}
+.hero-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px}
+.htag{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;background:var(--bg2);color:var(--ink4);padding:3px 9px;border-radius:var(--r3);border:1px solid var(--line2)}
+.htag.em{background:var(--em-d);border-color:var(--em-l);color:var(--em)}
+.hero-name{font-family:'Syne',sans-serif;font-size:30px;font-weight:800;letter-spacing:-.04em;line-height:1.03;color:var(--ink);margin-bottom:4px}
+.hero-meta{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);letter-spacing:.08em;margin-bottom:20px}
+.hero-val-lbl{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink4);margin-bottom:6px}
+.hero-val{font-family:'Syne',sans-serif;font-size:52px;font-weight:800;color:var(--em);letter-spacing:-.06em;line-height:1;margin-bottom:6px}
+.hero-val-sub{font-size:11px;color:var(--ink3);margin-bottom:20px}
+.hero-scroll{display:inline-flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r3);padding:8px 14px;cursor:pointer;font-size:11px;color:var(--ink3);transition:border-color .2s;user-select:none}
+.hero-scroll:hover{border-color:var(--em-l);color:var(--em)}
+.hero-scroll span{font-family:'DM Mono',monospace;font-size:10px;color:var(--em)}
+.hero-ise{display:flex;gap:0;align-items:stretch;background:var(--bg2);border:1px solid var(--em-l);border-radius:var(--r2);overflow:hidden;margin-bottom:16px}
+.hero-ise-score{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 16px;border-right:1px solid var(--em-l);background:var(--em-d);flex-shrink:0;min-width:72px}
+.hero-ise-n{font-family:'Syne',sans-serif;font-size:36px;font-weight:800;color:var(--em);letter-spacing:-.06em;line-height:1}
+.hero-ise-label{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:rgba(61,255,122,.6);margin-top:2px}
+.hero-ise-info{padding:12px 14px;flex:1;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.hero-ise-nome{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--em);letter-spacing:-.02em;line-height:1}
+.hero-ise-sub{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);letter-spacing:.06em}
+.hero-ise-escala{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+.hie{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:var(--r3)}
+.hie-dim{color:var(--ink4);opacity:.45}
+.hie-ativo{background:var(--em-d);border:1px solid var(--em-l);color:var(--em)}
+.ai-bubble{background:var(--bg2);border:1px solid var(--line2);border-radius:0 var(--r2) var(--r2) var(--r2);padding:12px 14px;position:relative;margin-top:16px;margin-bottom:6px}
+.ai-bubble::before{content:'análise · 1N';position:absolute;top:-12px;left:0;font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.14em;text-transform:uppercase;color:var(--em);opacity:.65}
+.ai-txt{font-size:11px;color:var(--ink3);line-height:1.65}
+.cmt{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);padding:3px 2px}
+.cmt::before{content:'// '}
+
+/* ── SEÇÃO BASE ── */
+.sec{padding:14px 20px;border-bottom:1px solid var(--line)}
+.sh{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink4);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.sh::after{content:'';flex:1;height:1px;background:var(--line)}
+
+/* ── TOGGLE ── */
+.tbtn{display:flex;align-items:center;justify-content:space-between;padding:8px 0;cursor:pointer;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);user-select:none}
+.tbtn:hover{color:var(--em)}
+.ti{width:18px;height:18px;border-radius:50%;border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--ink4);transition:transform .25s ease;flex-shrink:0}
+.ti.open{transform:rotate(180deg)}
+.tbody{display:none;padding-top:8px}
+.tbody.open{display:block}
+
+/* ── DESTAQUE CARDS ── */
+.dest{border-radius:var(--r2);padding:11px 14px;display:flex;justify-content:space-between;align-items:center}
+.dest.verde{background:var(--em-d);border:1px solid var(--em-l)}
+.dest.neutro{background:var(--bg2);border:1px solid var(--line2)}
+.dest.am{background:var(--am-d);border:1px solid var(--am-l)}
+.dest-l{font-size:11px;color:var(--ink3)}
+.dest-l strong{color:var(--ink);display:block;font-size:12px;margin-bottom:2px}
+.dest-r{text-align:right}
+.dest-big{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.dest-big.em{color:var(--em)}
+.dest-big.am{color:var(--am)}
+.dest-small{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink3);margin-top:2px}
+
+/* ── DRE ── */
+.dre-hdr{display:flex;justify-content:flex-end;margin-bottom:5px}
+.dre-ch{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);width:96px;text-align:right}
+.dr{display:flex;justify-content:space-between;align-items:flex-start;padding:4px 0;border-bottom:1px solid var(--line)}
+.dr:last-child{border:none}
+.dr.tot{border-top:1px solid var(--em-l);border-bottom:none;padding-top:7px;margin-top:3px}
+.dr-l{color:var(--ink3);flex:1;font-size:10px;padding-right:4px;text-transform:uppercase;letter-spacing:.04em}
+.dr-l.hi{color:var(--ink);font-weight:700;font-size:11px}
+.dr-l.dim{color:var(--ink4);font-size:9px;text-transform:none;letter-spacing:0}
+.dr-vs{display:flex;flex-shrink:0}
+.dr-v{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink2);width:96px;text-align:right}
+.dr-v.em{color:var(--em);font-weight:500}
+.dr-v.fade{color:var(--ink4)}
+.dr-wrap{flex:1;padding-right:4px}
+.dr-alerta{font-family:'DM Mono',monospace;font-size:8px;color:var(--am);padding:1px 0 2px;letter-spacing:.04em}
+.dr-alerta::before{content:'↑ '}
+
+/* ── BENCHMARK ── */
+.bk{margin-bottom:10px}
+.bk-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.bk-nome{font-size:10px;color:var(--ink3);flex:1;text-transform:uppercase;letter-spacing:.04em}
+.bk-vals{display:flex;gap:8px;align-items:center}
+.bk-y{font-family:'DM Mono',monospace;font-size:10px;font-weight:500}
+.bk-e{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink4)}
+.bk-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-left:5px}
+.bk-track{height:5px;background:var(--bg2);border-radius:1px;position:relative}
+.bk-fill{height:100%;border-radius:1px;position:absolute;top:0;left:0}
+.bk-mark{position:absolute;top:-4px;width:1.5px;height:13px;background:var(--ink4);opacity:.35}
+.bk-leg{font-family:'DM Mono',monospace;font-size:8px;color:var(--ink4);margin-top:10px}
+.bk-leg::before{content:'// '}
+
+/* ── BP ── */
+.bp-wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-bottom:2px}
+.bp-col-h{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:8px}
+.bpr{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+.bpr:last-child{border:none}
+.bpr-l{color:var(--ink3)}
+.bpr-v{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink2)}
+.bpr-tot{display:flex;justify-content:space-between;padding:7px 0 0;border-top:1px solid var(--em-l);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.bpr-tot .bpr-v{color:var(--em);font-size:11px}
+.bp-sep{border-left:1px solid var(--line);padding-left:14px}
+
+/* ── COCKPIT INDICADORES ── */
+.cockpit-hdr{background:var(--pu-d);border:1px solid var(--pu-l);border-radius:var(--r2);padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
+.cockpit-hdr:hover{border-color:var(--pu)}
+.cockpit-hdr-l strong{font-family:'DM Mono',monospace;font-size:9px;font-weight:500;color:var(--pu);display:block;letter-spacing:.1em;margin-bottom:3px;text-transform:uppercase}
+.cockpit-hdr-l span{font-size:10px;color:var(--ink3)}
+.cbadges{display:flex;gap:5px;align-items:center}
+.cb{width:34px;height:34px;border-radius:var(--r);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:11px;font-weight:500}
+.cb.g{background:var(--em-d);border:1px solid var(--em-l);color:var(--em)}
+.cb.y{background:var(--am-d);border:1px solid var(--am-l);color:var(--am)}
+.cb.r{background:var(--rd-d);border:1px solid var(--rd-l);color:var(--rd)}
+.cb-l{font-size:7px;letter-spacing:.04em;margin-top:1px;text-transform:uppercase}
+
+.ind-grid{display:flex;flex-direction:column;gap:2px;margin-top:10px}
+.ind-item{background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r);overflow:hidden}
+.ind-main{display:flex;align-items:stretch;cursor:pointer;user-select:none}
+.ind-main:hover .ind-cnt{background:var(--bg3)}
+.ind-box{width:60px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;border-right:1px solid var(--line2)}
+.ind-box.g{background:rgba(61,255,122,.05)}
+.ind-box.y{background:rgba(255,176,58,.05)}
+.ind-box.r{background:rgba(255,92,92,.05)}
+.ind-num{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;letter-spacing:-.03em;line-height:1;text-align:center}
+.ind-box.g .ind-num{color:var(--em)}
+.ind-box.y .ind-num{color:var(--am)}
+.ind-box.r .ind-num{color:var(--rd)}
+.ind-unit{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.08em;text-transform:uppercase;margin-top:2px;text-align:center}
+.ind-box.g .ind-unit{color:rgba(61,255,122,.55)}
+.ind-box.y .ind-unit{color:rgba(255,176,58,.55)}
+.ind-box.r .ind-unit{color:rgba(255,92,92,.55)}
+.ind-cnt{flex:1;padding:9px 11px;transition:background .15s}
+.ind-title{font-size:11px;font-weight:700;color:var(--ink);margin-bottom:2px}
+.ind-short{font-size:10px;color:var(--ink3);line-height:1.3}
+.ind-ico{width:30px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--ink4);border-left:1px solid var(--line);transition:transform .2s}
+.ind-ico.open{transform:rotate(180deg)}
+.ind-det{display:none;padding:10px 12px 12px;border-top:1px solid var(--line)}
+.ind-det.open{display:block}
+.ind-desc{font-size:10px;color:var(--ink3);line-height:1.55}
+.insight{margin-top:8px;background:rgba(167,139,250,.06);border-left:2px solid var(--pu);padding:8px 10px;border-radius:0 var(--r) var(--r) 0}
+.insight-lbl{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.14em;text-transform:uppercase;color:var(--pu);opacity:.8;margin-bottom:4px}
+.insight-txt{font-size:10px;color:var(--ink3);line-height:1.55}
+
+/* ── ISE ── */
+.ise-top{display:flex;gap:10px;align-items:stretch;margin-bottom:14px}
+.ise-num-box{background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r2);padding:14px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:88px}
+.ise-n{font-family:'Syne',sans-serif;font-size:46px;font-weight:800;color:var(--em);letter-spacing:-.06em;line-height:1}
+.ise-ns{font-family:'DM Mono',monospace;font-size:8px;color:var(--ink4);margin-top:3px;letter-spacing:.06em}
+.ise-info{background:var(--em-d);border:1px solid var(--em-l);border-radius:var(--r2);padding:12px 14px;flex:1}
+.ise-nome{font-family:'Syne',sans-serif;font-size:19px;font-weight:800;color:var(--em);letter-spacing:-.02em;line-height:1.1;margin-bottom:4px}
+.ise-nao{font-size:10px;color:var(--ink4);margin-bottom:5px}
+.ise-nao strong{color:var(--ink3)}
+.ise-desc{font-size:10px;color:var(--ink3);line-height:1.5}
+.ise-escala{display:flex;gap:3px;margin-bottom:14px}
+.ise-lvl{flex:1;padding:7px 4px;border-radius:var(--r);text-align:center;border:1px solid var(--line)}
+.ise-lvl.ativo{background:var(--em-d);border-color:var(--em-l)}
+.ise-lvl.inativo{opacity:.3}
+.ise-lvl-nome{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink4)}
+.ise-lvl.ativo .ise-lvl-nome{color:var(--em)}
+.ise-lvl-pts{font-family:'Syne',sans-serif;font-size:10px;font-weight:800;color:var(--ink4)}
+.ise-lvl.ativo .ise-lvl-pts{color:var(--em)}
+.pb{margin-bottom:7px}
+.pb-hdr{display:flex;justify-content:space-between;margin-bottom:3px}
+.pb-nome{font-size:10px;color:var(--ink3)}
+.pb-score{font-family:'DM Mono',monospace;font-size:10px;font-weight:500}
+.pb-score.ok{color:var(--em)}
+.pb-score.low{color:var(--am)}
+.pb-score.crit{color:var(--rd)}
+.pb-track{height:4px;background:var(--bg2);border-radius:2px;overflow:hidden}
+.pb-fill{height:100%;border-radius:2px}
+
+/* ── ALERTAS ── */
+.alt-res{background:var(--rd-d);border:1px solid var(--rd-l);border-radius:var(--r2);padding:11px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none}
+.alt-res:hover{border-color:var(--rd)}
+.alt-res-l strong{color:var(--ink);display:block;font-size:12px;margin-bottom:2px}
+.alt-res-l span{font-size:11px;color:var(--ink3)}
+.alt-badges{display:flex;gap:6px;align-items:center}
+.altb{font-family:'DM Mono',monospace;font-size:9px;padding:3px 8px;border-radius:var(--r3)}
+.altb.r{background:var(--rd-d);border:1px solid var(--rd-l);color:var(--rd)}
+.altb.y{background:var(--am-d);border:1px solid var(--am-l);color:var(--am)}
+.alt{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.alt:last-child{border:none}
+.alt-ico{width:20px;height:20px;border-radius:var(--r);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;margin-top:1px}
+.alt-ico.r{background:var(--rd-d);border:1px solid var(--rd-l);color:var(--rd)}
+.alt-ico.y{background:var(--am-d);border:1px solid var(--am-l);color:var(--am)}
+.alt-title{font-size:11px;font-weight:700;color:var(--ink);margin-bottom:2px}
+.alt-desc{font-size:10px;color:var(--ink3);line-height:1.5}
+
+/* ── VALUATION DETALHADO ── */
+.val-sec{background:var(--bg1);border-top:1px solid var(--line2);border-bottom:1px solid var(--line2);padding:20px}
+.val-eye{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink4);margin-bottom:14px}
+.val-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.val-card{background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r2);padding:10px 12px}
+.val-card-l{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:4px}
+.val-card-v{font-family:'DM Mono',monospace;font-size:13px;color:var(--ink2)}
+.val-card-v.em{color:var(--em)}
+.val-cmt{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);margin-top:10px}
+.val-cmt::before{content:'// '}
+
+/* ── EXPECTATIVAS ── */
+.exp-item{margin-bottom:13px}
+.exp-item:last-child{margin-bottom:0}
+.exp-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.exp-lbl{font-size:11px;color:var(--ink3)}
+.exp-lbl.hi{color:var(--ink);font-weight:700}
+.exp-lbl.pu{color:var(--pu)}
+.exp-val{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;letter-spacing:-.02em}
+.exp-track{height:8px;background:var(--bg2);border-radius:2px;overflow:hidden}
+.exp-fill{height:100%;border-radius:2px}
+.exp-note{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);margin-top:12px;padding-top:10px;border-top:1px solid var(--line);line-height:1.65}
+.exp-note::before{content:'// '}
+
+/* ── ATRATIVIDADE ── */
+.atrat{background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r2);padding:14px}
+.atrat-badge{display:inline-block;background:var(--em-d);border:1px solid var(--em-l);border-radius:var(--r3);font-family:'DM Mono',monospace;font-size:8px;color:var(--em);padding:3px 10px;letter-spacing:.08em;margin-bottom:12px}
+.atrat-nums{display:flex;gap:16px;margin-bottom:12px}
+.atrat-num{flex:1}
+.an{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;letter-spacing:-.04em;line-height:1}
+.an.em{color:var(--em)}
+.an.dim{color:var(--ink4)}
+.al{font-family:'DM Mono',monospace;font-size:8px;color:var(--ink4);margin-top:3px;letter-spacing:.06em}
+.atrat-sep{width:1px;background:var(--line2);align-self:stretch}
+.atrat-txt{font-size:10px;color:var(--ink3);line-height:1.65}
+
+/* ── BLOCO UNIFICADO 1SÓCIO ── */
+.bloco-socio{
+  background:#060b08;
+  border-left:3px solid var(--pu);
+  border-top:1px solid var(--pu-l);
+  border-bottom:1px solid var(--pu-l);
+  border-right:1px solid var(--line2);
+  position:relative;overflow:hidden;
+}
+.bloco-socio::before{
+  content:'';position:absolute;top:-60px;right:-60px;
+  width:200px;height:200px;border-radius:50%;
+  background:radial-gradient(ellipse,rgba(167,139,250,.06) 0%,transparent 65%);
+  pointer-events:none;
+}
+.bs-header{padding:18px 16px 14px}
+.bs-badge{display:inline-flex;align-items:center;gap:5px;background:var(--pu-d);border:1px solid var(--pu-l);border-radius:var(--r3);padding:3px 10px;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--pu);margin-bottom:12px}
+.bs-dot{width:5px;height:5px;border-radius:50%;background:var(--pu);animation:pulse 2s infinite}
+.bs-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:var(--ink);letter-spacing:-.02em;margin-bottom:4px;line-height:1.2}
+.bs-sub{font-size:10px;color:var(--ink3);line-height:1.55}
+
+/* sub-header interno */
+.bs-sec-hdr{
+  padding:10px 16px;
+  background:rgba(167,139,250,.04);
+  border-top:1px solid var(--pu-l);
+  font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--pu);opacity:.8;
+}
+
+/* ações recolhíveis */
+.acoes-wrap{padding:0 16px 12px}
+.acao-item{background:var(--bg1);border:1px solid var(--line2);border-radius:var(--r);overflow:hidden;margin-bottom:2px}
+.acao-item:last-child{margin-bottom:0}
+.acao-res{display:flex;align-items:stretch;cursor:pointer;user-select:none}
+.acao-res:hover .acao-cnt{background:var(--bg2)}
+.acao-nbox{width:40px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line2);background:rgba(167,139,250,.04)}
+.acao-num{font-family:'DM Mono',monospace;font-size:9px;color:var(--pu);opacity:.7;letter-spacing:.1em}
+.acao-cnt{flex:1;padding:9px 11px;transition:background .15s}
+.acao-opp{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--pu);opacity:.7;margin-bottom:3px}
+.acao-nome{font-size:11px;font-weight:700;color:var(--ink);margin-bottom:4px}
+.acao-gains{display:flex;gap:4px;flex-wrap:wrap}
+.acao-ico{width:30px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--ink4);border-left:1px solid var(--line);transition:transform .2s}
+.acao-ico.open{transform:rotate(180deg)}
+.acao-det{display:none;padding:9px 11px;border-top:1px solid var(--line)}
+.acao-det.open{display:block}
+.acao-porque{font-size:10px;color:var(--ink3);line-height:1.5}
+
+.gain-tag{font-family:'DM Mono',monospace;font-size:9px;padding:2px 7px;border-radius:var(--r3);border:1px solid}
+.gain-tag.op{background:var(--em-d);border-color:var(--em-l);color:var(--em)}
+.gain-tag.val{background:var(--pu-d);border-color:var(--pu-l);color:var(--pu)}
+
+/* total acoes */
+.acao-total{margin:0 16px 0;background:var(--pu-d);border:1px solid var(--pu-l);border-radius:var(--r2);padding:9px 13px;display:flex;justify-content:space-between;align-items:center}
+.acao-total-l{font-size:10px;color:var(--ink3)}
+.acao-total-v{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--pu);letter-spacing:-.02em}
+
+/* tributação dentro do bloco */
+.trib-wrap{margin:12px 16px 0}
+.trib-res{
+  background:rgba(167,139,250,.06);border:1px solid var(--pu-l);border-radius:var(--r2);
+  padding:10px 13px;display:flex;justify-content:space-between;align-items:center;
+  cursor:pointer;user-select:none;
+}
+.trib-res:hover{border-color:var(--pu)}
+.trib-res-l{flex:1}
+.bonus-badge{display:inline-flex;align-items:center;gap:5px;background:var(--pu);border-radius:var(--r3);padding:2px 8px 2px 6px;font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:#080d0a;font-weight:500;margin-bottom:5px}
+.trib-res-title{font-size:11px;font-weight:700;color:var(--ink);margin-bottom:4px}
+.trib-pills{display:flex;gap:5px;flex-wrap:wrap}
+.trib-pill{font-family:'DM Mono',monospace;font-size:9px;padding:2px 7px;border-radius:var(--r3);background:var(--pu-d);border:1px solid var(--pu-l);color:var(--pu)}
+.trib-ico{font-size:9px;color:var(--pu);flex-shrink:0;margin-left:8px;transition:transform .2s}
+.trib-ico.open{transform:rotate(180deg)}
+.trib-det{display:none;margin-top:10px}
+.trib-det.open{display:block}
+.trib-sub{font-size:10px;color:var(--ink3);line-height:1.55;margin-bottom:10px}
+.trib-comp{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.trib-reg{border-radius:var(--r2);padding:11px}
+.trib-reg.atual{border:1px solid rgba(255,92,92,.22);background:rgba(255,92,92,.05)}
+.trib-reg.ideal{border:1px solid var(--pu-l);background:var(--pu-d)}
+.trib-reg-tag{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px}
+.trib-reg.atual .trib-reg-tag{color:rgba(255,92,92,.7)}
+.trib-reg.ideal .trib-reg-tag{color:var(--pu);opacity:.8}
+.trib-reg-nome{font-size:11px;font-weight:700;color:var(--ink);margin-bottom:4px}
+.trib-reg-val{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.trib-reg.atual .trib-reg-val{color:rgba(255,92,92,.9)}
+.trib-reg.ideal .trib-reg-val{color:var(--pu)}
+.trib-reg-sub{font-size:9px;color:var(--ink4);margin-top:3px}
+.trib-rows{display:flex;flex-direction:column;gap:5px;margin-bottom:8px}
+.trib-row{display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:var(--r);padding:7px 10px}
+.trib-row-l{font-size:10px;color:var(--ink3)}
+.trib-row-v{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;color:var(--pu)}
+.trib-nota{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);line-height:1.55;padding-top:8px;border-top:1px solid rgba(255,255,255,.05)}
+.trib-nota::before{content:'// '}
+
+/* total geral 1sócio */
+.bs-total{margin:12px 16px 0;background:var(--bg2);border:1px solid var(--pu-l);border-radius:var(--r2);padding:10px 13px;display:flex;justify-content:space-between;align-items:center}
+.bs-total-l{font-size:10px;color:var(--ink3)}
+.bs-total-v{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--pu);letter-spacing:-.02em}
+
+/* pricing */
+.bs-pricing{margin:12px 16px 16px;background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r);padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.bs-pricing-l{font-size:10px;color:var(--ink3);line-height:1.5}
+.bs-pricing-l strong{color:var(--ink);display:block;font-size:11px;margin-bottom:1px}
+.bs-pricing-btn{background:var(--pu);color:#080d0a;border:none;border-radius:var(--r);padding:8px 14px;font-family:'DM Mono',monospace;font-size:9px;font-weight:500;letter-spacing:.1em;cursor:pointer;white-space:nowrap}
+
+/* ── CTAs ── */
+.ctas-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line2);align-items:stretch}
+.cta-card{padding:20px 16px;display:flex;flex-direction:column;gap:7px;min-height:180px}
+.cta-card.laudo{grid-column:1/-1;background:var(--em)}
+.cta-card.socio{background:var(--pu-d)}
+.cta-card.pub{background:var(--bg2)}
+.cta-eye{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.14em;text-transform:uppercase;opacity:.7}
+.cta-card.laudo .cta-eye{color:#080d0a}
+.cta-card.socio .cta-eye{color:var(--pu)}
+.cta-card.pub .cta-eye{color:var(--ink3)}
+.cta-title{font-family:'Syne',sans-serif;letter-spacing:-.02em;line-height:1.15}
+.cta-card.laudo .cta-title{font-size:20px;font-weight:800;color:#080d0a}
+.cta-card.socio .cta-title{font-size:15px;font-weight:800;color:var(--pu)}
+.cta-card.pub .cta-title{font-size:15px;font-weight:800;color:var(--ink2)}
+.cta-desc{font-size:10px;line-height:1.5}
+.cta-card.laudo .cta-desc{color:rgba(8,13,10,.65)}
+.cta-card.socio .cta-desc{color:var(--ink3)}
+.cta-card.pub .cta-desc{color:var(--ink3)}
+.cta-price{font-family:'Syne',sans-serif;font-weight:800;letter-spacing:-.02em}
+.cta-card.laudo .cta-price{font-size:26px;color:#080d0a}
+.cta-card.socio .cta-price{font-size:14px;color:var(--pu);line-height:1.4}
+.cta-card.pub .cta-price{font-size:13px;color:var(--em);line-height:1.4}
+.cta-btn{border:none;border-radius:var(--r);padding:12px 18px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;cursor:pointer;display:block;width:100%;text-align:center;margin-top:4px}
+.cta-card.laudo .cta-btn{background:#080d0a;color:var(--em)}
+.cta-card.socio .cta-btn{background:var(--pu);color:#080d0a}
+.cta-card.pub .cta-btn{background:transparent;border:1px solid var(--em-l);color:var(--em)}
+.cta-btn:hover{opacity:.9}
+
+/* ── TRANSPARÊNCIA — rodapé ── */
+.footer-trans{padding:16px 20px;border-top:1px solid var(--line)}
+.trans-titulo{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink4);margin-bottom:10px}
+.trans-item{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:10px}
+.trans-item:last-child{border:none}
+.trans-campo{color:var(--ink3);flex:1}
+.trans-st{font-family:'DM Mono',monospace;font-size:8px;padding:2px 8px;border-radius:var(--r3);flex-shrink:0}
+.trans-st.ok{background:var(--em-d);border:1px solid var(--em-l);color:var(--em)}
+.trans-st.est{background:var(--am-d);border:1px solid var(--am-l);color:var(--am)}
+.trans-st.auto{background:var(--bg3);border:1px solid var(--line2);color:var(--ink4)}
+
+/* ── VALUATION EQUAÇÃO ── */
+.val-equation{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding:14px;background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r2)}
+.val-eq-step{text-align:center;flex:1;min-width:70px}
+.val-eq-num{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--ink);letter-spacing:-.03em;line-height:1;margin-bottom:3px}
+.val-eq-num.val-eq-em{color:var(--em)}
+.val-eq-lbl{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4)}
+.val-eq-op{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--ink4);flex-shrink:0;padding:0 2px}
+.val-resultado{background:var(--em-d);border:1px solid var(--em-l);border-radius:var(--r2);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.val-res-lbl{font-size:11px;color:var(--ink3)}
+.val-res-lbl{font-size:12px;color:var(--ink3);font-weight:600;margin-bottom:2px}
+.val-res-num{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--em);letter-spacing:-.04em;line-height:1}
+.val-res-sub{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);margin-top:2px}
+
+/* ── TERMÔMETRO ── */
+.termo-labels{position:relative;height:36px;margin-bottom:6px}
+.termo-lbl-item{position:absolute;top:0}
+.termo-lbl-val{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;letter-spacing:-.02em;line-height:1}
+.termo-lbl-txt{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;margin-top:3px}
+.termo-track{height:14px;background:var(--bg2);border-radius:7px;position:relative;overflow:visible;margin-bottom:8px}
+.termo-fill-socio{position:absolute;left:0;top:0;height:100%;width:57%;background:linear-gradient(90deg,rgba(167,139,250,.35),rgba(167,139,250,.15));border-radius:7px 0 0 7px;border:1px solid rgba(167,139,250,.2)}
+.termo-pin{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;z-index:2}
+.termo-pin-line{width:2px;height:22px;background:var(--em);margin-bottom:-6px}
+.termo-pin-dot{width:14px;height:14px;border-radius:50%;background:var(--em);border:2px solid var(--bg);box-shadow:0 0 0 2px var(--em)}
+.termo-mark-cliente{position:absolute;right:0;top:50%;transform:translateY(-50%);width:3px;height:22px;background:var(--ink4);opacity:.4;border-radius:1px}
+.termo-note{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);line-height:1.6;margin-top:4px}
+.termo-note::before{content:'// '}
+
+/* ── BLOCO COMPRADORES ── */
+.bloco-comp{background:var(--bg3);border-top:1px solid var(--em-l);border-bottom:1px solid var(--em-l);border-left:3px solid var(--em)}
+.bc-header{padding:16px 17px 12px 20px;border-bottom:1px solid rgba(255,255,255,.08)}
+.bc-eye{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--em);opacity:.75;margin-bottom:5px}
+.bc-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--ink);letter-spacing:-.02em;line-height:1.2}
+.bc-tese{padding:14px 20px;border-bottom:1px solid var(--line)}
+.bc-tese-nums{display:flex;gap:0;margin-bottom:10px}
+.bc-tese-num{flex:1;text-align:center}
+.bc-tese-sep{width:1px;background:var(--line2);align-self:stretch}
+.bc-n{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;letter-spacing:-.04em;line-height:1;margin-bottom:3px}
+.bc-n.em{color:var(--em)}
+.bc-n.dim{color:var(--ink4)}
+.bc-l{font-family:'DM Mono',monospace;font-size:8px;color:var(--ink4);letter-spacing:.06em}
+.bc-tese-txt{font-size:10px;color:var(--ink3);line-height:1.65}
+.bc-audiencia{padding:12px 20px;border-bottom:1px solid var(--line);background:var(--em-d)}
+.bc-aud-eye{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--em);opacity:.7;margin-bottom:8px}
+.bc-aud-stats{display:flex;gap:1px}
+.bc-aud-stat{flex:1;background:var(--bg2);padding:8px;text-align:center}
+.bc-aud-n{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--em);letter-spacing:-.03em;line-height:1}
+.bc-aud-l{font-family:'DM Mono',monospace;font-size:8px;color:var(--ink4);letter-spacing:.06em;margin-top:2px;text-transform:uppercase}
+.bc-alertas{padding:12px 20px}
+.bc-alt-hdr{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;padding:8px 0;border-bottom:1px solid var(--line)}
+.bc-alt-hdr:hover{opacity:.8}
+.bc-alt-hdr-l strong{color:var(--ink);display:block;font-size:12px;margin-bottom:2px}
+.bc-alt-hdr-l span{font-size:10px;color:var(--ink3)}
+.bc-alt-badges{display:flex;gap:6px;align-items:center}
+
+/* ── COCKPIT DENTRO DO BLOCO 1SÓCIO ── */
+.bs-cockpit-wrap{border-top:1px solid var(--pu-l);border-bottom:1px solid var(--pu-l)}
+
+/* ── TERMÔMETRO NO HERO ── */
+.hero-termo{margin:16px 0}
+.hero-termo-labels{position:relative;height:32px;margin-bottom:5px}
+.hero-termo-lbl{position:absolute;top:0}
+.htl-val{font-family:'Syne',sans-serif;font-size:12px;font-weight:800;letter-spacing:-.02em;line-height:1}
+.htl-txt{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+.hero-termo-track{height:12px;background:rgba(255,255,255,.06);border-radius:6px;position:relative;overflow:visible;margin-bottom:6px}
+.hero-termo-fill{position:absolute;left:0;top:0;height:100%;width:57%;background:linear-gradient(90deg,rgba(167,139,250,.3),rgba(167,139,250,.08));border-radius:6px 0 0 6px;border:1px solid rgba(167,139,250,.18)}
+.hero-termo-pin{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;z-index:2}
+.htp-line{width:2px;height:20px;background:var(--em)}
+.htp-dot{width:12px;height:12px;border-radius:50%;background:var(--em);border:2px solid var(--bg);margin-top:-6px}
+.hero-termo-mark{position:absolute;right:0;top:50%;transform:translateY(-50%);width:2px;height:20px;background:var(--ink4);opacity:.35;border-radius:1px}
+.hero-termo-note{font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);line-height:1.5}
+.hero-termo-note::before{content:'// '}
+
+/* ── TERMÔMETRO NOVO ── */
+.hero-termo{margin:14px 0}
+.hero-termo-track{
+  height:10px;background:var(--bg2);border:1px solid var(--line2);
+  border-radius:5px;position:relative;margin-bottom:10px;overflow:visible;
+}
+/* faixa cinza esquerda até avaliação */
+.htr-left{
+  position:absolute;left:0;top:0;height:100%;width:50%;
+  background:var(--bg3);border-radius:5px 0 0 5px;
+}
+/* faixa roxa avaliação → 1sócio */
+.htr-socio{
+  position:absolute;left:50%;top:0;height:100%;width:36%;
+  background:linear-gradient(90deg,rgba(167,139,250,.35),rgba(167,139,250,.12));
+}
+/* pino avaliação — sempre 50% */
+.hero-termo-pin{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;align-items:center;z-index:4;
+}
+.htp-dot{
+  width:14px;height:14px;border-radius:50%;
+  background:var(--em);border:2px solid var(--bg);
+  box-shadow:0 0 0 2px var(--em);z-index:4;
+}
+.htp-line{width:2px;height:16px;background:var(--em);margin-top:0}
+
+/* pino 1sócio — 86% */
+.htr-pin-socio{
+  position:absolute;left:86%;top:50%;transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;align-items:center;z-index:3;
+}
+.htps-dot{width:10px;height:10px;border-radius:50%;background:var(--pu);border:2px solid var(--bg)}
+.htps-line{width:1.5px;height:14px;background:var(--pu);opacity:.7}
+
+/* pino cliente — 100% */
+.htr-pin-cliente{
+  position:absolute;right:0;top:50%;transform:translateY(-50%);
+  display:flex;flex-direction:column;align-items:center;z-index:2;
+}
+.htpc-dot{width:8px;height:8px;border-radius:50%;background:var(--ink4);border:2px solid var(--bg)}
+.htpc-line{width:1.5px;height:14px;background:var(--ink4);opacity:.4}
+
+/* 3 boxes abaixo */
+.hero-termo-boxes{display:flex;gap:4px}
+.htb{
+  flex:1;background:var(--bg2);border:1px solid var(--line2);
+  border-radius:var(--r);padding:7px 8px;text-align:center;
+}
+.htb-avaliacao{border-color:var(--em-l);background:var(--em-d)}
+.htb-socio{border-color:var(--pu-l);background:var(--pu-d)}
+.htb-cliente{border-color:var(--line2)}
+.htb-val{
+  font-family:'Syne',sans-serif;font-size:13px;font-weight:800;
+  letter-spacing:-.02em;line-height:1;margin-bottom:3px;
+}
+.htb-avaliacao .htb-val{color:var(--em)}
+.htb-socio .htb-val{color:var(--pu)}
+.htb-cliente .htb-val{color:var(--ink4)}
+.htb-lbl{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);line-height:1.3}
+.htb-avaliacao .htb-lbl{color:rgba(61,255,122,.6)}
+.htb-socio .htb-lbl{color:rgba(167,139,250,.6)}
+
+/* ── BLOCO 1SÓCIO SUB-SEÇÕES ── */
+.bs-subsec{border-top:1px solid rgba(167,139,250,.15)}
+.bs-subsec-bonus{border-top:1px solid rgba(167,139,250,.25)}
+.bs-subsec-hdr{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:11px 16px;cursor:pointer;user-select:none;
+}
+.bs-subsec-hdr:hover{background:rgba(167,139,250,.04)}
+.bs-subsec-hdr-l{}
+.bs-subsec-eye{
+  font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--pu);opacity:.7;margin-bottom:3px;
+}
+.bs-subsec-title{font-size:12px;font-weight:700;color:var(--ink)}
+
+/* bs-badge-mini */
+.bs-badge-mini{font-family:'DM Mono',monospace;font-size:9px;color:var(--pu);padding:3px 8px;border:1px solid var(--pu-l);border-radius:var(--r3);background:var(--pu-d)}
+
+/* bs-footer */
+.bs-footer{border-top:1px solid rgba(167,139,250,.2);padding:14px 16px}
+.bs-total-wrap{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.bs-total-l{font-size:10px;color:var(--ink3)}
+.bs-total-v{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--pu);letter-spacing:-.02em}
+.bs-pricing-wrap{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.bs-pricing-l{font-size:10px;color:var(--ink3);line-height:1.5}
+.bs-pricing-l strong{color:var(--ink);display:block;font-size:11px;margin-bottom:1px}
+
+/* acoes-wrap dentro de bloco */
+.acoes-wrap{display:flex;flex-direction:column;gap:2px;padding:10px 16px 0}
+
+/* bs header summary */
+.bs-summary-row{display:flex;gap:6px;margin-top:10px}
+.bs-sum-item{flex:1;border-radius:var(--r);padding:8px;text-align:center}
+.bs-sum-item.g{background:var(--em-d);border:1px solid var(--em-l)}
+.bs-sum-item.r{background:var(--rd-d);border:1px solid var(--rd-l)}
+.bs-sum-item.pu{background:var(--pu-d);border:1px solid var(--pu-l)}
+.bs-sum-n{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;letter-spacing:-.02em;line-height:1;margin-bottom:2px}
+.bs-sum-item.g .bs-sum-n{color:var(--em)}
+.bs-sum-item.r .bs-sum-n{color:var(--rd)}
+.bs-sum-item.pu .bs-sum-n{color:var(--pu)}
+.bs-sum-l{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.06em;text-transform:uppercase}
+.bs-sum-item.g .bs-sum-l{color:rgba(61,255,122,.55)}
+.bs-sum-item.r .bs-sum-l{color:rgba(255,92,92,.55)}
+.bs-sum-item.pu .bs-sum-l{color:rgba(167,139,250,.55)}
+
+/* toggle principal do bloco */
+.bs-main-toggle{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 16px;cursor:pointer;user-select:none;
+  border-top:1px solid rgba(167,139,250,.2);
+  font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--pu);
+}
+.bs-main-toggle:hover{background:rgba(167,139,250,.04)}
+
+/* sub-seções */
+.bs-sub{border-top:1px solid rgba(167,139,250,.12)}
+.bs-sub-bonus{border-top:1px solid rgba(167,139,250,.22)}
+
+/* destaque dentro de cada sub — sempre visível */
+.bs-sub-dest{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 16px;
+}
+.bs-sub-dest-l{}
+.bs-sub-eye{
+  font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--pu);opacity:.7;margin-bottom:3px;
+}
+.bs-sub-name{font-size:12px;font-weight:700;color:var(--ink)}
+
+/* toggle de sub-seção */
+.bs-sub-toggle{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 16px 8px;cursor:pointer;user-select:none;
+  font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink3);
+  border-top:1px solid var(--line);
+}
+.bs-sub-toggle:hover{color:var(--pu)}
+
+/* footer */
+.bs-footer{padding:12px 16px;border-top:1px solid rgba(167,139,250,.2)}
+.bs-total-wrap{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.bs-total-l{font-size:10px;color:var(--ink3)}
+.bs-total-v{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--pu);letter-spacing:-.02em}
+.bs-pricing-wrap{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.bs-pricing-l{font-size:10px;color:var(--ink3);line-height:1.5}
+.bs-pricing-l strong{color:var(--ink);display:block;font-size:11px;margin-bottom:1px}
+.bs-badge-mini{font-family:'DM Mono',monospace;font-size:9px;color:var(--pu);padding:3px 8px;border:1px solid var(--pu-l);border-radius:var(--r3);background:var(--pu-d);flex-shrink:0}
+
+/* summary boxes 1Sócio — novos */
+.bs-sum-eye{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;opacity:.7}
+.bs-sum-item.trib{background:rgba(255,176,58,.08);border:1px solid rgba(255,176,58,.2)}
+.bs-sum-item.trib .bs-sum-eye{color:var(--am)}
+.bs-sum-item.trib .bs-sum-n{color:var(--am)}
+.bs-sum-item.trib .bs-sum-l{color:rgba(255,176,58,.55)}
+.bs-sum-item.ganho{background:var(--em-d);border:1px solid var(--em-l)}
+.bs-sum-item.ganho .bs-sum-eye{color:var(--em)}
+.bs-sum-item.ganho .bs-sum-n{color:var(--em)}
+.bs-sum-item.ganho .bs-sum-l{color:rgba(61,255,122,.55)}
+.bs-sum-item.val{background:var(--pu-d);border:1px solid var(--pu-l)}
+.bs-sum-item.val .bs-sum-eye{color:var(--pu)}
+.bs-sum-item.val .bs-sum-n{color:var(--pu)}
+.bs-sum-item.val .bs-sum-l{color:rgba(167,139,250,.55)}
+.bs-sum-n{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;letter-spacing:-.02em;line-height:1;margin-bottom:2px}
+.bs-sum-l{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.06em;text-transform:uppercase}
+
+/* trans toggle */
+.trans-toggle{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;margin-bottom:10px}
+.trans-toggle:hover .trans-titulo{color:var(--ink3)}
+
+/* hero trans line */
+.hero-trans-line{
+  margin-top:6px;padding:5px 0;cursor:pointer;
+  border-top:1px solid var(--line);
+  display:flex;align-items:center;
+}
+.hero-trans-txt{
+  font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;
+  color:var(--ink4);line-height:1.4;
+  transition:color .2s;
+}
+.hero-trans-line:hover .hero-trans-txt{color:var(--ink3)}
+
+/* bs-hook — subtítulo chamativo */
+
+
+/* aderência >100% — tratar no JS, mas CSS base */
+.dest-big.over100{color:var(--em)}
+
+/* bs-top-row — badge + hook alinhados */
+.bs-top-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.bs-hook-inline{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}
+.bs-hook-n{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--pu);letter-spacing:-.02em;line-height:1;flex-shrink:0}
+.bs-hook-txt{font-size:10px;color:var(--ink3)}
+
+/* bc-top-row — 1Negócio badge + hook */
+.bc-top-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.bc-badge-1n{
+  display:inline-flex;align-items:center;
+  background:var(--em-d);border:1px solid var(--em-l);border-radius:var(--r3);
+  padding:3px 10px;font-family:'DM Mono',monospace;font-size:8px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--em);flex-shrink:0;
+}
+.bc-hook-inline{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}
+.bc-hook-n{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--em);letter-spacing:-.02em;line-height:1;flex-shrink:0}
+.bc-hook-txt{font-size:10px;color:var(--ink3)}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="ld-logo"><em>1</em>Negócio</div>
+  <div>
+    <div class="ld-msgs">
+      <div class="ld-msg" id="m0">Analisando sua DRE...</div>
+      <div class="ld-msg" id="m1">Comparando com negócios similares...</div>
+      <div class="ld-msg" id="m2">Calculando o Índice de Solidez...</div>
+      <div class="ld-msg" id="m3">Aplicando expectativas do setor...</div>
+      <div class="ld-msg" id="m4">Gerando sua avaliação...</div>
+      <div class="ld-msg" id="m5">Sua avaliação está pronta.</div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="ld-track"><div class="ld-fill" id="ld-fill"></div></div>
+    <div style="height:6px"></div>
+    <div class="ld-pct" id="ld-pct">0%</div>
+  </div>
+</div>
+
+<!-- TOPBAR + JORNADA -->
+<div id="topbar">
+  <div class="tb-top">
+    <div class="logo"><em>1</em>Negócio · Avaliação</div>
+    <div class="tb-chips">
+      <div class="chip" id="chip-data">28 MAR 2026</div>
+      <div class="chip em">Laudo Gratuito</div>
+    </div>
+  </div>
+  <div class="tb-jornada">
+    <div class="tj-step">
+      <div class="tj-item active"><div class="tj-dot"></div>Avaliação Gratuita</div>
+    </div>
+    <div class="tj-sep"></div>
+    <div class="tj-step">
+      <div class="tj-item">Laudo Completo</div>
+    </div>
+    <div class="tj-sep"></div>
+    <div class="tj-step">
+      <div class="tj-item">1Sócio · Incrementar valor</div>
+    </div>
+    <div class="tj-sep"></div>
+    <div class="tj-step">
+      <div class="tj-item">1Negócio · Vender</div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-tags">
+    <span class="htag em">Alimentação</span>
+    <span class="htag">Comércio / Varejo</span>
+    <span class="htag">São Paulo · SP</span>
+    <span class="htag">6 anos</span>
+  </div>
+  <div class="hero-name">Padaria Aclimação</div>
+  <div class="ai-bubble" style="margin-top:10px;margin-bottom:14px">
+    <div class="ai-txt">Padarias com ponto consolidado em bairros residenciais como a Aclimação têm uma vantagem difícil de replicar — a clientela caminha até você. Com 6 anos de operação, o negócio já superou a fase mais crítica e está no território onde compradores prestam atenção.</div>
+  </div>
+  <div class="hero-meta">Diagnóstico concluído · 28 MAR 2026</div>
+  <div class="hero-val-lbl">Seu negócio foi avaliado em</div>
+  <div class="hero-val">R$ 199.000</div>
+  <div class="hero-val-sub">Valor de venda estimado · negócio em operação + patrimônio</div>
+
+  <!-- ISE no hero -->
+  <div class="hero-ise">
+    <div class="hero-ise-score">
+      <div class="hero-ise-n">62</div>
+      <div class="hero-ise-label">pts ISE</div>
+    </div>
+    <div class="hero-ise-sep"></div>
+    <div class="hero-ise-info">
+      <div class="hero-ise-nome">Operacional</div>
+      <div class="hero-ise-sub">Solidez empresarial · fator neutro 1.00x</div>
+      <div class="hero-ise-escala">
+        <span class="hie hie-dim">Embrionário</span>
+        <span class="hie hie-dim">Dependente</span>
+        <span class="hie hie-ativo">Operacional ✓</span>
+        <span class="hie hie-dim">Consolidado</span>
+        <span class="hie hie-dim">Estruturado</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Termômetro no hero — ordenado menor→maior, avaliação fixada ao centro -->
+  <div class="hero-termo">
+
+    <!-- Barra principal -->
+    <div class="hero-termo-track">
+      <!-- Faixa esquerda (até avaliação) -->
+      <div class="htr-left"></div>
+      <!-- Faixa 1Sócio (avaliação → 1sócio) -->
+      <div class="htr-socio"></div>
+      <!-- Pino: avaliação hoje — SEMPRE ao centro da barra -->
+      <div class="hero-termo-pin">
+        <div class="htp-dot"></div>
+        <div class="htp-line"></div>
+      </div>
+      <!-- Pino 1Sócio -->
+      <div class="htr-pin-socio">
+        <div class="htps-dot"></div>
+        <div class="htps-line"></div>
+      </div>
+      <!-- Marcador cliente -->
+      <div class="htr-pin-cliente">
+        <div class="htpc-dot"></div>
+        <div class="htpc-line"></div>
+      </div>
+    </div>
+
+    <!-- 3 boxes abaixo da barra -->
+    <div class="hero-termo-boxes">
+      <div class="htb htb-avaliacao">
+        <div class="htb-val">R$ 199k</div>
+        <div class="htb-lbl">Avaliação 1Negócio</div>
+      </div>
+      <div class="htb htb-socio">
+        <div class="htb-val">R$ 311k</div>
+        <div class="htb-lbl">Potencial 1Sócio · 12m</div>
+      </div>
+      <div class="htb htb-cliente">
+        <div class="htb-val">R$ 350k</div>
+        <div class="htb-lbl">Expectativa proprietário</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="hero-scroll" onclick="document.getElementById('ancora-dre').scrollIntoView({behavior:'smooth'})">
+    <span>↓</span>Veja como chegamos a este número
+  </div>
+</div>
+
+<!-- DRE -->
+<div class="sec" id="ancora-dre">
+  <div class="sh">DRE Ajustada</div>
+
+  <!-- RO destaque — sempre visível, ACIMA do toggle -->
+  <div class="dest verde" style="margin-bottom:8px">
+    <div class="dest-l"><strong>Resultado Operacional</strong>Base do valuation</div>
+    <div class="dest-r">
+      <div class="dest-big em">R$ 64.800</div>
+      <div class="dest-small">R$ 5.400 / mês</div>
+    </div>
+  </div>
+
+  <div class="tbtn" onclick="toggleDRE()" id="dre-tbtn" style="border-top:none;margin-bottom:8px">
+    <span id="dre-lbl">Recolher DRE</span>
+    <div class="ti open" id="dre-ti">▼</div>
+  </div>
+
+  <div id="dre-body">
+    <div class="dre-hdr"><div class="dre-ch">Mensal</div><div class="dre-ch">Anual</div></div>
+    <div class="dr"><div class="dr-l">Faturamento Bruto</div><div class="dr-vs"><div class="dr-v">55.000</div><div class="dr-v">660.000</div></div></div>
+    <div class="dr"><div class="dr-l">(−) Impostos · Simples</div><div class="dr-vs"><div class="dr-v">5.500</div><div class="dr-v">66.000</div></div></div>
+    <div class="dr"><div class="dr-l">(−) Processadores</div><div class="dr-vs"><div class="dr-v">1.100</div><div class="dr-v">13.200</div></div></div>
+    <div class="dr"><div class="dr-l hi">= Receita Líquida</div><div class="dr-vs"><div class="dr-v">48.400</div><div class="dr-v">580.800</div></div></div>
+    <div class="dr"><div class="dr-l">(−) CMV</div><div class="dr-vs"><div class="dr-v">22.000</div><div class="dr-v">264.000</div></div></div>
+    <div class="dr"><div class="dr-l hi">= Margem Bruta</div><div class="dr-vs"><div class="dr-v">26.400</div><div class="dr-v">316.800</div></div></div>
+    <div class="dr">
+      <div class="dr-wrap"><div class="dr-l">(−) Folha CLT Bruta</div><div class="dr-alerta">acima da expectativa (22% vs. 18%)</div></div>
+      <div class="dr-vs"><div class="dr-v">8.000</div><div class="dr-v">96.000</div></div>
+    </div>
+    <div class="dr"><div class="dr-l dim">&nbsp;&nbsp;↳ Encargos CLT (29,2%)</div><div class="dr-vs"><div class="dr-v fade">2.336</div><div class="dr-v fade">28.032</div></div></div>
+    <div class="dr"><div class="dr-l dim">&nbsp;&nbsp;↳ Provisões CLT (22,4%)</div><div class="dr-vs"><div class="dr-v fade">1.792</div><div class="dr-v fade">21.504</div></div></div>
+    <div class="dr">
+      <div class="dr-wrap"><div class="dr-l">(−) Aluguel</div><div class="dr-alerta">acima da expectativa (16% vs. 10%)</div></div>
+      <div class="dr-vs"><div class="dr-v">9.000</div><div class="dr-v">108.000</div></div>
+    </div>
+    <div class="dr"><div class="dr-l">(−) Facilities + Terceiros</div><div class="dr-vs"><div class="dr-v">2.000</div><div class="dr-v">24.000</div></div></div>
+    <div class="dr"><div class="dr-l">(−) Marketing Pago</div><div class="dr-vs"><div class="dr-v">1.000</div><div class="dr-v">12.000</div></div></div>
+    <div class="dr tot"><div class="dr-l hi">Resultado Operacional</div><div class="dr-vs"><div class="dr-v em">5.400</div><div class="dr-v em">64.800</div></div></div>
+    <div class="dr" style="margin-top:6px"><div class="dr-l dim">(inf.) Parcelas de empréstimos</div><div class="dr-vs"><div class="dr-v fade">1.500</div><div class="dr-v fade">18.000</div></div></div>
+    <div class="dr"><div class="dr-l dim">(inf.) Retiradas dos sócios</div><div class="dr-vs"><div class="dr-v fade">2.500</div><div class="dr-v fade">30.000</div></div></div>
+    <div style="margin-top:6px" class="cmt">linhas informativas não entram no valuation</div>
+  </div>
+
+
+</div>
+
+<!-- ANÁLISE 1SÓCIO — BENCHMARK + OPORTUNIDADES -->
+<div class="bloco-socio" style="border-left:3px solid var(--pu);border-top:1px solid var(--pu-l);border-bottom:1px solid var(--pu-l);border-right:1px solid var(--line2)">
+
+  <!-- Badge topo + Benchmark -->
+  <div style="padding:16px 16px 0">
+    <div style="display:inline-flex;align-items:center;gap:5px;background:var(--pu-d);border:1px solid var(--pu-l);border-radius:var(--r3);padding:3px 10px;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--pu);margin-bottom:14px">
+      <div style="width:5px;height:5px;border-radius:50%;background:var(--pu);animation:pulse 2s infinite"></div>
+      Análise 1Sócio · Comparativo do setor/segmento
+    </div>
+    <div style="background:var(--pu-d);border:1px solid var(--pu-l);border-radius:var(--r2);padding:11px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="dest-l"><strong>Expectativa de Mercado</strong>Comércio / Varejo · média ponderada das linhas</div>
+      <div class="dest-r">
+        <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;letter-spacing:-.03em;color:var(--pu)">67%</div>
+        <div class="dest-small">ponderado</div>
+      </div>
+    </div>
+    <div class="tbtn" style="border-top:none;margin-bottom:0;color:var(--pu)" onclick="toggle('bk-body','bk-ti')">
+      <span>Ver comparativo completo</span>
+      <div class="ti" id="bk-ti" style="border-color:var(--pu-l);color:var(--pu)">▼</div>
+    </div>
+  </div>
+
+  <!-- Barrinhas expansíveis -->
+  <div style="padding:0 16px 4px">
+<div class="tbody" id="bk-body">
+    <div class="bk">
+      <div class="bk-row"><div class="bk-nome">CMV</div><div class="bk-vals"><div class="bk-y" style="color:var(--em)">40%</div><div class="bk-e">esp. 40%</div></div><div class="bk-dot" style="background:var(--em)"></div></div>
+      <div class="bk-track"><div class="bk-fill" style="width:40%;background:rgba(61,255,122,.45)"></div><div class="bk-mark" style="left:40%"></div></div>
+    </div>
+    <div class="bk">
+      <div class="bk-row"><div class="bk-nome">Custo de Pessoal</div><div class="bk-vals"><div class="bk-y" style="color:var(--rd)">22%</div><div class="bk-e">esp. 18%</div></div><div class="bk-dot" style="background:var(--rd)"></div></div>
+      <div class="bk-track"><div class="bk-fill" style="width:44%;background:rgba(255,92,92,.55)"></div><div class="bk-mark" style="left:36%"></div></div>
+    </div>
+    <div class="bk">
+      <div class="bk-row"><div class="bk-nome">Aluguel</div><div class="bk-vals"><div class="bk-y" style="color:var(--rd)">16%</div><div class="bk-e">esp. 10%</div></div><div class="bk-dot" style="background:var(--rd)"></div></div>
+      <div class="bk-track"><div class="bk-fill" style="width:32%;background:rgba(255,92,92,.55)"></div><div class="bk-mark" style="left:20%"></div></div>
+    </div>
+    <div class="bk">
+      <div class="bk-row"><div class="bk-nome">Marketing</div><div class="bk-vals"><div class="bk-y" style="color:var(--em)">2%</div><div class="bk-e">esp. 3%</div></div><div class="bk-dot" style="background:var(--em)"></div></div>
+      <div class="bk-track"><div class="bk-fill" style="width:4%;background:rgba(61,255,122,.45)"></div><div class="bk-mark" style="left:6%"></div></div>
+    </div>
+    <div class="bk">
+      <div class="bk-row"><div class="bk-nome">Resultado Operacional</div><div class="bk-vals"><div class="bk-y" style="color:var(--am)">9%</div><div class="bk-e">esp. 14%</div></div><div class="bk-dot" style="background:var(--am)"></div></div>
+      <div class="bk-track"><div class="bk-fill" style="width:18%;background:rgba(255,176,58,.5)"></div><div class="bk-mark" style="left:28%"></div></div>
+    </div>
+    <div class="bk-leg">barra = seu % · traço = expectativa para Comércio / Varejo</div>
+  </div>
+  </div>
+
+  <!-- Divisor -->
+  <div style="height:1px;background:var(--pu-l);opacity:.35;margin:4px 0 0"></div>
+
+
+  <!-- HEADER SEMPRE VISÍVEL -->
+  <div class="bs-header">
+    <div class="bs-top-row">
+      <div class="bs-badge"><div class="bs-dot"></div>1Sócio.com.br</div>
+      <div class="bs-hook-inline">
+        <span class="bs-hook-n">+R$ 238.000</span>
+        <span class="bs-hook-txt">em oportunidades identificadas</span>
+      </div>
+    </div>
+    <div class="bs-summary-row">
+      <div class="bs-sum-item trib">
+        <div class="bs-sum-eye">Regime tributário</div>
+        <div class="bs-sum-n">R$ 22k</div>
+        <div class="bs-sum-l">economia/ano</div>
+      </div>
+      <div class="bs-sum-item ganho">
+        <div class="bs-sum-eye">Ganho operacional</div>
+        <div class="bs-sum-n">+R$ 57k</div>
+        <div class="bs-sum-l">ano · R$ 4.750/mês</div>
+      </div>
+      <div class="bs-sum-item val">
+        <div class="bs-sum-eye">Valorização estimada</div>
+        <div class="bs-sum-n">+R$ 238k</div>
+        <div class="bs-sum-l">em 12 meses</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOGGLE PRINCIPAL — abre tudo -->
+  <div class="bs-main-toggle" onclick="toggle('bs-body','bs-main-ti')">
+    <span id="bs-main-lbl">Ver análise completa da 1Sócio</span>
+    <div class="ti" id="bs-main-ti">▼</div>
+  </div>
+
+  <!-- CORPO EXPANSÍVEL -->
+  <div class="tbody" id="bs-body">
+
+    <!-- ─── SUB 1: INDICADORES ─── -->
+    <div class="bs-sub">
+      <!-- DESTAQUE SEMPRE VISÍVEL DENTRO DO CORPO -->
+      <div class="bs-sub-dest">
+        <div class="bs-sub-dest-l">
+          <div class="bs-sub-eye">Cockpit do negócio</div>
+          <div class="bs-sub-name">Indicadores implícitos</div>
+        </div>
+        <div class="cbadges">
+          <div class="cb g">3<div class="cb-l">OK</div></div>
+          <div class="cb y">2<div class="cb-l">att</div></div>
+          <div class="cb r">2<div class="cb-l">crit</div></div>
+        </div>
+      </div>
+      <!-- TOGGLE DO SUB -->
+      <div class="bs-sub-toggle" onclick="toggle('ind-body','ind-ti')">
+        <span>Ver indicadores detalhados</span>
+        <div class="ti" id="ind-ti">▼</div>
+      </div>
+      <div class="tbody" id="ind-body">
+        <div class="ind-grid" style="padding:0 16px 10px">
+          <div class="ind-item">
+            <div class="ind-main" onclick="expandInd('i0','i0-ico')">
+              <div class="ind-box g"><div class="ind-num">12d</div><div class="ind-unit">PMR</div></div>
+              <div class="ind-cnt"><div class="ind-title">Ciclo financeiro favorável</div><div class="ind-short">PMR 12d · PMP 28d · você recebe antes de pagar</div></div>
+              <div class="ind-ico" id="i0-ico">▼</div>
+            </div>
+            <div class="ind-det" id="i0"><div class="ind-desc">Você recebe em 12 dias e paga em 28. Fornecedores financiam sua operação — vantagem real de fluxo de caixa.</div></div>
+          </div>
+          <div class="ind-item">
+            <div class="ind-main" onclick="expandInd('i1','i1-ico')">
+              <div class="ind-box y"><div class="ind-num">2,0</div><div class="ind-unit">meses</div></div>
+              <div class="ind-cnt"><div class="ind-title">Cobertura de caixa baixa</div><div class="ind-short">Ideal: 3 meses · abaixo do esperado</div></div>
+              <div class="ind-ico" id="i1-ico">▼</div>
+            </div>
+            <div class="ind-det" id="i1">
+              <div class="ind-desc">Abaixo do ideal de 3 meses para o setor.</div>
+              <div class="insight"><div class="insight-lbl">1Sócio · insight</div><div class="insight-txt">A sensação de que o caixa aperta não vem de faturamento baixo — vem de capital circulando mal. Reserva curta obriga decisões reativas. A solução não é vender mais, mas gerenciar melhor o ciclo.</div></div>
+            </div>
+          </div>
+          <div class="ind-item">
+            <div class="ind-main" onclick="expandInd('i2','i2-ico')">
+              <div class="ind-box y"><div class="ind-num">2,8x</div><div class="ind-unit">dív/RO</div></div>
+              <div class="ind-cnt"><div class="ind-title">Endividamento moderado</div><div class="ind-short">~2,8 anos de resultado para quitar</div></div>
+              <div class="ind-ico" id="i2-ico">▼</div>
+            </div>
+            <div class="ind-det" id="i2"><div class="ind-desc">Levaria ~2,8 anos de resultado operacional para quitar toda a dívida financeira atual.</div></div>
+          </div>
+          <div class="ind-item">
+            <div class="ind-main" onclick="expandInd('i3','i3-ico')">
+              <div class="ind-box r"><div class="ind-num">6,5x</div><div class="ind-unit">imob/RO</div></div>
+              <div class="ind-cnt"><div class="ind-title">Imobilizado alto</div><div class="ind-short">Ativos fixos = 6,5 anos de resultado</div></div>
+              <div class="ind-ico" id="i3-ico">▼</div>
+            </div>
+            <div class="ind-det" id="i3">
+              <div class="ind-desc">Equipamentos e ativos fixos representam 6,5 anos de resultado.</div>
+              <div class="insight"><div class="insight-lbl">1Sócio · insight</div><div class="insight-txt">Imobilizado alto é capital dormindo. O sócio sente como margem comprimida e dificuldade de crescer. A causa é o ativo — a dor é sentida como falta de caixa para investir.</div></div>
+            </div>
+          </div>
+          <div class="ind-item">
+            <div class="ind-main" onclick="expandInd('i4','i4-ico')">
+              <div class="ind-box r"><div class="ind-num">72%</div><div class="ind-unit">caixa</div></div>
+              <div class="ind-cnt"><div class="ind-title">Comprometimento de caixa alto</div><div class="ind-short">Parcelas consomem 72% do resultado</div></div>
+              <div class="ind-ico" id="i4-ico">▼</div>
+            </div>
+            <div class="ind-det" id="i4">
+              <div class="ind-desc">Parcelas de dívida consomem 72% do resultado mensal.</div>
+              <div class="insight"><div class="insight-lbl">1Sócio · insight</div><div class="insight-txt">"O dinheiro some antes de sobrar." Portabilidade com menor taxa pode aliviar sem precisar aumentar faturamento.</div></div>
+            </div>
+          </div>
+          <div class="ind-item">
+            <div class="ind-main" onclick="expandInd('i5','i5-ico')">
+              <div class="ind-box g"><div class="ind-num">CLT</div><div class="ind-unit">100%</div></div>
+              <div class="ind-cnt"><div class="ind-title">Mix CLT regular</div><div class="ind-short">Sem risco de passivo trabalhista</div></div>
+              <div class="ind-ico" id="i5-ico">▼</div>
+            </div>
+            <div class="ind-det" id="i5"><div class="ind-desc">Toda a equipe em CLT regular. Ponto positivo em qualquer due diligence.</div></div>
+          </div>
+          <div class="ind-item">
+            <div class="ind-main" onclick="expandInd('i6','i6-ico')">
+              <div class="ind-box g"><div class="ind-num" style="font-size:12px">R$183</div><div class="ind-unit">ticket</div></div>
+              <div class="ind-cnt"><div class="ind-title">Ticket médio mensal</div><div class="ind-short">300 clientes · R$ 183/cliente/mês</div></div>
+              <div class="ind-ico" id="i6-ico">▼</div>
+            </div>
+            <div class="ind-det" id="i6"><div class="ind-desc">Calculado sobre 300 clientes ativos declarados.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── SUB 2: AÇÕES ─── -->
+    <div class="bs-sub">
+      <!-- DESTAQUE -->
+      <div class="bs-sub-dest">
+        <div class="bs-sub-dest-l">
+          <div class="bs-sub-eye">Plano de ação</div>
+          <div class="bs-sub-name">3 oportunidades identificadas</div>
+        </div>
+        <div class="bs-badge-mini">+R$ 183k</div>
+      </div>
+      <!-- TOGGLE -->
+      <div class="bs-sub-toggle" onclick="toggle('acoes-body','acoes-ti')">
+        <span>Ver ações detalhadas</span>
+        <div class="ti" id="acoes-ti">▼</div>
+      </div>
+      <div class="tbody" id="acoes-body">
+        <div style="padding:10px 16px;display:flex;flex-direction:column;gap:2px">
+          <div class="acao-item">
+            <div class="acao-res" onclick="expandAcao('a0','a0-ico')">
+              <div class="acao-nbox"><div class="acao-num">01</div></div>
+              <div class="acao-cnt">
+                <div class="acao-opp">Oportunidade identificada</div>
+                <div class="acao-nome">Renegociar contrato de aluguel</div>
+                <div class="acao-gains"><span class="gain-tag op">+R$ 2.750/mês</span><span class="gain-tag op">+R$ 33.000/ano</span><span class="gain-tag val">+R$ 82.500 valor</span></div>
+              </div>
+              <div class="acao-ico" id="a0-ico">▼</div>
+            </div>
+            <div class="acao-det" id="a0"><div class="acao-porque">Aluguel representa 16% da receita vs. 10% esperado. Chegar ao nível do setor libera R$ 2.750/mês diretamente no resultado operacional.</div></div>
+          </div>
+          <div class="acao-item">
+            <div class="acao-res" onclick="expandAcao('a1','a1-ico')">
+              <div class="acao-nbox"><div class="acao-num">02</div></div>
+              <div class="acao-cnt">
+                <div class="acao-opp">Oportunidade identificada</div>
+                <div class="acao-nome">Desenvolver gestor autônomo</div>
+                <div class="acao-gains"><span class="gain-tag val">+R$ 40.500 valor via ISE</span></div>
+              </div>
+              <div class="acao-ico" id="a1-ico">▼</div>
+            </div>
+            <div class="acao-det" id="a1"><div class="acao-porque">Sócio-dependência crítica (P5 = 2/10) é o maior fator de desconto em M&A. Resolver eleva o ISE para Consolidado — impacto direto no múltiplo final.</div></div>
+          </div>
+          <div class="acao-item">
+            <div class="acao-res" onclick="expandAcao('a2','a2-ico')">
+              <div class="acao-nbox"><div class="acao-num">03</div></div>
+              <div class="acao-cnt">
+                <div class="acao-opp">Oportunidade identificada</div>
+                <div class="acao-nome">Otimizar custo de pessoal</div>
+                <div class="acao-gains"><span class="gain-tag op">+R$ 2.000/mês</span><span class="gain-tag op">+R$ 24.000/ano</span><span class="gain-tag val">+R$ 60.000 valor</span></div>
+              </div>
+              <div class="acao-ico" id="a2-ico">▼</div>
+            </div>
+            <div class="acao-det" id="a2"><div class="acao-porque">Custo de pessoal a 22% vs. 18% esperado. Mapear funções pode reduzir R$ 2.000/mês sem perda operacional.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── SUB 3: TRIBUTAÇÃO ─── -->
+    <div class="bs-sub bs-sub-bonus">
+      <!-- DESTAQUE -->
+      <div class="bs-sub-dest">
+        <div class="bs-sub-dest-l">
+          <div class="bs-sub-eye" style="color:var(--pu)">✦ Bônus · Análise tributária</div>
+          <div class="bs-sub-name">Potencial de economia identificado</div>
+        </div>
+        <div class="bs-badge-mini">+R$ 55k</div>
+      </div>
+      <!-- TOGGLE -->
+      <div class="bs-sub-toggle" onclick="toggle('trib-body','trib-ti')">
+        <span>Ver estudo tributário</span>
+        <div class="ti" id="trib-ti">▼</div>
+      </div>
+      <div class="tbody" id="trib-body">
+        <div style="padding:10px 16px 12px">
+          <div style="font-size:10px;color:var(--ink3);line-height:1.55;margin-bottom:10px">Seu regime atual pode não ser o mais vantajoso. Veja o impacto de uma migração:</div>
+          <div class="trib-comp">
+            <div class="trib-reg atual"><div class="trib-reg-tag">Regime atual</div><div class="trib-reg-nome">Lucro Presumido</div><div class="trib-reg-val">R$ 88.000</div><div class="trib-reg-sub">impostos/ano</div></div>
+            <div class="trib-reg ideal"><div class="trib-reg-tag">Regime ideal</div><div class="trib-reg-nome">Simples Nacional</div><div class="trib-reg-val">R$ 66.000</div><div class="trib-reg-sub">impostos/ano</div></div>
+          </div>
+          <div class="trib-rows">
+            <div class="trib-row"><div class="trib-row-l">Economia tributária anual</div><div class="trib-row-v">R$ 22.000/ano</div></div>
+            <div class="trib-row"><div class="trib-row-l">Novo RO projetado</div><div class="trib-row-v">R$ 86.800/ano</div></div>
+            <div class="trib-row"><div class="trib-row-l">Impacto no Valor de Venda</div><div class="trib-row-v">+R$ 55.000</div></div>
+          </div>
+          <div class="trib-nota">estimativa baseada no faturamento declarado · não substitui planejamento tributário com contador</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── TOTAL GERAL + PRICING ─── -->
+    <div class="bs-footer">
+      <div class="bs-total-wrap">
+        <div class="bs-total-l">Incremento potencial total em 12 meses</div>
+        <div class="bs-total-v">+R$ 238.000</div>
+      </div>
+      <div class="bs-pricing-wrap">
+        <div class="bs-pricing-l">
+          <strong>Contratar a 1Sócio</strong>
+          R$ 1.621/mês · 12 meses · + 20% do resultado adicional gerado
+        </div>
+        <button class="bs-pricing-btn">CONTRATAR →</button>
+      </div>
+    </div>
+
+  </div><!-- /bs-body -->
+
+</div>
+<!-- BALANÇO — aberto, toggle acima -->
+<div class="sec">
+  <div class="sh">Balanço Patrimonial</div>
+  <!-- PL destaque — ACIMA do toggle -->
+  <div class="dest verde" style="margin-bottom:8px">
+    <div class="dest-l"><strong>Patrimônio Líquido</strong>Ativos − Passivos · entra no Valor de Venda</div>
+    <div class="dest-r"><div class="dest-big em">R$ 37.000</div></div>
+  </div>
+  <div class="tbtn" style="border-top:none;margin-bottom:8px" onclick="toggleBP()">
+    <span id="bp-lbl">Recolher Balanço</span>
+    <div class="ti open" id="bp-ti">▼</div>
+  </div>
+  <div id="bp-body">
+    <div class="bp-wrap">
+      <div>
+        <div class="bp-col-h">Ativos</div>
+        <div class="bpr"><div class="bpr-l">Caixa e aplicações</div><div class="bpr-v">18.000</div></div>
+        <div class="bpr"><div class="bpr-l">Contas a receber</div><div class="bpr-v">5.000</div></div>
+        <div class="bpr"><div class="bpr-l">Estoque</div><div class="bpr-v">12.000</div></div>
+        <div class="bpr"><div class="bpr-l">Equipamentos</div><div class="bpr-v">35.000</div></div>
+        <div class="bpr-tot"><div class="bpr-l" style="color:var(--ink);font-weight:700">Total</div><div class="bpr-v">70.000</div></div>
+      </div>
+      <div class="bp-sep">
+        <div class="bp-col-h">Passivos</div>
+        <div class="bpr"><div class="bpr-l">Fornecedores</div><div class="bpr-v">8.000</div></div>
+        <div class="bpr"><div class="bpr-l">Dívidas financeiras</div><div class="bpr-v">15.000</div></div>
+        <div class="bpr"><div class="bpr-l">Provisões CLT</div><div class="bpr-v">5.400</div></div>
+        <div class="bpr"><div class="bpr-l">Outros</div><div class="bpr-v">4.600</div></div>
+        <div class="bpr-tot"><div class="bpr-l" style="color:var(--ink);font-weight:700">Total</div><div class="bpr-v">33.000</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VALUATION DETALHADO -->
+<div class="val-sec">
+  <div class="val-eye">Como chegamos a R$ 199.000</div>
+
+  <!-- Equação em passos visuais -->
+  <div class="val-equation">
+    <div class="val-eq-step">
+      <div class="val-eq-num">R$ 64.800</div>
+      <div class="val-eq-lbl">Resultado Op. Anual</div>
+    </div>
+    <div class="val-eq-op">×</div>
+    <div class="val-eq-step">
+      <div class="val-eq-num val-eq-em">2,50x</div>
+      <div class="val-eq-lbl">Múltiplo final</div>
+    </div>
+    <div class="val-eq-op">=</div>
+    <div class="val-eq-step">
+      <div class="val-eq-num">R$ 162.000</div>
+      <div class="val-eq-lbl">Valor do negócio</div>
+    </div>
+    <div class="val-eq-op">+</div>
+    <div class="val-eq-step">
+      <div class="val-eq-num val-eq-em">R$ 37.000</div>
+      <div class="val-eq-lbl">Patrimônio Líquido</div>
+    </div>
+  </div>
+
+  <!-- Resultado final -->
+  <div class="val-resultado">
+    <div>
+      <div class="val-res-lbl">Valor de Venda · Porteira Fechada</div>
+      <div class="val-res-sub">negócio em operação + patrimônio</div>
+    </div>
+    <div class="val-res-num">R$ 199.000</div>
+  </div>
+
+  <div class="val-cmt">múltiplo calculado com base no tipo de negócio, setor e solidez estrutural ISE — metodologia 1Negócio</div>
+</div>
+
+
+
+<!-- BLOCO COMPRADORES: ALERTAS + TESE + 1NEGÓCIO -->
+<div class="bloco-comp">
+  <div class="bc-header">
+    <div class="bc-top-row">
+      <div class="bc-badge-1n">1Negócio.com.br</div>
+      <div class="bc-hook-inline">
+        <span class="bc-hook-n">340</span>
+        <span class="bc-hook-txt">compradores ativos neste segmento no último mês</span>
+      </div>
+    </div>
+    <div class="bc-eye" style="display:none">Para Compradores e Vendedores · 1Negócio</div>
+
+  </div>
+
+  <!-- tese de investimento -->
+  <div class="bc-tese">
+    <div class="bc-tese-nums">
+      <div class="bc-tese-num">
+        <div class="bc-n em">2,2 anos</div>
+        <div class="bc-l">para dobrar o capital</div>
+      </div>
+      <div class="bc-tese-sep"></div>
+      <div class="bc-tese-num">
+        <div class="bc-n dim">5,8 anos</div>
+        <div class="bc-l">renda fixa · Selic 14,75%</div>
+      </div>
+      <div class="bc-tese-sep"></div>
+      <div class="bc-tese-num">
+        <div class="bc-n" style="color:var(--am)">32,6%</div>
+        <div class="bc-l">retorno anual sobre o valor</div>
+      </div>
+    </div>
+    <div class="bc-tese-txt">Comprador que investe R$ 199.000 aqui adquire uma operação com clientela fidelizada, 6 anos de história e retorno mais que o dobro do CDI. Negócio atrativo — com espaço claro de melhoria de valor.</div>
+  </div>
+
+  <!-- 1negócio audiência -->
+  <div class="bc-audiencia">
+    <div class="bc-aud-eye">1Negócio · Audiência de compradores</div>
+    <div class="bc-aud-stats">
+      <div class="bc-aud-stat"><div class="bc-aud-n">4.000+</div><div class="bc-aud-l">negócios avaliados</div></div>
+      <div class="bc-aud-stat"><div class="bc-aud-n">12.000</div><div class="bc-aud-l">visitas / mês</div></div>
+      <div class="bc-aud-stat"><div class="bc-aud-n">340</div><div class="bc-aud-l">compradores · último mês · segmento</div></div>
+    </div>
+  </div>
+
+  <!-- alertas recolhidos -->
+  <div class="bc-alertas">
+    <div class="bc-alt-hdr" onclick="toggle('alt-body','alt-ti')">
+      <div class="bc-alt-hdr-l"><strong>4 alertas para negociação</strong><span>Pontos que um comprador irá levantar na due diligence</span></div>
+      <div class="bc-alt-badges"><div class="altb r">2 críticos</div><div class="altb y">2 atenção</div><div class="ti" id="alt-ti">▼</div></div>
+    </div>
+    <div class="tbody" id="alt-body">
+      <div class="alt"><div class="alt-ico r">!</div><div><div class="alt-title">Sócio-dependência crítica · P5 = 2/10</div><div class="alt-desc">Negócio pararia sem o sócio por 30 dias. Maior fator de desconto em M&A.</div></div></div>
+      <div class="alt"><div class="alt-ico r">!</div><div><div class="alt-title">Aluguel acima da expectativa · 16% vs. 10%</div><div class="alt-desc">Comprime o resultado em ~R$ 3.300/mês vs. esperado. Resolver antes de listar aumenta o valor percebido.</div></div></div>
+      <div class="alt"><div class="alt-ico y">~</div><div><div class="alt-title">Custo de pessoal levemente acima · 22% vs. 18%</div><div class="alt-desc">Mapear produtividade por colaborador antes de qualquer ajuste.</div></div></div>
+      <div class="alt"><div class="alt-ico y">~</div><div><div class="alt-title">Imobilizado alto · 6,5x Resultado Operacional</div><div class="alt-desc">Ativos não essenciais podem ser negociados à parte.</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- CTAs -->
+<div class="ctas-grid">
+  <!-- LAUDO COMPLETO — linha inteira -->
+  <div class="cta-card laudo">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div>
+        <div class="cta-eye">Laudo Completo · PDF</div>
+        <div class="cta-title">Laudo de Avaliação Completo</div>
+        <div class="cta-desc" style="margin-top:4px">DRE + Balanço + ISE + 4 regimes tributários + comparativos + assinatura digital. Aceito por compradores e investidores.</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div class="cta-price">R$ 99</div>
+        <div style="font-family:'DM Mono',monospace;font-size:8px;color:rgba(8,13,10,.5);margin-top:2px">pagamento único</div>
+      </div>
+    </div>
+    <button class="cta-btn">OBTER LAUDO COMPLETO →</button>
+  </div>
+
+  <!-- 1SÓCIO -->
+  <div class="cta-card socio">
+    <div class="cta-eye">1Sócio · Consultoria</div>
+    <div class="cta-title">Consultoria de valor</div>
+    <div class="cta-desc">Plano personalizado + acompanhamento mensal + reavaliação trimestral.</div>
+    <div class="cta-price">R$ 1.621/mês<br><span style="font-size:10px;font-weight:400;color:var(--ink3)">12 meses · + 20% do resultado adicional</span></div>
+    <button class="cta-btn" style="margin-top:auto">CONTRATAR 1SÓCIO →</button>
+  </div>
+
+  <!-- PUBLICAR 1NEGÓCIO -->
+  <div class="cta-card pub">
+    <div class="cta-eye">1Negócio · Marketplace</div>
+    <div class="cta-title">Listar para venda</div>
+    <div class="cta-desc">340 compradores ativos. Sua avaliação já está feita.</div>
+    <div class="cta-price">Gratuito + 10% na venda<br><span style="font-size:10px;font-weight:400;color:var(--ink3)">ou R$ 588 + 5% na venda</span></div>
+    <button class="cta-btn" style="margin-top:auto">PUBLICAR NA 1NEGÓCIO →</button>
+  </div>
+</div>
+
+<!-- TRANSPARÊNCIA — rodapé encolhível -->
+<div class="footer-trans">
+  <div class="trans-toggle" onclick="toggle('trans-body','trans-ti')">
+    <div class="trans-titulo" style="margin-bottom:0">Transparência · Origem dos dados utilizados</div>
+    <div class="ti" id="trans-ti">▼</div>
+  </div>
+  <div class="tbody" id="trans-body">
+  <div class="trans-item"><div class="trans-campo">Faturamento bruto mensal</div><div class="trans-st ok">Informado</div></div>
+  <div class="trans-item"><div class="trans-campo">Tipo de negócio (Q3) + Setor (Q4)</div><div class="trans-st ok">Informado</div></div>
+  <div class="trans-item"><div class="trans-campo">Regime tributário</div><div class="trans-st ok">Informado</div></div>
+  <div class="trans-item"><div class="trans-campo">CMV / Custo de Mercadoria</div><div class="trans-st ok">Informado</div></div>
+  <div class="trans-item"><div class="trans-campo">Folha de pessoal CLT</div><div class="trans-st ok">Informado</div></div>
+  <div class="trans-item"><div class="trans-campo">Aluguel mensal</div><div class="trans-st ok">Informado</div></div>
+  <div class="trans-item"><div class="trans-campo">Outros custos fixos</div><div class="trans-st est">Expectativa do setor</div></div>
+  <div class="trans-item"><div class="trans-campo">Encargos e provisões CLT</div><div class="trans-st auto">Calculado automaticamente</div></div>
+  <div class="trans-item"><div class="trans-campo">Balanço Patrimonial</div><div class="trans-st ok">Informado</div></div>
+  <div class="trans-item"><div class="trans-campo">Base de clientes (ticket médio)</div><div class="trans-st ok">Informado</div></div>
+  <div style="margin-top:8px" class="cmt">campos "expectativa do setor" usam médias do tipo de negócio (Q3) da base 1Negócio</div>
+  </div><!-- /trans-body -->
+</div>
+
+</div><!-- /main -->
+
+<!-- STICKY LAUDO VERDE FIXO -->
+<div id="sticky">
+  <div class="sticky-l">
+    <strong>Laudo Completo · R$ 99</strong>
+    <span>PDF detalhado · assinado digitalmente</span>
+  </div>
+  <button class="sticky-btn">OBTER LAUDO →</button>
+</div>
+
+<script>
+/* LOADING */
+const msgs=['m0','m1','m2','m3','m4','m5'],durs=[1300,1500,1600,1500,1200,1500],tot=durs.reduce((a,b)=>a+b,0);
+function showMsg(i){msgs.forEach(id=>{const e=document.getElementById(id);if(e)e.classList.remove('active')});const e=document.getElementById(msgs[i]);if(e)e.classList.add('active')}
+function animBar(f,t,d){const bar=document.getElementById('ld-fill'),p=document.getElementById('ld-pct'),t0=performance.now();const fr=now=>{const pg=Math.min((now-t0)/d,1),v=f+(t-f)*pg;bar.style.width=v+'%';p.textContent=Math.round(v)+'%';if(pg<1)requestAnimationFrame(fr)};requestAnimationFrame(fr)}
+function startLoading(){let el=0,i=0;const step=()=>{if(i>=msgs.length){done();return}showMsg(i);const d=durs[i];animBar((el/tot)*100,((el+d)/tot)*100,d);el+=d;i++;setTimeout(step,d)};step()}
+function done(){setTimeout(()=>{const ld=document.getElementById('loading');ld.style.opacity='0';setTimeout(()=>{ld.style.display='none';document.getElementById('main').style.display='block';document.getElementById('topbar').style.display='flex';document.getElementById('sticky').style.display='flex';window.scrollTo(0,0)},500)},400)}
+
+/* DATA */
+function setData(){const d=new Date(),m=['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'],e=document.getElementById('chip-data');if(e)e.textContent=String(d.getDate()).padStart(2,'0')+' '+m[d.getMonth()]+' '+d.getFullYear()}
+
+/* TOGGLE GENÉRICO */
+function toggle(bid,iid){const b=document.getElementById(bid),i=document.getElementById(iid);if(!b||!i)return;const o=b.classList.contains('open');b.classList.toggle('open',!o);i.classList.toggle('open',!o)}
+
+/* TOGGLE DRE — com label dinâmico e body show/hide */
+function toggleDRE(){
+  const b=document.getElementById('dre-body'),i=document.getElementById('dre-ti'),l=document.getElementById('dre-lbl');
+  if(!b)return;
+  const vis=b.style.display!=='none';
+  b.style.display=vis?'none':'block';
+  if(i){i.style.transform=vis?'':'rotate(180deg)'}
+  if(l){l.textContent=vis?'Ver DRE completa':'Recolher DRE'}
+}
+
+/* TOGGLE BALANÇO — com label dinâmico */
+function toggleBP(){
+  const b=document.getElementById('bp-body'),i=document.getElementById('bp-ti'),l=document.getElementById('bp-lbl');
+  if(!b)return;
+  const vis=b.style.display!=='none';
+  b.style.display=vis?'none':'block';
+  if(i){i.style.transform=vis?'':'rotate(180deg)'}
+  if(l){l.textContent=vis?'Ver Balanço completo':'Recolher Balanço'}
+}
+
+/* EXPAND INDICADORES */
+function expandInd(bid,iid){const b=document.getElementById(bid),i=document.getElementById(iid);if(!b||!i)return;const o=b.classList.contains('open');b.classList.toggle('open',!o);i.classList.toggle('open',!o)}
+
+/* EXPAND AÇÕES */
+function expandAcao(bid,iid){const b=document.getElementById(bid),i=document.getElementById(iid);if(!b||!i)return;const o=b.classList.contains('open');b.classList.toggle('open',!o);i.classList.toggle('open',!o)}
+
+/* EXPAND TRIBUTAÇÃO */
+function expandTrib(bid,iid){const b=document.getElementById(bid),i=document.getElementById(iid);if(!b||!i)return;const o=b.classList.contains('open');b.classList.toggle('open',!o);i.classList.toggle('open',!o)}
+
+/* INIT */
+window.addEventListener('load',()=>{setData();setTimeout(startLoading,200)})
+
+/* Aderência: tratar visualmente se >100% */
+function updateAderencia(valor){
+  const el = document.querySelector('.dest-big.am')
+  if(!el) return
+  if(valor > 100){
+    el.classList.remove('am')
+    el.classList.add('over100')
+    el.closest('.dest')?.classList.remove('am')
+    el.closest('.dest')?.classList.add('verde')
+    el.textContent = valor + '%'
+  } else {
+    el.textContent = valor + '%'
+  }
+}
+// Chamar com o valor real quando vier do diagnóstico
+// updateAderencia(67) // exemplo;
+</script>
+</body>
+</html>
