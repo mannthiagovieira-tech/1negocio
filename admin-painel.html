@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negócio · Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #07090a;
+  --bg1: #0d1012;
+  --bg2: #131820;
+  --em: #3dff7a;
+  --em-d: rgba(61,255,122,.07);
+  --em-l: rgba(61,255,122,.25);
+  --am: #ffb03a;
+  --am-d: rgba(255,176,58,.07);
+  --pu: #a78bfa;
+  --pu-d: rgba(167,139,250,.07);
+  --red: #ff5c5c;
+  --red-d: rgba(255,92,92,.07);
+  --ink: rgba(255,255,255,.88);
+  --ink2: rgba(255,255,255,.46);
+  --ink3: rgba(255,255,255,.22);
+  --ink4: rgba(255,255,255,.10);
+  --line: rgba(255,255,255,.06);
+  --line2: rgba(255,255,255,.10);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { min-height: 100vh; background: var(--bg); color: var(--ink); font-family: 'DM Mono', monospace; overflow-x: hidden; }
+
+/* TOPBAR */
+.topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: 52px; background: rgba(7,9,10,.9); backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--line2);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px;
+}
+.logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 15px; letter-spacing: -.02em; display: flex; align-items: center; gap: 4px; }
+.logo span { color: var(--em); }
+.logo b { color: var(--ink); }
+.logo-tag { font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink3); margin-left: 10px; border: 1px solid var(--line2); border-radius: 20px; padding: 2px 8px; }
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--em); box-shadow: 0 0 8px var(--em); animation: pulse 2s ease infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.last-update { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); }
+
+/* LAYOUT */
+.wrap { padding: 72px 28px 40px; max-width: 1200px; margin: 0 auto; }
+
+/* STATS */
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 24px; }
+.stat { background: var(--bg1); border: 1px solid var(--line2); border-radius: 10px; padding: 18px 20px; position: relative; overflow: hidden; }
+.stat::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.stat.green::before { background: var(--em); }
+.stat.amber::before { background: var(--am); }
+.stat.purple::before { background: var(--pu); }
+.stat.red::before { background: var(--red); }
+.stat-lbl { font-size: 8px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink3); margin-bottom: 8px; }
+.stat-val { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -.04em; line-height: 1; }
+.stat.green .stat-val { color: var(--em); }
+.stat.amber .stat-val { color: var(--am); }
+.stat.purple .stat-val { color: var(--pu); }
+.stat.red .stat-val { color: var(--red); }
+.stat-sub { font-size: 9px; color: var(--ink3); margin-top: 4px; }
+
+/* FILTROS */
+.filters { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.filter-btn { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .14em; text-transform: uppercase; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--line2); background: transparent; color: var(--ink3); cursor: pointer; transition: all .15s; }
+.filter-btn:hover { color: var(--ink); border-color: var(--ink3); }
+.filter-btn.active { background: var(--em-d); border-color: var(--em-l); color: var(--em); }
+.filter-search { flex: 1; min-width: 200px; background: var(--bg1); border: 1px solid var(--line2); border-radius: 8px; padding: 6px 12px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ink); outline: none; }
+.filter-search::placeholder { color: var(--ink3); }
+.filter-search:focus { border-color: var(--em-l); }
+
+/* TABELA */
+.table-wrap { background: var(--bg1); border: 1px solid var(--line2); border-radius: 12px; overflow: hidden; }
+.table-header { display: grid; grid-template-columns: 100px 1fr 1fr 90px 90px 110px 80px; gap: 0; padding: 10px 20px; border-bottom: 1px solid var(--line2); background: var(--bg2); }
+.th { font-size: 8px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink3); }
+.table-body { max-height: 62vh; overflow-y: auto; }
+.table-body::-webkit-scrollbar { width: 4px; }
+.table-body::-webkit-scrollbar-track { background: transparent; }
+.table-body::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 2px; }
+
+.row { display: grid; grid-template-columns: 100px 1fr 1fr 90px 90px 110px 80px; gap: 0; padding: 12px 20px; border-bottom: 1px solid var(--line); transition: background .1s; cursor: pointer; }
+.row:last-child { border-bottom: none; }
+.row:hover { background: var(--bg2); }
+.td { font-size: 11px; display: flex; align-items: center; }
+.td.slug { font-family: 'DM Mono', monospace; font-weight: 500; color: var(--em); font-size: 10px; letter-spacing: .08em; }
+.td.nome { font-weight: 500; color: var(--ink); }
+.td.negocio { color: var(--ink2); font-size: 10px; }
+.td.contato { color: var(--ink3); font-size: 10px; }
+
+/* BADGES */
+.badge { font-size: 8px; letter-spacing: .12em; text-transform: uppercase; padding: 3px 8px; border-radius: 20px; font-weight: 500; }
+.badge.concluido { background: var(--em-d); color: var(--em); border: 1px solid var(--em-l); }
+.badge.andamento { background: var(--am-d); color: var(--am); border: 1px solid rgba(255,176,58,.25); }
+.badge.sem-sessao { background: var(--red-d); color: var(--red); border: 1px solid rgba(255,92,92,.2); }
+.badge.pausado { background: var(--pu-d); color: var(--pu); border: 1px solid rgba(167,139,250,.25); }
+
+/* TELA */
+.tela-pill { font-size: 8px; letter-spacing: .1em; color: var(--ink3); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; }
+
+/* DATA */
+.td.data { color: var(--ink3); font-size: 9px; }
+
+/* WPP badge */
+.wpp-ok { color: var(--em); font-size: 10px; }
+.wpp-no { color: var(--ink4); font-size: 10px; }
+
+/* LOADING */
+.loading { text-align: center; padding: 60px; color: var(--ink3); font-size: 11px; letter-spacing: .1em; }
+.spin { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--line2); border-top-color: var(--em); border-radius: 50%; animation: rot .7s linear infinite; margin-bottom: 12px; }
+@keyframes rot { to { transform: rotate(360deg); } }
+
+/* EMPTY */
+.empty { text-align: center; padding: 60px; color: var(--ink3); font-size: 11px; }
+
+/* MODAL DETALHE */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.85); backdrop-filter: blur(12px); z-index: 200; display: none; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--bg1); border: 1px solid var(--line2); border-radius: 16px; width: 100%; max-width: 520px; overflow: hidden; }
+.modal-top { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.modal-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; }
+.modal-close { background: none; border: 1px solid var(--line2); border-radius: 50%; width: 28px; height: 28px; color: var(--ink3); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+.modal-close:hover { color: var(--ink); }
+.modal-body { padding: 20px; }
+.detail-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.detail-row:last-child { border-bottom: none; }
+.detail-lbl { font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink3); }
+.detail-val { font-size: 11px; color: var(--ink); text-align: right; max-width: 60%; }
+.modal-actions { padding: 16px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; }
+.btn-action { flex: 1; padding: 10px; border-radius: 8px; font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; border: none; transition: all .15s; }
+.btn-laudo { background: var(--em-d); color: var(--em); border: 1px solid var(--em-l); }
+.btn-laudo:hover { background: rgba(61,255,122,.15); }
+.btn-wpp-action { background: rgba(37,211,102,.1); color: #25D366; border: 1px solid rgba(37,211,102,.25); }
+.btn-wpp-action:hover { background: rgba(37,211,102,.2); }
+.btn-wpp-action:disabled { opacity: .3; cursor: not-allowed; }
+
+@media(max-width: 900px) {
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .table-header, .row { grid-template-columns: 90px 1fr 80px 80px; }
+  .th:nth-child(3), .td:nth-child(3),
+  .th:nth-child(5), .td:nth-child(5),
+  .th:nth-child(6), .td:nth-child(6) { display: none; }
+}
+@media(max-width: 600px) {
+  .wrap { padding: 64px 16px 32px; }
+  .topbar { padding: 0 16px; }
+  .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="logo"><span>1</span><b>Negócio</b></div>
+    <div class="logo-tag">Admin</div>
+  </div>
+  <div class="topbar-right">
+    <div class="live-dot"></div>
+    <div class="last-update" id="last-update">atualizando...</div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="stats-row">
+    <div class="stat green">
+      <div class="stat-lbl">Total de leads</div>
+      <div class="stat-val" id="stat-total">—</div>
+      <div class="stat-sub">desde o lançamento</div>
+    </div>
+    <div class="stat green">
+      <div class="stat-lbl">Diagnósticos concluídos</div>
+      <div class="stat-val" id="stat-concluidos">—</div>
+      <div class="stat-sub" id="stat-taxa">taxa de conclusão</div>
+    </div>
+    <div class="stat amber">
+      <div class="stat-lbl">Em andamento</div>
+      <div class="stat-val" id="stat-andamento">—</div>
+      <div class="stat-sub">abertos, não concluídos</div>
+    </div>
+    <div class="stat purple">
+      <div class="stat-lbl">Com contato</div>
+      <div class="stat-val" id="stat-contato">—</div>
+      <div class="stat-sub">WhatsApp ou email</div>
+    </div>
+  </div>
+
+  <div class="filters">
+    <button class="filter-btn active" onclick="setFiltro('todos', this)">Todos</button>
+    <button class="filter-btn" onclick="setFiltro('concluido', this)">Concluídos</button>
+    <button class="filter-btn" onclick="setFiltro('andamento', this)">Em andamento</button>
+    <button class="filter-btn" onclick="setFiltro('sem-sessao', this)">Sem sessão</button>
+    <button class="filter-btn" onclick="setFiltro('com-contato', this)">Com contato</button>
+    <input class="filter-search" id="busca" type="text" placeholder="Buscar nome, negócio ou código..." oninput="renderTabela()">
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-header">
+      <div class="th">Código</div>
+      <div class="th">Nome</div>
+      <div class="th">Negócio</div>
+      <div class="th">Status</div>
+      <div class="th">Tela</div>
+      <div class="th">Criado em</div>
+      <div class="th">Contato</div>
+    </div>
+    <div class="table-body" id="table-body">
+      <div class="loading"><div class="spin"></div><br>Carregando leads...</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALHE -->
+<div class="modal-overlay" id="modal" onclick="fecharModal(event)">
+  <div class="modal">
+    <div class="modal-top">
+      <div class="modal-title" id="modal-title">Detalhe do lead</div>
+      <button class="modal-close" onclick="document.getElementById('modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<script>
+const SUPA_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2NDIxMTIsImV4cCI6MjA1ODIxODExMn0.vAFKHmFdPMPLPNXQbiyFo7VWFfcSzHIqGbLLKiDEP0M';
+const WPP_NUM = '5511952136406';
+
+let todos = [];
+let filtroAtual = 'todos';
+
+function fmt(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' +
+         dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function statusInfo(row) {
+  if (!row.tela_atual && row.concluido === null) return { label: 'Sem sessão', cls: 'sem-sessao' };
+  if (row.concluido === true) return { label: 'Concluído', cls: 'concluido' };
+  if (row.concluido === false && row.tela_atual) return { label: 'Em andamento', cls: 'andamento' };
+  return { label: 'Pausado', cls: 'pausado' };
+}
+
+function temContato(row) {
+  return row.whatsapp || row.email;
+}
+
+async function carregar() {
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/rpc/admin_leads_view`, {
+      headers: { 'apikey': SUPA_ANON, 'Authorization': 'Bearer ' + SUPA_ANON }
+    });
+    // Fallback: buscar diretamente
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/leads_entrada?select=*,diagnostico_sessoes(tela_atual,concluido,atualizado_em)&order=criado_em.desc&limit=200`, {
+      headers: { 'apikey': SUPA_ANON, 'Authorization': 'Bearer ' + SUPA_ANON }
+    });
+    const data = await r2.json();
+    todos = data.map(l => ({
+      codigo_lead: l.codigo_lead,
+      nome: l.nome,
+      nome_negocio: l.nome_negocio,
+      whatsapp: l.whatsapp,
+      email: l.email,
+      criado_em: l.criado_em,
+      tela_atual: l.diagnostico_sessoes?.[0]?.tela_atual || null,
+      concluido: l.diagnostico_sessoes?.[0]?.concluido ?? null,
+      atualizado_em: l.diagnostico_sessoes?.[0]?.atualizado_em || null,
+    }));
+    atualizarStats();
+    renderTabela();
+    document.getElementById('last-update').textContent = 'atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+  } catch(e) {
+    document.getElementById('table-body').innerHTML = '<div class="empty">Erro ao carregar dados.</div>';
+  }
+}
+
+function atualizarStats() {
+  const total = todos.length;
+  const concluidos = todos.filter(r => r.concluido === true).length;
+  const andamento = todos.filter(r => r.concluido === false && r.tela_atual).length;
+  const comContato = todos.filter(r => r.whatsapp || r.email).length;
+  const taxa = total > 0 ? Math.round((concluidos / total) * 100) : 0;
+
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-concluidos').textContent = concluidos;
+  document.getElementById('stat-taxa').textContent = `${taxa}% taxa de conclusão`;
+  document.getElementById('stat-andamento').textContent = andamento;
+  document.getElementById('stat-contato').textContent = comContato;
+}
+
+function filtrar(rows) {
+  const busca = document.getElementById('busca').value.toLowerCase().trim();
+  return rows.filter(r => {
+    // Filtro de status
+    if (filtroAtual === 'concluido' && r.concluido !== true) return false;
+    if (filtroAtual === 'andamento' && !(r.concluido === false && r.tela_atual)) return false;
+    if (filtroAtual === 'sem-sessao' && (r.tela_atual || r.concluido !== null)) return false;
+    if (filtroAtual === 'com-contato' && !temContato(r)) return false;
+    // Busca
+    if (busca) {
+      const texto = `${r.codigo_lead} ${r.nome} ${r.nome_negocio}`.toLowerCase();
+      if (!texto.includes(busca)) return false;
+    }
+    return true;
+  });
+}
+
+function renderTabela() {
+  const rows = filtrar(todos);
+  const body = document.getElementById('table-body');
+  if (rows.length === 0) {
+    body.innerHTML = '<div class="empty">Nenhum lead encontrado.</div>';
+    return;
+  }
+  body.innerHTML = rows.map(r => {
+    const st = statusInfo(r);
+    const contato = r.whatsapp ? `<span class="wpp-ok">WPP</span>` : r.email ? `<span class="wpp-ok">Email</span>` : `<span class="wpp-no">—</span>`;
+    const telaLabel = r.tela_atual && r.tela_atual !== 'fim' ? `<span class="tela-pill">${r.tela_atual}</span>` : '';
+    return `<div class="row" onclick="abrirModal(${JSON.stringify(r).replace(/"/g,'&quot;')})">
+      <div class="td slug">${r.codigo_lead || '—'}</div>
+      <div class="td nome">${r.nome || '<span style="color:var(--ink3)">—</span>'}</div>
+      <div class="td negocio">${r.nome_negocio || '<span style="color:var(--ink4)">—</span>'}</div>
+      <div class="td"><span class="badge ${st.cls}">${st.label}</span></div>
+      <div class="td">${telaLabel}</div>
+      <div class="td data">${fmt(r.criado_em)}</div>
+      <div class="td">${contato}</div>
+    </div>`;
+  }).join('');
+}
+
+function setFiltro(f, btn) {
+  filtroAtual = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTabela();
+}
+
+function abrirModal(r) {
+  const st = statusInfo(r);
+  document.getElementById('modal-title').textContent = r.nome_negocio || r.nome || r.codigo_lead;
+  document.getElementById('modal-body').innerHTML = `
+    <div class="detail-row"><div class="detail-lbl">Código</div><div class="detail-val" style="color:var(--em);font-family:'DM Mono'">${r.codigo_lead}</div></div>
+    <div class="detail-row"><div class="detail-lbl">Nome</div><div class="detail-val">${r.nome || '—'}</div></div>
+    <div class="detail-row"><div class="detail-lbl">Negócio</div><div class="detail-val">${r.nome_negocio || '—'}</div></div>
+    <div class="detail-row"><div class="detail-lbl">Status</div><div class="detail-val"><span class="badge ${st.cls}">${st.label}</span></div></div>
+    <div class="detail-row"><div class="detail-lbl">Tela atual</div><div class="detail-val">${r.tela_atual || '—'}</div></div>
+    <div class="detail-row"><div class="detail-lbl">WhatsApp</div><div class="detail-val">${r.whatsapp || '—'}</div></div>
+    <div class="detail-row"><div class="detail-lbl">Email</div><div class="detail-val">${r.email || '—'}</div></div>
+    <div class="detail-row"><div class="detail-lbl">Criado em</div><div class="detail-val">${fmt(r.criado_em)}</div></div>
+    <div class="detail-row"><div class="detail-lbl">Última atividade</div><div class="detail-val">${fmt(r.atualizado_em)}</div></div>
+  `;
+  const temWpp = !!r.whatsapp;
+  const temLaudo = r.concluido === true;
+  document.getElementById('modal-actions').innerHTML = `
+    ${temLaudo ? `<button class="btn-action btn-laudo" onclick="window.open('https://1negocio.com.br/laudo?lead=${r.codigo_lead}','_blank')">Ver laudo →</button>` : ''}
+    <button class="btn-action btn-wpp-action" ${!temWpp ? 'disabled title="Sem WhatsApp"' : ''} onclick="abrirWpp('${r.whatsapp}','${r.nome || ''}')">WhatsApp</button>
+  `;
+  document.getElementById('modal').classList.add('open');
+}
+
+function abrirWpp(wpp, nome) {
+  if (!wpp) return;
+  const num = wpp.replace(/\D/g,'');
+  const msg = encodeURIComponent(`Oi${nome ? ', ' + nome.split(' ')[0] : ''}! Aqui é a equipe da 1Negócio.`);
+  window.open(`https://wa.me/${num}?text=${msg}`, '_blank');
+}
+
+function fecharModal(e) {
+  if (e.target.id === 'modal') document.getElementById('modal').classList.remove('open');
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('modal').classList.remove('open'); });
+
+// Carregar e atualizar a cada 60s
+carregar();
+setInterval(carregar, 60000);
+</script>
+</body>
+</html>
