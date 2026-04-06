@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negócio · Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080d0a;--bg1:#0e1510;--bg2:#131a14;
+  --em:#3dff7a;--em-d:rgba(61,255,122,.08);--em-l:rgba(61,255,122,.2);
+  --am:#ffb03a;--am-d:rgba(255,176,58,.08);
+  --rd:#ff5c5c;--rd-d:rgba(255,92,92,.08);
+  --ink:#f0f5f1;--ink2:#a8b8ac;--ink3:#5a7060;--ink4:#3a4e3e;
+  --line:rgba(255,255,255,.05);--line2:rgba(255,255,255,.1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:DM Mono,monospace}
+
+/* LOGIN */
+#login-screen{
+  position:fixed;inset:0;z-index:999;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+}
+.login-box{
+  width:100%;max-width:360px;padding:40px 32px;
+  background:var(--bg1);border:1px solid var(--line2);
+}
+.login-logo{
+  font-family:Syne,sans-serif;font-weight:800;font-size:22px;
+  letter-spacing:-.02em;margin-bottom:32px;text-align:center;
+}
+.login-logo em{color:var(--em);font-style:normal}
+.login-field{margin-bottom:14px}
+.login-field label{
+  display:block;font-size:9px;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--ink4);margin-bottom:6px;
+}
+.login-field input{
+  width:100%;background:var(--bg2);border:1px solid var(--line2);
+  color:var(--ink);font-family:DM Mono,monospace;font-size:12px;
+  padding:10px 12px;outline:none;transition:border-color .15s;
+}
+.login-field input:focus{border-color:var(--em)}
+.login-btn{
+  width:100%;background:var(--em);border:none;color:var(--bg);
+  font-family:Syne,sans-serif;font-weight:700;font-size:13px;
+  padding:12px;cursor:pointer;margin-top:8px;transition:opacity .15s;
+}
+.login-btn:hover{opacity:.85}
+.login-err{
+  font-size:10px;color:var(--rd);text-align:center;
+  margin-top:10px;min-height:16px;
+}
+
+/* APP */
+#app{display:none}
+.topbar{
+  background:var(--bg1);border-bottom:1px solid var(--line2);
+  padding:14px 24px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:10;
+}
+.topbar-logo{font-family:Syne,sans-serif;font-weight:800;font-size:16px;letter-spacing:-.02em}
+.topbar-logo em{color:var(--em);font-style:normal}
+.topbar-right{display:flex;align-items:center;gap:16px}
+.topbar-tag{
+  font-size:9px;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--ink3);background:var(--bg2);border:1px solid var(--line2);
+  padding:4px 10px;
+}
+.logout-btn{
+  font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);
+  background:transparent;border:none;cursor:pointer;padding:4px 8px;
+  transition:color .15s;
+}
+.logout-btn:hover{color:var(--rd)}
+
+.main{max-width:900px;margin:0 auto;padding:24px 20px}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}
+.stat{
+  background:var(--bg1);border:1px solid var(--line2);
+  padding:14px 16px;
+}
+.stat-val{
+  font-family:Syne,sans-serif;font-weight:800;font-size:24px;
+  color:var(--em);line-height:1;margin-bottom:4px;
+}
+.stat-label{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4)}
+
+/* FILTROS */
+.filters{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.filter-btn{
+  font-family:DM Mono,monospace;font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;padding:6px 14px;background:transparent;
+  border:1px solid var(--line2);color:var(--ink3);cursor:pointer;
+  transition:all .15s;
+}
+.filter-btn:hover,.filter-btn.active{
+  background:var(--em-d);border-color:var(--em-l);color:var(--em);
+}
+.search-box{
+  flex:1;min-width:160px;background:var(--bg1);border:1px solid var(--line2);
+  color:var(--ink);font-family:DM Mono,monospace;font-size:11px;
+  padding:6px 12px;outline:none;
+}
+.search-box:focus{border-color:var(--em)}
+.search-box::placeholder{color:var(--ink4)}
+
+/* TABELA */
+.section-title{
+  font-size:9px;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--ink4);margin-bottom:10px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.count-badge{
+  background:var(--em-d);border:1px solid var(--em-l);
+  color:var(--em);font-size:9px;padding:2px 8px;
+}
+
+.leads-list{display:flex;flex-direction:column;gap:8px}
+
+.lead-card{
+  background:var(--bg1);border:1px solid var(--line2);
+  padding:14px 16px;
+  display:grid;
+  grid-template-columns: 1fr auto;
+  gap:10px;
+  align-items:center;
+  transition:border-color .15s;
+}
+.lead-card:hover{border-color:var(--line2);background:var(--bg2)}
+
+.lead-card.em_avaliacao{border-left:3px solid var(--am)}
+.lead-card.publicado{border-left:3px solid var(--em)}
+.lead-card.rascunho{border-left:3px solid var(--ink4)}
+.lead-card.em_revisao{border-left:3px solid var(--rd)}
+
+.lead-left{}
+.lead-empresa{
+  font-family:Syne,sans-serif;font-weight:700;font-size:13px;
+  color:var(--ink);margin-bottom:4px;
+}
+.lead-meta{
+  display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px;
+}
+.lead-usuario{font-size:10px;color:var(--ink2)}
+.lead-codigo{
+  font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink4);background:var(--bg2);border:1px solid var(--line);
+  padding:2px 7px;
+}
+.lead-status{
+  font-size:8px;letter-spacing:.1em;text-transform:uppercase;
+  padding:2px 8px;border-radius:10px;font-weight:500;
+}
+.lead-status.em_avaliacao{background:var(--am-d);color:var(--am)}
+.lead-status.publicado{background:var(--em-d);color:var(--em)}
+.lead-status.rascunho{background:var(--line2);color:var(--ink4)}
+.lead-status.em_revisao{background:var(--rd-d);color:var(--rd)}
+
+.lead-fat{font-size:10px;color:var(--ink3)}
+
+.lead-actions{
+  display:flex;flex-direction:column;gap:6px;align-items:flex-end;
+}
+.btn-whats{
+  display:flex;align-items:center;gap:6px;
+  background:var(--em);color:var(--bg);border:none;
+  font-family:Syne,sans-serif;font-weight:700;font-size:11px;
+  padding:8px 14px;cursor:pointer;transition:opacity .15s;
+  text-decoration:none;white-space:nowrap;
+}
+.btn-whats:hover{opacity:.85}
+.btn-laudo{
+  display:flex;align-items:center;gap:6px;
+  background:transparent;color:var(--em);
+  border:1px solid var(--em-l);
+  font-family:DM Mono,monospace;font-size:9px;letter-spacing:.08em;
+  padding:6px 12px;cursor:pointer;transition:all .15s;
+  text-decoration:none;white-space:nowrap;
+}
+.btn-laudo:hover{background:var(--em-d)}
+.btn-laudo.disabled{
+  color:var(--ink4);border-color:var(--line);
+  cursor:default;pointer-events:none;
+}
+.lead-data{font-size:9px;color:var(--ink4);text-align:right;margin-top:2px}
+
+/* EMPTY */
+.empty{
+  text-align:center;padding:48px 20px;
+  font-size:11px;color:var(--ink4);letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+/* LOADING */
+.spinner{
+  display:inline-block;width:14px;height:14px;
+  border:2px solid var(--line2);border-top-color:var(--em);
+  border-radius:50%;animation:spin .6s linear infinite;
+  margin:0 auto;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-row{text-align:center;padding:40px;color:var(--ink4)}
+
+@media(max-width:600px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .lead-card{grid-template-columns:1fr;gap:12px}
+  .lead-actions{flex-direction:row;align-items:center;justify-content:flex-start}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo"><em>1</em>Negócio · Admin</div>
+    <div class="login-field">
+      <label>E-mail</label>
+      <input type="email" id="login-email" placeholder="thiago@1negocio.com.br" autocomplete="email">
+    </div>
+    <div class="login-field">
+      <label>Senha</label>
+      <input type="password" id="login-senha" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="login-btn" onclick="fazerLogin()">Entrar</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-logo"><em>1</em>Negócio · Admin</div>
+    <div class="topbar-right">
+      <div class="topbar-tag" id="topbar-user">—</div>
+      <button class="logout-btn" onclick="sair()">Sair</button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <div class="stats" id="stats">
+      <div class="stat"><div class="stat-val" id="s-total">—</div><div class="stat-label">Total leads</div></div>
+      <div class="stat"><div class="stat-val" id="s-avaliacao" style="color:var(--am)">—</div><div class="stat-label">Em avaliação</div></div>
+      <div class="stat"><div class="stat-val" id="s-publicados">—</div><div class="stat-label">Publicados</div></div>
+      <div class="stat"><div class="stat-val" id="s-usuarios">—</div><div class="stat-label">Usuários</div></div>
+    </div>
+
+    <div class="filters">
+      <button class="filter-btn active" onclick="filtrar(this,'todos')">Todos</button>
+      <button class="filter-btn" onclick="filtrar(this,'em_avaliacao')">Em avaliação</button>
+      <button class="filter-btn" onclick="filtrar(this,'publicado')">Publicados</button>
+      <button class="filter-btn" onclick="filtrar(this,'rascunho')">Rascunho</button>
+      <input class="search-box" id="search" placeholder="Buscar empresa ou usuário..." oninput="renderLeads()">
+    </div>
+
+    <div class="section-title">
+      <span>Leads</span>
+      <span class="count-badge" id="count-badge">0</span>
+    </div>
+
+    <div class="leads-list" id="leads-list">
+      <div class="loading-row"><div class="spinner"></div></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const SB_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+const ADMINS = ['thiago@1negocio.com.br','admin@1negocio.com.br'];
+const SEED_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
+
+let session = null;
+let allLeads = [];
+let filtroAtivo = 'todos';
+
+// ── AUTH ──
+async function fazerLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const senha = document.getElementById('login-senha').value;
+  const errEl = document.getElementById('login-err');
+  errEl.textContent = '';
+
+  if(!ADMINS.includes(email)){
+    errEl.textContent = 'Acesso restrito a administradores.';
+    return;
+  }
+
+  try{
+    const r = await fetch(SB_URL+'/auth/v1/token?grant_type=password',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SB_KEY},
+      body: JSON.stringify({email, password: senha})
+    });
+    const d = await r.json();
+    if(d.access_token){
+      session = d;
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      document.getElementById('topbar-user').textContent = email.split('@')[0];
+      carregarDados();
+    } else {
+      errEl.textContent = d.error_description || 'Credenciais inválidas.';
+    }
+  } catch(e){
+    errEl.textContent = 'Erro de conexão.';
+  }
+}
+
+function sair(){
+  session = null;
+  allLeads = [];
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-senha').value = '';
+  document.getElementById('login-err').textContent = '';
+}
+
+document.getElementById('login-senha').addEventListener('keydown', e => {
+  if(e.key === 'Enter') fazerLogin();
+});
+
+// ── DADOS ──
+async function carregarDados(){
+  const h = {'apikey': SB_KEY, 'Authorization': 'Bearer ' + session.access_token};
+
+  // Negócios reais com dados do usuário
+  const r1 = await fetch(
+    SB_URL+'/rest/v1/negocios?or=(vendedor_id.is.null,vendedor_id.neq.'+SEED_ID+')&select=id,nome,status,fat_mensal,codigo_diagnostico,created_at,vendedor_id,dados_json,usuarios(nome,email,whatsapp)&order=created_at.desc',
+    {headers: h}
+  );
+  allLeads = await r1.json();
+
+  // Stats usuários
+  const r2 = await fetch(SB_URL+'/rest/v1/usuarios?id=neq.'+SEED_ID+'&select=id',{headers: h});
+  const usuarios = await r2.json();
+
+  // Atualizar stats
+  const avaliacao = allLeads.filter(l => l.status === 'em_avaliacao').length;
+  const publicados = allLeads.filter(l => l.status === 'publicado').length;
+  document.getElementById('s-total').textContent = allLeads.length;
+  document.getElementById('s-avaliacao').textContent = avaliacao;
+  document.getElementById('s-publicados').textContent = publicados;
+  document.getElementById('s-usuarios').textContent = usuarios.length || 0;
+
+  renderLeads();
+}
+
+// ── RENDER ──
+function filtrar(btn, status){
+  filtroAtivo = status;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderLeads();
+}
+
+function renderLeads(){
+  const busca = (document.getElementById('search').value || '').toLowerCase();
+  let lista = allLeads;
+
+  if(filtroAtivo !== 'todos'){
+    lista = lista.filter(l => l.status === filtroAtivo);
+  }
+  if(busca){
+    lista = lista.filter(l =>
+      (l.nome||'').toLowerCase().includes(busca) ||
+      (l.usuarios?.nome||'').toLowerCase().includes(busca) ||
+      (l.usuarios?.email||'').toLowerCase().includes(busca) ||
+      (l.codigo_diagnostico||'').toLowerCase().includes(busca)
+    );
+  }
+
+  document.getElementById('count-badge').textContent = lista.length;
+  const el = document.getElementById('leads-list');
+
+  if(!lista.length){
+    el.innerHTML = '<div class="empty">Nenhum lead encontrado</div>';
+    return;
+  }
+
+  el.innerHTML = lista.map(l => {
+    const u = l.usuarios || {};
+    const dj = l.dados_json || {};
+    const nome = u.nome || dj.nome_contato || '—';
+    const email = u.email || dj.email || '';
+    const whats = (u.whatsapp || dj.whatsapp || '').replace(/\D/g,'');
+    const empresa = l.nome || 'Sem nome';
+    const codigo = l.codigo_diagnostico || null;
+    const status = l.status || 'rascunho';
+    const fat = l.fat_mensal ? 'R$ '+Number(l.fat_mensal).toLocaleString('pt-BR')+'/mês' : '';
+    const data = new Date(l.created_at).toLocaleDateString('pt-BR');
+
+    const laudoUrl = l.id
+      ? 'https://1negocio.com.br/laudo-pago.html?id='+l.id
+      : '';
+
+    const whatsMsg = encodeURIComponent(
+      'Olá '+nome.split(' ')[0]+'! Vi que você avaliou o negócio "'+empresa+'" na plataforma 1Negócio. Quero conversar sobre os próximos passos.'
+    );
+    const whatsUrl = whats ? 'https://wa.me/55'+whats+'?text='+whatsMsg : '';
+
+    return `
+    <div class="lead-card ${status}">
+      <div class="lead-left">
+        <div class="lead-empresa">${empresa}</div>
+        <div class="lead-meta">
+          <span class="lead-usuario">${nome}${email ? ' · '+email : ''}</span>
+          ${codigo ? '<span class="lead-codigo">${codigo}</span>' : '<span class="lead-codigo" style="color:var(--ink4)">sem código</span>'}
+          <span class="lead-status ${status}">${statusLabel(status)}</span>
+        </div>
+        ${fat ? '<div class="lead-fat">'+fat+'</div>' : ''}
+      </div>
+      <div class="lead-actions">
+        ${whatsUrl
+          ? '<a class="btn-whats" href="'+whatsUrl+'" target="_blank">&#128172; WhatsApp'+( whats ? ' ·&nbsp;'+formatFone(whats) : '')+'</a>'
+          : '<div style="font-size:9px;color:var(--ink4);text-align:right">sem WhatsApp</div>'
+        }
+        ${laudoUrl
+          ? '<a class="btn-laudo" href="'+laudoUrl+'" target="_blank">&#128196; Ver laudo</a>'
+          : '<span class="btn-laudo disabled">laudo indisponível</span>'
+        }
+        <div class="lead-data">${data}</div>
+      </div>
+    </div>`.replace('${codigo}', codigo||'');
+  }).join('');
+}
+
+function statusLabel(s){
+  const m = {
+    em_avaliacao: 'Em avaliação',
+    publicado: 'Publicado',
+    rascunho: 'Rascunho',
+    em_revisao: 'Em revisão',
+    em_negociacao: 'Em negociação',
+    pausado: 'Pausado',
+    vendido: 'Vendido'
+  };
+  return m[s] || s;
+}
+
+function formatFone(n){
+  if(n.length === 13) return '('+n.slice(2,4)+') '+n.slice(4,9)+'-'+n.slice(9);
+  if(n.length === 11) return '('+n.slice(0,2)+') '+n.slice(2,7)+'-'+n.slice(7);
+  return n;
+}
+</script>
+</body>
+</html>
