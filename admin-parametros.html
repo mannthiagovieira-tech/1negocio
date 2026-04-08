@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negócio · Admin · Parâmetros</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c0c0a;--bg1:#111110;--bg2:#161614;--bg3:#1c1c1a;
+  --em:#10b981;--em-d:rgba(16,185,129,.1);--em-l:rgba(16,185,129,.25);
+  --am:#f59e0b;--am-d:rgba(245,158,11,.1);
+  --rd:#f87171;--rd-d:rgba(248,113,113,.1);
+  --ink:#f0f0ee;--ink2:#c8c8c4;--ink3:#8a8a84;--ink4:#4a4a46;
+  --line:rgba(240,240,238,.06);--line2:rgba(240,240,238,.1);
+  --sep:1px solid var(--line2);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace;min-height:100vh}
+
+/* LAYOUT */
+.layout{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+
+/* SIDEBAR */
+.sidebar{background:var(--bg1);border-right:var(--sep);padding:0;position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column}
+.sidebar-logo{padding:24px 20px;border-bottom:var(--sep);display:flex;align-items:center;gap:8px}
+.sidebar-logo-txt{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;letter-spacing:-.02em}
+.sidebar-logo-txt em{color:var(--em);font-style:normal}
+.sidebar-logo-badge{font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);background:var(--bg3);padding:3px 8px;border-radius:4px}
+.sidebar-section{padding:16px 12px 8px;font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink4)}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;margin:1px 8px;border-radius:6px;cursor:pointer;transition:background .15s;font-size:11px;color:var(--ink3);text-decoration:none}
+.nav-item:hover{background:var(--bg2);color:var(--ink)}
+.nav-item.active{background:var(--em-d);color:var(--em);border:1px solid var(--em-l)}
+.nav-item .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.sidebar-footer{margin-top:auto;padding:16px;border-top:var(--sep);font-size:10px;color:var(--ink4)}
+
+/* MAIN */
+.main{padding:32px 40px;max-width:1000px}
+.page-header{margin-bottom:32px}
+.page-title{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;color:var(--ink);letter-spacing:-.02em;margin-bottom:4px}
+.page-sub{font-size:11px;color:var(--ink3);line-height:1.6}
+
+/* TOAST */
+.toast{position:fixed;bottom:28px;right:28px;z-index:999;background:var(--em);color:#000;font-family:'DM Mono',monospace;font-size:11px;font-weight:500;padding:12px 20px;border-radius:6px;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.err{background:var(--rd);color:#fff}
+
+/* SEÇÃO */
+.param-section{background:var(--bg1);border:var(--sep);border-radius:8px;margin-bottom:16px;overflow:hidden}
+.param-section-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;transition:background .15s;border-bottom:var(--sep)}
+.param-section-header:hover{background:var(--bg2)}
+.param-section-title{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--ink);display:flex;align-items:center;gap:10px}
+.param-section-title .tag{font-family:'DM Mono',monospace;font-size:9px;font-weight:400;color:var(--ink3);background:var(--bg3);padding:2px 8px;border-radius:4px;letter-spacing:.06em}
+.param-section-right{display:flex;align-items:center;gap:10px}
+.btn-save{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.06em;padding:6px 14px;background:var(--em);color:#000;border:none;border-radius:4px;cursor:pointer;transition:opacity .15s;font-weight:500}
+.btn-save:hover{opacity:.85}
+.btn-save:disabled{opacity:.4;cursor:not-allowed}
+.chevron{font-size:10px;color:var(--ink4);transition:transform .2s}
+.param-section.open .chevron{transform:rotate(180deg)}
+.param-body{display:none;padding:18px}
+.param-section.open .param-body{display:block}
+
+/* TABELA DE PARÂMETROS */
+.param-table{width:100%;border-collapse:collapse}
+.param-table th{font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);padding:8px 10px;text-align:left;border-bottom:var(--sep)}
+.param-table td{padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.param-table tr:last-child td{border-bottom:none}
+.param-key{font-size:11px;color:var(--ink2)}
+.param-desc{font-size:10px;color:var(--ink4);margin-top:2px}
+.param-input{background:var(--bg2);border:1px solid var(--line2);border-radius:4px;padding:6px 10px;font-family:'DM Mono',monospace;font-size:12px;color:var(--ink);width:100%;max-width:120px;text-align:right;transition:border-color .15s}
+.param-input:focus{outline:none;border-color:var(--em)}
+.param-input.wide{max-width:200px;text-align:left}
+.param-input.changed{border-color:var(--am)}
+.param-note{font-size:10px;color:var(--ink4);line-height:1.6;padding:10px 12px;background:var(--bg3);border-left:2px solid var(--line2);border-radius:0 4px 4px 0;margin-top:12px}
+.pesos-check{font-size:10px;padding:8px 10px;border-radius:4px;margin-top:8px;font-family:'DM Mono',monospace}
+.pesos-check.ok{background:var(--em-d);color:var(--em)}
+.pesos-check.err{background:var(--rd-d);color:var(--rd)}
+
+/* GRID 2 colunas para setores */
+.setor-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line2);border:var(--sep);border-radius:6px;overflow:hidden;margin-bottom:8px}
+.setor-row{display:grid;grid-template-columns:140px repeat(9,1fr);background:var(--bg1);gap:0}
+.setor-row.header{background:var(--bg3)}
+.setor-cell{padding:7px 8px;font-size:10px;border-right:1px solid var(--line);text-align:right}
+.setor-cell:last-child{border-right:none}
+.setor-cell.nome{text-align:left;color:var(--ink2);font-size:10px}
+.setor-cell.header-cell{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4)}
+.setor-input{background:transparent;border:none;font-family:'DM Mono',monospace;font-size:11px;color:var(--em);width:100%;text-align:right;padding:0}
+.setor-input:focus{outline:none;background:var(--em-d)}
+.setor-input.changed{color:var(--am)}
+
+/* ISE pilares */
+.pilar-row{display:grid;grid-template-columns:180px 1fr 100px 80px;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.pilar-row:last-child{border-bottom:none}
+.pilar-nome{font-size:11px;color:var(--ink2)}
+.pilar-num{font-size:10px;color:var(--ink4)}
+.pilar-bar-track{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
+.pilar-bar-fill{height:100%;background:var(--em);border-radius:2px;transition:width .3s}
+
+/* LOADING */
+.loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:998;display:flex;align-items:center;justify-content:center;display:none}
+.loading-overlay.show{display:flex}
+.loading-box{background:var(--bg1);border:var(--sep);border-radius:8px;padding:24px 32px;text-align:center}
+.loading-box .spin{width:24px;height:24px;border:2px solid var(--line2);border-top-color:var(--em);border-radius:50%;animation:spin .6s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-box">
+    <div class="spin"></div>
+    <div style="font-size:11px;color:var(--ink3)">Salvando...</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-txt"><em>1</em>NEGÓCIO</div>
+      <div class="sidebar-logo-badge">Admin</div>
+    </div>
+    <div class="sidebar-section">Configuração</div>
+    <a href="/painel-admin.html" class="nav-item"><span class="dot"></span>Dashboard</a>
+    <a href="/admin-parametros.html" class="nav-item active"><span class="dot"></span>Parâmetros</a>
+    <div class="sidebar-section">Operação</div>
+    <a href="/painel-admin.html#agenda" class="nav-item"><span class="dot"></span>Agenda</a>
+    <a href="/painel-admin.html#laudos" class="nav-item"><span class="dot"></span>Laudos</a>
+    <a href="/painel-admin.html#negocios" class="nav-item"><span class="dot"></span>Negócios</a>
+    <div class="sidebar-footer">
+      Parâmetros de avaliação<br>
+      <span id="last-update" style="color:var(--em)">Carregando...</span>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="page-header">
+      <div class="page-title">Parâmetros de Avaliação</div>
+      <div class="page-sub">Todos os cálculos de ISE, Fator 1N, Benchmarks e Atratividade são lidos daqui.<br>Alterações têm efeito imediato em todos os laudos gerados após o salvamento.</div>
+    </div>
+
+    <div id="sections-container"></div>
+  </div>
+
+</div>
+
+<script>
+const SB_URL='https://dbijmgqlcrgjlcfrastg.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+const H={'apikey':SB_KEY,'Content-Type':'application/json'};
+
+let PARAMS={};
+
+// ── UTILS ──
+function toast(msg,err=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast'+(err?' err':'');
+  t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);
+}
+function loading(show){document.getElementById('loading-overlay').classList.toggle('show',show)}
+
+async function loadParams(){
+  const r=await fetch(SB_URL+'/rest/v1/parametros_1n?select=*',{headers:H});
+  const data=await r.json();
+  data.forEach(row=>{PARAMS[row.id]=row.valor;});
+  const latest=data.sort((a,b)=>new Date(b.atualizado_em)-new Date(a.atualizado_em))[0];
+  if(latest) document.getElementById('last-update').textContent=
+    'Atualizado '+new Date(latest.atualizado_em).toLocaleDateString('pt-BR');
+}
+
+async function saveParam(id,valor){
+  loading(true);
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/parametros_1n?id=eq.'+id,{
+      method:'PATCH',
+      headers:{...H,'Prefer':'return=minimal'},
+      body:JSON.stringify({valor,atualizado_em:new Date().toISOString()})
+    });
+    if(r.ok){toast('Salvo com sucesso');}
+    else{toast('Erro ao salvar',true);}
+  }catch(e){toast('Erro de conexão',true);}
+  loading(false);
+}
+
+function toggleSection(id){
+  document.getElementById('sec-'+id).classList.toggle('open');
+}
+
+// ── VERIFICAR SOMA PESOS ──
+function checkPesos(inputs,checkEl){
+  let soma=0;
+  inputs.forEach(inp=>soma+=parseFloat(inp.value||0));
+  soma=Math.round(soma*100)/100;
+  checkEl.className='pesos-check '+(Math.abs(soma-1)<0.001?'ok':'err');
+  checkEl.textContent=Math.abs(soma-1)<0.001
+    ?'✓ Soma = 100% (correto)'
+    :'⚠ Soma = '+(soma*100).toFixed(1)+'% — deve ser 100%';
+}
+
+// ── RENDER ──
+function renderSections(){
+  const c=document.getElementById('sections-container');
+  c.innerHTML='';
+  c.appendChild(renderMultiplos());
+  c.appendChild(renderISEPesos());
+  c.appendChild(renderISERegras());
+  c.appendChild(renderBenchmarksDRE());
+  c.appendChild(renderBenchmarksInd());
+  c.appendChild(renderAtratividade());
+  c.appendChild(renderLimites());
+}
+
+// 1. MÚLTIPLOS
+function renderMultiplos(){
+  const div=document.createElement('div');
+  div.className='param-section';div.id='sec-multiplos';
+  const mb=PARAMS['multiplos_base']||{};
+  const ms=PARAMS['modificadores_setor']||{};
+  const fi=PARAMS['fator_ise']||[];
+
+  div.innerHTML=`
+  <div class="param-section-header" onclick="toggleSection('multiplos')">
+    <div class="param-section-title">
+      Múltiplos & Fator 1N
+      <span class="tag">valuation</span>
+    </div>
+    <div class="param-section-right">
+      <button class="btn-save" onclick="event.stopPropagation();saveMult()">Salvar</button>
+      <span class="chevron">▼</span>
+    </div>
+  </div>
+  <div class="param-body">
+    <table class="param-table">
+      <thead><tr><th>Modelo de negócio (T05)</th><th>Múltiplo base</th><th>Setor (T03)</th><th>Modificador</th></tr></thead>
+      <tbody id="mult-body"></tbody>
+    </table>
+    <div style="margin-top:20px;margin-bottom:8px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4)">Fator ISE por faixa de score</div>
+    <table class="param-table">
+      <thead><tr><th>Score ISE</th><th>Classificação</th><th>Multiplicador</th></tr></thead>
+      <tbody id="ise-fator-body"></tbody>
+    </table>
+    <div class="param-note">Fórmula: <strong>Fator 1N = (Múltiplo Base + Modificador Setor) × Fator ISE</strong>. Limitado entre ${PARAMS['limites_globais']?.fator_min||1.5}x e ${PARAMS['limites_globais']?.fator_max||6.0}x.</div>
+  </div>`;
+
+  const modelos={
+    saas_plataforma:'SaaS / Plataforma',assinatura:'Assinatura / Recorrente',
+    governo:'Governo / Licitação',distribuicao:'Distribuição',
+    servico:'Serviço',revenda:'Revenda',fabricacao:'Fabricação',producao_direta:'Produção Direta'
+  };
+  const setores={
+    servicos_b2b:'Serviços B2B',educacao:'Educação',saude:'Saúde',
+    beleza_estetica:'Beleza & Estética',academia:'Academia / Fitness',
+    alimentacao:'Alimentação',varejo:'Varejo',hospedagem:'Hospedagem',
+    outros_servicos:'Outros Serviços',logistica:'Logística',
+    industria:'Indústria',construcao:'Construção'
+  };
+
+  // Corpo múltiplos
+  const tb=div.querySelector('#mult-body');
+  const modKeys=Object.keys(modelos);
+  const setKeys=Object.keys(setores);
+  const maxLen=Math.max(modKeys.length,setKeys.length);
+  for(let i=0;i<maxLen;i++){
+    const tr=document.createElement('tr');
+    const mk=modKeys[i],sk=setKeys[i];
+    tr.innerHTML=`
+      <td><div class="param-key">${mk?modelos[mk]:''}</div></td>
+      <td>${mk?`<input class="param-input mult-base" data-key="${mk}" value="${mb[mk]??''}" type="number" step="0.1" min="0" max="10">`:''}</td>
+      <td><div class="param-key">${sk?setores[sk]:''}</div></td>
+      <td>${sk?`<input class="param-input mult-mod" data-key="${sk}" value="${ms[sk]??''}" type="number" step="0.1" min="-2" max="2">`:''}</td>`;
+    tb.appendChild(tr);
+  }
+
+  // Fator ISE
+  const fb=div.querySelector('#ise-fator-body');
+  fi.forEach((f,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><div class="param-key">${f.min} – ${f.max}</div></td>
+      <td><div class="param-key" style="color:var(--ink3)">${f.nome}</div></td>
+      <td><input class="param-input ise-fator-val" data-idx="${i}" value="${f.fator}" type="number" step="0.01" min="0" max="3"></td>`;
+    fb.appendChild(tr);
+  });
+
+  // Marcar changed
+  div.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',()=>inp.classList.add('changed')));
+  return div;
+}
+
+window.saveMult=async function(){
+  const mb={};
+  document.querySelectorAll('.mult-base').forEach(inp=>{mb[inp.dataset.key]=parseFloat(inp.value);inp.classList.remove('changed');});
+  const ms={};
+  document.querySelectorAll('.mult-mod').forEach(inp=>{ms[inp.dataset.key]=parseFloat(inp.value);inp.classList.remove('changed');});
+  const fi=PARAMS['fator_ise']||[];
+  document.querySelectorAll('.ise-fator-val').forEach(inp=>{
+    fi[parseInt(inp.dataset.idx)].fator=parseFloat(inp.value);inp.classList.remove('changed');
+  });
+  await saveParam('multiplos_base',mb);
+  await saveParam('modificadores_setor',ms);
+  await saveParam('fator_ise',fi);
+  PARAMS['multiplos_base']=mb;PARAMS['modificadores_setor']=ms;PARAMS['fator_ise']=fi;
+};
+
+// 2. ISE PESOS
+function renderISEPesos(){
+  const div=document.createElement('div');
+  div.className='param-section';div.id='sec-ise-pesos';
+  const p=PARAMS['pesos_ise']||{};
+
+  const pilares=[
+    {key:'p1_dependencia',nome:'P1 — Dependência dos Sócios'},
+    {key:'p2_comercial',nome:'P2 — Comercial / Vendas'},
+    {key:'p3_financeiro',nome:'P3 — Financeiro (Margem)'},
+    {key:'p4_gestao',nome:'P4 — Gestão e Processos'},
+    {key:'p5_marca',nome:'P5 — Marca'},
+    {key:'p6_balanco',nome:'P6 — Balanço Patrimonial'},
+    {key:'p7_divida',nome:'P7 — Estrutura de Dívida'},
+    {key:'p8_risco',nome:'P8 — Risco Jurídico / Fiscal'},
+    {key:'p9_concentracao',nome:'P9 — Concentração de Clientes'},
+    {key:'p10_escalabilidade',nome:'P10 — Escalabilidade / Recorrência'},
+  ];
+
+  div.innerHTML=`
+  <div class="param-section-header" onclick="toggleSection('ise-pesos')">
+    <div class="param-section-title">ISE · Pesos dos 10 Pilares<span class="tag">ise</span></div>
+    <div class="param-section-right">
+      <button class="btn-save" onclick="event.stopPropagation();saveISEPesos()">Salvar</button>
+      <span class="chevron">▼</span>
+    </div>
+  </div>
+  <div class="param-body">
+    <div id="pilares-container"></div>
+    <div class="pesos-check" id="pesos-check">Verificando...</div>
+    <div class="param-note">P6 (Balanço) e P7 (Dívida) são calculados automaticamente a partir dos dados financeiros. Os demais vêm das respostas do diagnóstico.</div>
+  </div>`;
+
+  const pc=div.querySelector('#pilares-container');
+  const inputs=[];
+  pilares.forEach(pilar=>{
+    const val=p[pilar.key]||0;
+    const row=document.createElement('div');
+    row.className='pilar-row';
+    row.innerHTML=`
+      <div class="pilar-nome">${pilar.nome}</div>
+      <div class="pilar-bar-track"><div class="pilar-bar-fill" style="width:${val*100}%"></div></div>
+      <input class="param-input ise-peso-inp" data-key="${pilar.key}" value="${(val*100).toFixed(0)}" type="number" step="1" min="0" max="100" style="max-width:70px">
+      <div class="pilar-num" style="color:var(--ink3)">%</div>`;
+    pc.appendChild(row);
+    const inp=row.querySelector('input');
+    inputs.push(inp);
+    inp.addEventListener('input',()=>{
+      inp.classList.add('changed');
+      row.querySelector('.pilar-bar-fill').style.width=inp.value+'%';
+      const checkEl=div.querySelector('#pesos-check');
+      const sum=inputs.reduce((a,i)=>a+parseFloat(i.value||0),0);
+      checkEl.className='pesos-check '+(Math.abs(sum-100)<0.5?'ok':'err');
+      checkEl.textContent=Math.abs(sum-100)<0.5?'✓ Soma = 100% (correto)':'⚠ Soma = '+sum.toFixed(1)+'% — deve ser 100%';
+    });
+  });
+
+  // Check inicial
+  const sum=inputs.reduce((a,i)=>a+parseFloat(i.value||0),0);
+  const ck=div.querySelector('#pesos-check');
+  ck.className='pesos-check '+(Math.abs(sum-100)<0.5?'ok':'err');
+  ck.textContent=Math.abs(sum-100)<0.5?'✓ Soma = 100% (correto)':'⚠ Soma = '+sum.toFixed(1)+'% — deve ser 100%';
+
+  return div;
+}
+
+window.saveISEPesos=async function(){
+  const p={};
+  document.querySelectorAll('.ise-peso-inp').forEach(inp=>{
+    p[inp.dataset.key]=parseFloat(inp.value)/100;
+    inp.classList.remove('changed');
+  });
+  await saveParam('pesos_ise',p);
+  PARAMS['pesos_ise']=p;
+};
+
+// 3. ISE REGRAS
+function renderISERegras(){
+  const div=document.createElement('div');
+  div.className='param-section';div.id='sec-ise-regras';
+  const r=PARAMS['regras_ise']||{};
+
+  const grupos=[
+    {key:'p1_dependencia',nome:'P1 — Dependência',campos:{total:'Dependência total',parcial:'Dependência parcial',nenhuma:'Independente',default:'Default (não informado)'}},
+    {key:'p3_financeiro',nome:'P3 — Financeiro (por faixa de margem)',campos:{margem_25_mais:'Margem ≥ 25%',margem_15_24:'Margem 15–24%',margem_8_14:'Margem 8–14%',margem_menor_8:'Margem < 8%'}},
+    {key:'p4_gestao',nome:'P4 — Gestão',campos:{documentados:'Processos documentados',parcial:'Parcialmente documentados',nao:'Não documentados',default:'Default'}},
+    {key:'p5_marca',nome:'P5 — Marca',campos:{sim:'Marca registrada',processo:'Em processo',nao:'Sem registro',default:'Default'}},
+    {key:'p9_concentracao',nome:'P9 — Concentração (% maior cliente)',campos:{ate_5pct:'≤ 5%',ate_15pct:'≤ 15%',ate_25pct:'≤ 25%',ate_40pct:'≤ 40%',ate_60pct:'≤ 60%',acima_60pct:'> 60%',default:'Default (não informado)'}},
+    {key:'p10_escalabilidade',nome:'P10 — Escalabilidade (% recorrência)',campos:{zero:'0% (base mínima)',ate_20pct:'1–20%',ate_40pct:'21–40%',ate_60pct:'41–60%',ate_80pct:'61–80%',acima_80pct:'> 80%',default:'Default (não informado)'}},
+  ];
+
+  div.innerHTML=`
+  <div class="param-section-header" onclick="toggleSection('ise-regras')">
+    <div class="param-section-title">ISE · Regras de Pontuação<span class="tag">ise</span></div>
+    <div class="param-section-right">
+      <button class="btn-save" onclick="event.stopPropagation();saveISERegras()">Salvar</button>
+      <span class="chevron">▼</span>
+    </div>
+  </div>
+  <div class="param-body" id="ise-regras-body"></div>`;
+
+  const body=div.querySelector('#ise-regras-body');
+  grupos.forEach(g=>{
+    const grp=document.createElement('div');
+    grp.style='margin-bottom:20px';
+    grp.innerHTML=`<div style="font-size:10px;color:var(--em);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">${g.nome}</div>`;
+    const tbl=document.createElement('table');
+    tbl.className='param-table';
+    tbl.innerHTML='<thead><tr><th>Condição</th><th style="text-align:right">Nota (0–10)</th></tr></thead><tbody></tbody>';
+    const vals=r[g.key]||{};
+    Object.entries(g.campos).forEach(([ck,cn])=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td class="param-key">${cn}</td><td style="text-align:right"><input class="param-input ise-regra-inp" data-grupo="${g.key}" data-campo="${ck}" value="${vals[ck]??''}" type="number" step="1" min="0" max="10" style="max-width:80px"></td>`;
+      tbl.querySelector('tbody').appendChild(tr);
+    });
+    grp.appendChild(tbl);
+    body.appendChild(grp);
+  });
+
+  div.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',()=>inp.classList.add('changed')));
+  return div;
+}
+
+window.saveISERegras=async function(){
+  const regras=JSON.parse(JSON.stringify(PARAMS['regras_ise']||{}));
+  document.querySelectorAll('.ise-regra-inp').forEach(inp=>{
+    if(!regras[inp.dataset.grupo])regras[inp.dataset.grupo]={};
+    regras[inp.dataset.grupo][inp.dataset.campo]=parseFloat(inp.value);
+    inp.classList.remove('changed');
+  });
+  await saveParam('regras_ise',regras);
+  PARAMS['regras_ise']=regras;
+};
+
+// 4. BENCHMARKS DRE
+function renderBenchmarksDRE(){
+  const div=document.createElement('div');
+  div.className='param-section';div.id='sec-bench-dre';
+  const b=PARAMS['benchmarks_dre']||{};
+
+  const setores=['alimentacao','saude','beleza_estetica','educacao','varejo','academia','hospedagem','logistica','industria','construcao','servicos_b2b','outros_servicos','default'];
+  const nomes={alimentacao:'Alimentação',saude:'Saúde',beleza_estetica:'Beleza/Estét.',educacao:'Educação',varejo:'Varejo',academia:'Academia',hospedagem:'Hospedagem',logistica:'Logística',industria:'Indústria',construcao:'Construção',servicos_b2b:'Serv. B2B',outros_servicos:'Outros',default:'Default'};
+  const cols=['imp','tax','com','cmv','fol','alu','cf','ro','marg'];
+  const colNames={imp:'Impost.',tax:'Taxas',com:'Comiss.',cmv:'CMV',fol:'Folha',alu:'Aluguel',cf:'CF',ro:'RO',marg:'Marg.'};
+
+  div.innerHTML=`
+  <div class="param-section-header" onclick="toggleSection('bench-dre')">
+    <div class="param-section-title">Benchmarks DRE por Setor<span class="tag">benchmarks</span></div>
+    <div class="param-section-right">
+      <button class="btn-save" onclick="event.stopPropagation();saveBenchDRE()">Salvar</button>
+      <span class="chevron">▼</span>
+    </div>
+  </div>
+  <div class="param-body">
+    <div style="overflow-x:auto">
+    <table class="param-table" id="bench-dre-tbl">
+      <thead><tr>
+        <th>Setor</th>
+        ${cols.map(c=>`<th style="text-align:right">${colNames[c]}<br><span style="color:var(--ink4);font-size:8px">%</span></th>`).join('')}
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    </div>
+    <div class="param-note">Todos os valores são % sobre faturamento bruto. RO = Resultado Operacional benchmark. Marg. = Margem líquida benchmark.</div>
+  </div>`;
+
+  const tbody=div.querySelector('tbody');
+  setores.forEach(s=>{
+    const vals=b[s]||{};
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="param-key">${nomes[s]}</td>`+
+      cols.map(c=>`<td style="text-align:right"><input class="param-input bench-dre-inp" data-setor="${s}" data-col="${c}" value="${vals[c]??''}" type="number" step="1" min="0" max="100" style="max-width:60px;text-align:right"></td>`).join('');
+    tbody.appendChild(tr);
+  });
+
+  div.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',()=>inp.classList.add('changed')));
+  return div;
+}
+
+window.saveBenchDRE=async function(){
+  const b=JSON.parse(JSON.stringify(PARAMS['benchmarks_dre']||{}));
+  document.querySelectorAll('.bench-dre-inp').forEach(inp=>{
+    if(!b[inp.dataset.setor])b[inp.dataset.setor]={};
+    b[inp.dataset.setor][inp.dataset.col]=parseFloat(inp.value);
+    inp.classList.remove('changed');
+  });
+  await saveParam('benchmarks_dre',b);
+  PARAMS['benchmarks_dre']=b;
+};
+
+// 5. BENCHMARKS INDICADORES
+function renderBenchmarksInd(){
+  const div=document.createElement('div');
+  div.className='param-section';div.id='sec-bench-ind';
+  const b=PARAMS['benchmarks_indicadores']||{};
+
+  const setores=['alimentacao','saude','beleza_estetica','educacao','varejo','academia','hospedagem','logistica','industria','construcao','servicos_b2b','outros_servicos','default'];
+  const nomes={alimentacao:'Alimentação',saude:'Saúde',beleza_estetica:'Beleza',educacao:'Educação',varejo:'Varejo',academia:'Academia',hospedagem:'Hospedagem',logistica:'Logística',industria:'Indústria',construcao:'Construção',servicos_b2b:'Serv. B2B',outros_servicos:'Outros',default:'Default'};
+  const cols=['margem_bruta','margem_op','conc_max','folha_pct','aluguel_pct','pmr','pmp'];
+  const colNames={margem_bruta:'Mg. Bruta',margem_op:'Mg. Op.',conc_max:'Conc. Max',folha_pct:'Folha',aluguel_pct:'Aluguel',pmr:'PMR',pmp:'PMP'};
+
+  div.innerHTML=`
+  <div class="param-section-header" onclick="toggleSection('bench-ind')">
+    <div class="param-section-title">Benchmarks Indicadores Implícitos<span class="tag">benchmarks</span></div>
+    <div class="param-section-right">
+      <button class="btn-save" onclick="event.stopPropagation();saveBenchInd()">Salvar</button>
+      <span class="chevron">▼</span>
+    </div>
+  </div>
+  <div class="param-body">
+    <div style="overflow-x:auto">
+    <table class="param-table">
+      <thead><tr>
+        <th>Setor</th>
+        ${cols.map(c=>`<th style="text-align:right">${colNames[c]}</th>`).join('')}
+      </tr></thead>
+      <tbody id="bench-ind-tbody"></tbody>
+    </table>
+    </div>
+    <div class="param-note">PMR = Prazo Médio de Recebimento (dias). PMP = Prazo Médio de Pagamento (dias). Demais: % sobre faturamento.</div>
+  </div>`;
+
+  const tbody=div.querySelector('#bench-ind-tbody');
+  setores.forEach(s=>{
+    const vals=b[s]||{};
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="param-key">${nomes[s]}</td>`+
+      cols.map(c=>`<td style="text-align:right"><input class="param-input bench-ind-inp" data-setor="${s}" data-col="${c}" value="${vals[c]??''}" type="number" step="1" min="0" max="200" style="max-width:60px;text-align:right"></td>`).join('');
+    tbody.appendChild(tr);
+  });
+
+  div.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',()=>inp.classList.add('changed')));
+  return div;
+}
+
+window.saveBenchInd=async function(){
+  const b=JSON.parse(JSON.stringify(PARAMS['benchmarks_indicadores']||{}));
+  document.querySelectorAll('.bench-ind-inp').forEach(inp=>{
+    if(!b[inp.dataset.setor])b[inp.dataset.setor]={};
+    b[inp.dataset.setor][inp.dataset.col]=parseFloat(inp.value);
+    inp.classList.remove('changed');
+  });
+  await saveParam('benchmarks_indicadores',b);
+  PARAMS['benchmarks_indicadores']=b;
+};
+
+// 6. ATRATIVIDADE
+function renderAtratividade(){
+  const div=document.createElement('div');
+  div.className='param-section';div.id='sec-atrativ';
+  const pa=PARAMS['pesos_atratividade']||{};
+  const ss=PARAMS['score_setor_atratividade']||{};
+
+  const pilares=[
+    {key:'p1_ise_solidez',nome:'P1 — ISE / Solidez'},
+    {key:'p2_setor',nome:'P2 — Score do Setor'},
+    {key:'p3_recorrencia',nome:'P3 — Recorrência de Receita'},
+    {key:'p4_independencia',nome:'P4 — Independência do Sócio'},
+    {key:'p5_crescimento',nome:'P5 — Crescimento Histórico'},
+    {key:'p6_margem',nome:'P6 — Margem vs Benchmark'},
+  ];
+  const setores={alimentacao:'Alimentação',saude:'Saúde',educacao:'Educação',servicos_b2b:'Serv. B2B',beleza_estetica:'Beleza',academia:'Academia',hospedagem:'Hospedagem',outros_servicos:'Outros',varejo:'Varejo',industria:'Indústria',logistica:'Logística',construcao:'Construção',default:'Default'};
+
+  div.innerHTML=`
+  <div class="param-section-header" onclick="toggleSection('atrativ')">
+    <div class="param-section-title">Índice de Atratividade<span class="tag">atratividade</span></div>
+    <div class="param-section-right">
+      <button class="btn-save" onclick="event.stopPropagation();saveAtrativ()">Salvar</button>
+      <span class="chevron">▼</span>
+    </div>
+  </div>
+  <div class="param-body">
+    <div style="font-size:10px;color:var(--ink3);margin-bottom:12px;letter-spacing:.08em;text-transform:uppercase">Pesos dos 6 pilares</div>
+    <div id="atrativ-pilares"></div>
+    <div class="pesos-check" id="pesos-atrativ-check">Verificando...</div>
+    <div style="font-size:10px;color:var(--ink3);margin:20px 0 12px;letter-spacing:.08em;text-transform:uppercase">Score por setor (5=baixo · 6=médio · 7=bom · 8=alto)</div>
+    <table class="param-table">
+      <thead><tr><th>Setor</th><th style="text-align:right">Nota (5–8)</th></tr></thead>
+      <tbody id="score-setor-body"></tbody>
+    </table>
+  </div>`;
+
+  const pc=div.querySelector('#atrativ-pilares');
+  const inputs=[];
+  pilares.forEach(pilar=>{
+    const val=pa[pilar.key]||0;
+    const row=document.createElement('div');
+    row.className='pilar-row';
+    row.innerHTML=`
+      <div class="pilar-nome">${pilar.nome}</div>
+      <div class="pilar-bar-track"><div class="pilar-bar-fill" style="width:${val*100}%"></div></div>
+      <input class="param-input atrativ-peso-inp" data-key="${pilar.key}" value="${(val*100).toFixed(0)}" type="number" step="1" min="0" max="100" style="max-width:70px">
+      <div class="pilar-num" style="color:var(--ink3)">%</div>`;
+    pc.appendChild(row);
+    const inp=row.querySelector('input');
+    inputs.push(inp);
+    inp.addEventListener('input',()=>{
+      inp.classList.add('changed');
+      row.querySelector('.pilar-bar-fill').style.width=inp.value+'%';
+      const sum=inputs.reduce((a,i)=>a+parseFloat(i.value||0),0);
+      const ck=div.querySelector('#pesos-atrativ-check');
+      ck.className='pesos-check '+(Math.abs(sum-100)<0.5?'ok':'err');
+      ck.textContent=Math.abs(sum-100)<0.5?'✓ Soma = 100% (correto)':'⚠ Soma = '+sum.toFixed(1)+'% — deve ser 100%';
+    });
+  });
+
+  const sum=inputs.reduce((a,i)=>a+parseFloat(i.value||0),0);
+  const ck=div.querySelector('#pesos-atrativ-check');
+  ck.className='pesos-check '+(Math.abs(sum-100)<0.5?'ok':'err');
+  ck.textContent=Math.abs(sum-100)<0.5?'✓ Soma = 100% (correto)':'⚠ Soma = '+sum.toFixed(1)+'% — deve ser 100%';
+
+  const sb=div.querySelector('#score-setor-body');
+  Object.entries(setores).forEach(([k,n])=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="param-key">${n}</td><td style="text-align:right"><input class="param-input score-setor-inp" data-key="${k}" value="${ss[k]??6}" type="number" step="1" min="5" max="8" style="max-width:80px"></td>`;
+    sb.appendChild(tr);
+  });
+
+  div.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',()=>inp.classList.add('changed')));
+  return div;
+}
+
+window.saveAtrativ=async function(){
+  const pa={};
+  document.querySelectorAll('.atrativ-peso-inp').forEach(inp=>{pa[inp.dataset.key]=parseFloat(inp.value)/100;inp.classList.remove('changed');});
+  const ss={};
+  document.querySelectorAll('.score-setor-inp').forEach(inp=>{ss[inp.dataset.key]=parseFloat(inp.value);inp.classList.remove('changed');});
+  await saveParam('pesos_atratividade',pa);
+  await saveParam('score_setor_atratividade',ss);
+  PARAMS['pesos_atratividade']=pa;PARAMS['score_setor_atratividade']=ss;
+};
+
+// 7. LIMITES GLOBAIS
+function renderLimites(){
+  const div=document.createElement('div');
+  div.className='param-section';div.id='sec-limites';
+  const l=PARAMS['limites_globais']||{};
+
+  const campos=[
+    {key:'fator_min',nome:'Fator 1N mínimo',desc:'Piso do multiplicador'},
+    {key:'fator_max',nome:'Fator 1N máximo',desc:'Teto do multiplicador'},
+    {key:'ise_trava_criticos',nome:'ISE trava críticos',desc:'Limite quando 2+ pilares críticos'},
+    {key:'pilares_criticos_para_trava',nome:'Pilares para ativar trava',desc:'Qtd de pilares críticos que ativa o limite'},
+    {key:'nota_critico_abaixo_de',nome:'Nota considerada crítica',desc:'Pilar abaixo desse valor = crítico'},
+  ];
+
+  div.innerHTML=`
+  <div class="param-section-header" onclick="toggleSection('limites')">
+    <div class="param-section-title">Limites Globais<span class="tag">config</span></div>
+    <div class="param-section-right">
+      <button class="btn-save" onclick="event.stopPropagation();saveLimites()">Salvar</button>
+      <span class="chevron">▼</span>
+    </div>
+  </div>
+  <div class="param-body">
+    <table class="param-table">
+      <thead><tr><th>Parâmetro</th><th></th><th style="text-align:right">Valor</th></tr></thead>
+      <tbody>${campos.map(c=>`
+        <tr>
+          <td><div class="param-key">${c.nome}</div><div class="param-desc">${c.desc}</div></td>
+          <td></td>
+          <td style="text-align:right"><input class="param-input limite-inp" data-key="${c.key}" value="${l[c.key]??''}" type="number" step="0.1" style="max-width:100px"></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+
+  div.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',()=>inp.classList.add('changed')));
+  return div;
+}
+
+window.saveLimites=async function(){
+  const l=JSON.parse(JSON.stringify(PARAMS['limites_globais']||{}));
+  document.querySelectorAll('.limite-inp').forEach(inp=>{l[inp.dataset.key]=parseFloat(inp.value);inp.classList.remove('changed');});
+  await saveParam('limites_globais',l);
+  PARAMS['limites_globais']=l;
+};
+
+// ── INIT ──
+async function init(){
+  try{
+    await loadParams();
+    renderSections();
+  }catch(e){
+    console.error(e);
+    toast('Erro ao carregar parâmetros',true);
+  }
+}
+
+window.onload=init;
+</script>
+</body>
+</html>
