@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>1Negócio · Laudo de Avaliação</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Cabinet+Grotesk:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:   #eef5f0;
+  --bg1:  #ffffff;
+  --bg2:  #f4f9f5;
+  --bg3:  #e8f2eb;
+  --em:   #1a7a4a;
+  --em-d: rgba(26,122,74,.08);
+  --em-l: rgba(26,122,74,.25);
+  --am:   #b45309;
+  --am-d: rgba(180,83,9,.10);
+  --am-l: rgba(180,83,9,.25);
+  --rd:   #dc2626;
+  --rd-d: rgba(220,38,38,.08);
+  --rd-l: rgba(220,38,38,.25);
+  --pu:   #7c3aed;
+  --pu-d: rgba(124,58,237,.08);
+  --pu-l: rgba(124,58,237,.25);
+  --ink:  #0d2b1e;
+  --ink2: #2d5a3d;
+  --ink3: #4a7c5c;
+  --ink4: #8aaa96;
+  --line: rgba(13,43,30,.06);
+  --line2:rgba(13,43,30,.12);
+  --r:    8px;
+  --r2:   14px;
+  --r3:   20px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh;background:var(--bg);color:var(--ink);font-family:'Cabinet Grotesk',sans-serif;overflow-x:hidden}
+
+/* grain */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");opacity:.012}
+
+/* ── LOADING ── */
+#loading{position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .4s}
+#loading.hide{opacity:0;pointer-events:none}
+.ld-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.02em;margin-bottom:24px}
+.ld-logo em{color:var(--em);font-style:normal}
+.ld-bar-wrap{width:200px;height:3px;background:var(--line2);border-radius:2px;overflow:hidden;margin-bottom:14px}
+.ld-bar{height:100%;background:var(--em);border-radius:2px;transition:width .6s ease;width:0%}
+.ld-msg{font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3);letter-spacing:.08em;text-transform:uppercase;min-height:18px}
+.ld-tag{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink4);margin-top:24px}
+
+/* ── ERRO ── */
+#erro{display:none;text-align:center;padding:60px 20px}
+#erro h2{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;margin-bottom:12px}
+#erro p{color:var(--ink3);font-size:14px}
+
+/* ── LAYOUT ── */
+.page{position:relative;z-index:1;max-width:520px;margin:0 auto;padding:20px 16px 80px}
+
+/* ── ICD BADGE ── */
+.icd-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 0;margin-bottom:6px}
+.icd-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink4);display:flex;align-items:center;gap:8px}
+.icd-dot{width:8px;height:8px;border-radius:50%}
+.icd-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:600;letter-spacing:.05em;display:flex;align-items:center;gap:4px}
+
+/* ── HERO ── */
+.hero-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.hero-tag{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);background:var(--bg2);border:1px solid var(--line);border-radius:20px;padding:5px 12px}
+.hero-nome{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(28px,7vw,36px);color:var(--ink);letter-spacing:-.02em;margin-bottom:8px;line-height:1.1}
+.hero-teaser{font-size:14px;color:var(--ink2);line-height:1.6;margin-bottom:24px}
+
+/* ── VALOR PRINCIPAL ── */
+.valor-card{background:var(--bg1);border:2px solid var(--em-l);border-radius:var(--r3);padding:28px 24px;margin-bottom:12px;position:relative;overflow:hidden}
+.valor-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--em),var(--pu))}
+.valor-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.valor-label::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--em)}
+.valor-num{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(36px,10vw,52px);color:var(--em);letter-spacing:-.03em;line-height:1;margin-bottom:8px}
+.valor-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3);letter-spacing:.05em}
+.valor-sub strong{color:var(--ink);font-weight:700}
+
+/* ── TERMÔMETRO ── */
+.termo-card{background:var(--bg1);border:1px solid var(--line2);border-radius:var(--r2);padding:20px;margin-bottom:24px}
+.termo-title{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:12px}
+.termo-bar{height:8px;border-radius:4px;background:linear-gradient(90deg,#ef4444 0%,#f59e0b 30%,#22c55e 55%,#3b82f6 80%,#8b5cf6 100%);position:relative;margin-bottom:20px}
+.termo-marker{position:absolute;top:-4px;width:3px;height:16px;background:var(--ink);border-radius:2px;transform:translateX(-50%)}
+.termo-legs{display:flex;justify-content:space-between}
+.termo-leg{text-align:center;max-width:30%}
+.termo-leg-label{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);margin-bottom:4px}
+.termo-leg-val{font-family:'Syne',sans-serif;font-weight:700;font-size:13px}
+.termo-msg{font-family:'Cabinet Grotesk',sans-serif;font-size:13px;font-weight:600;color:var(--em);margin-top:16px}
+
+/* ── BLOCOS EXPANDÍVEIS ── */
+.bloco{background:var(--bg1);border:1px solid var(--line2);border-radius:var(--r2);margin-bottom:12px;overflow:hidden}
+.bloco-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;cursor:pointer;user-select:none}
+.bloco-icon{font-size:18px;margin-right:10px}
+.bloco-title{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;flex:1}
+.bloco-badge{font-family:'DM Mono',monospace;font-size:11px;font-weight:600;color:var(--em);background:var(--em-d);border:1px solid var(--em-l);padding:3px 10px;border-radius:20px;margin-right:8px}
+.bloco-arrow{font-size:12px;color:var(--ink4);transition:transform .2s}
+.bloco.open .bloco-arrow{transform:rotate(180deg)}
+.bloco-body{display:none;padding:0 18px 18px}
+.bloco.open .bloco-body{display:block}
+
+/* ── TABELA DRE ── */
+.dre-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.dre-row:last-child{border-bottom:none}
+.dre-row.total{border-top:2px solid var(--em-l);font-weight:700;color:var(--em);padding-top:12px;margin-top:4px}
+.dre-row.sub{color:var(--ink3);font-size:12px}
+.dre-row.info{color:var(--ink4);font-size:11px;font-style:italic;border-bottom:1px dashed var(--line)}
+.dre-label{flex:1}
+.dre-val{font-family:'DM Mono',monospace;text-align:right;min-width:80px}
+.dre-anual{font-family:'DM Mono',monospace;text-align:right;min-width:90px;color:var(--ink3);font-size:11px}
+.dre-pct{font-family:'DM Mono',monospace;text-align:right;min-width:50px;color:var(--ink4);font-size:11px}
+
+/* ── ISE ── */
+.ise-wrap{text-align:center;margin-bottom:20px}
+.ise-score{font-family:'Syne',sans-serif;font-weight:800;font-size:64px;line-height:1}
+.ise-class{font-family:'DM Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:.1em;margin-top:4px}
+.ise-desc{font-size:12px;color:var(--ink3);margin-top:6px}
+.pilar-row{display:flex;align-items:center;gap:10px;padding:6px 0}
+.pilar-name{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);width:110px;flex-shrink:0}
+.pilar-bar-wrap{flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.pilar-bar{height:100%;border-radius:4px;transition:width .4s ease}
+.pilar-val{font-family:'DM Mono',monospace;font-size:11px;font-weight:600;width:40px;text-align:right}
+
+/* ── FATOR ── */
+.fator-grid{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;align-items:center;gap:6px;text-align:center;margin-bottom:16px}
+.fator-box{background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r);padding:12px 8px}
+.fator-box-label{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:4px}
+.fator-box-val{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--em)}
+.fator-op{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--ink3)}
+.fator-hint{font-size:12px;color:var(--ink3);line-height:1.5;padding:12px;background:var(--bg2);border-radius:var(--r)}
+
+/* ── TRIBUTÁRIO ── */
+.trib-row{display:grid;grid-template-columns:1fr 90px 60px 90px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:12px}
+.trib-row.head{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);border-bottom:1px solid var(--line2)}
+.trib-row .reg{font-weight:600}
+.trib-row .eco{font-family:'DM Mono',monospace;font-weight:600;color:var(--em)}
+.trib-atual{font-family:'DM Mono',monospace;font-size:9px;background:var(--em-d);color:var(--em);padding:2px 6px;border-radius:4px;margin-left:6px}
+.trib-otimo{font-family:'DM Mono',monospace;font-size:9px;background:var(--am-d);color:var(--am);padding:2px 6px;border-radius:4px;margin-left:6px}
+.trib-aviso{background:var(--am-d);border:1px solid var(--am-l);border-radius:var(--r);padding:14px;margin-top:16px}
+.trib-aviso strong{color:var(--am)}
+
+/* ── 1SÓCIO ── */
+.socio-card{background:linear-gradient(135deg,var(--bg2),var(--bg1));border:1px solid var(--em-l);border-radius:var(--r2);padding:20px;margin-bottom:12px}
+.socio-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.socio-stat{background:var(--bg1);border:1px solid var(--line2);border-radius:var(--r);padding:14px}
+.socio-stat-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:4px}
+.socio-stat-val{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--em)}
+.socio-stat-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink3)}
+.op-card{background:var(--bg1);border:1px solid var(--line2);border-left:3px solid var(--em);border-radius:var(--r);padding:14px;margin-bottom:8px}
+.op-num{font-family:'DM Mono',monospace;font-size:10px;color:var(--em);font-weight:700;margin-bottom:4px}
+.op-title{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;margin-bottom:4px}
+.op-desc{font-size:12px;color:var(--ink3);line-height:1.4;margin-bottom:6px}
+.op-tag{font-family:'DM Mono',monospace;font-size:10px;background:var(--em-d);color:var(--em);padding:3px 8px;border-radius:4px;display:inline-block}
+.op-mais{text-align:center;padding:14px;background:var(--bg2);border:1px dashed var(--em-l);border-radius:var(--r);font-size:13px;color:var(--em);font-weight:600;margin-bottom:16px}
+
+/* ── ATRATIVIDADE ── */
+.atr-wrap{text-align:center;margin-bottom:16px}
+.atr-score{font-family:'Syne',sans-serif;font-weight:800;font-size:42px;color:var(--em)}
+.atr-lbl{font-family:'DM Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.1em;background:var(--em);color:#fff;padding:3px 10px;border-radius:10px;display:inline-block;margin-top:4px}
+
+/* ── CTAs ── */
+.cta-grid{display:grid;gap:12px;margin-top:24px}
+.cta-card{background:var(--bg1);border:2px solid var(--line2);border-radius:var(--r2);padding:20px;text-align:center;cursor:pointer;transition:all .15s}
+.cta-card:hover{border-color:var(--em-l);transform:translateY(-2px);box-shadow:0 6px 20px rgba(26,122,74,.1)}
+.cta-card.destaque{border-color:var(--em);background:var(--em-d)}
+.cta-title{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;margin-bottom:4px}
+.cta-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink3);letter-spacing:.05em;margin-bottom:10px}
+.cta-price{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--em)}
+.cta-tag{font-family:'DM Mono',monospace;font-size:8px;background:var(--am);color:#fff;padding:2px 8px;border-radius:4px;display:inline-block;margin-bottom:8px}
+
+/* ── SOCIO CTA ── */
+.socio-cta{background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border:2px solid var(--em);border-radius:var(--r2);padding:20px;text-align:center;margin-top:16px}
+.socio-cta-title{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--em);margin-bottom:2px}
+.socio-cta-price{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(20px,5vw,26px);color:var(--em);margin-bottom:2px}
+.socio-cta-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink3)}
+.socio-cta-btn{display:inline-block;margin-top:12px;background:var(--em);color:#fff;border:none;border-radius:var(--r);padding:12px 28px;font-family:'DM Mono',monospace;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+
+/* ── FOOTER ── */
+.footer{text-align:center;padding:40px 16px 20px;font-family:'DM Mono',monospace;font-size:9px;color:var(--ink4);letter-spacing:.1em;text-transform:uppercase}
+.footer-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;margin-bottom:6px}
+.footer-logo em{color:var(--em);font-style:normal}
+
+/* ── LAUDO MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:900;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal-box{background:var(--bg1);border-radius:var(--r3);padding:28px;max-width:400px;width:90%;position:relative}
+.modal-close{position:absolute;top:12px;right:16px;background:none;border:none;font-size:20px;color:var(--ink4);cursor:pointer}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="ld-logo"><em>1</em>NEGÓCIO</div>
+  <div class="ld-bar-wrap"><div class="ld-bar" id="ld-bar"></div></div>
+  <div class="ld-msg" id="ld-msg">Carregando avaliação...</div>
+  <div class="ld-tag">avaliado e vendido.</div>
+</div>
+
+<!-- ERRO -->
+<div id="erro">
+  <h2>Laudo não encontrado</h2>
+  <p>Verifique o link ou aguarde alguns instantes e recarregue a página.</p>
+</div>
+
+<!-- CONTEÚDO -->
+<div class="page" id="doc" style="display:none">
+
+  <!-- ICD -->
+  <div class="icd-bar">
+    <div class="icd-label"><span class="icd-dot" id="icd-dot"></span> QUALIDADE DOS DADOS</div>
+    <div class="icd-val" id="icd-val">—</div>
+  </div>
+
+  <!-- TAGS + NOME -->
+  <div class="hero-tags" id="hero-tags"></div>
+  <div class="hero-nome" id="hero-nome">—</div>
+  <div class="hero-teaser" id="hero-teaser"></div>
+
+  <!-- VALOR DE VENDA -->
+  <div class="valor-card">
+    <div class="valor-label">VALOR DE VENDA</div>
+    <div class="valor-num" id="valor-num">—</div>
+    <div class="valor-sub"><strong>Porteira fechada</strong> — inclui estoque, equipamentos e ponto comercial</div>
+  </div>
+
+  <!-- TERMÔMETRO -->
+  <div class="termo-card">
+    <div class="termo-title">COMPARATIVO DE VALORES</div>
+    <div class="termo-bar"><div class="termo-marker" id="mk-exp"></div><div class="termo-marker" id="mk-1n"></div><div class="termo-marker" id="mk-pot"></div></div>
+    <div class="termo-legs">
+      <div class="termo-leg"><div class="termo-leg-label">SUA EXPECTATIVA</div><div class="termo-leg-val" id="leg-exp" style="color:var(--ink)">—</div></div>
+      <div class="termo-leg"><div class="termo-leg-label">AVALIAÇÃO 1N</div><div class="termo-leg-val" id="leg-1n" style="color:var(--em)">—</div></div>
+      <div class="termo-leg"><div class="termo-leg-label">POTENCIAL 1SÓCIO</div><div class="termo-leg-val" id="leg-pot" style="color:var(--pu)">—</div></div>
+    </div>
+    <div class="termo-msg" id="termo-msg"></div>
+  </div>
+
+  <!-- RESULTADO OPERACIONAL -->
+  <div class="bloco" id="bloco-dre">
+    <div class="bloco-head" onclick="toggle('bloco-dre')">
+      <span class="bloco-icon">$</span>
+      <span class="bloco-title">Resultado Operacional</span>
+      <span class="bloco-badge" id="badge-ro">—</span>
+      <span class="bloco-arrow">▼</span>
+    </div>
+    <div class="bloco-body" id="dre-body"></div>
+  </div>
+
+  <!-- PATRIMÔNIO LÍQUIDO -->
+  <div class="bloco" id="bloco-pl">
+    <div class="bloco-head" onclick="toggle('bloco-pl')">
+      <span class="bloco-icon">=</span>
+      <span class="bloco-title">Patrimônio Líquido</span>
+      <span class="bloco-badge" id="badge-pl">—</span>
+      <span class="bloco-arrow">▼</span>
+    </div>
+    <div class="bloco-body" id="pl-body"></div>
+  </div>
+
+  <!-- ISE -->
+  <div class="bloco" id="bloco-ise">
+    <div class="bloco-head" onclick="toggle('bloco-ise')">
+      <span class="bloco-icon">◆</span>
+      <span class="bloco-title">ISE Solidez</span>
+      <span class="bloco-badge" id="badge-ise">—</span>
+      <span class="bloco-arrow">▼</span>
+    </div>
+    <div class="bloco-body" id="ise-body"></div>
+  </div>
+
+  <!-- FATOR 1N -->
+  <div class="bloco" id="bloco-fator">
+    <div class="bloco-head" onclick="toggle('bloco-fator')">
+      <span class="bloco-icon">×</span>
+      <span class="bloco-title">Como chegamos nesse valor</span>
+      <span class="bloco-badge" id="badge-fator">—</span>
+      <span class="bloco-arrow">▼</span>
+    </div>
+    <div class="bloco-body" id="fator-body"></div>
+  </div>
+
+  <!-- ANÁLISE TRIBUTÁRIA -->
+  <div class="bloco" id="bloco-trib">
+    <div class="bloco-head" onclick="toggle('bloco-trib')">
+      <span class="bloco-icon">%</span>
+      <span class="bloco-title">Análise Tributária</span>
+      <span class="bloco-badge" id="badge-trib">—</span>
+      <span class="bloco-arrow">▼</span>
+    </div>
+    <div class="bloco-body" id="trib-body"></div>
+  </div>
+
+  <!-- INDICADORES -->
+  <div class="bloco" id="bloco-ind">
+    <div class="bloco-head" onclick="toggle('bloco-ind')">
+      <span class="bloco-icon">◉</span>
+      <span class="bloco-title">Indicadores Chave</span>
+      <span class="bloco-arrow">▼</span>
+    </div>
+    <div class="bloco-body" id="ind-body"></div>
+  </div>
+
+  <!-- POTENCIAL 1SÓCIO -->
+  <div id="socio-section"></div>
+
+  <!-- ATRATIVIDADE -->
+  <div class="bloco" id="bloco-atr">
+    <div class="bloco-head" onclick="toggle('bloco-atr')">
+      <span class="bloco-icon">◎</span>
+      <span class="bloco-title">Índice de Atratividade</span>
+      <span class="bloco-badge" id="badge-atr">—</span>
+      <span class="bloco-arrow">▼</span>
+    </div>
+    <div class="bloco-body" id="atr-body"></div>
+  </div>
+
+  <!-- ICD DETALHADO -->
+  <div class="bloco" id="bloco-icd">
+    <div class="bloco-head" onclick="toggle('bloco-icd')">
+      <span class="bloco-icon">✓</span>
+      <span class="bloco-title">Qualidade dos Dados</span>
+      <span class="bloco-badge" id="badge-icd2">—</span>
+      <span class="bloco-arrow">▼</span>
+    </div>
+    <div class="bloco-body" id="icd-body"></div>
+  </div>
+
+  <!-- CTAs -->
+  <div class="cta-grid" id="ctas">
+    <div class="cta-card" onclick="abrirModal('modal-publicar')">
+      <div class="cta-title">Publicar Gratuitamente</div>
+      <div class="cta-sub">Diagnóstico curado pela equipe 1Negócio</div>
+      <div class="cta-price">R$ 0,00 + 10% taxa de sucesso</div>
+    </div>
+    <div class="cta-card destaque" onclick="abrirModal('modal-guiado')">
+      <div class="cta-tag">Recomendado</div>
+      <div class="cta-title">Publicação Guiada</div>
+      <div class="cta-sub">Acompanhamento dedicado</div>
+      <div class="cta-price">R$ 588 + 5% taxa de sucesso</div>
+    </div>
+    <div class="cta-card" onclick="window.open(linkLaudoPago,'_blank')">
+      <div class="cta-title">📄 Laudo 1Negócio em PDF</div>
+      <div class="cta-sub">Documento profissional de M&A — 18 páginas</div>
+      <div class="cta-price">R$ 99 — Gerar meu laudo</div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-logo"><em>1</em>NEGÓCIO</div>
+    Plataforma de compra e venda de empresas<br>
+    <span id="footer-data">—</span>
+  </div>
+</div>
+
+<!-- MODAIS -->
+<div class="modal-overlay" id="modal-publicar" onclick="if(event.target===this)fecharModal(this.id)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="fecharModal('modal-publicar')">×</button>
+    <h3 style="font-family:'Syne',sans-serif;font-weight:800;margin-bottom:12px">Publicar Gratuitamente</h3>
+    <p style="font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:16px">Publicação anônima, curadoria da equipe 1Negócio, acesso a compradores qualificados. Comissão de 10% cobrada apenas no fechamento.</p>
+    <a id="cta-pub-link" href="#" target="_blank" style="display:block;text-align:center;background:var(--em);color:#fff;border-radius:var(--r);padding:14px;font-family:'DM Mono',monospace;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;text-decoration:none">Publicar gratuitamente →</a>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-guiado" onclick="if(event.target===this)fecharModal(this.id)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="fecharModal('modal-guiado')">×</button>
+    <h3 style="font-family:'Syne',sans-serif;font-weight:800;margin-bottom:12px">Publicação Guiada</h3>
+    <p style="font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:16px">Sessão estratégica, publicação assistida, laudo PDF incluso, comissão 5% em vez de 10%. Em uma venda de R$500k, economiza R$25.000.</p>
+    <a id="cta-gui-link" href="https://buy.stripe.com/7sYdR8elo21aeSRegH5os02" target="_blank" style="display:block;text-align:center;background:var(--em);color:#fff;border-radius:var(--r);padding:14px;font-family:'DM Mono',monospace;font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;text-decoration:none">Contratar — R$ 588 →</a>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──
+const SB_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+const H = { 'apikey': SB_KEY };
+
+let D = {};
+let linkLaudoPago = '#';
+
+// ── HELPERS ──
+function n(v) { return (typeof v === 'number' && !isNaN(v)) ? v : (parseFloat(v) || 0); }
+function brl(v) { return 'R$ ' + Math.round(n(v)).toLocaleString('pt-BR'); }
+function brlShort(v) { v = n(v); if (Math.abs(v) >= 1e6) return 'R$ ' + (v/1e6).toFixed(1) + 'M'; if (Math.abs(v) >= 1e3) return 'R$ ' + Math.round(v/1e3) + 'k'; return brl(v); }
+function pct(a, b) { return b ? (a / b * 100) : 0; }
+function toggle(id) { document.getElementById(id).classList.toggle('open'); }
+function abrirModal(id) { document.getElementById(id).classList.add('show'); }
+function fecharModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// ── LOADING ──
+const ldMsgs = ['Buscando avaliação...', 'Montando DRE...', 'Calculando indicadores...', 'Preparando seu laudo...'];
+let ldStep = 0;
+function animLd() {
+  const bar = document.getElementById('ld-bar'), msg = document.getElementById('ld-msg');
+  if (ldStep < ldMsgs.length) {
+    msg.textContent = ldMsgs[ldStep];
+    bar.style.width = ((ldStep + 1) / ldMsgs.length * 100) + '%';
+    ldStep++;
+    setTimeout(animLd, 800);
+  }
+}
+function hideLoading() {
+  const ld = document.getElementById('loading');
+  ld.classList.add('hide');
+  document.getElementById('doc').style.display = '';
+}
+function showErro() {
+  document.getElementById('loading').classList.add('hide');
+  document.getElementById('erro').style.display = 'block';
+}
+
+// ── RENDER ── (SÓ LÊ DO D — NÃO CALCULA NADA)
+function renderLaudo() {
+  const fat = n(D.fat_mensal);
+  const ro = n(D.ro_mensal);
+  const pl = n(D.pl);
+  const ise = n(D.ise_total);
+  const fator = n(D.fator);
+  const valorVenda = n(D.valor_venda);
+  const valorOp = n(D.valor_op);
+
+  // ICD
+  const icdPct = n(D.icd_pct);
+  const icdColor = icdPct >= 70 ? 'var(--em)' : icdPct >= 50 ? 'var(--am)' : 'var(--rd)';
+  document.getElementById('icd-dot').style.background = icdColor;
+  document.getElementById('icd-val').innerHTML = '<span style="color:' + icdColor + '">' + icdPct + '%</span> ▲';
+
+  // Tags + Nome
+  const setor = (D.setor || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const loc = [D.cidade, D.estado].filter(Boolean).join('/');
+  const anos = n(D.anos);
+  const regime = D.regime || 'Simples Nacional';
+  let tagsHtml = '';
+  if (setor) tagsHtml += '<span class="hero-tag">' + setor + '</span>';
+  if (loc) tagsHtml += '<span class="hero-tag">' + loc + '</span>';
+  if (anos) tagsHtml += '<span class="hero-tag">' + anos + ' anos</span>';
+  tagsHtml += '<span class="hero-tag">' + regime + '</span>';
+  document.getElementById('hero-tags').innerHTML = tagsHtml;
+  document.getElementById('hero-nome').textContent = D.nome || 'Negócio Avaliado';
+
+  // Teaser
+  const margem = pct(ro, fat).toFixed(0);
+  const recorr = n(D.recorrencia);
+  const numFunc = n(D.num_funcs);
+  let teaser = (D.nome || 'Negócio') + ' é um negócio de ' + setor + ' com ' + anos + ' anos de operação';
+  if (loc) teaser += ' em ' + loc;
+  teaser += '. Faturamento de ' + brlShort(fat) + '/mês com resultado operacional de ' + brlShort(ro) + '/mês (' + margem + '% de margem).';
+  if (recorr > 0) teaser += ' ' + recorr + '% da receita é recorrente.';
+  if (numFunc > 0) teaser += ' Equipe de ' + numFunc + ' pessoas.';
+  document.getElementById('hero-teaser').textContent = teaser;
+
+  // Valor principal
+  document.getElementById('valor-num').textContent = brl(valorVenda);
+
+  // Termômetro
+  const expectativa = n(D.expectativa_val);
+  const potencial = valorVenda + n(D.total_ops) * 12;
+  const maxVal = Math.max(expectativa, valorVenda, potencial) * 1.1;
+  if (expectativa > 0) {
+    document.getElementById('mk-exp').style.left = (expectativa / maxVal * 100) + '%';
+    document.getElementById('leg-exp').textContent = brlShort(expectativa);
+  }
+  document.getElementById('mk-1n').style.left = (valorVenda / maxVal * 100) + '%';
+  document.getElementById('leg-1n').textContent = brlShort(valorVenda);
+  document.getElementById('mk-pot').style.left = Math.min(95, potencial / maxVal * 100) + '%';
+  document.getElementById('leg-pot').textContent = brlShort(potencial);
+
+  if (expectativa > 0 && valorVenda > expectativa) {
+    const diff = Math.round((valorVenda / expectativa - 1) * 100);
+    document.getElementById('termo-msg').innerHTML = '<strong>Boa notícia:</strong> sua avaliação ficou ' + diff + '% acima da sua expectativa.';
+  }
+
+  // DRE
+  document.getElementById('badge-ro').textContent = brlShort(ro * 12) + '/ano';
+  let dre = '';
+  function dreRow(label, mensal, cls) {
+    const a = n(mensal) * 12;
+    const p = fat > 0 ? (n(mensal) / fat * 100).toFixed(1) + '%' : '—';
+    return '<div class="dre-row ' + (cls || '') + '"><span class="dre-label">' + label + '</span><span class="dre-val">' + brl(mensal) + '</span><span class="dre-anual">' + brl(a) + '</span><span class="dre-pct">' + p + '</span></div>';
+  }
+  dre += '<div class="dre-row sub"><span class="dre-label">ITEM</span><span class="dre-val" style="font-size:9px">MENSAL</span><span class="dre-anual" style="font-size:9px">ANUAL</span><span class="dre-pct" style="font-size:9px">%</span></div>';
+  dre += dreRow('Faturamento Bruto', fat);
+  dre += dreRow('(−) Impostos', D.impostos);
+  dre += dreRow('(−) Taxas de recebimento', D.taxas);
+  dre += dreRow('(−) Comissões', D.comissoes);
+  dre += dreRow('(=) Receita Líquida', D.rec_liq);
+  dre += dreRow('(−) CMV / Custo de produção', D.cmv);
+  dre += dreRow('(=) Lucro Bruto', D.lb);
+  dre += dreRow('(−) Folha CLT bruta', D.clt_folha);
+  dre += dreRow('(−) Encargos CLT', D.clt_encargos);
+  dre += dreRow('(−) Provisões CLT', D.clt_provisoes);
+  dre += dreRow('(−) Aluguel', D.aluguel);
+  if (n(D.facilities)) dre += dreRow('(−) Facilities', D.facilities);
+  if (n(D.terceirizados)) dre += dreRow('(−) Terceirizados', D.terceirizados);
+  if (n(D.sistemas)) dre += dreRow('(−) Sistemas / Softwares', D.sistemas);
+  if (n(D.cf)) dre += dreRow('(−) Outros custos fixos', D.cf);
+  dre += dreRow('(−) Marketing pago', D.mkt);
+  dre += dreRow('(=) Resultado Operacional', ro, 'total');
+  dre += '<div class="dre-row info"><span class="dre-label">— Abaixo: informativo (não entra no valuation) —</span></div>';
+  dre += dreRow('(−) Pró-labore dos sócios', D.prol);
+  if (n(D.antecipacao)) dre += dreRow('(−) Antecipação de recebíveis', D.antecipacao);
+  dre += dreRow('(−) Parcelas de dívidas', D.parcelas);
+  dre += dreRow('(=) Potencial de caixa', D.potencial_caixa);
+  document.getElementById('dre-body').innerHTML = dre;
+
+  // Patrimônio Líquido
+  document.getElementById('badge-pl').textContent = brl(pl);
+  let plHtml = '<div style="margin-bottom:12px"><div style="font-weight:700;margin-bottom:8px">ATIVOS</div>';
+  [['Caixa e equivalentes', D.caixa], ['Contas a receber', D.receber], ['Estoque', D.estoque], ['Equipamentos', D.equip], ['Imóvel', D.imovel]].forEach(([l, v]) => {
+    plHtml += '<div class="dre-row"><span class="dre-label" style="padding-left:12px">' + l + '</span><span class="dre-val">' + brl(v) + '</span></div>';
+  });
+  plHtml += '<div class="dre-row" style="font-weight:700"><span class="dre-label">Total Ativos</span><span class="dre-val">' + brl(D.totAtiv) + '</span></div></div>';
+  plHtml += '<div><div style="font-weight:700;margin-bottom:8px">PASSIVOS</div>';
+  [['Fornecedores', D.forn], ['Dívidas/Saldo devedor', D.emprest]].forEach(([l, v]) => {
+    plHtml += '<div class="dre-row"><span class="dre-label" style="padding-left:12px">' + l + '</span><span class="dre-val">' + brl(v) + '</span></div>';
+  });
+  plHtml += '<div class="dre-row" style="font-weight:700"><span class="dre-label">Total Passivos</span><span class="dre-val">' + brl(D.totPass) + '</span></div>';
+  plHtml += '<div class="dre-row total"><span class="dre-label">Patrimônio Líquido</span><span class="dre-val">' + brl(pl) + '</span></div></div>';
+  document.getElementById('pl-body').innerHTML = plHtml;
+
+  // ISE
+  document.getElementById('badge-ise').textContent = ise + '/100';
+  const iseCls = ise >= 80 ? 'Excelente' : ise >= 65 ? 'Sólido' : ise >= 50 ? 'Operacional' : ise >= 40 ? 'Em Desenvolvimento' : 'Em Risco';
+  const iseDesc = ise >= 80 ? 'Compradores disputam. Preço protegido.' : ise >= 65 ? 'Venda em condições normais.' : ise >= 50 ? 'Venda possível com negociação de 10–20% de desconto.' : 'Reestruturação recomendada antes de vender.';
+  const iseColor = ise >= 65 ? 'var(--em)' : ise >= 50 ? 'var(--am)' : 'var(--rd)';
+  const pilares = [
+    ['Comercial', D.ise_com], ['Financeiro', D.ise_fin], ['Gestão', D.ise_ges], ['Independ.', D.ise_dep],
+    ['Concentração', D.ise_conc], ['Escalabilid.', D.ise_esc], ['Balanço', D.ise_bal], ['Marca', D.ise_mar],
+    ['Dívida', D.ise_div], ['Risco', D.ise_ris]
+  ];
+  let iseHtml = '<div class="ise-wrap"><div class="ise-score" style="color:' + iseColor + '">' + ise + '</div>';
+  iseHtml += '<div class="ise-class" style="color:' + iseColor + '">CLASSIFICAÇÃO<br><strong>' + iseCls + '</strong></div>';
+  iseHtml += '<div class="ise-desc">' + iseDesc + '</div></div>';
+  pilares.forEach(([nome, val]) => {
+    const v = n(val);
+    const c = v >= 7 ? 'var(--em)' : v >= 5 ? 'var(--am)' : 'var(--rd)';
+    iseHtml += '<div class="pilar-row"><span class="pilar-name">' + nome + '</span><div class="pilar-bar-wrap"><div class="pilar-bar" style="width:' + (v * 10) + '%;background:' + c + '"></div></div><span class="pilar-val" style="color:' + c + '">' + v + '/10</span></div>';
+  });
+  document.getElementById('ise-body').innerHTML = iseHtml;
+
+  // Fator 1N
+  document.getElementById('badge-fator').textContent = 'Fator ' + fator.toFixed(2) + 'x';
+  let fatorHtml = '<div class="fator-grid">';
+  fatorHtml += '<div class="fator-box"><div class="fator-box-label">RO ANUAL</div><div class="fator-box-val">' + brlShort(ro * 12) + '</div></div>';
+  fatorHtml += '<div class="fator-op">×</div>';
+  fatorHtml += '<div class="fator-box"><div class="fator-box-label">FATOR 1N</div><div class="fator-box-val">' + fator.toFixed(2) + 'x</div></div>';
+  fatorHtml += '<div class="fator-op">+</div>';
+  fatorHtml += '<div class="fator-box"><div class="fator-box-label">PATRIMÔNIO</div><div class="fator-box-val">' + brlShort(pl) + '</div></div>';
+  fatorHtml += '<div class="fator-op">=</div>';
+  fatorHtml += '<div class="fator-box" style="border-color:var(--em)"><div class="fator-box-label">VALOR DE VENDA</div><div class="fator-box-val">' + brlShort(valorVenda) + '</div></div>';
+  fatorHtml += '</div>';
+  const mulBase = n(D.mul_base);
+  const mulMod = n(D.mul_mod);
+  const mulIse = n(D.mul_ise);
+  fatorHtml += '<div class="fator-hint">O Fator 1N combina o múltiplo base do modelo de negócio (' + mulBase.toFixed(2) + 'x), o modificador setorial (' + (mulMod >= 0 ? '+' : '') + mulMod.toFixed(2) + 'x) e o Fator ISE (' + mulIse.toFixed(2) + 'x), que reflete a solidez operacional.</div>';
+  document.getElementById('fator-body').innerHTML = fatorHtml;
+
+  // Análise Tributária
+  const regimes = D.analise_regimes || {};
+  const regimeAtual = (D.regime || '').toLowerCase().replace(/\s+/g, '_');
+  let melhorRegime = null, melhorEconomia = 0;
+  Object.entries(regimes).forEach(([k, v]) => {
+    if (v && v.mensal !== undefined && k !== regimeAtual && k !== 'mei') {
+      const eco = n(D.impostos) - n(v.mensal);
+      if (eco > melhorEconomia) { melhorEconomia = eco; melhorRegime = v; }
+    }
+  });
+  if (melhorEconomia > 0) {
+    document.getElementById('badge-trib').innerHTML = '<span style="color:var(--em)">+' + brlShort(melhorEconomia) + '/mês</span>';
+  }
+  let tribHtml = '<div class="trib-row head"><span>Regime</span><span style="text-align:right">Imposto/mês</span><span style="text-align:right">% fat</span><span style="text-align:right">Economia/ano</span></div>';
+  const regimeOrder = ['mei', 'simples', 'presumido', 'real'];
+  const regimeNomes = { mei: 'MEI', simples: 'Simples Nacional', presumido: 'Lucro Presumido', real: 'Lucro Real' };
+  regimeOrder.forEach(k => {
+    const r = regimes[k];
+    if (!r) return;
+    const isMei = k === 'mei' && fat > 6750;
+    const isAtual = (D.regime || '').toLowerCase().includes(k);
+    const eco = isAtual ? 0 : (n(D.impostos) - n(r.mensal)) * 12;
+    const isMelhor = melhorRegime && melhorRegime.regime === r.regime;
+    tribHtml += '<div class="trib-row">';
+    tribHtml += '<span class="reg">' + (regimeNomes[k] || k);
+    if (isAtual) tribHtml += ' <span class="trib-atual">atual</span>';
+    if (isMelhor) tribHtml += ' <span class="trib-otimo">★ ótimo</span>';
+    tribHtml += '</span>';
+    tribHtml += '<span style="text-align:right;font-family:\'DM Mono\',monospace">' + (isMei ? 'Inelegível' : brl(r.mensal)) + '</span>';
+    tribHtml += '<span style="text-align:right;font-family:\'DM Mono\',monospace">' + (isMei ? '—' : n(r.pct).toFixed(1) + '%') + '</span>';
+    tribHtml += '<span class="eco" style="text-align:right">' + (isMei || isAtual ? '—' : (eco > 0 ? brl(eco) : '<span style="color:var(--rd)">' + brl(eco) + '</span>')) + '</span>';
+    tribHtml += '</div>';
+  });
+  if (melhorEconomia > 0) {
+    tribHtml += '<div class="trib-aviso"><strong>Economia potencial: ' + brl(melhorEconomia) + '/mês · ' + brl(melhorEconomia * 12) + '/ano</strong><br><span style="font-size:12px;color:var(--ink2)">Migração para ' + (melhorRegime.regime || '') + ' pode reduzir significativamente a carga tributária.<br><span style="font-size:11px;color:var(--ink3)">Esta análise é indicativa. Recomendamos validar com um consultor 1Negócio antes de alterar o regime.</span></span></div>';
+  }
+  document.getElementById('trib-body').innerHTML = tribHtml;
+
+  // Indicadores Chave
+  const clientes = n(D.clientes);
+  const ticket = n(D.ticket);
+  const concentracao = n(D.concentracao);
+  const emprest = n(D.emprest);
+  const inds = [
+    { nome: 'Resultado por colaborador', val: numFunc > 0 ? brlShort(ro / numFunc) + '/mês' : '—', cls: numFunc > 0 && ro / numFunc >= 5000 ? 'EXCELENTE' : 'ATENÇÃO' },
+    { nome: 'Margem operacional', val: margem + '%', cls: parseFloat(margem) >= 20 ? 'EXCELENTE' : parseFloat(margem) >= 10 ? 'ATENÇÃO' : 'CRÍTICO' },
+    { nome: 'Recorrência de receita', val: recorr + '%', cls: recorr >= 50 ? 'EXCELENTE' : recorr >= 20 ? 'ATENÇÃO' : 'CRÍTICO' },
+    { nome: 'Concentração de clientes', val: concentracao + '%', cls: concentracao <= 20 ? 'EXCELENTE' : concentracao <= 40 ? 'ATENÇÃO' : 'CRÍTICO' },
+    { nome: 'Endividamento total', val: brlShort(emprest), cls: emprest < ro * 12 ? 'ATENÇÃO' : 'CRÍTICO' },
+  ];
+  let indHtml = '';
+  inds.forEach(i => {
+    const c = i.cls === 'EXCELENTE' ? 'var(--em)' : i.cls === 'ATENÇÃO' ? 'var(--am)' : 'var(--rd)';
+    indHtml += '<div class="dre-row" style="align-items:center"><span class="dre-label">' + i.nome + '</span><span style="font-family:\'DM Mono\',monospace;font-weight:600">' + i.val + '</span><span style="font-family:\'DM Mono\',monospace;font-size:9px;color:' + c + ';margin-left:8px">' + i.cls + '</span></div>';
+  });
+  document.getElementById('ind-body').innerHTML = indHtml;
+
+  // Potencial 1Sócio
+  const ops = D.ops || [];
+  const totalOps = n(D.total_ops);
+  const top3 = ops.slice(0, 3);
+  const restantes = ops.length - 3;
+  let socioHtml = '<div class="socio-card">';
+  socioHtml += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><span style="background:var(--em);color:#fff;font-family:\'Syne\',sans-serif;font-weight:800;font-size:13px;padding:6px 10px;border-radius:var(--r)">1S</span><span style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:20px">Potencial 1Sócio</span></div>';
+  socioHtml += '<div style="font-size:13px;color:var(--ink3);margin-bottom:4px">Consultoria estratégica para abordar as oportunidades identificadas e maximizar o valor do seu negócio.</div>';
+  socioHtml += '<div class="socio-stats">';
+  socioHtml += '<div class="socio-stat"><div class="socio-stat-label">GANHO ANUAL</div><div class="socio-stat-val">+' + brlShort(totalOps * 12) + '</div><div class="socio-stat-sub">+' + brlShort(totalOps) + '/mês</div></div>';
+  socioHtml += '<div class="socio-stat"><div class="socio-stat-label">VALORIZAÇÃO 12M</div><div class="socio-stat-val">+' + brlShort(totalOps * 12 * fator) + '</div><div class="socio-stat-sub">+' + Math.round(totalOps * 12 * fator / valorVenda * 100) + '% no valor</div></div>';
+  socioHtml += '</div>';
+  socioHtml += '<div style="font-family:\'Syne\',sans-serif;font-weight:700;font-size:15px;margin-bottom:12px">Oportunidades identificadas</div>';
+  top3.forEach((op, i) => {
+    socioHtml += '<div class="op-card"><div class="op-num">' + (i + 1) + '</div><div class="op-title">' + (op.titulo || op.nome || '—') + '</div><div class="op-desc">' + (op.desc || op.descricao || '') + '</div>';
+    if (n(op.ganho)) socioHtml += '<div class="op-tag">+' + brlShort(op.ganho) + '/mês</div>';
+    else if (op.tag) socioHtml += '<div class="op-tag">' + op.tag + '</div>';
+    socioHtml += '</div>';
+  });
+  if (restantes > 0) {
+    socioHtml += '<div class="op-mais">+ ' + restantes + ' ações identificadas que combinadas podem totalizar <strong>+' + brl(totalOps * 12) + ' ganho/ano</strong> — disponíveis no laudo completo R$99</div>';
+  }
+  socioHtml += '<div class="socio-cta"><div class="socio-cta-title">INVESTIMENTO</div><div class="socio-cta-price">A partir de R$ 1.621/mês</div><div class="socio-cta-sub">+ 20% do ganho mensal adicional</div><button class="socio-cta-btn" onclick="window.open(\'https://wa.me/5511952136406?text=Quero+saber+mais+sobre+o+1Socio\',\'_blank\')">Quero saber mais</button></div>';
+  socioHtml += '</div>';
+  document.getElementById('socio-section').innerHTML = socioHtml;
+
+  // Atratividade
+  const atr = n(D.atr_score);
+  const atrLbl = atr >= 8 ? 'Excelente' : atr >= 6.5 ? 'Boa' : atr >= 5 ? 'Moderada' : 'Baixa';
+  const atrColor = atr >= 6.5 ? 'var(--em)' : atr >= 5 ? 'var(--am)' : 'var(--rd)';
+  document.getElementById('badge-atr').textContent = atr.toFixed(1) + '/10';
+  const atrPilares = [
+    ['ISE — Solidez', D.atr_sol], ['Setor', D.atr_set], ['Recorrência', D.atr_rec],
+    ['Independência', D.atr_ind], ['Crescimento', D.atr_cre], ['Margem vs Benchmark', D.atr_mar]
+  ];
+  let atrHtml = '<div class="atr-wrap"><div class="atr-score" style="color:' + atrColor + '">' + atr.toFixed(1) + '</div>';
+  atrHtml += '<div class="atr-lbl" style="background:' + atrColor + '">' + atrLbl.toUpperCase() + '</div></div>';
+  atrPilares.forEach(([nome, val]) => {
+    const v = n(val);
+    const c = v >= 7 ? 'var(--em)' : v >= 5 ? 'var(--am)' : 'var(--rd)';
+    atrHtml += '<div class="pilar-row"><span class="pilar-name">' + nome + '</span><div class="pilar-bar-wrap"><div class="pilar-bar" style="width:' + (v * 10) + '%;background:' + c + '"></div></div><span class="pilar-val" style="color:' + c + '">' + v.toFixed(1) + '/10</span></div>';
+  });
+  atrHtml += '<div style="margin-top:12px;padding:12px;background:var(--bg2);border-radius:var(--r);font-size:12px;color:var(--ink3)">Índice de atratividade ' + atrLbl + ' (' + atr.toFixed(1) + '/10). Combina solidez operacional (ISE ' + ise + '/100), margem de resultado (' + margem + '%) e previsibilidade de receita (' + recorr + '% recorrente).</div>';
+  document.getElementById('atr-body').innerHTML = atrHtml;
+
+  // ICD Detalhado
+  document.getElementById('badge-icd2').textContent = icdPct + '%';
+  const respondidos = D.icd_respondidos || [];
+  const naoRespondidos = D.icd_nao_respondidos || [];
+  let icdHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">';
+  icdHtml += '<div><div style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--em);margin-bottom:8px">✓ INFORMADO (' + respondidos.length + ')</div>';
+  respondidos.forEach(c => { icdHtml += '<div style="font-size:12px;color:var(--ink2);padding:3px 0">' + c + '</div>'; });
+  icdHtml += '</div>';
+  icdHtml += '<div><div style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--am);margin-bottom:8px">~ NÃO INFORMADO (' + naoRespondidos.length + ')</div>';
+  naoRespondidos.forEach(c => { icdHtml += '<div style="font-size:12px;color:var(--ink4);padding:3px 0">' + c + '</div>'; });
+  icdHtml += '</div></div>';
+  document.getElementById('icd-body').innerHTML = icdHtml;
+
+  // Footer
+  document.getElementById('footer-data').textContent = (D.nome || '') + ' · ' + loc + ' · Avaliado em ' + (D.data_avaliacao || '—') + ' · Cód. ' + (D.codigo || '—');
+
+  // Link laudo pago
+  const negocioId = D.id || '';
+  linkLaudoPago = negocioId ? 'https://buy.stripe.com/9B6fZgfpsdJScKJegH5os04' : '#';
+
+  hideLoading();
+}
+
+// ── INIT ──
+async function init() {
+  animLd();
+  const p = new URLSearchParams(window.location.search);
+  const id = p.get('id'), codigo = p.get('c') || p.get('slug');
+
+  // 1. Resolver negocioId
+  let negocioId = null;
+  if (id) { negocioId = id; }
+  else if (codigo) {
+    try { const r = await fetch(SB_URL + '/rest/v1/negocios?slug=eq.' + codigo + '&select=id', { headers: H }); const data = await r.json(); if (data && data[0]) negocioId = data[0].id; } catch(e) {}
+    if (!negocioId) {
+      try { const r = await fetch(SB_URL + '/rest/v1/negocios?codigo_diagnostico=eq.' + codigo + '&select=id', { headers: H }); const data = await r.json(); if (data && data[0]) negocioId = data[0].id; } catch(e) {}
+    }
+  }
+  if (!negocioId) { showErro(); return; }
+
+  // 2. Buscar calc_json (com retry — skill pode ainda estar salvando)
+  for (let tentativa = 0; tentativa < 5; tentativa++) {
+    try {
+      document.getElementById('ld-msg').textContent = tentativa > 0 ? 'Aguardando avaliação...' : 'Buscando avaliação...';
+      const r = await fetch(SB_URL + '/rest/v1/laudos_completos?slug=eq.' + negocioId + '&select=calc_json', { headers: H });
+      const data = await r.json();
+      if (data && data[0] && data[0].calc_json && n(data[0].calc_json.fat_mensal) > 0) {
+        D = data[0].calc_json;
+        console.log('[LAUDO-GRATUITO] calc_json encontrado na tentativa', tentativa + 1);
+        renderLaudo();
+        return;
+      }
+    } catch(e) { console.error('Erro busca calc_json:', e); }
+    if (tentativa < 4) await new Promise(r => setTimeout(r, 2000));
+  }
+
+  // 3. Não encontrou — mostra mensagem amigável
+  document.getElementById('loading').classList.add('hide');
+  document.getElementById('erro').style.display = 'block';
+  document.querySelector('#erro p').textContent = 'Seu laudo está sendo gerado. Aguarde alguns segundos e recarregue a página.';
+}
+
+window.onload = init;
+</script>
+</body>
+</html>
