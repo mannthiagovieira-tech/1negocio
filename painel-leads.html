@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leads · 1Negócio</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--green:#10b981;
+--bg:#0c0c0a;
+--surface:#111110;
+--surface2:#161614;
+--surface3:#1c1c19;
+--text:#e5e5e3;
+--text2:#a3a39b;
+--amber:#f59e0b;
+--blue:#60a5fa;
+--red:#f87171;
+--sep:#222220;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh}
+a{color:var(--green);text-decoration:none}
+
+/* ── LAYOUT ── */
+.app{display:flex;min-height:100vh}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--sep);padding:20px 0;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;z-index:100}
+.main{margin-left:220px;flex:1;padding:32px 40px;max-width:1200px}
+
+/* ── SIDEBAR ── */
+.logo{padding:0 20px 24px;font-family:'Syne',sans-serif;font-size:18px;font-weight:800;letter-spacing:-0.5px}
+.logo em{font-style:normal;color:var(--green)}
+.nav-section{padding:8px 0}
+.nav-section-title{padding:4px 20px;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text2);margin-bottom:4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;color:var(--text2);cursor:pointer;transition:all .15s;font-size:12px}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{color:var(--green);background:rgba(16,185,129,.06);border-right:2px solid var(--green)}
+.nav-item svg{width:16px;height:16px;flex-shrink:0}
+
+/* ── HEADER ── */
+.page-header{margin-bottom:32px}
+.page-title{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;letter-spacing:-1px;margin-bottom:4px}
+.page-subtitle{color:var(--text2);font-size:12px}
+
+/* ── STATS ── */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:28px}
+.stat-card{background:var(--surface);border:1px solid var(--sep);padding:16px;display:flex;flex-direction:column;gap:4px}
+.stat-value{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;letter-spacing:-0.5px}
+.stat-value.green{color:var(--green)}
+.stat-value.amber{color:var(--amber)}
+.stat-value.blue{color:var(--blue)}
+.stat-value.red{color:var(--red)}
+.stat-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--sep);margin-bottom:24px}
+.tab{padding:10px 20px;font-size:12px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;font-family:'DM Mono',monospace}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--green);border-bottom-color:var(--green)}
+
+/* ── PAINEL BUSCA ── */
+.search-panel{background:var(--surface);border:1px solid var(--sep);padding:24px;margin-bottom:24px}
+.search-panel h3{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;letter-spacing:-0.3px}
+.search-grid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)}
+.field input,.field select{background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:10px 12px;font-family:'DM Mono',monospace;font-size:12px;outline:none;transition:border-color .15s}
+.field input:focus,.field select:focus{border-color:var(--green)}
+.field select option{background:var(--surface2)}
+
+/* ── BOTÕES ── */
+.btn{padding:10px 20px;font-family:'DM Mono',monospace;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--sep);transition:all .15s;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.btn-green{background:var(--green);color:#000;border-color:var(--green)}
+.btn-green:hover{background:#0ea572}
+.btn-ghost{background:transparent;color:var(--text2);border-color:var(--sep)}
+.btn-ghost:hover{color:var(--text);border-color:var(--text2)}
+.btn-amber{background:var(--amber);color:#000;border-color:var(--amber)}
+.btn-amber:hover{background:#d97706}
+.btn-red{background:transparent;color:var(--red);border-color:var(--red)}
+.btn-red:hover{background:var(--red);color:#000}
+.btn-blue{background:transparent;color:var(--blue);border-color:var(--blue)}
+.btn-blue:hover{background:var(--blue);color:#000}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-sm{padding:6px 12px;font-size:11px}
+
+/* ── TABELA ── */
+.table-wrap{background:var(--surface);border:1px solid var(--sep);overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{padding:10px 14px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);border-bottom:1px solid var(--sep);background:var(--surface2);white-space:nowrap;position:sticky;top:0}
+td{padding:10px 14px;border-bottom:1px solid var(--sep);font-size:12px;white-space:nowrap}
+tr:hover td{background:rgba(16,185,129,.03)}
+.table-scroll{max-height:500px;overflow-y:auto}
+
+/* ── STATUS BADGES ── */
+.badge{display:inline-block;padding:3px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+.badge-novo{color:var(--blue);border:1px solid var(--blue)}
+.badge-enviado{color:var(--amber);border:1px solid var(--amber)}
+.badge-respondeu{color:var(--green);border:1px solid var(--green)}
+.badge-interessado{color:#a78bfa;border:1px solid #a78bfa}
+.badge-descartado{color:var(--text2);border:1px solid var(--sep)}
+
+/* ── CHECKBOX ── */
+.check{width:14px;height:14px;accent-color:var(--green);cursor:pointer}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:1000}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--sep);padding:28px;width:560px;max-width:90vw;max-height:85vh;overflow-y:auto}
+.modal h3{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:20px;letter-spacing:-0.3px}
+.modal .field{margin-bottom:14px}
+.modal textarea{background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:10px 12px;font-family:'DM Mono',monospace;font-size:12px;width:100%;min-height:100px;outline:none;resize:vertical}
+.modal textarea:focus{border-color:var(--green)}
+.modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+
+/* ── PROGRESS ── */
+.progress-bar{height:3px;background:var(--sep);margin-top:12px;display:none}
+.progress-bar.active{display:block}
+.progress-fill{height:100%;background:var(--green);transition:width .3s;width:0}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--sep);padding:14px 20px;font-size:12px;display:none;z-index:2000;max-width:360px}
+.toast.show{display:block;animation:fadeIn .2s}
+.toast.success{border-left:3px solid var(--green)}
+.toast.error{border-left:3px solid var(--red)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── FILTROS ── */
+.filters{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.filters select,.filters input{background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none}
+.filters select:focus,.filters input:focus{border-color:var(--green)}
+
+/* ── EMPTY ── */
+.empty-state{padding:60px 20px;text-align:center;color:var(--text2)}
+.empty-state svg{width:48px;height:48px;margin-bottom:16px;opacity:.3}
+.empty-state p{font-size:13px;margin-bottom:4px}
+
+/* ── LOADING ── */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--sep);border-top-color:var(--green);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── API KEY SETUP ── */
+.api-setup{background:var(--surface);border:1px solid var(--amber);padding:20px;margin-bottom:24px;display:flex;align-items:center;gap:16px}
+.api-setup .field{flex:1;margin:0}
+.api-key-saved{color:var(--green);font-size:11px;display:none}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+.sidebar{display:none}
+.main{margin-left:0;padding:20px}
+.stats-row{grid-template-columns:repeat(2,1fr)}
+.search-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="app">
+<aside class="sidebar">
+  <div class="logo"><em>1</em>NEGÓCIO</div>
+  <nav>
+    <div class="nav-section">
+      <div class="nav-section-title">Leads</div>
+      <div class="nav-item active" onclick="showTab('buscar')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Buscar leads
+      </div>
+      <div class="nav-item" onclick="showTab('gerenciar')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        Gerenciar
+      </div>
+      <div class="nav-item" onclick="showTab('disparar')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4z"/><path d="m22 2-11 11"/></svg>
+        Disparar
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">Relatório</div>
+      <div class="nav-item" onclick="showTab('campanhas')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m18.7 8-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+        Campanhas
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">Config</div>
+      <div class="nav-item" onclick="showTab('config')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        API Keys
+      </div>
+    </div>
+    <div class="nav-section" style="margin-top:auto;padding-top:20px;border-top:1px solid var(--sep)">
+      <a class="nav-item" href="/painel-admin.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+        Voltar ao Admin
+      </a>
+    </div>
+  </nav>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- HEADER -->
+<div class="page-header">
+  <div class="page-title">Captura de Leads</div>
+  <div class="page-subtitle">Google Places API → Supabase → Z-API WhatsApp</div>
+</div>
+
+<!-- STATS -->
+<div class="stats-row" id="stats-row">
+  <div class="stat-card"><span class="stat-value" id="st-total">—</span><span class="stat-label">Total leads</span></div>
+  <div class="stat-card"><span class="stat-value green" id="st-novos">—</span><span class="stat-label">Novos</span></div>
+  <div class="stat-card"><span class="stat-value amber" id="st-enviados">—</span><span class="stat-label">Enviados</span></div>
+  <div class="stat-card"><span class="stat-value blue" id="st-responderam">—</span><span class="stat-label">Responderam</span></div>
+  <div class="stat-card"><span class="stat-value" id="st-interessados" style="color:#a78bfa">—</span><span class="stat-label">Interessados</span></div>
+</div>
+
+<!-- ═══════════ TAB: BUSCAR ═══════════ -->
+<div id="tab-buscar" class="tab-content">
+  <div class="search-panel">
+    <h3>Buscar negócios no Google Maps</h3>
+    <div class="search-grid">
+      <div class="field">
+        <label>Categoria</label>
+        <select id="s-categoria">
+          <option value="restaurante">Restaurante</option>
+          <option value="salão de beleza">Salão de beleza</option>
+          <option value="clínica médica">Clínica médica</option>
+          <option value="clínica odontológica">Clínica odontológica</option>
+          <option value="loja de roupas">Loja de roupas</option>
+          <option value="academia">Academia</option>
+          <option value="pet shop">Pet shop</option>
+          <option value="farmácia">Farmácia</option>
+          <option value="padaria">Padaria</option>
+          <option value="oficina mecânica">Oficina mecânica</option>
+          <option value="escola infantil">Escola infantil</option>
+          <option value="mercado">Mercado / Minimercado</option>
+          <option value="bar">Bar</option>
+          <option value="cafeteria">Cafeteria</option>
+          <option value="loja de materiais de construção">Materiais de construção</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Cidade</label>
+        <select id="s-cidade">
+          <option value="Florianópolis, SC">Florianópolis</option>
+          <option value="Balneário Camboriú, SC">Balneário Camboriú</option>
+          <option value="Joinville, SC">Joinville</option>
+          <option value="Blumenau, SC">Blumenau</option>
+          <option value="Curitiba, PR">Curitiba</option>
+          <option value="São Paulo, SP">São Paulo</option>
+          <option value="Porto Alegre, RS">Porto Alegre</option>
+          <option value="Belo Horizonte, MG">Belo Horizonte</option>
+          <option value="Rio de Janeiro, RJ">Rio de Janeiro</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Campanha (tag)</label>
+        <input type="text" id="s-campanha" placeholder="ex: floripa-restaurantes-abr26">
+      </div>
+      <button class="btn btn-green" id="btn-buscar" onclick="buscarLeads()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Buscar
+      </button>
+    </div>
+    <div class="progress-bar" id="search-progress"><div class="progress-fill" id="search-fill"></div></div>
+    <div id="search-status" style="margin-top:8px;font-size:11px;color:var(--text2)"></div>
+  </div>
+
+  <!-- Resultados da busca -->
+  <div id="search-results" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span id="search-count" style="font-size:12px;color:var(--text2)"></span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="toggleAllSearch()">
+          <input type="checkbox" id="chk-all-search" class="check"> Todos
+        </button>
+        <button class="btn btn-green btn-sm" onclick="salvarSelecionados()">Salvar selecionados</button>
+      </div>
+    </div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th style="width:30px"></th>
+          <th>Nome</th>
+          <th>Telefone</th>
+          <th>Endereço</th>
+          <th>Avaliação</th>
+          <th>Website</th>
+        </tr></thead>
+        <tbody id="tbody-search"></tbody>
+      </table>
+    </div></div>
+  </div>
+</div>
+
+<!-- ═══════════ TAB: GERENCIAR ═══════════ -->
+<div id="tab-gerenciar" class="tab-content" style="display:none">
+  <div class="filters">
+    <select id="f-status" onchange="carregarLeads()">
+      <option value="">Todos status</option>
+      <option value="novo">Novo</option>
+      <option value="enviado">Enviado</option>
+      <option value="respondeu">Respondeu</option>
+      <option value="interessado">Interessado</option>
+      <option value="descartado">Descartado</option>
+    </select>
+    <select id="f-cidade" onchange="carregarLeads()"><option value="">Todas cidades</option></select>
+    <select id="f-categoria" onchange="carregarLeads()"><option value="">Todas categorias</option></select>
+    <select id="f-campanha" onchange="carregarLeads()"><option value="">Todas campanhas</option></select>
+    <input type="text" id="f-busca" placeholder="Buscar por nome..." oninput="carregarLeads()" style="width:180px">
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="exportarCSV()">Exportar CSV</button>
+      <button class="btn btn-red btn-sm" onclick="excluirSelecionados()">Excluir selecionados</button>
+    </div>
+  </div>
+  <div class="table-wrap"><div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th style="width:30px"><input type="checkbox" class="check" id="chk-all-manage" onchange="toggleAllManage()"></th>
+        <th>Nome</th>
+        <th>Telefone</th>
+        <th>Cidade</th>
+        <th>Categoria</th>
+        <th>Status</th>
+        <th>Campanha</th>
+        <th>Criado em</th>
+        <th style="width:80px">Ações</th>
+      </tr></thead>
+      <tbody id="tbody-manage"></tbody>
+    </table>
+  </div></div>
+  <div id="manage-empty" class="empty-state" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    <p>Nenhum lead encontrado</p>
+    <p style="font-size:11px">Faça uma busca na aba "Buscar leads" para começar</p>
+  </div>
+</div>
+
+<!-- ═══════════ TAB: DISPARAR ═══════════ -->
+<div id="tab-disparar" class="tab-content" style="display:none">
+  <div class="search-panel">
+    <h3>Disparar WhatsApp via Z-API</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div class="field">
+        <label>Filtrar por campanha</label>
+        <select id="d-campanha" onchange="carregarFilaDisparo()">
+          <option value="">Todas campanhas</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Filtrar por categoria</label>
+        <select id="d-categoria" onchange="carregarFilaDisparo()">
+          <option value="">Todas categorias</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Mensagem (use {nome} para personalizar)</label>
+      <textarea id="d-mensagem" rows="5">Olá! Tudo bem?
+
+Sou da *1Negócio*, a primeira plataforma brasileira de avaliação e venda de negócios.
+
+Estamos oferecendo um *diagnóstico gratuito* para empresários que querem saber quanto vale o seu negócio.
+
+É rápido (5 min) e sem compromisso: https://1negocio.com.br/diagnostico
+
+Posso te contar mais?</textarea>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;margin-top:12px">
+      <button class="btn btn-green" id="btn-disparar" onclick="iniciarDisparo()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4z"/></svg>
+        Disparar para novos
+      </button>
+      <button class="btn btn-ghost" id="btn-parar" onclick="pararDisparo()" style="display:none">Parar</button>
+      <span id="d-status" style="font-size:11px;color:var(--text2)"></span>
+    </div>
+    <div class="progress-bar" id="disparo-progress"><div class="progress-fill" id="disparo-fill"></div></div>
+  </div>
+
+  <div style="margin-top:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span id="fila-count" style="font-size:12px;color:var(--text2)"></span>
+    </div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>Nome</th>
+          <th>Telefone</th>
+          <th>Categoria</th>
+          <th>Cidade</th>
+          <th>Status</th>
+          <th>Enviado em</th>
+        </tr></thead>
+        <tbody id="tbody-disparo"></tbody>
+      </table>
+    </div></div>
+  </div>
+</div>
+
+<!-- ═══════════ TAB: CAMPANHAS ═══════════ -->
+<div id="tab-campanhas" class="tab-content" style="display:none">
+  <div id="campanhas-grid" class="stats-row" style="grid-template-columns:1fr"></div>
+  <div id="campanhas-empty" class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="m18.7 8-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+    <p>Nenhuma campanha registrada</p>
+    <p style="font-size:11px">Crie uma tag de campanha ao buscar leads</p>
+  </div>
+</div>
+
+<!-- ═══════════ TAB: CONFIG ═══════════ -->
+<div id="tab-config" class="tab-content" style="display:none">
+  <div class="search-panel">
+    <h3>Google Places API</h3>
+    <div style="display:flex;gap:12px;align-items:end">
+      <div class="field" style="flex:1">
+        <label>API Key</label>
+        <input type="password" id="cfg-gkey" placeholder="AIzaSy...">
+      </div>
+      <button class="btn btn-green btn-sm" onclick="salvarConfig('gkey')">Salvar</button>
+    </div>
+    <span class="api-key-saved" id="gkey-saved">Chave salva no navegador</span>
+  </div>
+  <div class="search-panel" style="margin-top:16px">
+    <h3>Z-API (WhatsApp)</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end">
+      <div class="field">
+        <label>Instance ID</label>
+        <input type="text" id="cfg-zinstance" placeholder="Instance ID">
+      </div>
+      <div class="field">
+        <label>Token</label>
+        <input type="password" id="cfg-ztoken" placeholder="Token">
+      </div>
+      <div class="field">
+        <label>Client-Token</label>
+        <input type="password" id="cfg-zclient" placeholder="Client-Token">
+      </div>
+      <button class="btn btn-green btn-sm" onclick="salvarConfig('zapi')">Salvar</button>
+    </div>
+    <span class="api-key-saved" id="zapi-saved">Config Z-API salva</span>
+    <p style="font-size:11px;color:var(--text2);margin-top:8px">Modo atual: disparo via Edge Function <code>zapi-relay</code> no Supabase (recomendado)</p>
+  </div>
+  <div class="search-panel" style="margin-top:16px">
+    <h3>Intervalo entre disparos</h3>
+    <div style="display:flex;gap:12px;align-items:end">
+      <div class="field">
+        <label>Segundos entre cada envio</label>
+        <input type="number" id="cfg-intervalo" value="15" min="5" max="120">
+      </div>
+      <button class="btn btn-green btn-sm" onclick="salvarConfig('intervalo')">Salvar</button>
+    </div>
+    <p style="font-size:11px;color:var(--text2);margin-top:8px">Mínimo 5s. Recomendado: 15-30s para evitar bloqueio da Z-API.</p>
+  </div>
+</div>
+
+<!-- MODAL EDITAR LEAD -->
+<div class="modal-overlay" id="modal-lead">
+  <div class="modal">
+    <h3>Editar lead</h3>
+    <input type="hidden" id="ml-id">
+    <div class="field"><label>Nome</label><input type="text" id="ml-nome" style="width:100%"></div>
+    <div class="field"><label>Telefone</label><input type="text" id="ml-tel" style="width:100%"></div>
+    <div class="field">
+      <label>Status</label>
+      <select id="ml-status" style="width:100%">
+        <option value="novo">Novo</option>
+        <option value="enviado">Enviado</option>
+        <option value="respondeu">Respondeu</option>
+        <option value="interessado">Interessado</option>
+        <option value="descartado">Descartado</option>
+      </select>
+    </div>
+    <div class="field"><label>Notas</label><textarea id="ml-notas" style="width:100%"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="fecharModal('modal-lead')">Cancelar</button>
+      <button class="btn btn-green" onclick="salvarLead()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+</main>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+const SUPABASE_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+
+let searchResults = [];
+let disparoAtivo = false;
+let disparoTimer = null;
+
+// ══════════════════════════════════════════
+// SUPABASE HELPERS
+// ══════════════════════════════════════════
+async function sbFetch(path, opts = {}) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer || 'return=representation',
+      ...opts.headers
+    },
+    method: opts.method || 'GET',
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  if (!res.ok) { const e = await res.text(); throw new Error(e); }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+// ══════════════════════════════════════════
+// GOOGLE PLACES API
+// ══════════════════════════════════════════
+async function buscarLeads() {
+  const apiKey = localStorage.getItem('1n_gkey');
+  if (!apiKey) { toast('Configure a chave do Google Places na aba Config', 'error'); showTab('config'); return; }
+
+  const categoria = document.getElementById('s-categoria').value;
+  const cidadeRaw = document.getElementById('s-cidade').value;
+  const campanha = document.getElementById('s-campanha').value.trim();
+  const cidade = cidadeRaw.split(',')[0].trim();
+  const estado = cidadeRaw.split(',')[1]?.trim() || '';
+  const query = `${categoria} em ${cidade} ${estado} Brasil`;
+
+  const btn = document.getElementById('btn-buscar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Buscando...';
+  document.getElementById('search-progress').classList.add('active');
+  document.getElementById('search-fill').style.width = '20%';
+  document.getElementById('search-status').textContent = 'Buscando na API do Google Places...';
+
+  searchResults = [];
+  let pageToken = null;
+  let page = 0;
+
+  try {
+    do {
+      page++;
+      let url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}&language=pt-BR`;
+      if (pageToken) url += `&pagetoken=${pageToken}`;
+
+      // Proxy via nosso relay para evitar CORS
+      const proxyUrl = SUPABASE_URL + '/functions/v1/google-places-proxy?url=' + encodeURIComponent(url);
+
+      // Fallback: tentar direto (pode dar CORS em produção)
+      let data;
+      try {
+        const res = await fetch(proxyUrl);
+        data = await res.json();
+      } catch(e) {
+        // Se proxy falhar, tenta direto
+        const res = await fetch(url);
+        data = await res.json();
+      }
+
+      if (data.status === 'REQUEST_DENIED') {
+        throw new Error('API Key inválida ou Places API não ativada. Verifique no Google Console.');
+      }
+
+      if (data.results) {
+        for (const p of data.results) {
+          // Buscar detalhes para ter o telefone
+          let phone = '';
+          let website = '';
+          try {
+            const detUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${p.place_id}&fields=formatted_phone_number,international_phone_number,website&key=${apiKey}&language=pt-BR`;
+            let detData;
+            try {
+              const detProxy = SUPABASE_URL + '/functions/v1/google-places-proxy?url=' + encodeURIComponent(detUrl);
+              const detRes = await fetch(detProxy);
+              detData = await detRes.json();
+            } catch(e2) {
+              const detRes = await fetch(detUrl);
+              detData = await detRes.json();
+            }
+            if (detData.result) {
+              phone = detData.result.international_phone_number || detData.result.formatted_phone_number || '';
+              website = detData.result.website || '';
+            }
+          } catch(e) { /* sem telefone */ }
+
+          const telFormatado = formatarTelefone(phone);
+
+          searchResults.push({
+            nome: p.name,
+            telefone: phone,
+            telefone_formatado: telFormatado,
+            endereco: p.formatted_address || '',
+            cidade: cidade,
+            estado: estado,
+            categoria: categoria,
+            avaliacao: p.rating || null,
+            total_avaliacoes: p.user_ratings_total || 0,
+            website: website,
+            place_id: p.place_id,
+            campanha: campanha,
+            eh_celular: ehCelular(telFormatado)
+          });
+        }
+      }
+
+      document.getElementById('search-fill').style.width = `${Math.min(20 + page * 30, 90)}%`;
+      document.getElementById('search-status').textContent = `${searchResults.length} resultados encontrados (página ${page})...`;
+
+      pageToken = data.next_page_token || null;
+      if (pageToken) await sleep(2000); // Google exige espera entre páginas
+    } while (pageToken && page < 3); // Máximo 3 páginas = 60 resultados
+
+    document.getElementById('search-fill').style.width = '100%';
+    renderSearchResults();
+    document.getElementById('search-status').textContent = `${searchResults.length} negócios encontrados. ${searchResults.filter(r => r.eh_celular).length} com celular.`;
+    toast(`${searchResults.length} leads encontrados`, 'success');
+  } catch(err) {
+    toast(err.message, 'error');
+    document.getElementById('search-status').textContent = 'Erro: ' + err.message;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Buscar';
+}
+
+function formatarTelefone(tel) {
+  if (!tel) return '';
+  let num = tel.replace(/\D/g, '');
+  if (num.startsWith('55') && num.length >= 12) return num;
+  if (num.length === 11 || num.length === 10) return '55' + num;
+  if (num.length === 9 || num.length === 8) return '5548' + num;
+  return num;
+}
+
+function ehCelular(tel) {
+  if (!tel || tel.length < 12) return false;
+  const semPais = tel.replace(/^55/, '');
+  if (semPais.length === 11) return semPais[2] === '9';
+  return false;
+}
+
+function renderSearchResults() {
+  const wrap = document.getElementById('search-results');
+  const tbody = document.getElementById('tbody-search');
+  wrap.style.display = 'block';
+  document.getElementById('search-count').textContent = `${searchResults.length} resultados`;
+
+  tbody.innerHTML = searchResults.map((r, i) => `
+    <tr style="${r.eh_celular ? '' : 'opacity:.5'}">
+      <td><input type="checkbox" class="check search-chk" data-idx="${i}" ${r.eh_celular ? 'checked' : ''}></td>
+      <td>${esc(r.nome)}</td>
+      <td>${r.telefone || '<span style="color:var(--text2)">—</span>'} ${r.eh_celular ? '<span style="color:var(--green);font-size:10px">CEL</span>' : ''}</td>
+      <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis">${esc(r.endereco)}</td>
+      <td>${r.avaliacao ? '★ ' + r.avaliacao + ' <span style="color:var(--text2)">(' + r.total_avaliacoes + ')</span>' : '—'}</td>
+      <td>${r.website ? '<a href="' + esc(r.website) + '" target="_blank" style="font-size:11px">site</a>' : '—'}</td>
+    </tr>
+  `).join('');
+}
+
+async function salvarSelecionados() {
+  const checks = document.querySelectorAll('.search-chk:checked');
+  if (!checks.length) { toast('Selecione pelo menos 1 lead', 'error'); return; }
+
+  const leads = [];
+  checks.forEach(c => {
+    const r = searchResults[parseInt(c.dataset.idx)];
+    leads.push({
+      nome: r.nome,
+      telefone: r.telefone,
+      telefone_formatado: r.telefone_formatado,
+      endereco: r.endereco,
+      cidade: r.cidade,
+      estado: r.estado,
+      categoria: r.categoria,
+      avaliacao: r.avaliacao,
+      total_avaliacoes: r.total_avaliacoes,
+      website: r.website,
+      place_id: r.place_id,
+      campanha: r.campanha,
+      status: 'novo'
+    });
+  });
+
+  try {
+    // Upsert por place_id para evitar duplicatas
+    await sbFetch('leads_google', {
+      method: 'POST',
+      body: leads,
+      headers: { 'Prefer': 'resolution=merge-duplicates' }
+    });
+    toast(`${leads.length} leads salvos no Supabase`, 'success');
+    carregarStats();
+    carregarFiltros();
+  } catch(err) {
+    toast('Erro ao salvar: ' + err.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════
+// GERENCIAR LEADS
+// ══════════════════════════════════════════
+async function carregarLeads() {
+  let query = 'leads_google?order=created_at.desc&limit=500';
+
+  const status = document.getElementById('f-status').value;
+  const cidade = document.getElementById('f-cidade').value;
+  const categoria = document.getElementById('f-categoria').value;
+  const campanha = document.getElementById('f-campanha').value;
+  const busca = document.getElementById('f-busca').value.trim();
+
+  if (status) query += `&status=eq.${status}`;
+  if (cidade) query += `&cidade=eq.${encodeURIComponent(cidade)}`;
+  if (categoria) query += `&categoria=eq.${encodeURIComponent(categoria)}`;
+  if (campanha) query += `&campanha=eq.${encodeURIComponent(campanha)}`;
+  if (busca) query += `&nome=ilike.*${encodeURIComponent(busca)}*`;
+
+  try {
+    const data = await sbFetch(query);
+    const tbody = document.getElementById('tbody-manage');
+    const empty = document.getElementById('manage-empty');
+
+    if (!data || !data.length) {
+      tbody.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+
+    tbody.innerHTML = data.map(r => `
+      <tr>
+        <td><input type="checkbox" class="check manage-chk" data-id="${r.id}"></td>
+        <td>${esc(r.nome)}</td>
+        <td>${r.telefone_formatado ? '<a href="https://wa.me/' + r.telefone_formatado + '" target="_blank">' + (r.telefone || r.telefone_formatado) + '</a>' : '—'}</td>
+        <td>${esc(r.cidade || '')}</td>
+        <td>${esc(r.categoria || '')}</td>
+        <td><span class="badge badge-${r.status}">${r.status}</span></td>
+        <td>${esc(r.campanha || '—')}</td>
+        <td style="color:var(--text2)">${r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR') : ''}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="editarLead('${r.id}')" style="padding:4px 8px">✏️</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch(err) {
+    toast('Erro ao carregar: ' + err.message, 'error');
+  }
+}
+
+async function editarLead(id) {
+  try {
+    const data = await sbFetch(`leads_google?id=eq.${id}`);
+    if (!data || !data.length) return;
+    const r = data[0];
+    document.getElementById('ml-id').value = r.id;
+    document.getElementById('ml-nome').value = r.nome;
+    document.getElementById('ml-tel').value = r.telefone || '';
+    document.getElementById('ml-status').value = r.status;
+    document.getElementById('ml-notas').value = r.notas || '';
+    document.getElementById('modal-lead').classList.add('open');
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function salvarLead() {
+  const id = document.getElementById('ml-id').value;
+  try {
+    await sbFetch(`leads_google?id=eq.${id}`, {
+      method: 'PATCH',
+      body: {
+        nome: document.getElementById('ml-nome').value,
+        telefone: document.getElementById('ml-tel').value,
+        status: document.getElementById('ml-status').value,
+        notas: document.getElementById('ml-notas').value,
+        updated_at: new Date().toISOString()
+      }
+    });
+    fecharModal('modal-lead');
+    carregarLeads();
+    carregarStats();
+    toast('Lead atualizado', 'success');
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function excluirSelecionados() {
+  const checks = document.querySelectorAll('.manage-chk:checked');
+  if (!checks.length) { toast('Selecione leads para excluir', 'error'); return; }
+  if (!confirm(`Excluir ${checks.length} leads permanentemente?`)) return;
+
+  for (const c of checks) {
+    try {
+      await sbFetch(`leads_google?id=eq.${c.dataset.id}`, { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+    } catch(e) { /* continua */ }
+  }
+  toast(`${checks.length} leads excluídos`, 'success');
+  carregarLeads();
+  carregarStats();
+}
+
+function exportarCSV() {
+  const rows = document.querySelectorAll('#tbody-manage tr');
+  if (!rows.length) { toast('Nenhum lead para exportar', 'error'); return; }
+
+  // Exporta todos filtrados via fetch
+  let query = 'leads_google?order=created_at.desc&limit=5000&select=nome,telefone,telefone_formatado,endereco,cidade,estado,categoria,avaliacao,website,status,campanha,created_at';
+  const status = document.getElementById('f-status').value;
+  const cidade = document.getElementById('f-cidade').value;
+  const categoria = document.getElementById('f-categoria').value;
+  if (status) query += `&status=eq.${status}`;
+  if (cidade) query += `&cidade=eq.${encodeURIComponent(cidade)}`;
+  if (categoria) query += `&categoria=eq.${encodeURIComponent(categoria)}`;
+
+  sbFetch(query).then(data => {
+    if (!data || !data.length) return;
+    const headers = Object.keys(data[0]);
+    const csv = [headers.join(';'), ...data.map(r => headers.map(h => `"${(r[h] || '').toString().replace(/"/g, '""')}"`).join(';'))].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `leads_${Date.now()}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    toast('CSV exportado', 'success');
+  });
+}
+
+// ══════════════════════════════════════════
+// DISPARAR WHATSAPP
+// ══════════════════════════════════════════
+async function carregarFilaDisparo() {
+  let query = 'leads_google?order=created_at.asc&limit=500&telefone_formatado=neq.';
+  const campanha = document.getElementById('d-campanha').value;
+  const categoria = document.getElementById('d-categoria').value;
+  if (campanha) query += `&campanha=eq.${encodeURIComponent(campanha)}`;
+  if (categoria) query += `&categoria=eq.${encodeURIComponent(categoria)}`;
+
+  try {
+    const data = await sbFetch(query);
+    const tbody = document.getElementById('tbody-disparo');
+    document.getElementById('fila-count').textContent = data ? `${data.length} leads na fila (${data.filter(r => r.status === 'novo').length} novos)` : '0 leads';
+
+    tbody.innerHTML = (data || []).map(r => `
+      <tr>
+        <td>${esc(r.nome)}</td>
+        <td>${r.telefone_formatado || '—'}</td>
+        <td>${esc(r.categoria || '')}</td>
+        <td>${esc(r.cidade || '')}</td>
+        <td><span class="badge badge-${r.status}">${r.status}</span></td>
+        <td style="color:var(--text2)">${r.enviado_em ? new Date(r.enviado_em).toLocaleString('pt-BR') : '—'}</td>
+      </tr>
+    `).join('');
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function iniciarDisparo() {
+  const msg = document.getElementById('d-mensagem').value.trim();
+  if (!msg) { toast('Escreva a mensagem primeiro', 'error'); return; }
+
+  const intervalo = parseInt(localStorage.getItem('1n_intervalo') || '15') * 1000;
+  const campanha = document.getElementById('d-campanha').value;
+  const categoria = document.getElementById('d-categoria').value;
+
+  let query = 'leads_google?status=eq.novo&telefone_formatado=neq.&order=created_at.asc&limit=200';
+  if (campanha) query += `&campanha=eq.${encodeURIComponent(campanha)}`;
+  if (categoria) query += `&categoria=eq.${encodeURIComponent(categoria)}`;
+
+  const leads = await sbFetch(query);
+  if (!leads || !leads.length) { toast('Nenhum lead novo para disparar', 'error'); return; }
+
+  // Filtra só celulares
+  const fila = leads.filter(r => ehCelular(r.telefone_formatado));
+  if (!fila.length) { toast('Nenhum lead com celular válido', 'error'); return; }
+
+  disparoAtivo = true;
+  document.getElementById('btn-disparar').style.display = 'none';
+  document.getElementById('btn-parar').style.display = 'inline-flex';
+  document.getElementById('disparo-progress').classList.add('active');
+
+  let enviados = 0;
+  const total = fila.length;
+
+  for (const lead of fila) {
+    if (!disparoAtivo) break;
+
+    const mensagemFinal = msg.replace(/\{nome\}/g, lead.nome.split(' ')[0]);
+
+    try {
+      // Dispara via Edge Function zapi-relay
+      const res = await fetch(SUPABASE_URL + '/functions/v1/zapi-relay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+        body: JSON.stringify({ phone: lead.telefone_formatado, message: mensagemFinal })
+      });
+
+      const result = await res.json();
+
+      // Atualiza status no banco
+      await sbFetch(`leads_google?id=eq.${lead.id}`, {
+        method: 'PATCH',
+        body: {
+          status: 'enviado',
+          mensagem_enviada: mensagemFinal,
+          enviado_em: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      });
+
+      enviados++;
+      document.getElementById('disparo-fill').style.width = `${(enviados / total * 100).toFixed(0)}%`;
+      document.getElementById('d-status').textContent = `${enviados}/${total} enviados...`;
+
+    } catch(err) {
+      document.getElementById('d-status').textContent = `Erro no lead ${lead.nome}: ${err.message}`;
+    }
+
+    // Espera intervalo entre envios
+    if (disparoAtivo && enviados < total) {
+      await sleep(intervalo);
+    }
+  }
+
+  disparoAtivo = false;
+  document.getElementById('btn-disparar').style.display = 'inline-flex';
+  document.getElementById('btn-parar').style.display = 'none';
+  document.getElementById('d-status').textContent = `Disparo finalizado: ${enviados} mensagens enviadas`;
+  toast(`${enviados} mensagens enviadas`, 'success');
+  carregarStats();
+  carregarFilaDisparo();
+}
+
+function pararDisparo() {
+  disparoAtivo = false;
+  document.getElementById('d-status').textContent = 'Disparo interrompido pelo usuário';
+}
+
+// ══════════════════════════════════════════
+// CAMPANHAS
+// ══════════════════════════════════════════
+async function carregarCampanhas() {
+  try {
+    const data = await sbFetch('leads_google?select=campanha,status&limit=5000');
+    if (!data || !data.length) { document.getElementById('campanhas-empty').style.display = 'block'; return; }
+
+    const camps = {};
+    data.forEach(r => {
+      const c = r.campanha || 'sem-campanha';
+      if (!camps[c]) camps[c] = { total: 0, novo: 0, enviado: 0, respondeu: 0, interessado: 0 };
+      camps[c].total++;
+      camps[c][r.status] = (camps[c][r.status] || 0) + 1;
+    });
+
+    const grid = document.getElementById('campanhas-grid');
+    document.getElementById('campanhas-empty').style.display = 'none';
+    grid.innerHTML = Object.entries(camps).map(([nome, d]) => `
+      <div class="search-panel" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700">${esc(nome)}</h3>
+          <span style="font-size:11px;color:var(--text2)">${d.total} leads</span>
+        </div>
+        <div class="stats-row" style="margin-bottom:0">
+          <div class="stat-card"><span class="stat-value green">${d.novo || 0}</span><span class="stat-label">Novos</span></div>
+          <div class="stat-card"><span class="stat-value amber">${d.enviado || 0}</span><span class="stat-label">Enviados</span></div>
+          <div class="stat-card"><span class="stat-value blue">${d.respondeu || 0}</span><span class="stat-label">Responderam</span></div>
+          <div class="stat-card"><span class="stat-value" style="color:#a78bfa">${d.interessado || 0}</span><span class="stat-label">Interessados</span></div>
+          <div class="stat-card"><span class="stat-value" style="color:var(--text2)">${d.descartado || 0}</span><span class="stat-label">Descartados</span></div>
+        </div>
+      </div>
+    `).join('');
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+// ══════════════════════════════════════════
+// STATS
+// ══════════════════════════════════════════
+async function carregarStats() {
+  try {
+    const data = await sbFetch('leads_google?select=status&limit=10000');
+    if (!data) return;
+    const counts = { total: data.length, novo: 0, enviado: 0, respondeu: 0, interessado: 0 };
+    data.forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
+    document.getElementById('st-total').textContent = counts.total.toLocaleString('pt-BR');
+    document.getElementById('st-novos').textContent = counts.novo.toLocaleString('pt-BR');
+    document.getElementById('st-enviados').textContent = counts.enviado.toLocaleString('pt-BR');
+    document.getElementById('st-responderam').textContent = counts.respondeu.toLocaleString('pt-BR');
+    document.getElementById('st-interessados').textContent = counts.interessado.toLocaleString('pt-BR');
+  } catch(e) { /* silencioso */ }
+}
+
+// ══════════════════════════════════════════
+// FILTROS DINÂMICOS
+// ══════════════════════════════════════════
+async function carregarFiltros() {
+  try {
+    const data = await sbFetch('leads_google?select=cidade,categoria,campanha&limit=5000');
+    if (!data) return;
+
+    const cidades = [...new Set(data.map(r => r.cidade).filter(Boolean))].sort();
+    const categorias = [...new Set(data.map(r => r.categoria).filter(Boolean))].sort();
+    const campanhas = [...new Set(data.map(r => r.campanha).filter(Boolean))].sort();
+
+    // Filtros da aba gerenciar
+    const fCid = document.getElementById('f-cidade');
+    fCid.innerHTML = '<option value="">Todas cidades</option>' + cidades.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+
+    const fCat = document.getElementById('f-categoria');
+    fCat.innerHTML = '<option value="">Todas categorias</option>' + categorias.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+
+    const fCamp = document.getElementById('f-campanha');
+    fCamp.innerHTML = '<option value="">Todas campanhas</option>' + campanhas.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+
+    // Filtros da aba disparar
+    const dCamp = document.getElementById('d-campanha');
+    dCamp.innerHTML = '<option value="">Todas campanhas</option>' + campanhas.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+
+    const dCat = document.getElementById('d-categoria');
+    dCat.innerHTML = '<option value="">Todas categorias</option>' + categorias.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  } catch(e) { /* silencioso */ }
+}
+
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+function salvarConfig(tipo) {
+  if (tipo === 'gkey') {
+    const val = document.getElementById('cfg-gkey').value.trim();
+    if (!val) { toast('Cole a chave da API', 'error'); return; }
+    localStorage.setItem('1n_gkey', val);
+    document.getElementById('gkey-saved').style.display = 'block';
+    toast('Google API Key salva', 'success');
+  } else if (tipo === 'zapi') {
+    localStorage.setItem('1n_zinstance', document.getElementById('cfg-zinstance').value.trim());
+    localStorage.setItem('1n_ztoken', document.getElementById('cfg-ztoken').value.trim());
+    localStorage.setItem('1n_zclient', document.getElementById('cfg-zclient').value.trim());
+    document.getElementById('zapi-saved').style.display = 'block';
+    toast('Config Z-API salva', 'success');
+  } else if (tipo === 'intervalo') {
+    const val = parseInt(document.getElementById('cfg-intervalo').value);
+    if (val < 5) { toast('Mínimo 5 segundos', 'error'); return; }
+    localStorage.setItem('1n_intervalo', val.toString());
+    toast('Intervalo salvo: ' + val + 's', 'success');
+  }
+}
+
+function carregarConfig() {
+  const gkey = localStorage.getItem('1n_gkey');
+  if (gkey) { document.getElementById('cfg-gkey').value = gkey; document.getElementById('gkey-saved').style.display = 'block'; }
+
+  const zi = localStorage.getItem('1n_zinstance');
+  if (zi) document.getElementById('cfg-zinstance').value = zi;
+  const zt = localStorage.getItem('1n_ztoken');
+  if (zt) document.getElementById('cfg-ztoken').value = zt;
+  const zc = localStorage.getItem('1n_zclient');
+  if (zc) document.getElementById('cfg-zclient').value = zc;
+
+  const intv = localStorage.getItem('1n_intervalo');
+  if (intv) document.getElementById('cfg-intervalo').value = intv;
+}
+
+// ══════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════
+function showTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + tab).style.display = 'block';
+
+  const labels = { buscar: 'Buscar leads', gerenciar: 'Gerenciar', disparar: 'Disparar', campanhas: 'Campanhas', config: 'API Keys' };
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.textContent.trim() === labels[tab]) n.classList.add('active');
+  });
+
+  if (tab === 'gerenciar') carregarLeads();
+  if (tab === 'disparar') carregarFilaDisparo();
+  if (tab === 'campanhas') carregarCampanhas();
+}
+
+function fecharModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function toggleAllSearch() {
+  const main = document.getElementById('chk-all-search');
+  main.checked = !main.checked;
+  document.querySelectorAll('.search-chk').forEach(c => c.checked = main.checked);
+}
+
+function toggleAllManage() {
+  const main = document.getElementById('chk-all-manage');
+  document.querySelectorAll('.manage-chk').forEach(c => c.checked = main.checked);
+}
+
+function toast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.className = 'toast', 3500);
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Fechar modais com ESC
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); });
+document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); }));
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+(async function init() {
+  carregarConfig();
+  carregarStats();
+  carregarFiltros();
+
+  // Se não tem API key, mostra config
+  if (!localStorage.getItem('1n_gkey')) {
+    showTab('config');
+    toast('Configure sua chave do Google Places para começar', 'error');
+  }
+})();
+</script>
+</body>
+</html>
