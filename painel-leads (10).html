@@ -1,0 +1,2065 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leads · 1Negócio</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--green:#10b981;
+--bg:#0c0c0a;
+--surface:#111110;
+--surface2:#161614;
+--surface3:#1c1c19;
+--text:#e5e5e3;
+--text2:#a3a39b;
+--amber:#f59e0b;
+--blue:#60a5fa;
+--red:#f87171;
+--sep:#222220;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh}
+a{color:var(--green);text-decoration:none}
+
+/* ── LAYOUT ── */
+.app{display:flex;min-height:100vh}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--sep);padding:20px 0;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;z-index:100}
+.main{margin-left:220px;flex:1;padding:32px 40px;max-width:1200px}
+
+/* ── SIDEBAR ── */
+.logo{padding:0 20px 24px;font-family:'Syne',sans-serif;font-size:18px;font-weight:800;letter-spacing:-0.5px}
+.logo em{font-style:normal;color:var(--green)}
+.nav-section{padding:8px 0}
+.nav-section-title{padding:4px 20px;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text2);margin-bottom:4px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;color:var(--text2);cursor:pointer;transition:all .15s;font-size:12px}
+.nav-item:hover{background:var(--surface2);color:var(--text)}
+.nav-item.active{color:var(--green);background:rgba(16,185,129,.06);border-right:2px solid var(--green)}
+.nav-item svg{width:16px;height:16px;flex-shrink:0}
+
+/* ── HEADER ── */
+.page-header{margin-bottom:32px}
+.page-title{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;letter-spacing:-1px;margin-bottom:4px}
+.page-subtitle{color:var(--text2);font-size:12px}
+
+/* ── STATS ── */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:28px}
+.stat-card{background:var(--surface);border:1px solid var(--sep);padding:16px;display:flex;flex-direction:column;gap:4px}
+.stat-value{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;letter-spacing:-0.5px}
+.stat-value.green{color:var(--green)}
+.stat-value.amber{color:var(--amber)}
+.stat-value.blue{color:var(--blue)}
+.stat-value.red{color:var(--red)}
+.stat-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--sep);margin-bottom:24px}
+.tab{padding:10px 20px;font-size:12px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;font-family:'DM Mono',monospace}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--green);border-bottom-color:var(--green)}
+
+/* ── PAINEL BUSCA ── */
+.search-panel{background:var(--surface);border:1px solid var(--sep);padding:24px;margin-bottom:24px}
+.search-panel h3{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;letter-spacing:-0.3px}
+.search-grid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)}
+.field input,.field select{background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:10px 12px;font-family:'DM Mono',monospace;font-size:12px;outline:none;transition:border-color .15s}
+.field input:focus,.field select:focus{border-color:var(--green)}
+.field select option{background:var(--surface2)}
+
+/* ── BOTÕES ── */
+.btn{padding:10px 20px;font-family:'DM Mono',monospace;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--sep);transition:all .15s;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+.btn-green{background:var(--green);color:#000;border-color:var(--green)}
+.btn-green:hover{background:#0ea572}
+.btn-ghost{background:transparent;color:var(--text2);border-color:var(--sep)}
+.btn-ghost:hover{color:var(--text);border-color:var(--text2)}
+.btn-amber{background:var(--amber);color:#000;border-color:var(--amber)}
+.btn-amber:hover{background:#d97706}
+.btn-red{background:transparent;color:var(--red);border-color:var(--red)}
+.btn-red:hover{background:var(--red);color:#000}
+.btn-blue{background:transparent;color:var(--blue);border-color:var(--blue)}
+.btn-blue:hover{background:var(--blue);color:#000}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-sm{padding:6px 12px;font-size:11px}
+
+/* ── TABELA ── */
+.table-wrap{background:var(--surface);border:1px solid var(--sep);overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{padding:10px 14px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);border-bottom:1px solid var(--sep);background:var(--surface2);white-space:nowrap;position:sticky;top:0}
+td{padding:10px 14px;border-bottom:1px solid var(--sep);font-size:12px;white-space:nowrap}
+tr:hover td{background:rgba(16,185,129,.03)}
+.table-scroll{max-height:500px;overflow-y:auto}
+
+/* ── STATUS BADGES ── */
+.badge{display:inline-block;padding:3px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+.badge-novo{color:var(--blue);border:1px solid var(--blue)}
+.badge-enviado{color:var(--amber);border:1px solid var(--amber)}
+.badge-respondeu{color:var(--green);border:1px solid var(--green)}
+.badge-interessado{color:#a78bfa;border:1px solid #a78bfa}
+.badge-descartado{color:var(--text2);border:1px solid var(--sep)}
+
+/* ── CHECKBOX ── */
+.check{width:14px;height:14px;accent-color:var(--green);cursor:pointer}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:1000}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--sep);padding:28px;width:560px;max-width:90vw;max-height:85vh;overflow-y:auto}
+.modal h3{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:20px;letter-spacing:-0.3px}
+.modal .field{margin-bottom:14px}
+.modal textarea{background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:10px 12px;font-family:'DM Mono',monospace;font-size:12px;width:100%;min-height:100px;outline:none;resize:vertical}
+.modal textarea:focus{border-color:var(--green)}
+.modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+
+/* ── PROGRESS ── */
+.progress-bar{height:3px;background:var(--sep);margin-top:12px;display:none}
+.progress-bar.active{display:block}
+.progress-fill{height:100%;background:var(--green);transition:width .3s;width:0}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--sep);padding:14px 20px;font-size:12px;display:none;z-index:2000;max-width:360px}
+.toast.show{display:block;animation:fadeIn .2s}
+.toast.success{border-left:3px solid var(--green)}
+.toast.error{border-left:3px solid var(--red)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── FILTROS ── */
+.filters{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.filters select,.filters input{background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none}
+.filters select:focus,.filters input:focus{border-color:var(--green)}
+
+/* ── EMPTY ── */
+.empty-state{padding:60px 20px;text-align:center;color:var(--text2)}
+.empty-state svg{width:48px;height:48px;margin-bottom:16px;opacity:.3}
+.empty-state p{font-size:13px;margin-bottom:4px}
+
+/* ── LOADING ── */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--sep);border-top-color:var(--green);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── API KEY SETUP ── */
+.api-setup{background:var(--surface);border:1px solid var(--amber);padding:20px;margin-bottom:24px;display:flex;align-items:center;gap:16px}
+.api-setup .field{flex:1;margin:0}
+.api-key-saved{color:var(--green);font-size:11px;display:none}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+.sidebar{display:none}
+.main{margin-left:0;padding:20px}
+.stats-row{grid-template-columns:repeat(2,1fr)}
+.search-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="app">
+<aside class="sidebar">
+  <div class="logo"><em>1</em>NEGÓCIO</div>
+  <nav>
+    <div class="nav-section">
+      <div class="nav-section-title">Leads</div>
+      <div class="nav-item active" onclick="showTab('buscar')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Buscar leads
+      </div>
+      <div class="nav-item" onclick="showTab('gerenciar')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        Gerenciar
+      </div>
+      <div class="nav-item" onclick="showTab('disparar')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4z"/><path d="m22 2-11 11"/></svg>
+        Disparar
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">Facebook</div>
+      <div class="nav-item" onclick="showTab('fb')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+        Posts de intenção
+      </div>
+      <div class="nav-item" onclick="showTab('fbpages')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        Páginas FB
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">Instagram</div>
+      <div class="nav-item" onclick="showTab('ig')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+        Seguidores
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">Relatório</div>
+      <div class="nav-item" onclick="showTab('campanhas')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m18.7 8-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+        Campanhas
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-section-title">Config</div>
+      <div class="nav-item" onclick="showTab('config')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        API Keys
+      </div>
+    </div>
+    <div class="nav-section" style="margin-top:auto;padding-top:20px;border-top:1px solid var(--sep)">
+      <a class="nav-item" href="/painel-admin.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+        Voltar ao Admin
+      </a>
+    </div>
+  </nav>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- HEADER -->
+<div class="page-header">
+  <div class="page-title">Captura de Leads</div>
+  <div class="page-subtitle">Google Places API → Supabase → Z-API WhatsApp</div>
+</div>
+
+<!-- STATS -->
+<div class="stats-row" id="stats-row">
+  <div class="stat-card"><span class="stat-value" id="st-total">—</span><span class="stat-label">Total leads</span></div>
+  <div class="stat-card"><span class="stat-value green" id="st-novos">—</span><span class="stat-label">Novos</span></div>
+  <div class="stat-card"><span class="stat-value amber" id="st-enviados">—</span><span class="stat-label">Enviados</span></div>
+  <div class="stat-card"><span class="stat-value blue" id="st-responderam">—</span><span class="stat-label">Responderam</span></div>
+  <div class="stat-card"><span class="stat-value" id="st-interessados" style="color:#a78bfa">—</span><span class="stat-label">Interessados</span></div>
+</div>
+
+<!-- ═══════════ TAB: BUSCAR ═══════════ -->
+<div id="tab-buscar" class="tab-content">
+  <div class="search-panel">
+    <h3>Buscar negócios no Google Maps</h3>
+    <div class="search-grid">
+      <div class="field">
+        <label>Categoria</label>
+        <input type="text" id="s-categoria" list="cat-sugestoes" placeholder="Ex: restaurante, clínica, academia...">
+        <datalist id="cat-sugestoes">
+          <option value="restaurante">
+          <option value="pizzaria">
+          <option value="hamburgueria">
+          <option value="cafeteria">
+          <option value="padaria">
+          <option value="bar">
+          <option value="lanchonete">
+          <option value="salão de beleza">
+          <option value="barbearia">
+          <option value="clínica médica">
+          <option value="clínica odontológica">
+          <option value="clínica veterinária">
+          <option value="farmácia">
+          <option value="academia">
+          <option value="estúdio de pilates">
+          <option value="pet shop">
+          <option value="loja de roupas">
+          <option value="loja de calçados">
+          <option value="loja de móveis">
+          <option value="loja de materiais de construção">
+          <option value="supermercado">
+          <option value="minimercado">
+          <option value="oficina mecânica">
+          <option value="lava rápido">
+          <option value="autopeças">
+          <option value="escola infantil">
+          <option value="escola de idiomas">
+          <option value="escritório de contabilidade">
+          <option value="escritório de advocacia">
+          <option value="imobiliária">
+          <option value="hotel">
+          <option value="pousada">
+          <option value="lavanderia">
+          <option value="ótica">
+          <option value="papelaria">
+          <option value="floricultura">
+          <option value="joalheria">
+          <option value="gráfica">
+          <option value="distribuidora">
+          <option value="atacado">
+          <option value="coworking">
+          <option value="estúdio de tatuagem">
+          <option value="clínica de estética">
+          <option value="laboratório de análises">
+          <option value="consultório psicológico">
+          <option value="fisioterapia">
+          <option value="agência de viagens">
+          <option value="loja de informática">
+          <option value="assistência técnica celular">
+        </datalist>
+      </div>
+      <div class="field">
+        <label>Cidade</label>
+        <input type="text" id="s-cidade" list="cid-sugestoes" placeholder="Ex: Florianópolis, SC">
+        <datalist id="cid-sugestoes">
+          <option value="Florianópolis, SC">
+          <option value="Balneário Camboriú, SC">
+          <option value="Joinville, SC">
+          <option value="Blumenau, SC">
+          <option value="Itajaí, SC">
+          <option value="Chapecó, SC">
+          <option value="Curitiba, PR">
+          <option value="Londrina, PR">
+          <option value="Maringá, PR">
+          <option value="São Paulo, SP">
+          <option value="Campinas, SP">
+          <option value="Porto Alegre, RS">
+          <option value="Belo Horizonte, MG">
+          <option value="Rio de Janeiro, RJ">
+          <option value="Brasília, DF">
+          <option value="Goiânia, GO">
+          <option value="Salvador, BA">
+          <option value="Recife, PE">
+          <option value="Fortaleza, CE">
+        </datalist>
+      </div>
+      <div class="field">
+        <label>Campanha (tag)</label>
+        <input type="text" id="s-campanha" placeholder="ex: floripa-restaurantes-abr26">
+      </div>
+      <button class="btn btn-green" id="btn-buscar" onclick="buscarLeads()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Buscar
+      </button>
+    </div>
+    <div class="progress-bar" id="search-progress"><div class="progress-fill" id="search-fill"></div></div>
+    <div id="search-status" style="margin-top:8px;font-size:11px;color:var(--text2)"></div>
+  </div>
+
+  <!-- Resultados da busca -->
+  <div id="search-results" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span id="search-count" style="font-size:12px;color:var(--text2)"></span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="toggleAllSearch()">
+          <input type="checkbox" id="chk-all-search" class="check"> Todos
+        </button>
+        <button class="btn btn-green btn-sm" onclick="salvarSelecionados()">Salvar selecionados</button>
+      </div>
+    </div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th style="width:30px"></th>
+          <th>Nome</th>
+          <th>Telefone</th>
+          <th>Endereço</th>
+          <th>Avaliação</th>
+          <th>Website</th>
+        </tr></thead>
+        <tbody id="tbody-search"></tbody>
+      </table>
+    </div></div>
+  </div>
+</div>
+
+<!-- ═══════════ TAB: GERENCIAR ═══════════ -->
+<div id="tab-gerenciar" class="tab-content" style="display:none">
+  <div class="filters">
+    <select id="f-status" onchange="carregarLeads()">
+      <option value="">Todos status</option>
+      <option value="novo">Novo</option>
+      <option value="enviado">Enviado</option>
+      <option value="respondeu">Respondeu</option>
+      <option value="interessado">Interessado</option>
+      <option value="descartado">Descartado</option>
+    </select>
+    <select id="f-cidade" onchange="carregarLeads()"><option value="">Todas cidades</option></select>
+    <select id="f-categoria" onchange="carregarLeads()"><option value="">Todas categorias</option></select>
+    <select id="f-campanha" onchange="carregarLeads()"><option value="">Todas campanhas</option></select>
+    <input type="text" id="f-busca" placeholder="Buscar por nome..." oninput="carregarLeads()" style="width:180px">
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="exportarCSV()">Exportar CSV</button>
+      <button class="btn btn-red btn-sm" onclick="excluirSelecionados()">Excluir selecionados</button>
+    </div>
+  </div>
+  <div class="table-wrap"><div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th style="width:30px"><input type="checkbox" class="check" id="chk-all-manage" onchange="toggleAllManage()"></th>
+        <th>Nome</th>
+        <th>Telefone</th>
+        <th>Cidade</th>
+        <th>Categoria</th>
+        <th>Status</th>
+        <th>Campanha</th>
+        <th>Enviado em</th>
+        <th style="width:80px">Ações</th>
+      </tr></thead>
+      <tbody id="tbody-manage"></tbody>
+    </table>
+  </div></div>
+  <div id="manage-empty" class="empty-state" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    <p>Nenhum lead encontrado</p>
+    <p style="font-size:11px">Faça uma busca na aba "Buscar leads" para começar</p>
+  </div>
+</div>
+
+<!-- ═══════════ TAB: DISPARAR ═══════════ -->
+<div id="tab-disparar" class="tab-content" style="display:none">
+  <div class="search-panel">
+    <h3>Disparar WhatsApp via Z-API</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div class="field">
+        <label>Filtrar por campanha</label>
+        <select id="d-campanha" onchange="carregarFilaDisparo()">
+          <option value="">Todas campanhas</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Filtrar por categoria</label>
+        <select id="d-categoria" onchange="carregarFilaDisparo()">
+          <option value="">Todas categorias</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Mensagem (use {nome} para personalizar)</label>
+      <textarea id="d-mensagem" rows="5">Olá! Tudo bem?
+
+Sou da *1Negócio*, a primeira plataforma brasileira de avaliação e venda de negócios.
+
+Estamos oferecendo um *diagnóstico gratuito* para empresários que querem saber quanto vale o seu negócio.
+
+É rápido (5 min) e sem compromisso: https://1negocio.com.br/diagnostico
+
+Posso te contar mais?</textarea>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;margin-top:12px">
+      <button class="btn btn-green" id="btn-disparar" onclick="iniciarDisparo()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4z"/></svg>
+        Disparar para novos
+      </button>
+      <button class="btn btn-ghost" id="btn-parar" onclick="pararDisparo()" style="display:none">Parar</button>
+      <span id="d-status" style="font-size:11px;color:var(--text2)"></span>
+    </div>
+    <div class="progress-bar" id="disparo-progress"><div class="progress-fill" id="disparo-fill"></div></div>
+  </div>
+
+  <div style="margin-top:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span id="fila-count" style="font-size:12px;color:var(--text2)"></span>
+    </div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>Nome</th>
+          <th>Telefone</th>
+          <th>Categoria</th>
+          <th>Cidade</th>
+          <th>Status</th>
+          <th>Enviado em</th>
+        </tr></thead>
+        <tbody id="tbody-disparo"></tbody>
+      </table>
+    </div></div>
+  </div>
+</div>
+
+<!-- ═══════════ TAB: OPORTUNIDADES FB (posts) ═══════════ -->
+<div id="tab-fb" class="tab-content" style="display:none">
+  <div class="search-panel">
+    <h3>Posts de intenção de venda</h3>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:16px">Detecta empresários postando frases como "vendo meu negócio" ou "passar o ponto". <strong>Não retorna telefone</strong> — o Facebook não expõe contato de perfis. Use para identificar oportunidades e abordar manualmente via Messenger.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:8px">Frases monitoradas</div>
+        <div id="fb-frases" style="min-height:80px;max-height:160px;overflow-y:auto;background:var(--surface2);border:1px solid var(--sep);padding:8px"></div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <input id="fb-new-frase" placeholder="ex: passar o ponto" style="flex:1;background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none">
+          <button class="btn btn-ghost btn-sm" onclick="addMonitor('frase')">+ Adicionar</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:8px">Cidades monitoradas</div>
+        <div id="fb-cidades" style="min-height:80px;max-height:160px;overflow-y:auto;background:var(--surface2);border:1px solid var(--sep);padding:8px"></div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <input id="fb-new-cidade" placeholder="ex: Florianópolis" style="flex:1;background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none">
+          <button class="btn btn-ghost btn-sm" onclick="addMonitor('cidade')">+ Adicionar</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:8px">Grupos específicos (URLs)</div>
+      <div id="fb-grupos" style="min-height:60px;max-height:120px;overflow-y:auto;background:var(--surface2);border:1px solid var(--sep);padding:8px"></div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <input id="fb-new-grupo" placeholder="https://www.facebook.com/groups/..." style="flex:1;background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none">
+        <button class="btn btn-ghost btn-sm" onclick="addMonitor('grupo')">+ Adicionar</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;margin-top:16px">
+      <button class="btn btn-green" id="fb-btn-run" onclick="runFbSearch()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+        Buscar agora
+      </button>
+      <div style="font-size:11px;color:var(--text2)" id="fb-status">Configure o token Apify em Config para começar</div>
+    </div>
+    <div class="progress-bar" id="fb-progress"><div class="progress-fill" id="fb-fill"></div></div>
+  </div>
+
+  <div style="margin-top:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span id="fb-count" style="font-size:12px;color:var(--text2)">Oportunidades capturadas</span>
+      <div style="display:flex;gap:8px">
+        <select id="fb-filter-status" onchange="loadOportunidades()" style="background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:6px 10px;font-family:'DM Mono',monospace;font-size:11px">
+          <option value="novo">Novos</option>
+          <option value="">Todos</option>
+          <option value="oportunidade">Oportunidades</option>
+          <option value="contatado">Contatados</option>
+          <option value="descartado">Descartados</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>Autor</th>
+          <th>Post</th>
+          <th>Frase</th>
+          <th>Engaj.</th>
+          <th>Origem</th>
+          <th>Data</th>
+          <th>WhatsApp</th>
+          <th>Status</th>
+          <th style="width:220px">Ações</th>
+        </tr></thead>
+        <tbody id="tbody-fb"></tbody>
+      </table>
+    </div></div>
+  </div>
+</div>
+
+<!-- ═══════════ TAB: PÁGINAS FB (descoberta de negócios com contato) ═══════════ -->
+<div id="tab-fbpages" class="tab-content" style="display:none">
+  <div class="search-panel">
+    <h3>Páginas de negócio no Facebook</h3>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:16px">Descobre páginas de negócio por categoria + cidade. Retorna <strong>telefone público</strong>, email e endereço. Os leads vão direto para a aba "Gerenciar" e podem ser disparados no WhatsApp. Complementa o Google Maps — pega negócios que têm Facebook mas não estão no Google.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:8px">Categorias cadastradas</div>
+        <div id="fbp-categorias" style="min-height:100px;max-height:180px;overflow-y:auto;background:var(--surface2);border:1px solid var(--sep);padding:8px"></div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <input id="fbp-new-categoria" placeholder="ex: pizzaria, loja de móveis" style="flex:1;background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none">
+          <button class="btn btn-ghost btn-sm" onclick="addMonitor('categoria', 'fbp-new-categoria')">+ Adicionar</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:8px">Cidades cadastradas</div>
+        <div id="fbp-cidades" style="min-height:100px;max-height:180px;overflow-y:auto;background:var(--surface2);border:1px solid var(--sep);padding:8px"></div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <input id="fbp-new-cidade" placeholder="ex: Florianópolis" style="flex:1;background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none">
+          <button class="btn btn-ghost btn-sm" onclick="addMonitor('cidade', 'fbp-new-cidade')">+ Adicionar</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;margin-top:16px">
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-size:10px;color:var(--text2);text-transform:uppercase">Campanha:</label>
+        <input id="fbp-campanha" placeholder="facebook-abril" value="facebook" style="background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none;width:160px">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-size:10px;color:var(--text2);text-transform:uppercase">Máx. por busca:</label>
+        <input id="fbp-max" type="number" value="30" min="5" max="100" style="background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none;width:70px">
+      </div>
+      <button class="btn btn-green" id="fbp-btn-run" onclick="runFbPagesSearch()" style="margin-left:auto">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+        Buscar páginas
+      </button>
+    </div>
+    <div class="progress-bar" id="fbp-progress"><div class="progress-fill" id="fbp-fill"></div></div>
+    <div id="fbp-status" style="font-size:11px;color:var(--text2);margin-top:8px"></div>
+  </div>
+
+  <div style="margin-top:20px;padding:16px;background:var(--surface2);border:1px solid var(--sep)">
+    <div style="display:flex;align-items:center;gap:12px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      <div>
+        <div style="font-size:12px;color:var(--text)">Leads capturados vão direto para <strong>Gerenciar</strong></div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px">Os negócios com telefone celular BR válido são salvos na mesma tabela do Google Places, prontos para disparo WhatsApp via Z-API.</div>
+      </div>
+      <a href="#" onclick="showTab('gerenciar');return false" class="btn btn-ghost btn-sm" style="margin-left:auto">Ver leads →</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ TAB: INSTAGRAM ═══════════ -->
+<div id="tab-ig" class="tab-content" style="display:none">
+
+  <!-- PASSO 1: Buscar lista de @ dos seguidores -->
+  <div class="search-panel">
+    <h3>📍 Passo 1 — Descobrir @ dos seguidores</h3>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:16px">Cole um @ alvo. Sistema busca só a lista de usernames dos seguidores (rápido). Depois você escolhe quais enriquecer.</p>
+
+    <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:12px;align-items:end">
+      <div class="field">
+        <label>@ do perfil alvo</label>
+        <input id="ig-seg-alvo" placeholder="@sebraesc" style="width:100%">
+      </div>
+      <div class="field">
+        <label>Quantos buscar</label>
+        <input id="ig-seg-max" type="number" value="100" min="20" max="500" style="width:100%">
+      </div>
+      <button class="btn btn-green" id="ig-seg-btn" onclick="runFindFollowers()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Buscar
+      </button>
+    </div>
+    <div id="ig-seg-status" style="font-size:11px;color:var(--text2);margin-top:10px">Cole um @ e clique para descobrir seus seguidores</div>
+    <div class="progress-bar" id="ig-seg-progress"><div class="progress-fill" id="ig-seg-fill"></div></div>
+  </div>
+
+  <!-- PASSO 2: Lista de @ encontrados + enriquecer em lotes -->
+  <div class="search-panel" id="ig-passo2" style="margin-top:20px;display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="margin:0">✨ Passo 2 — Enriquecer seguidores</h3>
+      <span id="ig-passo2-info" style="font-size:11px;color:var(--text2)"></span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end;margin-bottom:12px">
+      <div class="field">
+        <label>Tag de campanha</label>
+        <input id="ig-seg-campanha" value="ig-seguidores" style="width:100%">
+      </div>
+      <div class="field">
+        <label>Lote (quantos por vez)</label>
+        <select id="ig-seg-lote" style="width:100%">
+          <option value="50">50 (rápido)</option>
+          <option value="100" selected>100 (padrão)</option>
+          <option value="200">200 (max)</option>
+        </select>
+      </div>
+      <div style="font-size:10px;color:var(--text2);padding:8px;background:var(--surface2);border-left:2px solid var(--amber)">
+        ≈ 1 min por 50 perfis. Cada botão processa 1 lote. Clica várias vezes.
+      </div>
+      <button class="btn btn-green" id="ig-enrich-btn" onclick="enrichNextBatch()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+        Enriquecer lote
+      </button>
+    </div>
+
+    <div id="ig-enrich-status" style="font-size:11px;color:var(--text2);margin:8px 0"></div>
+    <div class="progress-bar" id="ig-enrich-progress"><div class="progress-fill" id="ig-enrich-fill"></div></div>
+
+    <!-- Lista dos @ encontrados -->
+    <div style="margin-top:16px;max-height:300px;overflow-y:auto;background:var(--surface2);border:1px solid var(--sep);padding:8px">
+      <div id="ig-usernames-list" style="font-family:'DM Mono',monospace;font-size:11px;line-height:1.7;color:var(--text2)"></div>
+    </div>
+  </div>
+
+  <!-- Tabela de resultados enriquecidos -->
+  <div id="ig-resultado" style="margin-top:20px;display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h4 style="margin:0;font-size:14px">Perfis enriquecidos</h4>
+      <span id="ig-resumo" style="font-size:11px;color:var(--text2)"></span>
+    </div>
+    <div class="table-wrap"><div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>@username</th>
+          <th>Nome</th>
+          <th>Business</th>
+          <th>Telefone</th>
+          <th>Seguidores</th>
+        </tr></thead>
+        <tbody id="ig-tbody"></tbody>
+      </table>
+    </div></div>
+  </div>
+
+  <!-- ALTERNATIVA: Enriquecer lista manual -->
+  <div class="search-panel" style="margin-top:24px">
+    <h3>✍️ Alternativa — Enriquecer lista manual de @</h3>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:16px">Já tem uma lista pronta de @? Cole aqui direto (pula a busca de seguidores).</p>
+
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+      <textarea id="ig-usernames" placeholder="Cole @ (um por linha ou separados por vírgula)" style="width:100%;min-height:120px;background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:10px;font-family:'DM Mono',monospace;font-size:12px;outline:none;resize:vertical"></textarea>
+      <div>
+        <div class="field">
+          <label>Tag de campanha</label>
+          <input id="ig-campanha" value="instagram-manual" style="width:100%">
+        </div>
+        <button class="btn btn-green" id="ig-btn-run" onclick="runInstagramEnrich()" style="width:100%;margin-top:12px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+          Enriquecer
+        </button>
+        <div id="ig-status" style="font-size:10px;color:var(--text2);margin-top:8px"></div>
+        <div class="progress-bar" id="ig-progress"><div class="progress-fill" id="ig-fill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;padding:16px;background:var(--surface2);border:1px solid var(--sep)">
+    <div style="display:flex;align-items:center;gap:12px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      <div style="flex:1">
+        <div style="font-size:12px;color:var(--text)">Leads com celular BR vão direto para <strong>Gerenciar</strong></div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px">Mesma tabela do Google Places, pronto para disparo WhatsApp via Z-API.</div>
+      </div>
+      <a href="#" onclick="showTab('gerenciar');return false" class="btn btn-ghost btn-sm">Ver leads →</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ TAB: CAMPANHAS ═══════════ -->
+<div id="tab-campanhas" class="tab-content" style="display:none">
+  <div id="campanhas-grid" class="stats-row" style="grid-template-columns:1fr"></div>
+  <div id="campanhas-empty" class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="m18.7 8-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+    <p>Nenhuma campanha registrada</p>
+    <p style="font-size:11px">Crie uma tag de campanha ao buscar leads</p>
+  </div>
+</div>
+
+<!-- ═══════════ TAB: CONFIG ═══════════ -->
+<div id="tab-config" class="tab-content" style="display:none">
+  <div class="search-panel">
+    <h3>Google Places API</h3>
+    <div style="display:flex;gap:12px;align-items:end">
+      <div class="field" style="flex:1">
+        <label>API Key</label>
+        <input type="password" id="cfg-gkey" placeholder="AIzaSy...">
+      </div>
+      <button class="btn btn-green btn-sm" onclick="salvarConfig('gkey')">Salvar</button>
+    </div>
+    <span class="api-key-saved" id="gkey-saved">Chave salva no navegador</span>
+  </div>
+  <div class="search-panel" style="margin-top:16px">
+    <h3>Z-API (WhatsApp)</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end">
+      <div class="field">
+        <label>Instance ID</label>
+        <input type="text" id="cfg-zinstance" placeholder="Instance ID">
+      </div>
+      <div class="field">
+        <label>Token</label>
+        <input type="password" id="cfg-ztoken" placeholder="Token">
+      </div>
+      <div class="field">
+        <label>Client-Token</label>
+        <input type="password" id="cfg-zclient" placeholder="Client-Token">
+      </div>
+      <button class="btn btn-green btn-sm" onclick="salvarConfig('zapi')">Salvar</button>
+    </div>
+    <span class="api-key-saved" id="zapi-saved">Config Z-API salva</span>
+    <p style="font-size:11px;color:var(--text2);margin-top:8px">Modo atual: disparo via Edge Function <code>zapi-relay</code> no Supabase (recomendado)</p>
+  </div>
+  <div class="search-panel" style="margin-top:16px">
+    <h3>Intervalo entre disparos</h3>
+    <div style="display:flex;gap:12px;align-items:end">
+      <div class="field">
+        <label>Segundos entre cada envio</label>
+        <input type="number" id="cfg-intervalo" value="15" min="5" max="120">
+      </div>
+      <button class="btn btn-green btn-sm" onclick="salvarConfig('intervalo')">Salvar</button>
+    </div>
+    <p style="font-size:11px;color:var(--text2);margin-top:8px">Mínimo 5s. Recomendado: 15-30s para evitar bloqueio da Z-API.</p>
+  </div>
+  <div class="search-panel" style="margin-top:16px">
+    <h3>Apify (Facebook)</h3>
+    <div style="display:flex;gap:12px;align-items:end">
+      <div class="field" style="flex:1">
+        <label>API Token</label>
+        <input type="password" id="cfg-apify" placeholder="apify_api_...">
+      </div>
+      <button class="btn btn-green btn-sm" onclick="salvarConfig('apify')">Salvar</button>
+    </div>
+    <span class="api-key-saved" id="apify-saved">Token Apify salvo</span>
+    <p style="font-size:11px;color:var(--text2);margin-top:8px">Pegue em apify.com → Settings → Integrations → API tokens. ~$0,50 por 1000 posts extraídos.</p>
+  </div>
+</div>
+
+<!-- MODAL EDITAR LEAD -->
+<div class="modal-overlay" id="modal-lead">
+  <div class="modal">
+    <h3>Editar lead</h3>
+    <input type="hidden" id="ml-id">
+    <div class="field"><label>Nome</label><input type="text" id="ml-nome" style="width:100%"></div>
+    <div class="field"><label>Telefone</label><input type="text" id="ml-tel" style="width:100%"></div>
+    <div class="field">
+      <label>Status</label>
+      <select id="ml-status" style="width:100%">
+        <option value="novo">Novo</option>
+        <option value="enviado">Enviado</option>
+        <option value="respondeu">Respondeu</option>
+        <option value="interessado">Interessado</option>
+        <option value="descartado">Descartado</option>
+      </select>
+    </div>
+    <div class="field"><label>Notas</label><textarea id="ml-notas" style="width:100%"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="fecharModal('modal-lead')">Cancelar</button>
+      <button class="btn btn-green" onclick="salvarLead()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+</main>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+const SUPABASE_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+
+let searchResults = [];
+let disparoAtivo = false;
+let disparoTimer = null;
+
+// ══════════════════════════════════════════
+// SUPABASE HELPERS
+// ══════════════════════════════════════════
+async function sbFetch(path, opts = {}) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer || 'return=representation',
+      ...opts.headers
+    },
+    method: opts.method || 'GET',
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  if (!res.ok) { const e = await res.text(); throw new Error(e); }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+// ══════════════════════════════════════════
+// GOOGLE PLACES API
+// ══════════════════════════════════════════
+async function buscarLeads() {
+  const apiKey = localStorage.getItem('1n_gkey');
+  if (!apiKey) { toast('Configure a chave do Google Places na aba Config', 'error'); showTab('config'); return; }
+
+  const categoria = document.getElementById('s-categoria').value.trim();
+  const cidadeRaw = document.getElementById('s-cidade').value.trim();
+  if (!categoria) { toast('Digite uma categoria para buscar', 'error'); return; }
+  if (!cidadeRaw) { toast('Digite uma cidade para buscar', 'error'); return; }
+  const campanha = document.getElementById('s-campanha').value.trim();
+  const cidade = cidadeRaw.split(',')[0].trim();
+  const estado = cidadeRaw.split(',')[1]?.trim() || '';
+  const query = `${categoria} em ${cidade} ${estado} Brasil`;
+
+  const btn = document.getElementById('btn-buscar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Buscando...';
+  document.getElementById('search-progress').classList.add('active');
+  document.getElementById('search-fill').style.width = '20%';
+  document.getElementById('search-status').textContent = 'Buscando na API do Google Places...';
+
+  searchResults = [];
+  let pageToken = null;
+  let page = 0;
+
+  try {
+    do {
+      page++;
+      let url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}&language=pt-BR`;
+      if (pageToken) url += `&pagetoken=${pageToken}`;
+
+      // Proxy via nosso relay para evitar CORS
+      const proxyUrl = SUPABASE_URL + '/functions/v1/google-places-proxy?url=' + encodeURIComponent(url);
+
+      // Fallback: tentar direto (pode dar CORS em produção)
+      let data;
+      try {
+        const res = await fetch(proxyUrl);
+        data = await res.json();
+      } catch(e) {
+        // Se proxy falhar, tenta direto
+        const res = await fetch(url);
+        data = await res.json();
+      }
+
+      if (data.status === 'REQUEST_DENIED') {
+        throw new Error('API Key inválida ou Places API não ativada. Verifique no Google Console.');
+      }
+
+      if (data.results) {
+        for (const p of data.results) {
+          // Buscar detalhes para ter o telefone
+          let phone = '';
+          let website = '';
+          try {
+            const detUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${p.place_id}&fields=formatted_phone_number,international_phone_number,website&key=${apiKey}&language=pt-BR`;
+            let detData;
+            try {
+              const detProxy = SUPABASE_URL + '/functions/v1/google-places-proxy?url=' + encodeURIComponent(detUrl);
+              const detRes = await fetch(detProxy);
+              detData = await detRes.json();
+            } catch(e2) {
+              const detRes = await fetch(detUrl);
+              detData = await detRes.json();
+            }
+            if (detData.result) {
+              phone = detData.result.international_phone_number || detData.result.formatted_phone_number || '';
+              website = detData.result.website || '';
+            }
+          } catch(e) { /* sem telefone */ }
+
+          const telFormatado = formatarTelefone(phone);
+
+          searchResults.push({
+            nome: p.name,
+            telefone: phone,
+            telefone_formatado: telFormatado,
+            endereco: p.formatted_address || '',
+            cidade: cidade,
+            estado: estado,
+            categoria: categoria,
+            avaliacao: p.rating || null,
+            total_avaliacoes: p.user_ratings_total || 0,
+            website: website,
+            place_id: p.place_id,
+            campanha: campanha,
+            eh_celular: ehCelular(telFormatado)
+          });
+        }
+      }
+
+      document.getElementById('search-fill').style.width = `${Math.min(20 + page * 30, 90)}%`;
+      document.getElementById('search-status').textContent = `${searchResults.length} resultados encontrados (página ${page})...`;
+
+      pageToken = data.next_page_token || null;
+      if (pageToken) await sleep(2000); // Google exige espera entre páginas
+    } while (pageToken && page < 3); // Máximo 3 páginas = 60 resultados
+
+    document.getElementById('search-fill').style.width = '100%';
+    await renderSearchResults();
+    document.getElementById('search-status').textContent = `${searchResults.length} negócios encontrados. ${searchResults.filter(r => r.eh_celular).length} com celular. Duplicatas marcadas.`;
+    toast(`${searchResults.length} leads encontrados`, 'success');
+  } catch(err) {
+    toast(err.message, 'error');
+    document.getElementById('search-status').textContent = 'Erro: ' + err.message;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg> Buscar';
+}
+
+function formatarTelefone(tel) {
+  if (!tel) return '';
+  let num = tel.replace(/\D/g, '');
+  if (num.startsWith('55') && num.length >= 12) return num;
+  if (num.length === 11 || num.length === 10) return '55' + num;
+  if (num.length === 9 || num.length === 8) return '5548' + num;
+  return num;
+}
+
+function ehCelular(tel) {
+  if (!tel || tel.length < 12) return false;
+  const semPais = tel.replace(/^55/, '');
+  if (semPais.length === 11) return semPais[2] === '9';
+  return false;
+}
+
+async function renderSearchResults() {
+  const wrap = document.getElementById('search-results');
+  const tbody = document.getElementById('tbody-search');
+  wrap.style.display = 'block';
+
+  // Filtra só celulares
+  const celulares = searchResults.filter(r => r.eh_celular);
+  const semCel = searchResults.length - celulares.length;
+  document.getElementById('search-count').textContent = `${celulares.length} com celular (${semCel} sem celular ocultos)`;
+
+  // Checar duplicatas no banco
+  const placeIds = celulares.map(r => r.place_id).filter(Boolean);
+  let existentes = {};
+  if (placeIds.length) {
+    try {
+      const chunks = [];
+      for (let i = 0; i < placeIds.length; i += 20) {
+        chunks.push(placeIds.slice(i, i + 20));
+      }
+      for (const chunk of chunks) {
+        const filter = chunk.map(id => `"${id}"`).join(',');
+        const data = await sbFetch(`leads_google?place_id=in.(${filter})&select=place_id,campanha,status`);
+        if (data) data.forEach(d => { existentes[d.place_id] = d; });
+      }
+    } catch(e) { /* silencioso */ }
+  }
+
+  tbody.innerHTML = celulares.map((r, i) => {
+    // Encontrar índice original no searchResults para referência
+    const origIdx = searchResults.indexOf(r);
+    const dup = existentes[r.place_id];
+    const dupBadge = dup ? `<span class="badge badge-${dup.status}" style="margin-left:6px;font-size:9px" title="Campanha: ${esc(dup.campanha || '—')}">${dup.status}${dup.campanha ? ' · ' + esc(dup.campanha) : ''}</span>` : '';
+    const isNew = !dup;
+    return `
+    <tr style="${dup ? 'opacity:.6' : ''}">
+      <td><input type="checkbox" class="check search-chk" data-idx="${origIdx}" ${isNew ? 'checked' : ''}></td>
+      <td>${esc(r.nome)}${dupBadge}</td>
+      <td><a href="https://wa.me/${r.telefone_formatado}" target="_blank">${r.telefone || r.telefone_formatado}</a></td>
+      <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis">${esc(r.endereco)}</td>
+      <td>${r.avaliacao ? '★ ' + r.avaliacao + ' <span style="color:var(--text2)">(' + r.total_avaliacoes + ')</span>' : '—'}</td>
+      <td>${r.website ? '<a href="' + esc(r.website) + '" target="_blank" style="font-size:11px">site</a>' : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function salvarSelecionados() {
+  const checks = document.querySelectorAll('.search-chk:checked');
+  if (!checks.length) { toast('Selecione pelo menos 1 lead', 'error'); return; }
+
+  const leads = [];
+  checks.forEach(c => {
+    const r = searchResults[parseInt(c.dataset.idx)];
+    leads.push({
+      nome: r.nome,
+      telefone: r.telefone,
+      telefone_formatado: r.telefone_formatado,
+      endereco: r.endereco,
+      cidade: r.cidade,
+      estado: r.estado,
+      categoria: r.categoria,
+      avaliacao: r.avaliacao,
+      total_avaliacoes: r.total_avaliacoes,
+      website: r.website,
+      place_id: r.place_id,
+      campanha: r.campanha,
+      status: 'novo'
+    });
+  });
+
+  try {
+    // Upsert por place_id para evitar duplicatas
+    await sbFetch('leads_google', {
+      method: 'POST',
+      body: leads,
+      headers: { 'Prefer': 'resolution=merge-duplicates' }
+    });
+    toast(`${leads.length} leads salvos no Supabase`, 'success');
+    carregarStats();
+    carregarFiltros();
+  } catch(err) {
+    toast('Erro ao salvar: ' + err.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════
+// GERENCIAR LEADS
+// ══════════════════════════════════════════
+async function carregarLeads() {
+  let query = 'leads_google?order=created_at.desc&limit=500';
+
+  const status = document.getElementById('f-status').value;
+  const cidade = document.getElementById('f-cidade').value;
+  const categoria = document.getElementById('f-categoria').value;
+  const campanha = document.getElementById('f-campanha').value;
+  const busca = document.getElementById('f-busca').value.trim();
+
+  if (status) query += `&status=eq.${status}`;
+  if (cidade) query += `&cidade=eq.${encodeURIComponent(cidade)}`;
+  if (categoria) query += `&categoria=eq.${encodeURIComponent(categoria)}`;
+  if (campanha) query += `&campanha=eq.${encodeURIComponent(campanha)}`;
+  if (busca) query += `&nome=ilike.*${encodeURIComponent(busca)}*`;
+
+  try {
+    const data = await sbFetch(query);
+    const tbody = document.getElementById('tbody-manage');
+    const empty = document.getElementById('manage-empty');
+
+    if (!data || !data.length) {
+      tbody.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+
+    tbody.innerHTML = data.map(r => `
+      <tr>
+        <td><input type="checkbox" class="check manage-chk" data-id="${r.id}"></td>
+        <td>${esc(r.nome)}</td>
+        <td>${r.telefone_formatado ? '<a href="https://wa.me/' + r.telefone_formatado + '" target="_blank">' + (r.telefone || r.telefone_formatado) + '</a>' : '—'}</td>
+        <td>${esc(r.cidade || '')}</td>
+        <td>${esc(r.categoria || '')}</td>
+        <td><span class="badge badge-${r.status}">${r.status}</span></td>
+        <td>${esc(r.campanha || '—')}</td>
+        <td style="color:${r.enviado_em ? 'var(--amber)' : 'var(--text2)'};font-size:11px">${r.enviado_em ? new Date(r.enviado_em).toLocaleDateString('pt-BR') + ' ' + new Date(r.enviado_em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : 'nunca'}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="editarLead('${r.id}')" style="padding:4px 8px">✏️</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch(err) {
+    toast('Erro ao carregar: ' + err.message, 'error');
+  }
+}
+
+async function editarLead(id) {
+  try {
+    const data = await sbFetch(`leads_google?id=eq.${id}`);
+    if (!data || !data.length) return;
+    const r = data[0];
+    document.getElementById('ml-id').value = r.id;
+    document.getElementById('ml-nome').value = r.nome;
+    document.getElementById('ml-tel').value = r.telefone || '';
+    document.getElementById('ml-status').value = r.status;
+    document.getElementById('ml-notas').value = r.notas || '';
+    document.getElementById('modal-lead').classList.add('open');
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function salvarLead() {
+  const id = document.getElementById('ml-id').value;
+  try {
+    await sbFetch(`leads_google?id=eq.${id}`, {
+      method: 'PATCH',
+      body: {
+        nome: document.getElementById('ml-nome').value,
+        telefone: document.getElementById('ml-tel').value,
+        status: document.getElementById('ml-status').value,
+        notas: document.getElementById('ml-notas').value,
+        updated_at: new Date().toISOString()
+      }
+    });
+    fecharModal('modal-lead');
+    carregarLeads();
+    carregarStats();
+    toast('Lead atualizado', 'success');
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function excluirSelecionados() {
+  const checks = document.querySelectorAll('.manage-chk:checked');
+  if (!checks.length) { toast('Selecione leads para excluir', 'error'); return; }
+  if (!confirm(`Excluir ${checks.length} leads permanentemente?`)) return;
+
+  for (const c of checks) {
+    try {
+      await sbFetch(`leads_google?id=eq.${c.dataset.id}`, { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+    } catch(e) { /* continua */ }
+  }
+  toast(`${checks.length} leads excluídos`, 'success');
+  carregarLeads();
+  carregarStats();
+}
+
+function exportarCSV() {
+  const rows = document.querySelectorAll('#tbody-manage tr');
+  if (!rows.length) { toast('Nenhum lead para exportar', 'error'); return; }
+
+  // Exporta todos filtrados via fetch
+  let query = 'leads_google?order=created_at.desc&limit=5000&select=nome,telefone,telefone_formatado,endereco,cidade,estado,categoria,avaliacao,website,status,campanha,created_at';
+  const status = document.getElementById('f-status').value;
+  const cidade = document.getElementById('f-cidade').value;
+  const categoria = document.getElementById('f-categoria').value;
+  if (status) query += `&status=eq.${status}`;
+  if (cidade) query += `&cidade=eq.${encodeURIComponent(cidade)}`;
+  if (categoria) query += `&categoria=eq.${encodeURIComponent(categoria)}`;
+
+  sbFetch(query).then(data => {
+    if (!data || !data.length) return;
+    const headers = Object.keys(data[0]);
+    const csv = [headers.join(';'), ...data.map(r => headers.map(h => `"${(r[h] || '').toString().replace(/"/g, '""')}"`).join(';'))].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `leads_${Date.now()}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    toast('CSV exportado', 'success');
+  });
+}
+
+// ══════════════════════════════════════════
+// DISPARAR WHATSAPP
+// ══════════════════════════════════════════
+async function carregarFilaDisparo() {
+  let query = 'leads_google?order=created_at.asc&limit=500&telefone_formatado=neq.';
+  const campanha = document.getElementById('d-campanha').value;
+  const categoria = document.getElementById('d-categoria').value;
+  if (campanha) query += `&campanha=eq.${encodeURIComponent(campanha)}`;
+  if (categoria) query += `&categoria=eq.${encodeURIComponent(categoria)}`;
+
+  try {
+    const data = await sbFetch(query);
+    const tbody = document.getElementById('tbody-disparo');
+    document.getElementById('fila-count').textContent = data ? `${data.length} leads na fila (${data.filter(r => r.status === 'novo').length} novos)` : '0 leads';
+
+    tbody.innerHTML = (data || []).map(r => `
+      <tr>
+        <td>${esc(r.nome)}</td>
+        <td>${r.telefone_formatado || '—'}</td>
+        <td>${esc(r.categoria || '')}</td>
+        <td>${esc(r.cidade || '')}</td>
+        <td><span class="badge badge-${r.status}">${r.status}</span></td>
+        <td style="color:var(--text2)">${r.enviado_em ? new Date(r.enviado_em).toLocaleString('pt-BR') : '—'}</td>
+      </tr>
+    `).join('');
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+async function iniciarDisparo() {
+  const msg = document.getElementById('d-mensagem').value.trim();
+  if (!msg) { toast('Escreva a mensagem primeiro', 'error'); return; }
+
+  const intervalo = parseInt(localStorage.getItem('1n_intervalo') || '15') * 1000;
+  const campanha = document.getElementById('d-campanha').value;
+  const categoria = document.getElementById('d-categoria').value;
+
+  let query = 'leads_google?status=eq.novo&telefone_formatado=neq.&order=created_at.asc&limit=200';
+  if (campanha) query += `&campanha=eq.${encodeURIComponent(campanha)}`;
+  if (categoria) query += `&categoria=eq.${encodeURIComponent(categoria)}`;
+
+  const leads = await sbFetch(query);
+  if (!leads || !leads.length) { toast('Nenhum lead novo para disparar', 'error'); return; }
+
+  // Filtra só celulares
+  const fila = leads.filter(r => ehCelular(r.telefone_formatado));
+  if (!fila.length) { toast('Nenhum lead com celular válido', 'error'); return; }
+
+  disparoAtivo = true;
+  document.getElementById('btn-disparar').style.display = 'none';
+  document.getElementById('btn-parar').style.display = 'inline-flex';
+  document.getElementById('disparo-progress').classList.add('active');
+
+  let enviados = 0;
+  const total = fila.length;
+
+  for (const lead of fila) {
+    if (!disparoAtivo) break;
+
+    const mensagemFinal = msg.replace(/\{nome\}/g, lead.nome.split(' ')[0]);
+
+    try {
+      // Dispara via Edge Function zapi-relay
+      const res = await fetch(SUPABASE_URL + '/functions/v1/zapi-relay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+        body: JSON.stringify({ phone: lead.telefone_formatado, message: mensagemFinal })
+      });
+
+      const result = await res.json();
+
+      // Atualiza status no banco
+      await sbFetch(`leads_google?id=eq.${lead.id}`, {
+        method: 'PATCH',
+        body: {
+          status: 'enviado',
+          mensagem_enviada: mensagemFinal,
+          enviado_em: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      });
+
+      enviados++;
+      document.getElementById('disparo-fill').style.width = `${(enviados / total * 100).toFixed(0)}%`;
+      document.getElementById('d-status').textContent = `${enviados}/${total} enviados...`;
+
+    } catch(err) {
+      document.getElementById('d-status').textContent = `Erro no lead ${lead.nome}: ${err.message}`;
+    }
+
+    // Espera intervalo entre envios
+    if (disparoAtivo && enviados < total) {
+      await sleep(intervalo);
+    }
+  }
+
+  disparoAtivo = false;
+  document.getElementById('btn-disparar').style.display = 'inline-flex';
+  document.getElementById('btn-parar').style.display = 'none';
+  document.getElementById('d-status').textContent = `Disparo finalizado: ${enviados} mensagens enviadas`;
+  toast(`${enviados} mensagens enviadas`, 'success');
+  carregarStats();
+  carregarFilaDisparo();
+}
+
+function pararDisparo() {
+  disparoAtivo = false;
+  document.getElementById('d-status').textContent = 'Disparo interrompido pelo usuário';
+}
+
+// ══════════════════════════════════════════
+// CAMPANHAS
+// ══════════════════════════════════════════
+async function carregarCampanhas() {
+  try {
+    const data = await sbFetch('leads_google?select=campanha,status&limit=5000');
+    if (!data || !data.length) { document.getElementById('campanhas-empty').style.display = 'block'; return; }
+
+    const camps = {};
+    data.forEach(r => {
+      const c = r.campanha || 'sem-campanha';
+      if (!camps[c]) camps[c] = { total: 0, novo: 0, enviado: 0, respondeu: 0, interessado: 0 };
+      camps[c].total++;
+      camps[c][r.status] = (camps[c][r.status] || 0) + 1;
+    });
+
+    const grid = document.getElementById('campanhas-grid');
+    document.getElementById('campanhas-empty').style.display = 'none';
+    grid.innerHTML = Object.entries(camps).map(([nome, d]) => `
+      <div class="search-panel" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700">${esc(nome)}</h3>
+          <span style="font-size:11px;color:var(--text2)">${d.total} leads</span>
+        </div>
+        <div class="stats-row" style="margin-bottom:0">
+          <div class="stat-card"><span class="stat-value green">${d.novo || 0}</span><span class="stat-label">Novos</span></div>
+          <div class="stat-card"><span class="stat-value amber">${d.enviado || 0}</span><span class="stat-label">Enviados</span></div>
+          <div class="stat-card"><span class="stat-value blue">${d.respondeu || 0}</span><span class="stat-label">Responderam</span></div>
+          <div class="stat-card"><span class="stat-value" style="color:#a78bfa">${d.interessado || 0}</span><span class="stat-label">Interessados</span></div>
+          <div class="stat-card"><span class="stat-value" style="color:var(--text2)">${d.descartado || 0}</span><span class="stat-label">Descartados</span></div>
+        </div>
+      </div>
+    `).join('');
+  } catch(err) { toast(err.message, 'error'); }
+}
+
+// ══════════════════════════════════════════
+// STATS
+// ══════════════════════════════════════════
+async function carregarStats() {
+  try {
+    const data = await sbFetch('leads_google?select=status&limit=10000');
+    if (!data) return;
+    const counts = { total: data.length, novo: 0, enviado: 0, respondeu: 0, interessado: 0 };
+    data.forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
+    document.getElementById('st-total').textContent = counts.total.toLocaleString('pt-BR');
+    document.getElementById('st-novos').textContent = counts.novo.toLocaleString('pt-BR');
+    document.getElementById('st-enviados').textContent = counts.enviado.toLocaleString('pt-BR');
+    document.getElementById('st-responderam').textContent = counts.respondeu.toLocaleString('pt-BR');
+    document.getElementById('st-interessados').textContent = counts.interessado.toLocaleString('pt-BR');
+  } catch(e) { /* silencioso */ }
+}
+
+// ══════════════════════════════════════════
+// FILTROS DINÂMICOS
+// ══════════════════════════════════════════
+async function carregarFiltros() {
+  try {
+    const data = await sbFetch('leads_google?select=cidade,categoria,campanha&limit=5000');
+    if (!data) return;
+
+    const cidades = [...new Set(data.map(r => r.cidade).filter(Boolean))].sort();
+    const categorias = [...new Set(data.map(r => r.categoria).filter(Boolean))].sort();
+    const campanhas = [...new Set(data.map(r => r.campanha).filter(Boolean))].sort();
+
+    // Filtros da aba gerenciar
+    const fCid = document.getElementById('f-cidade');
+    fCid.innerHTML = '<option value="">Todas cidades</option>' + cidades.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+
+    const fCat = document.getElementById('f-categoria');
+    fCat.innerHTML = '<option value="">Todas categorias</option>' + categorias.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+
+    const fCamp = document.getElementById('f-campanha');
+    fCamp.innerHTML = '<option value="">Todas campanhas</option>' + campanhas.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+
+    // Filtros da aba disparar
+    const dCamp = document.getElementById('d-campanha');
+    dCamp.innerHTML = '<option value="">Todas campanhas</option>' + campanhas.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+
+    const dCat = document.getElementById('d-categoria');
+    dCat.innerHTML = '<option value="">Todas categorias</option>' + categorias.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  } catch(e) { /* silencioso */ }
+}
+
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+function salvarConfig(tipo) {
+  if (tipo === 'gkey') {
+    const val = document.getElementById('cfg-gkey').value.trim();
+    if (!val) { toast('Cole a chave da API', 'error'); return; }
+    localStorage.setItem('1n_gkey', val);
+    document.getElementById('gkey-saved').style.display = 'block';
+    toast('Google API Key salva', 'success');
+  } else if (tipo === 'zapi') {
+    localStorage.setItem('1n_zinstance', document.getElementById('cfg-zinstance').value.trim());
+    localStorage.setItem('1n_ztoken', document.getElementById('cfg-ztoken').value.trim());
+    localStorage.setItem('1n_zclient', document.getElementById('cfg-zclient').value.trim());
+    document.getElementById('zapi-saved').style.display = 'block';
+    toast('Config Z-API salva', 'success');
+  } else if (tipo === 'intervalo') {
+    const val = parseInt(document.getElementById('cfg-intervalo').value);
+    if (val < 5) { toast('Mínimo 5 segundos', 'error'); return; }
+    localStorage.setItem('1n_intervalo', val.toString());
+    toast('Intervalo salvo: ' + val + 's', 'success');
+  } else if (tipo === 'apify') {
+    const val = document.getElementById('cfg-apify').value.trim();
+    if (!val) { toast('Cole o token Apify', 'error'); return; }
+    localStorage.setItem('1n_apify', val);
+    document.getElementById('apify-saved').style.display = 'block';
+    toast('Token Apify salvo', 'success');
+  }
+}
+
+function carregarConfig() {
+  const gkey = localStorage.getItem('1n_gkey');
+  if (gkey) { document.getElementById('cfg-gkey').value = gkey; document.getElementById('gkey-saved').style.display = 'block'; }
+
+  const zi = localStorage.getItem('1n_zinstance');
+  if (zi) document.getElementById('cfg-zinstance').value = zi;
+  const zt = localStorage.getItem('1n_ztoken');
+  if (zt) document.getElementById('cfg-ztoken').value = zt;
+  const zc = localStorage.getItem('1n_zclient');
+  if (zc) document.getElementById('cfg-zclient').value = zc;
+
+  const intv = localStorage.getItem('1n_intervalo');
+  if (intv) document.getElementById('cfg-intervalo').value = intv;
+
+  const ap = localStorage.getItem('1n_apify');
+  if (ap) { document.getElementById('cfg-apify').value = ap; document.getElementById('apify-saved').style.display = 'block'; }
+}
+
+// ══════════════════════════════════════════
+// FACEBOOK — MONITORAMENTO E OPORTUNIDADES
+// ══════════════════════════════════════════
+async function loadMonitor() {
+  try {
+    const data = await sbFetch('fb_monitoramento?select=*&order=tipo.asc,valor.asc&limit=300');
+    if (!data) return;
+    const frases = data.filter(d => d.tipo === 'frase');
+    const cidades = data.filter(d => d.tipo === 'cidade');
+    const grupos = data.filter(d => d.tipo === 'grupo');
+    const categorias = data.filter(d => d.tipo === 'categoria');
+    const igPerfis = data.filter(d => d.tipo === 'ig_perfil');
+    // Aba Posts
+    if (document.getElementById('fb-frases')) renderMonitor('fb-frases', frases);
+    if (document.getElementById('fb-cidades')) renderMonitor('fb-cidades', cidades);
+    if (document.getElementById('fb-grupos')) renderMonitor('fb-grupos', grupos);
+    // Aba Páginas FB
+    if (document.getElementById('fbp-categorias')) renderMonitor('fbp-categorias', categorias);
+    if (document.getElementById('fbp-cidades')) renderMonitor('fbp-cidades', cidades);
+    // Aba Instagram
+    if (document.getElementById('ig-perfis')) renderMonitor('ig-perfis', igPerfis);
+  } catch(e) { /* silencioso */ }
+}
+
+function renderMonitor(containerId, items) {
+  const c = document.getElementById(containerId);
+  if (!items.length) { c.innerHTML = '<div style="color:var(--text2);font-size:11px;padding:8px">Nenhum item cadastrado</div>'; return; }
+  c.innerHTML = items.map(i => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;border-bottom:1px solid var(--sep);font-size:11px">
+      <span style="${i.ativo ? '' : 'opacity:.4'}">${esc(i.valor)}</span>
+      <div style="display:flex;gap:4px">
+        <button onclick="toggleMonitor('${i.id}', ${!i.ativo})" style="background:none;border:1px solid var(--sep);color:var(--text2);font-size:9px;padding:2px 6px;cursor:pointer">${i.ativo ? 'ativo' : 'pausado'}</button>
+        <button onclick="delMonitor('${i.id}')" style="background:none;border:1px solid var(--red);color:var(--red);font-size:9px;padding:2px 6px;cursor:pointer">×</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function addMonitor(tipo, inputId) {
+  const id = inputId || ('fb-new-' + tipo);
+  const input = document.getElementById(id);
+  const valor = input.value.trim();
+  if (!valor) { toast('Digite um valor', 'error'); return; }
+  try {
+    await sbFetch('fb_monitoramento', { method: 'POST', body: [{ tipo, valor, ativo: true }] });
+    input.value = '';
+    toast('Adicionado', 'success');
+    loadMonitor();
+  } catch(e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+async function toggleMonitor(id, ativo) {
+  try {
+    await sbFetch(`fb_monitoramento?id=eq.${id}`, { method: 'PATCH', body: { ativo } });
+    loadMonitor();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function delMonitor(id) {
+  if (!confirm('Remover este item?')) return;
+  try {
+    await sbFetch(`fb_monitoramento?id=eq.${id}`, { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+    loadMonitor();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function runFbSearch() {
+  const token = localStorage.getItem('1n_apify');
+  if (!token) { toast('Configure o token Apify em Config', 'error'); showTab('config'); return; }
+
+  const mon = await sbFetch('fb_monitoramento?ativo=eq.true&select=*&limit=200');
+  if (!mon || !mon.length) { toast('Adicione frases e cidades primeiro', 'error'); return; }
+
+  const frases = mon.filter(m => m.tipo === 'frase').map(m => m.valor);
+  const cidades = mon.filter(m => m.tipo === 'cidade').map(m => m.valor);
+  const grupos = mon.filter(m => m.tipo === 'grupo').map(m => m.valor);
+
+  // Monta queries: cada frase × cada cidade
+  const queries = [];
+  for (const f of frases) {
+    if (cidades.length) {
+      for (const c of cidades) {
+        queries.push({ query: `${f} ${c}`, frase: f, cidade: c });
+      }
+    } else {
+      queries.push({ query: f, frase: f, cidade: null });
+    }
+  }
+
+  const btn = document.getElementById('fb-btn-run');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Buscando...';
+  document.getElementById('fb-progress').classList.add('active');
+  document.getElementById('fb-fill').style.width = '10%';
+  document.getElementById('fb-status').textContent = `Rodando ${queries.length} buscas e ${grupos.length} grupos no Apify...`;
+
+  try {
+    const res = await fetch(SUPABASE_URL + '/functions/v1/apify-facebook-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apify_token: token,
+        queries: queries,
+        group_urls: grupos,
+        max_posts: 30
+      })
+    });
+
+    document.getElementById('fb-fill').style.width = '100%';
+    const result = await res.json();
+    if (result.error) {
+      toast('Erro: ' + result.error, 'error');
+      document.getElementById('fb-status').textContent = 'Erro: ' + result.error;
+    } else {
+      document.getElementById('fb-status').textContent = `${result.total_inserted} novas oportunidades salvas (${result.total_scraped} analisadas)`;
+      toast(`${result.total_inserted} oportunidades capturadas`, 'success');
+      loadOportunidades();
+    }
+  } catch(err) {
+    toast('Erro na busca: ' + err.message, 'error');
+    document.getElementById('fb-status').textContent = 'Erro: ' + err.message;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg> Buscar agora';
+}
+
+async function loadOportunidades() {
+  const status = document.getElementById('fb-filter-status').value;
+  let path = 'oportunidades_fb?select=*&order=created_at.desc&limit=200';
+  if (status) path += `&status=eq.${status}`;
+  try {
+    const data = await sbFetch(path);
+    const tbody = document.getElementById('tbody-fb');
+    document.getElementById('fb-count').textContent = (data || []).length + ' oportunidades';
+    if (!data || !data.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:30px">Nenhuma oportunidade capturada</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(o => {
+      const hasWpp = o.whatsapp && o.whatsapp.length > 10;
+      return `
+      <tr>
+        <td><a href="${esc(o.autor_url || '#')}" target="_blank">${esc(o.autor_nome || '—')}</a></td>
+        <td style="max-width:260px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((o.post_texto || '').slice(0, 100))}</div></td>
+        <td style="font-size:10px;color:var(--text2)">${esc(o.frase_matched || '—')}${o.cidade ? ' · ' + esc(o.cidade) : ''}</td>
+        <td style="font-size:10px">👍${o.likes || 0} 💬${o.comments || 0}</td>
+        <td style="font-size:10px">${o.origem === 'grupo' ? '<span style="color:var(--blue)">grupo</span>' : '<span style="color:var(--amber)">busca</span>'}</td>
+        <td style="color:var(--text2);font-size:10px">${o.post_data ? new Date(o.post_data).toLocaleDateString('pt-BR') : '—'}</td>
+        <td>${hasWpp ? '<a href="https://wa.me/' + o.whatsapp + '" target="_blank" style="color:var(--green);font-size:10px">✓ ' + esc(o.whatsapp) + '</a>' : '<span style="color:var(--text2);font-size:10px">—</span>'}</td>
+        <td><span class="badge badge-${o.status}">${o.status}</span></td>
+        <td>
+          <a href="${esc(o.post_url)}" target="_blank" class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:10px">Ver</a>
+          ${!hasWpp ? '<button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:10px;color:var(--blue);border-color:var(--blue)" onclick="buscarContato(\'' + o.id + '\')">🔍 Contato</button>' : ''}
+          ${o.status === 'novo' ? '<button class="btn btn-green btn-sm" style="padding:3px 8px;font-size:10px" onclick="marcarOp(\'' + o.id + '\', \'oportunidade\')">✓</button>' : ''}
+          ${o.status !== 'descartado' ? '<button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:10px;color:var(--red);border-color:var(--red)" onclick="marcarOp(\'' + o.id + '\', \'descartado\')">×</button>' : ''}
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// Busca contato via Google Places API
+async function buscarContato(id) {
+  const gkey = localStorage.getItem('1n_gkey');
+  if (!gkey) { toast('Configure a Google API Key em Config', 'error'); showTab('config'); return; }
+
+  // Pegar dados da oportunidade
+  const dat = await sbFetch(`oportunidades_fb?id=eq.${id}`);
+  if (!dat || !dat[0]) return;
+  const op = dat[0];
+  const texto = op.post_texto || '';
+  const cidade = op.cidade || '';
+
+  // Tentar extrair nome de negócio do texto
+  // Heurística: pega palavras em sequência após palavras-chave tipo "minha", "meu", "vendo", "da", "do"
+  const cleanText = texto.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ');
+  const patterns = [
+    /(?:minha|meu)\s+([A-Za-zÀ-ú][\wÀ-ú\s]{3,40}?)(?:\s+na\s|\s+em\s|\s+no\s|\s+de\s|\.|$)/i,
+    /(?:vendo|vendendo|repasso|passo)\s+(?:o\s+ponto\s+d[aeo]\s+|d[aeo]\s+)?([A-Za-zÀ-ú][\wÀ-ú\s]{3,40}?)(?:\s+na\s|\s+em\s|\s+no\s|\.|$)/i,
+    /(?:restaurante|loja|clinica|academia|padaria|farmacia|salao|barbearia|oficina|pet|lanchonete|pizzaria|bar|cafeteria|escola|hotel|pousada)\s+([\w\s]{3,30}?)(?:\s+na\s|\s+em\s|\.|$)/i
+  ];
+
+  let negocio = '';
+  for (const pat of patterns) {
+    const m = cleanText.match(pat);
+    if (m && m[1]) { negocio = m[1].trim(); break; }
+  }
+
+  // Se não achou, pergunta ao usuário
+  if (!negocio) {
+    negocio = prompt('Não consegui extrair o nome do negócio do post. Digite o nome/tipo e cidade para buscar:\n\nEx: "restaurante mexicano Floripa"');
+    if (!negocio) return;
+  }
+
+  const query = cidade ? `${negocio} ${cidade}` : negocio;
+  toast('Buscando "' + query + '" no Google Places...', 'success');
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${gkey}&language=pt-BR`;
+    const proxyUrl = SUPABASE_URL + '/functions/v1/google-places-proxy?url=' + encodeURIComponent(url);
+    const res = await fetch(proxyUrl);
+    const data = await res.json();
+
+    if (!data.results || !data.results.length) {
+      toast('Nenhum resultado encontrado para: ' + query, 'error');
+      return;
+    }
+
+    // Pega o primeiro resultado e busca o telefone
+    const place = data.results[0];
+    const detUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_phone_number,international_phone_number,website,formatted_address&key=${gkey}&language=pt-BR`;
+    const detProxy = SUPABASE_URL + '/functions/v1/google-places-proxy?url=' + encodeURIComponent(detUrl);
+    const detRes = await fetch(detProxy);
+    const detData = await detRes.json();
+
+    const phone = detData.result?.international_phone_number || detData.result?.formatted_phone_number || '';
+    if (!phone) {
+      toast('Encontrado "' + place.name + '" mas sem telefone público', 'error');
+      return;
+    }
+
+    const tel = formatarTelefone(phone);
+    const isCel = ehCelular(tel);
+    
+    const confirm_txt = `Encontrado:\n\n📍 ${place.name}\n${place.formatted_address}\n📱 ${phone} ${isCel ? '(CELULAR)' : '(fixo)'}\n\nSalvar esse WhatsApp na oportunidade?`;
+    if (!confirm(confirm_txt)) return;
+
+    await sbFetch(`oportunidades_fb?id=eq.${id}`, {
+      method: 'PATCH',
+      body: {
+        whatsapp: tel,
+        notas: (op.notas || '') + `\n[${new Date().toLocaleDateString('pt-BR')}] Contato via Google Places: ${place.name} - ${phone}`,
+        updated_at: new Date().toISOString()
+      }
+    });
+
+    toast('Contato salvo: ' + phone, 'success');
+    loadOportunidades();
+  } catch(err) {
+    toast('Erro: ' + err.message, 'error');
+  }
+}
+
+async function marcarOp(id, status) {
+  try {
+    await sbFetch(`oportunidades_fb?id=eq.${id}`, { method: 'PATCH', body: { status, updated_at: new Date().toISOString() } });
+    toast('Atualizado', 'success');
+    loadOportunidades();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ══════════════════════════════════════════
+// FACEBOOK — BUSCA DE PÁGINAS DE NEGÓCIO (COM TELEFONE)
+// ══════════════════════════════════════════
+async function runFbPagesSearch() {
+  const token = localStorage.getItem('1n_apify');
+  if (!token) { toast('Configure o token Apify em Config', 'error'); showTab('config'); return; }
+
+  const mon = await sbFetch('fb_monitoramento?ativo=eq.true&select=*&limit=300');
+  if (!mon || !mon.length) { toast('Adicione categorias e cidades primeiro', 'error'); return; }
+
+  const categorias = mon.filter(m => m.tipo === 'categoria').map(m => m.valor);
+  const cidades = mon.filter(m => m.tipo === 'cidade').map(m => m.valor);
+
+  if (!categorias.length) { toast('Adicione pelo menos uma categoria', 'error'); return; }
+  if (!cidades.length) { toast('Adicione pelo menos uma cidade', 'error'); return; }
+
+  const queries = [];
+  for (const cat of categorias) {
+    for (const cid of cidades) {
+      queries.push({ categoria: cat, cidade: cid });
+    }
+  }
+
+  const campanha = document.getElementById('fbp-campanha').value.trim() || 'facebook';
+  const maxResults = parseInt(document.getElementById('fbp-max').value) || 30;
+
+  const btn = document.getElementById('fbp-btn-run');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Buscando...';
+  document.getElementById('fbp-progress').classList.add('active');
+  document.getElementById('fbp-fill').style.width = '10%';
+  document.getElementById('fbp-status').textContent = `Rodando ${queries.length} buscas (${categorias.length} categorias × ${cidades.length} cidades)...`;
+
+  try {
+    const res = await fetch(SUPABASE_URL + '/functions/v1/apify-facebook-pages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apify_token: token,
+        queries: queries,
+        max_results: maxResults,
+        campanha: campanha
+      })
+    });
+
+    document.getElementById('fbp-fill').style.width = '100%';
+    const result = await res.json();
+
+    if (result.error) {
+      toast('Erro: ' + result.error, 'error');
+      document.getElementById('fbp-status').textContent = 'Erro: ' + result.error;
+    } else {
+      const msg = `${result.total_inserted} novos leads com telefone (${result.total_scraped} páginas analisadas)`;
+      document.getElementById('fbp-status').innerHTML = msg + ' · <a href="#" onclick="showTab(\'gerenciar\');return false" style="color:var(--green)">Ver em Gerenciar →</a>';
+      toast(`${result.total_inserted} leads Facebook capturados`, 'success');
+      if (result.errors && result.errors.length) {
+        console.warn('[fb-pages] Errors:', result.errors);
+      }
+      if (result.samples && result.samples.length) {
+        console.log('[fb-pages] Sample:', result.samples[0]);
+      }
+    }
+  } catch(err) {
+    toast('Erro na busca: ' + err.message, 'error');
+    document.getElementById('fbp-status').textContent = 'Erro: ' + err.message;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg> Buscar páginas';
+}
+
+// ══════════════════════════════════════════
+// INSTAGRAM — BUSCA DE SEGUIDORES (2 PASSOS)
+// ══════════════════════════════════════════
+
+// Guarda estado entre os passos
+window._igFollowers = {
+  perfil_alvo: '',
+  usernames: [],          // todos os @ que vieram na busca
+  enriched: new Set(),    // os que já foram enriquecidos
+  total_leads: 0,
+  total_business: 0,
+  total_with_phone: 0,
+};
+
+// PASSO 1: Busca só os @ dos seguidores (rápido)
+async function runFindFollowers() {
+  const token = localStorage.getItem('1n_apify');
+  if (!token) { toast('Configure o token Apify em Config', 'error'); showTab('config'); return; }
+
+  const alvo = document.getElementById('ig-seg-alvo').value.trim();
+  if (!alvo) { toast('Digite o @ do perfil alvo', 'error'); return; }
+
+  const max = parseInt(document.getElementById('ig-seg-max').value) || 100;
+
+  const btn = document.getElementById('ig-seg-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  document.getElementById('ig-seg-progress').classList.add('active');
+  document.getElementById('ig-seg-fill').style.width = '30%';
+  document.getElementById('ig-seg-status').textContent = `Buscando ${max} seguidores de ${alvo}... (30-90s)`;
+  document.getElementById('ig-passo2').style.display = 'none';
+
+  try {
+    const res = await fetch(SUPABASE_URL + '/functions/v1/apify-instagram-followers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apify_token: token,
+        perfil_alvo: alvo,
+        max_followers: max,
+      })
+    });
+
+    document.getElementById('ig-seg-fill').style.width = '100%';
+    const result = await res.json();
+
+    if (result.error || !result.success) {
+      toast('Erro: ' + (result.error || 'falha'), 'error');
+      const errList = result.errors ? '<br>' + result.errors.join('<br>') : '';
+      document.getElementById('ig-seg-status').innerHTML = '<span style="color:var(--red)">' + (result.error || 'Erro') + errList + '</span>';
+      console.error('[ig-find] Result:', result);
+    } else {
+      // Salva estado
+      window._igFollowers.perfil_alvo = result.perfil_alvo;
+      window._igFollowers.usernames = result.usernames;
+      window._igFollowers.enriched = new Set();
+      window._igFollowers.total_leads = 0;
+      window._igFollowers.total_business = 0;
+      window._igFollowers.total_with_phone = 0;
+
+      document.getElementById('ig-seg-status').innerHTML = `✓ ${result.followers_count} seguidores encontrados via <code style="color:var(--green)">${result.used_actor.split('~')[0]}</code>`;
+      toast(`${result.followers_count} seguidores encontrados`, 'success');
+
+      // Mostra passo 2
+      document.getElementById('ig-passo2').style.display = 'block';
+      document.getElementById('ig-passo2-info').innerHTML = `${result.followers_count} @ de <strong>@${result.perfil_alvo}</strong> · <span style="color:var(--text2)">0 enriquecidos</span>`;
+      renderUsernamesList();
+      console.log('[ig-find] Sample:', result.sample);
+    }
+  } catch(err) {
+    toast('Erro: ' + err.message, 'error');
+    document.getElementById('ig-seg-status').textContent = 'Erro: ' + err.message;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Buscar';
+}
+
+function renderUsernamesList() {
+  const state = window._igFollowers;
+  const html = state.usernames.map(u => {
+    const enriched = state.enriched.has(u);
+    return `<span style="display:inline-block;padding:2px 6px;margin:2px;background:${enriched ? 'var(--green)' : 'var(--surface)'};color:${enriched ? '#000' : 'var(--text2)'};border:1px solid var(--sep);font-size:10px">${enriched ? '✓ ' : ''}@${u}</span>`;
+  }).join('');
+  document.getElementById('ig-usernames-list').innerHTML = html;
+}
+
+// PASSO 2: Enriquece próximo lote
+async function enrichNextBatch() {
+  const token = localStorage.getItem('1n_apify');
+  if (!token) { toast('Configure o token Apify', 'error'); return; }
+
+  const state = window._igFollowers;
+  if (!state.usernames.length) { toast('Execute primeiro o Passo 1', 'error'); return; }
+
+  const loteSize = parseInt(document.getElementById('ig-seg-lote').value) || 100;
+  const campanha = document.getElementById('ig-seg-campanha').value.trim() || 'ig-seguidores';
+
+  // Pega próximo lote (que ainda não foi enriquecido)
+  const pending = state.usernames.filter(u => !state.enriched.has(u));
+  if (pending.length === 0) {
+    toast('Todos os seguidores já foram enriquecidos', 'success');
+    return;
+  }
+
+  const batch = pending.slice(0, loteSize);
+
+  const btn = document.getElementById('ig-enrich-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  document.getElementById('ig-enrich-progress').classList.add('active');
+  document.getElementById('ig-enrich-fill').style.width = '30%';
+  document.getElementById('ig-enrich-status').textContent = `Enriquecendo ${batch.length} perfis (${pending.length - batch.length} restarão)...`;
+
+  try {
+    const res = await fetch(SUPABASE_URL + '/functions/v1/apify-instagram-enrich', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apify_token: token,
+        usernames: batch,
+        campanha: campanha + '|' + state.perfil_alvo,
+      })
+    });
+
+    document.getElementById('ig-enrich-fill').style.width = '100%';
+    const result = await res.json();
+
+    if (result.error) {
+      toast('Erro: ' + result.error, 'error');
+      document.getElementById('ig-enrich-status').innerHTML = '<span style="color:var(--red)">Erro: ' + result.error + '</span>';
+    } else {
+      // Atualiza estado
+      batch.forEach(u => state.enriched.add(u));
+      state.total_leads += result.leads_saved || 0;
+      state.total_business += result.total_business || 0;
+      state.total_with_phone += result.total_with_phone || 0;
+
+      const remaining = pending.length - batch.length;
+      const msg = `✓ Lote concluído · ${result.total_business} business · ${result.total_with_phone} com tel · <strong style="color:var(--green)">${result.leads_saved} novos leads</strong>`;
+      const restante = remaining > 0 ? ` · <strong style="color:var(--amber)">${remaining} restam</strong> (clique novamente)` : ' · <span style="color:var(--green)">✓ Tudo enriquecido!</span>';
+      document.getElementById('ig-enrich-status').innerHTML = msg + restante;
+
+      document.getElementById('ig-passo2-info').innerHTML = `${state.usernames.length} @ de <strong>@${state.perfil_alvo}</strong> · <span style="color:var(--green)">${state.enriched.size} enriquecidos</span> · <strong style="color:var(--green)">${state.total_leads} leads salvos no total</strong>`;
+
+      // Atualiza visual dos @
+      renderUsernamesList();
+
+      // Atualiza tabela
+      if (result.summary && result.summary.length) {
+        document.getElementById('ig-resumo').textContent = state.enriched.size + ' processados';
+        const existingRows = document.getElementById('ig-tbody').innerHTML;
+        const newRows = result.summary.map(s => `
+          <tr>
+            <td><a href="https://instagram.com/${esc(s.username)}" target="_blank" style="color:var(--green)">@${esc(s.username)}</a></td>
+            <td style="font-size:11px">${esc(s.nome || '—')}</td>
+            <td>${s.is_business ? '<span style="color:var(--green);font-size:11px">✓</span>' : '<span style="color:var(--text2);font-size:10px">—</span>'}</td>
+            <td>${s.tem_telefone ? '<span style="color:var(--green);font-size:11px">✓</span>' : '<span style="color:var(--text2);font-size:10px">—</span>'}</td>
+            <td style="font-size:11px;color:var(--text2)">${s.seguidores ? s.seguidores.toLocaleString('pt-BR') : '—'}</td>
+          </tr>
+        `).join('');
+        document.getElementById('ig-tbody').innerHTML = newRows + existingRows;
+        document.getElementById('ig-resultado').style.display = 'block';
+      }
+
+      toast(`+${result.leads_saved} leads`, 'success');
+    }
+  } catch(err) {
+    toast('Erro: ' + err.message, 'error');
+    document.getElementById('ig-enrich-status').textContent = 'Erro: ' + err.message;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg> Enriquecer lote';
+}
+
+// ══════════════════════════════════════════
+// INSTAGRAM — ENRIQUECIMENTO DE PERFIS (CAMINHO A)
+// ══════════════════════════════════════════
+async function runInstagramEnrich() {
+  const token = localStorage.getItem('1n_apify');
+  if (!token) { toast('Configure o token Apify em Config', 'error'); showTab('config'); return; }
+
+  const raw = document.getElementById('ig-usernames').value.trim();
+  if (!raw) { toast('Cole pelo menos um @username', 'error'); return; }
+
+  // Parse: aceita linha, vírgula ou espaço como separador
+  const usernames = raw.split(/[\n,;\s]+/)
+    .map(u => u.replace(/[@\s]/g, '').trim())
+    .filter(Boolean);
+
+  if (!usernames.length) { toast('Nenhum @ válido encontrado', 'error'); return; }
+
+  const campanha = document.getElementById('ig-campanha').value.trim() || 'instagram';
+
+  const btn = document.getElementById('ig-btn-run');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Processando...';
+  document.getElementById('ig-progress').classList.add('active');
+  document.getElementById('ig-fill').style.width = '20%';
+  document.getElementById('ig-status').textContent = `Enriquecendo ${usernames.length} perfis (pode levar 1-3 min)...`;
+  document.getElementById('ig-resultado').style.display = 'none';
+
+  try {
+    const res = await fetch(SUPABASE_URL + '/functions/v1/apify-instagram-enrich', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apify_token: token,
+        usernames: usernames,
+        campanha: campanha
+      })
+    });
+
+    document.getElementById('ig-fill').style.width = '100%';
+    const result = await res.json();
+
+    if (result.error) {
+      toast('Erro: ' + result.error, 'error');
+      document.getElementById('ig-status').innerHTML = '<span style="color:var(--red)">Erro: ' + result.error + (result.details ? ' · ' + result.details : '') + '</span>';
+      console.error('[ig] Result:', result);
+    } else {
+      const msg = `✓ ${result.total_enriched} enriquecidos · ${result.total_business} business · ${result.total_with_phone} com telefone · <strong style="color:var(--green)">${result.leads_saved} leads salvos</strong>`;
+      document.getElementById('ig-status').innerHTML = msg + ' · <a href="#" onclick="showTab(\'gerenciar\');return false" style="color:var(--green)">Ver em Gerenciar →</a>';
+      toast(`${result.leads_saved} leads Instagram capturados`, 'success');
+
+      // Mostra tabela de resumo
+      if (result.summary && result.summary.length) {
+        document.getElementById('ig-resumo').textContent = result.summary.length + ' perfis processados';
+        document.getElementById('ig-tbody').innerHTML = result.summary.map(s => `
+          <tr>
+            <td><a href="https://instagram.com/${esc(s.username)}" target="_blank" style="color:var(--green)">@${esc(s.username)}</a></td>
+            <td style="font-size:11px">${esc(s.nome || '—')}</td>
+            <td>${s.is_business ? '<span style="color:var(--green);font-size:11px">✓ Business</span>' : '<span style="color:var(--text2);font-size:10px">Pessoal</span>'}</td>
+            <td>${s.tem_telefone ? '<span style="color:var(--green);font-size:11px">✓ Sim</span>' : '<span style="color:var(--text2);font-size:10px">—</span>'}</td>
+            <td style="font-size:11px;color:var(--text2)">${s.seguidores ? s.seguidores.toLocaleString('pt-BR') : '—'}</td>
+          </tr>
+        `).join('');
+        document.getElementById('ig-resultado').style.display = 'block';
+      }
+
+      if (result.errors && result.errors.length) console.warn('[ig] Errors:', result.errors);
+      if (result.samples && result.samples.length) console.log('[ig] Sample:', result.samples[0]);
+    }
+  } catch(err) {
+    toast('Erro: ' + err.message, 'error');
+    document.getElementById('ig-status').textContent = 'Erro: ' + err.message;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg> Enriquecer perfis';
+}
+
+// ══════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════
+function showTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + tab).style.display = 'block';
+
+  const labels = { buscar: 'Buscar leads', gerenciar: 'Gerenciar', disparar: 'Disparar', campanhas: 'Campanhas', config: 'API Keys', fb: 'Posts de intenção', fbpages: 'Páginas FB', ig: 'Seguidores' };
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.textContent.trim() === labels[tab]) n.classList.add('active');
+  });
+
+  if (tab === 'gerenciar') carregarLeads();
+  if (tab === 'disparar') carregarFilaDisparo();
+  if (tab === 'campanhas') carregarCampanhas();
+  if (tab === 'fb') { loadMonitor(); loadOportunidades(); }
+  if (tab === 'fbpages') { loadMonitor(); }
+  if (tab === 'ig') { /* nada - usa textarea direto */ }
+}
+
+function fecharModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function toggleAllSearch() {
+  const main = document.getElementById('chk-all-search');
+  main.checked = !main.checked;
+  document.querySelectorAll('.search-chk').forEach(c => c.checked = main.checked);
+}
+
+function toggleAllManage() {
+  const main = document.getElementById('chk-all-manage');
+  document.querySelectorAll('.manage-chk').forEach(c => c.checked = main.checked);
+}
+
+function toast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.className = 'toast', 3500);
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Fechar modais com ESC
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); });
+document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); }));
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+(async function init() {
+  carregarConfig();
+  carregarStats();
+  carregarFiltros();
+
+  // Se não tem API key, mostra config
+  if (!localStorage.getItem('1n_gkey')) {
+    showTab('config');
+    toast('Configure sua chave do Google Places para começar', 'error');
+  }
+})();
+</script>
+</body>
+</html>
