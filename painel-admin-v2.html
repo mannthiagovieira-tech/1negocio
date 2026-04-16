@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin · 1Negócio</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--green:#10b981;--green2:#059669;
+--bg:#0c0c0a;--s1:#111110;--s2:#161614;--s3:#1c1c19;
+--tx:#e5e5e3;--t2:#a3a39b;--t3:#6b6b63;
+--am:#f59e0b;--bl:#60a5fa;--rd:#f87171;--pu:#a78bfa;
+--sep:#222220;
+}
+body{background:var(--bg);color:var(--tx);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh}
+a{color:var(--green);text-decoration:none}
+.app{display:flex;min-height:100vh}
+
+/* ── SIDEBAR ── */
+.sb{width:200px;background:var(--s1);border-right:1px solid var(--sep);position:fixed;top:0;left:0;bottom:0;overflow-y:auto;z-index:100;padding:16px 0}
+.sb-logo{padding:0 16px 20px;font-family:'Syne',sans-serif;font-size:16px;font-weight:800;letter-spacing:-.5px}
+.sb-logo em{font-style:normal;color:var(--green)}
+.sb-label{padding:4px 16px;font-size:8px;text-transform:uppercase;letter-spacing:2px;color:var(--t3);margin-top:12px}
+.sb-item{display:flex;align-items:center;gap:8px;padding:8px 16px;color:var(--t2);cursor:pointer;font-size:11px;transition:all .12s;border-left:2px solid transparent}
+.sb-item:hover{background:var(--s2);color:var(--tx)}
+.sb-item.on{color:var(--green);background:rgba(16,185,129,.05);border-left-color:var(--green)}
+.sb-item svg{width:14px;height:14px;flex-shrink:0}
+.sb-count{margin-left:auto;font-size:9px;background:var(--s2);padding:1px 6px;border-radius:8px;color:var(--t3)}
+.sb-item.on .sb-count{background:rgba(16,185,129,.15);color:var(--green)}
+
+/* ── MAIN ── */
+.mn{margin-left:200px;padding:24px 32px;max-width:1200px}
+.pg-title{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px}
+.pg-sub{font-size:11px;color:var(--t2);margin-bottom:24px}
+
+/* ── STATS ── */
+.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:24px}
+.st{background:var(--s1);border:1px solid var(--sep);padding:14px}
+.st-v{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;letter-spacing:-.5px}
+.st-l{font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t2);margin-top:2px}
+
+/* ── TABLE ── */
+.tw{background:var(--s1);border:1px solid var(--sep);overflow-x:auto}
+.ts{max-height:600px;overflow-y:auto}
+table{width:100%;border-collapse:collapse}
+th{padding:8px 12px;text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t3);border-bottom:1px solid var(--sep);background:var(--s2);white-space:nowrap;position:sticky;top:0;z-index:1}
+td{padding:8px 12px;border-bottom:1px solid var(--sep);font-size:11px;white-space:nowrap}
+tr:hover td{background:rgba(16,185,129,.02)}
+tr{cursor:pointer}
+
+/* ── BADGES ── */
+.bg{display:inline-block;padding:2px 7px;font-size:8px;text-transform:uppercase;letter-spacing:.5px;border-radius:2px}
+.bg-green{color:var(--green);border:1px solid rgba(16,185,129,.3)}
+.bg-am{color:var(--am);border:1px solid rgba(245,158,11,.3)}
+.bg-bl{color:var(--bl);border:1px solid rgba(96,165,250,.3)}
+.bg-rd{color:var(--rd);border:1px solid rgba(248,113,113,.3)}
+.bg-pu{color:var(--pu);border:1px solid rgba(167,139,250,.3)}
+.bg-t2{color:var(--t2);border:1px solid var(--sep)}
+
+/* ── FILTERS ── */
+.flt{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.flt select,.flt input{background:var(--s2);border:1px solid var(--sep);color:var(--tx);padding:6px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none}
+.flt select:focus,.flt input:focus{border-color:var(--green)}
+
+/* ── BTNS ── */
+.btn{padding:7px 16px;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;border:1px solid var(--sep);transition:all .12s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;text-decoration:none}
+.btn-g{background:var(--green);color:#000;border-color:var(--green)}
+.btn-g:hover{background:var(--green2)}
+.btn-o{background:transparent;color:var(--t2)}
+.btn-o:hover{color:var(--tx);border-color:var(--t2)}
+.btn-am{background:transparent;color:var(--am);border-color:var(--am)}
+.btn-sm{padding:4px 10px;font-size:9px}
+
+/* ── MODAL ── */
+.mod-ov{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:flex-start;justify-content:center;z-index:200;padding-top:60px;overflow-y:auto}
+.mod-ov.open{display:flex}
+.mod{background:var(--s1);border:1px solid var(--sep);padding:24px;width:640px;max-width:95vw;max-height:85vh;overflow-y:auto;margin-bottom:40px}
+.mod h3{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;letter-spacing:-.3px}
+.mod .f{display:flex;flex-direction:column;gap:3px;margin-bottom:12px}
+.mod .f label{font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t2)}
+.mod .f input,.mod .f select,.mod .f textarea{background:var(--s2);border:1px solid var(--sep);color:var(--tx);padding:8px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none}
+.mod .f input:focus,.mod .f textarea:focus{border-color:var(--green)}
+.mod .f textarea{min-height:60px;resize:vertical}
+.mod-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mod-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.mod-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid var(--sep)}
+.mod-links{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.mod-link{font-size:9px;padding:5px 12px;border:1px solid var(--sep);color:var(--t2)}
+.mod-link:hover{border-color:var(--green);color:var(--green)}
+.mod-link.wpp{border-color:var(--green);color:var(--green)}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--s2);border:1px solid var(--sep);padding:12px 18px;font-size:11px;display:none;z-index:300;max-width:360px;border-left:3px solid var(--green)}
+.toast.show{display:block;animation:fi .2s}
+.toast.err{border-left-color:var(--rd)}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── EMPTY ── */
+.empty{padding:40px;text-align:center;color:var(--t3);font-size:12px}
+
+/* ── TAB CONTENT ── */
+.tc{display:none}.tc.on{display:block}
+
+/* ── QUICK ACTIONS ── */
+.qa{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){.sb{display:none}.mn{margin-left:0;padding:16px}.stats{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- SIDEBAR -->
+<aside class="sb">
+  <div class="sb-logo"><em>1</em>NEGÓCIO</div>
+  <div class="sb-label">Operação</div>
+  <div class="sb-item on" onclick="go('dash')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dashboard</div>
+  <div class="sb-item" onclick="go('negocios')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Negócios<span class="sb-count" id="sc-neg">0</span></div>
+  <div class="sb-item" onclick="go('anuncios')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>Anúncios<span class="sb-count" id="sc-anu">0</span></div>
+  <div class="sb-item" onclick="go('usuarios')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>Usuários<span class="sb-count" id="sc-usr">0</span></div>
+  <div class="sb-item" onclick="go('agenda')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Agenda<span class="sb-count" id="sc-age">0</span></div>
+
+  <div class="sb-label">Marketing</div>
+  <div class="sb-item" onclick="go('leads')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Leads<span class="sb-count" id="sc-lea">0</span></div>
+  <div class="sb-item" onclick="go('disparos')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4z"/></svg>Disparos<span class="sb-count" id="sc-dis">0</span></div>
+  <div class="sb-item" onclick="go('parceiros')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>Parceiros<span class="sb-count" id="sc-par">0</span></div>
+
+  <div class="sb-label">Ferramentas</div>
+  <div class="sb-item" onclick="window.open('/admin-anuncios.html','_blank')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Criar anúncio</div>
+  <div class="sb-item" onclick="window.open('/painel-leads.html','_blank')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4-3-9s1.34-9 3-9"/></svg>Google Places</div>
+
+  <div style="margin-top:auto;padding-top:16px;border-top:1px solid var(--sep);margin-top:20px">
+    <a class="sb-item" href="/" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Ir para Home</a>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="mn">
+
+<!-- ═══ DASHBOARD ═══ -->
+<div class="tc on" id="p-dash">
+  <div class="pg-title">Dashboard</div>
+  <div class="pg-sub" id="dash-date"></div>
+  <div class="stats" id="dash-stats"></div>
+  <div class="qa" id="dash-qa">
+    <button class="btn btn-g" onclick="go('negocios')">Ver negócios pendentes</button>
+    <button class="btn btn-am" onclick="go('agenda')">Ver agenda</button>
+    <button class="btn btn-o" onclick="go('leads')">Ver leads</button>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;margin-bottom:10px">Negócios recentes</div>
+      <div class="tw"><div class="ts" style="max-height:300px"><table><thead><tr><th>Código</th><th>Setor</th><th>Status</th><th>Data</th></tr></thead><tbody id="tb-dash-neg"></tbody></table></div></div>
+    </div>
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;margin-bottom:10px">Usuários recentes</div>
+      <div class="tw"><div class="ts" style="max-height:300px"><table><thead><tr><th>Nome</th><th>Email</th><th>Tipo</th><th>Data</th></tr></thead><tbody id="tb-dash-usr"></tbody></table></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ NEGÓCIOS ═══ -->
+<div class="tc" id="p-negocios">
+  <div class="pg-title">Negócios</div>
+  <div class="pg-sub">Todos os diagnósticos e negócios cadastrados</div>
+  <div class="flt">
+    <select id="fn-status" onchange="loadNegocios()"><option value="">Todos status</option><option value="em_avaliacao">Em avaliação</option><option value="aguardando_aprovacao">Aguardando aprovação</option><option value="publicado">Publicado</option><option value="em_negociacao">Em negociação</option><option value="rascunho">Rascunho</option><option value="pausado">Pausado</option><option value="vendido">Vendido</option></select>
+    <input id="fn-busca" placeholder="Buscar..." oninput="loadNegocios()" style="width:180px">
+    <div style="margin-left:auto"><button class="btn btn-g btn-sm" onclick="window.open('/admin-anuncios.html','_blank')">+ Criar anúncio</button></div>
+  </div>
+  <div class="tw"><div class="ts"><table><thead><tr><th>Código</th><th>Nome</th><th>Setor</th><th>Cidade</th><th>Fat.</th><th>ISE</th><th>Status</th><th>Termo</th><th>Data</th><th>Ações</th></tr></thead><tbody id="tb-neg"></tbody></table></div></div>
+</div>
+
+<!-- ═══ ANÚNCIOS ═══ -->
+<div class="tc" id="p-anuncios">
+  <div class="pg-title">Anúncios</div>
+  <div class="pg-sub">Negócios com código de anúncio gerado</div>
+  <div class="flt">
+    <select id="fa-status" onchange="loadAnuncios()"><option value="">Todos</option><option value="publicado">Publicados</option><option value="rascunho">Rascunho</option><option value="aguardando_aprovacao">Aguardando</option><option value="pausado">Pausados</option></select>
+    <div style="margin-left:auto"><button class="btn btn-g btn-sm" onclick="window.open('/admin-anuncios.html','_blank')">+ Criar anúncio</button></div>
+  </div>
+  <div class="tw"><div class="ts"><table><thead><tr><th>AN</th><th>Título</th><th>Categoria</th><th>Fat.</th><th>Preço</th><th>ISE</th><th>Tag</th><th>Termo</th><th>Status</th><th>Ações</th></tr></thead><tbody id="tb-anu"></tbody></table></div></div>
+</div>
+
+<!-- ═══ USUÁRIOS ═══ -->
+<div class="tc" id="p-usuarios">
+  <div class="pg-title">Usuários</div>
+  <div class="pg-sub">Vendedores e compradores cadastrados</div>
+  <div class="flt">
+    <select id="fu-tipo" onchange="loadUsuarios()"><option value="">Todos</option><option value="sell">Vendedores</option><option value="buy">Compradores</option></select>
+    <input id="fu-busca" placeholder="Buscar..." oninput="loadUsuarios()" style="width:180px">
+    <button class="btn btn-o btn-sm" onclick="exportUsrCSV()">Exportar CSV</button>
+  </div>
+  <div class="tw"><div class="ts"><table><thead><tr><th>Nome</th><th>Email</th><th>Tipo</th><th>WhatsApp</th><th>Negócios</th><th>Cadastro</th><th>Ações</th></tr></thead><tbody id="tb-usr"></tbody></table></div></div>
+</div>
+
+<!-- ═══ AGENDA ═══ -->
+<div class="tc" id="p-agenda">
+  <div class="pg-title">Agenda</div>
+  <div class="pg-sub">Compromissos e fila de trabalho</div>
+  <div class="qa">
+    <button class="btn btn-g btn-sm" onclick="novoCompromisso()">+ Novo compromisso</button>
+  </div>
+  <div class="flt">
+    <select id="fag-tipo" onchange="loadAgenda()"><option value="">Todos tipos</option><option value="gratuito">Publicação gratuita</option><option value="laudo_99">Laudo R$99</option><option value="guiado_588">Guiado R$588</option><option value="avaliacao_397">Avaliação R$397</option><option value="outro">Outro</option></select>
+    <select id="fag-status" onchange="loadAgenda()"><option value="">Todos status</option><option value="pendente">Pendente</option><option value="agendado">Agendado</option><option value="concluido">Concluído</option></select>
+  </div>
+  <div class="tw"><div class="ts"><table><thead><tr><th>Tipo</th><th>Cliente</th><th>WhatsApp</th><th>Data/Hora</th><th>Status</th><th>Notas</th><th>Ações</th></tr></thead><tbody id="tb-age"></tbody></table></div></div>
+</div>
+
+<!-- ═══ LEADS ═══ -->
+<div class="tc" id="p-leads">
+  <div class="pg-title">Leads Google</div>
+  <div class="pg-sub">Leads extraídos via Google Places API</div>
+  <div class="flt">
+    <select id="fl-status" onchange="loadLeads()"><option value="">Todos</option><option value="novo">Novo</option><option value="enviado">Enviado</option><option value="respondeu">Respondeu</option><option value="interessado">Interessado</option></select>
+    <select id="fl-camp" onchange="loadLeads()"><option value="">Todas campanhas</option></select>
+    <input id="fl-busca" placeholder="Buscar..." oninput="loadLeads()" style="width:150px">
+    <div style="margin-left:auto;display:flex;gap:6px">
+      <button class="btn btn-o btn-sm" onclick="window.open('/painel-leads.html','_blank')">Abrir painel completo</button>
+    </div>
+  </div>
+  <div class="tw"><div class="ts"><table><thead><tr><th>Nome</th><th>Telefone</th><th>Cidade</th><th>Categoria</th><th>Status</th><th>Campanha</th><th>Enviado</th></tr></thead><tbody id="tb-lea"></tbody></table></div></div>
+</div>
+
+<!-- ═══ DISPAROS ═══ -->
+<div class="tc" id="p-disparos">
+  <div class="pg-title">Disparos WhatsApp</div>
+  <div class="pg-sub">Histórico de mensagens enviadas via Z-API</div>
+  <div class="tw"><div class="ts"><table><thead><tr><th>Telefone</th><th>Mensagem</th><th>Status</th><th>Data</th></tr></thead><tbody id="tb-dis"></tbody></table></div></div>
+</div>
+
+<!-- ═══ PARCEIROS ═══ -->
+<div class="tc" id="p-parceiros">
+  <div class="pg-title">Parceiros</div>
+  <div class="pg-sub">Programa de filiados</div>
+  <div class="tw"><div class="ts"><table><thead><tr><th>Código</th><th>Nome</th><th>Cidade</th><th>Pontos</th><th>Nível</th><th>Status</th><th>Data</th></tr></thead><tbody id="tb-par"></tbody></table></div></div>
+</div>
+
+</main>
+</div>
+
+<!-- MODAL DETALHE NEGÓCIO -->
+<div class="mod-ov" id="mod-neg" onclick="if(event.target===this)this.classList.remove('open')">
+<div class="mod">
+  <h3 id="mn-title">Detalhe do negócio</h3>
+  <div class="mod-links" id="mn-links"></div>
+  <div class="mod-row3" id="mn-kpis"></div>
+  <div id="mn-body"></div>
+  <div class="mod-acts">
+    <button class="btn btn-o" onclick="cls('mod-neg')">Fechar</button>
+    <button class="btn btn-am" id="mn-btn-termo" onclick="enviarTermo()">Enviar termo de adesão</button>
+    <button class="btn btn-g" id="mn-btn-pub" onclick="pubNeg()">Publicar</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL NOVO COMPROMISSO -->
+<div class="mod-ov" id="mod-age" onclick="if(event.target===this)this.classList.remove('open')">
+<div class="mod">
+  <h3>Novo compromisso</h3>
+  <div class="mod-row">
+    <div class="f"><label>Tipo</label><select id="ma-tipo"><option value="gratuito">Publicação gratuita</option><option value="laudo_99">Laudo R$99</option><option value="guiado_588">Guiado R$588</option><option value="avaliacao_397">Avaliação R$397</option><option value="outro">Outro</option></select></div>
+    <div class="f"><label>Status</label><select id="ma-status"><option value="pendente">Pendente</option><option value="agendado">Agendado</option><option value="concluido">Concluído</option></select></div>
+  </div>
+  <div class="mod-row">
+    <div class="f"><label>Nome do cliente</label><input id="ma-nome"></div>
+    <div class="f"><label>Email</label><input id="ma-email" type="email"></div>
+  </div>
+  <div class="mod-row">
+    <div class="f"><label>WhatsApp</label><input id="ma-wpp" placeholder="48999999999"></div>
+    <div class="f"><label>Data/Hora</label><input id="ma-data" type="datetime-local"></div>
+  </div>
+  <div class="f"><label>Link Google Meet</label><input id="ma-link" placeholder="https://meet.google.com/..."></div>
+  <div class="f"><label>Notas internas</label><textarea id="ma-notas"></textarea></div>
+  <div class="mod-acts">
+    <button class="btn btn-o" onclick="cls('mod-age')">Cancelar</button>
+    <button class="btn btn-g" onclick="salvarAgenda()">Salvar</button>
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+const SB='https://dbijmgqlcrgjlcfrastg.supabase.co';
+const AK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+const SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzA3NjE2MywiZXhwIjoyMDg4NjUyMTYzfQ.b79syG5GuQZYLd3QvbRMTi66E_sdKa-Nh-Q1XbDcM2Y';
+const HR={'apikey':AK,'Authorization':'Bearer '+AK,'Content-Type':'application/json'};
+const HW={'apikey':SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json','Prefer':'return=representation'};
+const WA_ADMIN='5511952136406';
+
+let _negData=null;
+
+// ══════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════
+async function q(path,opts={}){
+  const r=await fetch(SB+'/rest/v1/'+path,{headers:opts.write?HW:HR,method:opts.method||'GET',body:opts.body?JSON.stringify(opts.body):undefined});
+  const t=await r.text();return t?JSON.parse(t):null;
+}
+function brl(v){return v?'R$ '+Number(v).toLocaleString('pt-BR',{maximumFractionDigits:0}):'—'}
+function brlK(v){if(!v)return'—';v=Number(v);return v>=1e6?'R$'+Math.round(v/1e6*10)/10+'M':v>=1e3?'R$'+Math.round(v/1e3)+'k':'R$'+v}
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+function dt(s){return s?new Date(s).toLocaleDateString('pt-BR'):'—'}
+function dtf(s){return s?new Date(s).toLocaleDateString('pt-BR')+' '+new Date(s).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—'}
+function toast(m,e){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(e?' err':'');clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',3500)}
+function cls(id){document.getElementById(id).classList.remove('open')}
+function statusBg(s){const m={'publicado':'bg-green','em_avaliacao':'bg-am','aguardando_aprovacao':'bg-am','em_negociacao':'bg-bl','rascunho':'bg-t2','pausado':'bg-rd','vendido':'bg-pu','pendente':'bg-am','agendado':'bg-bl','concluido':'bg-green','novo':'bg-bl','enviado':'bg-am','respondeu':'bg-green','interessado':'bg-pu','descartado':'bg-t2','aprovado':'bg-green','cancelado':'bg-rd'};return m[s]||'bg-t2'}
+function tagPreco(p,v){if(!p||!v)return{t:'—',c:''};const d=Math.round((v-p)/v*100);if(d>=15)return{t:'Oportunidade',c:'bg-green'};if(d>=-5)return{t:'Justo',c:'bg-bl'};return{t:'Acima',c:'bg-am'}}
+
+// ══════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════
+function go(tab){
+  document.querySelectorAll('.tc').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.sb-item').forEach(s=>s.classList.remove('on'));
+  document.getElementById('p-'+tab).classList.add('on');
+  // Find matching sidebar item
+  document.querySelectorAll('.sb-item').forEach(s=>{if(s.getAttribute('onclick')?.includes("'"+tab+"'"))s.classList.add('on')});
+  const loaders={dash:loadDash,negocios:loadNegocios,anuncios:loadAnuncios,usuarios:loadUsuarios,agenda:loadAgenda,leads:loadLeads,disparos:loadDisparos,parceiros:loadParceiros};
+  if(loaders[tab])loaders[tab]();
+}
+
+// ══════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════
+async function loadDash(){
+  document.getElementById('dash-date').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const[neg,usr,lea,age,dis,anu]=await Promise.all([
+    q('negocios?select=id,status,codigo_diagnostico&limit=5000'),
+    q('usuarios?select=id&limit=5000'),
+    q('leads_google?select=id,status&limit=5000'),
+    q('admin_agenda?select=id,status&limit=5000'),
+    q('disparos_whatsapp?select=id&limit=5000'),
+    q('negocios?select=id&codigo_anuncio=not.is.null&limit=5000')
+  ]);
+  const ns=neg||[],us=usr||[],ls=lea||[],as=age||[],ds=dis||[],an=anu||[];
+  const pend=ns.filter(n=>n.status==='em_avaliacao').length;
+  const pub=ns.filter(n=>n.status==='publicado').length;
+  document.getElementById('sc-neg').textContent=ns.length;
+  document.getElementById('sc-usr').textContent=us.length;
+  document.getElementById('sc-lea').textContent=ls.length;
+  document.getElementById('sc-age').textContent=as.filter(a=>a.status==='pendente').length;
+  document.getElementById('sc-dis').textContent=ds.length;
+  document.getElementById('sc-anu').textContent=an.length;
+
+  document.getElementById('dash-stats').innerHTML=`
+    <div class="st"><div class="st-v" style="color:var(--green)">${ns.length}</div><div class="st-l">Negócios</div></div>
+    <div class="st"><div class="st-v" style="color:var(--am)">${pend}</div><div class="st-l">Pendentes</div></div>
+    <div class="st"><div class="st-v" style="color:var(--bl)">${pub}</div><div class="st-l">Publicados</div></div>
+    <div class="st"><div class="st-v">${us.length}</div><div class="st-l">Usuários</div></div>
+    <div class="st"><div class="st-v" style="color:var(--pu)">${ls.length}</div><div class="st-l">Leads</div></div>
+    <div class="st"><div class="st-v" style="color:var(--am)">${as.filter(a=>a.status==='pendente').length}</div><div class="st-l">Agenda pend.</div></div>`;
+
+  // Recentes
+  const rn=await q('negocios?select=codigo_diagnostico,dados_json,status,created_at&order=created_at.desc&limit=8');
+  document.getElementById('tb-dash-neg').innerHTML=(rn||[]).map(n=>{
+    const d=n.dados_json||{};
+    return `<tr onclick="go('negocios')"><td>${n.codigo_diagnostico||'—'}</td><td>${esc(d.setor||'—')}</td><td><span class="bg ${statusBg(n.status)}">${n.status||'—'}</span></td><td>${dt(n.created_at)}</td></tr>`;
+  }).join('');
+
+  const ru=await q('usuarios?select=nome,email,tipo,created_at&order=created_at.desc&limit=8');
+  document.getElementById('tb-dash-usr').innerHTML=(ru||[]).map(u=>
+    `<tr onclick="go('usuarios')"><td>${esc(u.nome||'—')}</td><td>${esc(u.email||'—')}</td><td>${u.tipo||'—'}</td><td>${dt(u.created_at)}</td></tr>`
+  ).join('');
+}
+
+// ══════════════════════════════════════════
+// NEGÓCIOS
+// ══════════════════════════════════════════
+async function loadNegocios(){
+  let path='negocios?select=id,codigo_diagnostico,codigo_anuncio,nome,dados_json,categoria,cidade,estado,faturamento_anual,score_saude,status,termo_adesao_status,created_at&order=created_at.desc&limit=300';
+  const st=document.getElementById('fn-status').value;
+  const bu=document.getElementById('fn-busca').value.trim();
+  if(st)path+=`&status=eq.${st}`;
+  if(bu)path+=`&or=(nome.ilike.*${encodeURIComponent(bu)}*,codigo_diagnostico.ilike.*${encodeURIComponent(bu)}*)`;
+  const data=await q(path);
+  document.getElementById('tb-neg').innerHTML=(data||[]).map(n=>{
+    const d=n.dados_json||{};
+    const termo=n.termo_adesao_status||'—';
+    return `<tr onclick="abrirNeg('${n.id}')">
+      <td>${n.codigo_diagnostico||'—'}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">${esc(n.nome||d.nome_contato||'—')}</td>
+      <td style="font-size:9px;color:var(--t2)">${esc(d.setor||n.categoria||'—')}</td>
+      <td>${brlK(n.faturamento_anual||d.fat_anual)}</td>
+      <td>${n.score_saude||'—'}</td>
+      <td style="font-size:9px;color:var(--t2)">${esc(n.cidade||d.cidade||'—')}</td>
+      <td><span class="bg ${statusBg(n.status)}">${n.status||'—'}</span></td>
+      <td>${termo!=='—'?'<span class="bg '+(termo==='assinado'?'bg-green':'bg-am')+'">'+termo+'</span>':'—'}</td>
+      <td style="color:var(--t3)">${dt(n.created_at)}</td>
+      <td>
+        <a href="/admin-anuncios.html" target="_blank" class="btn btn-o btn-sm" onclick="event.stopPropagation()">Editar</a>
+      </td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="10" class="empty">Nenhum negócio encontrado</td></tr>';
+}
+
+async function abrirNeg(id){
+  const data=await q('negocios?id=eq.'+id);
+  if(!data||!data[0])return;
+  const n=data[0];_negData=n;
+  const d=n.dados_json||{};
+  const wpp=d.whatsapp?'55'+String(d.whatsapp).replace(/\D/g,''):'';
+
+  document.getElementById('mn-title').textContent=(n.codigo_diagnostico||'Negócio')+' · '+(d.nome_contato||n.nome||'—');
+  document.getElementById('mn-links').innerHTML=`
+    ${wpp?'<a href="https://wa.me/'+wpp+'" target="_blank" class="mod-link wpp">WhatsApp</a>':''}
+    <a href="/laudo-completo.html?id=${n.id}" target="_blank" class="mod-link">Laudo gratuito</a>
+    <a href="/laudo-pago.html?id=${n.id}" target="_blank" class="mod-link">Laudo pago</a>
+    <a href="/admin-anuncios.html" target="_blank" class="mod-link">Criar anúncio</a>
+    ${n.codigo_anuncio?'<a href="/termo-adesao.html?id='+n.codigo_anuncio+'" target="_blank" class="mod-link">Termo de adesão</a>':''}`;
+
+  document.getElementById('mn-kpis').innerHTML=`
+    <div class="f"><label>Faturamento</label><input readonly value="${brl(n.faturamento_anual||d.fat_anual)}"></div>
+    <div class="f"><label>ISE</label><input readonly value="${n.score_saude||'—'}"></div>
+    <div class="f"><label>Status</label><input readonly value="${n.status||'—'}"></div>`;
+
+  document.getElementById('mn-body').innerHTML=`
+    <div class="mod-row" style="margin-top:12px">
+      <div class="f"><label>Setor</label><input readonly value="${esc(d.setor||n.categoria||'')}"></div>
+      <div class="f"><label>Cidade</label><input readonly value="${esc(n.cidade||d.cidade||'')}"></div>
+    </div>
+    <div class="mod-row">
+      <div class="f"><label>Contato</label><input readonly value="${esc(d.nome_contato||'')}"></div>
+      <div class="f"><label>WhatsApp</label><input readonly value="${d.whatsapp||''}"></div>
+    </div>
+    <div class="f"><label>Notas admin</label><textarea readonly>${esc(n.notas_admin||'')}</textarea></div>`;
+
+  document.getElementById('mod-neg').classList.add('open');
+}
+
+async function enviarTermo(){
+  if(!_negData)return;
+  const d=_negData.dados_json||{};
+  const wpp=d.whatsapp?'55'+String(d.whatsapp).replace(/\D/g,''):'';
+  const codigo=_negData.codigo_anuncio||_negData.codigo_diagnostico;
+  const url='https://1negocio.com.br/termo-adesao.html?id='+codigo;
+  const msg=encodeURIComponent('Olá '+(d.nome_contato||'')+', tudo bem?\n\nSeu anúncio na 1Negócio está quase pronto. Para ativar, preencha o termo de adesão:\n\n'+url+'\n\nQualquer dúvida, é só responder aqui.');
+  if(wpp)window.open('https://wa.me/'+wpp+'?text='+msg,'_blank');
+  else toast('Sem WhatsApp cadastrado',true);
+}
+
+async function pubNeg(){
+  if(!_negData)return;
+  await q('negocios?id=eq.'+_negData.id,{method:'PATCH',body:{status:'publicado',publicado_em:new Date().toISOString()},write:true});
+  toast('Negócio publicado');
+  cls('mod-neg');loadNegocios();
+}
+
+// ══════════════════════════════════════════
+// ANÚNCIOS
+// ══════════════════════════════════════════
+async function loadAnuncios(){
+  let path='negocios?select=id,codigo_anuncio,titulo_anuncio,categoria,faturamento_anual,preco_pedido,score_saude,valor_1n,status,termo_adesao_status,created_at&codigo_anuncio=not.is.null&order=created_at.desc&limit=200';
+  const st=document.getElementById('fa-status').value;
+  if(st)path+=`&status=eq.${st}`;
+  const data=await q(path);
+  document.getElementById('tb-anu').innerHTML=(data||[]).map(n=>{
+    const tag=tagPreco(n.preco_pedido,n.valor_1n);
+    const termo=n.termo_adesao_status||'—';
+    return `<tr onclick="abrirNeg('${n.id}')">
+      <td>${n.codigo_anuncio||'—'}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;font-family:'Syne',sans-serif;font-weight:700;font-size:11px">${esc(n.titulo_anuncio||'—')}</td>
+      <td style="font-size:9px;color:var(--t2)">${esc(n.categoria||'—')}</td>
+      <td>${brlK(n.faturamento_anual)}</td>
+      <td>${brlK(n.preco_pedido)}</td>
+      <td>${n.score_saude||'—'}</td>
+      <td><span class="bg ${tag.c}">${tag.t}</span></td>
+      <td>${termo!=='—'?'<span class="bg '+(termo==='assinado'?'bg-green':'bg-am')+'">'+termo+'</span>':'—'}</td>
+      <td><span class="bg ${statusBg(n.status)}">${n.status||'—'}</span></td>
+      <td><a href="/admin-anuncios.html" target="_blank" class="btn btn-o btn-sm" onclick="event.stopPropagation()">Editar</a></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="10" class="empty">Nenhum anúncio</td></tr>';
+}
+
+// ══════════════════════════════════════════
+// USUÁRIOS
+// ══════════════════════════════════════════
+async function loadUsuarios(){
+  let path='usuarios?select=id,nome,email,tipo,whatsapp,created_at&order=created_at.desc&limit=500';
+  const tp=document.getElementById('fu-tipo').value;
+  const bu=document.getElementById('fu-busca').value.trim();
+  if(tp)path+=`&tipo=eq.${tp}`;
+  if(bu)path+=`&or=(nome.ilike.*${encodeURIComponent(bu)}*,email.ilike.*${encodeURIComponent(bu)}*)`;
+  const data=await q(path);
+  document.getElementById('tb-usr').innerHTML=(data||[]).map(u=>{
+    const wpp=u.whatsapp?'55'+String(u.whatsapp).replace(/\D/g,''):'';
+    return `<tr>
+      <td>${esc(u.nome||'—')}</td>
+      <td><a href="mailto:${u.email}">${esc(u.email||'—')}</a></td>
+      <td><span class="bg ${u.tipo==='sell'?'bg-green':'bg-bl'}">${u.tipo==='sell'?'vendedor':'comprador'}</span></td>
+      <td>${wpp?'<a href="https://wa.me/'+wpp+'" target="_blank">'+u.whatsapp+'</a>':'—'}</td>
+      <td>—</td>
+      <td style="color:var(--t3)">${dt(u.created_at)}</td>
+      <td>${wpp?'<a href="https://wa.me/'+wpp+'" target="_blank" class="btn btn-o btn-sm">WhatsApp</a>':''}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7" class="empty">Nenhum usuário</td></tr>';
+}
+
+function exportUsrCSV(){
+  q('usuarios?select=nome,email,tipo,whatsapp,created_at&order=created_at.desc&limit=5000').then(data=>{
+    if(!data||!data.length)return;
+    const hdr='Nome;Email;Tipo;WhatsApp;Cadastro';
+    const rows=data.map(u=>`"${u.nome||''}";"${u.email||''}";"${u.tipo||''}";"${u.whatsapp||''}";"${u.created_at||''}"`);
+    const blob=new Blob(['\uFEFF'+hdr+'\n'+rows.join('\n')],{type:'text/csv'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='usuarios_'+Date.now()+'.csv';a.click();
+  });
+}
+
+// ══════════════════════════════════════════
+// AGENDA
+// ══════════════════════════════════════════
+async function loadAgenda(){
+  let path='admin_agenda?select=*&order=data_hora.desc&limit=200';
+  const tp=document.getElementById('fag-tipo').value;
+  const st=document.getElementById('fag-status').value;
+  if(tp)path+=`&tipo=eq.${tp}`;
+  if(st)path+=`&status=eq.${st}`;
+  const data=await q(path);
+  document.getElementById('tb-age').innerHTML=(data||[]).map(a=>{
+    const wpp=a.whatsapp?'55'+String(a.whatsapp).replace(/\D/g,''):'';
+    return `<tr>
+      <td><span class="bg ${a.tipo==='laudo_99'?'bg-green':a.tipo==='guiado_588'?'bg-bl':'bg-am'}">${a.tipo||'—'}</span></td>
+      <td>${esc(a.nome_cliente||'—')}</td>
+      <td>${wpp?'<a href="https://wa.me/'+wpp+'" target="_blank">'+a.whatsapp+'</a>':'—'}</td>
+      <td>${dtf(a.data_hora)}</td>
+      <td><span class="bg ${statusBg(a.status)}">${a.status||'—'}</span></td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;color:var(--t2)">${esc(a.notas||'—')}</td>
+      <td>
+        ${a.status!=='concluido'?'<button class="btn btn-g btn-sm" onclick="event.stopPropagation();concluirAge(\''+a.id+'\')">Concluir</button>':''}
+        ${a.link_meet?'<a href="'+a.link_meet+'" target="_blank" class="btn btn-o btn-sm">Meet</a>':''}
+      </td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7" class="empty">Nenhum compromisso</td></tr>';
+}
+
+function novoCompromisso(){document.getElementById('mod-age').classList.add('open')}
+
+async function salvarAgenda(){
+  const body={
+    tipo:document.getElementById('ma-tipo').value,
+    status:document.getElementById('ma-status').value,
+    nome_cliente:document.getElementById('ma-nome').value,
+    email_cliente:document.getElementById('ma-email').value,
+    whatsapp:document.getElementById('ma-wpp').value,
+    data_hora:document.getElementById('ma-data').value?new Date(document.getElementById('ma-data').value).toISOString():null,
+    link_meet:document.getElementById('ma-link').value||null,
+    notas:document.getElementById('ma-notas').value||null
+  };
+  await q('admin_agenda',{method:'POST',body,write:true});
+  toast('Compromisso salvo');cls('mod-age');loadAgenda();
+}
+
+async function concluirAge(id){
+  await q('admin_agenda?id=eq.'+id,{method:'PATCH',body:{status:'concluido',concluido_em:new Date().toISOString()},write:true});
+  toast('Concluído');loadAgenda();
+}
+
+// ══════════════════════════════════════════
+// LEADS
+// ══════════════════════════════════════════
+async function loadLeads(){
+  let path='leads_google?select=nome,telefone,telefone_formatado,cidade,categoria,status,campanha,enviado_em&order=created_at.desc&limit=300';
+  const st=document.getElementById('fl-status').value;
+  const camp=document.getElementById('fl-camp').value;
+  const bu=document.getElementById('fl-busca').value.trim();
+  if(st)path+=`&status=eq.${st}`;
+  if(camp)path+=`&campanha=eq.${encodeURIComponent(camp)}`;
+  if(bu)path+=`&nome=ilike.*${encodeURIComponent(bu)}*`;
+  const data=await q(path);
+  document.getElementById('tb-lea').innerHTML=(data||[]).map(l=>
+    `<tr>
+      <td>${esc(l.nome||'—')}</td>
+      <td>${l.telefone_formatado?'<a href="https://wa.me/'+l.telefone_formatado+'" target="_blank">'+esc(l.telefone||l.telefone_formatado)+'</a>':'—'}</td>
+      <td>${esc(l.cidade||'—')}</td>
+      <td style="font-size:9px">${esc(l.categoria||'—')}</td>
+      <td><span class="bg ${statusBg(l.status)}">${l.status||'—'}</span></td>
+      <td style="font-size:9px">${esc(l.campanha||'—')}</td>
+      <td style="color:var(--t3)">${l.enviado_em?dtf(l.enviado_em):'—'}</td>
+    </tr>`
+  ).join('')||'<tr><td colspan="7" class="empty">Nenhum lead</td></tr>';
+
+  // Campanhas dropdown
+  const camps=await q('leads_google?select=campanha&limit=5000');
+  const ucs=[...new Set((camps||[]).map(c=>c.campanha).filter(Boolean))].sort();
+  const sel=document.getElementById('fl-camp');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">Todas campanhas</option>'+ucs.map(c=>`<option value="${esc(c)}" ${c===cur?'selected':''}>${esc(c)}</option>`).join('');
+}
+
+// ══════════════════════════════════════════
+// DISPAROS
+// ══════════════════════════════════════════
+async function loadDisparos(){
+  const data=await q('disparos_whatsapp?select=telefone,mensagem,status,created_at&order=created_at.desc&limit=200');
+  document.getElementById('tb-dis').innerHTML=(data||[]).map(d=>
+    `<tr>
+      <td>${d.telefone?'<a href="https://wa.me/'+d.telefone+'" target="_blank">'+d.telefone+'</a>':'—'}</td>
+      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;color:var(--t2)">${esc((d.mensagem||'').slice(0,80))}</td>
+      <td><span class="bg ${statusBg(d.status||'enviado')}">${d.status||'enviado'}</span></td>
+      <td style="color:var(--t3)">${dtf(d.created_at)}</td>
+    </tr>`
+  ).join('')||'<tr><td colspan="4" class="empty">Nenhum disparo</td></tr>';
+}
+
+// ══════════════════════════════════════════
+// PARCEIROS
+// ══════════════════════════════════════════
+async function loadParceiros(){
+  const data=await q('filiados?select=*&order=created_at.desc&limit=100');
+  document.getElementById('sc-par').textContent=(data||[]).length;
+  document.getElementById('tb-par').innerHTML=(data||[]).map(p=>
+    `<tr>
+      <td>${p.codigo||'—'}</td>
+      <td>${esc(p.nome||'—')}</td>
+      <td>${esc(p.cidade||'—')}</td>
+      <td>${p.pontos||0}</td>
+      <td><span class="bg ${p.nivel==='ouro'?'bg-am':p.nivel==='prata'?'bg-bl':'bg-t2'}">${p.nivel||'bronze'}</span></td>
+      <td><span class="bg ${statusBg(p.status)}">${p.status||'—'}</span></td>
+      <td style="color:var(--t3)">${dt(p.created_at)}</td>
+    </tr>`
+  ).join('')||'<tr><td colspan="7" class="empty">Nenhum parceiro</td></tr>';
+}
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.mod-ov.open').forEach(m=>m.classList.remove('open'))});
+loadDash();
+</script>
+</body>
+</html>
