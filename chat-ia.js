@@ -248,12 +248,8 @@
   function formatText(text) { return text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/[*][*]([^*]+)[*][*]/g,"<strong>$1</strong>").replace(/\n/g,"<br>"); }
   function randomDelay() { return MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS); }
   function openWhatsApp() {
-    const resumo = state.messages.slice(-3).map(function(m) { return (m.role === 'user' ? 'Eu' : 'Bot') + ': ' + m.content.slice(0, 100); }).join('
-');
-    const msg = encodeURIComponent('Olá, vim do chat da 1Negócio.
-Perfil: ' + (state.perfil || '—') + '
-
-' + resumo);
+    const resumo = state.messages.slice(-3).map(function(m) { return (m.role === 'user' ? 'Eu' : 'Bot') + ': ' + m.content.slice(0, 100); }).join('\n');
+    const msg = encodeURIComponent('Olá, vim do chat da 1Negócio.\nPerfil: ' + (state.perfil || '—') + '\n\n' + resumo);
     window.open('https://wa.me/' + WHATSAPP_FALLBACK + '?text=' + msg, '_blank');
     if (state.leadId) { fetch(API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY }, body: JSON.stringify({ action: 'escalate', messages: state.messages, lead_data: { lead_id: state.leadId, motivo: 'usuario_pediu_whatsapp' } }) }).catch(function(){}); }
   }
