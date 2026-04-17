@@ -15,7 +15,7 @@
     #n1-chat-btn{position:fixed;bottom:24px;right:24px;width:52px;height:52px;background:#1a7a3c;border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2147483646;transition:transform .15s ease,background .15s ease;box-shadow:0 4px 16px rgba(26,122,60,.35);overflow:hidden}
     #n1-chat-btn:hover{transform:scale(1.06);background:#166534}
     #n1-chat-btn.open{background:#1a3a28}
-    #n1-chat-btn .n1-open-icon svg{width:24px;height:24px}
+    #n1-chat-btn .n1-open-icon svg{width:22px;height:22px}
     #n1-chat-btn .n1-close-icon{display:none;color:#fff;font-size:22px;font-family:'Cabinet Grotesk',sans-serif;font-weight:700;line-height:1}
     #n1-chat-btn.open .n1-open-icon{display:none}
     #n1-chat-btn.open .n1-close-icon{display:flex}
@@ -73,6 +73,9 @@
     .n1-form button:hover{background:#166534}
     .n1-form button.skip{background:transparent;border:1.5px solid rgba(13,43,30,.15);color:rgba(13,43,30,.45);font-weight:500}
     .n1-form button.skip:hover{background:rgba(13,43,30,.04);color:rgba(13,43,30,.65)}
+    #n1-welcome-bubble{position:fixed;bottom:88px;right:24px;background:#fff;border-radius:16px 16px 4px 16px;padding:10px 32px 10px 14px;font-family:'Cabinet Grotesk',sans-serif;font-size:13.5px;font-weight:500;color:#0d2b1e;box-shadow:0 4px 20px rgba(13,43,30,.15);border:1px solid rgba(26,122,60,.12);z-index:2147483644;max-width:230px;line-height:1.4;cursor:pointer;animation:n1-bubbleIn .35s ease}
+    #n1-welcome-close{position:absolute;top:6px;right:8px;background:none;border:none;color:rgba(13,43,30,.35);font-size:14px;cursor:pointer;line-height:1;padding:0}
+    @keyframes n1-bubbleIn{from{opacity:0;transform:translateY(8px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}
     @media(max-width:600px){
       #n1-chat-btn{right:16px;bottom:16px}
       #n1-chat-panel{position:fixed;width:calc(100vw - 32px);max-width:420px;height:auto;min-height:60vh;max-height:calc(100dvh - 100px);top:50%;left:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);border-radius:20px}
@@ -80,7 +83,7 @@
   `;
   const HTML = `
     <button id="n1-chat-btn" aria-label="Abrir chat 1Negócio" title="Fale com a 1Negócio">
-      <span class="n1-open-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="8" width="14" height="10" rx="3" fill="white"/><rect x="9" y="5" width="2" height="3" rx="1" fill="white"/><rect x="13" y="5" width="2" height="3" rx="1" fill="white"/><circle cx="9" cy="13" r="1.5" fill="#1a7a3c"/><circle cx="15" cy="13" r="1.5" fill="#1a7a3c"/><rect x="10" y="15.5" width="4" height="1" rx="0.5" fill="#1a7a3c"/><rect x="2" y="11" width="2" height="4" rx="1" fill="white"/><rect x="20" y="11" width="2" height="4" rx="1" fill="white"/></svg></span>
+      <span class="n1-open-icon"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></span>
       <span class="n1-close-icon">&#215;</span>
       <span class="n1-pulse"></span>
     </button>
@@ -102,6 +105,10 @@
       </div>
       <div id="n1-chat-footer">1Negócio &middot; Diagnóstico + avaliação de empresas</div>
     </div>
+    <div id="n1-welcome-bubble" style="display:none">
+      <span id="n1-welcome-text">Hey, qualquer dúvida estou por aqui!</span>
+      <button id="n1-welcome-close">&#215;</button>
+    </div>
   `;
   function init() {
     if (document.getElementById('n1-chat-wrap')) return;
@@ -116,6 +123,20 @@
     const modo = (scriptTag ? scriptTag.getAttribute('data-mode') : null) || document.body.getAttribute('data-chat-mode');
     if (modo === 'discreto') document.getElementById('n1-chat-btn').classList.add('discreto');
     attachListeners();
+    setTimeout(showWelcomeBubble, 2000);
+  }
+  function showWelcomeBubble() {
+    var bubble = document.getElementById('n1-welcome-bubble');
+    if (!bubble || state.isOpen) return;
+    bubble.style.display = 'block';
+    document.getElementById('n1-welcome-close').addEventListener('click', function(e) {
+      e.stopPropagation();
+      bubble.style.display = 'none';
+    });
+    bubble.addEventListener('click', function() {
+      bubble.style.display = 'none';
+      openPanel();
+    });
   }
   function attachListeners() {
     document.getElementById('n1-chat-btn').addEventListener('click', togglePanel);
@@ -139,6 +160,8 @@
     btn.classList.add('open');
     const pulse = btn.querySelector('.n1-pulse');
     if (pulse) pulse.style.display = 'none';
+    var bubble = document.getElementById('n1-welcome-bubble');
+    if (bubble) bubble.style.display = 'none';
     if (state.messages.length === 0) { startConversation(); } else { document.getElementById('n1-chat-input').focus(); }
   }
   function closePanel() {
