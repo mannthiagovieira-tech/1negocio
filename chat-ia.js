@@ -1,757 +1,365 @@
 /**
  * Chat IA 1Negócio — Widget
- * Versão 1.0 — 2026-04-17
- * 
- * Uso: incluir em qualquer página com:
- *   <script src="/chat-ia.js" defer></script>
- * 
- * O widget se auto-injeta no DOM: botão flutuante + modal + estilos.
+ * Versão 2.0 — 2026-04-17
+ * Design: frosted glass, Cabinet Grotesk, logo 1N idêntica à home
  */
-
 (function() {
-  'use strict';
+    'use strict';
 
-  // ============================================================
-  // CONFIG
-  // ============================================================
-  const API_ENDPOINT = 'https://dbijmgqlcrgjlcfrastg.supabase.co/functions/v1/chat-ia';
-  const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
-  const WHATSAPP_FALLBACK = '5511952136406';
-  
-  // Delay antes de exibir resposta (simula digitação)
-  const MIN_DELAY_MS = 800;
-  const MAX_DELAY_MS = 1600;
+   const API_ENDPOINT = 'https://dbijmgqlcrgjlcfrastg.supabase.co/functions/v1/chat-ia';
+    const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+    const WHATSAPP_FALLBACK = '5511952136406';
+    const MIN_DELAY_MS = 700;
+    const MAX_DELAY_MS = 1400;
+    const LEAD_ASK_AFTER_MIN = 3;
+    const LEAD_ASK_AFTER_MAX = 5;
 
-  // ============================================================
-  // ESTADO
-  // ============================================================
-  const state = {
-    isOpen: false,
-    isTyping: false,
-    messages: [],           // [{role: 'user'|'assistant', content: string}]
-    perfil: null,           // 'comprador' | 'vendedor' | 'corretor' | 'curioso'
-    subPerfil: null,
-    leadCaptured: false,
-    leadId: null,
-    lead: { nome: null, whatsapp: null },
-    qualificationDone: false,
-    captureAsked: false,
-  };
+   const state = {
+         isOpen: false, isTyping: false, messages: [],
+         perfil: null, subPerfil: null,
+         leadCaptured: false, leadId: null,
+         lead: { nome: null, whatsapp: null },
+         qualificationDone: false,
+         nameAsked: false, nameCollected: false,
+         phoneTriggerCount: 0, assistantMsgCount: 0, phoneCaptureAsked: false,
+   };
 
-  // ============================================================
-  // CSS (injetado no <head>)
-  // ============================================================
-  const STYLES = `
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap');
-    
-    #n1-chat-wrap, #n1-chat-wrap * { box-sizing: border-box; }
-    
-    #n1-chat-btn {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      width: 56px;
-      height: 56px;
-      background: #10b981;
-      border: none;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Syne', sans-serif;
-      font-weight: 800;
-      font-style: italic;
-      font-size: 22px;
-      color: #ffffff;
-      z-index: 2147483646;
-      transition: transform 0.15s ease, background 0.15s ease;
-      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
-    }
-    #n1-chat-btn:hover { transform: scale(1.05); background: #0ea472; }
-    #n1-chat-btn.open { background: #0c0c0a; color: #10b981; }
-    
-    /* Modo discreto (usado em páginas de formulário tipo diagnóstico) */
-    #n1-chat-btn.discreto {
-      width: 44px;
-      height: 44px;
-      font-size: 16px;
-      bottom: 16px;
-      right: 16px;
-      opacity: 0.75;
-      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
-    }
-    #n1-chat-btn.discreto:hover { opacity: 1; transform: scale(1.08); }
-    #n1-chat-btn.discreto .n1-pulse { display: none; }
-    #n1-chat-btn .n1-pulse {
-      position: absolute;
-      top: -4px;
-      right: -4px;
-      width: 14px;
-      height: 14px;
-      background: #f59e0b;
-      border: 2px solid #ffffff;
-      border-radius: 50%;
-      animation: n1-pulse 2s infinite;
-    }
-    @keyframes n1-pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.2); opacity: 0.7; }
-    }
-    
-    #n1-chat-panel {
-      position: fixed;
-      bottom: 92px;
-      right: 24px;
-      width: 380px;
-      max-width: calc(100vw - 32px);
-      height: 580px;
-      max-height: calc(100vh - 120px);
-      background: #0c0c0a;
-      border: 1px solid #1a1a17;
-      display: none;
-      flex-direction: column;
-      font-family: 'DM Mono', monospace;
-      color: #e7e7e1;
-      z-index: 2147483645;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.4);
-    }
-    #n1-chat-panel.open { display: flex; }
-    
-    #n1-chat-header {
-      padding: 16px 18px;
-      border-bottom: 1px solid #1a1a17;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    #n1-chat-header .n1-logo {
-      font-family: 'Syne', sans-serif;
-      font-weight: 800;
-      font-size: 18px;
-      letter-spacing: -0.01em;
-    }
-    #n1-chat-header .n1-logo em {
-      color: #10b981;
-      font-style: italic;
-      font-weight: 800;
-      margin-right: 2px;
-    }
-    #n1-chat-header .n1-status {
-      font-family: 'DM Mono', monospace;
-      font-size: 10px;
-      color: #6b6b66;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    #n1-chat-header .n1-status::before {
-      content: '';
-      width: 6px;
-      height: 6px;
-      background: #10b981;
-      border-radius: 50%;
-      animation: n1-blink 2.5s infinite;
-    }
-    @keyframes n1-blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-    
-    #n1-chat-messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      scrollbar-width: thin;
-      scrollbar-color: #1a1a17 transparent;
-    }
-    #n1-chat-messages::-webkit-scrollbar { width: 6px; }
-    #n1-chat-messages::-webkit-scrollbar-track { background: transparent; }
-    #n1-chat-messages::-webkit-scrollbar-thumb { background: #1a1a17; }
-    
-    .n1-msg {
-      max-width: 85%;
-      padding: 10px 14px;
-      font-size: 13px;
-      line-height: 1.55;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-    }
-    .n1-msg.user {
-      align-self: flex-end;
-      background: #10b981;
-      color: #0c0c0a;
-      font-weight: 500;
-    }
-    .n1-msg.bot {
-      align-self: flex-start;
-      background: #161614;
-      color: #e7e7e1;
-      border-left: 2px solid #10b981;
-    }
-    .n1-msg.bot a {
-      color: #10b981;
-      text-decoration: underline;
-    }
-    .n1-msg.bot strong {
-      color: #ffffff;
-      font-weight: 500;
-    }
-    
-    .n1-typing {
-      align-self: flex-start;
-      padding: 10px 14px;
-      background: #161614;
-      border-left: 2px solid #10b981;
-      display: flex;
-      gap: 4px;
-    }
-    .n1-typing span {
-      width: 6px;
-      height: 6px;
-      background: #10b981;
-      border-radius: 50%;
-      animation: n1-dot 1.4s infinite;
-    }
-    .n1-typing span:nth-child(2) { animation-delay: 0.2s; }
-    .n1-typing span:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes n1-dot {
-      0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
-      30% { opacity: 1; transform: scale(1); }
-    }
-    
-    .n1-quick-replies {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 4px;
-    }
-    .n1-quick-btn {
-      background: transparent;
-      border: 1px solid #10b981;
-      color: #10b981;
-      padding: 7px 11px;
-      font-family: 'DM Mono', monospace;
-      font-size: 11px;
-      cursor: pointer;
-      transition: background 0.15s;
-      text-align: left;
-    }
-    .n1-quick-btn:hover {
-      background: #10b981;
-      color: #0c0c0a;
-    }
-    
-    #n1-chat-input-area {
-      border-top: 1px solid #1a1a17;
-      padding: 12px;
-      display: flex;
-      gap: 8px;
-    }
-    #n1-chat-input {
-      flex: 1;
-      background: #161614;
-      border: 1px solid #1a1a17;
-      color: #e7e7e1;
-      padding: 10px 12px;
-      font-family: 'DM Mono', monospace;
-      font-size: 13px;
-      outline: none;
-      resize: none;
-      min-height: 38px;
-      max-height: 100px;
-    }
-    #n1-chat-input:focus { border-color: #10b981; }
-    #n1-chat-send {
-      background: #10b981;
-      color: #0c0c0a;
-      border: none;
-      padding: 0 16px;
-      font-family: 'DM Mono', monospace;
-      font-weight: 500;
-      font-size: 12px;
-      cursor: pointer;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    #n1-chat-send:hover { background: #0ea472; }
-    #n1-chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
-    
-    #n1-chat-footer {
-      padding: 8px 14px;
-      font-family: 'DM Mono', monospace;
-      font-size: 9px;
-      color: #6b6b66;
-      text-align: center;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      border-top: 1px solid #1a1a17;
-    }
-    
-    .n1-form {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-top: 6px;
-    }
-    .n1-form input {
-      background: #0c0c0a;
-      border: 1px solid #1a1a17;
-      color: #e7e7e1;
-      padding: 9px 11px;
-      font-family: 'DM Mono', monospace;
-      font-size: 12px;
-      outline: none;
-    }
-    .n1-form input:focus { border-color: #10b981; }
-    .n1-form button {
-      background: #10b981;
-      color: #0c0c0a;
-      border: none;
-      padding: 9px 11px;
-      font-family: 'DM Mono', monospace;
-      font-weight: 500;
-      font-size: 11px;
-      cursor: pointer;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .n1-form button.skip {
-      background: transparent;
-      border: 1px solid #1a1a17;
-      color: #6b6b66;
-    }
-    
-    @media (max-width: 480px) {
-      #n1-chat-panel {
-        width: calc(100vw - 16px);
-        height: calc(100vh - 100px);
-        right: 8px;
-        bottom: 80px;
-      }
-      #n1-chat-btn {
-        right: 16px;
-        bottom: 16px;
-      }
-    }
-  `;
+   const STYLES = `
+   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Cabinet+Grotesk:wght@400;500;700;800&display=swap');
+   #n1-chat-wrap,#n1-chat-wrap *{box-sizing:border-box}
+   #n1-chat-btn{position:fixed;bottom:24px;right:24px;width:52px;height:52px;background:#1a7a3c;border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2147483646;transition:transform .15s ease,background .15s ease;box-shadow:0 4px 16px rgba(26,122,60,.35);overflow:hidden}
+   #n1-chat-btn:hover{transform:scale(1.06);background:#166534}
+   #n1-chat-btn.open{background:#1a3a28}
+   #n1-chat-btn .n1-open-icon svg{width:24px;height:24px}
+   #n1-chat-btn .n1-close-icon{display:none;color:#fff;font-size:22px;font-family:'Cabinet Grotesk',sans-serif;font-weight:700;line-height:1}
+   #n1-chat-btn.open .n1-open-icon{display:none}
+   #n1-chat-btn.open .n1-close-icon{display:flex;align-items:center;justify-content:center}
+   #n1-chat-btn .n1-pulse{position:absolute;top:-3px;right:-3px;width:13px;height:13px;background:#f59e0b;border:2px solid #fff;border-radius:50%;animation:n1-pulse 2s infinite}
+   @keyframes n1-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.2);opacity:.7}}
+   #n1-chat-btn.discreto{width:42px;height:42px;bottom:16px;right:16px;opacity:.8}
+   #n1-chat-btn.discreto:hover{opacity:1}
+   #n1-chat-btn.discreto .n1-pulse{display:none}
+   #n1-chat-panel{position:fixed;bottom:88px;right:24px;width:370px;max-width:calc(100vw - 32px);height:560px;max-height:calc(100vh - 120px);background:rgba(255,255,255,.82);backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5);border:1.5px solid rgba(26,122,60,.15);border-radius:24px;display:none;flex-direction:column;font-family:'Cabinet Grotesk',sans-serif;color:#0d2b1e;z-index:2147483645;box-shadow:0 8px 40px rgba(13,43,30,.10),0 2px 8px rgba(13,43,30,.06);overflow:hidden;animation:n1-slideUp .22s ease}
+   @keyframes n1-slideUp{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+   #n1-chat-panel.open{display:flex}
+   #n1-chat-header{padding:13px 16px 11px;border-bottom:1px solid rgba(26,122,60,.1);display:flex;align-items:center;justify-content:space-between;background:rgba(247,252,249,.92);border-radius:24px 24px 0 0;flex-shrink:0}
+   .n1-header-left{display:flex;align-items:center;gap:10px}
+   .n1-logo-badge{display:flex;align-items:center;justify-content:center;width:38px;height:38px;background:#0d2b1e;border-radius:10px;flex-shrink:0}
+   .n1-logo-txt{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;letter-spacing:-.03em;line-height:1;white-space:nowrap}
+   .n1-logo-txt em{color:#1a7a3c;font-style:normal}
+   .n1-logo-txt span{color:#fff}
+   .n1-header-info{display:flex;flex-direction:column;gap:1px}
+   .n1-header-name{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#0d2b1e;letter-spacing:-.01em;line-height:1.2}
+   .n1-header-name em{color:#1a7a3c;font-style:normal}
+   .n1-header-status{font-family:'Cabinet Grotesk',sans-serif;font-size:11px;color:#1a7a3c;font-weight:500;display:flex;align-items:center;gap:5px}
+   .n1-header-status::before{content:'';width:6px;height:6px;background:#1a7a3c;border-radius:50%;animation:n1-blink 2.5s infinite}
+   @keyframes n1-blink{0%,100%{opacity:1}50%{opacity:.35}}
+   #n1-chat-close{background:rgba(13,43,30,.06);border:none;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#0d2b1e;font-size:16px;font-family:'Cabinet Grotesk',sans-serif;transition:background .15s;flex-shrink:0}
+   #n1-chat-close:hover{background:rgba(13,43,30,.12)}
+   #n1-chat-messages{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:rgba(13,43,30,.1) transparent}
+   #n1-chat-messages::-webkit-scrollbar{width:4px}
+   #n1-chat-messages::-webkit-scrollbar-thumb{background:rgba(13,43,30,.1);border-radius:2px}
+   .n1-msg{max-width:84%;padding:9px 13px;font-size:13.5px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;font-family:'Cabinet Grotesk',sans-serif;font-weight:400}
+   .n1-msg.user{align-self:flex-end;background:#1a7a3c;color:#fff;font-weight:500;border-radius:16px 16px 4px 16px}
+   .n1-msg.bot{align-self:flex-start;background:rgba(255,255,255,.88);color:#0d2b1e;border-radius:4px 16px 16px 16px;border:1px solid rgba(26,122,60,.12);box-shadow:0 1px 4px rgba(13,43,30,.06)}
+   .n1-msg.bot a{color:#1a7a3c;text-decoration:underline}
+   .n1-msg.bot strong{color:#0d2b1e;font-weight:700}
+   .n1-typing{align-self:flex-start;padding:10px 14px;background:rgba(255,255,255,.88);border-radius:4px 16px 16px 16px;border:1px solid rgba(26,122,60,.12);display:flex;gap:4px;align-items:center}
+   .n1-typing span{width:6px;height:6px;background:#1a7a3c;border-radius:50%;animation:n1-dot 1.4s infinite;opacity:.4}
+   .n1-typing span:nth-child(2){animation-delay:.2s}
+   .n1-typing span:nth-child(3){animation-delay:.4s}
+   @keyframes n1-dot{0%,60%,100%{opacity:.3;transform:scale(.85)}30%{opacity:1;transform:scale(1)}}
+   .n1-quick-replies{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px;padding-left:2px}
+   .n1-quick-btn{background:rgba(255,255,255,.92);border:1.5px solid rgba(26,122,60,.35);color:#1a7a3c;padding:6px 12px;font-family:'Cabinet Grotesk',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .15s;border-radius:20px;line-height:1.3}
+   .n1-quick-btn:hover{background:#1a7a3c;color:#fff;border-color:#1a7a3c}
+   #n1-chat-input-area{border-top:1px solid rgba(26,122,60,.08);padding:10px 12px;display:flex;gap:8px;align-items:flex-end;background:rgba(247,252,249,.92);flex-shrink:0}
+   #n1-chat-input{flex:1;background:rgba(255,255,255,.95);border:1.5px solid rgba(13,43,30,.12);color:#0d2b1e;padding:9px 13px;font-family:'Cabinet Grotesk',sans-serif;font-size:13.5px;font-weight:400;outline:none;resize:none;min-height:38px;max-height:100px;border-radius:20px;transition:border-color .15s}
+   #n1-chat-input::placeholder{color:rgba(13,43,30,.35)}
+   #n1-chat-input:focus{border-color:#1a7a3c}
+   #n1-chat-send{background:#1a7a3c;color:#fff;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,transform .1s;margin-bottom:1px}
+   #n1-chat-send:hover{background:#166534;transform:scale(1.05)}
+   #n1-chat-send:disabled{opacity:.35;cursor:not-allowed;transform:none}
+   #n1-chat-footer{padding:5px 14px 10px;font-family:'Cabinet Grotesk',sans-serif;font-size:10px;color:rgba(13,43,30,.3);text-align:center;letter-spacing:.05em;text-transform:uppercase;background:rgba(247,252,249,.92);flex-shrink:0}
+   .n1-form{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+   .n1-form input{background:#fff;border:1.5px solid rgba(13,43,30,.15);color:#0d2b1e;padding:9px 12px;font-family:'Cabinet Grotesk',sans-serif;font-size:13px;outline:none;border-radius:12px;transition:border-color .15s;width:100%}
+   .n1-form input::placeholder{color:rgba(13,43,30,.35)}
+   .n1-form input:focus{border-color:#1a7a3c}
+   .n1-form button{background:#1a7a3c;color:#fff;border:none;padding:10px 14px;font-family:'Cabinet Grotesk',sans-serif;font-weight:700;font-size:13px;cursor:pointer;border-radius:20px;transition:background .15s}
+   .n1-form button:hover{background:#166534}
+   .n1-form button.skip{background:transparent;border:1.5px solid rgba(13,43,30,.15);color:rgba(13,43,30,.45);font-weight:500}
+   .n1-form button.skip:hover{background:rgba(13,43,30,.04);color:rgba(13,43,30,.65)}
+   @media(max-width:480px){#n1-chat-panel{width:calc(100vw - 16px);height:calc(100vh - 96px);right:8px;bottom:78px;border-radius:20px}#n1-chat-btn{right:16px;bottom:16px}}
+   `;
 
-  // ============================================================
-  // HTML DO WIDGET
-  // ============================================================
-  const HTML = `
-    <button id="n1-chat-btn" aria-label="Abrir chat 1Negócio" title="Fale com a 1Negócio">
-      <span>1N</span>
-      <span class="n1-pulse"></span>
-    </button>
-    <div id="n1-chat-panel" role="dialog" aria-label="Chat 1Negócio">
-      <div id="n1-chat-header">
-        <div class="n1-logo"><em>1</em>NEGÓCIO</div>
-        <div class="n1-status">Online</div>
-      </div>
-      <div id="n1-chat-messages" role="log" aria-live="polite"></div>
-      <div id="n1-chat-input-area">
-        <textarea id="n1-chat-input" placeholder="Digite sua mensagem..." rows="1" aria-label="Mensagem"></textarea>
-        <button id="n1-chat-send" aria-label="Enviar">→</button>
-      </div>
-      <div id="n1-chat-footer">1Negócio · Diagnóstico + avaliação de empresas</div>
-    </div>
-  `;
+   const HTML = `
+   <button id="n1-chat-btn" aria-label="Abrir chat 1Negócio" title="Fale com a 1Negócio">
+     <span class="n1-open-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z" fill="white"/></svg></span>
+       <span class="n1-close-icon">&#215;</span>
+         <span class="n1-pulse"></span>
+         </button>
+         <div id="n1-chat-panel" role="dialog" aria-label="Chat 1Negócio">
+           <div id="n1-chat-header">
+               <div class="n1-header-left">
+                     <div class="n1-logo-badge"><div class="n1-logo-txt"><em>1</em><span>N</span></div></div>
+                           <div class="n1-header-info">
+                                   <div class="n1-header-name"><em>1</em>Neg&#243;cio</div>
+                                           <div class="n1-header-status">Online agora</div>
+                                                 </div>
+                                                     </div>
+                                                         <button id="n1-chat-close" aria-label="Fechar chat">&#215;</button>
+                                                           </div>
+                                                             <div id="n1-chat-messages" role="log" aria-live="polite"></div>
+                                                               <div id="n1-chat-input-area">
+                                                                   <textarea id="n1-chat-input" placeholder="Digite sua mensagem..." rows="1" aria-label="Mensagem"></textarea>
+                                                                       <button id="n1-chat-send" aria-label="Enviar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                                                                         </div>
+                                                                           <div id="n1-chat-footer">1Neg&#243;cio &middot; Diagn&#243;stico + avalia&#231;&#227;o de empresas</div>
+                                                                           </div>
+                                                                           `;
 
-  // ============================================================
-  // INIT
-  // ============================================================
-  function init() {
-    // Evita dupla inicialização
-    if (document.getElementById('n1-chat-wrap')) return;
+   function init() {
+         if (document.getElementById('n1-chat-wrap')) return;
+         const wrap = document.createElement('div');
+         wrap.id = 'n1-chat-wrap';
+         wrap.innerHTML = HTML;
+         document.body.appendChild(wrap);
+         const style = document.createElement('style');
+         style.textContent = STYLES;
+         document.head.appendChild(style);
+         const scriptTag = document.currentScript || document.querySelector('script[src*="chat-ia.js"]');
+         const modo = (scriptTag ? scriptTag.getAttribute('data-mode') : null) || document.body.getAttribute('data-chat-mode');
+         if (modo === 'discreto') document.getElementById('n1-chat-btn').classList.add('discreto');
+         attachListeners();
+   }
 
-    const wrap = document.createElement('div');
-    wrap.id = 'n1-chat-wrap';
-    wrap.innerHTML = HTML;
-    document.body.appendChild(wrap);
+   function attachListeners() {
+         document.getElementById('n1-chat-btn').addEventListener('click', togglePanel);
+         document.getElementById('n1-chat-close').addEventListener('click', closePanel);
+         document.getElementById('n1-chat-send').addEventListener('click', handleSend);
+         const input = document.getElementById('n1-chat-input');
+         input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
+         input.addEventListener('input', autoResize);
+   }
 
-    const style = document.createElement('style');
-    style.textContent = STYLES;
-    document.head.appendChild(style);
+   function autoResize() {
+         const input = document.getElementById('n1-chat-input');
+         input.style.height = 'auto';
+         input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+   }
 
-    // Detecta modo discreto: <script src="/chat-ia.js" data-mode="discreto">
-    // ou via <body data-chat-mode="discreto">
-    const scriptTag = document.currentScript || document.querySelector('script[src*="chat-ia.js"]');
-    const modoScript = scriptTag ? scriptTag.getAttribute('data-mode') : null;
-    const modoBody = document.body.getAttribute('data-chat-mode');
-    const modo = modoScript || modoBody;
-    
-    if (modo === 'discreto') {
-      document.getElementById('n1-chat-btn').classList.add('discreto');
-    }
+   function togglePanel() { state.isOpen ? closePanel() : openPanel(); }
 
-    attachListeners();
-  }
+   function openPanel() {
+         state.isOpen = true;
+         const btn = document.getElementById('n1-chat-btn');
+         const panel = document.getElementById('n1-chat-panel');
+         panel.classList.add('open');
+         btn.classList.add('open');
+         const pulse = btn.querySelector('.n1-pulse');
+         if (pulse) pulse.style.display = 'none';
+         if (state.messages.length === 0) { startConversation(); }
+         else { document.getElementById('n1-chat-input').focus(); }
+   }
 
-  function attachListeners() {
-    const btn = document.getElementById('n1-chat-btn');
-    const panel = document.getElementById('n1-chat-panel');
-    const input = document.getElementById('n1-chat-input');
-    const sendBtn = document.getElementById('n1-chat-send');
+   function closePanel() {
+         state.isOpen = false;
+         document.getElementById('n1-chat-btn').classList.remove('open');
+         document.getElementById('n1-chat-panel').classList.remove('open');
+         const pulse = document.getElementById('n1-chat-btn').querySelector('.n1-pulse');
+         if (pulse) pulse.style.display = 'block';
+   }
 
-    btn.addEventListener('click', togglePanel);
-    sendBtn.addEventListener('click', handleSend);
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
-    });
-    input.addEventListener('input', autoResize);
-  }
+   function startConversation() {
+         state.phoneTriggerCount = LEAD_ASK_AFTER_MIN + Math.floor(Math.random() * (LEAD_ASK_AFTER_MAX - LEAD_ASK_AFTER_MIN + 1));
+         renderBotMessage('Posso lhe ajudar?', [
+           { label: 'Procuro um neg\u00f3cio para comprar',  action: () => selectPerfil('comprador') },
+           { label: 'Quero avaliar / vender o meu',          action: () => selectPerfil('vendedor') },
+           { label: 'Sou corretor ou assessor',               action: () => selectPerfil('corretor') },
+           { label: 'Quero entender como funciona',           action: () => selectPerfil('curioso') },
+               ]);
+   }
 
-  function autoResize() {
-    const input = document.getElementById('n1-chat-input');
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 100) + 'px';
-  }
+   function selectPerfil(perfil) {
+         state.perfil = perfil;
+         const labels = {
+                 comprador: 'Procuro um neg\u00f3cio para comprar',
+                 vendedor: 'Quero avaliar / vender o meu',
+                 corretor: 'Sou corretor ou assessor',
+                 curioso: 'Quero entender como funciona',
+         };
+         renderUserMessage(labels[perfil]);
+         state.messages.push({ role: 'user', content: labels[perfil] });
+         state.nameAsked = true;
+         state.qualificationDone = true;
+         setTimeout(() => { renderBotMessage('Como voc\u00ea se chama?'); }, 450);
+   }
 
-  function togglePanel() {
-    state.isOpen = !state.isOpen;
-    const btn = document.getElementById('n1-chat-btn');
-    const panel = document.getElementById('n1-chat-panel');
-    const pulse = btn.querySelector('.n1-pulse');
-    
-    if (state.isOpen) {
-      panel.classList.add('open');
-      btn.classList.add('open');
-      if (pulse) pulse.style.display = 'none';
-      btn.querySelector('span').textContent = '×';
-      
-      // Primeira abertura: iniciar conversa
-      if (state.messages.length === 0) {
-        startConversation();
-      } else {
-        document.getElementById('n1-chat-input').focus();
-      }
-    } else {
-      panel.classList.remove('open');
-      btn.classList.remove('open');
-      if (pulse) pulse.style.display = 'block';
-      btn.querySelector('span').textContent = '1N';
-    }
-  }
+   function handleSend() {
+         const input = document.getElementById('n1-chat-input');
+         const text = input.value.trim();
+         if (!text || state.isTyping) return;
+         input.value = '';
+         input.style.height = 'auto';
+         renderUserMessage(text);
+         state.messages.push({ role: 'user', content: text });
+         if (!state.qualificationDone) { state.perfil = 'curioso'; state.qualificationDone = true; }
+         if (state.nameAsked && !state.nameCollected) {
+                 state.nameCollected = true;
+                 state.lead.nome = text;
+                 savePreLead(text);
+         }
+         showTyping();
+         setTimeout(sendToBackend, randomDelay());
+   }
 
-  // ============================================================
-  // CONVERSA
-  // ============================================================
-  function startConversation() {
-    // Mensagem inicial com qualificação
-    const welcomeMsg = "Olá, você está procurando por um negócio à venda ou gostaria de avaliar e/ou vender o seu?";
-    renderBotMessage(welcomeMsg, [
-      { label: "Procuro um negócio pra comprar", action: () => selectPerfil('comprador') },
-      { label: "Quero avaliar / vender o meu", action: () => selectPerfil('vendedor') },
-      { label: "Sou corretor ou assessor", action: () => selectPerfil('corretor') },
-      { label: "Só quero entender como funciona", action: () => selectPerfil('curioso') },
-    ]);
-  }
+   async function savePreLead(nome) {
+         try {
+                 await fetch(API_ENDPOINT, {
+                           method: 'POST',
+                           headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+                           body: JSON.stringify({ action: 'save_lead', messages: state.messages, pagina_origem: window.location.href, lead_data: { nome, perfil: state.perfil || 'curioso' } }),
+                 });
+         } catch(e) { console.error('Erro pr\u00e9-lead:', e); }
+   }
 
-  function selectPerfil(perfil) {
-    state.perfil = perfil;
-    state.qualificationDone = true;
-    
-    const labels = {
-      comprador: "Procuro um negócio pra comprar",
-      vendedor: "Quero avaliar / vender o meu",
-      corretor: "Sou corretor ou assessor",
-      curioso: "Só quero entender como funciona",
-    };
-    
-    renderUserMessage(labels[perfil]);
-    
-    // Registra no histórico como se o usuário tivesse escrito
-    state.messages.push({
-      role: 'user',
-      content: labels[perfil],
-    });
-    
-    // Mostra digitando e envia pro backend
-    showTyping();
-    setTimeout(() => {
-      sendToBackend();
-    }, randomDelay());
-  }
+   async function sendToBackend() {
+         try {
+                 const res = await fetch(API_ENDPOINT, {
+                           method: 'POST',
+                           headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+                           body: JSON.stringify({ messages: state.messages }),
+                 });
+                 const data = await res.json();
+                 hideTyping();
+                 if (!res.ok || data.error) {
+                           renderBotMessage('Tive um probleminha pra responder agora. Tenta de novo em instantes ou fala com nosso time.', [{ label: 'Abrir WhatsApp', action: openWhatsApp }]);
+                           return;
+                 }
+                 const reply = data.reply || 'Hmm, n\u00e3o consegui gerar uma resposta. Tenta reformular?';
+                 state.messages.push({ role: 'assistant', content: reply });
+                 state.assistantMsgCount++;
+                 renderBotMessage(reply);
+                 if (state.nameCollected && !state.phoneCaptureAsked && !state.leadCaptured && state.assistantMsgCount >= state.phoneTriggerCount) {
+                           state.phoneCaptureAsked = true;
+                           setTimeout(askForPhone, 1200);
+                 }
+         } catch (err) {
+                 hideTyping();
+                 renderBotMessage('Perdi a conex\u00e3o aqui. Se quiser, fala direto com nosso time.', [{ label: 'Abrir WhatsApp', action: openWhatsApp }]);
+         }
+   }
 
-  function handleSend() {
-    const input = document.getElementById('n1-chat-input');
-    const text = input.value.trim();
-    if (!text || state.isTyping) return;
+   function askForPhone() {
+         const pn = state.lead.nome ? state.lead.nome.split(' ')[0] : '';
+         const cumpr = pn ? ', ' + pn : '';
+         const wrap = document.createElement('div');
+         wrap.className = 'n1-msg bot';
+         wrap.innerHTML = '<div>Aproveito para perguntar' + cumpr + ' \u2014 qual \u00e9 o seu WhatsApp? Assim consigo te conectar com um especialista quando fizer sentido. \uD83D\uDE0A</div><form class="n1-form" id="n1-phone-form" style="margin-top:10px"><input type="tel" name="whatsapp" placeholder="WhatsApp com DDD (ex: 48 99999-9999)" required><button type="submit">Enviar</button><button type="button" class="skip" id="n1-skip-phone">Agora n\u00e3o</button></form>';
+         document.getElementById('n1-chat-messages').appendChild(wrap);
+         scrollToBottom();
+         wrap.querySelector('#n1-phone-form').addEventListener('submit', (e) => {
+                 e.preventDefault();
+                 const wpp = e.target.whatsapp.value.trim();
+                 if (!wpp) return;
+                 state.lead.whatsapp = wpp;
+                 wrap.remove();
+                 renderUserMessage(wpp);
+                 saveLead();
+         });
+         wrap.querySelector('#n1-skip-phone').addEventListener('click', () => {
+                 wrap.remove();
+                 renderBotMessage('Tudo bem! Fico por aqui se precisar de mais alguma coisa.');
+         });
+   }
 
-    input.value = '';
-    input.style.height = 'auto';
+   async function saveLead() {
+         try {
+                 const res = await fetch(API_ENDPOINT, {
+                           method: 'POST',
+                           headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+                           body: JSON.stringify({ action: 'save_lead', messages: state.messages, pagina_origem: window.location.href, lead_data: { nome: state.lead.nome, whatsapp: state.lead.whatsapp, perfil: state.perfil || 'curioso', sub_perfil: state.subPerfil } }),
+                 });
+                 const data = await res.json();
+                 if (data.success && data.lead_id) { state.leadCaptured = true; state.leadId = data.lead_id; }
+                 const pn = state.lead.nome ? state.lead.nome.split(' ')[0] : '';
+                 renderBotMessage(pn ? 'Anotado, ' + pn + '! Pode continuar \u00e0 vontade.' : 'Anotado! Pode continuar.');
+         } catch (err) { renderBotMessage('Anotado! Pode continuar.'); }
+   }
 
-    renderUserMessage(text);
-    state.messages.push({ role: 'user', content: text });
+   function renderBotMessage(text, quickReplies) {
+         const container = document.getElementById('n1-chat-messages');
+         const div = document.createElement('div');
+         div.className = 'n1-msg bot';
+         div.innerHTML = formatText(text);
+         container.appendChild(div);
+         if (quickReplies && quickReplies.length) {
+                 const replies = document.createElement('div');
+                 replies.className = 'n1-quick-replies';
+                 quickReplies.forEach(r => {
+                           const btn = document.createElement('button');
+                           btn.className = 'n1-quick-btn';
+                           btn.textContent = r.label;
+                           btn.addEventListener('click', () => { replies.remove(); r.action(); });
+                           replies.appendChild(btn);
+                 });
+                 container.appendChild(replies);
+         }
+         scrollToBottom();
+   }
 
-    // Se é a primeira mensagem digitada e ainda não qualificou, assume 'curioso'
-    if (!state.qualificationDone) {
-      state.perfil = 'curioso';
-      state.qualificationDone = true;
-    }
+   function renderUserMessage(text) {
+         const div = document.createElement('div');
+         div.className = 'n1-msg user';
+         div.textContent = text;
+         document.getElementById('n1-chat-messages').appendChild(div);
+         scrollToBottom();
+   }
 
-    showTyping();
-    setTimeout(() => {
-      sendToBackend();
-    }, randomDelay());
-  }
+   function showTyping() {
+         state.isTyping = true;
+         document.getElementById('n1-chat-send').disabled = true;
+         const div = document.createElement('div');
+         div.className = 'n1-typing';
+         div.id = 'n1-typing-indicator';
+         div.innerHTML = '<span></span><span></span><span></span>';
+         document.getElementById('n1-chat-messages').appendChild(div);
+         scrollToBottom();
+   }
 
-  async function sendToBackend() {
-    try {
-      const res = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': ANON_KEY,
-        },
-        body: JSON.stringify({
-          messages: state.messages,
-        }),
-      });
+   function hideTyping() {
+         state.isTyping = false;
+         document.getElementById('n1-chat-send').disabled = false;
+         const el = document.getElementById('n1-typing-indicator');
+         if (el) el.remove();
+   }
 
-      const data = await res.json();
-      hideTyping();
+   function scrollToBottom() {
+         const c = document.getElementById('n1-chat-messages');
+         c.scrollTop = c.scrollHeight;
+   }
 
-      if (!res.ok || data.error) {
-        renderBotMessage("Tive um probleminha pra responder agora. Tenta de novo em instantes ou fala direto com nosso time no WhatsApp.", [
-          { label: "Abrir WhatsApp", action: openWhatsApp },
-        ]);
-        return;
-      }
+   function formatText(text) {
+         return text
+           .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+           .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+           .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+           .replace(/\n/g, '<br>');
+   }
 
-      const reply = data.reply || "Hmm, não consegui gerar uma resposta. Tenta reformular?";
-      state.messages.push({ role: 'assistant', content: reply });
+   function randomDelay() { return MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS); }
 
-      // Detecta se deve pedir captura de lead (após qualificação, antes de capturar)
-      const shouldAskCapture = state.qualificationDone 
-        && !state.leadCaptured 
-        && !state.captureAsked
-        && state.messages.filter(m => m.role === 'assistant').length >= 1;
+   function openWhatsApp() {
+         const resumo = state.messages.slice(-3).map(m => (m.role === 'user' ? 'Eu' : 'Bot') + ': ' + m.content.slice(0, 100)).join('\n');
+         const msg = encodeURIComponent('Ol\u00e1, vim do chat da 1Neg\u00f3cio.\nPerfil: ' + (state.perfil || '\u2014') + '\n\n' + resumo);
+         window.open('https://wa.me/' + WHATSAPP_FALLBACK + '?text=' + msg, '_blank');
+         if (state.leadId) {
+                 fetch(API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY }, body: JSON.stringify({ action: 'escalate', messages: state.messages, lead_data: { lead_id: state.leadId, motivo: 'usuario_pediu_whatsapp' } }) }).catch(() => {});
+         }
+   }
 
-      renderBotMessage(reply);
+   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); }
+    else { init(); }
 
-      if (shouldAskCapture) {
-        state.captureAsked = true;
-        setTimeout(() => {
-          askForContact();
-        }, 900);
-      }
+   window.n1Chat = { state, open: openPanel, close: closePanel };
 
-    } catch (err) {
-      hideTyping();
-      console.error('Erro chat-ia:', err);
-      renderBotMessage("Perdi a conexão aqui. Se quiser, fala direto com nosso time.", [
-        { label: "Abrir WhatsApp", action: openWhatsApp },
-      ]);
-    }
-  }
-
-  // ============================================================
-  // CAPTURA DE LEAD
-  // ============================================================
-  function askForContact() {
-    const wrap = document.createElement('div');
-    wrap.className = 'n1-msg bot';
-    wrap.innerHTML = `
-      <div>Antes de seguirmos, me deixa seu nome e WhatsApp? Assim nosso time também fica disponível caso você precise de suporte humano em algum momento.</div>
-      <form class="n1-form" id="n1-contact-form">
-        <input type="text" name="nome" placeholder="Seu nome" required>
-        <input type="tel" name="whatsapp" placeholder="WhatsApp com DDD (ex: 48 99999-9999)" required>
-        <button type="submit">Enviar contato</button>
-        <button type="button" class="skip" id="n1-skip-contact">Continuar sem informar</button>
-      </form>
-    `;
-    document.getElementById('n1-chat-messages').appendChild(wrap);
-    scrollToBottom();
-
-    const form = wrap.querySelector('#n1-contact-form');
-    const skipBtn = wrap.querySelector('#n1-skip-contact');
-
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const nome = form.nome.value.trim();
-      const whatsapp = form.whatsapp.value.trim();
-      
-      if (!nome || !whatsapp) return;
-      
-      state.lead.nome = nome;
-      state.lead.whatsapp = whatsapp;
-      
-      // Remove o form
-      wrap.remove();
-      renderUserMessage(`${nome} · ${whatsapp}`);
-      
-      saveLead();
-    });
-
-    skipBtn.addEventListener('click', () => {
-      wrap.remove();
-      renderBotMessage("Sem problema, seguimos. Se precisar do nosso time depois, é só pedir.");
-    });
-  }
-
-  async function saveLead() {
-    try {
-      const res = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': ANON_KEY,
-        },
-        body: JSON.stringify({
-          action: 'save_lead',
-          messages: state.messages,
-          pagina_origem: window.location.href,
-          lead_data: {
-            nome: state.lead.nome,
-            whatsapp: state.lead.whatsapp,
-            perfil: state.perfil || 'curioso',
-            sub_perfil: state.subPerfil,
-          },
-        }),
-      });
-      
-      const data = await res.json();
-      if (data.success && data.lead_id) {
-        state.leadCaptured = true;
-        state.leadId = data.lead_id;
-      }
-      
-      renderBotMessage(`Perfeito, ${state.lead.nome}! Anotado aqui. Agora me conta mais — como posso te ajudar?`);
-    } catch (err) {
-      console.error('Erro salvando lead:', err);
-      renderBotMessage("Anotei aqui. Como posso te ajudar?");
-    }
-  }
-
-  // ============================================================
-  // RENDERIZAÇÃO
-  // ============================================================
-  function renderBotMessage(text, quickReplies) {
-    const container = document.getElementById('n1-chat-messages');
-    const div = document.createElement('div');
-    div.className = 'n1-msg bot';
-    div.innerHTML = formatText(text);
-    container.appendChild(div);
-
-    if (quickReplies && quickReplies.length) {
-      const replies = document.createElement('div');
-      replies.className = 'n1-quick-replies';
-      quickReplies.forEach(r => {
-        const btn = document.createElement('button');
-        btn.className = 'n1-quick-btn';
-        btn.textContent = r.label;
-        btn.addEventListener('click', () => {
-          replies.remove();
-          r.action();
-        });
-        replies.appendChild(btn);
-      });
-      container.appendChild(replies);
-    }
-
-    scrollToBottom();
-  }
-
-  function renderUserMessage(text) {
-    const container = document.getElementById('n1-chat-messages');
-    const div = document.createElement('div');
-    div.className = 'n1-msg user';
-    div.textContent = text;
-    container.appendChild(div);
-    scrollToBottom();
-  }
-
-  function showTyping() {
-    state.isTyping = true;
-    document.getElementById('n1-chat-send').disabled = true;
-    const container = document.getElementById('n1-chat-messages');
-    const div = document.createElement('div');
-    div.className = 'n1-typing';
-    div.id = 'n1-typing-indicator';
-    div.innerHTML = '<span></span><span></span><span></span>';
-    container.appendChild(div);
-    scrollToBottom();
-  }
-
-  function hideTyping() {
-    state.isTyping = false;
-    document.getElementById('n1-chat-send').disabled = false;
-    const indicator = document.getElementById('n1-typing-indicator');
-    if (indicator) indicator.remove();
-  }
-
-  function scrollToBottom() {
-    const container = document.getElementById('n1-chat-messages');
-    container.scrollTop = container.scrollHeight;
-  }
-
-  function formatText(text) {
-    // Converte markdown simples: **bold**, [link](url), \n
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-      .replace(/\n/g, '<br>');
-  }
-
-  function randomDelay() {
-    return MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS);
-  }
-
-  // ============================================================
-  // ESCALAÇÃO WHATSAPP
-  // ============================================================
-  function openWhatsApp() {
-    const resumo = state.messages.slice(-3)
-      .map(m => `${m.role === 'user' ? 'Eu' : 'Assistente'}: ${m.content.slice(0, 100)}`)
-      .join('\n');
-    
-    const perfilTexto = state.perfil ? `\nPerfil: ${state.perfil}` : '';
-    const msg = encodeURIComponent(
-      `Olá, vim da conversa com o assistente da 1Negócio.${perfilTexto}\n\nÚltimas mensagens:\n${resumo}`
-    );
-    window.open(`https://wa.me/${WHATSAPP_FALLBACK}?text=${msg}`, '_blank');
-    
-    // Registra escalação no backend
-    if (state.leadId) {
-      fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': ANON_KEY,
-        },
-        body: JSON.stringify({
-          action: 'escalate',
-          messages: state.messages,
-          lead_data: {
-            lead_id: state.leadId,
-            motivo: 'usuario_pediu_whatsapp',
-          },
-        }),
-      }).catch(e => console.error('Erro escalando:', e));
-    }
-  }
-
-  // ============================================================
-  // BOOT
-  // ============================================================
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
-
-  // Expor para debug
-  window.n1Chat = { state, open: () => { if (!state.isOpen) togglePanel(); } };
 })();
