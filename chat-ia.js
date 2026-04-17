@@ -73,7 +73,7 @@
     .n1-form button:hover{background:#166534}
     .n1-form button.skip{background:transparent;border:1.5px solid rgba(13,43,30,.15);color:rgba(13,43,30,.45);font-weight:500}
     .n1-form button.skip:hover{background:rgba(13,43,30,.04);color:rgba(13,43,30,.65)}
-    #n1-welcome-bubble{position:fixed;bottom:88px;right:24px;background:#fff;border-radius:16px 16px 4px 16px;padding:10px 32px 10px 14px;font-family:'Cabinet Grotesk',sans-serif;font-size:13.5px;font-weight:500;color:#0d2b1e;box-shadow:0 4px 20px rgba(13,43,30,.15);border:1px solid rgba(26,122,60,.12);z-index:2147483644;max-width:230px;line-height:1.4;cursor:pointer;animation:n1-bubbleIn .35s ease}
+    #n1-welcome-bubble{position:fixed;bottom:88px;right:24px;background:#fff;border-radius:16px 16px 4px 16px;padding:10px 32px 10px 14px;font-family:'Cabinet Grotesk',sans-serif;font-size:13.5px;font-weight:500;color:#0d2b1e;box-shadow:0 4px 20px rgba(13,43,30,.15);border:1px solid rgba(26,122,60,.12);z-index:2147483644;max-width:230px;line-height:1.4;cursor:pointer;animation:n1-bubbleIn .35s ease;display:none}
     #n1-welcome-close{position:absolute;top:6px;right:8px;background:none;border:none;color:rgba(13,43,30,.35);font-size:14px;cursor:pointer;line-height:1;padding:0}
     @keyframes n1-bubbleIn{from{opacity:0;transform:translateY(8px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}
     @media(max-width:600px){
@@ -127,7 +127,7 @@
   }
   function showWelcomeBubble() {
     var bubble = document.getElementById('n1-welcome-bubble');
-    if (!bubble || state.isOpen) return;
+    if (!bubble) return;
     bubble.style.display = 'block';
     document.getElementById('n1-welcome-close').addEventListener('click', function(e) {
       e.stopPropagation();
