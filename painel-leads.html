@@ -1703,7 +1703,7 @@ async function carregarFilaDisparo() {
   const categoria = document.getElementById('d-categoria').value;
   const statusFilter = document.getElementById('d-status-filter').value;
 
-  let query = 'leads_google?order=created_at.asc&limit=500&telefone_formatado=neq.';
+      let query = 'leads_google?order=created_at.asc&limit=500';
   if (origem) query += `&origem=eq.${encodeURIComponent(origem)}`;
   if (campanha) query += `&campanha=eq.${encodeURIComponent(campanha)}`;
   if (categoria) query += `&categoria=eq.${encodeURIComponent(categoria)}`;
@@ -1848,7 +1848,7 @@ async function iniciarDisparo() {
   const categoria = document.getElementById('d-categoria').value;
   const statusFilter = document.getElementById('d-status-filter').value || 'novo';
 
-  let query = `leads_google?status=eq.${statusFilter}&telefone_formatado=neq.&order=created_at.asc&limit=500`;
+        let query = `leads_google?status=eq.${statusFilter}&order=created_at.asc&limit=500`;
   if (origem) query += `&origem=eq.${encodeURIComponent(origem)}`;
   if (campanha) query += `&campanha=eq.${encodeURIComponent(campanha)}`;
   if (categoria) query += `&categoria=eq.${encodeURIComponent(categoria)}`;
@@ -1856,7 +1856,7 @@ async function iniciarDisparo() {
   const leads = await sbFetch(query);
   if (!leads || !leads.length) { toast('Nenhum lead nessa fila', 'error'); return; }
 
-  const fila = leads.filter(r => ehCelular(r.telefone_formatado));
+        const fila = leads.filter(r => ehCelular(r.telefone_formatado || r.telefone));
   if (!fila.length) { toast('Nenhum celular válido', 'error'); return; }
 
   if (!confirm(`Disparar para ${fila.length} leads? Delay de ${delay/1000}s entre cada. Tempo estimado: ${Math.ceil(fila.length * delay / 60000)} minutos.`)) return;
@@ -1895,7 +1895,7 @@ async function rodarProximoLead() {
     const res = await fetch(SUPABASE_URL + '/functions/v1/zapi-relay', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
-      body: JSON.stringify({ phone: lead.telefone_formatado, message: mensagemFinal })
+              body: JSON.stringify({ phone: lead.telefone_formatado || lead.telefone, message: mensagemFinal })
     });
     const result = await res.json();
 
