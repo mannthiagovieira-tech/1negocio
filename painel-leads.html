@@ -899,6 +899,38 @@ diretora</textarea>
     </div>
   </div>
 
+  <!-- ── PREVIEW BUSCA AUTOMÁTICA ── -->
+  <div id="ig-auto-preview" style="display:none;margin-bottom:20px">
+    <div style="background:var(--surface);border:1px solid var(--sep);padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+        <div>
+          <h3 style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin:0">👁️ Preview — Leads Encontrados</h3>
+          <div id="ig-auto-preview-resumo" style="font-size:11px;color:var(--text2);margin-top:4px"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="igAutoSelectAll(true)">Marcar todos</button>
+          <button class="btn btn-ghost btn-sm" onclick="igAutoSelectAll(false)">Desmarcar</button>
+          <button class="btn btn-green" onclick="igAutoSalvarSelecionados()">
+            ✓ Salvar selecionados no Pool
+          </button>
+        </div>
+      </div>
+      <div class="table-wrap"><div class="table-scroll" style="max-height:500px">
+        <table>
+          <thead><tr>
+            <th style="width:30px"><input type="checkbox" id="ig-auto-chk-all" class="check" onchange="igAutoSelectAll(this.checked)"></th>
+            <th>@ Instagram</th>
+            <th>Nome</th>
+            <th>Telefone</th>
+            <th>Bio</th>
+            <th>Categoria</th>
+          </tr></thead>
+          <tbody id="ig-auto-preview-tbody"></tbody>
+        </table>
+      </div></div>
+    </div>
+  </div>
+
   <div class="search-panel">
     <h3>📷 Importar CSV de seguidores</h3>
     <p style="font-size:11px;color:var(--text2);margin-bottom:16px">
@@ -3111,31 +3143,11 @@ async function rodarIgAuto() {
       });
     }
 
-    // ── ETAPA 4: Salvar no Pool ──
-    igSetStep(4);
-    igSetStatus('Salvando leads no Pool...', 88);
-
-    // Salvar em lotes de 20
-    const SAVE_BATCH = 20;
-    for (let i = 0; i < leadsParaSalvar.length; i += SAVE_BATCH) {
-      const lote = leadsParaSalvar.slice(i, i + SAVE_BATCH);
-      try {
-        await sbFetch('leads_google', {
-          method: 'POST',
-          body: JSON.stringify(lote),
-          prefer: 'resolution=ignore-duplicates,return=minimal'
-        });
-        totalSalvos += lote.length;
-        igSetCount(totalSalvos, totalProcessados);
-      } catch(e) {
-        console.warn('Erro ao salvar lote:', e.message);
-      }
-    }
-
-    igSetStatus(`✅ Concluído! ${totalSalvos} leads salvos (${leadsParaSalvar.filter(l=>l.categoria==='linktree').length} aguardando ação manual).`, 100);
-    toast(`${totalSalvos} leads de empreendedores salvos no Pool!`, 'success');
-    carregarLeads();
-    carregarStats();
+      // ── ETAPA 4: Preview antes de salvar ──
+      igSetStep(4);
+      igSetStatus(`✅ Concluído! ${leadsParaSalvar.length} leads encontrados. Revise e salve.`, 100);
+      window._igAutoLeads = leadsParaSalvar;
+      renderIgAutoPreview(leadsParaSalvar);
 
   } catch(e) {
     igSetStatus('❌ Erro: ' + e.message, 0);
@@ -3147,6 +3159,78 @@ async function rodarIgAuto() {
 }
 
 // ══════════════════════════════════════════
+// ── INSTAGRAM AUTO — PREVIEW E SALVAMENTO ──
+    window._igAutoLeads = [];
+
+    function renderIgAutoPreview(leads) {
+      const preview = document.getElementById('ig-auto-preview');
+      const tbody = document.getElementById('ig-auto-preview-tbody');
+      const resumo = document.getElementById('ig-auto-preview-resumo');
+      if (!preview || !tbody) return;
+
+      const comTel = leads.filter(l => l.telefone_formatado).length;
+      const linktree = leads.filter(l => l.categoria === 'linktree').length;
+      resumo.innerHTML = `<strong>${leads.length}</strong> leads · <span style="color:var(--green)">${comTel} com WhatsApp direto</span> · <span style="color:var(--amber)">${linktree} via linktree</span>`;
+
+      tbody.innerHTML = leads.map((l, i) => {
+        const username = (l.place_id || '').replace('ig:', '');
+        const temTel = !!l.telefone_formatado;
+        const telHtml = temTel
+          ? `<span style="color:var(--green)">✓ ${l.telefone_formatado}</span>`
+          : l.categoria === 'linktree'
+            ? `<span style="color:var(--amber)">🔗 linktree</span>`
+            : `<span style="color:var(--text2)">—</span>`;
+        const bioText = (l.notas || '').replace(/^Bio: /, '').substring(0, 100);
+        return `<tr>
+          <td><input type="checkbox" class="ig-auto-chk check" data-idx="${i}" ${temTel ? 'checked' : ''}></td>
+          <td style="font-size:11px"><a href="https://instagram.com/${username}" target="_blank" style="color:var(--green)">@${username}</a></td>
+          <td style="font-size:11px">${l.nome || '—'}</td>
+          <td style="font-size:11px">${telHtml}</td>
+          <td style="font-size:10px;color:var(--text2);max-width:300px"><div style="max-height:36px;overflow:hidden">${bioText}</div></td>
+          <td style="font-size:10px;color:var(--text2)">${l.categoria || '—'}</td>
+        </tr>`;
+      }).join('');
+
+      preview.style.display = 'block';
+      preview.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function igAutoSelectAll(checked) {
+      document.querySelectorAll('.ig-auto-chk').forEach(cb => cb.checked = checked);
+      document.getElementById('ig-auto-chk-all').checked = checked;
+    }
+
+    async function igAutoSalvarSelecionados() {
+      const checks = document.querySelectorAll('.ig-auto-chk:checked');
+      if (!checks.length) { toast('Selecione pelo menos 1 lead', 'error'); return; }
+
+      const leads = window._igAutoLeads;
+      const selecionados = Array.from(checks).map(c => leads[parseInt(c.dataset.idx)]).filter(Boolean);
+
+      const btn = document.querySelector('[onclick="igAutoSalvarSelecionados()"]');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Salvando...'; }
+
+      let salvos = 0;
+      const BATCH = 20;
+      for (let i = 0; i < selecionados.length; i += BATCH) {
+        const lote = selecionados.slice(i, i + BATCH);
+        try {
+          await sbFetch('leads_google', {
+            method: 'POST',
+            body: lote,
+            headers: { 'Prefer': 'resolution=ignore-duplicates,return=minimal' }
+          });
+          salvos += lote.length;
+        } catch(e) { console.warn('Erro ao salvar lote:', e.message); }
+      }
+
+      toast(`✅ ${salvos} leads salvos no Pool!`, 'success');
+      document.getElementById('ig-auto-preview').style.display = 'none';
+      if (btn) { btn.disabled = false; btn.innerHTML = '✓ Salvar selecionados no Pool'; }
+      carregarLeads();
+      carregarStats();
+    }
+
 // UI HELPERS
 // ══════════════════════════════════════════
 function showTab(tab) {
