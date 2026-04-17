@@ -110,6 +110,7 @@ tr:hover td{background:rgba(16,185,129,.03)}
 .modal h3{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:20px;letter-spacing:-0.3px}
 .modal .field{margin-bottom:14px}
 .modal textarea{background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:10px 12px;font-family:'DM Mono',monospace;font-size:12px;width:100%;min-height:100px;outline:none;resize:vertical}
+#d-mensagem{background:var(--surface2)!important;color:var(--text)!important;border:1px solid var(--sep)!important;border-radius:4px}
 .modal textarea:focus{border-color:var(--green)}
 .modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
 
@@ -1830,6 +1831,23 @@ async function rodarProximoLead() {
   document.getElementById('disparo-fill').style.width = `${pct}%`;
   document.getElementById('d-status').innerHTML =
     `${d.enviados}/${d.total} enviados · ${d.falhas} falhas · próximo em ${d.delay/1000}s`;
+
+    // === FIX: Atualizar tabela e contador visualmente ===
+  try {
+    const _tbody = document.getElementById('tbody-disparo');
+    if (_tbody) {
+      const _rows = _tbody.querySelectorAll('tr');
+      const _idxEnv = d.indice - 1;
+      if (_rows[_idxEnv]) {
+        const _sc = _rows[_idxEnv].querySelectorAll('td')[4];
+        if (_sc) _sc.innerHTML = '<span style="font-size:10px;color:var(--blue)">📤 Enviado</span>';
+        _rows[_idxEnv].style.opacity = '0.5';
+      }
+      if (_rows[d.indice]) _rows[d.indice].style.background = 'rgba(16,185,129,0.06)';
+    }
+    const _fc = document.getElementById('fila-count');
+    if (_fc) _fc.innerHTML = '<strong>' + d.total + '</strong> leads · <span style="color:var(--amber)">' + (d.total - d.enviados) + ' novos</span> · <span style="color:var(--blue)">' + d.enviados + ' enviados</span>';
+  } catch(_e) {}
 
   if (d.status === 'rodando' && d.indice < d.total) {
     setTimeout(rodarProximoLead, d.delay);
