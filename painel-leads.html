@@ -738,6 +738,220 @@ Posso te contar mais?</textarea>
   </div>
 </div>
 
+<!-- ═══════════ TAB: INSTAGRAM (importador CSV com filtros) ═══════════ -->
+<div id="tab-ig" class="tab-content" style="display:none">
+
+  <!-- ── BUSCA AUTOMÁTICA VIA APIFY ── -->
+  <div class="search-panel" style="margin-bottom:20px">
+    <h3>🤖 Busca Automática de Empreendedores</h3>
+    <p style="color:var(--text2);font-size:12px;margin-bottom:16px">
+      Raspa seguidores das contas semente → filtra bio → extrai WhatsApp → salva no Pool. Leads com link externo ficam com categoria <strong>linktree</strong> para ação manual.
+    </p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <!-- Contas semente -->
+      <div>
+        <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px">📍 CONTAS SEMENTE (um @ por linha)</label>
+        <textarea id="ig-contas-semente" rows="10" style="width:100%;background:var(--surface2);border:1px solid var(--sep);color:var(--text);border-radius:6px;padding:10px;font-family:monospace;font-size:12px;resize:vertical">flavioaugusto
+caitomaia
+camilafarani
+crisarcangeli
+joaoappolinario
+lucianohangoficial
+geraldorufino
+belpesce
+thiago.nigro
+gucerbasi
+sebraesc
+sebraepr
+sebraers
+cdlflorianopolis
+cdljovemflorianopolis
+cdlpoa
+cdlcuritiba
+acif.floripa
+fiergs_ciergs
+inovacdl</textarea>
+      </div>
+
+      <!-- Configurações -->
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px">🔍 PALAVRAS-CHAVE DA BIO (uma por linha)</label>
+          <textarea id="ig-keywords-bio" rows="6" style="width:100%;background:var(--surface2);border:1px solid var(--sep);color:var(--text);border-radius:6px;padding:10px;font-family:monospace;font-size:12px;resize:vertical">ceo
+founder
+empreendedor
+empresário
+empresaria
+negócios
+negocios
+sócio
+socio
+dono
+dona
+startup
+entrepreneur
+diretor
+diretora</textarea>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px">📊 LIMITE POR CONTA</label>
+            <input id="ig-limite" type="number" value="300" min="50" max="2000" style="width:100%;background:var(--surface2);border:1px solid var(--sep);color:var(--text);border-radius:6px;padding:8px;font-family:monospace">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px">🔗 VISITAR LINKTREE</label>
+            <select id="ig-linktree" style="width:100%;background:var(--surface2);border:1px solid var(--sep);color:var(--text);border-radius:6px;padding:8px;font-family:monospace">
+              <option value="sim">Sim (mais leads)</option>
+              <option value="nao">Não (só wa.me direto)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px">🏷️ TAG DE CAMPANHA</label>
+          <input id="ig-auto-campanha" type="text" placeholder="ex: ig-empreendedores-abril" style="width:100%;background:var(--surface2);border:1px solid var(--sep);color:var(--text);border-radius:6px;padding:8px;font-family:monospace">
+        </div>
+
+        <button class="btn btn-green" onclick="rodarIgAuto()" id="ig-auto-btn" style="margin-top:auto">
+          🚀 Buscar Empreendedores
+        </button>
+      </div>
+    </div>
+
+    <!-- Progresso -->
+    <div id="ig-auto-progress" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span id="ig-auto-status" style="font-size:12px;color:var(--text2)">Iniciando...</span>
+        <span id="ig-auto-count" style="font-size:12px;color:var(--green)"></span>
+      </div>
+      <div style="background:var(--surface2);border-radius:4px;height:8px;overflow:hidden;margin-bottom:8px">
+        <div id="ig-auto-bar" style="height:100%;background:var(--green);width:0%;transition:width .3s"></div>
+      </div>
+      <div style="display:flex;gap:16px;font-size:11px;color:var(--text2)">
+        <span id="ig-step-1" style="opacity:.4">① Followers</span>
+        <span>→</span>
+        <span id="ig-step-2" style="opacity:.4">② Perfis + Bio</span>
+        <span>→</span>
+        <span id="ig-step-3" style="opacity:.4">③ WhatsApp</span>
+        <span>→</span>
+        <span id="ig-step-4" style="opacity:.4">④ Salvar Pool</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="search-panel">
+    <h3>📷 Importar CSV de seguidores</h3>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:16px">
+      Aceita CSV do <strong>Scravio</strong>, <strong>IGExporter</strong> ou qualquer formato com <code>username</code>. 
+      Todos os seguidores ficam salvos para refiltrar depois — só os selecionados viram lead em Gerenciar.
+    </p>
+
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+      <div>
+        <label style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:6px;display:block">CSV (cole ou faça upload)</label>
+        <textarea id="ig-csv" placeholder="Cole o conteúdo do CSV aqui..." style="width:100%;min-height:140px;background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:10px;font-family:'DM Mono',monospace;font-size:11px;outline:none;resize:vertical"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input type="file" id="ig-csv-file" accept=".csv" style="display:none" onchange="handleCsvFile(event)">
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ig-csv-file').click()">📁 Escolher .csv</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ig-csv').value = ''">Limpar</button>
+        </div>
+      </div>
+      <div>
+        <div class="field">
+          <label>De qual perfil? (origem)</label>
+          <input id="ig-perfil-origem" placeholder="ex: tallisgomes" style="width:100%">
+          <div style="font-size:10px;color:var(--text2);margin-top:4px">Só o @ do perfil alvo (sem @). Serve para você filtrar depois.</div>
+        </div>
+        <div class="field" style="margin-top:10px">
+          <label>Tag de campanha</label>
+          <input id="ig-campanha" placeholder="ex: tallisgomes-empreendedores" style="width:100%">
+        </div>
+        <button class="btn btn-green" id="ig-parse-btn" onclick="parseCsv()" style="width:100%;margin-top:12px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+          Processar e salvar
+        </button>
+        <div id="ig-parse-status" style="font-size:11px;color:var(--text2);margin-top:10px">Aguardando CSV...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filtros e staging -->
+  <div id="ig-staging" style="margin-top:20px;display:none">
+    <div style="background:var(--surface);border:1px solid var(--sep);padding:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div>
+          <h4 style="margin:0;font-size:14px">Filtrar e selecionar</h4>
+          <div id="ig-staging-resumo" style="font-size:11px;color:var(--text2);margin-top:2px"></div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="igSelectAllVisible(true)">Marcar visíveis</button>
+          <button class="btn btn-ghost btn-sm" onclick="igSelectAllVisible(false)">Desmarcar</button>
+          <button class="btn btn-green btn-sm" onclick="igSendSelected()">
+            ✓ Enviar selecionados para Gerenciar
+          </button>
+        </div>
+      </div>
+
+      <!-- Linha de filtros -->
+      <div style="background:var(--surface2);border:1px solid var(--sep);padding:12px;margin-bottom:12px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px;align-items:end">
+        <div class="field" style="margin:0">
+          <label>Palavra-chave na bio/nome</label>
+          <input id="ig-filter-kw" placeholder="ex: empreendedor, CEO, dono, consultor" oninput="applyFilters()">
+        </div>
+        <div class="field" style="margin:0">
+          <label>Min. seguidores</label>
+          <input id="ig-filter-min-seg" type="number" placeholder="0" oninput="applyFilters()">
+        </div>
+        <div class="field" style="margin:0">
+          <label>Filtro</label>
+          <select id="ig-filter-preset" onchange="applyFilters()">
+            <option value="tel-br">Só com celular BR ✓</option>
+            <option value="all">Todos</option>
+            <option value="business">Só business</option>
+            <option value="business-tel">Business com tel</option>
+            <option value="no-private">Sem privados</option>
+          </select>
+        </div>
+        <div class="field" style="margin:0">
+          <label>Cidade/UF na bio</label>
+          <input id="ig-filter-city" placeholder="ex: floripa, SC, SP" oninput="applyFilters()">
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="clearFilters()">Limpar filtros</button>
+      </div>
+
+      <!-- Contagens por palavra-chave comum -->
+      <div id="ig-keyword-stats" style="margin-bottom:12px;font-size:11px;color:var(--text2)"></div>
+
+      <div class="table-wrap"><div class="table-scroll" style="max-height:600px">
+        <table>
+          <thead><tr>
+            <th style="width:30px"><input type="checkbox" id="ig-check-all" onchange="igSelectAllVisible(this.checked)"></th>
+            <th>@</th>
+            <th>Nome</th>
+            <th>Telefone</th>
+            <th>Seg</th>
+            <th>Bio</th>
+          </tr></thead>
+          <tbody id="ig-staging-tbody"></tbody>
+        </table>
+      </div></div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;padding:16px;background:var(--surface2);border:1px solid var(--sep)">
+    <div style="display:flex;align-items:center;gap:12px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      <div style="flex:1">
+        <div style="font-size:12px;color:var(--text)">Todos os seguidores ficam em <code>ig_seguidores_raw</code>. Selecionados viram leads em <code>leads_google</code>.</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px">Se precisar refiltrar depois, o sistema lembra do que já foi importado.</div>
+      </div>
+      <a href="#" onclick="showTab('gerenciar');return false" class="btn btn-ghost btn-sm">Ver leads →</a>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════ TAB: CAMPANHAS ═══════════ -->
 <div id="tab-campanhas" class="tab-content" style="display:none">
   <div id="campanhas-grid" class="stats-row" style="grid-template-columns:1fr"></div>
@@ -2603,162 +2817,6 @@ async function igSendSelected() {
 }
 
 // ══════════════════════════════════════════
-// UI HELPERS
-// ══════════════════════════════════════════
-function showTab(tab) {
-  document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('tab-' + tab).style.display = 'block';
-
-  const labels = { buscar: 'Google Maps', gerenciar: 'Todos os leads', disparar: 'WhatsApp Z-API', templates: 'Templates', campanhas: 'Campanhas', config: 'API Keys', fb: 'Posts FB (oport.)', fbpages: 'Facebook', ig: 'Instagram (CSV)' };
-  document.querySelectorAll('.nav-item').forEach(n => {
-    if (n.textContent.trim() === labels[tab]) n.classList.add('active');
-  });
-
-  if (tab === 'gerenciar') carregarLeads();
-  if (tab === 'disparar') carregarFilaDisparo();
-  if (tab === 'templates') carregarListaTemplates();
-  if (tab === 'campanhas') carregarCampanhas();
-  if (tab === 'fb') { loadMonitor(); loadOportunidades(); }
-  if (tab === 'fbpages') { loadMonitor(); }
-  if (tab === 'ig') { /* nada - usa textarea direto */ }
-}
-
-function fecharModal(id) { document.getElementById(id).classList.remove('open'); }
-
-function toggleAllSearch() {
-  const main = document.getElementById('chk-all-search');
-  main.checked = !main.checked;
-  document.querySelectorAll('.search-chk').forEach(c => c.checked = main.checked);
-}
-
-function toggleAllManage() {
-  const main = document.getElementById('chk-all-manage');
-  document.querySelectorAll('.manage-chk').forEach(c => c.checked = main.checked);
-}
-
-function toast(msg, type = 'success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show ' + type;
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.className = 'toast', 3500);
-}
-
-function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-// Fechar modais com ESC
-document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open')); });
-document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); }));
-
-// ══════════════════════════════════════════
-// INIT
-// ══════════════════════════════════════════
-(async function init() {
-  carregarConfig();
-  carregarStats();
-  carregarFiltros();
-
-  // Se não tem API key, mostra config
-  if (!localStorage.getItem('1n_gkey')) {
-    showTab('config');
-    toast('Configure sua chave do Google Places para começar', 'error');
-  }
-})();
-
-
-// ─── OLX Scraper ────────────────────────────────────────────────────────────
-window._olxKeywords = window._olxKeywords || ['vendo restaurante', 'passo ponto comercial'];
-window._olxCidades = window._olxCidades || ['brasil'];
-var _olxKeywords = window._olxKeywords;
-var _olxCidades = window._olxCidades;
-
-function olxRenderKeywords() {
-  const c = document.getElementById('olx-keywords-container');
-  if (!c) return;
-  c.innerHTML = _olxKeywords.map((k,i) => `<span style="display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border-radius:20px;padding:4px 10px;font-size:12px">${k}<button onclick="olxRemoveKeyword(${i})" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px;line-height:1">×</button></span>`).join('');
-}
-function olxRenderCidades() {
-  const c = document.getElementById('olx-cities-container');
-  if (!c) return;
-  c.innerHTML = _olxCidades.map((k,i) => `<span style="display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border-radius:20px;padding:4px 10px;font-size:12px">${k}<button onclick="olxRemoveCidade(${i})" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:14px;line-height:1">×</button></span>`).join('');
-}
-function olxAddKeyword() {
-  const inp = document.getElementById('olx-kw-input');
-  const val = inp.value.trim();
-  if (val && !_olxKeywords.includes(val)) { _olxKeywords.push(val); olxRenderKeywords(); }
-  inp.value = '';
-}
-function olxRemoveKeyword(i) { _olxKeywords.splice(i,1); olxRenderKeywords(); }
-function olxAddCidade() {
-  const inp = document.getElementById('olx-city-input');
-  const val = inp.value.trim().toLowerCase().replace(/\s+/g,'-');
-  if (val && !_olxCidades.includes(val)) { _olxCidades.push(val); olxRenderCidades(); }
-  inp.value = '';
-}
-function olxRemoveCidade(i) { _olxCidades.splice(i,1); olxRenderCidades(); }
-
-async function runOlxSearch() {
-  const apifyToken = localStorage.getItem('1n_apify');
-  if (!apifyToken) { showToast('Configure o token Apify em Config', 'error'); return; }
-  if (_olxKeywords.length === 0) { showToast('Adicione pelo menos uma palavra-chave', 'error'); return; }
-
-  const btn = document.getElementById('olx-run-btn');
-  const statusEl = document.getElementById('olx-status');
-  const progressEl = document.getElementById('olx-progress');
-  const barEl = document.getElementById('olx-progress-bar');
-  const campanha = document.getElementById('olx-campanha').value || 'olx-negocios';
-  const maxPages = parseInt(document.getElementById('olx-pages').value) || 3;
-  const sortBy = document.getElementById('olx-sort').value || 'newest';
-
-  btn.disabled = true;
-  btn.textContent = '⏳ Buscando...';
-  progressEl.style.display = 'block';
-  barEl.style.width = '10%';
-  statusEl.textContent = 'Iniciando busca no OLX...';
-
-  let totalNovos = 0;
-  let totalAnalisados = 0;
-  const queries = _olxKeywords.map(kw => _olxCidades.map(city => city === 'brasil' ? kw : kw + ' ' + city)).flat();
-
-  for (let qi = 0; qi < queries.length; qi++) {
-    const pct = 10 + Math.round((qi / queries.length) * 80);
-    barEl.style.width = pct + '%';
-    statusEl.textContent = `Query ${qi+1}/${queries.length}: "${queries[qi]}"...`;
-    try {
-      const resp = await fetch('https://dbijmgqlcrgjlcfrastg.supabase.co/functions/v1/apify-olx-scraper', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ apify_token: apifyToken, queries: [queries[qi]], max_pages: maxPages, sort_by: sortBy, campanha })
-      });
-      if (!resp.ok) throw new Error(await resp.text());
-      const data = await resp.json();
-      totalNovos += data.novos || 0;
-      totalAnalisados += data.analisados || 0;
-    } catch(e) {
-      console.error('OLX query error:', e);
-      statusEl.textContent = 'Erro: ' + e.message;
-    }
-  }
-
-  barEl.style.width = '100%';
-  statusEl.textContent = `✅ ${totalNovos} anúncios novos salvos (${totalAnalisados} analisados)`;
-  btn.disabled = false;
-  btn.textContent = '🔍 Buscar no OLX';
-  setTimeout(() => { progressEl.style.display = 'none'; barEl.style.width = '0%'; }, 3000);
-  if (totalNovos > 0) { showToast(`${totalNovos} novos leads do OLX salvos!`, 'success'); updateLeadsCount(); }
-}
-
-// Patch showTab to render OLX UI when tab is activated
-const _showTabOrig = showTab;
-window.showTab = function(tab) {
-  _showTabOrig(tab);
-  if (tab === 'olx') { setTimeout(function(){ olxRenderKeywords(); olxRenderCidades(); }, 0); }
-};
-
-
-// ══════════════════════════════════════════
 // INSTAGRAM — BUSCA AUTOMÁTICA (Apify)
 // ══════════════════════════════════════════
 
@@ -3185,1110 +3243,5 @@ window.showTab = function(tab) {
 };
 
 </script>
-</body>
-</html>
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Leads · 1Negócio</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{
---green:#10b981;
---bg:#0c0c0a;
---surface:#111110;
---surface2:#161614;
---surface3:#1c1c19;
---text:#e5e5e3;
---text2:#a3a39b;
---amber:#f59e0b;
---blue:#60a5fa;
---red:#f87171;
---sep:#222220;
-}
-body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh}
-a{color:var(--green);text-decoration:none}
-
-/* ── LAYOUT ── */
-.app{display:flex;min-height:100vh}
-.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--sep);padding:20px 0;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;z-index:100}
-.main{margin-left:220px;flex:1;padding:32px 40px;max-width:1200px}
-
-/* ── SIDEBAR ── */
-.logo{padding:0 20px 24px;font-family:'Syne',sans-serif;font-size:18px;font-weight:800;letter-spacing:-0.5px}
-.logo em{font-style:normal;color:var(--green)}
-.nav-section{padding:8px 0}
-.nav-section-title{padding:4px 20px;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text2);margin-bottom:4px}
-.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;color:var(--text2);cursor:pointer;transition:all .15s;font-size:12px}
-.nav-item:hover{background:var(--surface2);color:var(--text)}
-.nav-item.active{color:var(--green);background:rgba(16,185,129,.06);border-right:2px solid var(--green)}
-.nav-item svg{width:16px;height:16px;flex-shrink:0}
-
-/* ── HEADER ── */
-.page-header{margin-bottom:32px}
-.page-title{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;letter-spacing:-1px;margin-bottom:4px}
-.page-subtitle{color:var(--text2);font-size:12px}
-
-/* ── STATS ── */
-.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:28px}
-.stat-card{background:var(--surface);border:1px solid var(--sep);padding:16px;display:flex;flex-direction:column;gap:4px}
-.stat-value{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;letter-spacing:-0.5px}
-.stat-value.green{color:var(--green)}
-.stat-value.amber{color:var(--amber)}
-.stat-value.blue{color:var(--blue)}
-.stat-value.red{color:var(--red)}
-.stat-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)}
-
-/* ── TABS ── */
-.tabs{display:flex;gap:0;border-bottom:1px solid var(--sep);margin-bottom:24px}
-.tab{padding:10px 20px;font-size:12px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;font-family:'DM Mono',monospace}
-.tab:hover{color:var(--text)}
-.tab.active{color:var(--green);border-bottom-color:var(--green)}
-
-/* ── PAINEL BUSCA ── */
-.search-panel{background:var(--surface);border:1px solid var(--sep);padding:24px;margin-bottom:24px}
-.search-panel h3{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;letter-spacing:-0.3px}
-.search-grid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end}
-.field{display:flex;flex-direction:column;gap:4px}
-.field label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)}
-.field input,.field select{background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:10px 12px;font-family:'DM Mono',monospace;font-size:12px;outline:none;transition:border-color .15s}
-.field input:focus,.field select:focus{border-color:var(--green)}
-.field select option{background:var(--surface2)}
-
-/* ── BOTÕES ── */
-.btn{padding:10px 20px;font-family:'DM Mono',monospace;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--sep);transition:all .15s;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
-.btn-green{background:var(--green);color:#000;border-color:var(--green)}
-.btn-green:hover{background:#0ea572}
-.btn-ghost{background:transparent;color:var(--text2);border-color:var(--sep)}
-.btn-ghost:hover{color:var(--text);border-color:var(--text2)}
-.btn-amber{background:var(--amber);color:#000;border-color:var(--amber)}
-.btn-amber:hover{background:#d97706}
-.btn-red{background:transparent;color:var(--red);border-color:var(--red)}
-.btn-red:hover{background:var(--red);color:#000}
-.btn-blue{background:transparent;color:var(--blue);border-color:var(--blue)}
-.btn-blue:hover{background:var(--blue);color:#000}
-.btn:disabled{opacity:.4;cursor:not-allowed}
-.btn-sm{padding:6px 12px;font-size:11px}
-
-/* ── TABELA ── */
-.table-wrap{background:var(--surface);border:1px solid var(--sep);overflow-x:auto}
-table{width:100%;border-collapse:collapse}
-th{padding:10px 14px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);border-bottom:1px solid var(--sep);background:var(--surface2);white-space:nowrap;position:sticky;top:0}
-td{padding:10px 14px;border-bottom:1px solid var(--sep);font-size:12px;white-space:nowrap}
-tr:hover td{background:rgba(16,185,129,.03)}
-.table-scroll{max-height:500px;overflow-y:auto}
-
-/* ── STATUS BADGES ── */
-.badge{display:inline-block;padding:3px 8px;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
-.badge-novo{color:var(--blue);border:1px solid var(--blue)}
-.badge-enviado{color:var(--amber);border:1px solid var(--amber)}
-.badge-respondeu{color:var(--green);border:1px solid var(--green)}
-.badge-interessado{color:#a78bfa;border:1px solid #a78bfa}
-.badge-descartado{color:var(--text2);border:1px solid var(--sep)}
-
-/* ── CHECKBOX ── */
-.check{width:14px;height:14px;accent-color:var(--green);cursor:pointer}
-
-/* ── MODAL ── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:1000}
-.modal-overlay.open{display:flex}
-.modal{background:var(--surface);border:1px solid var(--sep);padding:28px;width:560px;max-width:90vw;max-height:85vh;overflow-y:auto}
-.modal h3{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:20px;letter-spacing:-0.3px}
-.modal .field{margin-bottom:14px}
-.modal textarea{background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:10px 12px;font-family:'DM Mono',monospace;font-size:12px;width:100%;min-height:100px;outline:none;resize:vertical}
-.modal textarea:focus{border-color:var(--green)}
-.modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
-
-/* ── PROGRESS ── */
-.progress-bar{height:3px;background:var(--sep);margin-top:12px;display:none}
-.progress-bar.active{display:block}
-.progress-fill{height:100%;background:var(--green);transition:width .3s;width:0}
-
-/* ── TOAST ── */
-.toast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--sep);padding:14px 20px;font-size:12px;display:none;z-index:2000;max-width:360px}
-.toast.show{display:block;animation:fadeIn .2s}
-.toast.success{border-left:3px solid var(--green)}
-.toast.error{border-left:3px solid var(--red)}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-
-/* ── FILTROS ── */
-.filters{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
-.filters select,.filters input{background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none}
-.filters select:focus,.filters input:focus{border-color:var(--green)}
-
-/* ── EMPTY ── */
-.empty-state{padding:60px 20px;text-align:center;color:var(--text2)}
-.empty-state svg{width:48px;height:48px;margin-bottom:16px;opacity:.3}
-.empty-state p{font-size:13px;margin-bottom:4px}
-
-/* ── LOADING ── */
-.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--sep);border-top-color:var(--green);border-radius:50%;animation:spin .6s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* ── API KEY SETUP ── */
-.api-setup{background:var(--surface);border:1px solid var(--amber);padding:20px;margin-bottom:24px;display:flex;align-items:center;gap:16px}
-.api-setup .field{flex:1;margin:0}
-.api-key-saved{color:var(--green);font-size:11px;display:none}
-
-/* ── RESPONSIVE ── */
-@media(max-width:900px){
-.sidebar{display:none}
-.main{margin-left:0;padding:20px}
-.stats-row{grid-template-columns:repeat(2,1fr)}
-.search-grid{grid-template-columns:1fr 1fr}
-}
-</style>
-</head>
-<body>
-
-<!-- SIDEBAR -->
-<div class="app">
-<aside class="sidebar">
-  <div class="logo"><em>1</em>NEGÓCIO</div>
-  <nav>
-    <div class="nav-section">
-      <div class="nav-section-title">🎯 Captar leads</div>
-      <div class="nav-item active" onclick="showTab('buscar')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-        Google Maps
-      </div>
-      <div class="nav-item" onclick="showTab('ig')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
-        Instagram (CSV)
-      </div>
-      <div class="nav-item" onclick="showTab('fbpages')" style="opacity:0.5">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-        Facebook
-      </div>
-      <div class="nav-item" onclick="showTab('fb')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/></svg>
-        Posts FB (oport.)
-      </div>
-      <div class="nav-item" onclick="showTab('olx')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
-        OLX (negócios)
-      </div>
-    </div>
-
-    <div class="nav-section">
-      <div class="nav-section-title">📋 Pool de leads</div>
-      <div class="nav-item" onclick="showTab('gerenciar')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-        Todos os leads
-      </div>
-    </div>
-
-    <div class="nav-section">
-      <div class="nav-section-title">📤 Disparar</div>
-      <div class="nav-item" onclick="showTab('disparar')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4z"/><path d="m22 2-11 11"/></svg>
-        WhatsApp Z-API
-      </div>
-      <div class="nav-item" onclick="showTab('templates')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        Templates
-      </div>
-    </div>
-
-    <div class="nav-section">
-      <div class="nav-section-title">📊 Análise</div>
-      <div class="nav-item" onclick="showTab('campanhas')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m18.7 8-5.1 5.2-2.8-2.7L7 14.3"/></svg>
-        Campanhas
-      </div>
-
-    </div>
-
-    <div class="nav-section">
-      <div class="nav-section-title">⚙️ Config</div>
-      <div class="nav-item" onclick="showTab('config')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-        API Keys
-      </div>
-    </div>
-    <div class="nav-section" style="margin-top:auto;padding-top:20px;border-top:1px solid var(--sep)">
-      <a class="nav-item" href="/painel-admin.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
-        Voltar ao Admin
-      </a>
-    </div>
-  </nav>
-</aside>
-
-<!-- MAIN -->
-<main class="main">
-
-<!-- HEADER -->
-<div class="page-header">
-  <div class="page-title">Captura de Leads</div>
-  <div class="page-subtitle">Google Places API → Supabase → Z-API WhatsApp</div>
-</div>
-
-<!-- STATS -->
-<div class="stats-row" id="stats-row">
-  <div class="stat-card"><span class="stat-value" id="st-total">—</span><span class="stat-label">Total leads</span></div>
-  <div class="stat-card"><span class="stat-value green" id="st-novos">—</span><span class="stat-label">Novos</span></div>
-  <div class="stat-card"><span class="stat-value amber" id="st-enviados">—</span><span class="stat-label">Enviados</span></div>
-  <div class="stat-card"><span class="stat-value blue" id="st-responderam">—</span><span class="stat-label">Responderam</span></div>
-  <div class="stat-card"><span class="stat-value" id="st-interessados" style="color:#a78bfa">—</span><span class="stat-label">Interessados</span></div>
-</div>
-
-<!-- ═══════════ TAB: BUSCAR ═══════════ -->
-<div id="tab-buscar" class="tab-content">
-  <div class="search-panel">
-    <h3>Buscar negócios no Google Maps</h3>
-    <div class="search-grid">
-      <div class="field">
-        <label>Categoria</label>
-        <input type="text" id="s-categoria" list="cat-sugestoes" placeholder="Ex: restaurante, clínica, academia...">
-        <datalist id="cat-sugestoes">
-          <option value="restaurante">
-          <option value="pizzaria">
-          <option value="hamburgueria">
-          <option value="cafeteria">
-          <option value="padaria">
-          <option value="bar">
-          <option value="lanchonete">
-          <option value="salão de beleza">
-          <option value="barbearia">
-          <option value="clínica médica">
-          <option value="clínica odontológica">
-          <option value="clínica veterinária">
-          <option value="farmácia">
-          <option value="academia">
-          <option value="estúdio de pilates">
-          <option value="pet shop">
-          <option value="loja de roupas">
-          <option value="loja de calçados">
-          <option value="loja de móveis">
-          <option value="loja de materiais de construção">
-          <option value="supermercado">
-          <option value="minimercado">
-          <option value="oficina mecânica">
-          <option value="lava rápido">
-          <option value="autopeças">
-          <option value="escola infantil">
-          <option value="escola de idiomas">
-          <option value="escritório de contabilidade">
-          <option value="escritório de advocacia">
-          <option value="imobiliária">
-          <option value="hotel">
-          <option value="pousada">
-          <option value="lavanderia">
-          <option value="ótica">
-          <option value="papelaria">
-          <option value="floricultura">
-          <option value="joalheria">
-          <option value="gráfica">
-          <option value="distribuidora">
-          <option value="atacado">
-          <option value="coworking">
-          <option value="estúdio de tatuagem">
-          <option value="clínica de estética">
-          <option value="laboratório de análises">
-          <option value="consultório psicológico">
-          <option value="fisioterapia">
-          <option value="agência de viagens">
-          <option value="loja de informática">
-          <option value="assistência técnica celular">
-        </datalist>
-      </div>
-      <div class="field">
-        <label>Cidade</label>
-        <input type="text" id="s-cidade" list="cid-sugestoes" placeholder="Ex: Florianópolis, SC">
-        <datalist id="cid-sugestoes">
-          <option value="Florianópolis, SC">
-          <option value="Balneário Camboriú, SC">
-          <option value="Joinville, SC">
-          <option value="Blumenau, SC">
-          <option value="Itajaí, SC">
-          <option value="Chapecó, SC">
-          <option value="Curitiba, PR">
-          <option value="Londrina, PR">
-          <option value="Maringá, PR">
-          <option value="São Paulo, SP">
-          <option value="Campinas, SP">
-          <option value="Porto Alegre, RS">
-          <option value="Belo Horizonte, MG">
-          <option value="Rio de Janeiro, RJ">
-          <option value="Brasília, DF">
-          <option value="Goiânia, GO">
-          <option value="Salvador, BA">
-          <option value="Recife, PE">
-          <option value="Fortaleza, CE">
-        </datalist>
-      </div>
-      <div class="field">
-        <label>Campanha (tag)</label>
-        <input type="text" id="s-campanha" placeholder="ex: floripa-restaurantes-abr26">
-      </div>
-      <button class="btn btn-green" id="btn-buscar" onclick="buscarLeads()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        Buscar
-      </button>
-    </div>
-    <div class="progress-bar" id="search-progress"><div class="progress-fill" id="search-fill"></div></div>
-    <div id="search-status" style="margin-top:8px;font-size:11px;color:var(--text2)"></div>
-  </div>
-
-  <!-- Resultados da busca -->
-  <div id="search-results" style="display:none">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <span id="search-count" style="font-size:12px;color:var(--text2)"></span>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost btn-sm" onclick="toggleAllSearch()">
-          <input type="checkbox" id="chk-all-search" class="check"> Todos
-        </button>
-        <button class="btn btn-green btn-sm" onclick="salvarSelecionados()">Salvar selecionados</button>
-      </div>
-    </div>
-    <div class="table-wrap"><div class="table-scroll">
-      <table>
-        <thead><tr>
-          <th style="width:30px"></th>
-          <th>Nome</th>
-          <th>Telefone</th>
-          <th>Endereço</th>
-          <th>Avaliação</th>
-          <th>Website</th>
-        </tr></thead>
-        <tbody id="tbody-search"></tbody>
-      </table>
-    </div></div>
-  </div>
-</div>
-
-<!-- ═══════════ TAB: GERENCIAR (Pool de Leads) ═══════════ -->
-<div id="tab-gerenciar" class="tab-content" style="display:none">
-  <div style="margin-bottom:16px;padding:12px;background:var(--surface2);border-left:3px solid var(--green)">
-    <strong style="font-size:13px">📋 Pool de leads</strong>
-    <div style="font-size:11px;color:var(--text2);margin-top:4px">Repositório central. Todas as fontes (Google, Instagram, Facebook) chegam aqui. Filtre, edite, e dispare na aba <a href="#" onclick="showTab('disparar');return false" style="color:var(--green)">📤 WhatsApp Z-API</a>.</div>
-  </div>
-
-  <div class="filters">
-    <select id="f-origem" onchange="carregarLeads()">
-      <option value="">🌐 Todas origens</option>
-      <option value="google">🗺️ Google Maps</option>
-      <option value="instagram">📷 Instagram</option>
-      <option value="facebook">📘 Facebook</option>
-      <option value="olx">📍 OLX (negócios)</option>
-    </select>
-    <select id="f-status" onchange="carregarLeads()">
-      <option value="">Todos status</option>
-      <option value="novo">⚪ Novo</option>
-      <option value="enviado">📤 Enviado</option>
-      <option value="respondeu">💬 Respondeu</option>
-      <option value="interessado">⭐ Interessado</option>
-      <option value="descartado">❌ Descartado</option>
-      <option value="bloqueado">🚫 Bloqueado</option>
-      <option value="invalido">⚠️ Inválido</option>
-    </select>
-    <select id="f-cidade" onchange="carregarLeads()"><option value="">Todas cidades</option></select>
-    <select id="f-categoria" onchange="carregarLeads()"><option value="">Todas categorias</option></select>
-    <select id="f-campanha" onchange="carregarLeads()"><option value="">Todas campanhas</option></select>
-    <input type="text" id="f-busca" placeholder="Buscar nome/tel..." oninput="carregarLeads()" style="width:160px">
-    <div style="margin-left:auto;display:flex;gap:8px">
-      <button class="btn btn-ghost btn-sm" onclick="exportarCSV()">Exportar CSV</button>
-      <button class="btn btn-red btn-sm" onclick="excluirSelecionados()">Excluir selecionados</button>
-    </div>
-  </div>
-  <div class="table-wrap"><div class="table-scroll">
-    <table>
-      <thead><tr>
-        <th style="width:30px"><input type="checkbox" class="check" id="chk-all-manage" onchange="toggleAllManage()"></th>
-        <th>Origem</th>
-        <th>Nome</th>
-        <th>Telefone</th>
-        <th>Cidade</th>
-        <th>Categoria</th>
-        <th>Status</th>
-        <th>Tags / Campanhas</th>
-        <th>Enviado em</th>
-        <th style="width:80px">Ações</th>
-      </tr></thead>
-      <tbody id="tbody-manage"></tbody>
-    </table>
-  </div></div>
-  <div id="manage-empty" class="empty-state" style="display:none">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-    <p>Nenhum lead encontrado</p>
-    <p style="font-size:11px">Capte leads em <a href="#" onclick="showTab('buscar');return false" style="color:var(--green)">Google Maps</a> ou <a href="#" onclick="showTab('ig');return false" style="color:var(--green)">Instagram (CSV)</a></p>
-  </div>
-</div>
-
-<!-- ═══════════ TAB: DISPARAR ═══════════ -->
-<div id="tab-disparar" class="tab-content" style="display:none">
-  <div class="search-panel">
-    <h3>📤 Disparar WhatsApp via Z-API</h3>
-    <p style="font-size:11px;color:var(--text2);margin-bottom:16px">Envia mensagens em sequência respeitando delay anti-spam. Mantenha esta aba aberta — funciona em background mas precisa estar carregada.</p>
-
-    <!-- Filtros de quem vai receber -->
-    <div style="background:var(--surface2);border:1px solid var(--sep);padding:12px;margin-bottom:16px">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:10px">Quem vai receber?</div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr) auto;gap:10px;align-items:end">
-        <div class="field" style="margin:0">
-          <label>Origem</label>
-          <select id="d-origem" onchange="carregarFilaDisparo()">
-            <option value="">Todas</option>
-            <option value="google">🗺️ Google Maps</option>
-            <option value="instagram">📷 Instagram</option>
-            <option value="facebook">📘 Facebook</option>
-          </select>
-        </div>
-        <div class="field" style="margin:0">
-          <label>Campanha (tag)</label>
-          <select id="d-campanha" onchange="carregarFilaDisparo()">
-            <option value="">Todas</option>
-          </select>
-        </div>
-        <div class="field" style="margin:0">
-          <label>Categoria</label>
-          <select id="d-categoria" onchange="carregarFilaDisparo()">
-            <option value="">Todas</option>
-          </select>
-        </div>
-        <div class="field" style="margin:0">
-          <label>Status</label>
-          <select id="d-status-filter" onchange="carregarFilaDisparo()">
-            <option value="novo">⚪ Só novos (não enviados)</option>
-            <option value="">Todos</option>
-            <option value="enviado">📤 Já enviados (re-enviar)</option>
-          </select>
-        </div>
-        <button class="btn btn-ghost btn-sm" onclick="carregarFilaDisparo()">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-          Atualizar
-        </button>
-      </div>
-    </div>
-
-    <!-- Template e mensagem -->
-    <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:16px">
-      <div>
-        <div class="field">
-          <label>Template salvo</label>
-          <select id="d-template" onchange="carregarTemplate()">
-            <option value="">Mensagem livre</option>
-          </select>
-          <div style="font-size:10px;color:var(--text2);margin-top:4px">
-            Cadastre/edite na aba <a href="#" onclick="showTab('templates');return false" style="color:var(--green)">Templates</a>
-          </div>
-        </div>
-        <div class="field" style="margin-top:12px">
-          <label>Delay entre mensagens (segundos)</label>
-          <select id="d-delay">
-            <option value="15">15s (rápido — risco)</option>
-            <option value="30" selected>30s (recomendado)</option>
-            <option value="60">60s (seguro)</option>
-            <option value="120">2min (muito seguro)</option>
-          </select>
-        </div>
-      </div>
-      <div class="field">
-        <label>Mensagem (use <code>{nome}</code>, <code>{cidade}</code>, <code>{categoria}</code>)</label>
-        <textarea id="d-mensagem" rows="8">Olá {nome}! Tudo bem?
-
-Sou da *1Negócio*, a primeira plataforma brasileira de avaliação e venda de negócios.
-
-Estamos oferecendo um *diagnóstico gratuito* para empresários que querem saber quanto vale o seu negócio.
-
-É rápido (5 min) e sem compromisso: https://1negocio.com.br/diagnostico
-
-Posso te contar mais?</textarea>
-        <div id="d-preview" style="font-size:10px;color:var(--text2);margin-top:6px"></div>
-      </div>
-    </div>
-
-    <!-- Controles -->
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px;background:var(--surface2);border:1px solid var(--sep)">
-      <button class="btn btn-green" id="btn-disparar" onclick="iniciarDisparo()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        <span id="btn-disparar-txt">Iniciar disparo</span>
-      </button>
-      <button class="btn btn-ghost" id="btn-pausar" onclick="pausarDisparo()" style="display:none">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-        Pausar
-      </button>
-      <button class="btn btn-ghost" id="btn-retomar" onclick="retomarDisparo()" style="display:none">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        Retomar
-      </button>
-      <button class="btn btn-ghost" id="btn-cancelar" onclick="cancelarDisparo()" style="display:none">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        Cancelar
-      </button>
-      <span id="d-status" style="font-size:11px;color:var(--text2);margin-left:auto"></span>
-    </div>
-    <div class="progress-bar" id="disparo-progress"><div class="progress-fill" id="disparo-fill"></div></div>
-  </div>
-
-  <!-- Fila -->
-  <div style="margin-top:20px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-      <span id="fila-count" style="font-size:12px;color:var(--text2)"></span>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-ghost btn-sm" onclick="exportarFilaCSV()">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Exportar CSV
-        </button>
-        <button class="btn btn-ghost btn-sm" onclick="resetarStatusFila()" style="color:var(--amber)">
-          ↻ Resetar status (re-disparar)
-        </button>
-      </div>
-    </div>
-    <div class="table-wrap"><div class="table-scroll" style="max-height:500px">
-      <table>
-        <thead><tr>
-          <th>Nome</th>
-          <th>Telefone</th>
-          <th>Origem</th>
-          <th>Campanha(s)</th>
-          <th>Status</th>
-          <th>Enviado em</th>
-        </tr></thead>
-        <tbody id="tbody-disparo"></tbody>
-      </table>
-    </div></div>
-  </div>
-</div>
-
-<!-- ═══════════ TAB: TEMPLATES ═══════════ -->
-<div id="tab-templates" class="tab-content" style="display:none">
-  <div class="search-panel">
-    <h3>📝 Templates de mensagem</h3>
-    <p style="font-size:11px;color:var(--text2);margin-bottom:16px">
-      Modelos prontos para usar no Disparador. Use variáveis: <code>{nome}</code>, <code>{cidade}</code>, <code>{categoria}</code>.
-    </p>
-
-    <div id="templates-list" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(380px, 1fr));gap:16px"></div>
-
-    <button class="btn btn-green" onclick="novoTemplate()" style="margin-top:20px">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Novo template
-    </button>
-  </div>
-
-  <!-- Modal de edição -->
-  <div id="tpl-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center" onclick="if(event.target===this)fecharTplModal()">
-    <div style="background:var(--surface);border:1px solid var(--sep);padding:24px;width:90%;max-width:600px">
-      <h3 id="tpl-modal-title" style="margin:0 0 16px">Editar template</h3>
-      <input type="hidden" id="tpl-id">
-      <div class="field">
-        <label>Nome do template</label>
-        <input id="tpl-nome" placeholder="ex: Primeiro contato" style="width:100%">
-      </div>
-      <div class="field" style="margin-top:12px">
-        <label>Texto da mensagem</label>
-        <textarea id="tpl-texto" rows="10" style="width:100%"></textarea>
-        <div style="font-size:10px;color:var(--text2);margin-top:4px">
-          Variáveis disponíveis: <code>{nome}</code>, <code>{cidade}</code>, <code>{categoria}</code>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
-        <button class="btn btn-ghost" onclick="fecharTplModal()">Cancelar</button>
-        <button class="btn btn-ghost" onclick="excluirTemplate()" id="tpl-btn-del" style="color:var(--red);display:none">Excluir</button>
-        <button class="btn btn-green" onclick="salvarTemplate()">Salvar</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════ TAB: OPORTUNIDADES FB (posts) ═══════════ -->
-<div id="tab-fb" class="tab-content" style="display:none">
-  <div class="search-panel">
-    <h3>Posts de intenção de venda</h3>
-    <p style="font-size:11px;color:var(--text2);margin-bottom:16px">Detecta empresários postando frases como "vendo meu negócio" ou "passar o ponto". <strong>Não retorna telefone</strong> — o Facebook não expõe contato de perfis. Use para identificar oportunidades e abordar manualmente via Messenger.</p>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-      <div>
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:8px">Frases monitoradas</div>
-        <div id="fb-frases" style="min-height:80px;max-height:160px;overflow-y:auto;background:var(--surface2);border:1px solid var(--sep);padding:8px"></div>
-        <div style="display:flex;gap:6px;margin-top:8px">
-          <input id="fb-new-frase" placeholder="ex: passar o ponto" style="flex:1;background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none">
-          <button class="btn btn-ghost btn-sm" onclick="addMonitor('frase')">+ Adicionar</button>
-        </div>
-      </div>
-      <div>
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:8px">Cidades monitoradas</div>
-        <div id="fb-cidades" style="min-height:80px;max-height:160px;overflow-y:auto;background:var(--surface2);border:1px solid var(--sep);padding:8px"></div>
-        <div style="display:flex;gap:6px;margin-top:8px">
-          <input id="fb-new-cidade" placeholder="ex: Florianópolis" style="flex:1;background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none">
-          <button class="btn btn-ghost btn-sm" onclick="addMonitor('cidade')">+ Adicionar</button>
-        </div>
-      </div>
-    </div>
-
-    <div style="margin-bottom:16px">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:8px">Grupos específicos (URLs)</div>
-      <div id="fb-grupos" style="min-height:60px;max-height:120px;overflow-y:auto;background:var(--surface2);border:1px solid var(--sep);padding:8px"></div>
-      <div style="display:flex;gap:6px;margin-top:8px">
-        <input id="fb-new-grupo" placeholder="https://www.facebook.com/groups/..." style="flex:1;background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none">
-        <button class="btn btn-ghost btn-sm" onclick="addMonitor('grupo')">+ Adicionar</button>
-      </div>
-    </div>
-
-    <div style="display:flex;gap:12px;align-items:center;margin-top:16px">
-      <button class="btn btn-green" id="fb-btn-run" onclick="runFbSearch()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
-        Buscar agora
-      </button>
-      <div style="font-size:11px;color:var(--text2)" id="fb-status">Configure o token Apify em Config para começar</div>
-    </div>
-    <div class="progress-bar" id="fb-progress"><div class="progress-fill" id="fb-fill"></div></div>
-  </div>
-
-  <div style="margin-top:20px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <span id="fb-count" style="font-size:12px;color:var(--text2)">Oportunidades capturadas</span>
-      <div style="display:flex;gap:8px">
-        <select id="fb-filter-status" onchange="loadOportunidades()" style="background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:6px 10px;font-family:'DM Mono',monospace;font-size:11px">
-          <option value="novo">Novos</option>
-          <option value="">Todos</option>
-          <option value="oportunidade">Oportunidades</option>
-          <option value="contatado">Contatados</option>
-          <option value="descartado">Descartados</option>
-        </select>
-      </div>
-    </div>
-    <div class="table-wrap"><div class="table-scroll">
-      <table>
-        <thead><tr>
-          <th>Autor</th>
-          <th>Post</th>
-          <th>Frase</th>
-          <th>Engaj.</th>
-          <th>Origem</th>
-          <th>Data</th>
-          <th>WhatsApp</th>
-          <th>Status</th>
-          <th style="width:220px">Ações</th>
-        </tr></thead>
-        <tbody id="tbody-fb"></tbody>
-      </table>
-    </div></div>
-  </div>
-</div>
-
-<!-- ═══════════ TAB: PÁGINAS FB (descoberta de negócios com contato) ═══════════ -->
-<div id="tab-fbpages" class="tab-content" style="display:none">
-  <div class="search-panel">
-    <h3>Páginas de negócio no Facebook</h3>
-    <p style="font-size:11px;color:var(--text2);margin-bottom:16px">Descobre páginas de negócio por categoria + cidade. Retorna <strong>telefone público</strong>, email e endereço. Os leads vão direto para a aba "Gerenciar" e podem ser disparados no WhatsApp. Complementa o Google Maps — pega negócios que têm Facebook mas não estão no Google.</p>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-      <div>
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:8px">Categorias cadastradas</div>
-        <div id="fbp-categorias" style="min-height:100px;max-height:180px;overflow-y:auto;background:var(--surface2);border:1px solid var(--sep);padding:8px"></div>
-        <div style="display:flex;gap:6px;margin-top:8px">
-          <input id="fbp-new-categoria" placeholder="ex: pizzaria, loja de móveis" style="flex:1;background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none">
-          <button class="btn btn-ghost btn-sm" onclick="addMonitor('categoria', 'fbp-new-categoria')">+ Adicionar</button>
-        </div>
-      </div>
-      <div>
-        <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:8px">Cidades cadastradas</div>
-        <div id="fbp-cidades" style="min-height:100px;max-height:180px;overflow-y:auto;background:var(--surface2);border:1px solid var(--sep);padding:8px"></div>
-        <div style="display:flex;gap:6px;margin-top:8px">
-          <input id="fbp-new-cidade" placeholder="ex: Florianópolis" style="flex:1;background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none">
-          <button class="btn btn-ghost btn-sm" onclick="addMonitor('cidade', 'fbp-new-cidade')">+ Adicionar</button>
-        </div>
-      </div>
-    </div>
-
-    <div style="display:flex;gap:12px;align-items:center;margin-top:16px">
-      <div style="display:flex;gap:8px;align-items:center">
-        <label style="font-size:10px;color:var(--text2);text-transform:uppercase">Campanha:</label>
-        <input id="fbp-campanha" placeholder="facebook-abril" value="facebook" style="background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none;width:160px">
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <label style="font-size:10px;color:var(--text2);text-transform:uppercase">Máx. por busca:</label>
-        <input id="fbp-max" type="number" value="30" min="5" max="100" style="background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:7px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none;width:70px">
-      </div>
-      <button class="btn btn-green" id="fbp-btn-run" onclick="runFbPagesSearch()" style="margin-left:auto">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
-        Buscar páginas
-      </button>
-    </div>
-    <div class="progress-bar" id="fbp-progress"><div class="progress-fill" id="fbp-fill"></div></div>
-    <div id="fbp-status" style="font-size:11px;color:var(--text2);margin-top:8px"></div>
-  </div>
-
-  <div style="margin-top:20px;padding:16px;background:var(--surface2);border:1px solid var(--sep)">
-    <div style="display:flex;align-items:center;gap:12px">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-      <div>
-        <div style="font-size:12px;color:var(--text)">Leads capturados vão direto para <strong>Gerenciar</strong></div>
-        <div style="font-size:10px;color:var(--text2);margin-top:2px">Os negócios com telefone celular BR válido são salvos na mesma tabela do Google Places, prontos para disparo WhatsApp via Z-API.</div>
-      </div>
-      <a href="#" onclick="showTab('gerenciar');return false" class="btn btn-ghost btn-sm" style="margin-left:auto">Ver leads →</a>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════ TAB: INSTAGRAM (importador CSV com filtros) ═══════════ -->
-<div id="tab-ig" class="tab-content" style="display:none">
-
-  <!-- ── BUSCA AUTOMÁTICA VIA APIFY ── -->
-  <div class="search-panel" style="margin-bottom:20px">
-    <h3>🤖 Busca Automática de Empreendedores</h3>
-    <p style="color:var(--text2);font-size:12px;margin-bottom:16px">
-      Raspa seguidores das contas semente → filtra bio → extrai WhatsApp → salva no Pool. Leads com link externo ficam com categoria <strong>linktree</strong> para ação manual.
-    </p>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-      <!-- Contas semente -->
-      <div>
-        <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px">📍 CONTAS SEMENTE (um @ por linha)</label>
-        <textarea id="ig-contas-semente" rows="10" style="width:100%;background:var(--surface2);border:1px solid var(--sep);color:var(--text);border-radius:6px;padding:10px;font-family:monospace;font-size:12px;resize:vertical">flavioaugusto
-caitomaia
-camilafarani
-crisarcangeli
-joaoappolinario
-lucianohangoficial
-geraldorufino
-belpesce
-thiago.nigro
-gucerbasi
-sebraesc
-sebraepr
-sebraers
-cdlflorianopolis
-cdljovemflorianopolis
-cdlpoa
-cdlcuritiba
-acif.floripa
-fiergs_ciergs
-inovacdl</textarea>
-      </div>
-
-      <!-- Configurações -->
-      <div style="display:flex;flex-direction:column;gap:12px">
-        <div>
-          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px">🔍 PALAVRAS-CHAVE DA BIO (uma por linha)</label>
-          <textarea id="ig-keywords-bio" rows="6" style="width:100%;background:var(--surface2);border:1px solid var(--sep);color:var(--text);border-radius:6px;padding:10px;font-family:monospace;font-size:12px;resize:vertical">ceo
-founder
-empreendedor
-empresário
-empresaria
-negócios
-negocios
-sócio
-socio
-dono
-dona
-startup
-entrepreneur
-diretor
-diretora</textarea>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div>
-            <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px">📊 LIMITE POR CONTA</label>
-            <input id="ig-limite" type="number" value="300" min="50" max="2000" style="width:100%;background:var(--surface2);border:1px solid var(--sep);color:var(--text);border-radius:6px;padding:8px;font-family:monospace">
-          </div>
-          <div>
-            <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px">🔗 VISITAR LINKTREE</label>
-            <select id="ig-linktree" style="width:100%;background:var(--surface2);border:1px solid var(--sep);color:var(--text);border-radius:6px;padding:8px;font-family:monospace">
-              <option value="sim">Sim (mais leads)</option>
-              <option value="nao">Não (só wa.me direto)</option>
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px">🏷️ TAG DE CAMPANHA</label>
-          <input id="ig-auto-campanha" type="text" placeholder="ex: ig-empreendedores-abril" style="width:100%;background:var(--surface2);border:1px solid var(--sep);color:var(--text);border-radius:6px;padding:8px;font-family:monospace">
-        </div>
-
-        <button class="btn btn-green" onclick="rodarIgAuto()" id="ig-auto-btn" style="margin-top:auto">
-          🚀 Buscar Empreendedores
-        </button>
-      </div>
-    </div>
-
-    <!-- Progresso -->
-    <div id="ig-auto-progress" style="display:none">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span id="ig-auto-status" style="font-size:12px;color:var(--text2)">Iniciando...</span>
-        <span id="ig-auto-count" style="font-size:12px;color:var(--green)"></span>
-      </div>
-      <div style="background:var(--surface2);border-radius:4px;height:8px;overflow:hidden;margin-bottom:8px">
-        <div id="ig-auto-bar" style="height:100%;background:var(--green);width:0%;transition:width .3s"></div>
-      </div>
-      <div style="display:flex;gap:16px;font-size:11px;color:var(--text2)">
-        <span id="ig-step-1" style="opacity:.4">① Followers</span>
-        <span>→</span>
-        <span id="ig-step-2" style="opacity:.4">② Perfis + Bio</span>
-        <span>→</span>
-        <span id="ig-step-3" style="opacity:.4">③ WhatsApp</span>
-        <span>→</span>
-        <span id="ig-step-4" style="opacity:.4">④ Salvar Pool</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="search-panel">
-    <h3>📷 Importar CSV de seguidores</h3>
-    <p style="font-size:11px;color:var(--text2);margin-bottom:16px">
-      Aceita CSV do <strong>Scravio</strong>, <strong>IGExporter</strong> ou qualquer formato com <code>username</code>. 
-      Todos os seguidores ficam salvos para refiltrar depois — só os selecionados viram lead em Gerenciar.
-    </p>
-
-    <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
-      <div>
-        <label style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:6px;display:block">CSV (cole ou faça upload)</label>
-        <textarea id="ig-csv" placeholder="Cole o conteúdo do CSV aqui..." style="width:100%;min-height:140px;background:var(--surface2);border:1px solid var(--sep);color:var(--text);padding:10px;font-family:'DM Mono',monospace;font-size:11px;outline:none;resize:vertical"></textarea>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <input type="file" id="ig-csv-file" accept=".csv" style="display:none" onchange="handleCsvFile(event)">
-          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ig-csv-file').click()">📁 Escolher .csv</button>
-          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ig-csv').value = ''">Limpar</button>
-        </div>
-      </div>
-      <div>
-        <div class="field">
-          <label>De qual perfil? (origem)</label>
-          <input id="ig-perfil-origem" placeholder="ex: tallisgomes" style="width:100%">
-          <div style="font-size:10px;color:var(--text2);margin-top:4px">Só o @ do perfil alvo (sem @). Serve para você filtrar depois.</div>
-        </div>
-        <div class="field" style="margin-top:10px">
-          <label>Tag de campanha</label>
-          <input id="ig-campanha" placeholder="ex: tallisgomes-empreendedores" style="width:100%">
-        </div>
-        <button class="btn btn-green" id="ig-parse-btn" onclick="parseCsv()" style="width:100%;margin-top:12px">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg>
-          Processar e salvar
-        </button>
-        <div id="ig-parse-status" style="font-size:11px;color:var(--text2);margin-top:10px">Aguardando CSV...</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Filtros e staging -->
-  <div id="ig-staging" style="margin-top:20px;display:none">
-    <div style="background:var(--surface);border:1px solid var(--sep);padding:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <div>
-          <h4 style="margin:0;font-size:14px">Filtrar e selecionar</h4>
-          <div id="ig-staging-resumo" style="font-size:11px;color:var(--text2);margin-top:2px"></div>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="igSelectAllVisible(true)">Marcar visíveis</button>
-          <button class="btn btn-ghost btn-sm" onclick="igSelectAllVisible(false)">Desmarcar</button>
-          <button class="btn btn-green btn-sm" onclick="igSendSelected()">
-            ✓ Enviar selecionados para Gerenciar
-          </button>
-        </div>
-      </div>
-
-      <!-- Linha de filtros -->
-      <div style="background:var(--surface2);border:1px solid var(--sep);padding:12px;margin-bottom:12px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:8px;align-items:end">
-        <div class="field" style="margin:0">
-          <label>Palavra-chave na bio/nome</label>
-          <input id="ig-filter-kw" placeholder="ex: empreendedor, CEO, dono, consultor" oninput="applyFilters()">
-        </div>
-        <div class="field" style="margin:0">
-          <label>Min. seguidores</label>
-          <input id="ig-filter-min-seg" type="number" placeholder="0" oninput="applyFilters()">
-        </div>
-        <div class="field" style="margin:0">
-          <label>Filtro</label>
-          <select id="ig-filter-preset" onchange="applyFilters()">
-            <option value="tel-br">Só com celular BR ✓</option>
-            <option value="all">Todos</option>
-            <option value="business">Só business</option>
-            <option value="business-tel">Business com tel</option>
-            <option value="no-private">Sem privados</option>
-          </select>
-        </div>
-        <div class="field" style="margin:0">
-          <label>Cidade/UF na bio</label>
-          <input id="ig-filter-city" placeholder="ex: floripa, SC, SP" oninput="applyFilters()">
-        </div>
-        <button class="btn btn-ghost btn-sm" onclick="clearFilters()">Limpar filtros</button>
-      </div>
-
-      <!-- Contagens por palavra-chave comum -->
-      <div id="ig-keyword-stats" style="margin-bottom:12px;font-size:11px;color:var(--text2)"></div>
-
-      <div class="table-wrap"><div class="table-scroll" style="max-height:600px">
-        <table>
-          <thead><tr>
-            <th style="width:30px"><input type="checkbox" id="ig-check-all" onchange="igSelectAllVisible(this.checked)"></th>
-            <th>@</th>
-            <th>Nome</th>
-            <th>Telefone</th>
-            <th>Seg</th>
-            <th>Bio</th>
-          </tr></thead>
-          <tbody id="ig-staging-tbody"></tbody>
-        </table>
-      </div></div>
-    </div>
-  </div>
-
-  <div style="margin-top:20px;padding:16px;background:var(--surface2);border:1px solid var(--sep)">
-    <div style="display:flex;align-items:center;gap:12px">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-      <div style="flex:1">
-        <div style="font-size:12px;color:var(--text)">Todos os seguidores ficam em <code>ig_seguidores_raw</code>. Selecionados viram leads em <code>leads_google</code>.</div>
-        <div style="font-size:10px;color:var(--text2);margin-top:2px">Se precisar refiltrar depois, o sistema lembra do que já foi importado.</div>
-      </div>
-      <a href="#" onclick="showTab('gerenciar');return false" class="btn btn-ghost btn-sm">Ver leads →</a>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════ TAB: CAMPANHAS ═══════════ -->
-<div id="tab-campanhas" class="tab-content" style="display:none">
-  <div id="campanhas-grid" class="stats-row" style="grid-template-columns:1fr"></div>
-  <div id="campanhas-empty" class="empty-state">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="m18.7 8-5.1 5.2-2.8-2.7L7 14.3"/></svg>
-    <p>Nenhuma campanha registrada</p>
-    <p style="font-size:11px">Crie uma tag de campanha ao buscar leads</p>
-  </div>
-</div>
-
-<!-- ═══════════ TAB: CONFIG ═══════════ -->
-<div id="tab-config" class="tab-content" style="display:none">
-  <div class="search-panel">
-    <h3>Google Places API</h3>
-    <div style="display:flex;gap:12px;align-items:end">
-      <div class="field" style="flex:1">
-        <label>API Key</label>
-        <input type="password" id="cfg-gkey" placeholder="AIzaSy...">
-      </div>
-      <button class="btn btn-green btn-sm" onclick="salvarConfig('gkey')">Salvar</button>
-    </div>
-    <span class="api-key-saved" id="gkey-saved">Chave salva no navegador</span>
-  </div>
-  <div class="search-panel" style="margin-top:16px">
-    <h3>Z-API (WhatsApp)</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end">
-      <div class="field">
-        <label>Instance ID</label>
-        <input type="text" id="cfg-zinstance" placeholder="Instance ID">
-      </div>
-      <div class="field">
-        <label>Token</label>
-        <input type="password" id="cfg-ztoken" placeholder="Token">
-      </div>
-      <div class="field">
-        <label>Client-Token</label>
-        <input type="password" id="cfg-zclient" placeholder="Client-Token">
-      </div>
-      <button class="btn btn-green btn-sm" onclick="salvarConfig('zapi')">Salvar</button>
-    </div>
-    <span class="api-key-saved" id="zapi-saved">Config Z-API salva</span>
-    <p style="font-size:11px;color:var(--text2);margin-top:8px">Modo atual: disparo via Edge Function <code>zapi-relay</code> no Supabase (recomendado)</p>
-  </div>
-  <div class="search-panel" style="margin-top:16px">
-    <h3>Intervalo entre disparos</h3>
-    <div style="display:flex;gap:12px;align-items:end">
-      <div class="field">
-        <label>Segundos entre cada envio</label>
-        <input type="number" id="cfg-intervalo" value="15" min="5" max="120">
-      </div>
-      <button class="btn btn-green btn-sm" onclick="salvarConfig('intervalo')">Salvar</button>
-    </div>
-    <p style="font-size:11px;color:var(--text2);margin-top:8px">Mínimo 5s. Recomendado: 15-30s para evitar bloqueio da Z-API.</p>
-  </div>
-  <div class="search-panel" style="margin-top:16px">
-    <h3>Apify (Facebook)</h3>
-    <div style="display:flex;gap:12px;align-items:end">
-      <div class="field" style="flex:1">
-        <label>API Token</label>
-        <input type="password" id="cfg-apify" placeholder="apify_api_...">
-      </div>
-      <button class="btn btn-green btn-sm" onclick="salvarConfig('apify')">Salvar</button>
-    </div>
-    <span class="api-key-saved" id="apify-saved">Token Apify salvo</span>
-    <p style="font-size:11px;color:var(--text2);margin-top:8px">Pegue em apify.com → Settings → Integrations → API tokens. ~$0,50 por 1000 posts extraídos.</p>
-  </div>
-</div>
-
-<!-- MODAL EDITAR LEAD -->
-<div class="modal-overlay" id="modal-lead">
-  <div class="modal">
-    <h3>Editar lead</h3>
-    <input type="hidden" id="ml-id">
-    <div class="field"><label>Nome</label><input type="text" id="ml-nome" style="width:100%"></div>
-    <div class="field"><label>Telefone</label><input type="text" id="ml-tel" style="width:100%"></div>
-    <div class="field">
-      <label>Status</label>
-      <select id="ml-status" style="width:100%">
-        <option value="novo">Novo</option>
-        <option value="enviado">Enviado</option>
-        <option value="respondeu">Respondeu</option>
-        <option value="interessado">Interessado</option>
-        <option value="descartado">Descartado</option>
-      </select>
-    </div>
-    <div class="field"><label>Notas</label><textarea id="ml-notas" style="width:100%"></textarea></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="fecharModal('modal-lead')">Cancelar</button>
-      <button class="btn btn-green" onclick="salvarLead()">Salvar</button>
-    </div>
-  </div>
-</div>
-
-<!-- TOAST -->
-<div class="toast" id="toast"></div>
-
-
-  <!-- OLX Tab -->
-  <div id="tab-olx" class="tab-content" style="display:none">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
-      <h2 style="font-size:20px;font-weight:700;color:var(--text)">OLX — Negócios à Venda</h2>
-    </div>
-    <div style="background:var(--surface);border-radius:12px;padding:20px;margin-bottom:16px">
-      <div style="margin-bottom:16px">
-        <label style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:8px">Palavras-chave</label>
-        <div id="olx-keywords-container" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
-        <div style="display:flex;gap:8px">
-          <input id="olx-kw-input" type="text" placeholder="ex: vendo restaurante" style="flex:1;background:var(--surface2);border:1px solid var(--sep);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px" onkeydown="if(event.key==='Enter'){olxAddKeyword()}" />
-          <button onclick="olxAddKeyword()" style="background:var(--green);color:#000;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600">+</button>
-        </div>
-      </div>
-      <div style="margin-bottom:16px">
-        <label style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:8px">Cidades / Regiões</label>
-        <div id="olx-cities-container" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
-        <div style="display:flex;gap:8px">
-          <input id="olx-city-input" type="text" placeholder="ex: sao-paulo, brasil" style="flex:1;background:var(--surface2);border:1px solid var(--sep);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px" onkeydown="if(event.key==='Enter'){olxAddCidade()}" />
-          <button onclick="olxAddCidade()" style="background:var(--green);color:#000;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600">+</button>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
-        <div>
-          <label style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:6px">Campanha</label>
-          <input id="olx-campanha" type="text" value="olx-negocios" style="width:100%;background:var(--surface2);border:1px solid var(--sep);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px" />
-        </div>
-        <div>
-          <label style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:6px">Páginas por query</label>
-          <input id="olx-pages" type="number" value="3" min="1" max="20" style="width:100%;background:var(--surface2);border:1px solid var(--sep);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px" />
-        </div>
-        <div>
-          <label style="font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:6px">Ordenar por</label>
-          <select id="olx-sort" style="width:100%;background:var(--surface2);border:1px solid var(--sep);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px">
-            <option value="newest">Mais recentes</option>
-            <option value="price_asc">Menor preço</option>
-            <option value="price_desc">Maior preço</option>
-          </select>
-        </div>
-      </div>
-      <button onclick="runOlxSearch()" id="olx-run-btn" style="background:var(--green);color:#000;border:none;border-radius:8px;padding:10px 20px;font-weight:700;cursor:pointer;font-size:14px">🔍 Buscar no OLX</button>
-    </div>
-      <div id="olx-progress" style="display:none;margin-bottom:10px">
-        <div style="background:var(--surface2);border-radius:8px;height:6px;overflow:hidden">
-          <div id="olx-progress-bar" style="height:100%;background:var(--green);transition:width 0.3s;width:0%"></div>
-        </div>
-      </div>
-      <div id="olx-status" style="font-size:13px;color:var(--text2);margin-bottom:10px;min-height:18px"></div>
-  </div>
-</main>
-</div>
-
 </body>
 </html>
