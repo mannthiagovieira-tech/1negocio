@@ -245,8 +245,7 @@
   function showTyping() { state.isTyping = true; document.getElementById('n1-chat-send').disabled = true; const div = document.createElement('div'); div.className = 'n1-typing'; div.id = 'n1-typing-indicator'; div.innerHTML = '<span></span><span></span><span></span>'; document.getElementById('n1-chat-messages').appendChild(div); scrollToBottom(); }
   function hideTyping() { state.isTyping = false; document.getElementById('n1-chat-send').disabled = false; const el = document.getElementById('n1-typing-indicator'); if (el) el.remove(); }
   function scrollToBottom() { const c = document.getElementById('n1-chat-messages'); c.scrollTop = c.scrollHeight; }
-  function formatText(text) { return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/**([^*]+)**/g,'<strong>$1</strong>').replace(/[([^]]+)](([^)]+))/g,'<a href="$2" target="_blank" rel="noopener">$1</a>').replace(/
-/g,'<br>'); }
+  function formatText(text) { return text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/[*][*]([^*]+)[*][*]/g,"<strong>$1</strong>").replace(/\n/g,"<br>"); }
   function randomDelay() { return MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS); }
   function openWhatsApp() {
     const resumo = state.messages.slice(-3).map(function(m) { return (m.role === 'user' ? 'Eu' : 'Bot') + ': ' + m.content.slice(0, 100); }).join('
