@@ -151,6 +151,67 @@ tr:hover td{background:rgba(16,185,129,.03)}
 .stats-row{grid-template-columns:repeat(2,1fr)}
 .search-grid{grid-template-columns:1fr 1fr}
 }
+
+  /* ── Bio/Notas preview na tabela ── */
+  .notas-preview {
+    font-size: 11px;
+    color: #888;
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: color 0.2s;
+    display: block;
+  }
+  .notas-preview:hover { color: var(--green); }
+  .notas-popup {
+    position: fixed;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 14px 16px;
+    width: 300px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #ccc;
+    z-index: 9999;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    pointer-events: none;
+  }
+  .notas-popup .pop-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #555;
+    margin-bottom: 8px;
+  }
+  .notas-popup .ig-link {
+    color: #E1306C;
+    font-weight: bold;
+    pointer-events: all;
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 4px;
+  }
+  .notas-popup .ig-link:hover { text-decoration: underline; }
+  .notas-popup .badge-seg {
+    display: inline-block;
+    background: #222;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 11px;
+    margin: 2px 0;
+  }
+  .notas-popup .pop-bio {
+    color: #aaa;
+    font-size: 11px;
+    border-top: 1px solid #333;
+    padding-top: 8px;
+    margin-top: 6px;
+    white-space: pre-wrap;
+  }
 </style>
 </head>
 <body>
@@ -413,6 +474,7 @@ tr:hover td{background:rgba(16,185,129,.03)}
         <th>Origem</th>
         <th>Nome</th>
         <th>Telefone</th>
+        <th>Bio / Notas</th>
         <th>Cidade</th>
         <th>Categoria</th>
         <th>Status</th>
@@ -1401,6 +1463,7 @@ async function carregarLeads() {
         <td style="font-size:11px"><span title="${esc(oLbl)}" style="color:${oCor}">${oIco} ${esc(oLbl)}</span>${multiFonte}</td>
         <td style="font-size:11px">${r.origem === 'olx' ? '<a href="https://www.olx.com.br/brasil?q=' + encodeURIComponent(r.nome || '') + '" target="_blank" title="Buscar na OLX" style="color:var(--text);text-decoration:none">' + esc(r.nome || '—') + ' <span style=\"font-size:10px;color:#FF6600\" title=\"Ver na OLX\">🔗</span></a>' : esc(r.nome || '—')}</td>
         <td style="font-size:11px">${r.telefone_formatado ? '<a href="https://wa.me/' + r.telefone_formatado + '" target="_blank" style="color:var(--green)">' + (r.telefone || r.telefone_formatado) + '</a>' : '—'}</td>
+        <td><span class="notas-preview" data-lead-id="${r.id}">${(()=>{const ig=(r.notas||'').match(/IG @([\w.]+)/);return ig?'📷 @'+ig[1]:(r.notas||'').split('\n')[0].substring(0,28)||'—';})()}</span></td>
         <td style="font-size:11px;color:var(--text2)">${esc(r.cidade || '')}</td>
         <td style="font-size:11px;color:var(--text2)">${esc(r.categoria || '')}</td>
         <td>${renderStatusBadge(r.status)}</td>
@@ -3241,6 +3304,77 @@ window.showTab = function(tab) {
   _showTabOrig(tab);
   if (tab === 'olx') { setTimeout(function(){ olxRenderKeywords(); olxRenderCidades(); }, 0); }
 };
+
+
+// ── Bio/Notas popup ──────────────────────────────────────────
+(function() {
+  var popup = document.createElement('div');
+  popup.id = 'notas-popup';
+  popup.className = 'notas-popup';
+  popup.style.display = 'none';
+  document.body.appendChild(popup);
+
+  function buildPopupHTML(notas) {
+    if (!notas) return '<div class="pop-title">📝 Notas</div><span style="color:#555">Sem notas</span>';
+    var igMatch    = notas.match(/IG @([\w.]+)/);
+    var emailMatch = notas.match(/Email:\s*([\S]+)/);
+    var segMatch   = notas.match(/([\d.,]+)\s*seguidores/);
+    var locMatch   = notas.match(/📍(.+)/);
+    var parts      = notas.split('\n\n');
+    var bioText    = parts.length > 1 ? parts.slice(1).join('\n').trim() : '';
+    var html = '<div class="pop-title">📝 Bio / Notas</div>';
+    if (igMatch)    html += '<a class="ig-link" href="https://instagram.com/'+igMatch[1]+'" target="_blank">📷 @'+igMatch[1]+'</a><br>';
+    if (emailMatch) html += '<span style="color:#aaa;font-size:11px">✉️ '+emailMatch[1]+'</span><br>';
+    if (segMatch)   html += '<span class="badge-seg">👥 '+segMatch[1]+' seguidores</span><br>';
+    if (locMatch)   html += '<span style="font-size:11px;display:block">📍 '+locMatch[1].trim()+'</span>';
+    if (bioText)    html += '<div class="pop-bio">'+bioText+'</div>';
+    if (!igMatch && !emailMatch && !segMatch && !locMatch) html += '<div class="pop-bio">'+notas+'</div>';
+    return html;
+  }
+
+  function attachNotasPreviews() {
+    document.querySelectorAll('.notas-preview:not([data-pop-attached])').forEach(function(el) {
+      el.setAttribute('data-pop-attached', '1');
+      el.addEventListener('mouseenter', function() {
+        var leadId = el.getAttribute('data-lead-id');
+        var notas  = (window._notasMap && window._notasMap[leadId]) || '';
+        if (!notas) return;
+        popup.innerHTML = buildPopupHTML(notas);
+        popup.style.display = 'block';
+        popup.style.pointerEvents = 'all';
+        var rect = el.getBoundingClientRect();
+        var top  = rect.bottom + 6;
+        var left = rect.left;
+        if (left + 310 > window.innerWidth)  left = window.innerWidth - 315;
+        if (top  + 260 > window.innerHeight) top  = rect.top - 270;
+        popup.style.top  = top  + 'px';
+        popup.style.left = left + 'px';
+      });
+      el.addEventListener('mouseleave', function() {
+        setTimeout(function() { if (!popup.matches(':hover')) popup.style.display = 'none'; }, 180);
+      });
+    });
+  }
+
+  window._notasMap = window._notasMap || {};
+  var _origFetch = window.fetch;
+  window.fetch = async function() {
+    var res = await _origFetch.apply(this, arguments);
+    var url = arguments[0] && arguments[0].toString ? arguments[0].toString() : '';
+    if (url.includes('leads_google') && !url.includes('id=eq.')) {
+      res.clone().json().then(function(data) {
+        if (Array.isArray(data)) {
+          data.forEach(function(r) { window._notasMap[r.id] = r.notas || ''; });
+          setTimeout(attachNotasPreviews, 100);
+        }
+      }).catch(function(){});
+    }
+    return res;
+  };
+
+  popup.addEventListener('mouseleave', function() { popup.style.display = 'none'; });
+  setTimeout(attachNotasPreviews, 800);
+})();
 
 </script>
 </body>
