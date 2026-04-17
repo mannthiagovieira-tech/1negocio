@@ -2780,8 +2780,10 @@ document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('cli
 
 
 // ─── OLX Scraper ────────────────────────────────────────────────────────────
-let _olxKeywords = ['vendo restaurante', 'passo ponto comercial'];
-let _olxCidades = ['brasil'];
+window._olxKeywords = window._olxKeywords || ['vendo restaurante', 'passo ponto comercial'];
+window._olxCidades = window._olxCidades || ['brasil'];
+var _olxKeywords = window._olxKeywords;
+var _olxCidades = window._olxCidades;
 
 function olxRenderKeywords() {
   const c = document.getElementById('olx-keywords-container');
@@ -2859,10 +2861,12 @@ async function runOlxSearch() {
   if (totalNovos > 0) { showToast(`${totalNovos} novos leads do OLX salvos!`, 'success'); updateLeadsCount(); }
 }
 
-// Init OLX UI when tab is shown
-const _origShowTab = typeof showTab === 'function' ? showTab : null;
-// Render keywords/cities on first show
-document.addEventListener('DOMContentLoaded', () => { olxRenderKeywords(); olxRenderCidades(); });
+// Patch showTab to render OLX UI when tab is activated
+const _showTabOrig = showTab;
+window.showTab = function(tab) {
+  _showTabOrig(tab);
+  if (tab === 'olx') { setTimeout(function(){ olxRenderKeywords(); olxRenderCidades(); }, 0); }
+};
 
 </script>
 </body>
