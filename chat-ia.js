@@ -1,27 +1,28 @@
 /**
  * Chat IA 1Negócio — Widget
- * Versão 2.0 — 2026-04-17
+ * Versão 2.1 — 2026-04-17
  * Design: frosted glass, Cabinet Grotesk, logo 1N idêntica à home
+ * v2.1: primeira mensagem via backend (bom dia/tarde/noite contextual)
  */
 (function() {
-    'use strict';
+      'use strict';
 
    const API_ENDPOINT = 'https://dbijmgqlcrgjlcfrastg.supabase.co/functions/v1/chat-ia';
-    const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
-    const WHATSAPP_FALLBACK = '5511952136406';
-    const MIN_DELAY_MS = 700;
-    const MAX_DELAY_MS = 1400;
-    const LEAD_ASK_AFTER_MIN = 3;
-    const LEAD_ASK_AFTER_MAX = 5;
+      const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+      const WHATSAPP_FALLBACK = '5511952136406';
+      const MIN_DELAY_MS = 700;
+      const MAX_DELAY_MS = 1400;
+      const LEAD_ASK_AFTER_MIN = 3;
+      const LEAD_ASK_AFTER_MAX = 5;
 
    const state = {
-         isOpen: false, isTyping: false, messages: [],
-         perfil: null, subPerfil: null,
-         leadCaptured: false, leadId: null,
-         lead: { nome: null, whatsapp: null },
-         qualificationDone: false,
-         nameAsked: false, nameCollected: false,
-         phoneTriggerCount: 0, assistantMsgCount: 0, phoneCaptureAsked: false,
+           isOpen: false, isTyping: false, messages: [],
+           perfil: null, subPerfil: null,
+           leadCaptured: false, leadId: null,
+           lead: { nome: null, whatsapp: null },
+           qualificationDone: false,
+           nameAsked: false, nameCollected: false,
+           phoneTriggerCount: 0, assistantMsgCount: 0, phoneCaptureAsked: false,
    };
 
    const STYLES = `
@@ -92,12 +93,12 @@
    `;
 
    const HTML = `
-   <button id="n1-chat-btn" aria-label="Abrir chat 1Negócio" title="Fale com a 1Negócio">
+   <button id="n1-chat-btn" aria-label="Abrir chat 1Neg&#243;cio" title="Fale com a 1Neg&#243;cio">
      <span class="n1-open-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z" fill="white"/></svg></span>
        <span class="n1-close-icon">&#215;</span>
          <span class="n1-pulse"></span>
          </button>
-         <div id="n1-chat-panel" role="dialog" aria-label="Chat 1Negócio">
+         <div id="n1-chat-panel" role="dialog" aria-label="Chat 1Neg&#243;cio">
            <div id="n1-chat-header">
                <div class="n1-header-left">
                      <div class="n1-logo-badge"><div class="n1-logo-txt"><em>1</em><span>N</span></div></div>
@@ -118,247 +119,240 @@
                                                                            `;
 
    function init() {
-         if (document.getElementById('n1-chat-wrap')) return;
-         const wrap = document.createElement('div');
-         wrap.id = 'n1-chat-wrap';
-         wrap.innerHTML = HTML;
-         document.body.appendChild(wrap);
-         const style = document.createElement('style');
-         style.textContent = STYLES;
-         document.head.appendChild(style);
-         const scriptTag = document.currentScript || document.querySelector('script[src*="chat-ia.js"]');
-         const modo = (scriptTag ? scriptTag.getAttribute('data-mode') : null) || document.body.getAttribute('data-chat-mode');
-         if (modo === 'discreto') document.getElementById('n1-chat-btn').classList.add('discreto');
-         attachListeners();
+           if (document.getElementById('n1-chat-wrap')) return;
+           const wrap = document.createElement('div');
+           wrap.id = 'n1-chat-wrap';
+           wrap.innerHTML = HTML;
+           document.body.appendChild(wrap);
+           const style = document.createElement('style');
+           style.textContent = STYLES;
+           document.head.appendChild(style);
+           const scriptTag = document.currentScript || document.querySelector('script[src*="chat-ia.js"]');
+           const modo = (scriptTag ? scriptTag.getAttribute('data-mode') : null) || document.body.getAttribute('data-chat-mode');
+           if (modo === 'discreto') document.getElementById('n1-chat-btn').classList.add('discreto');
+           attachListeners();
    }
 
    function attachListeners() {
-         document.getElementById('n1-chat-btn').addEventListener('click', togglePanel);
-         document.getElementById('n1-chat-close').addEventListener('click', closePanel);
-         document.getElementById('n1-chat-send').addEventListener('click', handleSend);
-         const input = document.getElementById('n1-chat-input');
-         input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
-         input.addEventListener('input', autoResize);
+           document.getElementById('n1-chat-btn').addEventListener('click', togglePanel);
+           document.getElementById('n1-chat-close').addEventListener('click', closePanel);
+           document.getElementById('n1-chat-send').addEventListener('click', handleSend);
+           const input = document.getElementById('n1-chat-input');
+           input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
+           input.addEventListener('input', autoResize);
    }
 
    function autoResize() {
-         const input = document.getElementById('n1-chat-input');
-         input.style.height = 'auto';
-         input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+           const input = document.getElementById('n1-chat-input');
+           input.style.height = 'auto';
+           input.style.height = Math.min(input.scrollHeight, 100) + 'px';
    }
 
    function togglePanel() { state.isOpen ? closePanel() : openPanel(); }
 
    function openPanel() {
-         state.isOpen = true;
-         const btn = document.getElementById('n1-chat-btn');
-         const panel = document.getElementById('n1-chat-panel');
-         panel.classList.add('open');
-         btn.classList.add('open');
-         const pulse = btn.querySelector('.n1-pulse');
-         if (pulse) pulse.style.display = 'none';
-         if (state.messages.length === 0) { startConversation(); }
-         else { document.getElementById('n1-chat-input').focus(); }
+           state.isOpen = true;
+           const btn = document.getElementById('n1-chat-btn');
+           const panel = document.getElementById('n1-chat-panel');
+           panel.classList.add('open');
+           btn.classList.add('open');
+           const pulse = btn.querySelector('.n1-pulse');
+           if (pulse) pulse.style.display = 'none';
+           if (state.messages.length === 0) { startConversation(); }
+           else { document.getElementById('n1-chat-input').focus(); }
    }
 
    function closePanel() {
-         state.isOpen = false;
-         document.getElementById('n1-chat-btn').classList.remove('open');
-         document.getElementById('n1-chat-panel').classList.remove('open');
-         const pulse = document.getElementById('n1-chat-btn').querySelector('.n1-pulse');
-         if (pulse) pulse.style.display = 'block';
+           state.isOpen = false;
+           document.getElementById('n1-chat-btn').classList.remove('open');
+           document.getElementById('n1-chat-panel').classList.remove('open');
+           const pulse = document.getElementById('n1-chat-btn').querySelector('.n1-pulse');
+           if (pulse) pulse.style.display = 'block';
    }
 
    function startConversation() {
-         state.phoneTriggerCount = LEAD_ASK_AFTER_MIN + Math.floor(Math.random() * (LEAD_ASK_AFTER_MAX - LEAD_ASK_AFTER_MIN + 1));
-         renderBotMessage('Posso lhe ajudar?', [
-           { label: 'Procuro um neg\u00f3cio para comprar',  action: () => selectPerfil('comprador') },
-           { label: 'Quero avaliar / vender o meu',          action: () => selectPerfil('vendedor') },
-           { label: 'Sou corretor ou assessor',               action: () => selectPerfil('corretor') },
-           { label: 'Quero entender como funciona',           action: () => selectPerfil('curioso') },
-               ]);
-   }
-
-   function selectPerfil(perfil) {
-         state.perfil = perfil;
-         const labels = {
-                 comprador: 'Procuro um neg\u00f3cio para comprar',
-                 vendedor: 'Quero avaliar / vender o meu',
-                 corretor: 'Sou corretor ou assessor',
-                 curioso: 'Quero entender como funciona',
-         };
-         renderUserMessage(labels[perfil]);
-         state.messages.push({ role: 'user', content: labels[perfil] });
-         state.nameAsked = true;
-         state.qualificationDone = true;
-         setTimeout(() => { renderBotMessage('Como voc\u00ea se chama?'); }, 450);
+           // Sorteia quando pedir o celular
+        state.phoneTriggerCount = LEAD_ASK_AFTER_MIN + Math.floor(Math.random() * (LEAD_ASK_AFTER_MAX - LEAD_ASK_AFTER_MIN + 1));
+           state.qualificationDone = true;
+           // Envia mensagem de abertura pelo backend — ele gera bom dia/tarde/noite automaticamente
+        const hora = new Date().getHours();
+           const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+           const openingMsg = { role: 'user', content: '__opening__' };
+           // Injeta instrucao no historico como trigger interno (invisivel para o usuario)
+        state.messages.push({ role: 'user', content: 'Inicie a conversa com uma saudacao de ' + saudacao + ' e pergunte apenas "posso ajudar?". Sem listas, sem opcoes, apenas isso.' });
+           showTyping();
+           setTimeout(sendToBackend, randomDelay());
    }
 
    function handleSend() {
-         const input = document.getElementById('n1-chat-input');
-         const text = input.value.trim();
-         if (!text || state.isTyping) return;
-         input.value = '';
-         input.style.height = 'auto';
-         renderUserMessage(text);
-         state.messages.push({ role: 'user', content: text });
-         if (!state.qualificationDone) { state.perfil = 'curioso'; state.qualificationDone = true; }
-         if (state.nameAsked && !state.nameCollected) {
-                 state.nameCollected = true;
-                 state.lead.nome = text;
-                 savePreLead(text);
-         }
-         showTyping();
-         setTimeout(sendToBackend, randomDelay());
+           const input = document.getElementById('n1-chat-input');
+           const text = input.value.trim();
+           if (!text || state.isTyping) return;
+           input.value = '';
+           input.style.height = 'auto';
+           renderUserMessage(text);
+           state.messages.push({ role: 'user', content: text });
+           if (!state.qualificationDone) { state.qualificationDone = true; }
+           if (state.nameAsked && !state.nameCollected) {
+                     state.nameCollected = true;
+                     state.lead.nome = text;
+                     savePreLead(text);
+           }
+           showTyping();
+           setTimeout(sendToBackend, randomDelay());
    }
 
    async function savePreLead(nome) {
-         try {
-                 await fetch(API_ENDPOINT, {
-                           method: 'POST',
-                           headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
-                           body: JSON.stringify({ action: 'save_lead', messages: state.messages, pagina_origem: window.location.href, lead_data: { nome, perfil: state.perfil || 'curioso' } }),
-                 });
-         } catch(e) { console.error('Erro pr\u00e9-lead:', e); }
+           try {
+                     await fetch(API_ENDPOINT, {
+                                 method: 'POST',
+                                 headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+                                 body: JSON.stringify({ action: 'save_lead', messages: state.messages, pagina_origem: window.location.href, lead_data: { nome, perfil: state.perfil || 'curioso' } }),
+                     });
+           } catch(e) { console.error('Erro pr\u00e9-lead:', e); }
    }
 
    async function sendToBackend() {
-         try {
-                 const res = await fetch(API_ENDPOINT, {
-                           method: 'POST',
-                           headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
-                           body: JSON.stringify({ messages: state.messages }),
-                 });
-                 const data = await res.json();
-                 hideTyping();
-                 if (!res.ok || data.error) {
-                           renderBotMessage('Tive um probleminha pra responder agora. Tenta de novo em instantes ou fala com nosso time.', [{ label: 'Abrir WhatsApp', action: openWhatsApp }]);
-                           return;
-                 }
-                 const reply = data.reply || 'Hmm, n\u00e3o consegui gerar uma resposta. Tenta reformular?';
-                 state.messages.push({ role: 'assistant', content: reply });
-                 state.assistantMsgCount++;
-                 renderBotMessage(reply);
-                 if (state.nameCollected && !state.phoneCaptureAsked && !state.leadCaptured && state.assistantMsgCount >= state.phoneTriggerCount) {
-                           state.phoneCaptureAsked = true;
-                           setTimeout(askForPhone, 1200);
-                 }
-         } catch (err) {
-                 hideTyping();
-                 renderBotMessage('Perdi a conex\u00e3o aqui. Se quiser, fala direto com nosso time.', [{ label: 'Abrir WhatsApp', action: openWhatsApp }]);
-         }
+           try {
+                     const res = await fetch(API_ENDPOINT, {
+                                 method: 'POST',
+                                 headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+                                 body: JSON.stringify({ messages: state.messages }),
+                     });
+                     const data = await res.json();
+                     hideTyping();
+                     if (!res.ok || data.error) {
+                                 renderBotMessage('Tive um probleminha pra responder agora. Tenta de novo em instantes.', [{ label: 'Abrir WhatsApp', action: openWhatsApp }]);
+                                 return;
+                     }
+                     const reply = data.reply || 'Hmm, n\u00e3o consegui gerar uma resposta. Tenta reformular?';
+                     state.messages.push({ role: 'assistant', content: reply });
+                     state.assistantMsgCount++;
+                     // Apos primeira resposta, remove a mensagem de trigger do historico para nao poluir
+             if (state.assistantMsgCount === 1 && state.messages[0] && state.messages[0].content.startsWith('Inicie a conversa')) {
+                         state.messages.shift();
+             }
+                     renderBotMessage(reply);
+                     if (state.nameCollected && !state.phoneCaptureAsked && !state.leadCaptured && state.assistantMsgCount >= state.phoneTriggerCount) {
+                                 state.phoneCaptureAsked = true;
+                                 setTimeout(askForPhone, 1200);
+                     }
+           } catch (err) {
+                     hideTyping();
+                     renderBotMessage('Perdi a conex\u00e3o. Se quiser, fala direto com nosso time.', [{ label: 'Abrir WhatsApp', action: openWhatsApp }]);
+           }
    }
 
    function askForPhone() {
-         const pn = state.lead.nome ? state.lead.nome.split(' ')[0] : '';
-         const cumpr = pn ? ', ' + pn : '';
-         const wrap = document.createElement('div');
-         wrap.className = 'n1-msg bot';
-         wrap.innerHTML = '<div>Aproveito para perguntar' + cumpr + ' \u2014 qual \u00e9 o seu WhatsApp? Assim consigo te conectar com um especialista quando fizer sentido. \uD83D\uDE0A</div><form class="n1-form" id="n1-phone-form" style="margin-top:10px"><input type="tel" name="whatsapp" placeholder="WhatsApp com DDD (ex: 48 99999-9999)" required><button type="submit">Enviar</button><button type="button" class="skip" id="n1-skip-phone">Agora n\u00e3o</button></form>';
-         document.getElementById('n1-chat-messages').appendChild(wrap);
-         scrollToBottom();
-         wrap.querySelector('#n1-phone-form').addEventListener('submit', (e) => {
-                 e.preventDefault();
-                 const wpp = e.target.whatsapp.value.trim();
-                 if (!wpp) return;
-                 state.lead.whatsapp = wpp;
-                 wrap.remove();
-                 renderUserMessage(wpp);
-                 saveLead();
-         });
-         wrap.querySelector('#n1-skip-phone').addEventListener('click', () => {
-                 wrap.remove();
-                 renderBotMessage('Tudo bem! Fico por aqui se precisar de mais alguma coisa.');
-         });
+           const pn = state.lead.nome ? state.lead.nome.split(' ')[0] : '';
+           const cumpr = pn ? ', ' + pn : '';
+           const wrap = document.createElement('div');
+           wrap.className = 'n1-msg bot';
+           wrap.innerHTML = '<div>Aproveito para perguntar' + cumpr + ' \u2014 qual \u00e9 o seu WhatsApp? Assim consigo te conectar com um especialista quando fizer sentido.</div><form class="n1-form" id="n1-phone-form" style="margin-top:10px"><input type="tel" name="whatsapp" placeholder="WhatsApp com DDD (ex: 48 99999-9999)" required><button type="submit">Enviar</button><button type="button" class="skip" id="n1-skip-phone">Agora n\u00e3o</button></form>';
+           document.getElementById('n1-chat-messages').appendChild(wrap);
+           scrollToBottom();
+           wrap.querySelector('#n1-phone-form').addEventListener('submit', (e) => {
+                     e.preventDefault();
+                     const wpp = e.target.whatsapp.value.trim();
+                     if (!wpp) return;
+                     state.lead.whatsapp = wpp;
+                     wrap.remove();
+                     renderUserMessage(wpp);
+                     saveLead();
+           });
+           wrap.querySelector('#n1-skip-phone').addEventListener('click', () => {
+                     wrap.remove();
+                     renderBotMessage('Tudo bem! Fico por aqui se precisar de mais alguma coisa.');
+           });
    }
 
    async function saveLead() {
-         try {
-                 const res = await fetch(API_ENDPOINT, {
-                           method: 'POST',
-                           headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
-                           body: JSON.stringify({ action: 'save_lead', messages: state.messages, pagina_origem: window.location.href, lead_data: { nome: state.lead.nome, whatsapp: state.lead.whatsapp, perfil: state.perfil || 'curioso', sub_perfil: state.subPerfil } }),
-                 });
-                 const data = await res.json();
-                 if (data.success && data.lead_id) { state.leadCaptured = true; state.leadId = data.lead_id; }
-                 const pn = state.lead.nome ? state.lead.nome.split(' ')[0] : '';
-                 renderBotMessage(pn ? 'Anotado, ' + pn + '! Pode continuar \u00e0 vontade.' : 'Anotado! Pode continuar.');
-         } catch (err) { renderBotMessage('Anotado! Pode continuar.'); }
+           try {
+                     const res = await fetch(API_ENDPOINT, {
+                                 method: 'POST',
+                                 headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY },
+                                 body: JSON.stringify({ action: 'save_lead', messages: state.messages, pagina_origem: window.location.href, lead_data: { nome: state.lead.nome, whatsapp: state.lead.whatsapp, perfil: state.perfil || 'curioso', sub_perfil: state.subPerfil } }),
+                     });
+                     const data = await res.json();
+                     if (data.success && data.lead_id) { state.leadCaptured = true; state.leadId = data.lead_id; }
+                     const pn = state.lead.nome ? state.lead.nome.split(' ')[0] : '';
+                     renderBotMessage(pn ? 'Anotado, ' + pn + '! Pode continuar \u00e0 vontade.' : 'Anotado! Pode continuar.');
+           } catch (err) { renderBotMessage('Anotado! Pode continuar.'); }
    }
 
    function renderBotMessage(text, quickReplies) {
-         const container = document.getElementById('n1-chat-messages');
-         const div = document.createElement('div');
-         div.className = 'n1-msg bot';
-         div.innerHTML = formatText(text);
-         container.appendChild(div);
-         if (quickReplies && quickReplies.length) {
-                 const replies = document.createElement('div');
-                 replies.className = 'n1-quick-replies';
-                 quickReplies.forEach(r => {
-                           const btn = document.createElement('button');
-                           btn.className = 'n1-quick-btn';
-                           btn.textContent = r.label;
-                           btn.addEventListener('click', () => { replies.remove(); r.action(); });
-                           replies.appendChild(btn);
-                 });
-                 container.appendChild(replies);
-         }
-         scrollToBottom();
+           const container = document.getElementById('n1-chat-messages');
+           const div = document.createElement('div');
+           div.className = 'n1-msg bot';
+           div.innerHTML = formatText(text);
+           container.appendChild(div);
+           if (quickReplies && quickReplies.length) {
+                     const replies = document.createElement('div');
+                     replies.className = 'n1-quick-replies';
+                     quickReplies.forEach(r => {
+                                 const btn = document.createElement('button');
+                                 btn.className = 'n1-quick-btn';
+                                 btn.textContent = r.label;
+                                 btn.addEventListener('click', () => { replies.remove(); r.action(); });
+                                 replies.appendChild(btn);
+                     });
+                     container.appendChild(replies);
+           }
+           scrollToBottom();
    }
 
    function renderUserMessage(text) {
-         const div = document.createElement('div');
-         div.className = 'n1-msg user';
-         div.textContent = text;
-         document.getElementById('n1-chat-messages').appendChild(div);
-         scrollToBottom();
+           const div = document.createElement('div');
+           div.className = 'n1-msg user';
+           div.textContent = text;
+           document.getElementById('n1-chat-messages').appendChild(div);
+           scrollToBottom();
    }
 
    function showTyping() {
-         state.isTyping = true;
-         document.getElementById('n1-chat-send').disabled = true;
-         const div = document.createElement('div');
-         div.className = 'n1-typing';
-         div.id = 'n1-typing-indicator';
-         div.innerHTML = '<span></span><span></span><span></span>';
-         document.getElementById('n1-chat-messages').appendChild(div);
-         scrollToBottom();
+           state.isTyping = true;
+           document.getElementById('n1-chat-send').disabled = true;
+           const div = document.createElement('div');
+           div.className = 'n1-typing';
+           div.id = 'n1-typing-indicator';
+           div.innerHTML = '<span></span><span></span><span></span>';
+           document.getElementById('n1-chat-messages').appendChild(div);
+           scrollToBottom();
    }
 
    function hideTyping() {
-         state.isTyping = false;
-         document.getElementById('n1-chat-send').disabled = false;
-         const el = document.getElementById('n1-typing-indicator');
-         if (el) el.remove();
+           state.isTyping = false;
+           document.getElementById('n1-chat-send').disabled = false;
+           const el = document.getElementById('n1-typing-indicator');
+           if (el) el.remove();
    }
 
    function scrollToBottom() {
-         const c = document.getElementById('n1-chat-messages');
-         c.scrollTop = c.scrollHeight;
+           const c = document.getElementById('n1-chat-messages');
+           c.scrollTop = c.scrollHeight;
    }
 
    function formatText(text) {
-         return text
-           .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-           .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-           .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-           .replace(/\n/g, '<br>');
+           return text
+             .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+             .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+             .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>')
+             .replace(/\n/g,'<br>');
    }
 
    function randomDelay() { return MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS); }
 
    function openWhatsApp() {
-         const resumo = state.messages.slice(-3).map(m => (m.role === 'user' ? 'Eu' : 'Bot') + ': ' + m.content.slice(0, 100)).join('\n');
-         const msg = encodeURIComponent('Ol\u00e1, vim do chat da 1Neg\u00f3cio.\nPerfil: ' + (state.perfil || '\u2014') + '\n\n' + resumo);
-         window.open('https://wa.me/' + WHATSAPP_FALLBACK + '?text=' + msg, '_blank');
-         if (state.leadId) {
-                 fetch(API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY }, body: JSON.stringify({ action: 'escalate', messages: state.messages, lead_data: { lead_id: state.leadId, motivo: 'usuario_pediu_whatsapp' } }) }).catch(() => {});
-         }
+           const resumo = state.messages.slice(-3).map(m => (m.role === 'user' ? 'Eu' : 'Bot') + ': ' + m.content.slice(0, 100)).join('\n');
+           const msg = encodeURIComponent('Ol\u00e1, vim do chat da 1Neg\u00f3cio.\nPerfil: ' + (state.perfil || '\u2014') + '\n\n' + resumo);
+           window.open('https://wa.me/' + WHATSAPP_FALLBACK + '?text=' + msg, '_blank');
+           if (state.leadId) {
+                     fetch(API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY }, body: JSON.stringify({ action: 'escalate', messages: state.messages, lead_data: { lead_id: state.leadId, motivo: 'usuario_pediu_whatsapp' } }) }).catch(() => {});
+           }
    }
 
    if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); }
-    else { init(); }
+      else { init(); }
 
    window.n1Chat = { state, open: openPanel, close: closePanel };
 
