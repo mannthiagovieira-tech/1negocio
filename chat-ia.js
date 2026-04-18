@@ -10,6 +10,22 @@
   const LEAD_ASK_AFTER_MAX = 5;
   const state = { isOpen: false, isTyping: false, messages: [], perfil: null, subPerfil: null, leadCaptured: false, leadId: null, lead: { nome: null, whatsapp: null }, qualificationDone: false, nameAsked: false, nameCollected: false, phoneTriggerCount: 0, assistantMsgCount: 0, phoneCaptureAsked: false };
 
+  // Restaurar mensagens da sessão anterior (navegação entre páginas)
+  const _savedState = sessionStorage.getItem('n1ChatState');
+  if (_savedState) {
+    try {
+      const parsed = JSON.parse(_savedState);
+      if (parsed.messages) state.messages = parsed.messages;
+      if (parsed.leadCaptured) state.leadCaptured = parsed.leadCaptured;
+      if (parsed.leadId) state.leadId = parsed.leadId;
+      if (parsed.lead) state.lead = parsed.lead;
+      if (parsed.nameCollected) state.nameCollected = parsed.nameCollected;
+      if (parsed.nameAsked) state.nameAsked = parsed.nameAsked;
+      if (parsed.phoneCaptureAsked) state.phoneCaptureAsked = parsed.phoneCaptureAsked;
+      if (parsed.assistantMsgCount) state.assistantMsgCount = parsed.assistantMsgCount;
+    } catch(e) {}
+  }
+
   const STYLES = `
     @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Cabinet+Grotesk:wght@400;500;700;800&display=swap');
     #n1-chat-wrap,#n1-chat-wrap *{box-sizing:border-box}
@@ -172,8 +188,19 @@
     if (pulse) pulse.style.display = 'none';
     var bubble = document.getElementById('n1-welcome-bubble');
     if (bubble) bubble.style.display = 'none';
-    if (state.messages.length === 0) { startConversation(); }
-    else { document.getElementById('n1-chat-input').focus(); }
+    if (state.messages.length === 0) {
+      startConversation();
+    } else {
+      // Re-renderizar mensagens salvas ao abrir em nova pagina
+      const _container = document.getElementById('n1-chat-messages');
+      if (_container.children.length === 0) {
+        state.messages.forEach(function(msg) {
+          if (msg.role === 'user') renderUserMessage(msg.content);
+          else if (msg.role === 'assistant') renderBotMessage(msg.content);
+        });
+      }
+      document.getElementById('n1-chat-input').focus();
+    }
   }
 
   function closePanel() {
@@ -216,7 +243,10 @@
 
   async function sendToBackend() {
     try {
-      const res = await fetch(API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY }, body: JSON.stringify({ messages: state.messages }) });
+      const res = await fetch(API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY }, body: JSON.stringify({ 
+          pagina_atual: window.location.href,
+          tela_diagnostico: (typeof telaAtual !== 'undefined' ? telaAtual : null),
+          messages: state.messages }) });
       const data = await res.json();
       hideTyping();
       if (!res.ok || data.error) { renderBotMessage('Tive um probleminha pra responder agora. Tenta de novo em instantes.', [{ label: 'Abrir WhatsApp', action: openWhatsApp }]); return; }
@@ -287,6 +317,7 @@
       container.appendChild(replies);
     }
     scrollToBottom();
+  sessionStorage.setItem('n1ChatState', JSON.stringify({messages: state.messages, leadCaptured: state.leadCaptured, leadId: state.leadId, lead: state.lead, nameCollected: state.nameCollected, nameAsked: state.nameAsked, phoneCaptureAsked: state.phoneCaptureAsked, assistantMsgCount: state.assistantMsgCount}));
   }
 
   function renderUserMessage(text) {
@@ -295,6 +326,7 @@
     div.textContent = text;
     document.getElementById('n1-chat-messages').appendChild(div);
     scrollToBottom();
+  sessionStorage.setItem('n1ChatState', JSON.stringify({messages: state.messages, leadCaptured: state.leadCaptured, leadId: state.leadId, lead: state.lead, nameCollected: state.nameCollected, nameAsked: state.nameAsked, phoneCaptureAsked: state.phoneCaptureAsked, assistantMsgCount: state.assistantMsgCount}));
   }
 
   function showTyping() {
