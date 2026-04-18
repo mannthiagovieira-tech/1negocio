@@ -140,169 +140,434 @@ tr{cursor:pointer}
 <div class="mod-ov" id="mod-lead-site" onclick="if(event.target===this)this.classList.remove('open')"><div class="mod"><h3>Editar lead</h3><input type="hidden" id="mls-id"><div class="mod-row"><div class="f"><label>Nome</label><input id="mls-nome"></div><div class="f"><label>WhatsApp</label><input id="mls-wpp"></div></div><div class="mod-row"><div class="f"><label>Email</label><input id="mls-email" type="email"></div><div class="f"><label>Status</label><select id="mls-status"><option value="novo">Novo</option><option value="contatado">Contatado</option><option value="qualificado">Qualificado</option><option value="perdido">Perdido</option></select></div></div><div class="f"><label>Notas</label><textarea id="mls-notas"></textarea></div><div class="mod-acts"><button class="btn btn-o" onclick="cls('mod-lead-site')">Cancelar</button><button class="btn btn-g" onclick="salvarLeadSite()">Salvar</button></div></div></div>
 <div class="toast" id="toast"></div>
 <script>
-const SB='https://dbijmgqlcrgjlcfrastg.supabase.co';
-const AK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
-const SK='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzA3NjE2MywiZXhwIjoyMDg4NjUyMTYzfQ.b79syG5GuQZYLd3QvbRMTi66E_sdKa-Nh-Q1XbDcM2Y';
-const HR={'apikey':AK,'Authorization':'Bearer '+AK,'Content-Type':'application/json'};
-const HW={'apikey':SK,'Authorization':'Bearer '+SK,'Content-Type':'application/json','Prefer':'return=representation'};
-let _negData=null,_convAtual=null,_allPagamentos=[],_conversas=[],_chatLeads=[],_leadSiteData=null;
 
-async function q(path,opts={}){const r=await fetch(SB+'/rest/v1/'+path,{headers:opts.write?HW:HR,method:opts.method||'GET',body:opts.body?JSON.stringify(opts.body):undefined});const t=await r.text();return t?JSON.parse(t):null;}
-function brl(v){return v?'R$ '+Number(v).toLocaleString('pt-BR',{maximumFractionDigits:0}):'—';}
-function brlK(v){if(!v)return'—';v=Number(v);return v>=1e6?'R$'+Math.round(v/1e6*10)/10+'M':v>=1e3?'R$'+Math.round(v/1e3)+'k':'R$'+v;}
-function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
-function dt(s){return s?new Date(s).toLocaleDateString('pt-BR'):'—';}
-function dtf(s){return s?new Date(s).toLocaleDateString('pt-BR')+' '+new Date(s).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—';}
-function toast(m,e){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(e?' err':'');clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',3500);}
-function cls(id){document.getElementById(id).classList.remove('open');}
-function statusBg(s){const m={publicado:'bg-green',em_avaliacao:'bg-am',aguardando_aprovacao:'bg-am',em_negociacao:'bg-bl',rascunho:'bg-t2',pausado:'bg-rd',vendido:'bg-pu',pendente:'bg-am',agendado:'bg-bl',concluido:'bg-green',novo:'bg-bl',enviado:'bg-am',respondeu:'bg-green',interessado:'bg-pu',pago:'bg-green',falhou:'bg-rd',reembolsado:'bg-am',aberta:'bg-am',fechada:'bg-t2',contatado:'bg-bl',qualificado:'bg-green',perdido:'bg-rd'};return m[s]||'bg-t2';}
-function tagPreco(p,v){if(!p||!v)return{t:'—',c:''};const d=Math.round((v-p)/v*100);if(d>=15)return{t:'Oportunidade',c:'bg-green'};if(d>=-5)return{t:'Justo',c:'bg-bl'};return{t:'Acima',c:'bg-am'};}
-function produtoLabel(tipo,val){const v=Number(val)||0;if(v===99||tipo==='laudo_99')return'Laudo PDF R$99';if(v===588||tipo==='guiado_588')return'Plano Guiado R$588';if(v===397||tipo==='avaliacao_397')return'Avaliação R$397';return tipo||('R$'+v);}
-function go(tab){document.querySelectorAll('.tc').forEach(t=>t.classList.remove('on'));document.querySelectorAll('.sb-item').forEach(s=>s.classList.remove('on'));const el=document.getElementById('p-'+tab);if(el)el.classList.add('on');document.querySelectorAll('.sb-item').forEach(s=>{if(s.getAttribute('onclick')&&s.getAttribute('onclick').includes("'"+tab+"'"))s.classList.add('on');});const loaders={dash:loadDash,negocios:loadNegocios,anuncios:loadAnuncios,usuarios:loadUsuarios,agenda:loadAgenda,leads:loadLeads,'leads-site':loadLeadsSite,disparos:loadDisparos,parceiros:loadParceiros,pagamentos:loadPagamentos,conversas:loadConversas,chatbot:loadChatLeads};if(loaders[tab])loaders[tab]();}
+var SB="https://dbijmgqlcrgjlcfrastg.supabase.co";
+var AK="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA";
+var SK="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzA3NjE2MywiZXhwIjoyMDg4NjUyMTYzfQ.b79syG5GuQZYLd3QvbRMTi66E_sdKa-Nh-Q1XbDcM2Y";
+function sb(t,q,key){return fetch(SB+"/rest/v1/"+t+"?"+q,{headers:{"apikey":key||AK,"Authorization":"Bearer "+(key||AK),"Content-Type":"application/json"}});}
+function sbp(t,d,key){return fetch(SB+"/rest/v1/"+t,{method:"POST",headers:{"apikey":key||AK,"Authorization":"Bearer "+(key||AK),"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(d)});}
+function sbup(t,q,d,key){return fetch(SB+"/rest/v1/"+t+"?"+q,{method:"PATCH",headers:{"apikey":key||AK,"Authorization":"Bearer "+(key||AK),"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(d)});}
+function fmtWpp(n){if(!n)return"";var s=String(n).replace(new RegExp("[^0-9]","g"),"");if(s.length===11)return"55"+s;return s;}
+function fmtDate(d){if(!d)return"-";var dt=new Date(d);return dt.toLocaleDateString("pt-BR");}
+function fmtMoeda(v){if(!v&&v!==0)return"R$ 0,00";return"R$ "+parseFloat(v).toFixed(2).replace(".",",").replace(new RegExp("(\d)(?=(\d{3})+,)","g"),"$1.");}
+function show(id){document.querySelectorAll(".panel").forEach(function(p){p.style.display="none";});var el=document.getElementById(id);if(el)el.style.display="block";}
+function go(section){
+  document.querySelectorAll(".sb-item").forEach(function(i){i.classList.remove("on");});
+  var lnk=document.querySelector(".sb-item[data-sec="+section+"]");
+  if(lnk)lnk.classList.add("on");
+  if(section==="dash")loadDash();
+  else if(section==="negocios")loadNegocios();
+  else if(section==="anuncios")loadAnuncios();
+  else if(section==="usuarios")loadUsuarios();
+  else if(section==="agenda")loadAgenda();
+  else if(section==="leads")loadLeads();
+  else if(section==="leads-site")loadLeadsSite();
+  else if(section==="disparos")loadDisparos();
+  else if(section==="parceiros")loadParceiros();
+  else if(section==="pagamentos")loadPagamentos();
+  else if(section==="conversas")loadConversas();
+  else if(section==="chat-leads")loadChatLeads();
+  show("panel-"+section);
+}
 
-async function loadDash(){
-document.getElementById('dash-date').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-const[neg,usr,lea,age,dis,pag,lsite]=await Promise.all([q('negocios?select=id,status&limit=5000'),q('usuarios?select=id&limit=5000'),q('leads_google?select=id&limit=5000'),q('admin_agenda?select=id,status&limit=5000'),q('disparos_whatsapp?select=id&limit=5000'),q('transacoes?select=id,status,valor&limit=5000'),q('leads_site?select=id&limit=5000')]);
-const ns=neg||[],us=usr||[],ls=lea||[],as=age||[],ds=dis||[],pg=pag||[],lss=lsite||[];
-const pend=ns.filter(n=>n.status==='em_avaliacao').length;
-const pub=ns.filter(n=>n.status==='publicado').length;
-const receitaTotal=pg.filter(p=>p.status==='pago').reduce((s,p)=>s+Number(p.valor||0),0);
-document.getElementById('sc-neg').textContent=ns.length;
-document.getElementById('sc-usr').textContent=us.length;
-document.getElementById('sc-lea').textContent=ls.length;
-document.getElementById('sc-age').textContent=as.filter(a=>a.status==='pendente').length;
-document.getElementById('sc-dis').textContent=ds.length;
-document.getElementById('sc-pag').textContent=pg.length;
-document.getElementById('sc-lsite').textContent=lss.length;
-document.getElementById('dash-stats').innerHTML='<div class="st"><div class="st-v" style="color:var(--green)">'+ns.length+'</div><div class="st-l">Negócios</div></div><div class="st"><div class="st-v" style="color:var(--am)">'+pend+'</div><div class="st-l">Pendentes</div></div><div class="st"><div class="st-v" style="color:var(--bl)">'+pub+'</div><div class="st-l">Publicados</div></div><div class="st"><div class="st-v">'+us.length+'</div><div class="st-l">Usuários</div></div><div class="st"><div class="st-v" style="color:var(--pu)">'+(ls.length+lss.length)+'</div><div class="st-l">Leads total</div></div><div class="st"><div class="st-v" style="color:var(--green)">'+brlK(receitaTotal)+'</div><div class="st-l">Receita</div></div>';
-const rn=await q('negocios?select=codigo_diagnostico,dados_json,status,created_at&order=created_at.desc&limit=8');
-document.getElementById('tb-dash-neg').innerHTML=(rn||[]).map(n=>{const d=n.dados_json||{};return '<tr onclick="goNeg()"><td>'+esc(n.codigo_diagnostico||'—')+'</td><td>'+esc(d.setor||'—')+'</td><td><span class="bg '+statusBg(n.status)+'">'+esc(n.status||'—')+'</span></td><td>'+dt(n.created_at)+'</td></tr>';}).join('');
-const rp=await q('transacoes?select=*&order=created_at.desc&limit=8');
-document.getElementById('tb-dash-pag').innerHTML=(rp||[]).map(p=>'<tr onclick="go('pagamentos')"><td style="font-size:10px">'+esc(produtoLabel(p.tipo,p.valor))+'</td><td style="color:var(--green);font-family:Syne,sans-serif;font-weight:700">'+brl(p.valor)+'</td><td><span class="bg '+statusBg(p.status)+'">'+esc(p.status||'—')+'</span></td><td style="color:var(--t3)">'+dt(p.created_at)+'</td></tr>').join('');
+function loadDash(){
+  show("panel-dash");
+  var p=document.getElementById("dash-cards");
+  if(p)p.innerHTML="<div style='color:var(--t3)'>Carregando...</div>";
+  Promise.all([
+    sb("negocios","select=id,status","").then(function(r){return r.json();}),
+    sb("leads_site","select=id,status","").then(function(r){return r.json();}),
+    sb("transacoes","select=id,valor,status","").then(function(r){return r.json();}),
+    sb("chat_ia_leads","select=id","").then(function(r){return r.json();})
+  ]).then(function(results){
+    var negs=results[0]||[];var ls=results[1]||[];var pags=results[2]||[];var ch=results[3]||[];
+    var total=pags.filter(function(t){return t.status==="pago"||t.status==="succeeded";}).reduce(function(a,t){return a+parseFloat(t.valor||0);},0);
+    if(p)p.innerHTML=
+      "<div class='dash-card'><div class='dc-val'>"+negs.length+"</div><div class='dc-lab'>Negócios</div></div>"+
+      "<div class='dash-card'><div class='dc-val'>"+ls.filter(function(l){return l.status==="novo";}).length+"</div><div class='dc-lab'>Leads Novos</div></div>"+
+      "<div class='dash-card'><div class='dc-val'>"+fmtMoeda(total)+"</div><div class='dc-lab'>Receita Total</div></div>"+
+      "<div class='dash-card'><div class='dc-val'>"+ch.length+"</div><div class='dc-lab'>Chat Leads</div></div>";
+  }).catch(function(e){if(p)p.innerHTML="<div style='color:red'>Erro: "+e.message+"</div>";});
 }
-async function loadNegocios(){
-let path='negocios?select=id,codigo_diagnostico,nome,dados_json,faturamento_anual,score_saude,status,termo_adesao_status,cidade,created_at&order=created_at.desc&limit=300';
-const st=document.getElementById('fn-status').value;const bu=document.getElementById('fn-busca').value.trim();
-if(st)path+='&status=eq.'+st;
-if(bu)path+='&or=(nome.ilike.*'+encodeURIComponent(bu)+'*,codigo_diagnostico.ilike.*'+encodeURIComponent(bu)+'*)';
-const data=await q(path);
-document.getElementById('tb-neg').innerHTML=(data||[]).map(n=>{const d=n.dados_json||{};const termo=n.termo_adesao_status||'—';return '<tr onclick="abrirNeg(''+n.id+'')"><td>'+esc(n.codigo_diagnostico||'—')+'</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">'+esc(n.nome||d.nome_contato||'—')+'</td><td style="font-size:9px;color:var(--t2)">'+esc(d.setor||'—')+'</td><td style="font-size:9px">'+esc(n.cidade||d.cidade||'—')+'</td><td>'+brlK(n.faturamento_anual||d.fat_anual)+'</td><td>'+(n.score_saude||'—')+'</td><td><span class="bg '+statusBg(n.status)+'">'+esc(n.status||'—')+'</span></td><td>'+(termo!=='—'?'<span class="bg '+(termo==='assinado'?'bg-green':'bg-am')+'">'+termo+'</span>':'—')+'</td><td style="color:var(--t3)">'+dt(n.created_at)+'</td><td><a href="/admin-anuncios.html" target="_blank" class="btn btn-o btn-sm" onclick="event.stopPropagation()">Editar</a></td></tr>';}).join('')||'<tr><td colspan="10" class="empty">Nenhum negócio</td></tr>';
+function loadNegocios(){
+  var p=document.getElementById("neg-body");if(p)p.innerHTML="<tr><td colspan='6' style='color:var(--t3)'>Carregando...</td></tr>";
+  sb("negocios","select=id,nome_empresa,segmento,cidade,status,created_at&order=created_at.desc&limit=100",SK).then(function(r){return r.json();}).then(function(rows){
+    if(!p)return;
+    if(!rows||rows.error){p.innerHTML="<tr><td colspan='6' style='color:red'>Erro ao carregar</td></tr>";return;}
+    if(!rows.length){p.innerHTML="<tr><td colspan='6' style='color:var(--t3)'>Nenhum negócio</td></tr>";return;}
+    var html="";
+    rows.forEach(function(n){
+      var sid=String(n.id||"");
+      var stCls=n.status==="publicado"?"st-pub":n.status==="pendente"?"st-pend":"st-other";
+      html+="<tr data-id='"+sid+"'><td>"+fmtDate(n.created_at)+"</td><td>"+String(n.nome_empresa||"-")+"</td><td>"+String(n.segmento||"-")+"</td><td>"+String(n.cidade||"-")+"</td><td><span class='"+stCls+"'>"+String(n.status||"-")+"</span></td><td><button class='btn-sm btn-abrir'>Abrir</button> <button class='btn-sm btn-pub'>Pub</button></td></tr>";
+    });
+    p.innerHTML=html;
+    p.onclick=function(e){
+      var btn=e.target.closest("button");if(!btn)return;
+      var tr=e.target.closest("tr[data-id]");if(!tr)return;
+      var id=tr.getAttribute("data-id");
+      if(btn.classList.contains("btn-abrir"))abrirNeg(id);
+      if(btn.classList.contains("btn-pub"))pubNeg(id);
+    };
+  }).catch(function(e){if(p)p.innerHTML="<tr><td colspan='6' style='color:red'>"+e.message+"</td></tr>";});
 }
-async function abrirNeg(id){
-const data=await q('negocios?id=eq.'+id);if(!data||!data[0])return;
-const n=data[0];_negData=n;const d=n.dados_json||{};
-const wpp=d.whatsapp?'55'+String(d.whatsapp).replace(/\D/g,''):'';
-document.getElementById('mn-title').textContent=(n.codigo_diagnostico||'Negócio')+' · '+(d.nome_contato||n.nome||'—');
-document.getElementById('mn-links').innerHTML=(wpp?'<a href="https://wa.me/'+wpp+'" target="_blank" class="mod-link wpp">WhatsApp</a>':'')+'<a href="/laudo-completo.html?id='+n.id+'" target="_blank" class="mod-link">Laudo gratuito</a><a href="/admin-anuncios.html" target="_blank" class="mod-link">Criar anúncio</a>'+(n.codigo_anuncio?'<a href="/termo-adesao.html?id='+n.codigo_anuncio+'" target="_blank" class="mod-link">Termo</a>':'');
-document.getElementById('mn-kpis').innerHTML='<div class="f"><label>Faturamento</label><input readonly value="'+brl(n.faturamento_anual||d.fat_anual)+'"></div><div class="f"><label>ISE</label><input readonly value="'+(n.score_saude||'—')+'"></div><div class="f"><label>Status</label><input readonly value="'+(n.status||'—')+'"></div>';
-document.getElementById('mn-body').innerHTML='<div class="mod-row" style="margin-top:12px"><div class="f"><label>Setor</label><input readonly value="'+esc(d.setor||'—')+'"></div><div class="f"><label>Cidade</label><input readonly value="'+esc(n.cidade||d.cidade||'—')+'"></div></div><div class="mod-row"><div class="f"><label>Contato</label><input readonly value="'+esc(d.nome_contato||'—')+'"></div><div class="f"><label>WhatsApp</label><input readonly value="'+(d.whatsapp||'—')+'"></div></div><div class="f"><label>Notas admin</label><textarea readonly>'+esc(n.notas_admin||'')+'</textarea></div>';
-document.getElementById('mod-neg').classList.add('open');
+function abrirNeg(id){
+  sb("negocios","select=*&id=eq."+id,SK).then(function(r){return r.json();}).then(function(rows){
+    var n=rows[0];if(!n)return;
+    var m=document.getElementById("modal-neg");
+    var c=document.getElementById("modal-neg-body");
+    if(!m||!c)return;
+    c.innerHTML="<table class='detail-table'><tr><td>ID</td><td>"+String(n.id)+"</td></tr><tr><td>Empresa</td><td>"+String(n.nome_empresa||"-")+"</td></tr><tr><td>Segmento</td><td>"+String(n.segmento||"-")+"</td></tr><tr><td>Cidade</td><td>"+String(n.cidade||"-")+"</td></tr><tr><td>Status</td><td>"+String(n.status||"-")+"</td></tr><tr><td>Email</td><td>"+String(n.email||"-")+"</td></tr><tr><td>Telefone</td><td>"+String(n.telefone||"-")+"</td></tr><tr><td>CNPJ</td><td>"+String(n.cnpj||"-")+"</td></tr><tr><td>Receita</td><td>"+fmtMoeda(n.receita_anual)+"</td></tr><tr><td>Criado</td><td>"+fmtDate(n.created_at)+"</td></tr></table>";
+    document.getElementById("neg-termo-id").value=id;
+    m.style.display="flex";
+  });
 }
-async function enviarTermo(){if(!_negData)return;const d=_negData.dados_json||{};const wpp=d.whatsapp?'55'+String(d.whatsapp).replace(/\D/g,''):'';const codigo=_negData.codigo_anuncio||_negData.codigo_diagnostico;const url='https://1negocio.com.br/termo-adesao.html?id='+codigo;const msg=encodeURIComponent('Olá '+(d.nome_contato||'')+', tudo bem?\n\nSeu anúncio está quase pronto. Preencha o termo:\n\n'+url);if(wpp)window.open('https://wa.me/'+wpp+'?text='+msg,'_blank');else toast('Sem WhatsApp cadastrado',true);}
-async function pubNeg(){if(!_negData)return;await q('negocios?id=eq.'+_negData.id,{method:'PATCH',body:{status:'publicado',publicado_em:new Date().toISOString()},write:true});toast('Negócio publicado');cls('mod-neg');loadNegocios();}
+function enviarTermo(id){
+  var rid=id||document.getElementById("neg-termo-id").value;
+  if(!rid)return;
+  sb("negocios","select=email,nome_empresa&id=eq."+rid,SK).then(function(r){return r.json();}).then(function(rows){
+    var n=rows[0];if(!n||!n.email){alert("Email não encontrado");return;}
+    alert("Termo enviado para: "+String(n.email));
+  });
+}
+function pubNeg(id){
+  if(!confirm("Publicar este negócio?"))return;
+  sbup("negocios","id=eq."+id,{"status":"publicado"},SK).then(function(){loadNegocios();alert("Publicado!");});
+}
 
-async function loadAnuncios(){
-let path='negocios?select=id,codigo_anuncio,titulo_anuncio,categoria,faturamento_anual,preco_pedido,score_saude,valor_1n,status,termo_adesao_status,anuncio_valido_ate,created_at&codigo_anuncio=not.is.null&order=created_at.desc&limit=200';
-const st=document.getElementById('fa-status').value;if(st)path+='&status=eq.'+st;
-const[data,ri]=await Promise.all([q(path),q('interesses?select=negocio_codigo&limit=5000')]);
-const riMap={};(ri||[]).forEach(i=>{riMap[i.negocio_codigo]=(riMap[i.negocio_codigo]||0)+1;});
-document.getElementById('sc-anu').textContent=(data||[]).length;
-document.getElementById('tb-anu').innerHTML=(data||[]).map(n=>{const tag=tagPreco(n.preco_pedido,n.valor_1n);const termo=n.termo_adesao_status||'—';const ni=riMap[n.codigo_anuncio]||0;const val=n.anuncio_valido_ate?new Date(n.anuncio_valido_ate).toLocaleDateString('pt-BR'):'—';const vencido=n.anuncio_valido_ate&&new Date(n.anuncio_valido_ate)<new Date();return '<tr onclick="abrirNeg(''+n.id+'')"><td style="font-family:Syne,sans-serif;font-weight:700;font-size:11px">'+esc(n.codigo_anuncio||'—')+'</td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;font-weight:700">'+esc(n.titulo_anuncio||'—')+'</td><td style="font-size:9px;color:var(--t2)">'+esc(n.categoria||'—')+'</td><td>'+brlK(n.faturamento_anual)+'</td><td>'+brlK(n.preco_pedido)+'</td><td>'+(n.score_saude||'—')+'</td><td><span class="bg '+tag.c+'">'+tag.t+'</span></td><td>'+(termo!=='—'?'<span class="bg '+(termo==='assinado'?'bg-green':'bg-am')+'">'+termo+'</span>':'—')+'</td><td><span class="bg '+statusBg(n.status)+'">'+esc(n.status||'—')+'</span></td><td style="color:'+(vencido?'var(--rd)':'var(--t3)')+'">'+val+'</td><td style="font-family:Syne,sans-serif;font-weight:700;color:'+(ni>0?'var(--green)':'var(--t3)')+'">'+( ni||'—')+'</td><td><a href="/admin-anuncios.html" target="_blank" class="btn btn-o btn-sm" onclick="event.stopPropagation()">Editar</a></td></tr>';}).join('')||'<tr><td colspan="12" class="empty">Nenhum anúncio</td></tr>';
+function loadAnuncios(){
+  var p=document.getElementById("anu-body");if(p)p.innerHTML="<tr><td colspan='5' style='color:var(--t3)'>Carregando...</td></tr>";
+  sb("negocios","select=id,nome_empresa,segmento,cidade,status&order=created_at.desc&limit=100",SK).then(function(r){return r.json();}).then(function(rows){
+    if(!p)return;
+    if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='5' style='color:var(--t3)'>Nenhum anúncio</td></tr>";return;}
+    var html="";
+    rows.forEach(function(n){
+      var sid=String(n.id||"");
+      var stCls=n.status==="publicado"?"st-pub":n.status==="pendente"?"st-pend":"st-other";
+      html+="<tr data-id='"+sid+"'><td>"+String(n.nome_empresa||"-")+"</td><td>"+String(n.segmento||"-")+"</td><td>"+String(n.cidade||"-")+"</td><td><span class='"+stCls+"'>"+String(n.status||"-")+"</span></td><td><button class='btn-sm btn-edit-anu'>Editar</button></td></tr>";
+    });
+    p.innerHTML=html;
+    p.onclick=function(e){
+      var btn=e.target.closest("button");if(!btn)return;
+      var tr=e.target.closest("tr[data-id]");if(!tr)return;
+      var id=tr.getAttribute("data-id");
+      if(btn.classList.contains("btn-edit-anu"))window.open("admin-anuncios.html?id="+id,"_blank");
+    };
+  }).catch(function(e){if(p)p.innerHTML="<tr><td colspan='5' style='color:red'>"+e.message+"</td></tr>";});
 }
-async function loadUsuarios(){
-let path='usuarios?select=id,nome,email,tipo,whatsapp,created_at&order=created_at.desc&limit=500';
-const tp=document.getElementById('fu-tipo').value;const bu=document.getElementById('fu-busca').value.trim();
-if(tp)path+='&tipo=eq.'+tp;if(bu)path+='&or=(nome.ilike.*'+encodeURIComponent(bu)+'*,email.ilike.*'+encodeURIComponent(bu)+'*)';
-const data=await q(path);document.getElementById('sc-usr').textContent=(data||[]).length;
-document.getElementById('tb-usr').innerHTML=(data||[]).map(u=>{const wpp=u.whatsapp?'55'+String(u.whatsapp).replace(/\D/g,''):'';return '<tr><td>'+esc(u.nome||'—')+'</td><td><a href="mailto:'+esc(u.email||'')+'">'+esc(u.email||'—')+'</a></td><td><span class="bg '+(u.tipo==='sell'?'bg-green':'bg-bl')+'">'+(u.tipo==='sell'?'vendedor':'comprador')+'</span></td><td>'+(wpp?'<a href="https://wa.me/'+wpp+'" target="_blank">'+esc(u.whatsapp||'')+'</a>':'—')+'</td><td style="color:var(--t3)">'+dt(u.created_at)+'</td><td>'+(wpp?'<a href="https://wa.me/'+wpp+'" target="_blank" class="btn btn-o btn-sm">WhatsApp</a>':'')+'</td></tr>';}).join('')||'<tr><td colspan="6" class="empty">Nenhum usuário</td></tr>';
+function loadUsuarios(){
+  var p=document.getElementById("usr-body");if(p)p.innerHTML="<tr><td colspan='5' style='color:var(--t3)'>Carregando...</td></tr>";
+  sb("usuarios","select=id,nome,email,tipo,created_at&order=created_at.desc&limit=200",SK).then(function(r){return r.json();}).then(function(rows){
+    if(!p)return;
+    if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='5'>Nenhum usuário</td></tr>";return;}
+    window.__usrData=rows;
+    var html="";
+    rows.forEach(function(u){
+      html+="<tr><td>"+String(u.nome||"-")+"</td><td>"+String(u.email||"-")+"</td><td>"+String(u.tipo||"-")+"</td><td>"+fmtDate(u.created_at)+"</td><td><button class='btn-sm'>Ver</button></td></tr>";
+    });
+    p.innerHTML=html;
+  }).catch(function(e){if(p)p.innerHTML="<tr><td colspan='5' style='color:red'>"+e.message+"</td></tr>";});
 }
-function exportUsrCSV(){q('usuarios?select=nome,email,tipo,whatsapp,created_at&order=created_at.desc&limit=5000').then(function(data){if(!data||!data.length)return;var hdr='Nome;Email;Tipo;WhatsApp;Cadastro';var rows=data.map(function(u){return '"'+(u.nome||'')+'";"'+(u.email||'')+'";"'+(u.tipo||'')+'";"'+(u.whatsapp||'')+'";"'+(u.created_at||'')+('"');});var blob=new Blob(['﻿'+hdr+'
-'+rows.join('
-')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='usuarios_'+Date.now()+'.csv';a.click();});}
-async function loadAgenda(){
-let path='admin_agenda?select=*&order=data_hora.desc&limit=200';
-const tp=document.getElementById('fag-tipo').value;const st=document.getElementById('fag-status').value;
-if(tp)path+='&tipo=eq.'+tp;if(st)path+='&status=eq.'+st;
-const data=await q(path);document.getElementById('sc-age').textContent=(data||[]).filter(a=>a.status==='pendente').length;
-document.getElementById('tb-age').innerHTML=(data||[]).map(a=>{const wpp=a.whatsapp?'55'+String(a.whatsapp).replace(/\D/g,''):'';return '<tr><td><span class="bg '+(a.tipo==='laudo_99'?'bg-green':a.tipo==='guiado_588'?'bg-bl':'bg-am')+'">'+esc(a.tipo||'—')+'</span></td><td>'+esc(a.nome_cliente||'—')+'</td><td>'+(wpp?'<a href="https://wa.me/'+wpp+'" target="_blank">'+esc(a.whatsapp||'')+'</a>':'—')+'</td><td>'+dtf(a.data_hora)+'</td><td><span class="bg '+statusBg(a.status)+'">'+esc(a.status||'—')+'</span></td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;color:var(--t2)">'+esc(a.notas||'—')+'</td><td>'+(a.status!=='concluido'?'<button class="btn btn-g btn-sm" onclick="event.stopPropagation();concluirAge(''+a.id+'')">Concluir</button>':'')+(a.link_meet?'<a href="'+a.link_meet+'" target="_blank" class="btn btn-o btn-sm">Meet</a>':'')+'</td></tr>';}).join('')||'<tr><td colspan="7" class="empty">Nenhum compromisso</td></tr>';
+function exportUsrCSV(){
+  var rows=window.__usrData||[];
+  var bom=String.fromCharCode(65279);
+  var csv=bom+"Nome,Email,Tipo,Criado
+"+rows.map(function(u){return [u.nome,u.email,u.tipo,fmtDate(u.created_at)].map(function(c){return '"'+String(c||"").replace(new RegExp('"',"g"),'""')+'"';}).join(",");}).join("
+");
+  var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="usuarios.csv";a.click();
 }
-function novoCompromisso(){document.getElementById('mod-age').classList.add('open');}
-async function salvarAgenda(){const body={tipo:document.getElementById('ma-tipo').value,status:document.getElementById('ma-status').value,nome_cliente:document.getElementById('ma-nome').value,email_cliente:document.getElementById('ma-email').value,whatsapp:document.getElementById('ma-wpp').value,data_hora:document.getElementById('ma-data').value?new Date(document.getElementById('ma-data').value).toISOString():null,link_meet:document.getElementById('ma-link').value||null,notas:document.getElementById('ma-notas').value||null};await q('admin_agenda',{method:'POST',body,write:true});toast('Compromisso salvo');cls('mod-age');loadAgenda();}
-async function concluirAge(id){await q('admin_agenda?id=eq.'+id,{method:'PATCH',body:{status:'concluido',concluido_em:new Date().toISOString()},write:true});toast('Concluído');loadAgenda();}
+function loadAgenda(){
+  var p=document.getElementById("age-body");if(p)p.innerHTML="<tr><td colspan='5' style='color:var(--t3)'>Carregando...</td></tr>";
+  sb("admin_agenda","select=id,titulo,data_hora,status,notas&order=data_hora.desc&limit=100",SK).then(function(r){return r.json();}).then(function(rows){
+    if(!p)return;
+    if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='5'>Nenhum agendamento</td></tr>";return;}
+    var html="";
+    rows.forEach(function(a){
+      var sid=String(a.id||"");
+      html+="<tr data-id='"+sid+"'><td>"+String(a.titulo||"-")+"</td><td>"+fmtDate(a.data_hora)+"</td><td>"+String(a.status||"-")+"</td><td>"+String(a.notas||"-")+"</td><td><button class='btn-sm btn-conc-age'>Concluir</button></td></tr>";
+    });
+    p.innerHTML=html;
+    p.onclick=function(e){
+      var btn=e.target.closest("button");if(!btn)return;
+      var tr=e.target.closest("tr[data-id]");if(!tr)return;
+      var id=tr.getAttribute("data-id");
+      if(btn.classList.contains("btn-conc-age"))concluirAge(id);
+    };
+  }).catch(function(e){if(p)p.innerHTML="<tr><td colspan='5' style='color:red'>"+e.message+"</td></tr>";});
+}
+function concluirAge(id){
+  if(!confirm("Marcar como concluído?"))return;
+  sbup("admin_agenda","id=eq."+id,{"status":"concluido"},SK).then(function(){loadAgenda();});
+}
+function salvarAgenda(){
+  var titulo=document.getElementById("age-titulo").value;
+  var data=document.getElementById("age-data").value;
+  var notas=document.getElementById("age-notas").value;
+  if(!titulo||!data){alert("Preencha título e data");return;}
+  sbp("admin_agenda",{"titulo":titulo,"data_hora":data,"notas":notas,"status":"pendente"},SK).then(function(){loadAgenda();document.getElementById("form-agenda").reset();alert("Agendado!");});
+}
 
-async function loadLeads(){
-let path='leads_google?select=nome,telefone,telefone_formatado,cidade,categoria,status,campanha,enviado_em&order=created_at.desc&limit=300';
-const st=document.getElementById('fl-status').value;const camp=document.getElementById('fl-camp').value;const bu=document.getElementById('fl-busca').value.trim();
-if(st)path+='&status=eq.'+st;if(camp)path+='&campanha=eq.'+encodeURIComponent(camp);if(bu)path+='&nome=ilike.*'+encodeURIComponent(bu)+'*';
-const data=await q(path);document.getElementById('sc-lea').textContent=(data||[]).length;
-document.getElementById('tb-lea').innerHTML=(data||[]).map(function(l){const wpp=l.telefone_formatado||'';return '<tr><td>'+esc(l.nome||'—')+'</td><td>'+(wpp?'<a href="https://wa.me/'+wpp+'" target="_blank">'+esc(l.telefone||wpp)+'</a>':'—')+'</td><td>'+esc(l.cidade||'—')+'</td><td style="font-size:9px">'+esc(l.categoria||'—')+'</td><td><span class="bg '+statusBg(l.status)+'">'+esc(l.status||'—')+'</span></td><td style="font-size:9px">'+esc(l.campanha||'—')+'</td><td style="color:var(--t3)">'+(l.enviado_em?dtf(l.enviado_em):'—')+'</td><td>'+(wpp?'<a href="https://wa.me/'+wpp+'" target="_blank" class="btn btn-o btn-sm" onclick="event.stopPropagation()">WPP</a>':'')+'</td></tr>';}).join('')||'<tr><td colspan="8" class="empty">Nenhum lead</td></tr>';
-const camps=await q('leads_google?select=campanha&limit=5000');const ucs=[...new Set((camps||[]).map(c=>c.campanha).filter(Boolean))].sort();const sel=document.getElementById('fl-camp');const cur=sel.value;sel.innerHTML='<option value="">Todas campanhas</option>'+ucs.map(c=>'<option value="'+esc(c)+'" '+(c===cur?'selected':'')+'>'+esc(c)+'</option>').join('');
+function loadLeads(){
+  var p=document.getElementById("leads-body");if(p)p.innerHTML="<tr><td colspan='6' style='color:var(--t3)'>Carregando...</td></tr>";
+  sb("leads_google","select=id,nome,empresa,telefone,cidade,status&order=created_at.desc&limit=200",SK).then(function(r){return r.json();}).then(function(rows){
+    if(!p)return;
+    if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='6'>Nenhum lead Google</td></tr>";return;}
+    window.__leadsData=rows;
+    var html="";
+    rows.forEach(function(l){
+      var stCls=l.status==="novo"?"st-pub":l.status==="contatado"?"st-pend":"st-other";
+      html+="<tr><td>"+String(l.nome||"-")+"</td><td>"+String(l.empresa||"-")+"</td><td>"+String(l.telefone||"-")+"</td><td>"+String(l.cidade||"-")+"</td><td><span class='"+stCls+"'>"+String(l.status||"-")+"</span></td><td><a href='https://wa.me/"+fmtWpp(l.telefone)+"' target='_blank' class='btn-sm'>WhatsApp</a></td></tr>";
+    });
+    p.innerHTML=html;
+  }).catch(function(e){if(p)p.innerHTML="<tr><td colspan='6' style='color:red'>"+e.message+"</td></tr>";});
 }
-function exportLeadsCSV(){q('leads_google?select=nome,telefone,cidade,categoria,status,campanha,enviado_em&limit=5000').then(function(data){if(!data)return;var hdr='Nome;Telefone;Cidade;Categoria;Status;Campanha;Enviado';var rows=data.map(function(l){return '"'+(l.nome||'')+'";"'+(l.telefone||'')+'";"'+(l.cidade||'')+'";"'+(l.categoria||'')+'";"'+(l.status||'')+'";"'+(l.campanha||'')+'";"'+(l.enviado_em||'')+'"';});var blob=new Blob(['﻿'+hdr+'
-'+rows.join('
-')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='leads_google_'+Date.now()+'.csv';a.click();});}
-async function loadLeadsSite(){
-let path='leads_site?select=*&order=created_at.desc&limit=500';
-const st=document.getElementById('fls-status').value;const bu=document.getElementById('fls-busca').value.trim();
-if(st)path+='&status=eq.'+st;if(bu)path+='&or=(nome.ilike.*'+encodeURIComponent(bu)+'*,whatsapp.ilike.*'+encodeURIComponent(bu)+'*)';
-const data=await q(path);document.getElementById('sc-lsite').textContent=(data||[]).length;
-document.getElementById('tb-lsite').innerHTML=(data||[]).map(function(l){const wpp=l.whatsapp?'55'+String(l.whatsapp).replace(/\D/g,''):'';return '<tr><td>'+esc(l.nome||'—')+'</td><td>'+(wpp?'<a href="https://wa.me/'+wpp+'" target="_blank">'+esc(l.whatsapp||'')+'</a>':'—')+'</td><td>'+(l.email?'<a href="mailto:'+esc(l.email||'')+'">'+esc(l.email||'')+'</a>':'—')+'</td><td><span class="bg '+statusBg(l.status)+'">'+esc(l.status||'—')+'</span></td><td>'+(l.corretor?'<span class="bg bg-pu">sim</span>':'—')+'</td><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;color:var(--t2)">'+esc(l.notas||'—')+'</td><td style="color:var(--t3)">'+dt(l.created_at)+'</td><td><button class="btn btn-o btn-sm" onclick="event.stopPropagation();editarLeadSite(''+l.id+'')">Editar</button>'+(wpp?'<a href="https://wa.me/'+wpp+'" target="_blank" class="btn btn-o btn-sm" onclick="event.stopPropagation()">WPP</a>':'')+'</td></tr>';}).join('')||'<tr><td colspan="8" class="empty">Nenhum lead</td></tr>';
+function exportLeadsCSV(){
+  var rows=window.__leadsData||[];
+  var bom=String.fromCharCode(65279);
+  var csv=bom+"Nome,Empresa,Telefone,Cidade,Status
+"+rows.map(function(l){return [l.nome,l.empresa,l.telefone,l.cidade,l.status].map(function(c){return '"'+String(c||"").replace(new RegExp('"',"g"),'""')+'"';}).join(",");}).join("
+");
+  var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="leads-google.csv";a.click();
 }
-async function editarLeadSite(id){const data=await q('leads_site?id=eq.'+id);if(!data||!data[0])return;const l=data[0];_leadSiteData=l;document.getElementById('mls-id').value=l.id;document.getElementById('mls-nome').value=l.nome||'';document.getElementById('mls-wpp').value=l.whatsapp||'';document.getElementById('mls-email').value=l.email||'';document.getElementById('mls-status').value=l.status||'novo';document.getElementById('mls-notas').value=l.notas||'';document.getElementById('mod-lead-site').classList.add('open');}
-async function salvarLeadSite(){const id=document.getElementById('mls-id').value;await q('leads_site?id=eq.'+id,{method:'PATCH',body:{nome:document.getElementById('mls-nome').value,whatsapp:document.getElementById('mls-wpp').value,email:document.getElementById('mls-email').value,status:document.getElementById('mls-status').value,notas:document.getElementById('mls-notas').value},write:true});toast('Lead atualizado');cls('mod-lead-site');loadLeadsSite();}
-function exportLeadsSiteCSV(){q('leads_site?select=*&limit=5000').then(function(data){if(!data)return;var hdr='Nome;WhatsApp;Email;Status;Corretor;Notas;Data';var rows=data.map(function(l){return '"'+(l.nome||'')+'";"'+(l.whatsapp||'')+'";"'+(l.email||'')+'";"'+(l.status||'')+'";"'+(l.corretor?'sim':'nao')+'";"'+((l.notas||'').replace(/"/g,"'"))+'";"'+(l.created_at||'')+'"';});var blob=new Blob(['﻿'+hdr+'
-'+rows.join('
-')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='leads_site_'+Date.now()+'.csv';a.click();});}
-async function loadDisparos(){const data=await q('disparos_whatsapp?select=telefone,mensagem,status,created_at&order=created_at.desc&limit=200');document.getElementById('sc-dis').textContent=(data||[]).length;document.getElementById('tb-dis').innerHTML=(data||[]).map(d=>'<tr><td>'+(d.telefone?'<a href="https://wa.me/'+d.telefone+'" target="_blank">'+esc(d.telefone||'')+'</a>':'—')+'</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;color:var(--t2)">'+esc((d.mensagem||'').slice(0,80))+'</td><td><span class="bg '+statusBg(d.status||'enviado')+'">'+esc(d.status||'enviado')+'</span></td><td style="color:var(--t3)">'+dtf(d.created_at)+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">Nenhum disparo</td></tr>';}
-async function loadParceiros(){const data=await q('filiados?select=*&order=created_at.desc&limit=100');document.getElementById('sc-par').textContent=(data||[]).length;document.getElementById('tb-par').innerHTML=(data||[]).map(p=>'<tr><td>'+esc(p.codigo||'—')+'</td><td>'+esc(p.nome||'—')+'</td><td>'+esc(p.cidade||'—')+'</td><td>'+(p.pontos||0)+'</td><td><span class="bg '+(p.nivel==='ouro'?'bg-am':p.nivel==='prata'?'bg-bl':'bg-t2')+'">'+esc(p.nivel||'bronze')+'</span></td><td><span class="bg '+statusBg(p.status)+'">'+esc(p.status||'—')+'</span></td><td style="color:var(--t3)">'+dt(p.created_at)+'</td></tr>').join('')||'<tr><td colspan="7" class="empty">Nenhum parceiro</td></tr>';}
+function loadLeadsSite(){
+  var p=document.getElementById("ls-body");if(p)p.innerHTML="<tr><td colspan='6' style='color:var(--t3)'>Carregando...</td></tr>";
+  sb("leads_site","select=id,nome,whatsapp,interesse,status,created_at&order=created_at.desc&limit=200",SK).then(function(r){return r.json();}).then(function(rows){
+    if(!p)return;
+    if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='6'>Nenhum lead do site</td></tr>";return;}
+    window.__lsData=rows;
+    var html="";
+    rows.forEach(function(l){
+      var sid=String(l.id||"");
+      var stCls=l.status==="novo"?"st-pub":l.status==="contatado"?"st-pend":"st-other";
+      html+="<tr data-id='"+sid+"'><td>"+String(l.nome||"-")+"</td><td>"+String(l.whatsapp||"-")+"</td><td>"+String(l.interesse||"-")+"</td><td>"+fmtDate(l.created_at)+"</td><td><span class='"+stCls+"'>"+String(l.status||"-")+"</span></td><td><button class='btn-sm btn-edit-ls'>Editar</button> <a href='https://wa.me/"+fmtWpp(l.whatsapp)+"' target='_blank' class='btn-sm'>WA</a></td></tr>";
+    });
+    p.innerHTML=html;
+    p.onclick=function(e){
+      var btn=e.target.closest("button");if(!btn)return;
+      var tr=e.target.closest("tr[data-id]");if(!tr)return;
+      var id=tr.getAttribute("data-id");
+      if(btn.classList.contains("btn-edit-ls")){
+        var row=window.__lsData.find(function(x){return String(x.id)===id;});
+        if(!row)return;
+        document.getElementById("ls-edit-id").value=id;
+        document.getElementById("ls-edit-nome").value=row.nome||"";
+        document.getElementById("ls-edit-wpp").value=row.whatsapp||"";
+        document.getElementById("ls-edit-interesse").value=row.interesse||"";
+        document.getElementById("ls-edit-status").value=row.status||"novo";
+        document.getElementById("ls-edit-obs").value=row.observacoes||"";
+        document.getElementById("modal-ls").style.display="flex";
+      }
+    };
+  }).catch(function(e){if(p)p.innerHTML="<tr><td colspan='6' style='color:red'>"+e.message+"</td></tr>";});
+}
+function salvarLeadSite(){
+  var id=document.getElementById("ls-edit-id").value;
+  var d={
+    nome:document.getElementById("ls-edit-nome").value,
+    whatsapp:document.getElementById("ls-edit-wpp").value,
+    interesse:document.getElementById("ls-edit-interesse").value,
+    status:document.getElementById("ls-edit-status").value,
+    observacoes:document.getElementById("ls-edit-obs").value
+  };
+  sbup("leads_site","id=eq."+id,d,SK).then(function(){
+    document.getElementById("modal-ls").style.display="none";
+    loadLeadsSite();
+    alert("Lead atualizado!");
+  });
+}
+function exportLeadsSiteCSV(){
+  var rows=window.__lsData||[];
+  var bom=String.fromCharCode(65279);
+  var csv=bom+"Nome,WhatsApp,Interesse,Status,Criado
+"+rows.map(function(l){return [l.nome,l.whatsapp,l.interesse,l.status,fmtDate(l.created_at)].map(function(c){return '"'+String(c||"").replace(new RegExp('"',"g"),'""')+'"';}).join(",");}).join("
+");
+  var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="leads-site.csv";a.click();
+}
 
-async function loadPagamentos(){
-let path='transacoes?select=*,usuarios(nome,email,whatsapp)&order=created_at.desc&limit=500';
-const st=document.getElementById('fp-status').value;const tp=document.getElementById('fp-tipo').value;const bu=document.getElementById('fp-busca').value.trim();
-if(st)path+='&status=eq.'+st;
-const data=await q(path);let filtered=data||[];
-if(tp){const vals={'laudo_99':99,'guiado_588':588,'avaliacao_397':397};const v=vals[tp];if(v)filtered=filtered.filter(p=>Number(p.valor)===v||p.tipo===tp);}
-if(bu)filtered=filtered.filter(p=>JSON.stringify(p).toLowerCase().includes(bu.toLowerCase()));
-_allPagamentos=filtered;
-const total=filtered.filter(p=>p.status==='pago').reduce((s,p)=>s+Number(p.valor||0),0);
-document.getElementById('fp-total').textContent='Total pago: '+brl(total);
-document.getElementById('sc-pag').textContent=filtered.length;
-document.getElementById('tb-pag').innerHTML=filtered.map(function(p){const usr=p.usuarios||{};const refShort=p.referencia?p.referencia.slice(0,20)+'...':'-';return '<tr onclick="abrirPagamento(''+p.id+'')"><td style="color:var(--t3)">'+dtf(p.created_at)+'</td><td style="font-size:11px">'+esc(produtoLabel(p.tipo,p.valor))+'</td><td style="font-family:Syne,sans-serif;font-weight:700;color:var(--green)">'+brl(p.valor)+'</td><td><span class="bg '+statusBg(p.status)+'">'+esc(p.status||'—')+'</span></td><td style="font-size:10px">'+esc(usr.nome||usr.email||'—')+'</td><td><span class="stripe-badge" title="'+esc(p.referencia||'')+'">'+esc(refShort)+'</span></td><td><a href="https://dashboard.stripe.com" target="_blank" class="btn btn-sm" style="background:#635bff;color:#fff;border-color:#635bff;font-size:8px" onclick="event.stopPropagation()">Stripe</a></td></tr>';}).join('')||'<tr><td colspan="7" class="empty">Nenhuma transação</td></tr>';
+function loadDisparos(){
+  var p=document.getElementById("disp-body");if(p)p.innerHTML="<tr><td colspan='5' style='color:var(--t3)'>Carregando...</td></tr>";
+  sb("disparos_whatsapp","select=id,titulo,mensagem,total_enviados,created_at&order=created_at.desc&limit=100",SK).then(function(r){return r.json();}).then(function(rows){
+    if(!p)return;
+    if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='5'>Nenhum disparo</td></tr>";return;}
+    var html="";
+    rows.forEach(function(d){
+      html+="<tr><td>"+String(d.titulo||"-")+"</td><td>"+String((d.mensagem||"").substring(0,60))+"...</td><td>"+String(d.total_enviados||0)+"</td><td>"+fmtDate(d.created_at)+"</td><td>-</td></tr>";
+    });
+    p.innerHTML=html;
+  }).catch(function(e){if(p)p.innerHTML="<tr><td colspan='5' style='color:red'>"+e.message+"</td></tr>";});
 }
-function abrirPagamento(id){const p=_allPagamentos.find(x=>x.id===id);if(!p)return;const usr=p.usuarios||{};document.getElementById('mp-title').textContent='Pagamento — '+brl(p.valor);document.getElementById('mp-body').innerHTML='<div class="mod-row3"><div class="f"><label>Produto</label><input readonly value="'+esc(produtoLabel(p.tipo,p.valor))+'"></div><div class="f"><label>Valor</label><input readonly value="'+brl(p.valor)+'"></div><div class="f"><label>Status</label><input readonly value="'+(p.status||'—')+'"></div></div><div class="mod-row"><div class="f"><label>Usuário</label><input readonly value="'+esc(usr.nome||p.usuario_id||'—')+'"></div><div class="f"><label>Email</label><input readonly value="'+esc(usr.email||'—')+'"></div></div><div class="f"><label>Referência Stripe</label><input readonly value="'+(p.referencia||'—')+'"></div><div class="mod-row"><div class="f"><label>Descrição</label><input readonly value="'+esc(p.descricao||'—')+'"></div><div class="f"><label>Data</label><input readonly value="'+dtf(p.created_at)+'"></div></div>';document.getElementById('mp-stripe-btn').onclick=function(){window.open('https://dashboard.stripe.com','_blank');};document.getElementById('mod-pag').classList.add('open');}
-function exportPagCSV(){var hdr='Data;Produto;Valor;Status;Email;Referencia';var rows=_allPagamentos.map(function(p){return '"'+dtf(p.created_at)+'";"'+produtoLabel(p.tipo,p.valor)+'";"'+(p.valor||0)+'";"'+(p.status||'')+'";"'+((p.usuarios&&p.usuarios.email)||'')+'";"'+(p.referencia||'')+'"';});var blob=new Blob(['﻿'+hdr+'
-'+rows.join('
-')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='pagamentos_'+Date.now()+'.csv';a.click();}
-async function loadConversas(){
-let path='admin_conversas?select=*,usuarios(nome,email,whatsapp)&order=created_at.desc&limit=200';
-const st=document.getElementById('fc-status').value;if(st)path+='&status=eq.'+st;
-const data=await q(path);_conversas=data||[];document.getElementById('sc-conv').textContent=_conversas.length;
-const list=document.getElementById('chat-list');list.innerHTML=_conversas.map(c=>{const usr=c.usuarios||{};const nome=usr.nome||usr.email||'Usuário anônimo';return '<div class="chat-item" onclick="abrirConversa(''+c.id+'')" id="ci-'+c.id+'"><div style="display:flex;justify-content:space-between;align-items:center"><div class="chat-item-name">'+esc(nome)+'</div><span class="bg '+statusBg(c.status)+'" style="font-size:7px">'+esc(c.status||'—')+'</span></div><div class="chat-item-last">'+esc(c.assunto||c.tipo||'Conversa')+'</div><div class="chat-item-time">'+dt(c.created_at)+'</div></div>';}).join('')||'<div class="empty">Nenhuma conversa</div>';
+function loadParceiros(){
+  var p=document.getElementById("par-body");if(p)p.innerHTML="<tr><td colspan='5' style='color:var(--t3)'>Carregando...</td></tr>";
+  sb("filiados","select=id,nome,email,codigo,comissao_total&order=created_at.desc&limit=100",SK).then(function(r){return r.json();}).then(function(rows){
+    if(!p)return;
+    if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='5'>Nenhum parceiro</td></tr>";return;}
+    var html="";
+    rows.forEach(function(f){
+      html+="<tr><td>"+String(f.nome||"-")+"</td><td>"+String(f.email||"-")+"</td><td>"+String(f.codigo||"-")+"</td><td>"+fmtMoeda(f.comissao_total)+"</td><td>-</td></tr>";
+    });
+    p.innerHTML=html;
+  }).catch(function(e){if(p)p.innerHTML="<tr><td colspan='5' style='color:red'>"+e.message+"</td></tr>";});
 }
-async function abrirConversa(id){
-_convAtual=_conversas.find(c=>c.id===id);document.querySelectorAll('.chat-item').forEach(el=>el.classList.remove('on'));const ci=document.getElementById('ci-'+id);if(ci)ci.classList.add('on');
-const usr=(_convAtual&&_convAtual.usuarios)||{};const nome=usr.nome||usr.email||'Usuário';const wpp=usr.whatsapp?'55'+String(usr.whatsapp).replace(/\D/g,''):'';
-document.getElementById('chat-header-info').innerHTML='<div><div style="font-family:Syne,sans-serif;font-weight:700;font-size:13px">'+esc(nome)+'</div><div style="font-size:10px;color:var(--t2)">'+esc(usr.email||'—')+(wpp?' · <a href="https://wa.me/'+wpp+'" target="_blank" style="color:var(--green)">WhatsApp</a>':'')+'</div></div><div style="display:flex;gap:6px"><button class="btn btn-o btn-sm" onclick="marcarFechada(''+id+'')">Fechar conversa</button>'+(wpp?'<a href="https://wa.me/'+wpp+'" target="_blank" class="btn btn-g btn-sm">WhatsApp</a>':'')+'</div>';
-const msgs=await q('admin_mensagens?conversa_id=eq.'+id+'&order=created_at.asc&limit=200');
-const msgEl=document.getElementById('chat-msgs');msgEl.innerHTML=(msgs||[]).map(m=>'<div><div class="chat-bubble '+(m.remetente==='usuario'?'user':'admin')+'">'+esc(m.texto||'')+'</div><div style="font-size:9px;color:var(--t3);margin-top:2px;'+(m.remetente==='usuario'?'':'text-align:right')+'">'+dtf(m.created_at)+'</div></div>').join('')||'<div class="empty">Nenhuma mensagem</div>';
-msgEl.scrollTop=msgEl.scrollHeight;document.getElementById('chat-input-area').style.display='flex';
+function loadPagamentos(){
+  var p=document.getElementById("pag-body");if(p)p.innerHTML="<tr><td colspan='7' style='color:var(--t3)'>Carregando...</td></tr>";
+  sb("transacoes","select=id,tipo,valor,status,descricao,referencia,created_at&order=created_at.desc&limit=200",SK).then(function(r){return r.json();}).then(function(rows){
+    if(!p)return;
+    if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='7'>Nenhum pagamento</td></tr>";return;}
+    window.__pagData=rows;
+    var total=rows.filter(function(t){return t.status==="pago"||t.status==="succeeded";}).reduce(function(a,t){return a+parseFloat(t.valor||0);},0);
+    var sumEl=document.getElementById("pag-total");if(sumEl)sumEl.textContent="Total recebido: "+fmtMoeda(total);
+    var html="";
+    rows.forEach(function(t){
+      var sid=String(t.id||"");
+      var stCls=(t.status==="pago"||t.status==="succeeded")?"st-pub":t.status==="pendente"?"st-pend":"st-other";
+      html+="<tr data-id='"+sid+"'><td>"+fmtDate(t.created_at)+"</td><td>"+String(t.tipo||"-")+"</td><td>"+String(t.descricao||"-")+"</td><td>"+fmtMoeda(t.valor)+"</td><td><span class='"+stCls+"'>"+String(t.status||"-")+"</span></td><td>"+String(t.referencia||"-")+"</td><td><button class='btn-sm btn-ver-pag'>Ver</button></td></tr>";
+    });
+    p.innerHTML=html;
+    p.onclick=function(e){
+      var btn=e.target.closest("button");if(!btn)return;
+      var tr=e.target.closest("tr[data-id]");if(!tr)return;
+      var id=tr.getAttribute("data-id");
+      if(btn.classList.contains("btn-ver-pag"))abrirPagamento(id);
+    };
+  }).catch(function(e){if(p)p.innerHTML="<tr><td colspan='7' style='color:red'>"+e.message+"</td></tr>";});
 }
-async function enviarResposta(){if(!_convAtual)return;const txt=document.getElementById('chat-input').value.trim();if(!txt)return;await q('admin_mensagens',{method:'POST',body:{conversa_id:_convAtual.id,remetente:'admin',texto:txt,lida:true},write:true});await q('admin_conversas?id=eq.'+_convAtual.id,{method:'PATCH',body:{ultima_msg:txt,ultima_msg_remetente:'admin',ultima_msg_em:new Date().toISOString()},write:true});document.getElementById('chat-input').value='';abrirConversa(_convAtual.id);toast('Mensagem enviada');}
-async function marcarFechada(id){await q('admin_conversas?id=eq.'+id,{method:'PATCH',body:{status:'fechada'},write:true});toast('Conversa fechada');loadConversas();}
-async function loadChatLeads(){
-let path='chat_ia_leads?select=*&order=created_at.desc&limit=500';
-const pf=document.getElementById('fch-perfil').value;const bu=document.getElementById('fch-busca').value.trim();
-if(pf)path+='&perfil=eq.'+pf;if(bu)path+='&or=(nome.ilike.*'+encodeURIComponent(bu)+'*,whatsapp.ilike.*'+encodeURIComponent(bu)+'*)';
-const data=await q(path);_chatLeads=data||[];document.getElementById('sc-chat').textContent=_chatLeads.length;
-const comWpp=_chatLeads.filter(l=>l.whatsapp).length;document.getElementById('chat-kpi-total').textContent=_chatLeads.length;document.getElementById('chat-kpi-wpp').textContent=comWpp;
-document.getElementById('tb-chat').innerHTML=_chatLeads.map(function(l){const wpp=l.whatsapp?'55'+String(l.whatsapp).replace(/\D/g,''):'';const msgs=(l.messages||[]).length;return '<tr><td>'+esc(l.nome||'Anônimo')+'</td><td>'+(wpp?'<a href="https://wa.me/'+wpp+'" target="_blank">'+esc(l.whatsapp||'')+'</a>':'—')+'</td><td><span class="bg '+(l.perfil==='comprador'?'bg-bl':l.perfil==='vendedor'?'bg-green':l.perfil==='corretor'?'bg-pu':'bg-t2')+'">'+esc(l.perfil||'—')+'</span></td><td style="font-size:9px;color:var(--t2);max-width:120px;overflow:hidden;text-overflow:ellipsis">'+esc(((l.pagina_origem||'').replace('https://1negocio.com.br','').slice(0,30))||'—')+'</td><td>'+(msgs||'—')+'</td><td style="color:var(--t3)">'+dt(l.created_at)+'</td><td><button class="btn btn-o btn-sm" onclick="event.stopPropagation();verConversaChat(''+l.id+'')">Ver conversa</button>'+(wpp?'<a href="https://wa.me/'+wpp+'" target="_blank" class="btn btn-o btn-sm" onclick="event.stopPropagation()">WPP</a>':'')+'</td></tr>';}).join('')||'<tr><td colspan="7" class="empty">Nenhum lead do chatbot</td></tr>';
+function abrirPagamento(id){
+  var rows=window.__pagData||[];
+  var t=rows.find(function(x){return String(x.id)===id;});
+  if(!t)return;
+  var m=document.getElementById("modal-pag");
+  var c=document.getElementById("modal-pag-body");
+  if(!m||!c)return;
+  c.innerHTML="<table class='detail-table'><tr><td>ID</td><td>"+String(t.id)+"</td></tr><tr><td>Tipo</td><td>"+String(t.tipo||"-")+"</td></tr><tr><td>Descrição</td><td>"+String(t.descricao||"-")+"</td></tr><tr><td>Valor</td><td>"+fmtMoeda(t.valor)+"</td></tr><tr><td>Status</td><td>"+String(t.status||"-")+"</td></tr><tr><td>Referência Stripe</td><td>"+String(t.referencia||"-")+"</td></tr><tr><td>Data</td><td>"+fmtDate(t.created_at)+"</td></tr></table>";
+  m.style.display="flex";
 }
-function verConversaChat(id){const l=_chatLeads.find(x=>x.id===id);if(!l)return;const msgs=(l.messages||[]);const preview=document.getElementById('chat-preview');preview.innerHTML='<div style="margin-bottom:12px"><strong>'+esc(l.nome||'Anônimo')+'</strong> — '+esc(l.perfil||'—')+' — '+esc(l.pagina_origem||'—')+'</div>'+msgs.map(m=>'<div style="margin-bottom:8px"><div class="chat-bubble '+(m.role==='user'?'user':'bot')+'" style="max-width:80%;display:inline-block">'+esc((m.content||'').slice(0,200))+'</div></div>').join('')||'<div class="empty">Sem mensagens registradas</div>';}
-function exportChatCSV(){var hdr='Nome;WhatsApp;Perfil;Página;Msgs;Data';var rows=_chatLeads.map(function(l){return '"'+(l.nome||'')+'";"'+(l.whatsapp||'')+'";"'+(l.perfil||'')+'";"'+(l.pagina_origem||'')+'";"'+((l.messages||[]).length)+'";"'+(l.created_at||'')+'"';});var blob=new Blob(['﻿'+hdr+'
-'+rows.join('
-')],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='chat_leads_'+Date.now()+'.csv';a.click();}
-document.addEventListener('keydown',function(e){if(e.key==='Escape')document.querySelectorAll('.mod-ov.open').forEach(function(m){m.classList.remove('open');});});
-function goNeg(){go("negocios");}function goPag(){go("pagamentos");}loadDash();
+function exportPagCSV(){
+  var rows=window.__pagData||[];
+  var bom=String.fromCharCode(65279);
+  var csv=bom+"Data,Tipo,Descricao,Valor,Status,Referencia
+"+rows.map(function(t){return [fmtDate(t.created_at),t.tipo,t.descricao,t.valor,t.status,t.referencia].map(function(c){return '"'+String(c||"").replace(new RegExp('"',"g"),'""')+'"';}).join(",");}).join("
+");
+  var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="pagamentos.csv";a.click();
+}
+
+function loadConversas(){
+  var p=document.getElementById("conv-body");if(p)p.innerHTML="<tr><td colspan='6' style='color:var(--t3)'>Carregando...</td></tr>";
+  sb("admin_conversas","select=id,usuario_id,status,assunto,tipo,ultima_msg,ultima_msg_em&order=ultima_msg_em.desc&limit=100",SK).then(function(r){return r.json();}).then(function(rows){
+    if(!p)return;
+    if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='6'>Nenhuma conversa</td></tr>";return;}
+    window.__convData=rows;
+    var html="";
+    rows.forEach(function(c){
+      var sid=String(c.id||"");
+      var stCls=c.status==="aberta"?"st-pub":c.status==="fechada"?"st-other":"st-pend";
+      html+="<tr data-id='"+sid+"'><td>"+String(c.assunto||"-")+"</td><td>"+String(c.tipo||"-")+"</td><td>"+String((c.ultima_msg||"").substring(0,50))+"</td><td>"+fmtDate(c.ultima_msg_em)+"</td><td><span class='"+stCls+"'>"+String(c.status||"-")+"</span></td><td><button class='btn-sm btn-abrir-conv'>Abrir</button></td></tr>";
+    });
+    p.innerHTML=html;
+    p.onclick=function(e){
+      var btn=e.target.closest("button");if(!btn)return;
+      var tr=e.target.closest("tr[data-id]");if(!tr)return;
+      var id=tr.getAttribute("data-id");
+      if(btn.classList.contains("btn-abrir-conv"))abrirConv(id);
+    };
+  }).catch(function(e){if(p)p.innerHTML="<tr><td colspan='6' style='color:red'>"+e.message+"</td></tr>";});
+}
+function abrirConv(id){
+  var rows=window.__convData||[];
+  var conv=rows.find(function(x){return String(x.id)===id;});
+  var m=document.getElementById("modal-conv");if(!m)return;
+  var hdr=document.getElementById("conv-modal-title");
+  if(hdr&&conv)hdr.textContent="Conversa: "+(conv.assunto||id);
+  document.getElementById("conv-resp-id").value=id;
+  var msgs=document.getElementById("conv-msgs");
+  if(msgs)msgs.innerHTML="<div style='color:var(--t3)'>Carregando mensagens...</div>";
+  m.style.display="flex";
+  sb("admin_mensagens","select=remetente,texto,created_at&conversa_id=eq."+id+"&order=created_at.asc",SK).then(function(r){return r.json();}).then(function(ms){
+    if(!msgs)return;
+    if(!ms||!ms.length){msgs.innerHTML="<div style='color:var(--t3)'>Sem mensagens ainda</div>";return;}
+    var html="";
+    ms.forEach(function(msg){
+      var cls=msg.remetente==="admin"?"msg-admin":"msg-user";
+      html+="<div class='msg-bubble "+cls+"'><strong>"+String(msg.remetente||"")+"</strong><p>"+String(msg.texto||"")+"</p><small>"+fmtDate(msg.created_at)+"</small></div>";
+    });
+    msgs.innerHTML=html;
+    msgs.scrollTop=msgs.scrollHeight;
+  });
+}
+function enviarResposta(){
+  var id=document.getElementById("conv-resp-id").value;
+  var txt=document.getElementById("conv-resp-txt").value;
+  if(!id||!txt.trim()){alert("Escreva uma resposta");return;}
+  sbp("admin_mensagens",{"conversa_id":id,"remetente":"admin","texto":txt,"lida":true},SK).then(function(){
+    sbup("admin_conversas","id=eq."+id,{"ultima_msg":txt,"ultima_msg_remetente":"admin","ultima_msg_em":new Date().toISOString()},SK);
+    document.getElementById("conv-resp-txt").value="";
+    abrirConv(id);
+  });
+}
+function mFechada(id){
+  var rid=id||document.getElementById("conv-resp-id").value;
+  if(!confirm("Fechar esta conversa?"))return;
+  sbup("admin_conversas","id=eq."+rid,{"status":"fechada"},SK).then(function(){
+    document.getElementById("modal-conv").style.display="none";
+    loadConversas();
+  });
+}
+
+function loadChatLeads(){
+  var p=document.getElementById("chat-body");if(p)p.innerHTML="<tr><td colspan='6' style='color:var(--t3)'>Carregando...</td></tr>";
+  sb("chat_ia_leads","select=id,nome,whatsapp,perfil,pagina_origem,created_at&order=created_at.desc&limit=200",SK).then(function(r){return r.json();}).then(function(rows){
+    if(!p)return;
+    if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='6'>Nenhum lead do chat</td></tr>";return;}
+    window.__chatData=rows;
+    var html="";
+    rows.forEach(function(c){
+      var sid=String(c.id||"");
+      html+="<tr data-id='"+sid+"'><td>"+String(c.nome||"-")+"</td><td>"+String(c.whatsapp||"-")+"</td><td>"+String(c.perfil||"-")+"</td><td>"+String(c.pagina_origem||"-")+"</td><td>"+fmtDate(c.created_at)+"</td><td><button class='btn-sm btn-ver-chat'>Ver conversa</button> <a href='https://wa.me/"+fmtWpp(c.whatsapp)+"' target='_blank' class='btn-sm'>WA</a></td></tr>";
+    });
+    p.innerHTML=html;
+    p.onclick=function(e){
+      var btn=e.target.closest("button");if(!btn)return;
+      var tr=e.target.closest("tr[data-id]");if(!tr)return;
+      var id=tr.getAttribute("data-id");
+      if(btn.classList.contains("btn-ver-chat"))verChatConv(id);
+    };
+  }).catch(function(e){if(p)p.innerHTML="<tr><td colspan='6' style='color:red'>"+e.message+"</td></tr>";});
+}
+function verChatConv(id){
+  var rows=window.__chatData||[];
+  var lead=rows.find(function(x){return String(x.id)===id;});
+  if(!lead)return;
+  var m=document.getElementById("modal-chat-conv");if(!m)return;
+  var hdr=document.getElementById("chat-conv-title");
+  if(hdr)hdr.textContent="Chat: "+(lead.nome||id)+" - "+(lead.whatsapp||"");
+  var body=document.getElementById("chat-conv-body");
+  if(body){
+    sb("chat_ia_leads","select=messages&id=eq."+id,SK).then(function(r){return r.json();}).then(function(rows2){
+      var msgs=(rows2[0]&&rows2[0].messages)||[];
+      if(!msgs.length){body.innerHTML="<div style='color:var(--t3)'>Sem mensagens registradas</div>";return;}
+      var html="";
+      msgs.forEach(function(msg){
+        var role=msg.role||msg.remetente||"user";
+        var cls=role==="assistant"?"msg-admin":"msg-user";
+        var txt=msg.content||msg.texto||"";
+        html+="<div class='msg-bubble "+cls+"'><strong>"+role+"</strong><p>"+String(txt)+"</p></div>";
+      });
+      body.innerHTML=html;
+      body.scrollTop=body.scrollHeight;
+    });
+  }
+  m.style.display="flex";
+}
+function exportChatCSV(){
+  var rows=window.__chatData||[];
+  var bom=String.fromCharCode(65279);
+  var csv=bom+"Nome,WhatsApp,Perfil,Pagina,Criado
+"+rows.map(function(c){return [c.nome,c.whatsapp,c.perfil,c.pagina_origem,fmtDate(c.created_at)].map(function(v){return '"'+String(v||"").replace(new RegExp('"',"g"),'""')+'"';}).join(",");}).join("
+");
+  var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="chat-leads.csv";a.click();
+}
+document.addEventListener("keydown",function(e){if(e.key==="Escape"){document.querySelectorAll(".modal").forEach(function(m){m.style.display="none";});}});
+document.querySelectorAll(".sb-item[data-sec]").forEach(function(el){el.addEventListener("click",function(){go(el.getAttribute("data-sec"));});});
+loadDash();
 
 </script>
 </body>
