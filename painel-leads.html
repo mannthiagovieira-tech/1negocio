@@ -10,7 +10,7 @@
 :root{
 --green:#10b981;
 --bg:#0c0c0a;
---surface:#111110;
+--surface:#111110
 --surface2:#161614;
 --surface3:#1c1c19;
 --text:#e5e5e3;
@@ -3692,5 +3692,86 @@ window.outroImportarCSV = async function() {
   } catch(e) { fb.style.color='var(--red)'; fb.textContent='Erro: '+e.message; }
 };
 </script>
+
 </body>
 </html>
+<!-- BOTÕES DE ORDENAÇÃO - OLX e FB -->
+<script>
+(function() {
+  function initSortButtons() {
+    function getPrice_OLX(row) {
+      const bio = row.cells[4]?.innerText || '';
+      const m = bio.match(/Preço: R\$\s*([\d.]+)/);
+      return m ? parseFloat(m[1].replace(/\./g, '')) : -1;
+    }
+    function getPrice_FB(text) {
+      let m;
+      m = text.match(/R\$\s*([\d.,]+(?:\s*mil(?:h[aã]o)?)?)/i);
+      if (m) {
+        let raw = m[1].trim().toLowerCase();
+        if (raw.includes('milhão') || raw.includes('milhao')) return parseFloat(raw.replace(/[^\d.,]/g,'').replace(',','.')) * 1000000;
+        if (raw.includes('mil')) return parseFloat(raw.replace(/[^\d.,]/g,'').replace(',','.')) * 1000;
+        return parseFloat(raw.replace(/\./g,'').replace(',','.'));
+      }
+      m = text.match(/(\d+(?:[.,]\d+)?)\s*milh[aã]o/i);
+      if (m) return parseFloat(m[1].replace(',','.')) * 1000000;
+      m = text.match(/\b(\d+(?:[.,]\d+)?)\s*mil\b/i);
+      if (m) return parseFloat(m[1].replace(',','.')) * 1000;
+      return -1;
+    }
+    function parseDate(str) {
+      const p = str.trim().split('/');
+      return p.length === 3 ? new Date(+p[2], +p[1]-1, +p[0]) : new Date(0);
+    }
+    function sortTable(table, compareFn) {
+      const tbody = table.querySelector('tbody');
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      rows.sort(compareFn);
+      rows.forEach(r => tbody.appendChild(r));
+    }
+    function makeBtn(id, label, title, color, onClick) {
+      if (document.getElementById(id)) return null;
+      const btn = document.createElement('button');
+      btn.id = id; btn.innerHTML = label; btn.title = title;
+      btn.style.cssText = 'background:'+color+';color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:bold;cursor:pointer;margin-left:8px;';
+      btn.onclick = function(e) {
+        e.preventDefault(); e.stopPropagation(); onClick();
+        const orig = btn.innerHTML; btn.innerHTML = '✅ Ordenado!';
+        setTimeout(() => btn.innerHTML = orig, 2000);
+      };
+      return btn;
+    }
+    function addOlxButton() {
+      const exportBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText.includes('Exportar CSV'));
+      if (!exportBtn || document.getElementById('olx-sort-preco')) return;
+      const btn = makeBtn('olx-sort-preco','↓ Maior Preço','Ordenar leads OLX por maior preço','linear-gradient(135deg,#22c55e,#16a34a)',() => {
+        const table = document.querySelectorAll('table')[1];
+        if (table) sortTable(table, (a,b) => getPrice_OLX(b) - getPrice_OLX(a));
+      });
+      if (btn) exportBtn.parentElement.insertBefore(btn, exportBtn);
+    }
+    function addFbButtons() {
+      const fbTable = document.querySelectorAll('table')[3];
+      if (!fbTable || document.getElementById('fb-sort-valor')) return;
+      const tableWrap = fbTable.closest('.table-wrap');
+      const prevDiv = tableWrap?.previousElementSibling;
+      if (!prevDiv) return;
+      const container = document.createElement('div');
+      container.style.cssText = 'display:inline-flex;gap:8px;margin-left:16px;vertical-align:middle;';
+      const btnValor = makeBtn('fb-sort-valor','💰 Maior Valor','Ordenar posts FB por valor mencionado','linear-gradient(135deg,#22c55e,#16a34a)',() => sortTable(fbTable,(a,b) => {
+        const pa = getPrice_FB(a.cells[1]?.innerText||''), pb = getPrice_FB(b.cells[1]?.innerText||'');
+        if (pa<0&&pb<0) return 0; if (pa<0) return 1; if (pb<0) return -1; return pb-pa;
+      }));
+      const btnData = makeBtn('fb-sort-data','📅 Mais Recente','Ordenar posts FB por data','linear-gradient(135deg,#3b82f6,#1d4ed8)',() => sortTable(fbTable,(a,b) => parseDate(b.cells[5]?.innerText||'') - parseDate(a.cells[5]?.innerText||'')));
+      if (btnValor) container.appendChild(btnValor);
+      if (btnData) container.appendChild(btnData);
+      prevDiv.appendChild(container);
+    }
+    let _t = null;
+    new MutationObserver(() => { clearTimeout(_t); _t = setTimeout(() => { addOlxButton(); addFbButtons(); }, 500); }).observe(document.body, {childList:true,subtree:true});
+    addOlxButton(); addFbButtons();
+  }
+  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', initSortButtons);
+  else initSortButtons();
+})();
+</script>
