@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin · 1Negócio</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--green:#10b981;--green2:#059669;--bg:#0c0c0a;--s1:#111110;--s2:#161614;--s3:#1c1c19;--tx:#e5e5e3;--t2:#a3a39b;--t3:#6b6b63;--am:#f59e0b;--sep:#252522}
+body{background:var(--bg);color:var(--tx);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh}
+a{color:var(--green);text-decoration:none}
+.app{display:flex;min-height:100vh}
+.sb{width:210px;background:var(--s1);border-right:1px solid var(--sep);position:fixed;top:0;left:0;bottom:0;overflow-y:auto;z-index:100;padding:0 0 24px;pointer-events:auto}
+.sb-logo{padding:0 16px 20px;font-family:'Syne',sans-serif;font-size:16px;font-weight:800;letter-spacing:-.5px;padding-top:20px}
+.sb-logo em{font-style:normal;color:var(--green)}
+.sb-label{padding:4px 16px;font-size:8px;text-transform:uppercase;letter-spacing:2px;color:var(--t3);margin-top:12px}
+.sb-item{display:flex;align-items:center;gap:8px;padding:8px 16px;color:var(--t2);cursor:pointer;font-size:11px;transition:all .12s;border-left:2px solid transparent;pointer-events:auto}
+.sb-item:hover{background:var(--s2);color:var(--tx)}
+.sb-item.on{color:var(--green);background:rgba(16,185,129,.05);border-left-color:var(--green)}
+.sb-item svg{width:14px;height:14px;flex-shrink:0}
+.sb-count{margin-left:auto;font-size:9px;background:var(--s2);padding:1px 6px;border-radius:8px;color:var(--t3)}
+.sb-item.on .sb-count{background:rgba(16,185,129,.15);color:var(--green)}
+.mn{margin-left:210px;padding:24px 32px;max-width:1300px;pointer-events:auto}
+.pg-title{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px}
+.pg-sub{font-size:11px;color:var(--t2);margin-bottom:24px}
+.panel{pointer-events:auto}
+.dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.dash-card{background:var(--s1);border:1px solid var(--sep);padding:16px;border-radius:2px}
+.dc-val{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;letter-spacing:-.5px;color:var(--green)}
+.dc-lab{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t2);margin-top:4px}
+.tw{background:var(--s1);border:1px solid var(--sep);overflow-x:auto;margin-bottom:16px}
+.ts{max-height:600px;overflow-y:auto}
+table{width:100%;border-collapse:collapse}
+th{padding:8px 12px;text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t3);border-bottom:1px solid var(--sep);background:var(--s2);white-space:nowrap;position:sticky;top:0;z-index:1}
+td{padding:8px 12px;border-bottom:1px solid var(--sep);font-size:11px;white-space:nowrap}
+tr:hover td{background:rgba(16,185,129,.02)}
+.btn-sm{padding:4px 10px;font-family:'DM Mono',monospace;font-size:9px;cursor:pointer;border:1px solid var(--sep);background:var(--s2);color:var(--tx);transition:all .1s}
+.btn-sm:hover{border-color:var(--green);color:var(--green)}
+.st-pub{color:var(--green);font-size:9px;text-transform:uppercase;letter-spacing:.5px}
+.st-pend{color:var(--am);font-size:9px;text-transform:uppercase;letter-spacing:.5px}
+.st-other{color:var(--t3);font-size:9px;text-transform:uppercase;letter-spacing:.5px}
+.flt{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.flt select,.flt input{background:var(--s2);border:1px solid var(--sep);color:var(--tx);padding:6px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center}
+.modal-box{background:var(--s1);border:1px solid var(--sep);padding:24px;width:90%;max-width:700px;max-height:85vh;overflow-y:auto;position:relative}
+.modal-box h3{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;margin-bottom:16px}
+.detail-table td{font-size:11px;padding:6px 8px;border-bottom:1px solid var(--sep)}
+.detail-table td:first-child{color:var(--t3);width:120px;font-size:9px;text-transform:uppercase;letter-spacing:.5px}
+.close-btn{position:absolute;top:12px;right:16px;cursor:pointer;color:var(--t3);font-size:18px;background:none;border:none;color:var(--tx)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row label,.form-field label{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);display:block;margin-bottom:4px}
+.form-row input,.form-row select,.form-row textarea,.form-field input,.form-field select,.form-field textarea{width:100%;background:var(--s2);border:1px solid var(--sep);color:var(--tx);padding:6px 10px;font-family:'DM Mono',monospace;font-size:11px;outline:none}
+.msg-bubble{padding:8px 12px;margin:4px 0;border-radius:2px;font-size:11px}
+.msg-admin{background:rgba(16,185,129,.08);border-left:2px solid var(--green)}
+.msg-user{background:var(--s2);border-left:2px solid var(--sep)}
+.msg-bubble strong{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--t3)}
+.msg-bubble p{margin-top:4px;white-space:pre-wrap}
+.conv-msgs{max-height:400px;overflow-y:auto;padding:8px;background:var(--bg);margin-bottom:12px}
+.qa{display:flex;gap:8px;margin-bottom:16px}
+.btn-g{padding:7px 16px;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;background:var(--green);color:#000;border:none;font-weight:600;pointer-events:auto;z-index:10}
+.btn-o{padding:7px 16px;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;background:none;color:var(--tx);border:1px solid var(--sep);pointer-events:auto;z-index:10}
+.btn-o:hover{border-color:var(--green)}
+.sb-nav-link{display:block;padding:8px 16px;color:var(--t2);font-size:11px;cursor:pointer;margin-top:8px}
+.sb-nav-link:hover{color:var(--green)}
+.cn-layout{display:grid;grid-template-columns:1fr 1fr;gap:24px;width:100%}
+@media(max-width:1024px){.cn-layout{grid-template-columns:1fr}}
+.cn-form{background:var(--s1);border:1px solid var(--sep);padding:24px;border-radius:2px;width:100%;pointer-events:auto}
+.cn-form input,.cn-form textarea,.cn-form button{pointer-events:auto;position:relative;z-index:10}
+.cn-preview{background:var(--s1);border:1px solid var(--sep);padding:24px;border-radius:2px;height:fit-content;position:sticky;top:24px;width:100%}
+.cn-preview-label{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--t2);margin-bottom:12px;display:block;border-bottom:1px solid var(--sep);padding-bottom:8px}
+.card{background:var(--s2);border:1px solid var(--sep);border-radius:2px;overflow:hidden;display:flex;flex-direction:column;height:100%}
+.card-header{padding:16px;border-bottom:1px solid var(--sep);background:var(--s3)}
+.card-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;letter-spacing:-.5px;color:var(--tx);margin-bottom:8px;min-height:32px;word-break:break-word}
+.card-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px}
+.card-body{padding:16px;flex:1}
+.card-desc{font-size:11px;color:var(--t2);line-height:1.5;margin-bottom:16px;min-height:60px;word-break:break-word}
+.card-price{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--green);margin-bottom:12px}
+.card-footer{padding:16px;border-top:1px solid var(--sep);background:var(--s3);display:flex;gap:8px}
+.card-btn{flex:1;padding:6px 12px;font-family:'DM Mono',monospace;font-size:9px;background:var(--green);color:#000;border:none;cursor:pointer;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.card-btn:hover{background:var(--green2)}
+.cn-empty-preview{padding:40px 16px;text-align:center;color:var(--t3);font-size:11px}
+
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sb">
+<div class="sb-logo"><em>1</em>NEGÓCIO</div>
+<div class="sb-label">Operação</div>
+<div class="sb-item on" data-sec="dash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dashboard</div>
+<div class="sb-item" data-sec="criar-negocio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Criar Negócio</div>
+<div class="sb-item" data-sec="negocios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Negócios <span class="sb-count">0</span></div>
+<div class="sb-item" data-sec="anuncios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/></svg>Anúncios <span class="sb-count">0</span></div>
+<div class="sb-item" data-sec="usuarios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Usuários <span class="sb-count">0</span></div>
+<div class="sb-item" data-sec="agenda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Agenda <span class="sb-count">0</span></div>
+<div class="sb-label">Marketing</div>
+<div class="sb-item" data-sec="leads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Leads Google <span class="sb-count">0</span></div>
+<div class="sb-item" data-sec="leads-site"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Leads Site <span class="sb-count">0</span></div>
+<div class="sb-item" data-sec="disparos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4z"/></svg>Disparos <span class="sb-count">0</span></div>
+<div class="sb-item" data-sec="parceiros"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>Parceiros <span class="sb-count">0</span></div>
+<div class="sb-label">Financeiro</div>
+<div class="sb-item" data-sec="pagamentos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Pagamentos Stripe <span class="sb-count">0</span></div>
+<div class="sb-label">Suporte</div>
+<div class="sb-item" data-sec="conversas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Conversas <span class="sb-count">0</span></div>
+<div class="sb-item" data-sec="chat-leads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>Chat IA <span class="sb-count">0</span></div>
+<div class="sb-label">Ferramentas</div>
+<div class="sb-item" data-sec="anuncios" onclick="window.open('admin-anuncios.html','_blank');event.stopPropagation()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Criar anúncio</div>
+<a class="sb-nav-link" href="/">Ir para Home</a>
+</aside>
+<main class="mn">
+<!-- PANEL DASH -->
+<div id="panel-dash" class="panel" style="display:block">
+<div class="pg-title">Dashboard</div>
+<div class="pg-sub">Visão geral da plataforma</div>
+<div class="dash-grid" id="dash-cards"><div style="color:var(--t3)">Carregando...</div></div>
+<div class="qa">
+<button class="btn-g" onclick="go('negocios')">Ver negócios</button>
+<button class="btn-o" onclick="go('leads-site')">Ver leads</button>
+<button class="btn-o" onclick="go('pagamentos')">Ver pagamentos</button>
+<button class="btn-o" onclick="go('chat-leads')">Chat IA</button>
+</div>
+</div>
+<!-- PANEL CRIAR NEGÓCIO -->
+<div id="panel-criar-negocio" class="panel" style="display:none">
+<div class="pg-title">Criar Negócio</div>
+<div class="pg-sub">Publicar anúncio de negócio para venda</div>
+
+<div class="cn-layout">
+
+<!-- FORMULÁRIO -->
+<div class="cn-form">
+
+<div class="form-row">
+<div class="form-field">
+<label>Código de Avaliação</label>
+<input type="text" id="cn-codigo" placeholder="Ex: 1N-ABC123" onkeyup="buscarNegocio(); cn_atualizarPreview()">
+<small style="color:var(--t3);margin-top:4px;display:block">Digite o código do diagnóstico</small>
+</div>
+<div id="cn-status-busca" style="display:none;padding:12px;background:rgba(16,185,129,.1);border:1px solid var(--green);border-radius:2px;color:var(--tx)">
+<strong style="color:var(--green)">✓ Encontrado:</strong> <span id="cn-nome-neg"></span>
+</div>
+</div>
+
+<div class="form-row">
+<div class="form-field">
+<label>Título do Anúncio</label>
+<input type="text" id="cn-titulo" placeholder="Ex: E-commerce B2C Florianópolis" onkeyup="cn_atualizarPreview()">
+</div>
+<div class="form-field">
+<label>Valor de Venda (R$)</label>
+<input type="number" id="cn-valor" placeholder="Ex: 500000" onkeyup="cn_atualizarPreview()" oninput="cn_atualizarPreview()">
+</div>
+</div>
+
+<div class="form-row" style="grid-template-columns:1fr">
+<div class="form-field">
+<label>Descrição do Anúncio</label>
+<textarea id="cn-desc" placeholder="Descreva o negócio de forma atrativa..." style="min-height:120px" onkeyup="cn_atualizarPreview()"></textarea>
+</div>
+</div>
+
+<div style="padding:12px;background:var(--s2);border:1px solid var(--sep);border-radius:2px;margin-bottom:16px">
+<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px">
+<input type="checkbox" id="cn-termo" style="margin-top:2px">
+<label for="cn-termo" style="margin:0;cursor:pointer;font-size:11px;color:var(--tx)">
+Confirmo que <strong>termo de adesão foi assinado</strong> pelo vendedor
+</label>
+</div>
+<small style="color:var(--t3);display:block;margin-left:24px">Se marcado, o anúncio poderá ser publicado imediatamente</small>
+</div>
+
+<div class="qa" style="position:relative;z-index:50">
+<button class="btn-g" onclick="criarNegocioStandby()">Criar em Standby</button>
+<button class="btn-o" onclick="cn_limparFormulario()">Limpar</button>
+</div>
+
+<div id="cn-resultado" style="display:none;margin-top:16px;padding:12px;border-radius:2px;border:1px solid var(--sep)"></div>
+
+</div>
+
+<!-- PREVIEW -->
+<div class="cn-preview">
+<span class="cn-preview-label">📱 Preview do Card</span>
+
+<div id="cn-preview-card" style="display:none">
+<div class="card">
+<div class="card-header">
+<div class="card-title" id="cn-preview-titulo">Título do Anúncio</div>
+<div class="card-meta">
+<div>📍 Cidade</div>
+<div>📊 Setor</div>
+</div>
+</div>
+<div class="card-body">
+<div class="card-desc" id="cn-preview-desc">Descrição aparecerá aqui...</div>
+<div class="card-price">
+R$ <span id="cn-preview-valor">0,00</span>
+</div>
+</div>
+<div class="card-footer">
+<button class="card-btn">Ver Dossiê</button>
+<button class="card-btn">Proposta</button>
+</div>
+</div>
+</div>
+
+<div id="cn-preview-empty" class="cn-empty-preview">
+📝 Preencha os campos ao lado para visualizar o card do anúncio
+</div>
+
+</div>
+
+</div>
+</div>
+<!-- PANEL NEGOCIOS -->
+<div id="panel-negocios" class="panel" style="display:none">
+<div class="pg-title">Negócios</div>
+<div class="pg-sub">Todos os negócios e diagnósticos cadastrados</div>
+<div class="tw"><div class="ts"><table><thead><tr><th>Data</th><th>Empresa</th><th>Segmento</th><th>Cidade</th><th>Status</th><th>Ações</th></tr></thead><tbody id="neg-body"></tbody></table></div></div>
+</div>
+<!-- PANEL ANUNCIOS -->
+<div id="panel-anuncios" class="panel" style="display:none">
+<div class="pg-title">Anúncios</div>
+<div class="pg-sub">Gerenciar anúncios publicados</div>
+<div class="qa"><button class="btn-g" onclick="window.open('admin-anuncios.html','_blank')">+ Criar anúncio</button></div>
+<div class="tw"><div class="ts"><table><thead><tr><th>Empresa</th><th>Segmento</th><th>Cidade</th><th>Status</th><th>Ações</th></tr></thead><tbody id="anu-body"></tbody></table></div></div>
+</div>
+<!-- PANEL USUARIOS -->
+<div id="panel-usuarios" class="panel" style="display:none">
+<div class="pg-title">Usuários</div>
+<div class="pg-sub">Compradores e vendedores</div>
+<div class="flt"><button class="btn-o" onclick="exportUsrCSV()">Exportar CSV</button></div>
+<div class="tw"><div class="ts"><table><thead><tr><th>Nome</th><th>Email</th><th>Tipo</th><th>Cadastro</th><th>Ações</th></tr></thead><tbody id="usr-body"></tbody></table></div></div>
+</div>
+<!-- PANEL AGENDA -->
+<div id="panel-agenda" class="panel" style="display:none">
+<div class="pg-title">Agenda</div>
+<div class="pg-sub">Compromissos agendados</div>
+<div class="tw" style="padding:16px;margin-bottom:12px">
+<div id="form-agenda">
+<div class="form-row"><div class="form-field"><label>Título</label><input id="age-titulo" placeholder="Título do compromisso"></div><div class="form-field"><label>Data/Hora</label><input id="age-data" type="datetime-local"></div></div>
+<div class="form-field" style="margin-bottom:12px"><label>Notas</label><textarea id="age-notas" rows="2" placeholder="Observações..." style="width:100%;background:var(--s2);border:1px solid var(--sep);color:var(--tx);padding:6px 10px;font-family:'DM Mono',monospace;font-size:11px"></textarea></div>
+<button class="btn-g" onclick="salvarAgenda()">+ Agendar</button>
+</div>
+</div>
+<div class="tw"><div class="ts"><table><thead><tr><th>Título</th><th>Data</th><th>Status</th><th>Notas</th><th>Ações</th></tr></thead><tbody id="age-body"></tbody></table></div></div>
+</div>
+<!-- PANEL LEADS GOOGLE -->
+<div id="panel-leads" class="panel" style="display:none">
+<div class="pg-title">Leads Google Places</div>
+<div class="pg-sub">Leads capturados via Google Places</div>
+<div class="flt"><button class="btn-o" onclick="exportLeadsCSV()">Exportar CSV</button></div>
+<div class="tw"><div class="ts"><table><thead><tr><th>Nome</th><th>Campanha</th><th>Telefone</th><th>Cidade</th><th>Status</th><th>Ações</th></tr></thead><tbody id="leads-body"></tbody></table></div></div>
+</div>
+<!-- PANEL LEADS SITE -->
+<div id="panel-leads-site" class="panel" style="display:none">
+<div class="pg-title">Leads Site</div>
+<div class="pg-sub">Leads do chatbot e formulários do site</div>
+<div class="flt"><button class="btn-o" onclick="exportLeadsSiteCSV()">Exportar CSV</button></div>
+<div class="tw"><div class="ts"><table><thead><tr><th>Nome</th><th>WhatsApp</th><th>Interesse</th><th>Data</th><th>Status</th><th>Ações</th></tr></thead><tbody id="ls-body"></tbody></table></div></div>
+</div>
+<!-- PANEL DISPAROS -->
+<div id="panel-disparos" class="panel" style="display:none">
+<div class="pg-title">Disparos WhatsApp</div>
+<div class="pg-sub">Histórico de envios em massa</div>
+<div class="tw"><div class="ts"><table><thead><tr><th>Título</th><th>Mensagem</th><th>Total Enviados</th><th>Data</th><th>Status</th></tr></thead><tbody id="disp-body"></tbody></table></div></div>
+</div>
+<!-- PANEL PARCEIROS -->
+<div id="panel-parceiros" class="panel" style="display:none">
+<div class="pg-title">Parceiros / Filiados</div>
+<div class="pg-sub">Rede de afiliados</div>
+<div class="tw"><div class="ts"><table><thead><tr><th>Nome</th><th>Email</th><th>Código</th><th>Comissão Total</th><th>Ações</th></tr></thead><tbody id="par-body"></tbody></table></div></div>
+</div>
+<!-- PANEL PAGAMENTOS -->
+<div id="panel-pagamentos" class="panel" style="display:none">
+<div class="pg-title">Pagamentos Stripe</div>
+<div class="pg-sub">Transações e receita</div>
+<div class="flt"><span id="pag-total" style="color:var(--green);font-size:12px;font-weight:600"></span><div style="margin-left:auto"><button class="btn-o" onclick="exportPagCSV()">Exportar CSV</button></div></div>
+<div class="tw"><div class="ts"><table><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Status</th><th>Referência</th><th>Ações</th></tr></thead><tbody id="pag-body"></tbody></table></div></div>
+</div>
+<!-- PANEL CONVERSAS -->
+<div id="panel-conversas" class="panel" style="display:none">
+<div class="pg-title">Conversas de Suporte</div>
+<div class="pg-sub">Atendimento a usuários</div>
+<div class="tw"><div class="ts"><table><thead><tr><th>Assunto</th><th>Tipo</th><th>Última Mensagem</th><th>Data</th><th>Status</th><th>Ações</th></tr></thead><tbody id="conv-body"></tbody></table></div></div>
+</div>
+<!-- PANEL CHAT IA -->
+<div id="panel-chat-leads" class="panel" style="display:none">
+<div class="pg-title">Chat IA - Leads</div>
+<div class="pg-sub">Leads capturados pelo chatbot do site</div>
+<div class="flt"><button class="btn-o" onclick="exportChatCSV()">Exportar CSV</button></div>
+<div class="tw"><div class="ts"><table><thead><tr><th>Nome</th><th>WhatsApp</th><th>Perfil</th><th>Página</th><th>Data</th><th>Ações</th></tr></thead><tbody id="chat-body"></tbody></table></div></div>
+</div>
+</main>
+</div>
+<!-- MODAL NEGOCIO -->
+<div id="modal-neg" class="modal">
+<div class="modal-box">
+<button class="close-btn" onclick="document.getElementById('modal-neg').style.display='none'">×</button>
+<h3>Detalhes do Negócio</h3>
+<div id="modal-neg-body"></div>
+<input type="hidden" id="neg-termo-id">
+<div style="margin-top:16px;display:flex;gap:8px">
+<button class="btn-g" onclick="enviarTermo()">Enviar Termo</button>
+<button class="btn-o" onclick="document.getElementById('modal-neg').style.display='none'">Fechar</button>
+</div>
+</div>
+</div>
+<!-- MODAL PAGAMENTO -->
+<div id="modal-pag" class="modal">
+<div class="modal-box">
+<button class="close-btn" onclick="document.getElementById('modal-pag').style.display='none'">×</button>
+<h3>Detalhes do Pagamento</h3>
+<div id="modal-pag-body"></div>
+<div style="margin-top:16px"><button class="btn-o" onclick="document.getElementById('modal-pag').style.display='none'">Fechar</button></div>
+</div>
+</div>
+<!-- MODAL LEAD SITE -->
+<div id="modal-ls" class="modal">
+<div class="modal-box">
+<button class="close-btn" onclick="document.getElementById('modal-ls').style.display='none'">×</button>
+<h3>Editar Lead</h3>
+<input type="hidden" id="ls-edit-id">
+<div class="form-row"><div class="form-field"><label>Nome</label><input id="ls-edit-nome"></div><div class="form-field"><label>WhatsApp</label><input id="ls-edit-wpp"></div></div>
+<div class="form-row"><div class="form-field"><label>Interesse</label><input id="ls-edit-interesse"></div><div class="form-field"><label>Status</label><select id="ls-edit-status"><option value="novo">Novo</option><option value="contatado">Contatado</option><option value="qualificado">Qualificado</option><option value="perdido">Perdido</option></select></div></div>
+<div class="form-field" style="margin-bottom:12px"><label>Observações</label><textarea id="ls-edit-obs" rows="3" style="width:100%;background:var(--s2);border:1px solid var(--sep);color:var(--tx);padding:6px 10px;font-family:'DM Mono',monospace;font-size:11px"></textarea></div>
+<div style="display:flex;gap:8px">
+<button class="btn-g" onclick="salvarLeadSite()">Salvar</button>
+<button class="btn-o" onclick="document.getElementById('modal-ls').style.display='none'">Cancelar</button>
+</div>
+</div>
+</div>
+<!-- MODAL CONVERSA -->
+<div id="modal-conv" class="modal">
+<div class="modal-box">
+<button class="close-btn" onclick="document.getElementById('modal-conv').style.display='none'">×</button>
+<h3 id="conv-modal-title">Conversa</h3>
+<div class="conv-msgs" id="conv-msgs"></div>
+<div style="display:flex;gap:8px;margin-bottom:8px">
+<textarea id="conv-resp-txt" rows="2" placeholder="Escrever resposta..." style="flex:1;background:var(--s2);border:1px solid var(--sep);color:var(--tx);padding:6px 10px;font-family:'DM Mono',monospace;font-size:11px;resize:none"></textarea>
+<button class="btn-g" onclick="enviarResposta()" style="align-self:flex-end">Enviar</button>
+</div>
+<input type="hidden" id="conv-resp-id">
+<div style="display:flex;gap:8px">
+<button class="btn-o" onclick="mFechada()" style="color:var(--am);border-color:var(--am)">Fechar conversa</button>
+<button class="btn-o" onclick="document.getElementById('modal-conv').style.display='none'">Cancelar</button>
+</div>
+</div>
+</div>
+<!-- MODAL CHAT CONVERSA -->
+<div id="modal-chat-conv" class="modal">
+<div class="modal-box">
+<button class="close-btn" onclick="document.getElementById('modal-chat-conv').style.display='none'">×</button>
+<h3 id="chat-conv-title">Conversa Chat IA</h3>
+<div class="conv-msgs" id="chat-conv-body"></div>
+<button class="btn-o" onclick="document.getElementById('modal-chat-conv').style.display='none'">Fechar</button>
+</div>
+</div>
+<script>
+var SB="https://dbijmgqlcrgjlcfrastg.supabase.co";
+var AK="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA";
+var SK="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzA3NjE2MywiZXhwIjoyMDg4NjUyMTYzfQ.b79syG5GuQZYLd3QvbRMTi66E_sdKa-Nh-Q1XbDcM2Y";
+function sb(t,q,key){return fetch(SB+"/rest/v1/"+t+"?"+q,{headers:{"apikey":key||AK,"Authorization":"Bearer "+(key||AK),"Content-Type":"application/json"}});}
+function sbp(t,d,key){return fetch(SB+"/rest/v1/"+t,{method:"POST",headers:{"apikey":key||AK,"Authorization":"Bearer "+(key||AK),"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(d)});}
+function sbup(t,q,d,key){return fetch(SB+"/rest/v1/"+t+"?"+q,{method:"PATCH",headers:{"apikey":key||AK,"Authorization":"Bearer "+(key||AK),"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(d)});}
+function fmtWpp(n){if(!n)return"";var s=String(n).replace(new RegExp("[^0-9]","g"),"");if(s.length===11)return"55"+s;return s;}
+function fmtDate(d){if(!d)return"-";var dt=new Date(d);return dt.toLocaleDateString("pt-BR");}
+function fmtMoeda(v){if(!v&&v!==0)return"R$ 0,00";return"R$ "+parseFloat(v).toFixed(2).replace(".",",").replace(new RegExp("(\d)(?=(\d{3})+,)","g"),"$1.");}
+function show(id){document.querySelectorAll(".panel").forEach(function(p){p.style.display="none";p.style.pointerEvents="none";});var el=document.getElementById(id);if(el){el.style.display="block";el.style.pointerEvents="auto";}}
+function go(section){document.querySelectorAll(".sb-item").forEach(function(i){i.classList.remove("on");});var lnk=document.querySelector(".sb-item[data-sec="+section+"]");if(lnk)lnk.classList.add("on");if(section==="dash")loadDash();else if(section==="criar-negocio"){}; else if(section==="negocios")loadNegocios();else if(section==="anuncios")loadAnuncios();else if(section==="usuarios")loadUsuarios();else if(section==="agenda")loadAgenda();else if(section==="leads")loadLeads();else if(section==="leads-site")loadLeadsSite();else if(section==="disparos")loadDisparos();else if(section==="parceiros")loadParceiros();else if(section==="pagamentos")loadPagamentos();else if(section==="conversas")loadConversas();else if(section==="chat-leads")loadChatLeads();show("panel-"+section);}function loadDash(){var p=document.getElementById("dash-cards");if(p)p.innerHTML="<div style='color:var(--t3)'>Carregando...</div>";Promise.all([sb("negocios","select=id,status","").then(function(r){return r.json();}),sb("leads_site","select=id,status","").then(function(r){return r.json();}),sb("transacoes","select=id,valor,status","").then(function(r){return r.json();}),sb("chat_ia_leads","select=id","").then(function(r){return r.json();})]).then(function(results){var negs=results[0]||[];var ls=results[1]||[];var pags=results[2]||[];var ch=results[3]||[];var total=pags.filter(function(t){return t.status==="pago"||t.status==="succeeded";}).reduce(function(a,t){return a+parseFloat(t.valor||0);},0);if(p)p.innerHTML="<div class='dash-card'><div class='dc-val'>"+negs.length+"</div><div class='dc-lab'>Negócios</div></div><div class='dash-card'><div class='dc-val'>"+ls.filter(function(l){return l.status==="novo";}).length+"</div><div class='dc-lab'>Leads Novos</div></div><div class='dash-card'><div class='dc-val'>"+fmtMoeda(total)+"</div><div class='dc-lab'>Receita Total</div></div><div class='dash-card'><div class='dc-val'>"+ch.length+"</div><div class='dc-lab'>Chat Leads</div></div>";}).catch(function(e){if(p)p.innerHTML="<div style='color:red'>Erro: "+e.message+"</div>";});}
+function loadNegocios(){var p=document.getElementById("neg-body");if(p)p.innerHTML="<tr><td colspan='6' style='color:var(--t3)'>Carregando...</td></tr>";sb("negocios","select=id,nome,categoria,cidade,status,created_at&order=created_at.desc&limit=100",SK).then(function(r){return r.json();}).then(function(rows){if(!p)return;if(!rows||rows.error){p.innerHTML="<tr><td colspan='6' style='color:red'>"+(rows&&rows.message?rows.message:"Erro ao carregar")+"</td></tr>";return;}if(!rows.length){p.innerHTML="<tr><td colspan='6' style='color:var(--t3)'>Nenhum negócio</td></tr>";return;}var html="";rows.forEach(function(n){var sid=String(n.id||"");var stCls=n.status==="publicado"?"st-pub":n.status==="pendente"?"st-pend":"st-other";html+="<tr data-id='"+sid+"'><td>"+fmtDate(n.created_at)+"</td><td>"+String(n.nome||"-")+"</td><td>"+String(n.categoria||"-")+"</td><td>"+String(n.cidade||"-")+"</td><td><span class='"+stCls+"'>"+String(n.status||"-")+"</span></td><td><button class='btn-sm btn-abrir'>Abrir</button> <button class='btn-sm btn-pub'>Pub</button></td></tr>";});p.innerHTML=html;p.onclick=function(e){var btn=e.target.closest("button");if(!btn)return;var tr=e.target.closest("tr[data-id]");if(!tr)return;var id=tr.getAttribute("data-id");if(btn.classList.contains("btn-abrir"))abrirNeg(id);if(btn.classList.contains("btn-pub"))pubNeg(id);};}).catch(function(e){if(p)p.innerHTML="<tr><td colspan='6' style='color:red'>"+e.message+"</td></tr>";})}
+function abrirNeg(id){sb("negocios","select=id,nome,categoria,cidade,status,faturamento_anual,created_at,codigo_anuncio&id=eq."+id,SK).then(function(r){return r.json();}).then(function(rows){var n=rows[0];if(!n)return;var m=document.getElementById("modal-neg");var c=document.getElementById("modal-neg-body");if(!m||!c)return;c.innerHTML="<table class='detail-table'><tr><td>ID</td><td>"+String(n.id)+"</td></tr><tr><td>Nome</td><td>"+String(n.nome||"-")+"</td></tr><tr><td>Categoria</td><td>"+String(n.categoria||"-")+"</td></tr><tr><td>Código</td><td>"+String(n.codigo_anuncio||"-")+"</td></tr><tr><td>Cidade</td><td>"+String(n.cidade||"-")+"</td></tr><tr><td>Status</td><td>"+String(n.status||"-")+"</td></tr><tr><td>Faturamento</td><td>"+fmtMoeda(n.faturamento_anual)+"</td></tr><tr><td>Criado</td><td>"+fmtDate(n.created_at)+"</td></tr></table>";document.getElementById("neg-termo-id").value=id;m.style.display="flex";});}
+function enviarTermo(id){var rid=id||document.getElementById("neg-termo-id").value;if(!rid)return;alert("Abrir WhatsApp do vendedor para enviar termo - ID: "+rid);}
+function pubNeg(id){if(!confirm("Publicar este negócio?"))return;sbup("negocios","id=eq."+id,{"status":"publicado"},SK).then(function(){loadNegocios();alert("Publicado!");});}
+
+/* === CRIAR NEGÓCIO === */
+var negocioEmBusca=null;
+function buscarNegocio(){var codigo=document.getElementById("cn-codigo").value.trim();if(!codigo||codigo.length<3){document.getElementById("cn-status-busca").style.display="none";negocioEmBusca=null;return;}sb("negocios","select=id,nome,categoria,cidade&codigo_diagnostico=eq."+codigo,SK).then(function(r){return r.json();}).then(function(rows){if(rows&&rows.length>0){negocioEmBusca=rows[0];document.getElementById("cn-nome-neg").textContent=rows[0].nome+" ("+rows[0].categoria+", "+rows[0].cidade+")";document.getElementById("cn-status-busca").style.display="block";}else{document.getElementById("cn-status-busca").style.display="none";negocioEmBusca=null;alert("Negócio não encontrado");}}).catch(function(e){alert("Erro: "+e.message);});}
+function criarNegocioStandby(){if(!negocioEmBusca){alert("Busque um código de avaliação válido");return;}var titulo=document.getElementById("cn-titulo").value.trim();var valor=parseFloat(document.getElementById("cn-valor").value);var desc=document.getElementById("cn-desc").value.trim();var temTermo=document.getElementById("cn-termo").checked;if(!titulo||!valor||valor<=0||!desc){alert("Preencha todos os campos");return;}var statusFinal=temTermo?"publicado":"standby";var negocio={codigo_diagnostico:negocioEmBusca.id,nome:titulo,descricao:desc,preco_pedido:valor,status:statusFinal,revisado_em:new Date().toISOString()};sbp("negocios",negocio,SK).then(function(response){console.log("Resposta:",response);return response.json();}).then(function(data){console.log("Dados:",data);var resultado=document.getElementById("cn-resultado");if(data&&data.length>0){var neg=data[0];resultado.innerHTML="<div style='background:rgba(16,185,129,.1);border:1px solid var(--green);padding:12px;border-radius:2px'><strong style='color:var(--green)'>✓ Sucesso!</strong> Negócio criado com ID: "+neg.id+"<br>Status: <strong>"+statusFinal+"</strong>"+(temTermo?" - Pronto para publicar!":"" )+"</div>";resultado.style.display="block";cn_limparFormulario();setTimeout(function(){resultado.style.display="none";},5000);}else{resultado.innerHTML="<div style='background:rgba(255,107,92,.1);border:1px solid var(--alert)'>Erro ao criar negócio</div>";resultado.style.display="block";}}).catch(function(e){var resultado=document.getElementById("cn-resultado");resultado.innerHTML="<div style='background:rgba(255,107,92,.1);border:1px solid var(--alert)'>Erro: "+e.message+"</div>";resultado.style.display="block";console.error("Erro completo:",e);});}
+function cn_atualizarPreview(){var titulo=document.getElementById("cn-titulo").value.trim();var valor=document.getElementById("cn-valor").value.trim();var desc=document.getElementById("cn-desc").value.trim();var temDados=titulo&&valor&&desc;if(temDados){document.getElementById("cn-preview-empty").style.display="none";document.getElementById("cn-preview-card").style.display="block";document.getElementById("cn-preview-titulo").textContent=titulo||"Título do Anúncio";document.getElementById("cn-preview-valor").textContent=cn_formatarMoeda(parseFloat(valor)||0);document.getElementById("cn-preview-desc").textContent=desc||"Descrição aparecerá aqui...";}else{document.getElementById("cn-preview-empty").style.display="block";document.getElementById("cn-preview-card").style.display="none";}}
+function cn_formatarMoeda(valor){return valor.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function cn_limparFormulario(){document.getElementById("cn-codigo").value="";document.getElementById("cn-titulo").value="";document.getElementById("cn-valor").value="";document.getElementById("cn-desc").value="";document.getElementById("cn-termo").checked=false;document.getElementById("cn-status-busca").style.display="none";document.getElementById("cn-resultado").style.display="none";negocioEmBusca=null;cn_atualizarPreview();}
+function loadAnuncios(){var p=document.getElementById("anu-body");if(p)p.innerHTML="<tr><td colspan='5' style='color:var(--t3)'>Carregando...</td></tr>";sb("negocios","select=id,nome,categoria,cidade,status,codigo_anuncio&order=created_at.desc&limit=100",SK).then(function(r){return r.json();}).then(function(rows){if(!p)return;if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='5'>Nenhum anúncio</td></tr>";return;}var html="";rows.forEach(function(n){var sid=String(n.id||"");var stCls=n.status==="publicado"?"st-pub":n.status==="pendente"?"st-pend":"st-other";html+="<tr data-id='"+sid+"'><td>"+String(n.nome||"-")+"</td><td>"+String(n.categoria||"-")+"</td><td>"+String(n.cidade||"-")+"</td><td><span class='"+stCls+"'>"+String(n.status||"-")+"</span></td><td><button class='btn-sm btn-edit-anu'>Editar</button></td></tr>";});p.innerHTML=html;p.onclick=function(e){var btn=e.target.closest("button");if(!btn)return;var tr=e.target.closest("tr[data-id]");if(!tr)return;var id=tr.getAttribute("data-id");if(btn.classList.contains("btn-edit-anu"))window.open("admin-anuncios.html?id="+id,"_blank");};}).catch(function(e){if(p)p.innerHTML="<tr><td colspan='5' style='color:red'>"+e.message+"</td></tr>";})}
+function loadUsuarios(){var p=document.getElementById("usr-body");if(p)p.innerHTML="<tr><td colspan='5' style='color:var(--t3)'>Carregando...</td></tr>";sb("usuarios","select=id,nome,email,tipo,created_at&order=created_at.desc&limit=200",SK).then(function(r){return r.json();}).then(function(rows){if(!p)return;if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='5'>Nenhum usuário</td></tr>";return;}window.__usrData=rows;var html="";rows.forEach(function(u){html+="<tr><td>"+String(u.nome||"-")+"</td><td>"+String(u.email||"-")+"</td><td>"+String(u.tipo||"-")+"</td><td>"+fmtDate(u.created_at)+"</td><td>-</td></tr>";});p.innerHTML=html;}).catch(function(e){if(p)p.innerHTML="<tr><td colspan='5' style='color:red'>"+e.message+"</td></tr>";})}
+function exportUsrCSV(){var rows=window.__usrData||[];var bom=String.fromCharCode(65279);var nl=String.fromCharCode(10);var csv=bom+"Nome,Email,Tipo,Criado"+nl+rows.map(function(u){return [u.nome,u.email,u.tipo,fmtDate(u.created_at)].map(function(c){return '"'+String(c||"").replace(new RegExp('"','g'),'""')+'"'}).join(",");}).join(nl);var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="usuarios.csv";a.click();}
+function loadAgenda(){var p=document.getElementById("age-body");if(p)p.innerHTML="<tr><td colspan='5' style='color:var(--t3)'>Carregando...</td></tr>";sb("admin_agenda","select=id,titulo,data_hora,status,notas&order=data_hora.desc&limit=100",SK).then(function(r){return r.json();}).then(function(rows){if(!p)return;if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='5'>Nenhum agendamento</td></tr>";return;}var html="";rows.forEach(function(a){var sid=String(a.id||"");html+="<tr data-id='"+sid+"'><td>"+String(a.titulo||"-")+"</td><td>"+fmtDate(a.data_hora)+"</td><td>"+String(a.status||"-")+"</td><td>"+String(a.notas||"-")+"</td><td><button class='btn-sm btn-conc-age'>Concluir</button></td></tr>";});p.innerHTML=html;p.onclick=function(e){var btn=e.target.closest("button");if(!btn)return;var tr=e.target.closest("tr[data-id]");if(!tr)return;var id=tr.getAttribute("data-id");if(btn.classList.contains("btn-conc-age"))concluirAge(id);};}).catch(function(e){if(p)p.innerHTML="<tr><td colspan='5' style='color:red'>"+e.message+"</td></tr>";})}
+function concluirAge(id){if(!confirm("Marcar como concluiío?"))return;sbup("admin_agenda","id=eq."+id,{"status":"concluido"},SK).then(function(){loadAgenda();});}
+function salvarAgenda(){var titulo=document.getElementById("age-titulo").value;var data=document.getElementById("age-data").value;var notas=document.getElementById("age-notas").value;if(!titulo||!data){alert("Preencha título e data");return;}sbp("admin_agenda",{"titulo":titulo,"data_hora":data,"notas":notas,"status":"pendente"},SK).then(function(){loadAgenda();document.getElementById("form-agenda").reset();alert("Agendado!");});}function loadLeads(){var p=document.getElementById("leads-body");if(p)p.innerHTML="<tr><td colspan='6' style='color:var(--t3)'>Carregando...</td></tr>";sb("leads_google","select=id,nome,telefone,cidade,status,campanha,origem,categoria&order=created_at.desc&limit=200",SK).then(function(r){return r.json();}).then(function(rows){if(!p)return;if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='6'>Nenhum lead Google</td></tr>";return;}window.__leadsData=rows;var html="";rows.forEach(function(l){var stCls=l.status==="novo"?"st-pub":l.status==="contatado"?"st-pend":"st-other";html+="<tr><td>"+String(l.nome||"-")+"</td><td>"+String(l.campanha||l.origem||"-")+"</td><td>"+String(l.telefone||"-")+"</td><td>"+String(l.cidade||"-")+"</td><td><span class='"+stCls+"'>"+String(l.status||"-")+"</span></td><td><a href='https://wa.me/"+fmtWpp(l.telefone)+"' target='_blank' class='btn-sm'>WhatsApp</a></td></tr>";});p.innerHTML=html;}).catch(function(e){if(p)p.innerHTML="<tr><td colspan='6' style='color:red'>"+e.message+"</td></tr>";})}
+function exportLeadsCSV(){var rows=window.__leadsData||[];var bom=String.fromCharCode(65279);var nl=String.fromCharCode(10);var csv=bom+"Nome,Campanha,Telefone,Cidade,Status"+nl+rows.map(function(l){return [l.nome,l.campanha||l.origem,l.telefone,l.cidade,l.status].map(function(c){return '"'+String(c||"").replace(new RegExp('"','g'),'""')+'"'}).join(",");}).join(nl);var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="leads-google.csv";a.click();}
+function loadLeadsSite(){var p=document.getElementById("ls-body");if(p)p.innerHTML="<tr><td colspan='6' style='color:var(--t3)'>Carregando...</td></tr>";sb("leads_site","select=id,nome,whatsapp,interesse,status,created_at&order=created_at.desc&limit=200",SK).then(function(r){return r.json();}).then(function(rows){if(!p)return;if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='6'>Nenhum lead do site</td></tr>";return;}window.__lsData=rows;var html="";rows.forEach(function(l){var sid=String(l.id||"");var stCls=l.status==="novo"?"st-pub":l.status==="contatado"?"st-pend":"st-other";html+="<tr data-id='"+sid+"'><td>"+String(l.nome||"-")+"</td><td>"+String(l.whatsapp||"-")+"</td><td>"+String(l.interesse||"-")+"</td><td>"+fmtDate(l.created_at)+"</td><td><span class='"+stCls+"'>"+String(l.status||"-")+"</span></td><td><button class='btn-sm btn-edit-ls'>Editar</button> <a href='https://wa.me/"+fmtWpp(l.whatsapp)+"' target='_blank' class='btn-sm'>WA</a></td></tr>";});p.innerHTML=html;p.onclick=function(e){var btn=e.target.closest("button");if(!btn)return;var tr=e.target.closest("tr[data-id]");if(!tr)return;var id=tr.getAttribute("data-id");if(btn.classList.contains("btn-edit-ls")){var row=window.__lsData.find(function(x){return String(x.id)===id;});if(!row)return;document.getElementById("ls-edit-id").value=id;document.getElementById("ls-edit-nome").value=row.nome||"";document.getElementById("ls-edit-wpp").value=row.whatsapp||"";document.getElementById("ls-edit-interesse").value=row.interesse||"";document.getElementById("ls-edit-status").value=row.status||"novo";document.getElementById("ls-edit-obs").value=row.observacoes||"";document.getElementById("modal-ls").style.display="flex";}};}).catch(function(e){if(p)p.innerHTML="<tr><td colspan='6' style='color:red'>"+e.message+"</td></tr>";})}
+function salvarLeadSite(){var id=document.getElementById("ls-edit-id").value;var d={nome:document.getElementById("ls-edit-nome").value,whatsapp:document.getElementById("ls-edit-wpp").value,interesse:document.getElementById("ls-edit-interesse").value,status:document.getElementById("ls-edit-status").value,observacoes:document.getElementById("ls-edit-obs").value};sbup("leads_site","id=eq."+id,d,SK).then(function(){document.getElementById("modal-ls").style.display="none";loadLeadsSite();alert("Lead atualizado!");});}
+function exportLeadsSiteCSV(){var rows=window.__lsData||[];var bom=String.fromCharCode(65279);var nl=String.fromCharCode(10);var csv=bom+"Nome,WhatsApp,Interesse,Status,Criado"+nl+rows.map(function(l){return [l.nome,l.whatsapp,l.interesse,l.status,fmtDate(l.created_at)].map(function(c){return '"'+String(c||"").replace(new RegExp('"','g'),'""')+'"'}).join(",");}).join(nl);var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="leads-site.csv";a.click();}function loadDisparos(){var p=document.getElementById("disp-body");if(p)p.innerHTML="<tr><td colspan='5' style='color:var(--t3)'>Carregando...</td></tr>";sb("disparos_whatsapp","select=id,titulo,mensagem,total_enviados,created_at&order=created_at.desc&limit=100",SK).then(function(r){return r.json();}).then(function(rows){if(!p)return;if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='5'>Nenhum disparo</td></tr>";return;}var html="";rows.forEach(function(d){html+="<tr><td>"+String(d.titulo||"-")+"</td><td>"+String((d.mensagem||"").substring(0,60))+"...</td><td>"+String(d.total_enviados||0)+"</td><td>"+fmtDate(d.created_at)+"</td><td>-</td></tr>";});p.innerHTML=html;}).catch(function(e){if(p)p.innerHTML="<tr><td colspan='5' style='color:red'>"+e.message+"</td></tr>";})}
+function loadParceiros(){var p=document.getElementById("par-body");if(p)p.innerHTML="<tr><td colspan='5' style='color:var(--t3)'>Carregando...</td></tr>";sb("filiados","select=id,nome,email,codigo,comissao_total&order=created_at.desc&limit=100",SK).then(function(r){return r.json();}).then(function(rows){if(!p)return;if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='5'>Nenhum parceiro</td></tr>";return;}var html="";rows.forEach(function(f){html+="<tr><td>"+String(f.nome||"-")+"</td><td>"+String(f.email||"-")+"</td><td>"+String(f.codigo||"-")+"</td><td>"+fmtMoeda(f.comissao_total)+"</td><td>-</td></tr>";});p.innerHTML=html;}).catch(function(e){if(p)p.innerHTML="<tr><td colspan='5' style='color:red'>"+e.message+"</td></tr>";})}
+function loadPagamentos(){var p=document.getElementById("pag-body");if(p)p.innerHTML="<tr><td colspan='7' style='color:var(--t3)'>Carregando...</td></tr>";sb("transacoes","select=id,tipo,valor,status,descricao,referencia,created_at&order=created_at.desc&limit=200",SK).then(function(r){return r.json();}).then(function(rows){if(!p)return;if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='7'>Nenhum pagamento</td></tr>";return;}window.__pagData=rows;var total=rows.filter(function(t){return t.status==="pago"||t.status==="succeeded";}).reduce(function(a,t){return a+parseFloat(t.valor||0);},0);var sumEl=document.getElementById("pag-total");if(sumEl)sumEl.textContent="Total recebido: "+fmtMoeda(total);var html="";rows.forEach(function(t){var sid=String(t.id||"");var stCls=(t.status==="pago"||t.status==="succeeded")?"st-pub":t.status==="pendente"?"st-pend":"st-other";html+="<tr data-id='"+sid+"'><td>"+fmtDate(t.created_at)+"</td><td>"+String(t.tipo||"-")+"</td><td>"+String(t.descricao||"-")+"</td><td>"+fmtMoeda(t.valor)+"</td><td><span class='"+stCls+"'>"+String(t.status||"-")+"</span></td><td>"+String(t.referencia||"-")+"</td><td><button class='btn-sm btn-ver-pag'>Ver</button></td></tr>";});p.innerHTML=html;p.onclick=function(e){var btn=e.target.closest("button");if(!btn)return;var tr=e.target.closest("tr[data-id]");if(!tr)return;var id=tr.getAttribute("data-id");if(btn.classList.contains("btn-ver-pag"))abrirPagamento(id);};}).catch(function(e){if(p)p.innerHTML="<tr><td colspan='7' style='color:red'>"+e.message+"</td></tr>";})}
+function abrirPagamento(id){var rows=window.__pagData||[];var t=rows.find(function(x){return String(x.id)===id;});if(!t)return;var m=document.getElementById("modal-pag");var c=document.getElementById("modal-pag-body");if(!m||!c)return;c.innerHTML="<table class='detail-table'><tr><td>ID</td><td>"+String(t.id)+"</td></tr><tr><td>Tipo</td><td>"+String(t.tipo||"-")+"</td></tr><tr><td>Descrição</td><td>"+String(t.descricao||"-")+"</td></tr><tr><td>Valor</td><td>"+fmtMoeda(t.valor)+"</td></tr><tr><td>Status</td><td>"+String(t.status||"-")+"</td></tr><tr><td>Referência Stripe</td><td>"+String(t.referencia||"-")+"</td></tr><tr><td>Data</td><td>"+fmtDate(t.created_at)+"</td></tr></table>";m.style.display="flex";}
+function exportPagCSV(){var rows=window.__pagData||[];var bom=String.fromCharCode(65279);var nl=String.fromCharCode(10);var csv=bom+"Data,Tipo,Descricao,Valor,Status,Referencia"+nl+rows.map(function(t){return [fmtDate(t.created_at),t.tipo,t.descricao,t.valor,t.status,t.referencia].map(function(c){return '"'+String(c||"").replace(new RegExp('"','g'),'""')+'"'}).join(",");}).join(nl);var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="pagamentos.csv";a.click();}function loadConversas(){var p=document.getElementById("conv-body");if(p)p.innerHTML="<tr><td colspan='6' style='color:var(--t3)'>Carregando...</td></tr>";sb("admin_conversas","select=id,usuario_id,status,assunto,tipo,ultima_msg,ultima_msg_em&order=ultima_msg_em.desc&limit=100",SK).then(function(r){return r.json();}).then(function(rows){if(!p)return;if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='6'>Nenhuma conversa</td></tr>";return;}window.__convData=rows;var html="";rows.forEach(function(c){var sid=String(c.id||"");var stCls=c.status==="aberta"?"st-pub":c.status==="fechada"?"st-other":"st-pend";html+="<tr data-id='"+sid+"'><td>"+String(c.assunto||"-")+"</td><td>"+String(c.tipo||"-")+"</td><td>"+String((c.ultima_msg||"").substring(0,50))+"</td><td>"+fmtDate(c.ultima_msg_em)+"</td><td><span class='"+stCls+"'>"+String(c.status||"-")+"</span></td><td><button class='btn-sm btn-abrir-conv'>Abrir</button></td></tr>";});p.innerHTML=html;p.onclick=function(e){var btn=e.target.closest("button");if(!btn)return;var tr=e.target.closest("tr[data-id]");if(!tr)return;var id=tr.getAttribute("data-id");if(btn.classList.contains("btn-abrir-conv"))abrirConv(id);};}).catch(function(e){if(p)p.innerHTML="<tr><td colspan='6' style='color:red'>"+e.message+"</td></tr>";})}
+function abrirConv(id){var rows=window.__convData||[];var conv=rows.find(function(x){return String(x.id)===id;});var m=document.getElementById("modal-conv");if(!m)return;var hdr=document.getElementById("conv-modal-title");if(hdr&&conv)hdr.textContent="Conversa: "+(conv.assunto||id);document.getElementById("conv-resp-id").value=id;var msgs=document.getElementById("conv-msgs");if(msgs)msgs.innerHTML="<div style='color:var(--t3)'>Carregando mensagens...</div>";m.style.display="flex";sb("admin_mensagens","select=remetente,texto,created_at&conversa_id=eq."+id+"&order=created_at.asc",SK).then(function(r){return r.json();}).then(function(ms){if(!msgs)return;if(!ms||!ms.length){msgs.innerHTML="<div style='color:var(--t3)'>Sem mensagens ainda</div>";return;}var html="";ms.forEach(function(msg){var cls=msg.remetente==="admin"?"msg-admin":"msg-user";html+="<div class='msg-bubble "+cls+"'><strong>"+String(msg.remetente||"")+"</strong><p>"+String(msg.texto||"")+"</p><small>"+fmtDate(msg.created_at)+"</small></div>";});msgs.innerHTML=html;msgs.scrollTop=msgs.scrollHeight;});}
+function enviarResposta(){var id=document.getElementById("conv-resp-id").value;var txt=document.getElementById("conv-resp-txt").value;if(!id||!txt.trim()){alert("Escreva uma resposta");return;}sbp("admin_mensagens",{"conversa_id":id,"remetente":"admin","texto":txt,"lida":true},SK).then(function(){sbup("admin_conversas","id=eq."+id,{"ultima_msg":txt,"ultima_msg_remetente":"admin","ultima_msg_em":new Date().toISOString()},SK);document.getElementById("conv-resp-txt").value="";abrirConv(id);});}
+function mFechada(id){var rid=id||document.getElementById("conv-resp-id").value;if(!confirm("Fechar esta conversa?"))return;sbup("admin_conversas","id=eq."+rid,{"status":"fechada"},SK).then(function(){document.getElementById("modal-conv").style.display="none";loadConversas();});}function loadChatLeads(){var p=document.getElementById("chat-body");if(p)p.innerHTML="<tr><td colspan='6' style='color:var(--t3)'>Carregando...</td></tr>";sb("chat_ia_leads","select=id,nome,whatsapp,perfil,pagina_origem,created_at&order=created_at.desc&limit=200",SK).then(function(r){return r.json();}).then(function(rows){if(!p)return;if(!rows||rows.error||!rows.length){p.innerHTML="<tr><td colspan='6'>Nenhum lead do chat</td></tr>";return;}window.__chatData=rows;var html="";rows.forEach(function(c){var sid=String(c.id||"");html+="<tr data-id='"+sid+"'><td>"+String(c.nome||"-")+"</td><td>"+String(c.whatsapp||"-")+"</td><td>"+String(c.perfil||"-")+"</td><td>"+String(c.pagina_origem||"-")+"</td><td>"+fmtDate(c.created_at)+"</td><td><button class='btn-sm btn-ver-chat'>Ver conversa</button> <a href='https://wa.me/"+fmtWpp(c.whatsapp)+"' target='_blank' class='btn-sm'>WA</a></td></tr>";});p.innerHTML=html;p.onclick=function(e){var btn=e.target.closest("button");if(!btn)return;var tr=e.target.closest("tr[data-id]");if(!tr)return;var id=tr.getAttribute("data-id");if(btn.classList.contains("btn-ver-chat"))verChatConv(id);};}).catch(function(e){if(p)p.innerHTML="<tr><td colspan='6' style='color:red'>"+e.message+"</td></tr>";})}
+function verChatConv(id){var rows=window.__chatData||[];var lead=rows.find(function(x){return String(x.id)===id;});if(!lead)return;var m=document.getElementById("modal-chat-conv");if(!m)return;var hdr=document.getElementById("chat-conv-title");if(hdr)hdr.textContent="Chat: "+(lead.nome||id)+" - "+(lead.whatsapp||"");var body=document.getElementById("chat-conv-body");if(body){sb("chat_ia_leads","select=messages&id=eq."+id,SK).then(function(r){return r.json();}).then(function(rows2){var msgs=(rows2[0]&&rows2[0].messages)||[];if(!msgs.length){body.innerHTML="<div style='color:var(--t3)'>Sem mensagens registradas</div>";return;}var html="";msgs.forEach(function(msg){var role=msg.role||msg.remetente||"user";var cls=role==="assistant"?"msg-admin":"msg-user";var txt=msg.content||msg.texto||"";html+="<div class='msg-bubble "+cls+"'><strong>"+role+"</strong><p>"+String(txt)+"</p></div>";});body.innerHTML=html;body.scrollTop=body.scrollHeight;});}m.style.display="flex";}
+function exportChatCSV(){var rows=window.__chatData||[];var bom=String.fromCharCode(65279);var nl=String.fromCharCode(10);var csv=bom+"Nome,WhatsApp,Perfil,Pagina,Criado"+nl+rows.map(function(c){return [c.nome,c.whatsapp,c.perfil,c.pagina_origem,fmtDate(c.created_at)].map(function(v){return '"'+String(v||"").replace(new RegExp('"','g'),'""')+'"'}).join(",");}).join(nl);var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="chat-leads.csv";a.click();}
+
+document.addEventListener("keydown",function(e){if(e.key==="Escape"){document.querySelectorAll(".modal").forEach(function(m){m.style.display="none";});}});
+document.querySelectorAll(".sb-item[data-sec]").forEach(function(el){el.addEventListener("click",function(){go(el.getAttribute("data-sec"));});});
+loadDash();
+</script>
+</body>
+</html>
