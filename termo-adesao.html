@@ -15,7 +15,7 @@ html,body{background:var(--bg);color:var(--ink);font-family:'Cabinet Grotesk',sa
 .wrap{max-width:680px;margin:0 auto;padding:40px 24px 80px}
 .step-bar{display:flex;align-items:center;gap:0;margin-bottom:40px}
 .step{display:flex;align-items:center;gap:8px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4)}
-.step.active{color:var(--em)
+.step.active{color:var(--em)}
 .step.done{color:var(--em);opacity:.5}
 .step-dot{width:24px;height:24px;border-radius:50%;border:1.5px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
 .step.active .step-dot{background:var(--em);border-color:var(--em);color:#fff}
@@ -76,9 +76,9 @@ html,body{background:var(--bg);color:var(--ink);font-family:'Cabinet Grotesk',sa
 
   <!-- Barra de passos -->
   <div class="step-bar">
-    <div class="step done" id="step1"><div class="step-dot">✓</div><span>Seus dados</span></div>
+    <div class="step active" id="step1"><div class="step-dot">✓</div><span>Seus dados</span></div>
     <div class="step-line"></div>
-    <div class="step active" id="step2"><div class="step-dot">2</div><span>Termo</span></div>
+    <div class="step" id="step2"><div class="step-dot">2</div><span>Termo</span></div>
     <div class="step-line"></div>
     <div class="step" id="step3"><div class="step-dot">3</div><span>Aceite</span></div>
   </div>
@@ -234,7 +234,7 @@ const params = new URLSearchParams(window.location.search);
 const pId     = params.get('id')    || '';
 const pValor  = parseFloat(params.get('valor')) || 0;
 const pPlano  = params.get('plano') || 'gratuito';
-const comissao = pPlano === 'guiado' ? '5%' : '10%';
+const comissao = pPlano === 'guiado' ? '5%' : '10%'; let codigoDiagnostico = pId;
 
 // Preencher resumo
 document.getElementById('r-codigo').textContent   = pId || '—';
@@ -242,7 +242,7 @@ document.getElementById('r-valor').textContent    = pValor ? 'R$ ' + pValor.toLo
 document.getElementById('r-plano').textContent    = pPlano === 'guiado' ? 'Guiado R$ 588' : 'Gratuito';
 document.getElementById('r-comissao').textContent = comissao + ' sobre o valor da venda';
 // Buscar codigo amigavel e atualizar resumo
-if(pId) { fetch(SB_URL + '/rest/v1/negocios?id=eq.' + pId + '&select=codigo_diagnostico', { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } }).then(r => r.json()).then(d => { if(d && d[0] && d[0].codigo_diagnostico) { document.getElementById('r-codigo').textContent = d[0].codigo_diagnostico; } }); }
+if(pId) { fetch(SB_URL + '/rest/v1/negocios?id=eq.' + pId + '&select=codigo_diagnostico', { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } }).then(r => r.json()).then(d => { if(d && d[0] && d[0].codigo_diagnostico) { codigoDiagnostico = d[0].codigo_diagnostico; document.getElementById('r-codigo').textContent = codigoDiagnostico; } }); }
 
 // Indicador de valor
 if(pValor && pId) {
@@ -344,7 +344,7 @@ async function assinar() {
       });
       const slugData = await slugRes.json();
       if(slugData && slugData[0]) negocioUUID = slugData[0].id;
-          const codigoDiagnostico = (slugData && slugData[0] && slugData[0].codigo_diagnostico) ? slugData[0].codigo_diagnostico : pId;
+          codigoDiagnostico = (slugData && slugData[0] && slugData[0].codigo_diagnostico) ? slugData[0].codigo_diagnostico : pId;
     } catch(e) {}
     const nomeCompleto = document.getElementById('f-nome').value.trim();
     const payload = {
