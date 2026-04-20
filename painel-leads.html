@@ -2349,7 +2349,7 @@ async function runFbSearch() {
   try {
     const res = await fetch(SUPABASE_URL + '/functions/v1/apify-facebook-search', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY },
       body: JSON.stringify({
         apify_token: token,
         queries: queries,
@@ -3746,7 +3746,19 @@ window.outroImportarCSV = async function() {
       if (!exportBtn || document.getElementById('olx-sort-preco')) return;
       const btn = makeBtn('olx-sort-preco','↓ Maior Preço','Ordenar leads OLX por maior preço','linear-gradient(135deg,#22c55e,#16a34a)',() => {
         const table = document.querySelectorAll('table')[1];
-        if (table) sortTable(table, (a,b) => getPrice_OLX(b) - getPrice_OLX(a));
+        if (!table) return;
+        const btn = document.getElementById('olx-sort-preco');
+        const isDesc = btn._sortDesc !== false;
+        btn._sortDesc = !isDesc;
+        if (isDesc) {
+          sortTable(table, (a,b) => getPrice_OLX(b) - getPrice_OLX(a));
+          btn.textContent = '↑ Menor Preço';
+          btn.title = 'Clique para ordenar por menor preço';
+        } else {
+          sortTable(table, (a,b) => getPrice_OLX(a) - getPrice_OLX(b));
+          btn.textContent = '↓ Maior Preço';
+          btn.title = 'Clique para ordenar por maior preço';
+        }
       });
       if (btn) exportBtn.parentElement.insertBefore(btn, exportBtn);
     }
