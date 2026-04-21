@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cockpit · 1Negócio</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--green:#10b981;--green2:#059669;--bg:#0c0c0a;--s1:#111110;--s2:#161614;--s3:#1c1c19;--tx:#e5e5e3;--t2:#a3a39b;--t3:#6b6b63;--am:#f59e0b;--red:#ef4444;--sep:#252522;--blue:#3b82f6}
+body{background:var(--bg);color:var(--tx);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh}
+.topbar{height:48px;background:var(--s1);border-bottom:1px solid var(--sep);display:flex;align-items:center;padding:0 20px;gap:16px;position:fixed;top:0;left:0;right:0;z-index:200}
+.topbar-logo{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;letter-spacing:-.5px}
+.topbar-logo em{font-style:normal;color:var(--green)}
+.topbar-title{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:2px}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.topbar-nav a{color:var(--t2);text-decoration:none;font-size:10px;padding:4px 10px;border:1px solid var(--sep)}
+.topbar-nav a:hover{color:var(--green);border-color:var(--green)}
+.main{margin-top:48px;padding:16px;display:grid;grid-template-columns:340px 1fr 320px;grid-template-rows:auto 1fr;gap:12px;min-height:calc(100vh - 48px)}
+.col{display:flex;flex-direction:column;gap:12px}
+.card{background:var(--s1);border:1px solid var(--sep);border-radius:2px;display:flex;flex-direction:column}
+.card-head{padding:12px 14px 10px;border-bottom:1px solid var(--sep);display:flex;align-items:center;gap:8px}
+.card-head-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;letter-spacing:-.3px;flex:1}
+.card-head-badge{font-size:8px;background:var(--s2);color:var(--t3);padding:2px 7px;border-radius:2px}
+.card-body{padding:12px 14px;flex:1;overflow-y:auto}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.stat{background:var(--s2);border:1px solid var(--sep);padding:10px 12px;border-radius:2px}
+.stat.hl{border-color:var(--green)}
+.sv{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--green)}
+.sl{font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t3);margin-top:3px}
+.missao-form{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.missao-form input,.missao-form select{background:var(--s2);border:1px solid var(--sep);color:var(--tx);padding:6px 8px;font-family:'DM Mono',monospace;font-size:10px;outline:none;flex:1;min-width:0}
+.missao-form select{flex:0 0 90px}
+.btn-add{padding:6px 12px;background:var(--green);color:#000;border:none;font-family:'DM Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap}
+.missao-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--sep)}
+.missao-item:last-child{border-bottom:none}
+.missao-check{width:14px;height:14px;cursor:pointer;accent-color:var(--green);flex-shrink:0}
+.missao-texto{flex:1;font-size:11px;line-height:1.4}
+.missao-texto.done{text-decoration:line-through;color:var(--t3)}
+.missao-pri{font-size:8px;padding:1px 6px;border-radius:2px;font-weight:600;text-transform:uppercase;flex-shrink:0}
+.pri-alta{background:rgba(239,68,68,.2);color:var(--red)}
+.pri-media{background:rgba(245,158,11,.2);color:var(--am)}
+.pri-baixa{background:var(--s2);color:var(--t3)}
+.missao-del{background:none;border:none;color:var(--t3);cursor:pointer;font-size:12px;padding:0 2px;flex-shrink:0}
+.missao-del:hover{color:var(--red)}
+.missao-empty{color:var(--t3);font-size:11px;text-align:center;padding:24px;border:1px dashed var(--sep);border-radius:2px}
+.lead-item{padding:8px 0;border-bottom:1px solid var(--sep);cursor:pointer}
+.lead-item:last-child{border-bottom:none}
+.lead-item:hover .lead-nome{color:var(--green)}
+.lead-nome{font-size:11px;font-weight:600;margin-bottom:3px}
+.lead-meta{font-size:9px;color:var(--t3);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.badge{font-size:8px;text-transform:uppercase;letter-spacing:.3px;padding:1px 6px;border-radius:2px;font-weight:600}
+.badge-novo{background:rgba(16,185,129,.15);color:var(--green)}
+.badge-contatado{background:rgba(245,158,11,.15);color:var(--am)}
+.badge-qualificado{background:rgba(59,130,246,.15);color:var(--blue)}
+.badge-perdido{background:rgba(239,68,68,.15);color:var(--red)}
+.badge-dossie{background:rgba(16,185,129,.15);color:var(--green)}
+.badge-proposta{background:rgba(245,158,11,.15);color:var(--am)}
+.badge-whatsapp{background:rgba(16,185,129,.15);color:var(--green)}
+.badge-gray{background:var(--s2);color:var(--t3)}
+.cta-item{padding:7px 0;border-bottom:1px solid var(--sep);display:flex;align-items:center;gap:8px}
+.cta-item:last-child{border-bottom:none}
+.cta-empresa{font-size:11px;font-weight:600;flex:1}
+.cta-time{font-size:9px;color:var(--t3);flex-shrink:0}
+.prog-wrap{height:4px;background:var(--s2);border-radius:2px;overflow:hidden;margin-top:6px}
+.prog-bar{height:4px;background:var(--green);border-radius:2px;transition:width .3s}
+.miss-prog{font-size:9px;color:var(--t3);margin-top:4px}
+.lead-acoes{display:flex;gap:4px;margin-top:4px}
+.btn-xs{padding:3px 8px;font-family:'DM Mono',monospace;font-size:8px;cursor:pointer;border:1px solid var(--sep);background:var(--s2);color:var(--tx)}
+.btn-xs:hover{border-color:var(--green);color:var(--green)}
+.btn-xs.wpp{border-color:var(--green);color:var(--green)}
+.flt-row{display:flex;gap:6px;margin-bottom:8px}
+.flt-row select,.flt-row input{background:var(--s2);border:1px solid var(--sep);color:var(--tx);padding:4px 8px;font-family:'DM Mono',monospace;font-size:10px;outline:none;flex:1}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;align-items:center;justify-content:center}
+.modal.on{display:flex}
+.modal-box{background:var(--s1);border:1px solid var(--sep);padding:20px;width:90%;max-width:480px;position:relative}
+.modal-box h3{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;margin-bottom:14px}
+.form-f{margin-bottom:10px}
+.form-f label{font-size:8px;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);display:block;margin-bottom:4px}
+.form-f select,.form-f input{width:100%;background:var(--s2);border:1px solid var(--sep);color:var(--tx);padding:6px 8px;font-family:'DM Mono',monospace;font-size:11px;outline:none}
+.modal-btns{display:flex;gap:8px;margin-top:14px}
+.btn-g{padding:7px 16px;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;background:var(--green);color:#000;border:none;font-weight:700}
+.btn-o{padding:7px 16px;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;background:none;color:var(--tx);border:1px solid var(--sep)}
+.close-btn{position:absolute;top:12px;right:14px;background:none;border:none;color:var(--t3);font-size:18px;cursor:pointer}
+.scroll-area{overflow-y:auto;max-height:420px}
+.data-hoje{font-size:10px;color:var(--t2);font-weight:600}
+@media(max-width:1200px){.main{grid-template-columns:300px 1fr;}.col:last-child{display:none}}
+@media(max-width:800px){.main{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-logo"><em>1</em>NEGOCIO</div>
+  <div class="topbar-title">Cockpit</div>
+  <span class="live-dot"></span>
+  <span style="font-size:9px;color:var(--green)">live</span>
+  <span style="font-size:9px;color:var(--t3)" id="top-data"></span>
+  <div class="topbar-right topbar-nav">
+    <a href="painel-admin.html">Admin</a>
+    <a href="painel-ctas.html">CTAs</a>
+    <span style="font-size:9px;color:var(--t3)" id="top-att"></span>
+  </div>
+</div>
+
+<div class="main">
+  <!-- COLUNA ESQUERDA: MISSOES -->
+  <div class="col">
+    <div class="stats-row" id="stats-top">
+      <div class="stat"><div class="sv" id="s-leads">-</div><div class="sl">Leads Novos</div></div>
+      <div class="stat"><div class="sv" id="s-miss">-</div><div class="sl">Missoes Hoje</div></div>
+      <div class="stat"><div class="sv" id="s-ctas">-</div><div class="sl">Clicks Hoje</div></div>
+      <div class="stat hl"><div class="sv" id="s-negs">-</div><div class="sl">Negócios</div></div>
+    </div>
+
+    <div class="card" style="flex:1">
+      <div class="card-head">
+        <div class="card-head-title">Missões do Dia</div>
+        <span class="data-hoje" id="miss-data"></span>
+        <span class="card-head-badge" id="miss-prog-badge">0/0</span>
+      </div>
+      <div class="card-body">
+        <div class="missao-form">
+          <input type="text" id="miss-input" placeholder="Nova missão..." onkeydown="if(event.key==='Enter')addMissao()">
+          <select id="miss-pri">
+            <option value="alta">Alta</option>
+            <option value="media" selected>Media</option>
+            <option value="baixa">Baixa</option>
+          </select>
+          <button class="btn-add" onclick="addMissao()">+</button>
+        </div>
+        <div class="prog-wrap"><div class="prog-bar" id="miss-bar" style="width:0%"></div></div>
+        <div class="miss-prog" id="miss-prog-txt">0 concluidas de 0</div>
+        <div style="margin-top:10px" id="miss-list"><div class="missao-empty">Sem missoes hoje. Adicione acima!</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLUNA CENTRAL: LEADS -->
+  <div class="col">
+    <div class="card" style="flex:1">
+      <div class="card-head">
+        <div class="card-head-title">Leads do Site</div>
+        <span class="card-head-badge" id="leads-count">0</span>
+      </div>
+      <div class="card-body" style="padding:10px 14px">
+        <div class="flt-row">
+          <select id="flt-lead-status" onchange="loadLeads()">
+            <option value="">Todos os status</option>
+            <option value="novo">Novo</option>
+            <option value="contatado">Contatado</option>
+            <option value="qualificado">Qualificado</option>
+            <option value="perdido">Perdido</option>
+          </select>
+          <input type="text" id="flt-lead-busca" placeholder="Buscar nome..." oninput="loadLeads()">
+        </div>
+        <div class="scroll-area" id="leads-list"><div style="color:var(--t3);text-align:center;padding:24px;font-size:11px">Carregando...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLUNA DIREITA: CTAs LIVE -->
+  <div class="col">
+    <div class="card" style="flex:1">
+      <div class="card-head">
+        <div class="card-head-title">CTAs ao Vivo</div>
+        <span class="live-dot"></span>
+        <span class="card-head-badge" id="cta-count">0</span>
+      </div>
+      <div class="card-body" style="padding:10px 14px">
+        <div class="scroll-area" id="cta-list"><div style="color:var(--t3);text-align:center;padding:24px;font-size:11px">Carregando...</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LEAD -->
+<div id="modal-lead" class="modal">
+  <div class="modal-box">
+    <button class="close-btn" onclick="fecharModal('modal-lead')">x</button>
+    <h3 id="modal-lead-nome">Lead</h3>
+    <div id="modal-lead-info"></div>
+    <div class="form-f" style="margin-top:12px">
+      <label>Status</label>
+      <select id="lead-status-sel">
+        <option value="novo">Novo</option>
+        <option value="contatado">Contatado</option>
+        <option value="qualificado">Qualificado</option>
+        <option value="perdido">Perdido</option>
+      </select>
+    </div>
+    <div class="form-f">
+      <label>Observacoes</label>
+      <input type="text" id="lead-obs-inp" placeholder="Anotacao rapida...">
+    </div>
+    <div class="form-f">
+      <label>Criar missao para este lead</label>
+      <input type="text" id="lead-missao-inp" placeholder="Ex: Ligar para Joao hoje">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-g" onclick="salvarLead()">Salvar</button>
+      <button class="btn-o" id="lead-wpp-btn" onclick="abrirWpp()">WhatsApp</button>
+      <button class="btn-o" onclick="fecharModal('modal-lead')">Fechar</button>
+    </div>
+    <input type="hidden" id="lead-edit-id">
+    <input type="hidden" id="lead-edit-wpp">
+  </div>
+</div>
+
+<script>
+var SB="https://dbijmgqlcrgjlcfrastg.supabase.co";
+var SK="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzA3NjE2MywiZXhwIjoyMDg4NjUyMTYzfQ.b79syG5GuQZYLd3QvbRMTi66E_sdKa-Nh-Q1XbDcM2Y";
+var _leads=[];var _missoes=[];var _ctas=[];
+var RE_URL=new RegExp("https?://[^/]+");
+var RE_REF=new RegExp("https?://([^/]+).*");
+
+function sb(t,q){return fetch(SB+"/rest/v1/"+t+"?"+q,{headers:{"apikey":SK,"Authorization":"Bearer "+SK}});}
+function sbp(t,d){return fetch(SB+"/rest/v1/"+t,{method:"POST",headers:{"apikey":SK,"Authorization":"Bearer "+SK,"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(d)});}
+function sbup(t,q,d){return fetch(SB+"/rest/v1/"+t+"?"+q,{method:"PATCH",headers:{"apikey":SK,"Authorization":"Bearer "+SK,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(d)});}
+function sbdel(t,q){return fetch(SB+"/rest/v1/"+t+"?"+q,{method:"DELETE",headers:{"apikey":SK,"Authorization":"Bearer "+SK}});}
+function sc(t,q){return fetch(SB+"/rest/v1/"+t+"?select=id"+(q||""),{headers:{"apikey":SK,"Authorization":"Bearer "+SK,"Prefer":"count=exact","Range":"0-0"}}).then(function(r){var cr=r.headers.get("content-range");return cr?(parseInt(cr.split("/")[1])||0):0;});}
+function fd(d){if(!d)return"-";var dt=new Date(d);return dt.toLocaleDateString("pt-BR")+" "+dt.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});}
+function ago(d){if(!d)return"-";var sec=Math.floor((new Date()-new Date(d))/1000);if(sec<60)return sec+"s";if(sec<3600)return Math.floor(sec/60)+"min";if(sec<86400)return Math.floor(sec/3600)+"h";return Math.floor(sec/86400)+"d";}
+function fmtWpp(n){if(!n)return"";return"55"+String(n).replace(/[^0-9]/g,"");}
+function fecharModal(id){document.getElementById(id).classList.remove("on");}
+
+function initData(){
+  var hoje=new Date();
+  var d=["Dom","Seg","Ter","Qua","Qui","Sex","Sab"][hoje.getDay()];
+  var topData=document.getElementById("top-data");
+  var missData=document.getElementById("miss-data");
+  var ds=d+", "+hoje.toLocaleDateString("pt-BR");
+  if(topData)topData.textContent=ds;
+  if(missData)missData.textContent=ds;
+}
+
+/* ===================== MISSOES ===================== */
+function loadMissoes(){
+  var hoje=new Date().toISOString().split("T")[0];
+  sb("missoes","select=id,titulo,prioridade,status,concluida_em,lead_id&data_alvo=eq."+hoje+"&order=created_at.asc&limit=50").then(function(r){return r.json();}).then(function(rows){
+    _missoes=rows||[];
+    renderMissoes();
+    updateStats();
+  }).catch(function(){});
+}
+
+function renderMissoes(){
+  var list=document.getElementById("miss-list");
+  if(!list)return;
+  if(!_missoes.length){list.innerHTML="<div class='missao-empty'>Sem missoes hoje. Adicione acima!</div>";updateProgresso(0,0);return;}
+  var total=_missoes.length;
+  var done=_missoes.filter(function(m){return m.status==="concluida";}).length;
+  updateProgresso(done,total);
+  var h="";
+  _missoes.forEach(function(m){
+    var isDone=m.status==="concluida";
+    var priCls="pri-"+m.prioridade;
+    h+="<div class='missao-item' data-id='"+m.id+"'>";
+    h+="<input type='checkbox' class='missao-check' "+(isDone?"checked":"")+" onchange='toggleMissao(""+m.id+"",this.checked)'>";
+    h+="<span class='missao-texto"+(isDone?" done":"")+"'>"+String(m.titulo)+"</span>";
+    h+="<span class='missao-pri "+priCls+"'>"+String(m.prioridade||"med")+"</span>";
+    h+="<button class='missao-del' onclick='delMissao(""+m.id+"")' title='Remover'>x</button>";
+    h+="</div>";
+  });
+  list.innerHTML=h;
+}
+
+function updateProgresso(done,total){
+  var pct=total>0?Math.round(done/total*100):0;
+  var bar=document.getElementById("miss-bar");
+  var txt=document.getElementById("miss-prog-txt");
+  var badge=document.getElementById("miss-prog-badge");
+  if(bar)bar.style.width=pct+"%";
+  if(txt)txt.textContent=done+" concluidas de "+total+" ("+pct+"%)";
+  if(badge)badge.textContent=done+"/"+total;
+}
+
+function addMissao(){
+  var inp=document.getElementById("miss-input");
+  var pri=document.getElementById("miss-pri");
+  var titulo=inp?inp.value.trim():"";
+  if(!titulo)return;
+  var hoje=new Date().toISOString().split("T")[0];
+  sbp("missoes",{titulo:titulo,prioridade:pri?pri.value:"media",status:"pendente",data_alvo:hoje}).then(function(r){return r.json();}).then(function(rows){
+    if(rows&&rows.length){_missoes.push(rows[0]);renderMissoes();updateStats();}
+    if(inp)inp.value="";
+  });
+}
+
+function toggleMissao(id,checked){
+  var status=checked?"concluida":"pendente";
+  var patch={status:status};
+  if(checked)patch.concluida_em=new Date().toISOString();
+  sbup("missoes","id=eq."+id,patch).then(function(){
+    var m=_missoes.find(function(x){return x.id===id;});
+    if(m){m.status=status;}
+    renderMissoes();
+    updateStats();
+  });
+}
+
+function delMissao(id){
+  sbdel("missoes","id=eq."+id).then(function(){
+    _missoes=_missoes.filter(function(m){return m.id!==id;});
+    renderMissoes();
+    updateStats();
+  });
+}
+
+/* ===================== LEADS ===================== */
+function loadLeads(){
+  var status=document.getElementById("flt-lead-status")?document.getElementById("flt-lead-status").value:"";
+  var busca=document.getElementById("flt-lead-busca")?document.getElementById("flt-lead-busca").value.trim():"";
+  var q="select=id,nome,whatsapp,interesse,status,observacoes,created_at&order=created_at.desc&limit=100";
+  if(status)q+="&status=eq."+encodeURIComponent(status);
+  if(busca)q+="&nome=ilike.*"+encodeURIComponent(busca)+"*";
+  var cnt=document.getElementById("leads-count");
+  sb("leads_site",q).then(function(r){return r.json();}).then(function(rows){
+    _leads=rows||[];
+    if(cnt)cnt.textContent=_leads.length;
+    renderLeads();
+    updateStats();
+  });
+}
+
+function renderLeads(){
+  var list=document.getElementById("leads-list");
+  if(!list)return;
+  if(!_leads.length){list.innerHTML="<div style='color:var(--t3);text-align:center;padding:24px;font-size:11px'>Nenhum lead encontrado</div>";return;}
+  var h="";
+  _leads.forEach(function(l){
+    var stCls="badge-"+(l.status||"gray");
+    var stLbl=String(l.status||"-");
+    h+="<div class='lead-item' onclick='abrirLead(""+l.id+"")'>";
+    h+="<div class='lead-nome'>"+String(l.nome||"-")+"</div>";
+    h+="<div class='lead-meta'>";
+    h+="<span class='badge "+stCls+"'>"+stLbl+"</span>";
+    h+="<span>"+String(l.interesse||"")+"</span>";
+    h+="<span>"+ago(l.created_at)+" atras</span>";
+    h+="</div>";
+    if(l.observacoes){h+="<div style='font-size:9px;color:var(--t3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:400px'>"+String(l.observacoes).substring(0,80)+"</div>";}
+    h+="<div class='lead-acoes'>";
+    if(l.whatsapp){h+="<a href='https://wa.me/"+fmtWpp(l.whatsapp)+"' target='_blank' class='btn-xs wpp' onclick='event.stopPropagation()'>WA "+String(l.whatsapp)+"</a>";}
+    h+="<button class='btn-xs' onclick='event.stopPropagation();criarMissaoLead(""+l.id+"",""+String(l.nome||"").replace(/"/g,"")+"")'> + Missao</button>";
+    h+="</div>";
+    h+="</div>";
+  });
+  list.innerHTML=h;
+}
+
+function abrirLead(id){
+  var l=_leads.find(function(x){return x.id===id;});
+  if(!l)return;
+  document.getElementById("modal-lead-nome").textContent=l.nome||"Lead";
+  document.getElementById("lead-edit-id").value=id;
+  document.getElementById("lead-edit-wpp").value=l.whatsapp||"";
+  document.getElementById("lead-status-sel").value=l.status||"novo";
+  document.getElementById("lead-obs-inp").value=l.observacoes||"";
+  document.getElementById("lead-missao-inp").value="";
+  document.getElementById("modal-lead-info").innerHTML="<div style='font-size:10px;color:var(--t3);margin-bottom:8px'><strong style='color:var(--tx)'>"+String(l.whatsapp||"-")+"</strong> &bull; "+String(l.interesse||"-")+" &bull; "+fd(l.created_at)+"</div>";
+  document.getElementById("modal-lead").classList.add("on");
+}
+
+function salvarLead(){
+  var id=document.getElementById("lead-edit-id").value;
+  var status=document.getElementById("lead-status-sel").value;
+  var obs=document.getElementById("lead-obs-inp").value;
+  var missaoTxt=document.getElementById("lead-missao-inp").value.trim();
+  sbup("leads_site","id=eq."+id,{status:status,observacoes:obs}).then(function(){
+    var l=_leads.find(function(x){return x.id===id;});
+    if(l){l.status=status;l.observacoes=obs;}
+    renderLeads();
+  });
+  if(missaoTxt){
+    var hoje=new Date().toISOString().split("T")[0];
+    sbp("missoes",{titulo:missaoTxt,prioridade:"alta",status:"pendente",data_alvo:hoje,lead_id:id}).then(function(r){return r.json();}).then(function(rows){
+      if(rows&&rows.length)_missoes.push(rows[0]);
+      renderMissoes();
+      updateStats();
+    });
+  }
+  fecharModal("modal-lead");
+}
+
+function abrirWpp(){
+  var wpp=document.getElementById("lead-edit-wpp").value;
+  if(wpp)window.open("https://wa.me/"+fmtWpp(wpp),"_blank");
+}
+
+function criarMissaoLead(leadId,leadNome){
+  var txt=prompt("Missao para "+leadNome+":");
+  if(!txt)return;
+  var hoje=new Date().toISOString().split("T")[0];
+  sbp("missoes",{titulo:txt,prioridade:"alta",status:"pendente",data_alvo:hoje,lead_id:leadId}).then(function(r){return r.json();}).then(function(rows){
+    if(rows&&rows.length)_missoes.push(rows[0]);
+    renderMissoes();
+    updateStats();
+  });
+}
+
+/* ===================== CTAs ===================== */
+function loadCTAs(){
+  var hoje=new Date();
+  hoje.setDate(hoje.getDate()-1);
+  sb("cta_clicks","select=id,empresa,cta_tipo,cta_label,pagina,sessao_id,utm_source,created_at&order=created_at.desc&limit=50&created_at=gte."+hoje.toISOString()).then(function(r){return r.json();}).then(function(rows){
+    _ctas=rows||[];
+    var cnt=document.getElementById("cta-count");
+    if(cnt)cnt.textContent=_ctas.length;
+    renderCTAs();
+    updateStats();
+  });
+}
+
+function renderCTAs(){
+  var list=document.getElementById("cta-list");
+  if(!list)return;
+  if(!_ctas.length){list.innerHTML="<div style='color:var(--t3);text-align:center;padding:24px;font-size:11px'>Nenhum click recente</div>";return;}
+  var h="";
+  _ctas.forEach(function(c){
+    var tipoCls="badge-"+(c.cta_tipo==="ver_dossie"?"dossie":c.cta_tipo==="proposta"?"proposta":c.cta_tipo==="whatsapp"?"whatsapp":"gray");
+    h+="<div class='cta-item'>";
+    h+="<div style='flex:1'>";
+    h+="<div style='display:flex;align-items:center;gap:6px;margin-bottom:2px'>";
+    h+="<span class='cta-empresa'>"+String(c.empresa||"—")+"</span>";
+    h+="<span class='badge "+tipoCls+"'>"+String(c.cta_tipo||"-").replace(/_/g," ")+"</span>";
+    h+="</div>";
+    if(c.utm_source){h+="<span style='font-size:9px;color:var(--t3)'>via "+c.utm_source+"</span>";}
+    h+="</div>";
+    h+="<div class='cta-time'>"+ago(c.created_at)+"</div>";
+    h+="</div>";
+  });
+  list.innerHTML=h;
+}
+
+/* ===================== STATS ===================== */
+function updateStats(){
+  var hoje=new Date();
+  hoje.setHours(0,0,0,0);
+  var totalMiss=_missoes.length;
+  var doneMiss=_missoes.filter(function(m){return m.status==="concluida";}).length;
+  var el=document.getElementById("s-miss");
+  if(el)el.textContent=doneMiss+"/"+totalMiss;
+  var elCtas=document.getElementById("s-ctas");
+  var hojeCtasCount=_ctas.filter(function(c){return new Date(c.created_at)>=hoje;}).length;
+  if(elCtas)elCtas.textContent=hojeCtasCount;
+  var elLeads=document.getElementById("s-leads");
+  if(elLeads)elLeads.textContent=_leads.filter(function(l){return l.status==="novo";}).length;
+}
+
+function loadStatsGlobal(){
+  sc("negocios","").then(function(n){var el=document.getElementById("s-negs");if(el)el.textContent=n;});
+}
+
+/* ===================== MAIN ===================== */
+function loadTudo(){
+  loadMissoes();
+  loadLeads();
+  loadCTAs();
+  loadStatsGlobal();
+  var att=document.getElementById("top-att");
+  if(att)att.textContent="att "+new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+}
+
+document.addEventListener("keydown",function(e){
+  if(e.key==="Escape")document.querySelectorAll(".modal").forEach(function(m){m.classList.remove("on");});
+});
+
+initData();
+loadTudo();
+setInterval(function(){loadCTAs();},20000);
+setInterval(function(){loadLeads();loadMissoes();},60000);
+</script>
+</body>
+</html>
