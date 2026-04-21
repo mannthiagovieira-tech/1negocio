@@ -3920,6 +3920,99 @@ function loadCockpit(){var el=document.getElementById('cockpit-missions');var de
 })();
 
 </script>
+<script>
+// ══════════════════════════════════════════════════════════
+// PATCH PERMANENTE v7 — renderM2 + ckOlxPost + ckFbPost
+// normPhone fix: remove 55 duplicado no WA link
+// ══════════════════════════════════════════════════════════
+(function(){
+  // CSS extra
+  var s=document.createElement('style');
+  s.textContent='.priority-orange{border-left:4px solid #f97316!important}.fill-orange{background:#f97316!important;height:100%;border-radius:4px;transition:width .4s}.priority-blue{border-left:4px solid #3b82f6!important}.fill-blue{background:#3b82f6!important;height:100%;border-radius:4px;transition:width .4s}.priority-purple{border-left:4px solid #8b5cf6!important}.fill-purple{background:#8b5cf6!important;height:100%;border-radius:4px;transition:width .4s}';
+  document.head.appendChild(s);
+
+  // normPhone: remove 55 prefix duplicado
+  window.normPhone=function(raw){
+    var n=(raw||'').replace(/\D/g,'');
+    if(n.length<8)return'';
+    if(n.startsWith('55')&&n.length>=12)n=n.slice(2);
+    return n.length>=10?n:'';
+  };
+
+  // buildLeadCardHtml
+  window._buildLeadCardHtml=function(l,isOlx){
+    var phone=normPhone(l.tel);
+    var waUrl=phone?'https://wa.me/55'+phone:'';
+    var wb=waUrl?'<button class="btn-ck btn-wpp" data-url="'+waUrl+'" onclick="window.open(this.dataset.url,\'_blank\')">\u{1F4F1} WA</button>':'';
+    var vb=l.url?'<button class="btn-ck btn-ver" data-url="'+l.url+'" onclick="window.open(this.dataset.url,\'_blank\')">\u{1F4CB} Ver</button>':'';
+    var badge=phone?'<span style="color:#10b981;font-size:10px;margin-left:4px">\u2714</span>':'';
+    var actOk=isOlx?"ckOlxPost(this,'enviado')":"ckFbPost(this,'contatado')";
+    var actNo=isOlx?"ckOlxPost(this,'descartado')":"ckFbPost(this,'descartado')";
+    return'<div class="mission-lead-card" data-id="'+l.id+'">'
+      +'<div class="lead-info"><div class="lead-name">'+((l.nome||'?').substring(0,45))+badge+'</div>'
+      +'<div class="lead-meta">'+l.src+(l.cidade?' \u00b7 '+l.cidade:'')+(l.frase?' \u00b7 '+l.frase:'')+'</div></div>'
+      +'<div class="lead-actions">'+wb+vb
+      +'<button class="btn-ck btn-ok" onclick="'+actOk+'">\u2713</button>'
+      +'<button class="btn-ck btn-skip" onclick="'+actNo+'">\u00d7</button>'
+      +'</div></div>';
+  };
+
+  // renderM2 v7
+  window.renderM2=function(oL,ct,ds,fL){
+    var SB='https://dbijmgqlcrgjlcfrastg.supabase.co';
+    var KEY=(function(){for(var i=0;i<document.scripts.length;i++){var idx=document.scripts[i].textContent.indexOf('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.');if(idx!==-1){var sub=document.scripts[i].textContent.substring(idx);var end=sub.search(/[\s"'`\)]/);return end>0?sub.substring(0,end):sub.substring(0,300);}}return'';})();
+    window._SB_URL=SB;window._SB_KEY=KEY;
+
+    function injectLeads(cid,sorted,isOlx,emptyMsg){
+      var el=document.getElementById(cid);if(!el)return;
+      el.innerHTML=sorted.length>0?sorted.slice(0,5).map(function(l){return window._buildLeadCardHtml(l,isOlx);}).join('')+(sorted.length>5?'<div style="text-align:center;padding:8px;font-size:12px;color:#888">Ver todos no Pool \u2192</div>':''):'<div style="text-align:center;padding:20px;color:#666">'+emptyMsg+'</div>';
+    }
+    function mapOlx(d){return(d||[]).map(function(l){return{id:l.id,nome:l.nome,tel:l.telefone_formatado||l.telefone||null,cidade:l.cidade,url:l.website||'',src:'OLX',frase:null};});}
+    function mapFb(d){return(d||[]).map(function(l){var n=l.autor_nome||(l.post_texto?l.post_texto.substring(0,60):'(post FB)');return{id:l.id,nome:n,tel:l.whatsapp||null,cidade:l.cidade||null,url:l.post_url||null,src:'FB',frase:l.query_usada||null};});}
+    function sortWA(a){return a.filter(function(l){return normPhone(l.tel);}).concat(a.filter(function(l){return!normPhone(l.tel);}));}
+
+    if(!oL||!oL.length){var x1=new XMLHttpRequest();x1.open('GET',SB+'/rest/v1/leads_google?select=*&status=eq.novo&origem=eq.olx&order=created_at.desc&limit=50',true);x1.setRequestHeader('apikey',KEY);x1.setRequestHeader('Authorization','Bearer '+KEY);x1.onload=function(){if(x1.status===200){var d=JSON.parse(x1.responseText);if(d&&d.length){window._m2OlxCurrentData=d;var s=sortWA(mapOlx(d));window._m2OlxQueue=s.slice(5);injectLeads('m2-olx-leads',s,true,'Sem novos leads OLX');}}};x1.send();}
+    if(!fL||!fL.length){var x2=new XMLHttpRequest();x2.open('GET',SB+'/rest/v1/oportunidades_fb?select=*&status=eq.novo&order=whatsapp.desc.nullslast,post_data.desc&limit=50',true);x2.setRequestHeader('apikey',KEY);x2.setRequestHeader('Authorization','Bearer '+KEY);x2.onload=function(){if(x2.status===200){var d=JSON.parse(x2.responseText);if(d&&d.length){var s=sortWA(mapFb(d));window._m2FbQueue=s.slice(5);injectLeads('m2-fb-leads',s,false,'Sem novos posts Facebook');}}};x2.send();}
+
+    var olxS=sortWA(mapOlx(oL));if(olxS.length)window._m2OlxCurrentData=oL;
+    var fbS=sortWA(mapFb(fL));
+    window._m2OlxQueue=olxS.slice(5);window._m2FbQueue=fbS.slice(5);window._m2CardFn=null;
+    var d2=ct+ds,p2=Math.min(100,Math.round(d2/50*100));
+    var oH=olxS.length?olxS.slice(0,5).map(function(l){return window._buildLeadCardHtml(l,true);}).join(''):'<div style="text-align:center;padding:20px;color:#666">Sem novos leads OLX</div>';
+    var fH=fbS.length?fbS.slice(0,5).map(function(l){return window._buildLeadCardHtml(l,false);}).join(''):'<div style="text-align:center;padding:20px;color:#666">Sem novos posts Facebook</div>';
+    return'<div class="mission-card priority-orange" id="m2-olx-card"><div class="mission-header"><span class="mission-title">\u{1F4CD} Miss\u00e3o 2A \u2014 OLX (neg\u00f3cios)</span><span class="mission-score" style="color:#f97316">'+d2+'/50</span></div><div class="mission-stats"><span>\u260e <strong id="m2-olx-ct">'+ct+'</strong></span>&nbsp;<span>\u274c <strong id="m2-olx-ds">'+ds+'</strong></span>&nbsp;<span>Meta 50</span></div><div class="mission-progress"><div class="fill-orange" style="width:'+p2+'%"></div></div><div id="m2-olx-leads">'+oH+'</div></div>'
+      +'<div class="mission-card priority-blue" id="m2-fb-card"><div class="mission-header"><span class="mission-title">\u{1F4D8} Miss\u00e3o 2B \u2014 Facebook (posts)</span><span class="mission-score fill-blue">0/50</span></div><div class="mission-stats"><span>\u260e <strong id="m2-fb-ct">0</strong></span>&nbsp;<span>\u274c <strong id="m2-fb-ds">0</strong></span>&nbsp;<span>Meta 50</span></div><div class="mission-progress"><div class="fill-blue" style="width:0%"></div></div><div id="m2-fb-leads">'+fH+'</div></div>';
+  };
+
+  // ckOlxPost
+  window.ckOlxPost=function(btn,st){
+    var card=btn.closest('.mission-lead-card');if(!card)return;
+    var id=card.dataset.id,SB=window._SB_URL,KEY=window._SB_KEY;
+    var xhr=new XMLHttpRequest();xhr.open('PATCH',SB+'/rest/v1/leads_google?id=eq.'+id,true);
+    xhr.setRequestHeader('apikey',KEY);xhr.setRequestHeader('Authorization','Bearer '+KEY);xhr.setRequestHeader('Content-Type','application/json');xhr.setRequestHeader('Prefer','return=minimal');
+    xhr.send(JSON.stringify({status:st}));
+    var oc=document.getElementById('m2-olx-card');
+    if(oc){var ct2=oc.querySelector('#m2-olx-ct'),ds2=oc.querySelector('#m2-olx-ds'),sc=oc.querySelector('.mission-score'),bar=oc.querySelector('[class*=fill]');if(st==='enviado'){if(ct2)ct2.textContent=+ct2.textContent+1;}else{if(ds2)ds2.textContent=+ds2.textContent+1;}var done=(+(ct2&&ct2.textContent||0))+(+(ds2&&ds2.textContent||0));if(sc)sc.textContent=done+'/50';if(bar)bar.style.width=Math.min(100,Math.round(done/50*100))+'%';}
+    card.style.cssText+='transition:opacity .3s,transform .3s;opacity:0;transform:translateX(30px)';
+    setTimeout(function(){card.remove();var cont=document.getElementById('m2-olx-leads'),q=window._m2OlxQueue||[];if(q.length&&cont){var next=q.shift();window._m2OlxQueue=q;cont.insertAdjacentHTML('beforeend',window._buildLeadCardHtml(next,true));var nc=cont.lastElementChild;nc.style.opacity='0';setTimeout(function(){nc.style.cssText+='transition:opacity .3s';nc.style.opacity='1';},50);}else if(cont&&!cont.querySelector('.mission-lead-card'))cont.innerHTML='<div style="text-align:center;padding:20px;color:#666">Sem novos leads OLX \u2713</div>';},300);
+  };
+
+  // ckFbPost
+  window.ckFbPost=function(btn,st){
+    var card=btn.closest('.mission-lead-card');if(!card)return;
+    var id=card.dataset.id,SB=window._SB_URL,KEY=window._SB_KEY;
+    var xhr=new XMLHttpRequest();xhr.open('PATCH',SB+'/rest/v1/oportunidades_fb?id=eq.'+id,true);
+    xhr.setRequestHeader('apikey',KEY);xhr.setRequestHeader('Authorization','Bearer '+KEY);xhr.setRequestHeader('Content-Type','application/json');xhr.setRequestHeader('Prefer','return=minimal');
+    xhr.send(JSON.stringify({status:st==='enviado'?'contatado':st}));
+    var fc=document.getElementById('m2-fb-card');
+    if(fc){var ct2=fc.querySelector('#m2-fb-ct'),ds2=fc.querySelector('#m2-fb-ds'),sc=fc.querySelector('.mission-score'),bar=fc.querySelector('[class*=fill]');if(st==='contatado'||st==='enviado'){if(ct2)ct2.textContent=+ct2.textContent+1;}else{if(ds2)ds2.textContent=+ds2.textContent+1;}var done=(+(ct2&&ct2.textContent||0))+(+(ds2&&ds2.textContent||0));if(sc)sc.textContent=done+'/50';if(bar)bar.style.width=Math.min(100,Math.round(done/50*100))+'%';}
+    card.style.cssText+='transition:opacity .3s,transform .3s;opacity:0;transform:translateX(30px)';
+    setTimeout(function(){card.remove();var cont=document.getElementById('m2-fb-leads'),q=window._m2FbQueue||[];if(q.length&&cont){var next=q.shift();window._m2FbQueue=q;cont.insertAdjacentHTML('beforeend',window._buildLeadCardHtml(next,false));var nc=cont.lastElementChild;nc.style.opacity='0';setTimeout(function(){nc.style.cssText+='transition:opacity .3s';nc.style.opacity='1';},50);}else if(cont&&!cont.querySelector('.mission-lead-card'))cont.innerHTML='<div style="text-align:center;padding:20px;color:#666">Sem novos posts Facebook \u2713</div>';},300);
+  };
+
+})();
+</script>
+
 </body>
 </html>
 </script>
