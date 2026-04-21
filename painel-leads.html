@@ -3890,7 +3890,48 @@ function renderM2(oL,ct,ds,fL){
 }
 function renderM3(ig,f){var meta=COCKPIT_META,ok=f>=meta;var cards=(ig||[]).slice(0,10).map(function(l){var u=l.profile_url||('https://instagram.com/'+l.username);return "<div class=\"mission-lead-card\" data-id=\""+l.id+"\"><div class=\"lead-info\"><div class=\"lead-name\">@"+(l.username||'perfil')+"</div><div class=\"lead-meta\">"+((l.bio||'').substring(0,55))+"</div></div><div class=\"lead-actions\"><button class=\"btn-ck btn-link\" data-url=\""+u+"\" onclick=\"window.open(this.dataset.url,'_blank')\">&#x1F4F7; Ver</button><button class=\"btn-ck btn-ok\" onclick=\"ckIG(this,true)\">&#10003; Segui</button><button class=\"btn-ck btn-skip\" onclick=\"ckIG(this,false)\">&#10007;</button></div></div>";}).join('');return "<div class=\"mission-card priority-yellow"+(ok?' completed':'')+"\"><div class=\"mission-top\"><div class=\"mission-title\">&#x1F7E1; Miss&#227;o 3 &mdash; Instagram Follows</div><div style=\"font-size:13px;font-weight:700;color:"+(ok?'#10b981':'#eab308')+'">'  +f+'/'+meta+'</div></div>'+"<div class=\"mission-stats\"><span>&#x1F44D; <strong>"+f+"</strong> seguidos</span><span>&#x1F4CB; <strong>"+((ig&&ig.length)||0)+"</strong> sugeridos</span></div>"+ckBar(f,meta,'yellow')+"<div class=\"mission-leads\">"+(ig&&ig.length?cards:"<div class=\"mission-empty\">Sem perfis sugeridos &middot; Configure na aba Instagram</div>")+"</div></div>";}
 function renderM4(gm,ct){var meta=50,ok=ct>=meta;var cards=(gm||[]).slice(0,10).map(function(l){var wpp=(l.telefone||'').replace(/\D/g,'');var wl=wpp?'https://wa.me/55'+wpp:'';var wb=wl?"<button class=\"btn-ck btn-wpp\" data-url=\""+wl+"\" onclick=\"window.open(this.dataset.url,'_blank')\">&#x1F4F1; WA</button>":'';return "<div class=\"mission-lead-card\" data-id=\""+l.id+"\"><div class=\"lead-info\"><div class=\"lead-name\">"+((l.nome||'?')+'').substring(0,40)+"</div><div class=\"lead-meta\">Google Maps"+(l.cidade?' &middot; '+l.cidade:'')+"</div></div><div class=\"lead-actions\">"+wb+"<button class=\"btn-ck btn-ok\" onclick=\"ckLead(this,'enviado')\">&#10003;</button><button class=\"btn-ck btn-skip\" onclick=\"ckLead(this,'descartado')\">&#10007;</button></div></div>";}).join('');return "<div class=\"mission-card priority-green"+(ok?' completed':'')+"\"><div class=\"mission-top\"><div class=\"mission-title\">&#x1F7E2; Miss&#227;o 4 &mdash; Google Maps</div><div style=\"font-size:13px;font-weight:700;color:"+(ok?'#10b981':'#22c55e')+'">'  +ct+'/'+meta+'</div></div>'+"<div class=\"mission-stats\"><span>&#x1F4DE; <strong>"+ct+"</strong></span><span>&#x1F4CB; <strong>"+((gm&&gm.length)||0)+"</strong></span></div>"+ckBar(ct,meta,'green')+"<div class=\"mission-leads\">"+(gm&&gm.length?cards:"<div class=\"mission-empty\">Sem novos leads Google Maps</div>")+"</div></div>";}
-function loadCockpit(){var el=document.getElementById('cockpit-missions');var de=document.getElementById('cockpit-date');if(de)de.textContent=getCockpitDate();if(!el)return;el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text2)">Carregando...</div>';var h={'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY};var b=SUPABASE_URL+'/rest/v1/';var today=new Date();today.setHours(0,0,0,0);var ti=today.toISOString();function gc(u){return fetch(u,{headers:Object.assign({},h,{'Prefer':'count=exact','Range':'0-0'})}).then(function(r){var c=r.headers.get('content-range');return c?parseInt(c.split('/')[1]):0;}).catch(function(){return 0;});}function gj(u){return fetch(u,{headers:h}).then(function(r){return r.json();}).then(function(d){return Array.isArray(d)?d:[];}).catch(function(){return [];});}Promise.all([gj(b+'leads_entrada?status=eq.novo&select=id,nome,whatsapp,criado_em&order=criado_em.asc'),gc(b+'leads_entrada?status=eq.contatado&select=count'),gc(b+'leads_entrada?status=eq.descartado&select=count'),gj(b+'leads_google?origem=eq.olx&status=eq.novo&select=id,nome,telefone,cidade,categoria,website&order=created_at.desc&limit=20'),gc(b+'leads_google?status=eq.enviado&updated_at=gte.'+ti+'&select=count'),gc(b+'leads_google?status=eq.descartado&updated_at=gte.'+ti+'&select=count'),gj(b+'oportunidades_fb?status=eq.novo&select=id,autor_nome&order=data_post.desc&limit=10'),gj(b+'ig_seguidores_raw?enviado_para_leads=eq.false&select=id,username,nome,bio,profile_url&order=importado_em.desc&limit=20'),gc(b+'ig_seguidores_raw?enviado_para_leads=eq.true&enviado_em=gte.'+ti+'&select=count'),gj(b+'leads_google?origem=eq.google&status=eq.novo&select=id,nome,telefone,cidade,categoria&order=created_at.desc&limit=20'),gc(b+'leads_google?origem=eq.google&status=eq.enviado&updated_at=gte.'+ti+'&select=count')]).then(function(r){el.innerHTML=renderM1(r[0],r[1],r[2])+renderM2(r[3],r[4],r[5],r[6])+renderM3(r[7],r[8])+renderM4(r[9],r[10]);setTimeout(loadPerformance,600);}).catch(function(e){el.innerHTML='<div style="color:#ef4444;padding:20px">Erro: '+e.message+'</div>';});}
+
+function renderM5(){
+  var today=new Date().toISOString().slice(0,10);
+  var storKey='m5_posts_'+today;
+  var saved=JSON.parse(localStorage.getItem(storKey)||'[false,false,false]');
+  var done=saved.filter(Boolean).length;
+  var meta=3;
+  var ok=done>=meta;
+  var pct=Math.round(done/meta*100);
+  var labels=['Post 1','Post 2','Post 3'];
+  var items=labels.map(function(lbl,i){
+    var chk=saved[i];
+    return '<div class="mission-lead-card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;">'
+      +'<span style="font-size:20px;">📸</span>'
+      +'<span style="flex:1;color:var(--text);">'+lbl+' — Instagram</span>'
+      +'<button onclick="window._m5toggle('+i+')" style="padding:6px 16px;border-radius:6px;border:none;cursor:pointer;font-weight:700;background:'+(chk?'#10b981':'#2a2a2a')+';color:'+(chk?'#fff':'#aaa')+';">'
+      +(chk?'✓ Feito':'Marcar')+'</button>'
+      +'</div>';
+  }).join('');
+  var html='<div class="mission-block" id="m5-block" style="border-left:4px solid #a855f7;">'
+    +'<div class="mission-header">'
+    +'<span>📸 Missão 5 — Posts Instagram</span>'
+    +'<span style="color:'+(ok?'#10b981':'#f59e0b')+';font-weight:700;">'+done+'/'+meta+'</span>'
+    +'</div>'
+    +'<div class="mission-stats">'
+    +'<span>✅ '+done+' publicados</span>'
+    +'<span style="color:#888;font-size:12px;">Meta '+meta+'</span>'
+    +'</div>'
+    +'<div class="mission-progress"><div class="mission-progress-bar" style="width:'+pct+'%;background:#a855f7;"></div></div>'
+    +(ok?'<div style="text-align:center;padding:16px;color:#10b981;">🎉 3 posts publicados hoje!</div>':items)
+    +'</div>';
+  window._m5toggle=function(idx){
+    var s=JSON.parse(localStorage.getItem(storKey)||'[false,false,false]');
+    s[idx]=!s[idx];
+    localStorage.setItem(storKey,JSON.stringify(s));
+    var el=document.getElementById('m5-block');
+    if(el){var tmp=document.createElement('div');tmp.innerHTML=renderM5();el.parentNode.replaceChild(tmp.firstChild,el);}
+    if(typeof loadPerformance==='function') setTimeout(loadPerformance,200);
+  };
+  return html;
+}
+function loadCockpit(){var el=document.getElementById('cockpit-missions');var de=document.getElementById('cockpit-date');if(de)de.textContent=getCockpitDate();if(!el)return;el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text2)">Carregando...</div>';var h={'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY};var b=SUPABASE_URL+'/rest/v1/';var today=new Date();today.setHours(0,0,0,0);var ti=today.toISOString();function gc(u){return fetch(u,{headers:Object.assign({},h,{'Prefer':'count=exact','Range':'0-0'})}).then(function(r){var c=r.headers.get('content-range');return c?parseInt(c.split('/')[1]):0;}).catch(function(){return 0;});}function gj(u){return fetch(u,{headers:h}).then(function(r){return r.json();}).then(function(d){return Array.isArray(d)?d:[];}).catch(function(){return [];});}Promise.all([gj(b+'leads_entrada?status=eq.novo&select=id,nome,whatsapp,criado_em&order=criado_em.asc'),gc(b+'leads_entrada?status=eq.contatado&select=count'),gc(b+'leads_entrada?status=eq.descartado&select=count'),gj(b+'leads_google?origem=eq.olx&status=eq.novo&select=id,nome,telefone,cidade,categoria,website&order=created_at.desc&limit=20'),gc(b+'leads_google?status=eq.enviado&updated_at=gte.'+ti+'&select=count'),gc(b+'leads_google?status=eq.descartado&updated_at=gte.'+ti+'&select=count'),gj(b+'oportunidades_fb?status=eq.novo&select=id,autor_nome&order=data_post.desc&limit=10'),gj(b+'ig_seguidores_raw?enviado_para_leads=eq.false&select=id,username,nome,bio,profile_url&order=importado_em.desc&limit=20'),gc(b+'ig_seguidores_raw?enviado_para_leads=eq.true&enviado_em=gte.'+ti+'&select=count'),gj(b+'leads_google?origem=eq.google&status=eq.novo&select=id,nome,telefone,cidade,categoria&order=created_at.desc&limit=20'),gc(b+'leads_google?origem=eq.google&status=eq.enviado&updated_at=gte.'+ti+'&select=count')]).then(function(r){el.innerHTML=renderM1(r[0],r[1],r[2])+renderM2(r[3],r[4],r[5],r[6])+renderM3(r[7],r[8])+renderM4(r[9],r[10])+renderM5();setTimeout(loadPerformance,600);}).catch(function(e){el.innerHTML='<div style="color:#ef4444;padding:20px">Erro: '+e.message+'</div>';});}
 
 // ====================== PERFORMANCE TRACKING ======================
 (function(){
