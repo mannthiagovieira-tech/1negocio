@@ -246,7 +246,7 @@ function delMiss(id){
 function loadLeads(){
   var status=document.getElementById("flt-status")?document.getElementById("flt-status").value:"";
   var nome=document.getElementById("flt-nome")?document.getElementById("flt-nome").value.trim():"";
-  var q="select=id,nome,whatsapp,interesse,status,observacoes,created_at&order=created_at.desc&limit=100";
+  var q="select=id,nome,whatsapp,email,status,notas,negocio_id,created_at&order=created_at.desc&limit=100";
   if(status)q+="&status=eq."+encodeURIComponent(status);
   if(nome)q+="&nome=ilike.*"+encodeURIComponent(nome)+"*";
   var cnt=document.getElementById("leads-count");
@@ -262,7 +262,7 @@ function renderLeads(){
     var stCls="b-"+(l.status||"gray");
     h+="<div class='li' data-lid='"+l.id+"'>";
     h+="<div class='li-name'>"+String(l.nome||"-")+"</div>";
-    h+="<div class='li-meta'><span class='badge "+stCls+"'>"+String(l.status||"-")+"</span><span>"+String(l.interesse||"")+"</span><span>"+ago(l.created_at)+" atras</span></div>";
+    h+="<div class='li-meta'><span class='badge "+stCls+"'>"+String(l.status||"-")+"</span><span>"+String(l.email||l.notas||"")+"</span><span>"+ago(l.created_at)+" atras</span></div>";
     if(l.observacoes){h+="<div class='li-obs'>"+String(l.observacoes).substring(0,90)+"</div>";}
     h+="<div class='li-ac'>";
     if(l.whatsapp){h+="<a href='https://wa.me/"+fmtWpp(l.whatsapp)+"' target='_blank' class='bxs wpp' data-stop='1'>WA "+String(l.whatsapp)+"</a>";}
@@ -296,7 +296,7 @@ function abrirLead(id){
   document.getElementById("ml-id").value=id;
   document.getElementById("ml-wpp").value=l.whatsapp||"";
   document.getElementById("ml-status").value=l.status||"novo";
-  document.getElementById("ml-obs").value=l.observacoes||"";
+  document.getElementById("ml-obs").value=l.notas||"";
   document.getElementById("ml-missao").value="";
   document.getElementById("ml-info").textContent=(l.whatsapp||"-")+" | "+String(l.interesse||"-")+" | "+fd(l.created_at);
   document.getElementById("modal-lead").classList.add("on");
@@ -306,7 +306,7 @@ function salvarLead(){
   var status=document.getElementById("ml-status").value;
   var obs=document.getElementById("ml-obs").value;
   var missaoTxt=document.getElementById("ml-missao").value.trim();
-  sbup("leads_site","id=eq."+id,{status:status,observacoes:obs}).then(function(){
+  sbup("leads_site","id=eq."+id,{status:status,notas:obs}).then(function(){
     var l=_leads.find(function(x){return x.id===id;});if(l){l.status=status;l.observacoes=obs;}renderLeads();
   });
   if(missaoTxt){
