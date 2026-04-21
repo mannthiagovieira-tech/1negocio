@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastre sua tese de investimento — 1Negocio</title>
+  <meta name="description" content="Cadastre sua tese de investimento. Nosso time avisa quando aparecer uma oportunidade compativel.">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #FAFAF7;
+      --ink: #0C0C0A;
+      --green: #10B981;
+      --green2: #059669;
+      --fade: #969691;
+      --muted: #6B7280;
+      --hairline: #E5E7EB;
+      --red: #EF4444;
+      --font-title: 'Syne', sans-serif;
+      --font-body: 'Syne', sans-serif;
+      --font-mono: 'DM Mono', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-weight: 400; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    a { color: var(--green); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .header { border-bottom: 1px solid var(--hairline); padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-family: var(--font-title); font-weight: 800; font-size: 20px; letter-spacing: -0.03em; color: var(--ink); text-decoration: none; }
+    .logo em { color: var(--green); font-style: normal; }
+    .container { max-width: 680px; margin: 0 auto; padding: 0 24px; }
+    .hero { padding: 64px 0 40px; border-bottom: 1px solid var(--hairline); margin-bottom: 48px; }
+    .hero-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fade); margin-bottom: 16px; }
+    .hero-title { font-family: var(--font-title); font-weight: 800; font-size: clamp(32px, 5vw, 52px); letter-spacing: -0.04em; line-height: 1.05; color: var(--ink); margin-bottom: 16px; }
+    .hero-sub { font-family: var(--font-mono); font-size: 14px; color: var(--fade); margin-bottom: 24px; }
+    .hero-body { font-size: 15px; color: var(--muted); max-width: 520px; line-height: 1.6; }
+    .form-section { margin-bottom: 48px; }
+    .field { margin-bottom: 28px; }
+    .field label { display: block; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fade); margin-bottom: 8px; }
+    .field label .req { color: var(--green); margin-left: 2px; }
+    .field input[type="text"], .field input[type="tel"], .field textarea, .field select { width: 100%; background: transparent; border: none; border-bottom: 1px solid var(--hairline); border-radius: 0; padding: 10px 0; font-family: var(--font-body); font-size: 15px; color: var(--ink); outline: none; transition: border-color 0.15s; appearance: none; -webkit-appearance: none; }
+    .field select { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23969691' stroke-width='2' stroke-linecap='round'><polyline points='6 9 12 15 18 9'/></svg>"); background-repeat: no-repeat; background-position: right 4px center; background-size: 14px; padding-right: 24px; cursor: pointer; }
+    .field input:focus, .field textarea:focus, .field select:focus { border-bottom-color: var(--ink); }
+    .field input.error, .field textarea.error, .field select.error { border-bottom-color: var(--red); }
+    .field textarea { min-height: 100px; resize: vertical; line-height: 1.5; }
+    .field .field-hint { font-family: var(--font-mono); font-size: 11px; color: var(--fade); margin-top: 6px; }
+    .field .field-error { font-family: var(--font-mono); font-size: 11px; color: var(--red); margin-top: 6px; display: none; }
+    .field.has-error .field-error { display: block; }
+    .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-top: 4px; }
+    .check-item { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+    .check-item input[type="checkbox"], .check-item input[type="radio"] { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; accent-color: var(--green); cursor: pointer; }
+    .check-item span { font-size: 14px; color: var(--ink); line-height: 1.4; }
+    .radio-group { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+    .conditional-field { margin-top: 16px; display: none; }
+    .conditional-field.visible { display: block; }
+    .two-cols { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+    .section-divider { border: none; border-top: 1px solid var(--hairline); margin: 40px 0; }
+    .section-title { font-family: var(--font-title); font-weight: 700; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fade); margin-bottom: 24px; }
+    .hp-field { position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+    .submit-wrap { margin-bottom: 64px; }
+    .btn-submit { width: 100%; padding: 18px 32px; background: var(--green); color: #fff; border: none; font-family: var(--font-title); font-weight: 800; font-size: 16px; letter-spacing: 0.04em; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .btn-submit:hover { background: var(--green2); }
+    .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+    .submit-disclaimer { font-family: var(--font-mono); font-size: 11px; color: var(--fade); text-align: center; margin-top: 14px; line-height: 1.5; }
+    .success-screen { display: none; padding: 80px 0 80px; }
+    .success-screen.visible { display: block; }
+    .success-icon { width: 48px; height: 48px; background: var(--green); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 32px; }
+    .success-icon svg { width: 24px; height: 24px; stroke: #fff; fill: none; stroke-width: 2.5; stroke-linecap: round; }
+    .success-title { font-family: var(--font-title); font-weight: 800; font-size: clamp(28px, 4vw, 42px); letter-spacing: -0.04em; line-height: 1.05; color: var(--ink); margin-bottom: 16px; }
+    .success-sub { font-size: 16px; color: var(--muted); max-width: 480px; margin-bottom: 40px; line-height: 1.6; }
+    .success-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .btn-primary-success { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; background: var(--green); color: #fff; border: none; font-family: var(--font-title); font-weight: 800; font-size: 14px; letter-spacing: 0.04em; cursor: pointer; text-decoration: none; transition: background 0.15s; }
+    .btn-primary-success:hover { background: var(--green2); text-decoration: none; color: #fff; }
+    .btn-outline { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border: 1px solid var(--ink); background: transparent; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); cursor: pointer; text-decoration: none; transition: all 0.15s; }
+    .btn-outline:hover { background: var(--ink); color: var(--bg); text-decoration: none; }
+    .footer { border-top: 1px solid var(--hairline); padding: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    .footer-left { font-family: var(--font-body); font-size: 13px; color: var(--muted); }
+    .footer-right { font-family: var(--font-mono); font-size: 12px; color: var(--green); }
+    @media (max-width: 520px) {
+      .hero { padding: 40px 0 28px; }
+      .hero-title { font-size: 28px; }
+      .check-grid { grid-template-columns: 1fr; }
+      .two-cols { grid-template-columns: 1fr; }
+      .success-actions { flex-direction: column; align-items: flex-start; }
+      .btn-primary-success, .btn-outline { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="logo"><em>1</em>NEGOCIO</a>
+  </header>
+  <main>
+    <div class="container">
+      <div class="hero">
+        <p class="hero-label">Para compradores</p>
+        <h1 class="hero-title">Cadastre sua tese de investimento.</h1>
+        <p class="hero-sub">— nos avisamos quando aparecer uma oportunidade.</p>
+        <p class="hero-body">Conte o que voce procura. Nosso time analisa e entra em contato quando um negocio com perfil compativel entrar na plataforma.</p>
+      </div>
+      <div id="formWrap">
+        <form id="teseForm" novalidate>
+          <div class="hp-field" aria-hidden="true">
+            <label>Nao preencha este campo: <input type="text" name="website" id="honeypot" tabindex="-1" autocomplete="off"></label>
+          </div>
+          <div class="form-section">
+            <p class="section-title">Seus dados</p>
+            <div class="field" id="field-nome">
+              <label>Nome completo<span class="req">*</span></label>
+              <input type="text" id="nome" name="nome" placeholder="Seu nome completo" autocomplete="name">
+              <span class="field-error">Preencha seu nome completo.</span>
+            </div>
+            <div class="field" id="field-whatsapp">
+              <label>WhatsApp<span class="req">*</span></label>
+              <input type="tel" id="whatsapp" name="whatsapp" placeholder="(11) 91234-5678" maxlength="15" autocomplete="tel">
+              <span class="field-hint">Numero com DDD. Usamos apenas para entrar em contato.</span>
+              <span class="field-error">Informe um numero de WhatsApp valido com DDD.</span>
+              <span class="field-error" id="wpp-zapi-error" style="display:none">Este numero nao tem WhatsApp ativo. Confira e tente novamente.</span>
+            </div>
+          </div>
+          <hr class="section-divider">
+          <div class="form-section">
+            <p class="section-title">Sua tese</p>
+            <div class="field" id="field-tese">
+              <label>Descreva em poucas palavras o que voce busca<span class="req">*</span></label>
+              <textarea id="tese_descricao" name="tese_descricao" placeholder="Ex: Busco negocios consolidados no Sul do pais, setor de servicos recorrentes, com equipe madura e baixa dependencia dos socios. Ticket ate R$ 2M." minlength="40"></textarea>
+              <span class="field-hint">Minimo de 40 caracteres. Quanto mais detalhado, melhor.</span>
+              <span class="field-error">Descreva sua tese com pelo menos 40 caracteres.</span>
+            </div>
+            <div class="field" id="field-valor">
+              <label>Valor de investimento<span class="req">*</span></label>
+              <select id="valor_investimento" name="valor_investimento">
+                <option value="">-- selecione --</option>
+                <option value="Ate R$ 500K">Ate R$ 500K</option>
+                <option value="R$ 500K - R$ 1M">R$ 500K - R$ 1M</option>
+                <option value="R$ 1M - R$ 5M">R$ 1M - R$ 5M</option>
+                <option value="R$ 5M - R$ 20M">R$ 5M - R$ 20M</option>
+                <option value="Acima de R$ 20M">Acima de R$ 20M</option>
+              </select>
+              <span class="field-error">Selecione a faixa de investimento.</span>
+            </div>
+            <div class="field" id="field-localizacao">
+              <label>Localizacao preferida<span class="req">*</span></label>
+              <div class="radio-group">
+                <label class="check-item"><input type="radio" name="localizacao_tipo" value="tanto_faz" id="loc-tanto"><span>Tanto faz</span></label>
+                <label class="check-item"><input type="radio" name="localizacao_tipo" value="estado" id="loc-estado"><span>Estado especifico</span></label>
+                <label class="check-item"><input type="radio" name="localizacao_tipo" value="cidade" id="loc-cidade"><span>Cidade especifica</span></label>
+              </div>
+              <span class="field-error">Selecione uma opcao de localizacao.</span>
+              <div class="conditional-field" id="cond-estado">
+                <div class="field" id="field-estado" style="margin-bottom:0">
+                  <label>Qual estado? (ex: SP, RJ, MG)</label>
+                  <input type="text" id="estado" name="estado" placeholder="Ex: SP">
+                </div>
+              </div>
+              <div class="conditional-field" id="cond-cidade">
+                <div class="two-cols">
+                  <div class="field" id="field-cidade-nome" style="margin-bottom:0">
+                    <label>Cidade</label>
+                    <input type="text" id="cidade" name="cidade" placeholder="Ex: Curitiba">
+                  </div>
+                  <div class="field" id="field-cidade-estado" style="margin-bottom:0">
+                    <label>Estado</label>
+                    <input type="text" id="cidade_estado" name="cidade_estado" placeholder="Ex: PR">
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="field" id="field-setores">
+              <label>Setores de interesse<span class="req">*</span></label>
+              <div class="check-grid">
+                <label class="check-item"><input type="checkbox" name="setor" value="Tecnologia / SaaS"><span>Tecnologia / SaaS</span></label>
+                <label class="check-item"><input type="checkbox" name="setor" value="Saude / Clinicas / Estetica"><span>Saude / Clinicas / Estetica</span></label>
+                <label class="check-item"><input type="checkbox" name="setor" value="Alimentacao / Food service"><span>Alimentacao / Food service</span></label>
+                <label class="check-item"><input type="checkbox" name="setor" value="Varejo / Comercio"><span>Varejo / Comercio</span></label>
+                <label class="check-item"><input type="checkbox" name="setor" value="Educacao"><span>Educacao</span></label>
+                <label class="check-item"><input type="checkbox" name="setor" value="Industria leve"><span>Industria leve</span></label>
+                <label class="check-item"><input type="checkbox" name="setor" value="Servicos recorrentes"><span>Servicos recorrentes</span></label>
+                <label class="check-item"><input type="checkbox" name="setor" value="Construcao / Imoveis"><span>Construcao / Imoveis</span></label>
+                <label class="check-item"><input type="checkbox" name="setor" value="Logistica / Transporte"><span>Logistica / Transporte</span></label>
+                <label class="check-item"><input type="checkbox" name="setor" value="Agronegocio"><span>Agronegocio</span></label>
+                <label class="check-item"><input type="checkbox" name="setor" value="Financeiro / Fintech"><span>Financeiro / Fintech</span></label>
+                <label class="check-item"><input type="checkbox" name="setor" value="Outros"><span>Outros</span></label>
+              </div>
+              <span class="field-error">Selecione pelo menos um setor.</span>
+            </div>
+            <div class="field" id="field-formas">
+              <label>Formas de atuacao<span class="req">*</span></label>
+              <div class="check-grid">
+                <label class="check-item"><input type="checkbox" name="forma" value="B2B"><span>B2B (venda pra outras empresas)</span></label>
+                <label class="check-item"><input type="checkbox" name="forma" value="B2C"><span>B2C (venda pro consumidor final)</span></label>
+                <label class="check-item"><input type="checkbox" name="forma" value="Online / Digital"><span>Online / Digital</span></label>
+                <label class="check-item"><input type="checkbox" name="forma" value="Fisico / Presencial"><span>Fisico / Presencial</span></label>
+                <label class="check-item"><input type="checkbox" name="forma" value="Hibrido"><span>Hibrido</span></label>
+                <label class="check-item"><input type="checkbox" name="forma" value="Franquia"><span>Franquia</span></label>
+                <label class="check-item"><input type="checkbox" name="forma" value="Subscription / Recorrencia"><span>Subscription / Recorrencia</span></label>
+              </div>
+              <span class="field-error">Selecione pelo menos uma forma de atuacao.</span>
+            </div>
+            <div class="field">
+              <label>Informacoes adicionais <span style="color:var(--fade)">(opcional)</span></label>
+              <textarea id="descricao_adicional" name="descricao_adicional" placeholder="Alguma outra informacao relevante? Ex: preferencias de perfil do vendedor, tempo desejado de operacao, etc."></textarea>
+            </div>
+          </div>
+          <hr class="section-divider">
+          <div class="submit-wrap">
+            <button type="submit" class="btn-submit" id="btnSubmit">CADASTRAR TESE</button>
+            <p class="submit-disclaimer">Seus dados sao confidenciais. Usamos somente para identificar oportunidades compativeis.</p>
+          </div>
+        </form>
+      </div>
+      <div class="success-screen" id="successScreen">
+        <div class="success-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <h2 class="success-title">Recebemos sua tese.</h2>
+        <p class="success-sub">Nosso time analisa e entra em contato quando houver uma oportunidade compativel.</p>
+        <div class="success-actions">
+          <a href="/" class="btn-primary-success">Ver oportunidades</a>
+          <a href="/" class="btn-outline">Voltar pro inicio</a>
+        </div>
+      </div>
+    </div>
+  </main>
+  <footer class="footer">
+    <span class="footer-left">negocios com mais valor.</span>
+    <span class="footer-right">1negocio.com.br</span>
+  </footer>
+  <script>
+    var SUPABASE_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+    var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+
+    function getUTMParams() {
+      var params = new URLSearchParams(window.location.search);
+      return { utm_source: params.get('utm_source') || null, utm_medium: params.get('utm_medium') || null, utm_campaign: params.get('utm_campaign') || null, utm_content: params.get('utm_content') || null };
+    }
+
+    var wppInput = document.getElementById('whatsapp');
+
+    /* === Z-API: VALIDACAO DE NUMERO — cache e estado === */
+    var _wppValidCache = {};
+    var _wppValid = null;
+    var _wppCheckTimer = null;
+    var _wppLastChecked = '';
+
+    function toE164(v) {
+      var digits = v.replace(/D/g, '');
+      if (digits.length === 0) return '';
+      if (digits.startsWith('55') && digits.length >= 12) return digits;
+      return '55' + digits;
+    }
+
+    async function checkWppExists(e164) {
+      if (typeof _wppValidCache[e164] !== 'undefined') return _wppValidCache[e164];
+      try {
+        var controller = new AbortController();
+        var timeout = setTimeout(function() { controller.abort(); }, 6000);
+        var resp = await fetch(SUPABASE_URL + '/functions/v1/zapi-relay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+          body: JSON.stringify({ action: 'phone-exists', phone: e164 }),
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+        if (!resp.ok) { console.warn('[1Negocio] zapi-relay retornou', resp.status, '— fail-open'); return true; }
+        var data = await resp.json();
+        var exists = typeof data.exists === 'boolean' ? data.exists : true;
+        _wppValidCache[e164] = exists;
+        return exists;
+      } catch (err) {
+        console.warn('[1Negocio] checkWppExists erro (fail-open):', err.message);
+        return true;
+      }
+    }
+
+    function setWppZapiError(show) {
+      var field = document.getElementById('field-whatsapp');
+      var errEl = document.getElementById('wpp-zapi-error');
+      if (!errEl) return;
+      if (show) {
+        field.classList.add('has-error');
+        document.getElementById('whatsapp').classList.add('error');
+        errEl.style.display = 'block';
+      } else {
+        errEl.style.display = 'none';
+        if (!document.querySelector('#field-whatsapp .field-error[style*="block"]')) {
+          field.classList.remove('has-error');
+          document.getElementById('whatsapp').classList.remove('error');
+        }
+      }
+    }
+
+    wppInput.addEventListener('blur', function() {
+      var raw = wppInput.value.trim();
+      if (!validateWpp(raw)) return;
+      var e164 = toE164(raw);
+      if (e164 === _wppLastChecked) return;
+      clearTimeout(_wppCheckTimer);
+      _wppCheckTimer = setTimeout(async function() {
+        _wppLastChecked = e164;
+        _wppValid = null;
+        var btn = document.getElementById('btnSubmit');
+        var originalText = btn.textContent;
+        if (!btn.disabled) { btn.disabled = true; btn.textContent = 'Verificando WhatsApp...'; }
+        var exists = await checkWppExists(e164);
+        _wppValid = exists;
+        if (btn.textContent === 'Verificando WhatsApp...') { btn.disabled = false; btn.textContent = originalText || 'CADASTRAR TESE'; }
+        setWppZapiError(!exists);
+      }, 400);
+    });
+
+    wppInput.addEventListener('input', function() {
+      setWppZapiError(false);
+      _wppValid = null;
+      _wppLastChecked = '';
+    });
+
+    wppInput.addEventListener('input', function(e) {
+      var v = e.target.value.replace(/D/g, '').slice(0, 11);
+      if (v.length > 6) { v = '(' + v.slice(0,2) + ') ' + v.slice(2,7) + '-' + v.slice(7); }
+      else if (v.length > 2) { v = '(' + v.slice(0,2) + ') ' + v.slice(2); }
+      else if (v.length > 0) { v = '(' + v; }
+      e.target.value = v;
+    });
+
+    function validateWpp(v) {
+      var digits = v.replace(/D/g, '');
+      return /^[1-9]{2}9?[0-9]{8}$/.test(digits);
+    }
+
+    document.querySelectorAll('input[name="localizacao_tipo"]').forEach(function(radio) {
+      radio.addEventListener('change', function() {
+        document.getElementById('cond-estado').classList.remove('visible');
+        document.getElementById('cond-cidade').classList.remove('visible');
+        if (this.value === 'estado') document.getElementById('cond-estado').classList.add('visible');
+        else if (this.value === 'cidade') document.getElementById('cond-cidade').classList.add('visible');
+      });
+    });
+
+    function setError(fieldId, show) {
+      var el = document.getElementById(fieldId);
+      if (!el) return;
+      el.classList.toggle('has-error', show);
+      var inp = el.querySelector('input, textarea, select');
+      if (inp) inp.classList.toggle('error', show);
+    }
+
+    function getCheckedValues(name) {
+      return Array.from(document.querySelectorAll('input[name="' + name + '"]:checked')).map(function(cb) { return cb.value; });
+    }
+
+    function getRadioValue(name) {
+      var checked = document.querySelector('input[name="' + name + '"]:checked');
+      return checked ? checked.value : '';
+    }
+
+    document.getElementById('teseForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      if (document.getElementById('honeypot').value) {
+        document.getElementById('formWrap').style.display = 'none';
+        document.getElementById('successScreen').classList.add('visible');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      /* === Z-API: VALIDACAO DE NUMERO — bloquear submit se invalido === */
+      if (_wppValid === false) {
+        setWppZapiError(true);
+        document.getElementById('field-whatsapp').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+
+      var nome = document.getElementById('nome').value.trim();
+      var wpp = document.getElementById('whatsapp').value.trim();
+      var tese = document.getElementById('tese_descricao').value.trim();
+      var valor = document.getElementById('valor_investimento').value;
+      var locTipo = getRadioValue('localizacao_tipo');
+      var setores = getCheckedValues('setor');
+      var formas = getCheckedValues('forma');
+      var descAd = document.getElementById('descricao_adicional').value.trim();
+      var estado = document.getElementById('estado').value.trim().toUpperCase();
+      var cidade = document.getElementById('cidade').value.trim();
+      var cidadeEstado = document.getElementById('cidade_estado').value.trim().toUpperCase();
+
+      var hasError = false;
+      setError('field-nome', !nome); if (!nome) hasError = true;
+      var wppOk = validateWpp(wpp); setError('field-whatsapp', !wppOk); if (!wppOk) hasError = true;
+      setError('field-tese', tese.length < 40); if (tese.length < 40) hasError = true;
+      setError('field-valor', !valor); if (!valor) hasError = true;
+      setError('field-localizacao', !locTipo); if (!locTipo) hasError = true;
+      setError('field-setores', setores.length === 0); if (setores.length === 0) hasError = true;
+      setError('field-formas', formas.length === 0); if (formas.length === 0) hasError = true;
+
+      if (hasError) {
+        var firstError = document.querySelector('.has-error');
+        if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+
+      var btn = document.getElementById('btnSubmit');
+      btn.disabled = true;
+      btn.textContent = 'Enviando...';
+
+      var utms = getUTMParams();
+      var payload = {
+        nome: nome, whatsapp: wpp.replace(/D/g, ''), tese_descricao: tese,
+        valor_investimento: valor, localizacao_tipo: locTipo,
+        estado: locTipo === 'estado' ? estado : (locTipo === 'cidade' ? cidadeEstado : null),
+        cidade: locTipo === 'cidade' ? cidade : null,
+        setores: setores, formas_atuacao: formas,
+        descricao_adicional: descAd || null, status: 'novo',
+        utm_source: utms.utm_source, utm_medium: utms.utm_medium,
+        utm_campaign: utms.utm_campaign, utm_content: utms.utm_content
+      };
+
+      try {
+        var resp = await fetch(SUPABASE_URL + '/rest/v1/teses_investimento', {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(payload)
+        });
+        if (!resp.ok) { var errBody = await resp.text(); console.error('[1Negocio] Erro Supabase:', resp.status, errBody); }
+      } catch (err) {
+        console.error('[1Negocio] Falha ao gravar tese:', err);
+      }
+
+      document.getElementById('formWrap').style.display = 'none';
+      document.getElementById('successScreen').classList.add('visible');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  </script>
+</body>
+</html>
