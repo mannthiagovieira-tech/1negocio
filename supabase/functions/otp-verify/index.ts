@@ -158,19 +158,18 @@ Deno.serve(async (req: Request) => {
   // ── 6. Gerar senha sintética ───────────────────────────────────────────────
   const syntheticPassword = await getSyntheticPassword(phone);
 
-  // ── 7. Criar ou recuperar user — SQL direto em auth.users ─────────────────
-  // Evita listUsers() com limite de 50 e risco de duplicata silenciosa.
-  const { data: existingUser, error: findErr } = await adminClient
-    .schema("auth")
-    .from("users")
-    .select("id, raw_user_meta_data")
-    .eq("phone", phone)
-    .maybeSingle();
+  // ── 7. Criar ou recuperar user — RPC get_user_by_phone ────────────────────
+  // Usa função SQL SECURITY DEFINER no schema public para acessar auth.users.
+  // PostgREST não expõe o schema auth diretamente (PGRST106).
+  const { data: userRows, error: findErr } = await adminClient
+    .rpc("get_user_by_phone", { p_phone: phone });
 
   if (findErr) {
     console.error("[otp-verify] Erro ao buscar user:", findErr);
     return Response.json({ ok: false, error: "Erro interno" }, { status: 500 });
   }
+
+  const existingUser = userRows?.[0] ?? null;
 
   if (existingUser) {
     // Atualiza nome se fornecido e diferente do atual
