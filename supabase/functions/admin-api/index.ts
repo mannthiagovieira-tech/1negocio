@@ -7,7 +7,7 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const ALLOWED_TABLES = [
   "negocios",
   "usuarios",
-  "admin_agenda",
+  "admin_agenda"
   "leads_site",
   "leads_google",
   "disparos_whatsapp",
@@ -17,6 +17,8 @@ const ALLOWED_TABLES = [
   "admin_mensagens",
   "chat_ia_leads",
   "teses_investimento",
+  "solicitacoes_info",
+  "nda_solicitacoes",
 ];
 
 const corsHeaders = {
