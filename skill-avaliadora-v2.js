@@ -189,36 +189,107 @@
     return 'III'; // default conservador
   }
 
+  // ISS municipal × ICMS estadual (Etapa 2.8.B).
+  // Default conservador: ISS quando não há forma/setor de comércio/indústria.
+  function determinarRegimeMunicipalEstadual(setor_code, forma_principal) {
+    // Forma comércio/indústria → ICMS
+    if (['revenda', 'distribuicao', 'fabricacao', 'produz_revende'].includes(forma_principal)) {
+      return { aplica_iss: false, aplica_icms: true, aliq_iss: 5, aliq_icms: 18 };
+    }
+    // Forma serviço → ISS
+    if (['presta_servico', 'saas', 'assinatura'].includes(forma_principal)) {
+      return { aplica_iss: true, aplica_icms: false, aliq_iss: 5, aliq_icms: 18 };
+    }
+    // Setor sem forma específica
+    if (['varejo', 'industria'].includes(setor_code)) {
+      return { aplica_iss: false, aplica_icms: true, aliq_iss: 5, aliq_icms: 18 };
+    }
+    if (setor_code === 'construcao') {
+      // Construção depende: com material = ICMS, sem material = ISS. Default ISS.
+      return { aplica_iss: true, aplica_icms: false, aliq_iss: 5, aliq_icms: 18 };
+    }
+    const setoresServico = ['servicos_empresas', 'educacao', 'saude', 'bem_estar',
+                            'beleza_estetica', 'hospedagem', 'servicos_locais', 'logistica'];
+    if (setoresServico.includes(setor_code)) {
+      return { aplica_iss: true, aplica_icms: false, aliq_iss: 5, aliq_icms: 18 };
+    }
+    return { aplica_iss: true, aplica_icms: false, aliq_iss: 5, aliq_icms: 18 };
+  }
+
+  // Presunções IRPJ/CSLL no Lucro Presumido (Etapa 2.8.B).
+  // Comércio/indústria/transporte cargas: 8/12. Serviços em geral: 32/32.
+  function determinarPresuncoesPresumido(setor_code, forma_principal) {
+    if (['revenda', 'distribuicao', 'fabricacao', 'produz_revende'].includes(forma_principal)) {
+      return { irpj: 0.08, csll: 0.12 };
+    }
+    if (['varejo', 'industria'].includes(setor_code)) {
+      return { irpj: 0.08, csll: 0.12 };
+    }
+    // Transporte de cargas (logística + presta_servico) — IRPJ 8% / CSLL 12%
+    if (setor_code === 'logistica' && forma_principal === 'presta_servico') {
+      return { irpj: 0.08, csll: 0.12 };
+    }
+    // Serviços em geral
+    return { irpj: 0.32, csll: 0.32 };
+  }
+
   // ============================================================
   // HELPERS TRIBUTÁRIOS
   // (Decisão #14 — cálculo pela regra real; #17 — 3 bases por regime)
   //
-  // Etapa 2.8.A entregue: 5 anexos completos do Simples + regra do Fator R.
-  // Anexo IV: INSS patronal POR FORA (não no DAS) — afeta calcEncargosCLT.
+  // Etapas 2.8.A e 2.8.B entregues:
+  //  - 5 anexos completos do Simples + Fator R (2.8.A)
+  //  - Anexo IV: INSS por fora (afeta calcEncargosCLT)
+  //  - ISS municipal e ICMS estadual em Presumido/Real (2.8.B)
+  //  - IRPJ + CSLL em Presumido (presunção) e Real (RO proxy)
   //
-  // TODO Etapa 2.8.B — ISS municipal (~5% serviço) e ICMS estadual (~18%
-  // comércio/indústria) não estão sendo somados nos regimes Presumido/Real —
-  // apenas PIS/COFINS. No Simples já estão embutidos nas alíquotas, mas em
-  // Presumido/Real hoje subestimamos a carga tributária total.
+  // TODO Backlog Futuro:
+  //  - ISS específico por município (varia 2-5%) — hoje usa 5% (teto do médio)
+  //  - ICMS específico por estado/produto (varia 7-25%) — hoje usa 18%
+  //  - Créditos PIS/Cofins não-cumulativo no Lucro Real
+  //  - Lucro Arbitrado (4º regime, raro)
   // ============================================================
 
   function calcImpostoSobreFaturamento(fat_anual, regime, anexo, P, contexto) {
     const fat_mensal = fat_anual / 12;
     const ctx = contexto || {};
+    const iss_icms = determinarRegimeMunicipalEstadual(ctx.setor_code, ctx.forma_principal);
 
     if (regime === 'mei') {
+      if (fat_anual > 81000) {
+        return {
+          mensal: 0, anual: 0, pct: 0,
+          regime: 'MEI', anexo: null,
+          detalhes: 'Faturamento acima do limite MEI (R$ 81k/ano)',
+          fator_r_calculado: null, fator_r_aplicado: false,
+          migracao_anexo: null, observacao_fator_r: null,
+          viabilidade: 'inviavel',
+          razao_inviabilidade: 'fat_acima_limite_mei',
+          decomposicao: {
+            pis_anual: 0, cofins_anual: 0, iss_anual: 0, icms_anual: 0,
+            irpj_anual: 0, csll_anual: 0,
+            fat_total_anual: 0, lucro_total_anual: 0, imposto_total_anual: 0,
+          },
+        };
+      }
       const fixoMensal = (anexo === 'I' || anexo === 'II') ? 75.90 : 80.90;
+      const anual = fixoMensal * 12;
       return {
-        mensal: fixoMensal,
-        anual: fixoMensal * 12,
+        mensal: fixoMensal, anual,
         pct: fat_mensal > 0 ? (fixoMensal / fat_mensal) * 100 : 0,
-        regime: 'MEI',
-        anexo: null,
+        regime: 'MEI', anexo: null,
         detalhes: 'Valor fixo mensal',
-        fator_r_calculado: null,
-        fator_r_aplicado: false,
-        migracao_anexo: null,
-        observacao_fator_r: null,
+        fator_r_calculado: null, fator_r_aplicado: false,
+        migracao_anexo: null, observacao_fator_r: null,
+        viabilidade: 'viavel',
+        decomposicao: {
+          pis_anual: 0, cofins_anual: 0, iss_anual: 0, icms_anual: 0,
+          irpj_anual: 0, csll_anual: 0,
+          das_anual: anual,
+          fat_total_anual: anual,
+          lucro_total_anual: 0,
+          imposto_total_anual: anual,
+        },
       };
     }
 
@@ -303,10 +374,11 @@
         ? Math.max(0, (fat_anual * faixa.aliq - faixa.ded) / fat_anual)
         : faixa.aliq;
       const mensal = fat_mensal * aliq_efetiva;
+      const anual = mensal * 12;
 
       return {
         mensal,
-        anual: mensal * 12,
+        anual,
         pct: aliq_efetiva * 100,
         regime: 'Simples Nacional',
         anexo: anexo_para_calc,
@@ -315,57 +387,124 @@
         fator_r_aplicado,
         migracao_anexo,
         observacao_fator_r,
+        viabilidade: 'viavel',
+        decomposicao: {
+          // No Simples, todos os tributos federais e ISS estão embutidos no DAS.
+          pis_anual: 0, cofins_anual: 0, iss_anual: 0, icms_anual: 0,
+          irpj_anual: 0, csll_anual: 0,
+          das_anual: anual,
+          fat_total_anual: anual,
+          lucro_total_anual: 0,
+          imposto_total_anual: anual,
+        },
       };
     }
 
     if (regime === 'presumido') {
-      // Apenas PIS/COFINS cumulativos sobre faturamento (TODO 2.8.B inclui ISS/ICMS).
-      const pct = 3.65;
-      const mensal = fat_mensal * (pct / 100);
+      const presuncoes = determinarPresuncoesPresumido(ctx.setor_code, ctx.forma_principal);
+
+      // IRPJ trimestral com adicional de 10% sobre o que excede R$ 60k/trimestre
+      const base_irpj = fat_anual * presuncoes.irpj;
+      const base_csll = fat_anual * presuncoes.csll;
+      const base_irpj_trim = base_irpj / 4;
+      let irpj_trim = base_irpj_trim * 0.15;
+      if (base_irpj_trim > 60000) {
+        irpj_trim += (base_irpj_trim - 60000) * 0.10;
+      }
+      const irpj_anual = irpj_trim * 4;
+      const csll_anual = base_csll * 0.09;
+
+      const pis_anual = fat_anual * 0.0065;     // cumulativo
+      const cofins_anual = fat_anual * 0.03;    // cumulativo
+      const iss_anual = iss_icms.aplica_iss ? fat_anual * (iss_icms.aliq_iss / 100) : 0;
+      const icms_anual = iss_icms.aplica_icms ? fat_anual * (iss_icms.aliq_icms / 100) : 0;
+
+      const fat_total_anual = pis_anual + cofins_anual + iss_anual + icms_anual;
+      const lucro_total_anual = irpj_anual + csll_anual;
+      const imposto_total_anual = fat_total_anual + lucro_total_anual;
+
+      const anual = imposto_total_anual;
+      const mensal = anual / 12;
+
       return {
-        mensal,
-        anual: mensal * 12,
-        pct,
-        regime: 'Lucro Presumido',
-        anexo: null,
-        detalhes: 'PIS 0,65% + COFINS 3% (cumulativo). IRPJ/CSLL no Bloco 4.',
-        fator_r_calculado: null,
-        fator_r_aplicado: false,
-        migracao_anexo: null,
-        observacao_fator_r: null,
+        mensal, anual,
+        pct: fat_anual > 0 ? (anual / fat_anual) * 100 : 0,
+        regime: 'Lucro Presumido', anexo: null,
+        detalhes: 'PIS 0,65% + COFINS 3% + ISS/ICMS aplicáveis + IRPJ presunção '
+          + (presuncoes.irpj * 100).toFixed(0) + '% + CSLL presunção '
+          + (presuncoes.csll * 100).toFixed(0) + '%',
+        fator_r_calculado: null, fator_r_aplicado: false,
+        migracao_anexo: null, observacao_fator_r: null,
+        viabilidade: 'viavel',
+        decomposicao: {
+          pis_anual, cofins_anual, iss_anual, icms_anual,
+          irpj_anual, csll_anual,
+          fat_total_anual, lucro_total_anual, imposto_total_anual,
+          presuncao_irpj_aplicada: presuncoes.irpj,
+          presuncao_csll_aplicada: presuncoes.csll,
+          iss_icms_regra: iss_icms,
+        },
       };
     }
 
     if (regime === 'real') {
-      // PIS/COFINS não-cumulativos sobre faturamento (TODO 2.8.B inclui ISS/ICMS).
-      const pct = 9.25;
-      const mensal = fat_mensal * (pct / 100);
+      // Base = lucro real, aproximada por RO anual (Decisão #17). Documentada como proxy.
+      const ro_anual = n(ctx.ro_anual);
+      let irpj_anual = 0;
+      if (ro_anual > 0) {
+        const ro_trim = ro_anual / 4;
+        let irpj_trim = ro_trim * 0.15;
+        if (ro_trim > 60000) {
+          irpj_trim += (ro_trim - 60000) * 0.10;
+        }
+        irpj_anual = irpj_trim * 4;
+      }
+      const csll_anual = Math.max(0, ro_anual * 0.09);
+
+      const pis_anual = fat_anual * 0.0165;     // não-cumulativo (TODO: créditos)
+      const cofins_anual = fat_anual * 0.076;   // não-cumulativo (TODO: créditos)
+      const iss_anual = iss_icms.aplica_iss ? fat_anual * (iss_icms.aliq_iss / 100) : 0;
+      const icms_anual = iss_icms.aplica_icms ? fat_anual * (iss_icms.aliq_icms / 100) : 0;
+
+      const fat_total_anual = pis_anual + cofins_anual + iss_anual + icms_anual;
+      const lucro_total_anual = irpj_anual + csll_anual;
+      const imposto_total_anual = fat_total_anual + lucro_total_anual;
+
+      const anual = imposto_total_anual;
+      const mensal = anual / 12;
+
       return {
-        mensal,
-        anual: mensal * 12,
-        pct,
-        regime: 'Lucro Real',
-        anexo: null,
-        detalhes: 'PIS 1,65% + COFINS 7,6% (não-cumulativo, sem créditos). IRPJ/CSLL no Bloco 4 sobre RO.',
-        fator_r_calculado: null,
-        fator_r_aplicado: false,
-        migracao_anexo: null,
-        observacao_fator_r: null,
+        mensal, anual,
+        pct: fat_anual > 0 ? (anual / fat_anual) * 100 : 0,
+        regime: 'Lucro Real', anexo: null,
+        detalhes: 'PIS 1,65% + COFINS 7,6% (não-cumulativo, sem créditos) + ISS/ICMS aplicáveis + IRPJ/CSLL sobre RO',
+        fator_r_calculado: null, fator_r_aplicado: false,
+        migracao_anexo: null, observacao_fator_r: null,
+        viabilidade: 'viavel',
+        decomposicao: {
+          pis_anual, cofins_anual, iss_anual, icms_anual,
+          irpj_anual, csll_anual,
+          fat_total_anual, lucro_total_anual, imposto_total_anual,
+          ro_proxy_aplicado: ro_anual,
+          iss_icms_regra: iss_icms,
+        },
       };
     }
 
     const mensal = fat_mensal * 0.10;
+    const anual = mensal * 12;
     return {
-      mensal,
-      anual: mensal * 12,
-      pct: 10,
-      regime: 'Estimativa',
-      anexo: 'III',
+      mensal, anual, pct: 10,
+      regime: 'Estimativa', anexo: 'III',
       detalhes: 'Fallback 10% — regime não reconhecido',
-      fator_r_calculado: null,
-      fator_r_aplicado: false,
-      migracao_anexo: null,
-      observacao_fator_r: null,
+      fator_r_calculado: null, fator_r_aplicado: false,
+      migracao_anexo: null, observacao_fator_r: null,
+      viabilidade: 'viavel',
+      decomposicao: {
+        pis_anual: 0, cofins_anual: 0, iss_anual: 0, icms_anual: 0,
+        irpj_anual: 0, csll_anual: 0,
+        fat_total_anual: anual, lucro_total_anual: 0, imposto_total_anual: anual,
+      },
     };
   }
 
@@ -434,7 +573,8 @@
       // Anexos I, II, III, V: INSS patronal incluso no DAS — só FGTS.
       // Anexo IV: INSS patronal POR FORA — encargos completos como Presumido/Real.
       if (anexo === 'IV') {
-        pct_total = fgts_pct + inss_patronal_pct + rat_pct + terceiros_pct;
+        // 37,5% (FGTS+INSS+Terceiros+outros) + RAT — fórmula do spec 2.8.A
+        pct_total = 37.5 + rat_pct;
         inss = folha * (inss_patronal_pct / 100);
         rat = folha * (rat_pct / 100);
         terc = folha * (terceiros_pct / 100);
@@ -442,8 +582,8 @@
         pct_total = fgts_pct;
       }
     } else {
-      // Presumido / Real — encargos completos
-      pct_total = fgts_pct + inss_patronal_pct + rat_pct + terceiros_pct;
+      // Presumido / Real — encargos completos (37,5% + RAT)
+      pct_total = 37.5 + rat_pct;
       inss = folha * (inss_patronal_pct / 100);
       rat = folha * (rat_pct / 100);
       terc = folha * (terceiros_pct / 100);
@@ -727,8 +867,13 @@
       forma_principal: D.modelo_atuacao_principal || D.modelo_code || formas_lista[0],
     };
     const calcReal = calcImpostoSobreFaturamento(fat_anual, D.regime, D.anexo, P, contexto_imposto);
-    const impostos_mensal = calcReal.mensal;
-    const impostos_pct = calcReal.pct;
+    // BLOCO 1 só inclui impostos sobre FATURAMENTO (PIS/COFINS/ISS/ICMS).
+    // IRPJ/CSLL ficam no BLOCO 4 (calcImpostosSobreLucro) — evita duplo-count.
+    const fat_total_anual_calc = calcReal.decomposicao
+      ? calcReal.decomposicao.fat_total_anual
+      : calcReal.anual;
+    const impostos_mensal = fat_total_anual_calc / 12;
+    const impostos_pct = fat_anual > 0 ? (fat_total_anual_calc / fat_anual) * 100 : 0;
     const impostos_detalhes = calcReal.detalhes;
     const impostos_anexo = calcReal.anexo;
     const impostos_regime = calcReal.regime;
@@ -1512,6 +1657,156 @@
   }
 
   // ============================================================
+  // calcAnaliseTributariaV2 — comparativo entre regimes (Etapa 2.8.B)
+  // (Decisões #14 cálculo real + #17 três bases por regime)
+  //
+  // Compara o regime DECLARADO contra Simples / Presumido / Real / MEI.
+  // Para Simples comparado consigo mesmo (declarado === 'simples'),
+  // respeita o anexo declarado; nos demais casos usa determinarAnexoSimples.
+  // ============================================================
+
+  function calcImpostoCompleto(fat_anual, ro_anual, regime, anexo, P, contexto, D) {
+    const ctx = Object.assign({}, contexto || {}, { ro_anual });
+    const calcImposto = calcImpostoSobreFaturamento(fat_anual, regime, anexo, P, ctx);
+
+    if (calcImposto.viabilidade === 'inviavel') {
+      return {
+        ...calcImposto,
+        imposto_anual: 0,
+        encargo_folha_anual: 0,
+      };
+    }
+
+    const folha_mensal = D ? n(D.clt_folha) : 0;
+    const setor_code = (contexto && contexto.setor_code) || (D && D.setor_code);
+    const anexo_aplicado = calcImposto.anexo || anexo;
+    const encargo = calcEncargosCLT(folha_mensal, regime, anexo_aplicado, setor_code, P);
+
+    return {
+      ...calcImposto,
+      imposto_anual: calcImposto.anual,
+      encargo_folha_anual: encargo.encargos * 12,
+      detalhes_encargo: encargo,
+    };
+  }
+
+  function calcAnaliseTributariaV2(D, dre, P) {
+    const setor_code = D.setor_code;
+    const formas_lista = D.modelo_atuacao_multi || D.modelo_multi || [];
+    const forma_principal = D.modelo_atuacao_principal || D.modelo_code || formas_lista[0];
+    const fat_anual = dre.fat_anual;
+    const ro_anual = dre.ro_anual;
+    const folha_anual = (n(D.clt_folha) + n(D.prolabore)) * 12;
+
+    const contexto_base = {
+      folha_anual_total: folha_anual,
+      setor_code,
+      forma_principal,
+    };
+
+    const regime_declarado = D.regime;
+    const anexo_declarado = D.anexo;
+
+    // 1. Calcula pelo regime declarado (com anexo declarado, se Simples)
+    const calc_declarado = calcImpostoCompleto(
+      fat_anual, ro_anual, regime_declarado, anexo_declarado, P, contexto_base, D
+    );
+
+    // 2. Itera todos os regimes para o comparativo
+    const regimes_para_testar = ['simples', 'presumido', 'real'];
+    if (fat_anual <= 81000) regimes_para_testar.push('mei');
+
+    const comparativo = [];
+    for (const regime of regimes_para_testar) {
+      let anexo_test = null;
+      if (regime === 'simples') {
+        // Decisão: se o declarado também é Simples, respeita o anexo declarado.
+        // Caso contrário, usa a regra completa (determinarAnexoSimples com Fator R).
+        if (regime === regime_declarado && anexo_declarado) {
+          anexo_test = anexo_declarado;
+        } else {
+          const fator_r = fat_anual > 0 ? folha_anual / fat_anual : 0;
+          anexo_test = determinarAnexoSimples(setor_code, forma_principal, fator_r);
+        }
+      }
+
+      const resultado = calcImpostoCompleto(
+        fat_anual, ro_anual, regime, anexo_test, P, contexto_base, D
+      );
+
+      comparativo.push({
+        regime,
+        anexo: anexo_test,
+        imposto_anual: resultado.imposto_anual || 0,
+        encargo_folha_anual: resultado.encargo_folha_anual || 0,
+        total_anual: (resultado.imposto_anual || 0) + (resultado.encargo_folha_anual || 0),
+        aliquota_efetiva_pct: fat_anual > 0
+          ? ((resultado.imposto_anual || 0) / fat_anual) * 100
+          : 0,
+        viabilidade: resultado.viabilidade || 'viavel',
+        razao_inviabilidade: resultado.razao_inviabilidade || null,
+        observacao: regime === regime_declarado ? 'Regime atual' : null,
+        detalhes: resultado.detalhes,
+        decomposicao: resultado.decomposicao || null,
+      });
+    }
+
+    // 3. Identificar regime ótimo entre os viáveis
+    const comparativo_viaveis = comparativo.filter(r => r.viabilidade === 'viavel');
+    const regime_otimo = comparativo_viaveis.length > 0
+      ? comparativo_viaveis.reduce(
+          (min, r) => r.total_anual < min.total_anual ? r : min,
+          comparativo_viaveis[0]
+        )
+      : null;
+
+    // 4. Economia (compara o entry do declarado vs o ótimo)
+    const declarado_entry = comparativo.find(r => r.regime === regime_declarado);
+    const total_declarado = declarado_entry ? declarado_entry.total_anual : 0;
+    const economia_anual = regime_otimo ? total_declarado - regime_otimo.total_anual : 0;
+    const economia_pct_do_ro = ro_anual > 0 ? (economia_anual / ro_anual) * 100 : 0;
+
+    // 5. Upside obrigatório se a economia for material
+    const gera_obrigatorio = !!(
+      regime_otimo &&
+      regime_otimo.regime !== regime_declarado &&
+      economia_anual > 10000 &&
+      ro_anual > 0 &&
+      economia_anual > ro_anual * 0.05
+    );
+
+    const observacao_economia = !regime_otimo
+      ? 'Sem regime viável calculado'
+      : (regime_otimo.regime === regime_declarado
+          ? 'Negócio já está no regime ótimo'
+          : 'Migração para ' + regime_otimo.regime + ' pode economizar R$ '
+            + Math.max(0, economia_anual).toFixed(2) + '/ano');
+
+    return {
+      regime_declarado,
+      anexo_simples: anexo_declarado,
+      fator_r_calculado: calc_declarado.fator_r_calculado || null,
+      fator_r_observacao: calc_declarado.observacao_fator_r || null,
+
+      regime_otimo_calculado: regime_otimo ? regime_otimo.regime : null,
+      regime_otimo_anexo: regime_otimo ? regime_otimo.anexo : null,
+
+      comparativo_regimes: comparativo,
+
+      economia_potencial: {
+        comparado_a: regime_declarado,
+        regime_recomendado: regime_otimo ? regime_otimo.regime : null,
+        economia_anual,
+        economia_pct_do_ro,
+        observacao: observacao_economia,
+      },
+
+      gera_upside_obrigatorio: gera_obrigatorio,
+      regra_obrigatorio: 'economia anual > R$ 10.000 E > 5% do RO anual',
+    };
+  }
+
+  // ============================================================
   // PIPELINE PRINCIPAL (esqueleto)
   // ============================================================
 
@@ -1528,23 +1823,25 @@
     const ise = calcISEv2(D, dre, balanco, P);
     const valuation = calcValuationV2(D, dre, balanco, ise, P);
     const atratividade = calcAtratividadeV2(D, dre, ise, P);
+    const analise_tributaria = calcAnaliseTributariaV2(D, dre, P);
 
-    // TODO Fase 2.8+: calcAnaliseTributariaV2, gerarUpsidesV2,
-    // montarCalcJsonV2, salvarCalcJsonV2 (modo='commit')
+    // TODO Fase 2.9+: gerarUpsidesV2, montarCalcJsonV2,
+    // salvarCalcJsonV2 (modo='commit')
 
     return {
       _versao_calc_json: '2.0',
       _versao_parametros: _parametrosVersaoId,
       _data_avaliacao: hoje(),
-      _skill_versao: '2.0.0-etapa2.7',
+      _skill_versao: '2.0.0-etapa2.8',
       _modo: modo,
-      _status: 'parcial — mapDados + DRE + Balanço + ISE + Valuation + Atratividade',
+      _status: 'parcial — mapDados + DRE + Balanço + ISE + Valuation + Atratividade + Análise Tributária',
       D,
       dre,
       balanco,
       ise,
       valuation,
       atratividade,
+      analise_tributaria,
     };
   }
 
@@ -1573,6 +1870,10 @@
     _calcValuation: calcValuationV2,
     _calcAjusteFormaMultiSelect: calcAjusteFormaMultiSelect,
     _calcAtratividade: calcAtratividadeV2,
+    _calcAnaliseTributaria: calcAnaliseTributariaV2,
+    _calcImpostoCompleto: calcImpostoCompleto,
+    _determinarRegimeMunicipalEstadual: determinarRegimeMunicipalEstadual,
+    _determinarPresuncoesPresumido: determinarPresuncoesPresumido,
   };
 
   console.log('[skill-v2] Esqueleto carregado. Aguardando implementação dos cálculos.');
