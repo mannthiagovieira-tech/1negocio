@@ -1143,6 +1143,141 @@
   }
 
   // ============================================================
+  // calcValuationV2 — Múltiplo + valor de venda
+  // (Decisão #19 — RO ≤ 0 → valor_op = 0; valor_venda = PL + aviso forte)
+  // (Bloco 1 corrigido — valor_venda = valor_op + PL, sem max(0, PL))
+  // ============================================================
+
+  function calcAjusteFormaMultiSelect(formas, P_ajustes) {
+    if (!formas || formas.length === 0) {
+      return {
+        principal: { codigo: null, valor: 0 },
+        outras: [],
+        total_ajuste: 0,
+      };
+    }
+
+    const ajustes = formas
+      .map(f => ({ codigo: f, valor: n((P_ajustes || {})[f]) }))
+      .sort((a, b) => b.valor - a.valor);
+
+    const principal = ajustes[0];
+    let total = principal.valor;
+
+    const outras = [];
+    for (let i = 1; i < ajustes.length; i++) {
+      const extra = ajustes[i];
+      const diff = extra.valor - principal.valor;
+      const contribuicao = 0.30 * diff; // diff ≤ 0 (principal vence), contrib é 0 ou negativa
+      total += contribuicao;
+      outras.push({
+        codigo: extra.codigo,
+        valor: extra.valor,
+        diferenca_em_relacao_principal: diff,
+        contribuicao_no_total: contribuicao,
+      });
+    }
+
+    return {
+      principal: { codigo: principal.codigo, valor: principal.valor },
+      outras,
+      total_ajuste: total,
+    };
+  }
+
+  function calcValuationV2(D, dre, balanco, ise, P) {
+    const setor_code = D.setor_code;
+    const ro_anual = dre.ro_anual;
+    const ro_mensal = dre.ro_mensal;
+    const patrimonio_liquido = balanco.patrimonio_liquido;
+
+    const multiplo_setor = {
+      codigo: setor_code,
+      label: D.setor_label || D.setor_raw || setor_code,
+      valor: n((P.multiplos_setor || {})[setor_code]),
+    };
+
+    // formas: prefere o array v2 (modelo_atuacao_multi); fallback para modelo_multi (v1) ou principal único
+    const formas = D.modelo_atuacao_multi
+      || D.modelo_multi
+      || (D.modelo_atuacao_principal ? [D.modelo_atuacao_principal] : (D.modelo_code ? [D.modelo_code] : []));
+    const ajuste_forma = calcAjusteFormaMultiSelect(formas, P.ajuste_forma_atuacao);
+
+    const multiplo_base = multiplo_setor.valor + ajuste_forma.total_ajuste;
+
+    const fator_ise = {
+      classe: ise.classe,
+      valor: ise.fator_classe,
+      faixa: ise.classe + ' (ISE: ' + ise.ise_total + ')',
+    };
+
+    const fator_final = multiplo_base * fator_ise.valor;
+
+    // ── RAMO 1: RO ≤ 0 (Decisão #19) ──
+    if (ro_mensal <= 0) {
+      return {
+        multiplo_setor,
+        ajuste_forma_atuacao: ajuste_forma,
+        multiplo_base,
+        fator_ise,
+        fator_final,
+
+        ro_anual,
+        valor_operacao: 0,
+        patrimonio_liquido,
+        valor_venda: patrimonio_liquido,
+
+        ro_negativo: true,
+        ro_negativo_msg: 'Esta empresa está sendo avaliada apenas pelo valor de seus ativos líquidos. O resultado operacional negativo impede a aplicação da metodologia padrão. Recomendamos uma sessão com especialista para avaliar oportunidades de melhoria antes da venda.',
+
+        cta_especialista: {
+          ativo: true,
+          label: 'Agendar conversa com especialista',
+          url: '/agendar-especialista?codigo=' + (D.codigo_diagnostico || D.codigo || ''),
+        },
+
+        alerta_pl_negativo: null,
+      };
+    }
+
+    // ── RAMO 2: RO > 0 (cálculo padrão) ──
+    const valor_operacao = ro_anual * fator_final;
+    // Bloco 1 CORRIGIDO: soma direta sem max(0, PL) — PL negativo derruba valor de venda
+    const valor_venda = valor_operacao + patrimonio_liquido;
+
+    let alerta_pl_negativo = null;
+    if (valor_venda < 0) {
+      alerta_pl_negativo = {
+        tipo: 'valor_negativo',
+        mensagem: 'Dívidas líquidas excedem o valor da operação. O negócio está com valor de venda negativo — significa que comprar a empresa exigiria assumir mais passivos do que o valor que a operação gera. Considere reestruturar dívidas antes de tentar vender.',
+      };
+    } else if (valor_venda < valor_operacao * 0.30 && patrimonio_liquido < 0) {
+      alerta_pl_negativo = {
+        tipo: 'divida_engole_valor',
+        mensagem: 'Dívidas líquidas reduzem significativamente o valor de venda. A operação vale ' + Math.round(valor_operacao).toLocaleString('pt-BR') + ' mas o patrimônio líquido negativo derruba o valor final. Reestruturar dívidas pode aumentar muito o valor de venda.',
+      };
+    }
+
+    return {
+      multiplo_setor,
+      ajuste_forma_atuacao: ajuste_forma,
+      multiplo_base,
+      fator_ise,
+      fator_final,
+
+      ro_anual,
+      valor_operacao,
+      patrimonio_liquido,
+      valor_venda,
+
+      ro_negativo: false,
+      ro_negativo_msg: null,
+      cta_especialista: null,
+      alerta_pl_negativo,
+    };
+  }
+
+  // ============================================================
   // PIPELINE PRINCIPAL (esqueleto)
   // ============================================================
 
@@ -1157,22 +1292,23 @@
     const dre = calcDREv2(D, P);
     const balanco = calcBalancoV2(D, P);
     const ise = calcISEv2(D, dre, balanco, P);
+    const valuation = calcValuationV2(D, dre, balanco, ise, P);
 
-    // TODO Fase 2.6+: calcValuationV2, calcAtratividadeV2,
-    // calcAnaliseTributariaV2, gerarUpsidesV2, montarCalcJsonV2,
-    // salvarCalcJsonV2 (modo='commit')
+    // TODO Fase 2.7+: calcAtratividadeV2, calcAnaliseTributariaV2,
+    // gerarUpsidesV2, montarCalcJsonV2, salvarCalcJsonV2 (modo='commit')
 
     return {
       _versao_calc_json: '2.0',
       _versao_parametros: _parametrosVersaoId,
       _data_avaliacao: hoje(),
-      _skill_versao: '2.0.0-etapa2.5',
+      _skill_versao: '2.0.0-etapa2.6',
       _modo: modo,
-      _status: 'parcial — mapDados + DRE + Balanço + ISE implementados',
+      _status: 'parcial — mapDados + DRE + Balanço + ISE + Valuation implementados',
       D,
       dre,
       balanco,
       ise,
+      valuation,
     };
   }
 
@@ -1197,6 +1333,8 @@
     _calcFatorEncargoProvisao: calcFatorEncargoProvisao,
     _calcISE: calcISEv2,
     _getBenchmarkAjustado: getBenchmarkAjustado,
+    _calcValuation: calcValuationV2,
+    _calcAjusteFormaMultiSelect: calcAjusteFormaMultiSelect,
   };
 
   console.log('[skill-v2] Esqueleto carregado. Aguardando implementação dos cálculos.');
