@@ -871,6 +871,30 @@ const DEMO_DATA = {
     economia_potencial: { economia_anual: 0, observacao: 'Negócio já está no regime ótimo' },
     gera_upside_obrigatorio: false
   },
+  inputs_origem: {
+    fat_mensal: 'informado',
+    clt_folha: 'informado',
+    aluguel: 'informado',
+    caixa: 'informado',
+    contas_receber: 'informado',
+    recorrencia_pct: 'informado',
+    concentracao_pct: 'informado',
+    processos: 'informado',
+    tem_gestor: 'informado',
+    opera_sem_dono: 'informado',
+    passivo_trabalhista: 'informado',
+    impostos_dia: 'informado',
+    marca_inpi: 'informado',
+    reputacao_online: 'informado',
+    cmv_mensal: 'informado_zero',
+    fat_anterior: 'fallback_zero',
+    pj_custo: 'fallback_zero',
+    estoque: 'fallback_zero',
+    equipamentos: 'fallback_zero',
+    imovel: 'fallback_zero',
+    fornec_a_vencer: 'fallback_zero',
+    saldo_devedor: 'fallback_zero'
+  },
   upsides: [
     { id: 'gr_documentar_processos', categoria: 'ganho_rapido', acesso: 'free', ordem_no_laudo: 1, titulo: 'Documentar processos principais', subtitulo: 'Manuais e fluxos críticos', impacto_no_valuation: { min_pct: 5, max_pct: 10, label: '5–10%' } },
     { id: 'est_diversificar_clientes', categoria: 'estrategico', acesso: 'free', ordem_no_laudo: 2, titulo: 'Diversificar base de clientes', subtitulo: 'Reduzir concentração de 45%', impacto_no_valuation: { min_pct: 5, max_pct: 15, label: '5–15%' } },
@@ -1096,13 +1120,85 @@ function renderLaudo() {
 }
 
 // ─── ICD (Índice de Completude) ──────────────────────────────────
+// Lê calcJson.inputs_origem (campo populado por mapDadosV2._origem_campos):
+//   'informado' / 'informado_zero' / 'calculado' → respondido
+//   'usou_benchmark'                              → benchmark
+//   'fallback_zero' OR ausente                    → não respondido
 function renderICD() {
-  const icd = calcJson.icd || {};
-  if (icd._placeholder !== undefined) {
-    set('icd-pct', '—');
-    return;
+  const CAMPOS_ICD = [
+    { id: 'fat_mensal',          label: 'Faturamento mensal',         critico: true },
+    { id: 'fat_anterior',        label: 'Faturamento ano anterior',   critico: false },
+    { id: 'cmv_mensal',          label: 'CMV / Custo direto',         critico: false },
+    { id: 'clt_folha',           label: 'Folha CLT',                  critico: true },
+    { id: 'pj_custo',            label: 'Custos PJ',                  critico: false },
+    { id: 'aluguel',             label: 'Aluguel',                    critico: false },
+    { id: 'caixa',               label: 'Caixa',                      critico: false },
+    { id: 'contas_receber',      label: 'Contas a receber',           critico: false },
+    { id: 'estoque',             label: 'Estoque',                    critico: false },
+    { id: 'equipamentos',        label: 'Equipamentos',               critico: false },
+    { id: 'imovel',              label: 'Imóvel',                     critico: false },
+    { id: 'fornec_a_vencer',     label: 'Fornecedores a vencer',      critico: false },
+    { id: 'saldo_devedor',       label: 'Empréstimos',                critico: false },
+    { id: 'recorrencia_pct',     label: 'Recorrência da receita',     critico: false },
+    { id: 'concentracao_pct',    label: 'Concentração de cliente',    critico: false },
+    { id: 'processos',           label: 'Processos documentados',     critico: false },
+    { id: 'tem_gestor',          label: 'Tem gestor',                 critico: false },
+    { id: 'opera_sem_dono',      label: 'Opera sem o dono',           critico: false },
+    { id: 'passivo_trabalhista', label: 'Passivo trabalhista',        critico: true },
+    { id: 'impostos_dia',        label: 'Impostos em dia',            critico: true },
+    { id: 'marca_inpi',          label: 'Marca registrada INPI',      critico: false },
+    { id: 'reputacao_online',    label: 'Reputação online',           critico: false }
+  ];
+
+  const origens = calcJson.inputs_origem || {};
+  const respondidos = [];
+  const naoResp = [];
+  const benchmarks = [];
+
+  CAMPOS_ICD.forEach(c => {
+    const o = origens[c.id];
+    if (o === 'informado' || o === 'informado_zero' || o === 'calculado') respondidos.push(c);
+    else if (o === 'usou_benchmark') benchmarks.push(c);
+    else naoResp.push(c);
+  });
+
+  // Críticos primeiro nos não-respondidos
+  naoResp.sort((a, b) => (b.critico ? 1 : 0) - (a.critico ? 1 : 0));
+
+  const total = CAMPOS_ICD.length;
+  const pct = Math.round((respondidos.length / total) * 100);
+
+  set('icd-pct', pct + '%');
+
+  // Barra usa CSS var --icd-pct (HTML preservado tem style="--icd-pct:78%")
+  const bar = el('icd-bar');
+  if (bar) bar.style.setProperty('--icd-pct', pct + '%');
+
+  const lista = arr => '<ul class="icd-list" style="list-style:none;padding:0;margin:0;font-size:11px;line-height:1.6">' +
+    arr.map(c => '<li' + (c.critico ? ' style="font-weight:600"' : '') + '>' + c.label +
+      (c.critico ? ' <span style="color:var(--rd)">*</span>' : '') + '</li>').join('') +
+    '</ul>';
+
+  const resp = el('icd-respondidos');
+  if (resp) {
+    let html = '<div style="font-size:11px;color:var(--ink3);margin-bottom:8px;font-weight:600">Você respondeu ' + respondidos.length + ' de ' + total + ' perguntas-chave</div>';
+    if (respondidos.length > 0) html += lista(respondidos);
+    resp.innerHTML = html;
   }
-  set('icd-pct', (icd.icd_pct || 0) + '%');
+
+  const nresp = el('icd-nao-respondidos');
+  if (nresp) {
+    nresp.innerHTML = naoResp.length > 0
+      ? '<div style="font-size:11px;color:var(--ink3);margin-bottom:6px;font-weight:600">Não informado:</div>' + lista(naoResp)
+      : '';
+  }
+
+  const bench = el('icd-benchmarks');
+  if (bench) {
+    bench.innerHTML = benchmarks.length > 0
+      ? '<div style="font-size:11px;color:var(--am);margin-bottom:6px;font-weight:600">Estimado por benchmark:</div>' + lista(benchmarks)
+      : '';
+  }
 }
 
 // ─── DRE (calc_json.dre) ──────────────────────────────────
