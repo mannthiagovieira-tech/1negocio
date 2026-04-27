@@ -150,44 +150,80 @@
   }
 
   function inferirAnexoSimples(setor_code) {
+    // Inferência simples (sem Fator R / forma de atuação).
+    // Para a regra completa com Fator R use determinarAnexoSimples().
     const anexoMap = {
       'alimentacao':'I','varejo':'I','industria':'II',
       'saude':'III','educacao':'III','beleza_estetica':'III',
       'bem_estar':'III','hospedagem':'III','logistica':'III',
-      'construcao':'III','servicos_empresas':'III','servicos_locais':'III',
+      'construcao':'IV','servicos_empresas':'III','servicos_locais':'III',
     };
     return anexoMap[setor_code] || 'III';
+  }
+
+  // Regra completa de enquadramento no Simples (com Fator R).
+  function determinarAnexoSimples(setor_code, forma_principal, fator_r) {
+    // Logística é caso especial (precede a regra geral)
+    if (setor_code === 'logistica') {
+      return forma_principal === 'distribuicao' ? 'I' : 'III';
+    }
+
+    // Setores que passam pelo teste do Fator R
+    const setoresFatorR = ['servicos_empresas', 'educacao', 'saude', 'servicos_locais'];
+    const aplicaFatorR = setoresFatorR.includes(setor_code) || forma_principal === 'saas';
+    if (aplicaFatorR) {
+      return n(fator_r) >= 0.28 ? 'III' : 'V';
+    }
+
+    // Serviços que ficam no III sem teste de Fator R
+    if (['beleza_estetica', 'bem_estar', 'hospedagem', 'alimentacao'].includes(setor_code)) {
+      return 'III';
+    }
+
+    if (setor_code === 'construcao') return 'IV';
+
+    if (forma_principal === 'fabricacao' || setor_code === 'industria') return 'II';
+
+    if (forma_principal === 'revenda' || setor_code === 'varejo') return 'I';
+
+    return 'III'; // default conservador
   }
 
   // ============================================================
   // HELPERS TRIBUTÁRIOS
   // (Decisão #14 — cálculo pela regra real; #17 — 3 bases por regime)
-  // v2.3: simplificado. Implementação completa virá na Etapa 2.8.
   //
-  // TODO Etapa 2.8 — pendências para análise tributária completa:
-  //  A) Anexos IV e V do Simples Nacional + Fator R (folha/faturamento ≥ 28%
-  //     migra do Anexo V para o III). Hoje só tratamos I, II e III.
-  //  B) ISS municipal (~5% serviço) e ICMS estadual (~18% comércio/indústria)
-  //     não estão sendo somados nos regimes Presumido/Real — apenas PIS/COFINS.
-  //     No Simples já estão embutidos nas alíquotas, mas em Presumido/Real
-  //     hoje subestimamos a carga tributária total.
+  // Etapa 2.8.A entregue: 5 anexos completos do Simples + regra do Fator R.
+  // Anexo IV: INSS patronal POR FORA (não no DAS) — afeta calcEncargosCLT.
+  //
+  // TODO Etapa 2.8.B — ISS municipal (~5% serviço) e ICMS estadual (~18%
+  // comércio/indústria) não estão sendo somados nos regimes Presumido/Real —
+  // apenas PIS/COFINS. No Simples já estão embutidos nas alíquotas, mas em
+  // Presumido/Real hoje subestimamos a carga tributária total.
   // ============================================================
 
-  function calcImpostoSobreFaturamento(fat_anual, regime, anexo, P) {
+  function calcImpostoSobreFaturamento(fat_anual, regime, anexo, P, contexto) {
     const fat_mensal = fat_anual / 12;
+    const ctx = contexto || {};
 
     if (regime === 'mei') {
       const fixoMensal = (anexo === 'I' || anexo === 'II') ? 75.90 : 80.90;
       return {
         mensal: fixoMensal,
+        anual: fixoMensal * 12,
         pct: fat_mensal > 0 ? (fixoMensal / fat_mensal) * 100 : 0,
-        regime: 'MEI', anexo: null,
+        regime: 'MEI',
+        anexo: null,
         detalhes: 'Valor fixo mensal',
+        fator_r_calculado: null,
+        fator_r_aplicado: false,
+        migracao_anexo: null,
+        observacao_fator_r: null,
       };
     }
 
     if (regime === 'simples') {
-      // Tabelas oficiais 2025 — Anexos I, II, III
+      // Tabelas oficiais 2025 — Anexos I a V (alíquota nominal e parcela a deduzir).
       const tabelas = {
         'I': [
           { ate: 180000,  aliq: 0.04,  ded: 0 },
@@ -213,49 +249,123 @@
           { ate: 3600000, aliq: 0.21,  ded: 125640 },
           { ate: 4800000, aliq: 0.33,  ded: 648000 },
         ],
+        'IV': [
+          { ate: 180000,  aliq: 0.045, ded: 0 },
+          { ate: 360000,  aliq: 0.09,  ded: 8100 },
+          { ate: 720000,  aliq: 0.102, ded: 12420 },
+          { ate: 1800000, aliq: 0.14,  ded: 39780 },
+          { ate: 3600000, aliq: 0.22,  ded: 183780 },
+          { ate: 4800000, aliq: 0.33,  ded: 828000 },
+        ],
+        'V': [
+          { ate: 180000,  aliq: 0.155, ded: 0 },
+          { ate: 360000,  aliq: 0.18,  ded: 4500 },
+          { ate: 720000,  aliq: 0.195, ded: 9900 },
+          { ate: 1800000, aliq: 0.205, ded: 17100 },
+          { ate: 3600000, aliq: 0.23,  ded: 62100 },
+          { ate: 4800000, aliq: 0.305, ded: 540000 },
+        ],
       };
-      const tab = tabelas[anexo] || tabelas['III'];
+
+      // ── Fator R (informativo) ──
+      let fator_r_calculado = null;
+      if (n(ctx.folha_anual_total) > 0 && fat_anual > 0) {
+        fator_r_calculado = ctx.folha_anual_total / fat_anual;
+      }
+
+      // ── Recomendação da regra completa ──
+      let anexo_recomendado = null;
+      let fator_r_aplicado = false;
+      if (ctx.setor_code) {
+        const setoresFatorR = ['servicos_empresas', 'educacao', 'saude', 'servicos_locais'];
+        fator_r_aplicado = setoresFatorR.includes(ctx.setor_code) || ctx.forma_principal === 'saas';
+        anexo_recomendado = determinarAnexoSimples(
+          ctx.setor_code,
+          ctx.forma_principal,
+          n(fator_r_calculado)
+        );
+      }
+
+      // Anexo declarado vence; se ausente, usa recomendação; fallback III.
+      const anexo_para_calc = anexo || anexo_recomendado || 'III';
+
+      // Discrepância → migracao_anexo + observacao (apenas quando Fator R aplica).
+      let migracao_anexo = null;
+      let observacao_fator_r = null;
+      if (fator_r_aplicado && anexo_recomendado && anexo_recomendado !== anexo_para_calc) {
+        migracao_anexo = anexo_para_calc + '_para_' + anexo_recomendado + '_por_fator_r';
+        observacao_fator_r = 'Sua atividade pode estar sujeita ao Fator R do Simples Nacional. Confirme com seu contador o anexo correto.';
+      }
+
+      const tab = tabelas[anexo_para_calc] || tabelas['III'];
       const faixa = tab.find(f => fat_anual <= f.ate) || tab[tab.length - 1];
       const aliq_efetiva = fat_anual > 0
         ? Math.max(0, (fat_anual * faixa.aliq - faixa.ded) / fat_anual)
         : faixa.aliq;
+      const mensal = fat_mensal * aliq_efetiva;
+
       return {
-        mensal: fat_mensal * aliq_efetiva,
+        mensal,
+        anual: mensal * 12,
         pct: aliq_efetiva * 100,
-        regime: 'Simples Nacional', anexo,
-        detalhes: `Anexo ${anexo} — alíquota efetiva ${(aliq_efetiva*100).toFixed(2)}%`,
+        regime: 'Simples Nacional',
+        anexo: anexo_para_calc,
+        detalhes: 'Anexo ' + anexo_para_calc + ' — alíquota efetiva ' + (aliq_efetiva * 100).toFixed(2) + '%',
+        fator_r_calculado,
+        fator_r_aplicado,
+        migracao_anexo,
+        observacao_fator_r,
       };
     }
 
     if (regime === 'presumido') {
-      // Apenas PIS/COFINS cumulativos sobre faturamento (placeholder v2.3).
-      // IRPJ/CSLL ficam no Bloco 4 (calcImpostosSobreLucro).
+      // Apenas PIS/COFINS cumulativos sobre faturamento (TODO 2.8.B inclui ISS/ICMS).
       const pct = 3.65;
+      const mensal = fat_mensal * (pct / 100);
       return {
-        mensal: fat_mensal * (pct / 100),
+        mensal,
+        anual: mensal * 12,
         pct,
-        regime: 'Lucro Presumido', anexo: null,
+        regime: 'Lucro Presumido',
+        anexo: null,
         detalhes: 'PIS 0,65% + COFINS 3% (cumulativo). IRPJ/CSLL no Bloco 4.',
+        fator_r_calculado: null,
+        fator_r_aplicado: false,
+        migracao_anexo: null,
+        observacao_fator_r: null,
       };
     }
 
     if (regime === 'real') {
-      // PIS/COFINS não-cumulativos sobre faturamento (placeholder v2.3 — sem créditos).
-      // IRPJ/CSLL ficam no Bloco 4.
+      // PIS/COFINS não-cumulativos sobre faturamento (TODO 2.8.B inclui ISS/ICMS).
       const pct = 9.25;
+      const mensal = fat_mensal * (pct / 100);
       return {
-        mensal: fat_mensal * (pct / 100),
+        mensal,
+        anual: mensal * 12,
         pct,
-        regime: 'Lucro Real', anexo: null,
+        regime: 'Lucro Real',
+        anexo: null,
         detalhes: 'PIS 1,65% + COFINS 7,6% (não-cumulativo, sem créditos). IRPJ/CSLL no Bloco 4 sobre RO.',
+        fator_r_calculado: null,
+        fator_r_aplicado: false,
+        migracao_anexo: null,
+        observacao_fator_r: null,
       };
     }
 
+    const mensal = fat_mensal * 0.10;
     return {
-      mensal: fat_mensal * 0.10,
+      mensal,
+      anual: mensal * 12,
       pct: 10,
-      regime: 'Estimativa', anexo: 'III',
+      regime: 'Estimativa',
+      anexo: 'III',
       detalhes: 'Fallback 10% — regime não reconhecido',
+      fator_r_calculado: null,
+      fator_r_aplicado: false,
+      migracao_anexo: null,
+      observacao_fator_r: null,
     };
   }
 
@@ -321,18 +431,18 @@
       pct_total = fgts_pct + 3;
       inss = folha * 0.03;
     } else if (regime === 'simples') {
-      // Anexos I/II/III: INSS patronal incluso no DAS — só FGTS
-      // Outros anexos (IV, V): INSS patronal por fora
-      if (anexo === 'I' || anexo === 'II' || anexo === 'III') {
-        pct_total = fgts_pct;
-      } else {
+      // Anexos I, II, III, V: INSS patronal incluso no DAS — só FGTS.
+      // Anexo IV: INSS patronal POR FORA — encargos completos como Presumido/Real.
+      if (anexo === 'IV') {
         pct_total = fgts_pct + inss_patronal_pct + rat_pct + terceiros_pct;
         inss = folha * (inss_patronal_pct / 100);
         rat = folha * (rat_pct / 100);
         terc = folha * (terceiros_pct / 100);
+      } else {
+        pct_total = fgts_pct;
       }
     } else {
-      // Presumido / Real
+      // Presumido / Real — encargos completos
       pct_total = fgts_pct + inss_patronal_pct + rat_pct + terceiros_pct;
       inss = folha * (inss_patronal_pct / 100);
       rat = folha * (rat_pct / 100);
@@ -396,7 +506,12 @@
     // ── Setor e anexo ──
     const setor_raw = dados.setor || d.setor || 'servicos_locais';
     const setor_code = mapSetor(setor_raw);
-    const anexo = inferirAnexoSimples(setor_code);
+    // Anexo: respeita declaração do diagnóstico se houver; senão infere por setor.
+    // A regra completa com Fator R roda dentro de calcImpostoSobreFaturamento.
+    const anexo_declarado = d.anexo_simples || d.anexo || dados.anexo_simples || dados.anexo;
+    const anexo = anexo_declarado
+      ? String(anexo_declarado).toUpperCase().replace(/^ANEXO\s*/, '').trim()
+      : inferirAnexoSimples(setor_code);
 
     // ── Modelo de atuação ──
     const modelo_multi = Array.isArray(d.modelo_atuacao_multi) ? d.modelo_atuacao_multi : [];
@@ -605,7 +720,13 @@
     // ── BLOCO 1: Receita e deduções ──
     // Decisão #14: DRE usa o cálculo OFICIAL (regra real), não o declarado pelo vendedor.
     // O valor declarado fica ao lado como informação; diferença vira passivo potencial.
-    const calcReal = calcImpostoSobreFaturamento(fat_anual, D.regime, D.anexo, P);
+    const formas_lista = D.modelo_atuacao_multi || D.modelo_multi || [];
+    const contexto_imposto = {
+      folha_anual_total: (n(D.clt_folha) + n(D.prolabore)) * 12,
+      setor_code: D.setor_code,
+      forma_principal: D.modelo_atuacao_principal || D.modelo_code || formas_lista[0],
+    };
+    const calcReal = calcImpostoSobreFaturamento(fat_anual, D.regime, D.anexo, P, contexto_imposto);
     const impostos_mensal = calcReal.mensal;
     const impostos_pct = calcReal.pct;
     const impostos_detalhes = calcReal.detalhes;
@@ -683,6 +804,10 @@
           regime: impostos_regime,
           anexo: impostos_anexo,
           detalhes: impostos_detalhes,
+          fator_r_calculado: calcReal && calcReal.fator_r_calculado,
+          fator_r_aplicado: calcReal ? calcReal.fator_r_aplicado : false,
+          migracao_anexo: calcReal && calcReal.migracao_anexo,
+          observacao_fator_r: calcReal && calcReal.observacao_fator_r,
         },
         // Decisão #14 — declarado vs calculado, diferença = passivo potencial
         impostos_calculados_mensal: impostos_mensal,
@@ -1435,6 +1560,7 @@
     _mapSetor: mapSetor,
     _mapModelo: mapModelo,
     _inferirAnexoSimples: inferirAnexoSimples,
+    _determinarAnexoSimples: determinarAnexoSimples,
     _calcImpostoSobreFaturamento: calcImpostoSobreFaturamento,
     _calcImpostosSobreLucro: calcImpostosSobreLucro,
     _calcEncargosCLT: calcEncargosCLT,
