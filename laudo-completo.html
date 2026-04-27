@@ -883,7 +883,7 @@ const DEMO_DATA = {
 let loadingDots = 0;
 let loadingTimer = null;
 function animateLoading() {
-  const dotsEl = el('loading-dots');
+  const dotsEl = el('loading-msg');
   if (!dotsEl) return;
   loadingTimer = setInterval(() => {
     loadingDots = (loadingDots + 1) % 4;
@@ -892,7 +892,7 @@ function animateLoading() {
 }
 function hideLoading() {
   if (loadingTimer) clearInterval(loadingTimer);
-  const loading = el('loading');
+  const loading = el('loading-screen');
   if (loading) loading.style.display = 'none';
   const content = el('main-content');
   if (content) content.style.display = 'block';
@@ -1003,26 +1003,11 @@ function renderLaudo() {
 
   // Card principal de valor
   const v = calcJson.valuation || {};
-  set('card-valor', fc(v.valor_venda || 0));
+  set('valor-principal', fc(v.valor_venda || 0));
 
-  // Avisos especiais
-  if (v.ro_negativo === true) {
-    const card = el('card-valor-wrapper');
-    if (card) {
-      const aviso = document.createElement('div');
-      aviso.style.cssText = 'background:#f87171;color:#0c0c0a;padding:16px;margin-top:12px;font-family:DM Mono;font-size:13px;line-height:1.4;';
-      aviso.textContent = v.ro_negativo_msg || 'Este negócio precisa de revisão antes da venda.';
-      card.appendChild(aviso);
-    }
-  } else if (v.alerta_pl_negativo) {
-    const card = el('card-valor-wrapper');
-    if (card) {
-      const aviso = document.createElement('div');
-      aviso.style.cssText = 'background:#f59e0b;color:#0c0c0a;padding:12px;margin-top:12px;font-family:DM Mono;font-size:12px;line-height:1.4;';
-      aviso.textContent = v.alerta_pl_negativo.mensagem;
-      card.appendChild(aviso);
-    }
-  }
+  // TODO sub-etapa 3.3.2: implementar avisos no termômetro
+  // (bloco original dependia de #card-valor-wrapper, que não existe no HTML preservado.
+  //  Avisos de v.ro_negativo e v.alerta_pl_negativo serão renderizados na área do termômetro.)
 
   // ICD
   renderICD();
@@ -1035,7 +1020,8 @@ function renderLaudo() {
   renderInd();
   renderTributario();
   renderOport();
-  renderAtratividade();
+  // TODO sub-etapa 3.3.4: renderAtratividade
+  // (HTML preservado tem IDs atrativ-*; renderAtratividade atual procura block-atratividade-content)
 }
 
 // ─── ICD (Índice de Completude) ──────────────────────────────────
@@ -1051,7 +1037,7 @@ function renderICD() {
 // ─── DRE (calc_json.dre) ──────────────────────────────────
 function renderDRE() {
   const dre = calcJson.dre || {};
-  const wrap = el('block-dre-content') || el('block-dre');
+  const wrap = el('dre-content') || el('block-dre');
   if (!wrap) return;
 
   const linhas = [];
@@ -1091,7 +1077,7 @@ function linhaDRE(label, valor, tipo) {
 // ─── PL (calc_json.balanco) ──────────────────────────────────
 function renderPL() {
   const bal = calcJson.balanco || {};
-  const wrap = el('block-pl-content') || el('block-pl');
+  const wrap = el('pl-content') || el('block-pl');
   if (!wrap) return;
 
   const ativos = bal.ativos || {};
@@ -1121,7 +1107,7 @@ function renderPL() {
 // ─── ISE (calc_json.ise) ──────────────────────────────────
 function renderISE() {
   const ise = calcJson.ise || {};
-  const wrap = el('block-ise-content') || el('block-ise');
+  const wrap = el('ise-content') || el('block-ise');
   if (!wrap) return;
 
   const linhas = [];
@@ -1145,7 +1131,7 @@ function renderISE() {
 // ─── FATOR (calc_json.valuation) ──────────────────────────────────
 function renderFator() {
   const v = calcJson.valuation || {};
-  const wrap = el('block-fator-content') || el('block-fator');
+  const wrap = el('fator-content') || el('block-fator');
   if (!wrap) return;
 
   const setor = v.multiplo_setor || {};
@@ -1172,7 +1158,7 @@ function renderFator() {
 // ─── INDICADORES (placeholder por enquanto) ──────────────────────────────────
 function renderInd() {
   const ind = calcJson.indicadores_vs_benchmark || {};
-  const wrap = el('block-ind-content') || el('block-ind');
+  const wrap = el('ind-content') || el('block-ind');
   if (!wrap) return;
 
   if (ind._placeholder) {
@@ -1220,7 +1206,7 @@ function renderAtratividade() {
 // ─── ANÁLISE TRIBUTÁRIA (calc_json.analise_tributaria) ──────────────────────────────────
 function renderTributario() {
   const at = calcJson.analise_tributaria || {};
-  const wrap = el('block-trib-content') || el('block-trib');
+  const wrap = el('trib-content') || el('block-trib');
   if (!wrap) return;
 
   const linhas = [];
@@ -1249,7 +1235,7 @@ function renderTributario() {
 // ─── UPSIDES (calc_json.upsides) ──────────────────────────────────
 function renderOport() {
   const ups = calcJson.upsides || [];
-  const wrap = el('block-oport-content') || el('block-oport');
+  const wrap = el('oport-content');
   if (!wrap) return;
 
   if (ups.length === 0) {
