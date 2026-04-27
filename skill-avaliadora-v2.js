@@ -456,19 +456,28 @@
     const antecipacao_caixa = tag('antecipacao_caixa', n(d.custo_antecipacao));
     const investimentos = tag('investimentos', n(d.investimentos_mensais));
 
-    // ── Balanço ── ativos
+    // ── Balanço ── ativos (naming v2)
     const caixa = tag('caixa', p1(d.at_caixa, d.caixa));
-    const receber = tag('receber', p1(d.at_cr, d.contas_receber));
+    const contas_receber = tag('contas_receber', p1(d.at_cr, d.contas_receber));
     const estoque = tag('estoque', p1(d.at_estoque, d.estoque_valor, d.estoque));
-    const equip = tag('equip', p1(d.at_equip, d.equipamentos));
+    const equipamentos = tag('equipamentos', p1(d.at_equip, d.equipamentos));
     const imovel = tag('imovel', p1(d.at_imovel, d.imovel));
     const ativo_franquia = tag('ativo_franquia', p1(d.ativo_franquia, d.taxa_franquia_proporcional));
+    const outros_ativos = tag('outros_ativos', n(d.outros_ativos));
 
-    // ── Balanço ── passivos
-    const forn = tag('forn', p1(d.fornec_a_pagar, d.pv_forn, d.contas_pagar));
+    // ── Balanço ── passivos (naming v2 + split fornecedores)
+    const fornec_a_vencer = tag('fornec_a_vencer',
+      p1(d.fornec_a_vencer, d.pv_forn_a_vencer, d.fornec_a_pagar, d.pv_forn, d.contas_pagar));
+    const fornec_atrasadas = tag('fornec_atrasadas',
+      p1(d.fornec_atrasadas, d.fornec_atrasados, d.pv_forn_atrasadas));
     const impostos_atrasados = tag('impostos_atrasados', n(d.impostos_atrasados));
     const folha_pagar = tag('folha_pagar', n(d.folha_pagar));
-    const emprest = tag('emprest', p1(d.saldo_devedor, d.emprestimos, dados.saldo_devedor));
+    const saldo_devedor = tag('saldo_devedor', p1(d.saldo_devedor, d.emprestimos, dados.saldo_devedor));
+    const outros_passivos = tag('outros_passivos', n(d.outros_passivos));
+
+    // ── Ciclo financeiro (PMR / PMP em dias) ──
+    const pmr = n(p1(d.pmr, d.prazo_medio_recebimento));
+    const pmp = n(p1(d.pmp, d.prazo_medio_pagamento));
 
     // ── Qualitativo ISE ──
     const processos = d.processos || 'parcial';
@@ -540,9 +549,10 @@
       // Abaixo do RO
       prolabore, parcelas, antecipacao_caixa, investimentos,
 
-      // Balanço
-      caixa, receber, estoque, equip, imovel, ativo_franquia,
-      forn, impostos_atrasados, folha_pagar, emprest,
+      // Balanço (naming v2)
+      caixa, contas_receber, estoque, equipamentos, imovel, ativo_franquia, outros_ativos,
+      fornec_a_vencer, fornec_atrasadas, impostos_atrasados, folha_pagar, saldo_devedor, outros_passivos,
+      pmr, pmp,
 
       // Qualitativo
       processos, dependencia, marca_inpi, processos_juridicos,
@@ -716,6 +726,104 @@
   }
 
   // ============================================================
+  // calcBalancoV2 — Balanço Patrimonial (Decisão #20)
+  // Provisão CLT (13º + 1/3 férias) NÃO entra no DRE: vai pro Passivo.
+  // ============================================================
+
+  function calcFatorEncargoProvisao(regime, anexo, setor_code, P) {
+    if (regime === 'simples' && anexo !== 'IV') {
+      return 1.08; // FGTS sobre o que será pago
+    }
+    // presumido, real, simples_anexo_IV
+    const rat = (P && P.rat_por_setor && P.rat_por_setor[setor_code] !== undefined)
+      ? P.rat_por_setor[setor_code]
+      : 1.0;
+    return 1.0 + 0.365 + (rat / 100); // RAT vem em % no parametros, divide por 100
+  }
+
+  function calcBalancoV2(D, P) {
+    // ── ATIVOS ──
+    const caixa = n(D.caixa);
+    const contas_receber = n(D.contas_receber);
+    const estoque = n(D.estoque);
+    const equipamentos = n(D.equipamentos);
+    const imovel = n(D.imovel);
+    const ativo_franquia = n(D.ativo_franquia);
+    const outros_ativos = n(D.outros_ativos);
+    const total_ativos = caixa + contas_receber + estoque + equipamentos + imovel + ativo_franquia + outros_ativos;
+    const imobilizado_total = equipamentos + imovel + ativo_franquia;
+
+    // ── PROVISÃO CLT (Decisão #20) ──
+    const fator_encargo = calcFatorEncargoProvisao(D.regime, D.anexo, D.setor_code, P);
+    const provisao_clt_valor = n(D.clt_folha) * 0.13 * 6 * fator_encargo;
+    const regime_referencia = (D.regime === 'simples' && D.anexo !== 'IV')
+      ? 'simples_nao_iv'
+      : 'presumido_real_ou_simples_iv';
+
+    // ── PASSIVOS ──
+    const fornec_a_vencer = n(D.fornec_a_vencer);
+    const fornec_atrasadas = n(D.fornec_atrasadas);
+    const impostos_atrasados_sem_parcelamento = n(D.impostos_atrasados);
+    const saldo_devedor_emprestimos = n(D.saldo_devedor);
+    const outros_passivos = n(D.outros_passivos);
+    const total_passivos = fornec_a_vencer
+      + fornec_atrasadas
+      + impostos_atrasados_sem_parcelamento
+      + saldo_devedor_emprestimos
+      + provisao_clt_valor
+      + outros_passivos;
+
+    // ── PATRIMÔNIO LÍQUIDO (pode ser negativo — Bloco 1 corrigido) ──
+    const patrimonio_liquido = total_ativos - total_passivos;
+
+    // ── NCG ──
+    const ncg_valor = contas_receber + estoque - fornec_a_vencer - fornec_atrasadas;
+
+    // ── CICLO FINANCEIRO ──
+    const pmr_dias = n(D.pmr);
+    const pmp_dias = n(D.pmp);
+    const ciclo_dias = pmr_dias - pmp_dias; // pode ser negativo (recebe antes de pagar)
+
+    return {
+      ativos: {
+        caixa,
+        contas_receber,
+        estoque,
+        equipamentos,
+        imovel,
+        ativo_franquia,
+        outros: outros_ativos,
+        total: total_ativos,
+        imobilizado_total,
+      },
+      passivos: {
+        fornecedores_a_vencer: fornec_a_vencer,
+        fornecedores_atrasados: fornec_atrasadas,
+        impostos_atrasados_sem_parcelamento,
+        saldo_devedor_emprestimos,
+        provisao_clt_calculada: {
+          valor: provisao_clt_valor,
+          formula: 'clt_folha × 0.13 × 6 × fator_encargo',
+          fator_encargo_aplicado: fator_encargo,
+          regime_referencia,
+        },
+        outros_passivos,
+        total: total_passivos,
+      },
+      patrimonio_liquido,
+      ncg: {
+        valor: ncg_valor,
+        calculo: 'contas_receber + estoque - fornecedores_a_vencer - fornecedores_atrasados',
+      },
+      ciclo_financeiro: {
+        pmr_dias,
+        pmp_dias,
+        ciclo_dias,
+      },
+    };
+  }
+
+  // ============================================================
   // PIPELINE PRINCIPAL (esqueleto)
   // ============================================================
 
@@ -728,20 +836,22 @@
 
     const D = mapDadosV2(dadosBrutos);
     const dre = calcDREv2(D, P);
+    const balanco = calcBalancoV2(D, P);
 
-    // TODO Fase 2.4+: calcBalancoV2, calcISEv2, calcValuationV2,
-    // calcAtratividadeV2, calcAnaliseTributariaV2, gerarUpsidesV2,
-    // montarCalcJsonV2, salvarCalcJsonV2 (modo='commit')
+    // TODO Fase 2.5+: calcISEv2, calcValuationV2, calcAtratividadeV2,
+    // calcAnaliseTributariaV2, gerarUpsidesV2, montarCalcJsonV2,
+    // salvarCalcJsonV2 (modo='commit')
 
     return {
       _versao_calc_json: '2.0',
       _versao_parametros: _parametrosVersaoId,
       _data_avaliacao: hoje(),
-      _skill_versao: '2.0.0-etapa2.3',
+      _skill_versao: '2.0.0-etapa2.4',
       _modo: modo,
-      _status: 'parcial — mapDados + DRE implementados',
+      _status: 'parcial — mapDados + DRE + Balanço implementados',
       D,
       dre,
+      balanco,
     };
   }
 
@@ -762,6 +872,8 @@
     _calcEncargosCLT: calcEncargosCLT,
     _mapDados: mapDadosV2,
     _calcDRE: calcDREv2,
+    _calcBalanco: calcBalancoV2,
+    _calcFatorEncargoProvisao: calcFatorEncargoProvisao,
   };
 
   console.log('[skill-v2] Esqueleto carregado. Aguardando implementação dos cálculos.');
