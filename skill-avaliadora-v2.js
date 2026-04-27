@@ -1,25 +1,18 @@
 /**
  * skill-avaliadora-v2.js
- * Skill de avaliação 1Negócio - versão 2.0
- * Implementa spec calc_json v2 (rev2) com 21 decisões arquiteturais.
- * Substituirá skill-avaliadora.js após validação em produção (Decisão #21).
+ * Versão 2.0.0 — Fase 2 do Passo 3 implementada
  *
- * Estrutura de cálculo:
- *  1. Carregamento de parâmetros versionados (tabela parametros_versoes)
- *  2. mapDadosV2(D) - normaliza inputs do diagnóstico
- *  3. calcDREv2(D, P) - DRE em 5 blocos (Decisão #14, #17)
- *  4. calcBalancoV2(D, P) - inclui provisão CLT 13% × 6 (Decisão #20)
- *  5. calcISEv2(D, dre, bal, P) - 8 pilares (Decisão #13)
- *  6. calcValuationV2(D, dre, bal, ise, P) - Bloco 1 corrigido (Decisão #19)
- *  7. calcAtratividadeV2(D, dre, ise, P) - 3 componentes (50/25/25)
- *  8. calcAnaliseTributariaV2(D, dre, P) - 3 regimes comparados
- *  9. gerarUpsidesV2(D, dre, bal, ise, valuation, P)
- * 10. montarCalcJsonV2(...) - schema aninhado v2
- * 11. salvarCalcJsonV2(negocio_id, calcJson, parametros_versao_id)
- *      - INSERT em laudos_v2, marca anterior como ativo=false
- * 12. avaliarV2(dadosBrutos, modo) - pipeline principal
- *      - modo='preview' retorna sem persistir
- *      - modo='commit' persiste em laudos_v2
+ * Implementa: mapDados, DRE 5 blocos, Balanço com provisão CLT,
+ * ISE 8 pilares, Valuation Bloco 1 corrigido, Atratividade,
+ * Análise Tributária 3 regimes (Simples 5 anexos + Fator R + ISS/ICMS),
+ * Upsides em 5 categorias, Schema calc_json v2 aninhado.
+ *
+ * Substituirá skill-avaliadora.js (v1) na Fase 3 (Decisão #21).
+ *
+ * Próximas fases:
+ *   Fase 3: integrar com laudo-gratuito.html, laudo-pago.html, etc.
+ *   Fase 4: Edge Functions (textos IA, commit via Edge Function pra refinar RLS)
+ *   Fase 5: integrar T44 do diagnóstico
  */
 
 (function () {
@@ -2416,5 +2409,5 @@
     _nomeRegime: nomeRegime,
   };
 
-  console.log('[skill-v2] Esqueleto carregado. Aguardando implementação dos cálculos.');
+  console.log('[skill-v2] Carregada — versão', '2.0.0', '— pronta');
 })();
