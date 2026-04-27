@@ -1278,6 +1278,115 @@
   }
 
   // ============================================================
+  // calcAtratividadeV2 — 3 componentes (ISE 50% / Setor 25% / Crescimento 25%)
+  // (Spec Seção 3.8 e 4.7-4.10 — resultado 0-100)
+  //
+  // Fórmula: contribuicao = (score_0_10 × peso_pct) / 10
+  //          total = round(sum(contribuicoes))
+  //
+  // Crescimento: prefere histórico real (D.crescimento_pct calculado em mapDados);
+  // se ausente, cai pra projeção do vendedor com penalidade -2 (otimismo);
+  // se nem isso, vira 'sem_dados' (cai na faixa estável).
+  // ============================================================
+
+  function calcAtratividadeV2(D, dre, ise, P) {
+    const setor_code = D.setor_code;
+
+    // ── Componente 1: ISE (peso 50%) ──
+    const componente_ise_score = n(ise.ise_total) / 10;
+
+    // ── Componente 2: Setor (peso 25%) ──
+    const componente_setor_score = n((P.score_setor_atratividade || {})[setor_code]);
+
+    // ── Componente 3: Crescimento (peso 25%) ──
+    let crescimento_pct;
+    let fonte_crescimento;
+    let penalidade_aplicada = 0;
+
+    if (D.crescimento_pct !== undefined && D.crescimento_pct !== null && D.crescimento_pct !== 0) {
+      crescimento_pct = D.crescimento_pct;
+      fonte_crescimento = 'historico_real';
+    } else if (D.crescimento_proj_pct) {
+      crescimento_pct = D.crescimento_proj_pct;
+      fonte_crescimento = 'projecao_vendedor';
+    } else {
+      crescimento_pct = 0;
+      fonte_crescimento = 'sem_dados';
+    }
+
+    const faixas_cresc = P.faixas_crescimento || [];
+    let score_crescimento = 4; // default neutro (faixa estável)
+    for (const f of faixas_cresc) {
+      if (crescimento_pct >= f.min && crescimento_pct <= f.max) {
+        score_crescimento = f.score;
+        break;
+      }
+    }
+    if (fonte_crescimento === 'projecao_vendedor') {
+      penalidade_aplicada = -2;
+      score_crescimento = Math.max(0, score_crescimento - 2);
+    }
+
+    // ── Contribuições (score × peso_pct / 10) ──
+    const round2 = v => Math.round(v * 100) / 100;
+    const contrib_ise = round2(componente_ise_score * 50 / 10);
+    const contrib_setor = round2(componente_setor_score * 25 / 10);
+    const contrib_cresc = round2(score_crescimento * 25 / 10);
+
+    const total = Math.round(contrib_ise + contrib_setor + contrib_cresc);
+
+    // ── Faixa label via P.faixas_atratividade (com fallback) ──
+    const faixas_atr = (P.faixas_atratividade && P.faixas_atratividade.length > 0)
+      ? P.faixas_atratividade
+      : [
+          { min: 80, max: 100, label: 'Excelente' },
+          { min: 65, max: 79,  label: 'Boa' },
+          { min: 50, max: 64,  label: 'Moderada' },
+          { min: 0,  max: 49,  label: 'Baixa' },
+        ];
+    let label = '';
+    for (const f of faixas_atr) {
+      if (total >= f.min && total <= f.max) {
+        label = f.label;
+        break;
+      }
+    }
+
+    return {
+      total,
+      label,
+      componentes: [
+        {
+          id: 'ise',
+          label: 'Saúde do negócio',
+          peso_pct: 50,
+          score_0_10: round2(componente_ise_score),
+          contribuicao_no_total: contrib_ise,
+          fonte: 'ise.ise_total',
+        },
+        {
+          id: 'setor',
+          label: 'Apelo do setor',
+          peso_pct: 25,
+          score_0_10: componente_setor_score,
+          contribuicao_no_total: contrib_setor,
+          fonte: 'parametros.score_setor_atratividade[' + setor_code + ']',
+        },
+        {
+          id: 'crescimento',
+          label: 'Momentum de crescimento',
+          peso_pct: 25,
+          score_0_10: score_crescimento,
+          contribuicao_no_total: contrib_cresc,
+          fonte_crescimento,
+          crescimento_pct_aplicado: crescimento_pct,
+          penalidade_aplicada,
+        },
+      ],
+    };
+  }
+
+  // ============================================================
   // PIPELINE PRINCIPAL (esqueleto)
   // ============================================================
 
@@ -1293,22 +1402,24 @@
     const balanco = calcBalancoV2(D, P);
     const ise = calcISEv2(D, dre, balanco, P);
     const valuation = calcValuationV2(D, dre, balanco, ise, P);
+    const atratividade = calcAtratividadeV2(D, dre, ise, P);
 
-    // TODO Fase 2.7+: calcAtratividadeV2, calcAnaliseTributariaV2,
-    // gerarUpsidesV2, montarCalcJsonV2, salvarCalcJsonV2 (modo='commit')
+    // TODO Fase 2.8+: calcAnaliseTributariaV2, gerarUpsidesV2,
+    // montarCalcJsonV2, salvarCalcJsonV2 (modo='commit')
 
     return {
       _versao_calc_json: '2.0',
       _versao_parametros: _parametrosVersaoId,
       _data_avaliacao: hoje(),
-      _skill_versao: '2.0.0-etapa2.6',
+      _skill_versao: '2.0.0-etapa2.7',
       _modo: modo,
-      _status: 'parcial — mapDados + DRE + Balanço + ISE + Valuation implementados',
+      _status: 'parcial — mapDados + DRE + Balanço + ISE + Valuation + Atratividade',
       D,
       dre,
       balanco,
       ise,
       valuation,
+      atratividade,
     };
   }
 
@@ -1335,6 +1446,7 @@
     _getBenchmarkAjustado: getBenchmarkAjustado,
     _calcValuation: calcValuationV2,
     _calcAjusteFormaMultiSelect: calcAjusteFormaMultiSelect,
+    _calcAtratividade: calcAtratividadeV2,
   };
 
   console.log('[skill-v2] Esqueleto carregado. Aguardando implementação dos cálculos.');
