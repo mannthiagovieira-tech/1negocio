@@ -163,6 +163,14 @@
   // HELPERS TRIBUTÁRIOS
   // (Decisão #14 — cálculo pela regra real; #17 — 3 bases por regime)
   // v2.3: simplificado. Implementação completa virá na Etapa 2.8.
+  //
+  // TODO Etapa 2.8 — pendências para análise tributária completa:
+  //  A) Anexos IV e V do Simples Nacional + Fator R (folha/faturamento ≥ 28%
+  //     migra do Anexo V para o III). Hoje só tratamos I, II e III.
+  //  B) ISS municipal (~5% serviço) e ICMS estadual (~18% comércio/indústria)
+  //     não estão sendo somados nos regimes Presumido/Real — apenas PIS/COFINS.
+  //     No Simples já estão embutidos nas alíquotas, mas em Presumido/Real
+  //     hoje subestimamos a carga tributária total.
   // ============================================================
 
   function calcImpostoSobreFaturamento(fat_anual, regime, anexo, P) {
@@ -365,6 +373,9 @@
     const fat_anterior = tag('fat_anterior',
       p1(d.fat_anterior, d.fat_ano_anterior, dados.fat_anterior, dados.fat_ano_anterior));
 
+    // TODO Etapa 2.7 (Atratividade): garantir que crescimento_pct usa o histórico
+    // real (fat_anual vs fat_anterior), e não a projeção otimista que o vendedor
+    // possa ter declarado em d.crescimento_pct. Se houver os dois, preferir o calculado.
     let crescimento_pct = n(d.crescimento_pct);
     if (crescimento_pct !== 0) {
       origem.crescimento_pct = 'informado';
@@ -408,7 +419,9 @@
       p1(d.custo_recebimento_total, d.custo_cartoes, d.custo_taxas_recebimento, d.custo_recebimento));
     const comissoes = tag('comissoes', n(d.custo_comissoes));
 
-    // ── Franquia ──
+    // ── Franquia (T07 — gate para royalty/fundo) ──
+    const franquia = String(d.franquia || dados.franquia || 'nao').toLowerCase();
+    origem.franquia = (franquia === 'sim' || franquia === 'nao') ? 'informado' : 'fallback_zero';
     const royalty_pct = tag('royalty_pct', n(d.royalty_pct));
     const royalty_fixo = tag('royalty_fixo', n(d.royalty_valor));
     const mkt_franquia_pct = tag('mkt_franquia_pct', n(d.mkt_franquia_pct));
@@ -509,6 +522,7 @@
       taxas_recebimento, comissoes,
 
       // Franquia
+      franquia,
       royalty_pct, royalty_fixo, mkt_franquia_pct, mkt_franquia_fixo,
 
       // CMV
@@ -561,32 +575,29 @@
     const fat_anual = D.fat_anual || (fat_mensal * 12);
 
     // ── BLOCO 1: Receita e deduções ──
-    let impostos_mensal, impostos_pct, impostos_detalhes, impostos_anexo, impostos_regime;
-    if (D.impostos_precalc > 0) {
-      impostos_mensal = D.impostos_precalc;
-      impostos_pct = fat_mensal > 0 ? (impostos_mensal / fat_mensal) * 100 : 0;
-      impostos_detalhes = 'Pré-calculado no diagnóstico';
-      impostos_anexo = D.anexo;
-      impostos_regime = D.regime;
-    } else if (D.aliquota_precalc > 0) {
-      impostos_mensal = fat_mensal * D.aliquota_precalc;
-      impostos_pct = D.aliquota_precalc * 100;
-      impostos_detalhes = 'Alíquota informada no diagnóstico';
-      impostos_anexo = D.anexo;
-      impostos_regime = D.regime;
-    } else {
-      const calc = calcImpostoSobreFaturamento(fat_anual, D.regime, D.anexo, P);
-      impostos_mensal = calc.mensal;
-      impostos_pct = calc.pct;
-      impostos_detalhes = calc.detalhes;
-      impostos_anexo = calc.anexo;
-      impostos_regime = calc.regime;
-    }
+    // Decisão #14: DRE usa o cálculo OFICIAL (regra real), não o declarado pelo vendedor.
+    // O valor declarado fica ao lado como informação; diferença vira passivo potencial.
+    const calcReal = calcImpostoSobreFaturamento(fat_anual, D.regime, D.anexo, P);
+    const impostos_mensal = calcReal.mensal;
+    const impostos_pct = calcReal.pct;
+    const impostos_detalhes = calcReal.detalhes;
+    const impostos_anexo = calcReal.anexo;
+    const impostos_regime = calcReal.regime;
+
+    const impostos_declarado = D.impostos_precalc > 0
+      ? D.impostos_precalc
+      : (D.aliquota_precalc > 0 ? D.aliquota_precalc * fat_mensal : null);
+    const diferenca_potencial_passivo = impostos_declarado !== null
+      ? Math.max(0, impostos_mensal - impostos_declarado)
+      : 0;
 
     const taxas_recebimento = D.taxas_recebimento;
     const comissoes = D.comissoes;
-    const royalty_pct_aplicado = fat_mensal * (D.royalty_pct / 100);
-    const mkt_franquia_pct_aplicado = fat_mensal * (D.mkt_franquia_pct / 100);
+
+    // Royalty / fundo de marketing só aplicam se for franquia (gate D.franquia === 'sim')
+    const is_franquia = D.franquia === 'sim';
+    const royalty_pct_aplicado = is_franquia ? fat_mensal * (D.royalty_pct / 100) : 0;
+    const mkt_franquia_pct_aplicado = is_franquia ? fat_mensal * (D.mkt_franquia_pct / 100) : 0;
 
     const total_deducoes = impostos_mensal + taxas_recebimento + comissoes + royalty_pct_aplicado + mkt_franquia_pct_aplicado;
     const rec_liquida = fat_mensal - total_deducoes;
@@ -601,8 +612,9 @@
     const clt_folha_bruta = D.clt_folha;
     const clt_encargos = enc.encargos;
     const pj_custo = D.pj_custo;
-    const royalty_fixo = D.royalty_fixo;
-    const mkt_franquia_fixo = D.mkt_franquia_fixo;
+    // Componentes fixos de franquia: gate is_franquia (mesmo flag do Bloco 1)
+    const royalty_fixo = is_franquia ? D.royalty_fixo : 0;
+    const mkt_franquia_fixo = is_franquia ? D.mkt_franquia_fixo : 0;
     const folha_total = clt_folha_bruta + clt_encargos + pj_custo + royalty_fixo + mkt_franquia_fixo;
 
     const aluguel = D.aluguel;
@@ -644,6 +656,10 @@
           anexo: impostos_anexo,
           detalhes: impostos_detalhes,
         },
+        // Decisão #14 — declarado vs calculado, diferença = passivo potencial
+        impostos_calculados_mensal: impostos_mensal,
+        impostos_declarados_pelo_vendedor_mensal: impostos_declarado,
+        diferenca_potencial_passivo_mensal: diferenca_potencial_passivo,
         taxas_recebimento, comissoes,
         royalty_pct_aplicado, mkt_franquia_pct_aplicado,
         total_deducoes,
