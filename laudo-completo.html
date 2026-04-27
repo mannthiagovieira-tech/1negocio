@@ -765,6 +765,9 @@ document.getElementById('modal-laudo-confirm').addEventListener('click', functio
 // ─── CONFIG ──────────────────────────────────
 const SUPABASE_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+const WHATSAPP_1N = '5511952136406';
+const STRIPE_LAUDO_URL = 'https://buy.stripe.com/9B6fZgfpsdJScKJegH5os04';
+const STRIPE_GUIADO_URL = 'https://buy.stripe.com/7sYdR8elo21aeSRegH5os02';
 
 let calcJson = null;
 
@@ -1116,6 +1119,8 @@ function renderLaudo() {
   renderTributario();
   renderOport();
   renderSocio();
+  renderCTAs();
+  renderPopupPublicacao();
   renderAtratividade();
 }
 
@@ -1346,6 +1351,71 @@ function renderInd() {
   wrap.innerHTML = linhas.join('') || '<div class="placeholder">Sem indicadores disponíveis.</div>';
 }
 
+// ─── CTAs / BOTÕES (WhatsApp + Stripe) ──────────────────────────────────
+// Popula href dos botões de ação: btn-socio, ps-btn-wa (WhatsApp 1Sócio),
+// btn-comprar*, pl-btn-comprar (Stripe Laudo R$ 99),
+// btn-modelo*, gg-btn-contratar (Stripe Guiado R$ 588).
+function renderCTAs() {
+  const id = calcJson.identificacao || {};
+  const nome = id.nome || 'meu negócio';
+  const codigo = id.codigo_diagnostico || '';
+
+  // Mensagem WhatsApp pro programa 1Sócio
+  const msgSocio = encodeURIComponent(
+    'Olá, vi o laudo do meu negócio na 1Negócio e quero saber mais sobre o programa 1Sócio. ' +
+    '(Negócio: ' + nome + (codigo ? ', código: ' + codigo : '') + ')'
+  );
+  const linkSocio = 'https://wa.me/' + WHATSAPP_1N + '?text=' + msgSocio;
+
+  // Botão "Quero saber mais" da caixa Potencial 1Sócio
+  const btnSocio = el('btn-socio');
+  if (btnSocio) {
+    btnSocio.href = linkSocio;
+    btnSocio.target = '_blank';
+    btnSocio.rel = 'noopener';
+  }
+
+  // Botão WhatsApp do popup 1Sócio
+  const psBtnWa = el('ps-btn-wa');
+  if (psBtnWa) {
+    psBtnWa.href = linkSocio;
+    psBtnWa.target = '_blank';
+    psBtnWa.rel = 'noopener';
+  }
+
+  // CTAs de comprar laudo R$ 99
+  ['btn-comprar', 'btn-comprar2', 'pl-btn-comprar'].forEach(idBtn => {
+    const e = el(idBtn);
+    if (e) {
+      e.href = STRIPE_LAUDO_URL;
+      e.target = '_blank';
+      e.rel = 'noopener';
+    }
+  });
+
+  // CTAs do plano Guiado R$ 588
+  ['btn-modelo', 'btn-modelo2', 'gg-btn-contratar'].forEach(idBtn => {
+    const e = el(idBtn);
+    if (e) {
+      e.href = STRIPE_GUIADO_URL;
+      e.target = '_blank';
+      e.rel = 'noopener';
+    }
+  });
+}
+
+// ─── POPUP DE PUBLICAÇÃO ──────────────────────────────────
+// Popup "Pronto pra publicar?" — preenche código, valor e atratividade.
+function renderPopupPublicacao() {
+  const id = calcJson.identificacao || {};
+  const v = calcJson.valuation || {};
+  const at = calcJson.atratividade || {};
+
+  set('pub-codigo', id.codigo_diagnostico || '—');
+  set('pub-valor', fc(v.valor_venda));
+  set('pub-indicador', at.label || '—');
+}
+
 // ─── ATRATIVIDADE (calc_json.atratividade) ──────────────────────────────────
 // Popula IDs do HTML preservado: atrativ-val, atrativ-label, atrativ-barra,
 // atrativ-pilares, atrativ-comentario, atrativ-nome-negocio.
@@ -1418,6 +1488,10 @@ function renderSocio() {
   set('socio-mensal', fc(ganho_mensal_caixa));
   set('socio-valorizacao', fc(valorizacao_valor));
   set('socio-pct', '+' + ganho_total_pct.toFixed(0) + '%');
+
+  // Popup do 1Sócio reusa os mesmos números calculados
+  set('ps-ganho-anual', fc(ganho_anual_caixa));
+  set('ps-valorizacao', fc(valorizacao_valor));
 }
 
 // ─── ANÁLISE TRIBUTÁRIA (calc_json.analise_tributaria) ──────────────────────────────────
