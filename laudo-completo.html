@@ -1115,8 +1115,8 @@ function renderLaudo() {
   renderInd();
   renderTributario();
   renderOport();
-  // TODO sub-etapa 3.3.4: renderAtratividade
-  // (HTML preservado tem IDs atrativ-*; renderAtratividade atual procura block-atratividade-content)
+  renderSocio();
+  renderAtratividade();
 }
 
 // ─── ICD (Índice de Completude) ──────────────────────────────────
@@ -1347,27 +1347,77 @@ function renderInd() {
 }
 
 // ─── ATRATIVIDADE (calc_json.atratividade) ──────────────────────────────────
+// Popula IDs do HTML preservado: atrativ-val, atrativ-label, atrativ-barra,
+// atrativ-pilares, atrativ-comentario, atrativ-nome-negocio.
 function renderAtratividade() {
   const at = calcJson.atratividade || {};
-  const wrap = el('block-atratividade-content') || el('block-atratividade');
-  if (!wrap) return;
+  const id = calcJson.identificacao || {};
 
-  const linhas = [];
-  linhas.push('<div class="atr-header"><strong>' + (at.total || 0) + '</strong> · ' + (at.label || '—') + '</div>');
+  set('atrativ-val', String(at.total || 0));
+  set('atrativ-label', at.label || '—');
+  set('atrativ-nome-negocio', id.nome || 'Negócio');
 
-  const componentes = at.componentes || [];
-  componentes.forEach(c => {
-    const score = (c.score_0_10 || 0).toFixed(1);
-    const contrib = (c.contribuicao_no_total || 0).toFixed(1);
-    linhas.push(
-      '<div class="atr-comp">' +
-      '<div class="atr-comp-head"><span>' + c.label + '</span><span>' + c.peso_pct + '%</span></div>' +
-      '<div class="atr-comp-score">' + score + '/10 · contrib ' + contrib + '</div>' +
+  // Barra de progresso (largura proporcional ao score 0-100)
+  const barra = el('atrativ-barra');
+  if (barra) barra.style.width = (at.total || 0) + '%';
+
+  // 3 componentes (ISE 50% / Setor 25% / Crescimento 25%)
+  const pilaresWrap = el('atrativ-pilares');
+  if (pilaresWrap) {
+    const componentes = at.componentes || [];
+    pilaresWrap.innerHTML = componentes.map(c =>
+      '<div class="atrativ-pilar">' +
+        '<span class="atrativ-pilar-label">' + (c.label || '—') + '</span>' +
+        '<span class="atrativ-pilar-score">' + (c.score_0_10 || 0).toFixed(1) + '/10</span>' +
+        '<span class="atrativ-pilar-peso">' + (c.peso_pct || 0) + '%</span>' +
       '</div>'
-    );
+    ).join('');
+  }
+
+  // Comentário contextual baseado no score total
+  const comentario = el('atrativ-comentario');
+  if (comentario) {
+    let txt = '';
+    if (at.total >= 80) txt = 'Negócio com alto apelo de mercado. Compradores devem aparecer rapidamente.';
+    else if (at.total >= 65) txt = 'Boa atratividade. Negócio se posiciona bem em relação ao mercado.';
+    else if (at.total >= 50) txt = 'Atratividade moderada. Algumas melhorias podem ampliar o alcance.';
+    else txt = 'Atratividade baixa. Foque em estruturação antes da venda.';
+    comentario.textContent = txt;
+  }
+}
+
+// ─── BOX POTENCIAL 1SÓCIO (calc_json.upsides) ──────────────────────────────────
+// Estima ganho mensal/anual em caixa e valorização do valor de venda
+// considerando os upsides estrategicos+transformacionais com acesso=free.
+function renderSocio() {
+  const v = calcJson.valuation || {};
+  const upsides = calcJson.upsides || [];
+
+  const upsidesGanho = upsides.filter(u =>
+    (u.categoria === 'estrategico' || u.categoria === 'transformacional') &&
+    u.acesso === 'free'
+  );
+
+  const valor_venda = n(v.valor_venda);
+  let ganho_total_pct = 0;
+  upsidesGanho.forEach(u => {
+    const imp = u.impacto_no_valuation || {};
+    const medio = (n(imp.min_pct) + n(imp.max_pct)) / 2;
+    ganho_total_pct += medio;
   });
 
-  wrap.innerHTML = linhas.join('');
+  // Cap conservador (evita números absurdos quando muitos upsides somam >100%)
+  if (ganho_total_pct > 100) ganho_total_pct = 100;
+
+  const valorizacao_valor = valor_venda * (ganho_total_pct / 100);
+  const ro_anual = n(v.ro_anual);
+  const ganho_anual_caixa = ro_anual * (ganho_total_pct / 100);
+  const ganho_mensal_caixa = ganho_anual_caixa / 12;
+
+  set('socio-anual', fc(ganho_anual_caixa));
+  set('socio-mensal', fc(ganho_mensal_caixa));
+  set('socio-valorizacao', fc(valorizacao_valor));
+  set('socio-pct', '+' + ganho_total_pct.toFixed(0) + '%');
 }
 
 // ─── ANÁLISE TRIBUTÁRIA (calc_json.analise_tributaria) ──────────────────────────────────
