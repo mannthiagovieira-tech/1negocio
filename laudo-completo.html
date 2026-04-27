@@ -981,33 +981,104 @@ async function init() {
   renderLaudo();
   hideLoading();
 }
+// ─── HERO (nome, data, tags, badges, valor principal) ──────────────────────────────────
+function renderHero() {
+  const id = calcJson.identificacao || {};
+
+  set('hero-nome', id.nome || 'Negócio');
+  set('hero-data', new Date(calcJson._data_avaliacao || Date.now()).toLocaleDateString('pt-BR'));
+
+  // Tags do hero
+  set('tag-setor', (id.setor && id.setor.label) || '');
+  set('tag-local', (id.localizacao && id.localizacao.cidade) ? id.localizacao.cidade + '/' + id.localizacao.estado : '');
+  set('tag-tempo', id.tempo_operacao_anos ? id.tempo_operacao_anos + ' anos' : '');
+
+  const reg = id.regime_tributario_declarado || {};
+  let regimeLabel = reg.label || '';
+  if (reg.code === 'simples' && reg.anexo_simples) regimeLabel += ' (Anexo ' + reg.anexo_simples + ')';
+  set('tag-regime', regimeLabel);
+
+  set('hero-desc', 'Avaliação técnica baseada em DRE, balanço e indicadores setoriais.');
+
+  // Valor principal (big card — adicionado pra não perder o display do valor de venda)
+  const v = calcJson.valuation || {};
+  set('valor-principal', fc(v.valor_venda || 0));
+
+  // Badges
+  const dre = calcJson.dre || {};
+  const bal = calcJson.balanco || {};
+  const ise = calcJson.ise || {};
+  const at = calcJson.analise_tributaria || {};
+
+  set('badge-ro', fs(dre.ro_mensal) + '/mês');
+  set('badge-pl', fs(bal.patrimonio_liquido));
+  set('badge-ise', (ise.ise_total || 0).toFixed(0) + ' · ' + (ise.classe || '—'));
+  set('badge-fator', '× ' + (v.fator_final || 0).toFixed(2));
+  set('badge-trib', (at.regime_declarado || '').toUpperCase());
+}
+
+// ─── TERMÔMETRO (markers, legendas, nota contextual + avisos críticos) ──────────────────────────────────
+function renderTermometro() {
+  const v = calcJson.valuation || {};
+  const id = calcJson.identificacao || {};
+
+  const valor_1n = n(v.valor_venda);
+  const valor_exp = n(id.expectativa_valor_dono);
+  const valor_pot = valor_1n * 1.40;
+
+  const valor_max = Math.max(valor_1n, valor_exp, valor_pot) || 1;
+
+  // Markers (posição em %)
+  const m1n = el('marker-1n');
+  if (m1n) m1n.style.left = ((valor_1n / valor_max) * 95) + '%';
+
+  const mPot = el('marker-pot');
+  if (mPot) mPot.style.left = ((valor_pot / valor_max) * 95) + '%';
+
+  const mExp = el('marker-exp');
+  const lExp = el('leg-exp');
+  if (valor_exp > 0) {
+    if (mExp) { mExp.style.left = ((valor_exp / valor_max) * 95) + '%'; mExp.style.display = ''; }
+    if (lExp) { lExp.textContent = 'Sua expectativa: ' + fs(valor_exp); lExp.style.display = ''; }
+  } else {
+    if (mExp) mExp.style.display = 'none';
+    if (lExp) lExp.style.display = 'none';
+  }
+
+  set('leg-1n', '1Negócio: ' + fs(valor_1n));
+  set('leg-pot', 'Potencial: ' + fs(valor_pot));
+
+  // Nota contextual + avisos críticos (substituem o TODO 3.3.2)
+  const nota = el('termometro-nota');
+  if (!nota) return;
+
+  if (v.ro_negativo === true) {
+    nota.textContent = v.ro_negativo_msg || 'Resultado operacional negativo — venda recomendada após reestruturação.';
+    nota.setAttribute('data-tipo', 'critico');
+  } else if (v.alerta_pl_negativo) {
+    nota.textContent = v.alerta_pl_negativo.mensagem;
+    nota.setAttribute('data-tipo', 'aviso');
+  } else if (valor_exp > 0 && valor_exp > valor_1n * 1.30) {
+    nota.textContent = 'Sua expectativa está acima do que o mercado pagaria neste momento.';
+    nota.setAttribute('data-tipo', 'normal');
+  } else if (valor_exp > 0 && valor_exp < valor_1n * 0.80) {
+    nota.textContent = 'Sua expectativa está abaixo do valor técnico calculado.';
+    nota.setAttribute('data-tipo', 'normal');
+  } else if (valor_pot > valor_1n * 1.20) {
+    nota.textContent = 'Há potencial de aumentar o valor com as melhorias sugeridas.';
+    nota.setAttribute('data-tipo', 'normal');
+  } else {
+    nota.textContent = '';
+    nota.removeAttribute('data-tipo');
+  }
+}
+
 // ─── RENDER LAUDO (orquestrador) ──────────────────────────────────
 function renderLaudo() {
   if (!calcJson) return;
 
-  // Hero
-  const id = calcJson.identificacao || {};
-  set('hero-nome', id.nome || 'Negócio');
-  set('hero-data', new Date(calcJson._data_avaliacao || Date.now()).toLocaleDateString('pt-BR'));
-
-  const tags = el('hero-tags');
-  if (tags) {
-    const list = [];
-    if (id.setor && id.setor.label) list.push(id.setor.label);
-    if (id.localizacao && id.localizacao.cidade) list.push(id.localizacao.cidade + '/' + id.localizacao.estado);
-    if (id.tempo_operacao_anos) list.push(id.tempo_operacao_anos + ' anos de operação');
-    tags.innerHTML = list.map(t => '<span class="tag">' + t + '</span>').join('');
-  }
-
-  set('hero-desc', 'Avaliação técnica baseada em DRE, balanço e indicadores setoriais.');
-
-  // Card principal de valor
-  const v = calcJson.valuation || {};
-  set('valor-principal', fc(v.valor_venda || 0));
-
-  // TODO sub-etapa 3.3.2: implementar avisos no termômetro
-  // (bloco original dependia de #card-valor-wrapper, que não existe no HTML preservado.
-  //  Avisos de v.ro_negativo e v.alerta_pl_negativo serão renderizados na área do termômetro.)
+  renderHero();
+  renderTermometro();
 
   // ICD
   renderICD();
