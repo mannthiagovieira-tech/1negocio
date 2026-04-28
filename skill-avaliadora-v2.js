@@ -2175,356 +2175,89 @@
     };
   }
 
+  // ============================================================
+  // gerarUpsidesV2 — refatorado pra consumir P.upsides_catalogo
+  //
+  // PRÉ-REQUISITO: parametros_versoes versão v2026.05+ com upsides_catalogo
+  // Esta função consome P.upsides_catalogo. Snapshot v2026.04 ou anterior NÃO funciona.
+  // Antes de promover este código para main, rodar a migração SQL 006 no Supabase.
+  //
+  // Cada entry do catálogo tem:
+  //   { id, categoria, label, descricao, gate.expressao, formula_calculo, fonte_de_calculo }
+  //
+  // gate.expressao é uma string JS avaliada via `new Function` no escopo abaixo:
+  //   D, dre, balanco, ise, indicadores, valuation, analise_tributaria, P, setor, n
+  // Falha de avaliação (sintaxe / TypeError) é capturada → upside não dispara.
+  //
+  // Retorno separa entradas em dois arrays para evitar que paywalls vazem em
+  // somatórios monetários (Fase 3.2.5):
+  //   { ativos:   [...]  // upsides com gate verdadeiro (categorias: tributario|ro|passivo|multiplo|qualitativo)
+  //     paywalls: [...]  // categoria === 'paywall' — sempre presentes, sem cálculo monetário
+  //   }
+  //
+  // Cálculo de contribuicao_brl por upside é responsabilidade da função
+  // agregarPotencial12mV2 (commit 3, ainda não implementada).
+  // ============================================================
+  function avaliarGateUpside(expressao, ctx) {
+    // new Function é mais seguro que eval e dá contrato explícito sobre
+    // o que está disponível no escopo do gate.
+    const fn = new Function(
+      'D', 'dre', 'balanco', 'ise', 'indicadores',
+      'valuation', 'analise_tributaria', 'P', 'setor', 'n',
+      'return (' + expressao + ');'
+    );
+    return Boolean(fn(
+      ctx.D, ctx.dre, ctx.balanco, ctx.ise, ctx.indicadores,
+      ctx.valuation, ctx.analise_tributaria, ctx.P, ctx.setor, ctx.n
+    ));
+  }
+
   function gerarUpsidesV2(D, dre, balanco, ise, valuation, indicadores, analise_tributaria, P) {
-    const valor_venda = n(valuation && valuation.valor_venda) || 0;
-    const fat_mensal = n(dre && dre.fat_mensal);
-    const setor_code = D.setor_code;
-    const benchInd = (P.benchmarks_indicadores && P.benchmarks_indicadores[setor_code]) || {};
-    const benchDre = (P.benchmarks_dre && P.benchmarks_dre[setor_code]) || {};
-    const score_setor = n((P.score_setor_atratividade || {})[setor_code]) || 5;
+    // PRÉ-REQUISITO: parametros_versoes versão v2026.05+ com upsides_catalogo
+    // Falha explícita se snapshot for v2026.04 ou anterior — fail-loud é mais
+    // seguro do que rodar com fallback silencioso.
+    if (!Array.isArray(P && P.upsides_catalogo)) {
+      throw new Error(
+        '[skill-v2] gerarUpsidesV2: parametros_versoes não tem upsides_catalogo. '
+        + 'Snapshot esperado: v2026.05+. Rode a migração SQL 006 no Supabase antes de promover.'
+      );
+    }
 
-    const impacto = (min_pct, max_pct) => ({
-      min_pct,
-      max_pct,
-      label: min_pct + '–' + max_pct + '% de aumento no valor de venda',
-      valor_min_estimado: Math.round(valor_venda * min_pct / 100),
-      valor_max_estimado: Math.round(valor_venda * max_pct / 100),
-    });
-
-    const candidatos = {
-      obrigatorio: [],
-      ganho_rapido: [],
-      estrategico: [],
-      transformacional: [],
-      bloqueado: [],
+    const setor = D.setor_code;
+    const ctx = {
+      D, dre, balanco, ise, indicadores,
+      valuation, analise_tributaria, P, setor, n,
     };
 
-    // ── OBRIGATORIO ──
-    if (analise_tributaria && analise_tributaria.gera_upside_obrigatorio) {
-      const ec = analise_tributaria.economia_potencial || {};
-      candidatos.obrigatorio.push({
-        id: 'obrigatorio_tributario',
-        categoria: 'obrigatorio',
-        label_visivel: 'Alerta',
-        tipo: 'tributario',
-        acesso: 'free',
-        titulo: 'Migração de regime tributário',
-        subtitulo: 'Economia potencial de R$ ' + n(ec.economia_anual).toFixed(0) + '/ano',
-        descricao_curta: 'A análise tributária mostra que migrar do regime ' + analise_tributaria.regime_declarado
-          + ' para ' + ec.regime_recomendado + ' pode reduzir a carga tributária em '
-          + n(ec.economia_pct_do_ro).toFixed(1) + '% do RO. Avalie com seu contador antes de decidir.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(5, 15),
-        complexidade: 'media',
-        tempo_estimado: '60-90 dias',
-        exige_apoio: true,
-        exige_apoio_tipo: 'contador_especialista',
-        cta_consultoria: false,
-        fonte_regra: 'analise_tributaria.gera_upside_obrigatorio === true',
-      });
-    }
+    const ativos = [];
+    const paywalls = [];
 
-    // ── GANHO_RAPIDO ──
-    const fornec_atrasadas = n(balanco && balanco.passivos && balanco.passivos.fornecedores_atrasados);
-    if (fat_mensal > 0 && fornec_atrasadas > fat_mensal) {
-      candidatos.ganho_rapido.push({
-        id: 'gr_regularizar_fornecedores',
-        categoria: 'ganho_rapido',
-        acesso: 'free',
-        titulo: 'Regularizar fornecedores em atraso',
-        subtitulo: 'Atrasos > 1 mês de faturamento',
-        descricao_curta: 'Regularizar pagamentos pendentes a fornecedores. Reduz risco percebido pelo comprador e elimina passivo emergencial visível na due diligence.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(2, 5),
-        complexidade: 'baixa',
-        tempo_estimado: '15-30 dias',
-        exige_apoio: false,
-        exige_apoio_tipo: null,
-        cta_consultoria: false,
-        fonte_regra: 'balanco.passivos.fornecedores_atrasados > dre.fat_mensal',
-      });
-    }
-
-    if (D.contabilidade !== 'sim') {
-      candidatos.ganho_rapido.push({
-        id: 'gr_formalizar_contabilidade',
-        categoria: 'ganho_rapido',
-        acesso: 'free',
-        titulo: 'Formalizar contabilidade',
-        subtitulo: 'Demonstrações financeiras auditáveis',
-        descricao_curta: 'Contratar contador formal e produzir DRE/Balanço auditáveis. O comprador exige histórico contábil claro para fechar o negócio.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(3, 7),
-        complexidade: 'baixa',
-        tempo_estimado: '30-60 dias',
-        exige_apoio: true,
-        exige_apoio_tipo: 'contador_especialista',
-        cta_consultoria: false,
-        fonte_regra: 'D.contabilidade !== "sim"',
-      });
-    }
-
-    if (D.dre_separacao_pf_pj !== 'sim') {
-      candidatos.ganho_rapido.push({
-        id: 'gr_separar_pf_pj',
-        categoria: 'ganho_rapido',
-        acesso: 'free',
-        titulo: 'Separar contas PF e PJ',
-        subtitulo: 'Sem mistura entre patrimônios',
-        descricao_curta: 'Abrir conta bancária PJ exclusiva e parar de usar conta pessoal para pagamentos da empresa. Aumenta credibilidade do laudo financeiro.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(5, 10),
-        complexidade: 'baixa',
-        tempo_estimado: '15-30 dias',
-        exige_apoio: false,
-        exige_apoio_tipo: null,
-        cta_consultoria: false,
-        fonte_regra: 'D.dre_separacao_pf_pj !== "sim"',
-      });
-    }
-
-    if (D.processos !== 'sim' && D.processos !== 'documentados') {
-      candidatos.ganho_rapido.push({
-        id: 'gr_documentar_processos',
-        categoria: 'ganho_rapido',
-        acesso: 'free',
-        titulo: 'Documentar processos principais',
-        subtitulo: 'Manuais e fluxos críticos',
-        descricao_curta: 'Documentar os 5-10 processos críticos da operação. Reduz dependência de pessoas-chave e facilita a transição para o comprador.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(5, 10),
-        complexidade: 'media',
-        tempo_estimado: '30-60 dias',
-        exige_apoio: false,
-        exige_apoio_tipo: null,
-        cta_consultoria: false,
-        fonte_regra: 'D.processos não é "sim"',
-      });
-    }
-
-    if (D.marca_inpi !== 'registrada' && D.marca_inpi !== 'sim') {
-      candidatos.ganho_rapido.push({
-        id: 'gr_registrar_marca',
-        categoria: 'ganho_rapido',
-        acesso: 'free',
-        titulo: 'Registrar marca no INPI',
-        subtitulo: 'Proteção legal e ativo intangível',
-        descricao_curta: 'Iniciar processo de registro da marca no INPI. Adiciona ativo intangível ao patrimônio e reduz risco jurídico para o comprador.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(2, 5),
-        complexidade: 'baixa',
-        tempo_estimado: '30 dias (protocolo)',
-        exige_apoio: true,
-        exige_apoio_tipo: 'advogado',
-        cta_consultoria: false,
-        fonte_regra: 'D.marca_inpi !== "registrada"',
-      });
-    }
-
-    if (D.tem_gestor !== 'sim' && D.opera_sem_dono !== 'sim') {
-      candidatos.ganho_rapido.push({
-        id: 'gr_treinar_gerente',
-        categoria: 'ganho_rapido',
-        acesso: 'free',
-        titulo: 'Treinar gerente para operar sem o dono',
-        subtitulo: 'Reduzir dependência do sócio',
-        descricao_curta: 'Identificar pessoa-chave da equipe e prepará-la para tocar a operação. Reduz dependência percebida pelo comprador.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(8, 15),
-        complexidade: 'media',
-        tempo_estimado: '60-90 dias',
-        exige_apoio: false,
-        exige_apoio_tipo: null,
-        cta_consultoria: false,
-        fonte_regra: 'D.tem_gestor !== "sim" AND D.opera_sem_dono !== "sim"',
-      });
-    }
-
-    // ── ESTRATEGICO ──
-    if (n(D.concentracao_pct) > 30) {
-      candidatos.estrategico.push({
-        id: 'est_diversificar_clientes',
-        categoria: 'estrategico',
-        acesso: 'free',
-        titulo: 'Diversificar base de clientes',
-        subtitulo: 'Reduzir concentração de ' + n(D.concentracao_pct) + '% em 1 cliente',
-        descricao_curta: 'Concentração alta em poucos clientes é o maior risco percebido por compradores. Plano comercial para captar 5-10 clientes médios pode reduzir concentração para faixa segura.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(5, 15),
-        complexidade: 'media',
-        tempo_estimado: '60-90 dias',
-        exige_apoio: true,
-        exige_apoio_tipo: 'consultor_comercial',
-        cta_consultoria: false,
-        fonte_regra: 'D.concentracao_pct > 30',
-      });
-    }
-
-    const benchRec = n(benchInd.recorrencia_tipica);
-    if (benchRec > 0 && n(D.recorrencia_pct) < benchRec * 0.5) {
-      candidatos.estrategico.push({
-        id: 'est_aumentar_recorrencia',
-        categoria: 'estrategico',
-        acesso: 'free',
-        titulo: 'Aumentar recorrência da receita',
-        subtitulo: 'Recorrência atual ' + n(D.recorrencia_pct) + '% vs benchmark ' + benchRec + '%',
-        descricao_curta: 'Migrar parte do faturamento para receita recorrente (assinaturas, contratos mensais, retainers). O múltiplo de venda sobe significativamente com receita previsível.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(10, 25),
-        complexidade: 'alta',
-        tempo_estimado: '90-180 dias',
-        exige_apoio: true,
-        exige_apoio_tipo: 'consultor_comercial',
-        cta_consultoria: false,
-        fonte_regra: 'D.recorrencia_pct < benchmark × 0.5',
-      });
-    }
-
-    const saldo_devedor = n(balanco && balanco.passivos && balanco.passivos.saldo_devedor_emprestimos);
-    const total_ativos = n(balanco && balanco.ativos && balanco.ativos.total);
-    if (total_ativos > 0 && saldo_devedor > total_ativos * 0.5) {
-      candidatos.estrategico.push({
-        id: 'est_reestruturar_dividas',
-        categoria: 'estrategico',
-        acesso: 'free',
-        titulo: 'Reestruturar dívidas',
-        subtitulo: 'Endividamento alto reduz valor de venda',
-        descricao_curta: 'Saldo devedor superior a 50% dos ativos reduz patrimônio líquido e o valor de venda. Negociar prazos, taxas ou consolidar dívidas pode liberar valor significativo.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(5, 15),
-        complexidade: 'alta',
-        tempo_estimado: '60-120 dias',
-        exige_apoio: true,
-        exige_apoio_tipo: 'contador_especialista',
-        cta_consultoria: false,
-        fonte_regra: 'balanco.passivos.saldo_devedor > balanco.ativos.total × 0.5',
-      });
-    }
-
-    if (D.passivo_trabalhista === 'sim') {
-      candidatos.estrategico.push({
-        id: 'est_resolver_passivos_trabalhistas',
-        categoria: 'estrategico',
-        acesso: 'free',
-        titulo: 'Resolver passivos trabalhistas',
-        subtitulo: 'Risco jurídico que afasta compradores',
-        descricao_curta: 'Identificar e resolver ações trabalhistas pendentes ou risco de ações futuras. Uma ação ativa pode reduzir o valor em 5-10% e travar a venda.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(5, 10),
-        complexidade: 'alta',
-        tempo_estimado: '90-180 dias',
-        exige_apoio: true,
-        exige_apoio_tipo: 'advogado',
-        cta_consultoria: false,
-        fonte_regra: 'D.passivo_trabalhista === "sim"',
-      });
-    }
-
-    const benchmark_margem_op = n(benchDre.margem_op);
-    const margem_atual = n(dre && dre.margem_operacional_pct);
-    if (benchmark_margem_op > 0 && margem_atual < benchmark_margem_op - 10) {
-      candidatos.estrategico.push({
-        id: 'est_otimizar_custos',
-        categoria: 'estrategico',
-        acesso: 'free',
-        titulo: 'Otimizar custos para alinhar com benchmark',
-        subtitulo: 'Margem ' + margem_atual.toFixed(0) + '% vs benchmark ' + benchmark_margem_op + '%',
-        descricao_curta: 'Margem operacional bem abaixo do benchmark setorial. Análise linha-a-linha do DRE e renegociação de fornecedores/folha pode trazer a margem para a faixa esperada.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(10, 20),
-        complexidade: 'alta',
-        tempo_estimado: '90-180 dias',
-        exige_apoio: true,
-        exige_apoio_tipo: 'contador_especialista',
-        cta_consultoria: false,
-        fonte_regra: 'margem_operacional < benchmark_setor - 10pp',
-      });
-    }
-
-    // ── TRANSFORMACIONAL ──
-    if (n(ise && ise.ise_total) < 60 && valor_venda > 200000) {
-      candidatos.transformacional.push({
-        id: 'tr_programa_estruturacao',
-        categoria: 'transformacional',
-        acesso: 'free',
-        titulo: 'Programa de Estruturação 1Negócio',
-        subtitulo: 'Aumentar ISE acima de 70 antes da venda',
-        descricao_curta: 'ISE atual ' + n(ise.ise_total) + ' ainda no nível ' + (ise.classe || 'Operacional')
-          + '. Programa de 6 meses com nossa equipe pode estruturar o negócio e elevar o ISE acima de 70 (Consolidado), aumentando o valor de venda em 20-50%.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(20, 50),
-        complexidade: 'alta',
-        tempo_estimado: '180-365 dias',
-        exige_apoio: true,
-        exige_apoio_tipo: null,
-        cta_consultoria: true,
-        fonte_regra: 'ise.ise_total < 60 AND valor_venda > 200000',
-      });
-    }
-
-    if (n(D.crescimento_pct) < 5 && score_setor >= 7) {
-      candidatos.transformacional.push({
-        id: 'tr_acelerar_crescimento',
-        categoria: 'transformacional',
-        acesso: 'free',
-        titulo: 'Acelerar crescimento em setor atrativo',
-        subtitulo: 'Setor com alto apelo, mas crescimento abaixo do potencial',
-        descricao_curta: 'Seu setor (' + setor_code + ') tem score de atratividade ' + score_setor
-          + '/10, mas o crescimento atual é de ' + n(D.crescimento_pct).toFixed(1)
-          + '%. Plano de aceleração pode dobrar o múltiplo de venda.',
-        descricao_polida_ia: null,
-        impacto_no_valuation: impacto(25, 60),
-        complexidade: 'alta',
-        tempo_estimado: '180-365 dias',
-        exige_apoio: true,
-        exige_apoio_tipo: null,
-        cta_consultoria: true,
-        fonte_regra: 'crescimento_pct < 5 AND score_setor >= 7',
-      });
-    }
-
-    // ── BLOQUEADO (paywall laudo R$ 99 — sempre 6 itens fixos) ──
-    const bloqueadosFixos = [
-      { id: 'bl_funil_vendas', titulo: 'Análise completa do funil de vendas' },
-      { id: 'bl_transicao_sucessor', titulo: 'Plano de transição para o sucessor' },
-      { id: 'bl_eficiencia_operacional', titulo: 'Diagnóstico de eficiência operacional' },
-      { id: 'bl_roadmap_profissionalizacao', titulo: 'Roadmap de profissionalização' },
-      { id: 'bl_competitividade_mercado', titulo: 'Análise de competitividade no mercado' },
-      { id: 'bl_otimizacao_tributaria_avancada', titulo: 'Otimização tributária avançada' },
-    ];
-    candidatos.bloqueado = bloqueadosFixos.map(b => ({
-      id: b.id,
-      categoria: 'bloqueado',
-      acesso: 'pago',
-      titulo: b.titulo,
-      subtitulo: 'Disponível no laudo completo',
-      descricao_curta: 'Análise detalhada com recomendações específicas para seu negócio. Disponível no laudo completo (R$ 99).',
-      descricao_polida_ia: null,
-      impacto_no_valuation: impacto(5, 20),
-      complexidade: 'media',
-      tempo_estimado: '60-180 dias',
-      exige_apoio: true,
-      exige_apoio_tipo: null,
-      cta_consultoria: false,
-      fonte_regra: 'paywall_laudo_pago',
-    }));
-
-    // Ordena cada categoria não-bloqueada por max_pct DESC
-    ['obrigatorio', 'ganho_rapido', 'estrategico', 'transformacional'].forEach(cat => {
-      candidatos[cat].sort((a, b) => b.impacto_no_valuation.max_pct - a.impacto_no_valuation.max_pct);
+    P.upsides_catalogo.forEach(entry => {
+      if (!entry || !entry.id || !entry.categoria) return; // entrada malformada — skip silencioso
+      // paywall: sempre presente, sem avaliar gate (gate é "true" no snapshot)
+      if (entry.categoria === 'paywall') {
+        paywalls.push(entry);
+        return;
+      }
+      // ativos: avaliar gate; falha → não ativa + warning (sem quebrar o laudo)
+      let passa = false;
+      try {
+        const exp = entry.gate && entry.gate.expressao;
+        if (typeof exp !== 'string' || exp.trim() === '') {
+          console.warn('[skill-v2] upside', entry.id, 'sem gate.expressao — não ativa');
+        } else {
+          passa = avaliarGateUpside(exp, ctx);
+        }
+      } catch (e) {
+        console.warn('[skill-v2] erro avaliando gate de', entry.id, '—', e && e.message);
+        passa = false;
+      }
+      if (passa) ativos.push(entry);
     });
 
-    // Distribuição padrão: 1 + 1 + 2 + 1 + 6
-    const selecionados = [
-      ...candidatos.obrigatorio.slice(0, 1),
-      ...candidatos.ganho_rapido.slice(0, 1),
-      ...candidatos.estrategico.slice(0, 2),
-      ...candidatos.transformacional.slice(0, 1),
-      ...candidatos.bloqueado,
-    ];
-
-    return selecionados.map((u, idx) => ({ ...u, ordem_no_laudo: idx + 1 }));
+    return { ativos, paywalls };
   }
+
 
   // ============================================================
   // montarCalcJsonV2 — schema final (Spec Seção 3)
@@ -2728,16 +2461,26 @@
       concentracao_status: indicadores.concentracao && indicadores.concentracao.status,
     };
 
-    const upsides = gerarUpsidesV2(D, dre, balanco, ise, valuation, indicadores, analise_tributaria, P);
+    // gerarUpsidesV2 agora retorna { ativos, paywalls } (Fase 3.2.5 — catálogo).
+    // Quem soma monetário recebe só ativos; renderers podem precisar do shape
+    // antigo (array flat). Mantemos os 3 caminhos visíveis:
+    //   - upsidesObj            : objeto novo (escopo interno da skill)
+    //   - upsidesObj.ativos     : entra em calcPotencial12mV2 (será substituído por
+    //                             agregarPotencial12mV2 no commit 3)
+    //   - calcJson.upsides      : recebe upsidesObj (renderers se adaptam em commits
+    //                             separados — quebra esperada em laudos antigos).
+    const upsidesObj = gerarUpsidesV2(D, dre, balanco, ise, valuation, indicadores, analise_tributaria, P);
 
-    // Potencial 12m — agregação determinística dos upsides (Fase 3.2.4 audit).
-    // Anexa em valuation.valor_potencial_12m para que renderers (laudo-pago hero
-    // + chart) leiam a fonte da verdade em vez de heurística hardcoded.
-    valuation.valor_potencial_12m = calcPotencial12mV2(upsides, valuation);
+    // Potencial 12m — calcPotencial12mV2 ainda é a versão antiga (será substituída
+    // no commit 3 por agregarPotencial12mV2). Categorias do catálogo novo
+    // (tributario/ro/passivo/multiplo/qualitativo) não batem com o filtro antigo
+    // (ganho_rapido/estrategico/transformacional), então o retorno será uma
+    // estrutura zerada — esperado durante a transição.
+    valuation.valor_potencial_12m = calcPotencial12mV2(upsidesObj.ativos, valuation);
 
     const calcJson = montarCalcJsonV2(
       D, dre, balanco, ise, valuation, atratividade,
-      operacional, icd, indicadores, analise_tributaria, upsides,
+      operacional, icd, indicadores, analise_tributaria, upsidesObj,
       _parametrosVersaoId
     );
 
