@@ -747,8 +747,15 @@
     const contabilidade = d.contabilidade || dados.contabilidade || null;
     const margem_estavel = d.margem_estavel || dados.margem_estavel || null;
     const base_clientes = d.base_clientes || dados.base_clientes || null;
-    const tem_gestor = d.tem_gestor || dados.tem_gestor || null;
-    const opera_sem_dono = d.opera_sem_dono || dados.opera_sem_dono || null;
+    // gestor_autonomo é a pergunta única do diagnóstico (t33: "Tem alguém na equipe
+    // que tocaria o negócio sem você?") que cobre conceitualmente os DOIS campos
+    // que a skill consome separadamente (tem_gestor e opera_sem_dono). Mapeamos
+    // ambos a partir da mesma resposta — aproximação consciente: quem tem gestor
+    // autônomo, por definição, opera sem o dono.
+    const gestor_autonomo = d.gestor_autonomo || dados.gestor_autonomo
+      || d.tem_gestor || dados.tem_gestor || null;
+    const tem_gestor = gestor_autonomo;
+    const opera_sem_dono = gestor_autonomo;
     const equipe_permanece = d.equipe_permanece || dados.equipe_permanece || null;
     const passivo_trabalhista = d.passivo_trabalhista || dados.passivo_trabalhista || null;
     const impostos_dia = d.impostos_dia || dados.impostos_dia || null;
@@ -758,7 +765,7 @@
     // Origens dos campos qualitativos / comerciais (consumidos por calcICDv2).
     // Tag presence-based: se o campo veio explícito do diagnóstico = informado,
     // senão fallback_zero (mesmo que o default seja 'parcial'/'nao' por convenção).
-    ['recorrencia_pct','concentracao_pct','processos','tem_gestor','opera_sem_dono',
+    ['recorrencia_pct','concentracao_pct','processos','gestor_autonomo','tem_gestor','opera_sem_dono',
      'passivo_trabalhista','impostos_dia','marca_inpi','reputacao_online'].forEach(k => {
       const v = d[k];
       origem[k] = (v !== undefined && v !== null && v !== '') ? 'informado' : 'fallback_zero';
@@ -1308,7 +1315,10 @@
     const s1 = od === 'sim' ? 10 : 0;
 
     const ep = D.equipe_permanece;
-    const s2 = ep === 'sim' ? 10 : ep === 'provavelmente' ? 6 : 0;
+    // Domínio do diagnóstico (t33b): 'sim' / 'parcial' / 'nao'.
+    // Calibração linear 10/5/0 — substitui 'provavelmente'→6 que nunca era atingido
+    // (mismatch com domínio do diagnóstico).
+    const s2 = ep === 'sim' ? 10 : ep === 'parcial' ? 5 : 0;
 
     const s3 = n(D.prolabore) > 0 ? 8 : 5;
 
