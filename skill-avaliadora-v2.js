@@ -1240,8 +1240,12 @@
     else if (bench > 0 && margem >= bench * 0.5) s1 = 5;
     else s1 = 2;
 
+    // dre_separacao_pf_pj — derivado de D.remuneracao_socios em mapDadosV2.
+    // Domínio real do diag (t31): 'fixo' (pró-labore formalizado, separação clara)
+    //                              / 'sobra' (retira o que sobra, mistura informal)
+    //                              / 'nao' (sócios ainda não retiram — neutro)
     const sep = D.dre_separacao_pf_pj;
-    const s2 = sep === 'sim' ? 10 : sep === 'parcial' ? 5 : 0;
+    const s2 = sep === 'fixo' ? 10 : sep === 'nao' ? 5 : sep === 'sobra' ? 0 : 0;
 
     const s3 = dre.ro_mensal > 0 ? 10 : 0;
 
