@@ -1697,8 +1697,26 @@ function renderUpsidesAdmin() {
   if (paywalls.length === 0) html += '<div class="muted">Nenhum paywall configurado.</div>';
   else paywalls.forEach(u => { html += renderCard(u); });
 
+  // Sub-bloco — Recomendações pré-venda (D-C: integrado a UPSIDES)
+  // Schema: calcJson.recomendacoes_pre_venda[]: { id, label, mensagem }.
+  const recs = Array.isArray(calcJson.recomendacoes_pre_venda) ? calcJson.recomendacoes_pre_venda : [];
+  html += '<h3 style="margin-top:18px">Qualitativos / Pré-venda (' + recs.length + ')</h3>';
+  if (recs.length === 0) {
+    html += '<div class="muted">Nenhuma recomendação pré-venda disparada.</div>';
+  } else {
+    recs.forEach(r => {
+      html += '<div class="upside-card cat-qualitativo">';
+      html += '<div class="up-head"><div>';
+      html += '<div style="margin-bottom:4px">' + pill('recomendacao', 'purple') + ' <span class="muted" style="font-size:10px;margin-left:6px">' + escapeHtml(r.id) + '</span></div>';
+      html += '<div class="up-title">' + escapeHtml(r.label || r.id) + '</div>';
+      html += '</div></div>';
+      if (r.mensagem) html += '<div class="up-desc">' + escapeHtml(r.mensagem) + '</div>';
+      html += '</div>';
+    });
+  }
+
   wrap.innerHTML = html;
-  el('upsides-json').textContent = JSON.stringify(upsObj, null, 2);
+  el('upsides-json').textContent = JSON.stringify({ upsides: upsObj, recomendacoes_pre_venda: recs }, null, 2);
 }
 
 // Cores por categoria técnica do schema v2026.07
