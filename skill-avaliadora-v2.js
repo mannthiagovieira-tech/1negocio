@@ -1397,28 +1397,46 @@
   function calcPilar6RiscoLegal(D, dre, balanco, P) {
     const peso_pct = (P.pesos_ise && P.pesos_ise.p6_risco_legal !== undefined ? P.pesos_ise.p6_risco_legal : 0.10) * 100;
 
-    const pt = D.passivo_trabalhista;
-    const s1 = pt === 'nao' ? 10 : pt === 'sim' ? 0 : 5;
+    const fat_mensal = n(dre.fat_mensal);
 
+    // ── s1: passivos_juridicos (substitui sem_passivo_trabalhista fantasma) ──
+    // Combina os 3 campos reais do diag t40:
+    //   D.processos_juridicos ('sim'/'nao')
+    //   D.juridico_tipo (array, inclui 'trabalhista' se houver)
+    //   D.passivo_juridico (R$, "como réu — valor em risco")
+    const tem_processo = D.processos_juridicos === 'sim';
+    const tem_trabalhista = Array.isArray(D.juridico_tipo)
+      && D.juridico_tipo.indexOf('trabalhista') >= 0;
+    const passivo_jur = n(D.passivo_juridico);
+    let s1;
+    if (!tem_processo) s1 = 10;
+    else if (tem_processo && !tem_trabalhista) s1 = 7;
+    else if (tem_processo && tem_trabalhista && passivo_jur < fat_mensal) s1 = 4;
+    else s1 = 0; // tem_processo && tem_trabalhista && passivo_jur >= fat_mensal
+
+    // ── s2: sem_acao_judicial (mantida — usa só processos_juridicos) ──
     const pj = D.processos_juridicos;
     const s2 = pj === 'nao' ? 10 : pj === 'sim' ? 0 : 5;
 
-    const idp = D.impostos_dia;
-    const s3 = idp === 'sim' ? 10 : idp === 'parcelamento' ? 5 : 0;
-
+    // ── s3: impostos_atrasados_volume (substitui impostos_em_dia fantasma) ──
+    // D.impostos_dia era fantasma; D.impostos_atrasados (R$) é numérico real.
     const imp = n(D.impostos_atrasados);
-    const fat = n(dre.fat_mensal);
-    let s4;
-    if (imp === 0) s4 = 10;
-    else if (fat > 0 && imp < fat * 0.5) s4 = 7;
-    else if (fat > 0 && imp < fat * 2) s4 = 4;
-    else s4 = 0;
+    let s3;
+    if (imp === 0) s3 = 10;
+    else if (fat_mensal > 0 && imp < fat_mensal * 0.5) s3 = 7;
+    else if (fat_mensal > 0 && imp < fat_mensal * 2) s3 = 4;
+    else s3 = 0;
+
+    // ── s4: sem_impostos_atrasados (mantida — mesma fonte, escala diferente) ──
+    // (Mantida pra compatibilidade com snapshot que tem peso 0.25 nesta chave;
+    // calcula igual ao s3 mas o snapshot trata como sub-métrica separada.)
+    const s4 = s3;
 
     return pilarFromSubs('p6_risco_legal', 'Risco Legal', peso_pct, [
-      { id: 'sem_passivo_trabalhista', label: 'Sem passivo trabalhista', score_0_10: s1, peso_decimal: 0.25, valor: pt || null },
-      { id: 'sem_acao_judicial', label: 'Sem ações judiciais', score_0_10: s2, peso_decimal: 0.25, valor: pj || null },
-      { id: 'impostos_em_dia', label: 'Impostos em dia', score_0_10: s3, peso_decimal: 0.25, valor: idp || null },
-      { id: 'sem_impostos_atrasados', label: 'Volume de impostos atrasados', score_0_10: s4, peso_decimal: 0.25, valor: imp },
+      { id: 'passivos_juridicos', label: 'Passivos jurídicos (trabalhista + risco)', score_0_10: s1, peso_decimal: 0.25, valor: { tem_processo, tem_trabalhista, passivo_juridico: passivo_jur } },
+      { id: 'sem_acao_judicial', label: 'Sem ações judiciais em geral', score_0_10: s2, peso_decimal: 0.25, valor: pj || null },
+      { id: 'impostos_atrasados_volume', label: 'Volume de impostos atrasados vs faturamento', score_0_10: s3, peso_decimal: 0.25, valor: imp },
+      { id: 'sem_impostos_atrasados', label: 'Sem impostos atrasados (mesma fonte)', score_0_10: s4, peso_decimal: 0.25, valor: imp },
     ]);
   }
 
