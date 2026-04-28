@@ -606,6 +606,21 @@ function fmtPct(v) {
   return s.endsWith('.0') ? s.slice(0, -2) : s;
 }
 
+// Pill INFORMADO/FALLBACK consultando calcJson.inputs_origem[key]. Devolve string
+// vazia se a chave não existe — campos derivados (num_funcionarios etc.) não têm
+// origem rastreada e seguem sem pill.
+function pillOrigem(origemKey) {
+  const o = (calcJson && calcJson.inputs_origem && calcJson.inputs_origem[origemKey]) || null;
+  if (!o) return '';
+  if (o === 'informado' || o === 'informado_zero' || o === 'informado_pct' || o === 'calculado') {
+    return ' <span class="pill green" style="font-size:9px;margin-left:6px">INFORMADO</span>';
+  }
+  if (o === 'fallback_zero') {
+    return ' <span class="pill red" style="font-size:9px;margin-left:6px">FALLBACK</span>';
+  }
+  return '';
+}
+
 function corOrigem(origem) {
   switch(origem) {
     case 'informado': return 'green';
@@ -2291,7 +2306,17 @@ function renderIdentificacao() {
 
   if (id.tempo_operacao_anos != null) lines.push(kvLine('Tempo de operação', id.tempo_operacao_anos + ' anos'));
   if (id.expectativa_valor_dono != null) lines.push(kvLine('Expectativa do dono (valor de venda)', fc(id.expectativa_valor_dono), 'num'));
-  if (id.pct_produto != null) lines.push(kvLine('% Produto (vs Serviço)', id.pct_produto + '%'));
+  // pct_produto: distinguir "0% deliberado" (informado) de "não respondeu" (fallback_zero).
+  const origPct = (calcJson.inputs_origem || {}).pct_produto;
+  const pctRespondido = origPct === 'informado' || origPct === 'informado_zero' || origPct === 'informado_pct';
+  const pctLabel = 'Composição faturamento';
+  let pctValor;
+  if (pctRespondido) {
+    pctValor = id.pct_produto + '% produto / ' + (100 - id.pct_produto) + '% serviço';
+  } else {
+    pctValor = '<span class="muted">não informado</span>';
+  }
+  lines.push(kvLineRaw(pctLabel, pctValor + pillOrigem('pct_produto')));
 
   el('identificacao-kv').innerHTML = lines.join('');
 }
@@ -3027,7 +3052,7 @@ function renderOperacional() {
   if (op.fat_mensal != null) lines.push(kvLine('Faturamento mensal', fc(op.fat_mensal), 'num'));
   if (op.fat_anual != null) lines.push(kvLine('Faturamento anual', fc(op.fat_anual), 'num'));
   if (op.num_socios != null) lines.push(kvLine('Número de sócios', op.num_socios));
-  if (op.prolabore_mensal_total != null) lines.push(kvLine('Pró-labore mensal total', fc(op.prolabore_mensal_total), 'num'));
+  if (op.prolabore_mensal_total != null) lines.push(kvLineRaw('Pró-labore mensal total', '<span class="num">' + fc(op.prolabore_mensal_total) + '</span>' + pillOrigem('prolabore')));
   if (op.concentracao_status) {
     lines.push(kvLineRaw('Status concentração de cliente', statusToInline(op.concentracao_status)));
   }
