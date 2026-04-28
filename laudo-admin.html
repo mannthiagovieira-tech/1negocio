@@ -226,6 +226,21 @@
     font-family:'DM Mono',monospace;
     display:none;margin-top:12px;
   }
+  /* Barra horizontal valor vs benchmark (seção INDICADORES — T2.2) */
+  .ind-bar{
+    display:inline-block;width:120px;height:8px;
+    background:rgba(128,128,128,0.12);position:relative;vertical-align:middle;
+  }
+  .ind-bar-fill{height:100%;background:var(--fg2);transition:width 0.3s ease}
+  .ind-bar-fill.no_alvo{background:var(--green)}
+  .ind-bar-fill.atencao{background:var(--amber)}
+  .ind-bar-fill.abaixo{background:var(--red)}
+  .ind-bar-fill.neutro{background:var(--fg3)}
+  .ind-bar-mark{
+    position:absolute;top:-2px;bottom:-2px;width:0;
+    border-left:1px dashed var(--fg2);
+  }
+
   /* Toggle de tema dark/light — T7 */
   .theme-toggle{
     background:transparent;border:1px solid var(--sep);
@@ -3212,9 +3227,19 @@ function renderIndicadores() {
   html += '<div class="kpi-card muted"><div class="kpi-label">Total</div><div class="kpi-value">' + keys.length + '</div></div>';
   html += '</div>';
 
-  // Tabela detalhada
-  html += '<table class="tbl"><thead><tr><th>Indicador</th><th style="text-align:right">Valor</th><th style="text-align:right">Benchmark</th><th style="text-align:right">Delta</th><th>Sentido</th><th>Status</th></tr></thead><tbody>';
-  keys.forEach(k => {
+  // Reordenar por status (T2.1): críticos > atenção > bom > N/A > sem bench.
+  const STATUS_ORDER = { abaixo: 0, atencao: 1, no_alvo: 2, neutro: 3 };
+  const sortedKeys = keys.slice().sort((a, b) => {
+    const sa = ind[a] && ind[a].status;
+    const sb = ind[b] && ind[b].status;
+    const oa = sa == null ? 4 : (STATUS_ORDER[sa] != null ? STATUS_ORDER[sa] : 5);
+    const ob = sb == null ? 4 : (STATUS_ORDER[sb] != null ? STATUS_ORDER[sb] : 5);
+    return oa - ob;
+  });
+
+  // Tabela detalhada — agora com coluna Visual (barra horizontal)
+  html += '<table class="tbl"><thead><tr><th>Indicador</th><th style="text-align:right">Valor</th><th style="text-align:right">Benchmark</th><th style="text-align:right">Delta</th><th>Visual</th><th>Sentido</th><th>Status</th></tr></thead><tbody>';
+  sortedKeys.forEach(k => {
     const item = ind[k];
     if (typeof item !== 'object' || item === null) return;
 
@@ -3232,16 +3257,37 @@ function renderIndicadores() {
     html += '<td class="num" style="text-align:right">' + valorTxt + '</td>';
     html += '<td style="text-align:right">' + benchTxt + '</td>';
     html += '<td class="' + deltaCls + '" style="text-align:right">' + deltaTxt + '</td>';
+    html += '<td>' + indBar(item) + '</td>';
     html += '<td class="muted" style="font-size:11px">' + sentido + '</td>';
     html += '<td>' + statusCell + '</td>';
     html += '</tr>';
     if (item.observacao) {
-      html += '<tr><td colspan="6" class="muted" style="font-size:11px;font-style:italic;padding-left:24px">↳ ' + escapeHtml(item.observacao) + '</td></tr>';
+      html += '<tr><td colspan="7" class="muted" style="font-size:11px;font-style:italic;padding-left:24px">↳ ' + escapeHtml(item.observacao) + '</td></tr>';
     }
   });
   html += '</tbody></table>';
   wrap.innerHTML = html;
   el('indicadores-json').textContent = JSON.stringify(ind, null, 2);
+}
+
+// Barra horizontal proporcional valor vs benchmark (T2.2).
+// Eixo: max(valor, benchmark). Bar do valor com cor por status. Marca tracejada
+// no benchmark. Sem benchmark: bar simples valor cinza neutro.
+function indBar(item) {
+  const v = Math.max(0, n(item.valor));
+  const b = item.benchmark != null ? Math.max(0, n(item.benchmark)) : null;
+  const max = b != null ? Math.max(v, b) : v;
+  if (max === 0) return '<span class="muted" style="font-size:10px">—</span>';
+  const fillCls = item.status || 'neutro';
+  const fillPct = (v / max) * 100;
+  let html = '<span class="ind-bar"><span class="ind-bar-fill ' + fillCls + '" style="width:' + fillPct.toFixed(1) + '%"></span>';
+  if (b != null && b !== max) {
+    // Mark só faz sentido quando bench < max (caso contrário coincide com a borda direita)
+    const markPct = (b / max) * 100;
+    html += '<span class="ind-bar-mark" style="left:' + markPct.toFixed(1) + '%"></span>';
+  }
+  html += '</span>';
+  return html;
 }
 
 // Formata valor por unidade (% / R$ / dias / unid)
