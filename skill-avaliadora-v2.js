@@ -1215,6 +1215,33 @@
     return benchSetor + modificador;
   }
 
+  // ============================================================
+  // Helpers de leitura de pesos do snapshot (Fase 3 — fim dos hardcodes)
+  //
+  // pesoPilar(P, 'p1_financeiro')           → 0.20 × 100 = 20
+  // pesoSubMetrica(P, 'p8_marca', 'reputacao') → 0.333333
+  //
+  // Falha-loud (throw) se chave ausente. Snapshot esperado: v2026.06+.
+  // ============================================================
+  function pesoPilar(P, pilarKey) {
+    const peso = P && P.pesos_ise && P.pesos_ise[pilarKey];
+    if (peso == null) {
+      throw new Error('[skill-v2] P.pesos_ise.' + pilarKey + ' ausente no snapshot. '
+        + 'Snapshot esperado: v2026.05+. Rode migração SQL no Supabase.');
+    }
+    return peso * 100;
+  }
+  function pesoSubMetrica(P, pilarKey, subKey) {
+    const peso = P && P.pesos_sub_metricas_ise
+      && P.pesos_sub_metricas_ise[pilarKey]
+      && P.pesos_sub_metricas_ise[pilarKey][subKey];
+    if (peso == null) {
+      throw new Error('[skill-v2] P.pesos_sub_metricas_ise.' + pilarKey + '.' + subKey
+        + ' ausente. Snapshot esperado: v2026.06+. Rode migração SQL.');
+    }
+    return peso;
+  }
+
   function pilarFromSubs(id, label, peso_pct, subs) {
     const score_raw = subs.reduce((acc, s) => acc + s.score_0_10 * s.peso_decimal, 0);
     return {
@@ -1229,7 +1256,7 @@
 
   // ── P1 — Financeiro (peso 20%) ──
   function calcPilar1Financeiro(D, dre, balanco, P) {
-    const peso_pct = (P.pesos_ise && P.pesos_ise.p1_financeiro !== undefined ? P.pesos_ise.p1_financeiro : 0.20) * 100;
+    const peso_pct = pesoPilar(P, 'p1_financeiro');
 
     const bench = getBenchmarkAjustado(D.setor_code, 'margem_op', D.modelo_code, P);
     const margem = dre.margem_operacional_pct;
@@ -1255,16 +1282,16 @@
     const s4 = ct === 'sim' ? 10 : ct === 'interno' ? 7 : 0;
 
     return pilarFromSubs('p1_financeiro', 'Financeiro', peso_pct, [
-      { id: 'margem_op_pct', label: 'Margem operacional vs benchmark setorial', score_0_10: s1, peso_decimal: 0.25, valor: margem, benchmark: bench },
-      { id: 'dre_separacao', label: 'Separação PF/PJ no DRE', score_0_10: s2, peso_decimal: 0.25, valor: sep || null },
-      { id: 'fluxo_caixa_positivo', label: 'Fluxo de caixa operacional positivo', score_0_10: s3, peso_decimal: 0.25, valor: dre.ro_mensal },
-      { id: 'contabilidade_formal', label: 'Contabilidade formal', score_0_10: s4, peso_decimal: 0.25, valor: ct || null },
+      { id: 'margem_op_pct', label: 'Margem operacional vs benchmark setorial', score_0_10: s1, peso_decimal: pesoSubMetrica(P,'p1_financeiro','margem_op_pct'), valor: margem, benchmark: bench },
+      { id: 'dre_separacao', label: 'Separação PF/PJ no DRE', score_0_10: s2, peso_decimal: pesoSubMetrica(P,'p1_financeiro','dre_separacao'), valor: sep || null },
+      { id: 'fluxo_caixa_positivo', label: 'Fluxo de caixa operacional positivo', score_0_10: s3, peso_decimal: pesoSubMetrica(P,'p1_financeiro','fluxo_caixa_positivo'), valor: dre.ro_mensal },
+      { id: 'contabilidade_formal', label: 'Contabilidade formal', score_0_10: s4, peso_decimal: pesoSubMetrica(P,'p1_financeiro','contabilidade_formal'), valor: ct || null },
     ]);
   }
 
   // ── P2 — Resultado (peso 15%) ──
   function calcPilar2Resultado(D, dre, balanco, P) {
-    const peso_pct = (P.pesos_ise && P.pesos_ise.p2_resultado !== undefined ? P.pesos_ise.p2_resultado : 0.15) * 100;
+    const peso_pct = pesoPilar(P, 'p2_resultado');
 
     const s1 = dre.ro_anual > 0 ? 10 : 0;
 
@@ -1302,15 +1329,15 @@
     }
 
     return pilarFromSubs('p2_resultado', 'Resultado', peso_pct, [
-      { id: 'ebitda_real', label: 'Resultado anual positivo', score_0_10: s1, peso_decimal: 0.50, valor: dre.ro_anual },
-      { id: 'margem_estavel', label: 'Margem estável ou crescente', score_0_10: s2, peso_decimal: 0.30, valor: me || null },
-      { id: 'rentabilidade_imobilizado', label: 'Rentabilidade do imobilizado vs Selic', score_0_10: s3, peso_decimal: 0.20, valor: roi_pct, selic_referencia: selic },
+      { id: 'ebitda_real', label: 'Resultado anual positivo', score_0_10: s1, peso_decimal: pesoSubMetrica(P,'p2_resultado','ebitda_real'), valor: dre.ro_anual },
+      { id: 'margem_estavel', label: 'Margem estável ou crescente', score_0_10: s2, peso_decimal: pesoSubMetrica(P,'p2_resultado','margem_estavel'), valor: me || null },
+      { id: 'rentabilidade_imobilizado', label: 'Rentabilidade do imobilizado vs Selic', score_0_10: s3, peso_decimal: pesoSubMetrica(P,'p2_resultado','rentabilidade_imobilizado'), valor: roi_pct, selic_referencia: selic },
     ]);
   }
 
   // ── P3 — Comercial (peso 15%) ──
   function calcPilar3Comercial(D, dre, balanco, P) {
-    const peso_pct = (P.pesos_ise && P.pesos_ise.p3_comercial !== undefined ? P.pesos_ise.p3_comercial : 0.15) * 100;
+    const peso_pct = pesoPilar(P, 'p3_comercial');
 
     const cli = n(D.clientes);
     let s1;
@@ -1343,16 +1370,16 @@
     const s4 = bc === 'sim' ? 10 : 0;
 
     return pilarFromSubs('p3_comercial', 'Comercial', peso_pct, [
-      { id: 'num_clientes', label: 'Número de clientes ativos', score_0_10: s1, peso_decimal: 0.25, valor: cli },
-      { id: 'recorrencia_pct', label: 'Recorrência vs benchmark', score_0_10: s2, peso_decimal: 0.25, valor: rec, benchmark: benchRec },
-      { id: 'concentracao_pct', label: 'Concentração de clientes vs limite', score_0_10: s3, peso_decimal: 0.25, valor: conc, benchmark_max: benchConc },
-      { id: 'base_clientes_documentada', label: 'Base de clientes documentada', score_0_10: s4, peso_decimal: 0.25, valor: bc || null },
+      { id: 'num_clientes', label: 'Número de clientes ativos', score_0_10: s1, peso_decimal: pesoSubMetrica(P,'p3_comercial','num_clientes'), valor: cli },
+      { id: 'recorrencia_pct', label: 'Recorrência vs benchmark', score_0_10: s2, peso_decimal: pesoSubMetrica(P,'p3_comercial','recorrencia_pct'), valor: rec, benchmark: benchRec },
+      { id: 'concentracao_pct', label: 'Concentração de clientes vs limite', score_0_10: s3, peso_decimal: pesoSubMetrica(P,'p3_comercial','concentracao_pct'), valor: conc, benchmark_max: benchConc },
+      { id: 'base_clientes_documentada', label: 'Base de clientes documentada', score_0_10: s4, peso_decimal: pesoSubMetrica(P,'p3_comercial','base_clientes_documentada'), valor: bc || null },
     ]);
   }
 
   // ── P4 — Gestão (peso 15%) ──
   function calcPilar4Gestao(D, dre, balanco, P) {
-    const peso_pct = (P.pesos_ise && P.pesos_ise.p4_gestao !== undefined ? P.pesos_ise.p4_gestao : 0.15) * 100;
+    const peso_pct = pesoPilar(P, 'p4_gestao');
 
     const proc = D.processos;
     // aceita 'sim' (v2) e 'documentados' (legado v1)
@@ -1365,15 +1392,15 @@
     const s3 = sis > 0 ? 7 : 0;
 
     return pilarFromSubs('p4_gestao', 'Gestão', peso_pct, [
-      { id: 'processos_documentados', label: 'Processos documentados', score_0_10: s1, peso_decimal: 1/3, valor: proc || null },
-      { id: 'tem_gestor', label: 'Possui gestor dedicado', score_0_10: s2, peso_decimal: 1/3, valor: tg || null },
-      { id: 'sistemas_implantados', label: 'Investe em sistemas/ERP', score_0_10: s3, peso_decimal: 1/3, valor: sis },
+      { id: 'processos_documentados', label: 'Processos documentados', score_0_10: s1, peso_decimal: pesoSubMetrica(P,'p4_gestao','processos_documentados'), valor: proc || null },
+      { id: 'tem_gestor', label: 'Possui gestor dedicado', score_0_10: s2, peso_decimal: pesoSubMetrica(P,'p4_gestao','tem_gestor'), valor: tg || null },
+      { id: 'sistemas_implantados', label: 'Investe em sistemas/ERP', score_0_10: s3, peso_decimal: pesoSubMetrica(P,'p4_gestao','sistemas_implantados'), valor: sis },
     ]);
   }
 
   // ── P5 — Sócio / Dependência (peso 10%) ──
   function calcPilar5SocioDependencia(D, dre, balanco, P) {
-    const peso_pct = (P.pesos_ise && P.pesos_ise.p5_socio_dependencia !== undefined ? P.pesos_ise.p5_socio_dependencia : 0.10) * 100;
+    const peso_pct = pesoPilar(P, 'p5_socio_dependencia');
 
     const od = D.opera_sem_dono;
     const s1 = od === 'sim' ? 10 : 0;
@@ -1387,15 +1414,15 @@
     const s3 = n(D.prolabore) > 0 ? 8 : 5;
 
     return pilarFromSubs('p5_socio_dependencia', 'Sócio / Dependência', peso_pct, [
-      { id: 'opera_sem_dono', label: 'Opera sem o dono', score_0_10: s1, peso_decimal: 1/3, valor: od || null },
-      { id: 'equipe_permanece', label: 'Equipe permanece pós-venda', score_0_10: s2, peso_decimal: 1/3, valor: ep || null },
-      { id: 'prolabore_documentado', label: 'Pró-labore documentado', score_0_10: s3, peso_decimal: 1/3, valor: D.prolabore },
+      { id: 'opera_sem_dono', label: 'Opera sem o dono', score_0_10: s1, peso_decimal: pesoSubMetrica(P,'p5_socio_dependencia','opera_sem_dono'), valor: od || null },
+      { id: 'equipe_permanece', label: 'Equipe permanece pós-venda', score_0_10: s2, peso_decimal: pesoSubMetrica(P,'p5_socio_dependencia','equipe_permanece'), valor: ep || null },
+      { id: 'prolabore_documentado', label: 'Pró-labore documentado', score_0_10: s3, peso_decimal: pesoSubMetrica(P,'p5_socio_dependencia','prolabore_documentado'), valor: D.prolabore },
     ]);
   }
 
   // ── P6 — Risco Legal (peso 10%) ──
   function calcPilar6RiscoLegal(D, dre, balanco, P) {
-    const peso_pct = (P.pesos_ise && P.pesos_ise.p6_risco_legal !== undefined ? P.pesos_ise.p6_risco_legal : 0.10) * 100;
+    const peso_pct = pesoPilar(P, 'p6_risco_legal');
 
     const fat_mensal = n(dre.fat_mensal);
 
@@ -1433,16 +1460,16 @@
     const s4 = s3;
 
     return pilarFromSubs('p6_risco_legal', 'Risco Legal', peso_pct, [
-      { id: 'passivos_juridicos', label: 'Passivos jurídicos (trabalhista + risco)', score_0_10: s1, peso_decimal: 0.25, valor: { tem_processo, tem_trabalhista, passivo_juridico: passivo_jur } },
-      { id: 'sem_acao_judicial', label: 'Sem ações judiciais em geral', score_0_10: s2, peso_decimal: 0.25, valor: pj || null },
-      { id: 'impostos_atrasados_volume', label: 'Volume de impostos atrasados vs faturamento', score_0_10: s3, peso_decimal: 0.25, valor: imp },
-      { id: 'sem_impostos_atrasados', label: 'Sem impostos atrasados (mesma fonte)', score_0_10: s4, peso_decimal: 0.25, valor: imp },
+      { id: 'passivos_juridicos', label: 'Passivos jurídicos (trabalhista + risco)', score_0_10: s1, peso_decimal: pesoSubMetrica(P,'p6_risco_legal','passivos_juridicos'), valor: { tem_processo, tem_trabalhista, passivo_juridico: passivo_jur } },
+      { id: 'sem_acao_judicial', label: 'Sem ações judiciais em geral', score_0_10: s2, peso_decimal: pesoSubMetrica(P,'p6_risco_legal','sem_acao_judicial'), valor: pj || null },
+      { id: 'impostos_atrasados_volume', label: 'Volume de impostos atrasados vs faturamento', score_0_10: s3, peso_decimal: pesoSubMetrica(P,'p6_risco_legal','impostos_atrasados_volume'), valor: imp },
+      { id: 'sem_impostos_atrasados', label: 'Sem impostos atrasados (mesma fonte)', score_0_10: s4, peso_decimal: pesoSubMetrica(P,'p6_risco_legal','sem_impostos_atrasados'), valor: imp },
     ]);
   }
 
   // ── P7 — Balanço (peso 8%) ──
   function calcPilar7Balanco(D, dre, balanco, P) {
-    const peso_pct = (P.pesos_ise && P.pesos_ise.p7_balanco !== undefined ? P.pesos_ise.p7_balanco : 0.08) * 100;
+    const peso_pct = pesoPilar(P, 'p7_balanco');
 
     const s1 = balanco.patrimonio_liquido > 0 ? 10 : 0;
 
@@ -1468,15 +1495,15 @@
     else s3 = 0;
 
     return pilarFromSubs('p7_balanco', 'Balanço', peso_pct, [
-      { id: 'patrimonio_positivo', label: 'Patrimônio líquido positivo', score_0_10: s1, peso_decimal: 1/3, valor: balanco.patrimonio_liquido },
-      { id: 'liquidez', label: 'Liquidez (ativos / passivos)', score_0_10: s2, peso_decimal: 1/3, valor: liquidez_ratio },
-      { id: 'ncg_saudavel', label: 'NCG vs faturamento mensal', score_0_10: s3, peso_decimal: 1/3, valor: ncg },
+      { id: 'patrimonio_positivo', label: 'Patrimônio líquido positivo', score_0_10: s1, peso_decimal: pesoSubMetrica(P,'p7_balanco','patrimonio_positivo'), valor: balanco.patrimonio_liquido },
+      { id: 'liquidez', label: 'Liquidez (ativos / passivos)', score_0_10: s2, peso_decimal: pesoSubMetrica(P,'p7_balanco','liquidez'), valor: liquidez_ratio },
+      { id: 'ncg_saudavel', label: 'NCG vs faturamento mensal', score_0_10: s3, peso_decimal: pesoSubMetrica(P,'p7_balanco','ncg_saudavel'), valor: ncg },
     ]);
   }
 
   // ── P8 — Marca / Reputação (peso 7%) ──
   function calcPilar8Marca(D, dre, balanco, P) {
-    const peso_pct = (P.pesos_ise && P.pesos_ise.p8_marca !== undefined ? P.pesos_ise.p8_marca : 0.07) * 100;
+    const peso_pct = pesoPilar(P, 'p8_marca');
 
     const m = D.marca_inpi;
     // aceita 'registrada'/'em_processo' (v2) e 'sim'/'processo' (legado v1)
@@ -1508,9 +1535,9 @@
     else s3 = 10; // 3+ canais
 
     return pilarFromSubs('p8_marca', 'Marca / Reputação', peso_pct, [
-      { id: 'marca_inpi', label: 'Marca registrada no INPI', score_0_10: s1, peso_decimal: 1/3, valor: m || null },
-      { id: 'reputacao', label: 'Reputação no mercado', score_0_10: s2, peso_decimal: 1/3, valor: r || null },
-      { id: 'presenca_digital', label: 'Presença digital (canais ativos)', score_0_10: s3, peso_decimal: 1/3, valor: { canais: pd || [], total_ativos: canais_ativos } },
+      { id: 'marca_inpi', label: 'Marca registrada no INPI', score_0_10: s1, peso_decimal: pesoSubMetrica(P,'p8_marca','marca_inpi'), valor: m || null },
+      { id: 'reputacao', label: 'Reputação no mercado', score_0_10: s2, peso_decimal: pesoSubMetrica(P,'p8_marca','reputacao'), valor: r || null },
+      { id: 'presenca_digital', label: 'Presença digital (canais ativos)', score_0_10: s3, peso_decimal: pesoSubMetrica(P,'p8_marca','presenca_digital'), valor: { canais: pd || [], total_ativos: canais_ativos } },
     ]);
   }
 
