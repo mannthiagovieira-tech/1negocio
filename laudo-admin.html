@@ -277,11 +277,24 @@
     background:var(--bg3);border:1px solid var(--sep);
     padding:14px;margin-bottom:10px;position:relative;
   }
-  .upside-card.cat-obrigatorio{border-left:3px solid var(--red)}
-  .upside-card.cat-ganho_rapido{border-left:3px solid var(--green)}
-  .upside-card.cat-estrategico{border-left:3px solid var(--blue)}
-  .upside-card.cat-transformacional{border-left:3px solid var(--purple)}
-  .upside-card.cat-bloqueado{border-left:3px solid var(--fg3)}
+  /* Borda esquerda por categoria técnica (schema v2026.07) */
+  .upside-card.cat-ro{border-left:3px solid var(--green)}
+  .upside-card.cat-passivo{border-left:3px solid var(--red)}
+  .upside-card.cat-multiplo{border-left:3px solid var(--blue)}
+  .upside-card.cat-qualitativo{border-left:3px solid var(--purple)}
+  .upside-card.cat-paywall{border-left:3px solid var(--fg3)}
+  /* up-valor: bloco direito do card com valor R$ ou status textual */
+  .upside-card .up-valor{
+    text-align:right;min-width:140px;flex-shrink:0;
+    font-family:'DM Mono',monospace;
+  }
+  .upside-card .up-valor .v-brl{
+    font-size:15px;color:var(--green);font-weight:600;
+    font-variant-numeric:tabular-nums;
+  }
+  .upside-card .up-valor .v-pct{font-size:11px;color:var(--fg3);margin-top:2px}
+  .upside-card .up-valor .v-paywall{font-size:11px;color:var(--amber)}
+  .upside-card .up-valor .v-qual{font-size:11px;color:var(--fg3);font-style:italic}
   /* Admin é soberano: upsides bloqueados aparecem nítidos (sem opacidade reduzida).
      A pill "Bloqueado — visível só em laudo-pago R$99" é renderizada inline pelo JS. */
   .upside-card .up-head{
@@ -2906,6 +2919,14 @@ function renderUpsidesAdmin() {
   const cont = { ro:0, passivo:0, multiplo:0, qualitativo:0, paywall:0 };
   ativos.concat(paywalls).forEach(u => { if (cont[u.categoria] !== undefined) cont[u.categoria]++; });
 
+  // Lookup de valor monetário por id — vem do potencial_12m.upsides_ativos[]
+  // (filtrado: só upsides com contribuição BRL e gate ativo).
+  const valorPorId = {};
+  const upsAtivosP12 = (calcJson.potencial_12m && calcJson.potencial_12m.upsides_ativos) || [];
+  upsAtivosP12.forEach(u => {
+    valorPorId[u.id] = { brl: u.contribuicao_brl, pct: u.contribuicao_bruta_pct };
+  });
+
   let html = '<div class="kpi-row">';
   html += '<div class="kpi-card"><div class="kpi-label">' + CATEGORIA_LABEL.ro + '</div><div class="kpi-value">' + cont.ro + '</div></div>';
   html += '<div class="kpi-card"><div class="kpi-label">' + CATEGORIA_LABEL.passivo + '</div><div class="kpi-value">' + cont.passivo + '</div></div>';
@@ -2919,10 +2940,30 @@ function renderUpsidesAdmin() {
     const cat = u.categoria || 'qualitativo';
     const catLabel = CATEGORIA_LABEL[cat] || cat;
     let card = '<div class="upside-card cat-' + cat + '">';
-    card += '<div class="up-head"><div>';
+    card += '<div class="up-head">';
+    // Coluna esquerda: pill + id + título
+    card += '<div>';
     card += '<div style="margin-bottom:4px">' + pill(catLabel, catColor(cat)) + ' <span class="muted" style="font-size:10px;margin-left:6px">' + escapeHtml(u.id) + '</span></div>';
     card += '<div class="up-title">' + escapeHtml(u.label || u.id) + '</div>';
-    card += '</div></div>';
+    card += '</div>';
+    // Coluna direita: valor R$ + % OU status textual conforme categoria
+    card += '<div class="up-valor">';
+    if (cat === 'paywall') {
+      card += '<div class="v-paywall">[R$99 pra revelar contribuição]</div>';
+    } else if (cat === 'qualitativo') {
+      card += '<div class="v-qual">Ação necessária — sem valor monetário direto</div>';
+    } else {
+      const v = valorPorId[u.id];
+      if (v && v.brl != null) {
+        card += '<div class="v-brl">' + fc(v.brl) + '</div>';
+        card += '<div class="v-pct">' + (v.pct * 100).toFixed(2) + '% bruto</div>';
+      } else {
+        // Categoria monetária mas gate não disparou contribuição
+        card += '<div class="v-qual">sem contribuição calculada</div>';
+      }
+    }
+    card += '</div>';
+    card += '</div>';
     if (u.descricao) card += '<div class="up-desc">' + escapeHtml(u.descricao) + '</div>';
     // Detalhes técnicos colapsáveis (default fechado) — fórmula, fonte, gate
     const tech = [];
