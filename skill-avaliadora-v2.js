@@ -1616,15 +1616,16 @@
 
     const total = Math.round(contrib_ise + contrib_setor + contrib_cresc);
 
-    // ── Faixa label via P.faixas_atratividade (com fallback) ──
-    const faixas_atr = (P.faixas_atratividade && P.faixas_atratividade.length > 0)
-      ? P.faixas_atratividade
-      : [
-          { min: 80, max: 100, label: 'Excelente' },
-          { min: 65, max: 79,  label: 'Boa' },
-          { min: 50, max: 64,  label: 'Moderada' },
-          { min: 0,  max: 49,  label: 'Baixa' },
-        ];
+    // ── Faixa label (5 níveis renomeados — não lê de P.faixas_atratividade
+    //    porque o snapshot v2026.04 está com labels antigos; sobrescreve aqui).
+    // TODO: atualizar migration parametros_versoes pra alinhar.
+    const faixas_atr = [
+      { min: 90, max: 100, label: 'Alta' },
+      { min: 75, max: 89,  label: 'Atrativa' },
+      { min: 60, max: 74,  label: 'Padrão' },
+      { min: 45, max: 59,  label: 'Limitada' },
+      { min: 0,  max: 44,  label: 'Baixa' },
+    ];
     let label = '';
     for (const f of faixas_atr) {
       if (total >= f.min && total <= f.max) {
@@ -1723,16 +1724,34 @@
       fat_anual, ro_anual, regime_declarado, anexo_declarado, P, contexto_base, D
     );
 
-    // 2. Itera todos os regimes para o comparativo
-    const regimes_para_testar = ['simples', 'presumido', 'real'];
-    if (fat_anual <= 81000) regimes_para_testar.push('mei');
+    // 2. Itera os 4 regimes (MEI sempre incluído) com flag de elegibilidade
+    const regimes_para_testar = ['mei', 'simples', 'presumido', 'real'];
+
+    // Helper: elegibilidade por regime (limites 2026)
+    function checkElegibilidade(regime) {
+      if (regime === 'mei') {
+        if (fat_anual > 81000) return { elegivel: false,
+          motivo: 'Faturamento anual de R$ ' + Math.round(fat_anual).toLocaleString('pt-BR') + ' excede o limite MEI de R$ 81.000/ano' };
+        return { elegivel: true, motivo: null };
+      }
+      if (regime === 'simples') {
+        if (fat_anual > 4800000) return { elegivel: false,
+          motivo: 'Faturamento anual de R$ ' + Math.round(fat_anual).toLocaleString('pt-BR') + ' excede o limite do Simples Nacional de R$ 4,8M/ano' };
+        return { elegivel: true, motivo: null };
+      }
+      if (regime === 'presumido') {
+        if (fat_anual > 78000000) return { elegivel: false,
+          motivo: 'Faturamento anual de R$ ' + Math.round(fat_anual).toLocaleString('pt-BR') + ' excede o limite do Lucro Presumido de R$ 78M/ano' };
+        return { elegivel: true, motivo: null };
+      }
+      // Real: sem limite superior
+      return { elegivel: true, motivo: null };
+    }
 
     const comparativo = [];
     for (const regime of regimes_para_testar) {
       let anexo_test = null;
       if (regime === 'simples') {
-        // Decisão: se o declarado também é Simples, respeita o anexo declarado.
-        // Caso contrário, usa a regra completa (determinarAnexoSimples com Fator R).
         if (regime === regime_declarado && anexo_declarado) {
           anexo_test = anexo_declarado;
         } else {
@@ -1741,6 +1760,8 @@
         }
       }
 
+      const eleg = checkElegibilidade(regime);
+
       const resultado = calcImpostoCompleto(
         fat_anual, ro_anual, regime, anexo_test, P, contexto_base, D
       );
@@ -1748,6 +1769,8 @@
       comparativo.push({
         regime,
         anexo: anexo_test,
+        elegivel: eleg.elegivel,
+        motivo_inelegibilidade: eleg.motivo,
         imposto_anual: resultado.imposto_anual || 0,
         encargo_folha_anual: resultado.encargo_folha_anual || 0,
         total_anual: (resultado.imposto_anual || 0) + (resultado.encargo_folha_anual || 0),
@@ -1762,18 +1785,27 @@
       });
     }
 
-    // 3. Identificar regime ótimo entre os viáveis
-    const comparativo_viaveis = comparativo.filter(r => r.viabilidade === 'viavel');
-    const regime_otimo = comparativo_viaveis.length > 0
-      ? comparativo_viaveis.reduce(
+    // 3. Identificar regime ótimo APENAS entre elegíveis e viáveis.
+    // Se nenhum, default = regime declarado (mesmo que inelegível).
+    const elegiveis_viaveis = comparativo.filter(r => r.elegivel && r.viabilidade === 'viavel');
+    let regime_otimo = elegiveis_viaveis.length > 0
+      ? elegiveis_viaveis.reduce(
           (min, r) => r.total_anual < min.total_anual ? r : min,
-          comparativo_viaveis[0]
+          elegiveis_viaveis[0]
         )
       : null;
+    if (!regime_otimo) {
+      regime_otimo = comparativo.find(r => r.regime === regime_declarado) || null;
+    }
 
     // 4. Economia (compara o entry do declarado vs o ótimo)
     const declarado_entry = comparativo.find(r => r.regime === regime_declarado);
     const total_declarado = declarado_entry ? declarado_entry.total_anual : 0;
+
+    // 4b. Alerta de inelegibilidade (regime declarado é inelegível)
+    const alerta_inelegibilidade = (declarado_entry && !declarado_entry.elegivel)
+      ? { regime: regime_declarado, motivo: declarado_entry.motivo_inelegibilidade }
+      : null;
     const economia_anual = regime_otimo ? total_declarado - regime_otimo.total_anual : 0;
     const economia_pct_do_ro = ro_anual > 0 ? (economia_anual / ro_anual) * 100 : 0;
 
@@ -1813,6 +1845,7 @@
       },
 
       gera_upside_obrigatorio: gera_obrigatorio,
+      alerta_inelegibilidade,
       regra_obrigatorio: 'economia anual > R$ 10.000 E > 5% do RO anual',
     };
   }
@@ -1989,6 +2022,8 @@
       candidatos.obrigatorio.push({
         id: 'obrigatorio_tributario',
         categoria: 'obrigatorio',
+        label_visivel: 'Alerta',
+        tipo: 'tributario',
         acesso: 'free',
         titulo: 'Migração de regime tributário',
         subtitulo: 'Economia potencial de R$ ' + n(ec.economia_anual).toFixed(0) + '/ano',
