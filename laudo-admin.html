@@ -3272,11 +3272,52 @@ function renderIndicadores() {
     if (item.observacao) {
       html += '<tr' + dataStatus + '><td colspan="7" class="muted" style="font-size:11px;font-style:italic;padding-left:24px">↳ ' + escapeHtml(item.observacao) + '</td></tr>';
     }
+    // Implicação + link mental (T2.4) — só p/ críticos e atenção.
+    if (item.status === 'abaixo' || item.status === 'atencao') {
+      const impl = INDICADOR_IMPLICACAO[k];
+      if (impl) {
+        const seta = item.status === 'abaixo' ? '↓' : '⚠';
+        let texto = seta + ' ' + escapeHtml(impl.texto);
+        if (impl.upside) {
+          texto += ' · <span style="color:var(--green)">→ ver upside ' + escapeHtml(impl.upside) + '</span>';
+        }
+        html += '<tr' + dataStatus + '><td colspan="7" class="muted" style="font-size:10.5px;padding-left:24px;padding-top:0">' + texto + '</td></tr>';
+      }
+    }
   });
   html += '</tbody></table>';
   wrap.innerHTML = html;
   el('indicadores-json').textContent = JSON.stringify(ind, null, 2);
 }
+
+// Mapa id-do-indicador → { implicacao, upside? } (T2.4).
+// Implicação técnica curta + opcional upside_id pra link mental.
+// Quando não há entry, render fica sem texto extra (status só).
+const INDICADOR_IMPLICACAO = {
+  // Cost-side (críticos pressionam margem operacional)
+  aluguel_pct:    { texto: 'comprime margem operacional',                          upside: 'ro_renegociar_custos_fixos' },
+  mkt_pct:        { texto: 'ROI de marketing precisa ser auditado',                upside: 'ro_renegociar_custos_fixos' },
+  outros_cf_pct:  { texto: 'custos fixos acima do tolerável',                      upside: 'ro_renegociar_custos_fixos' },
+  folha_pct:      { texto: 'estrutura de pessoal pesa no resultado',               upside: 'ro_reduzir_custo_folha' },
+  cmv_pct:        { texto: 'custo direto comprime margem bruta' },
+  deducoes_pct:   { texto: 'cargas tributárias pesam na receita líquida',          upside: 'tr_otimizar_tributario' },
+  // Comercial / risco
+  concentracao:   { texto: 'concentração eleva risco da venda',                    upside: 'mu_diversificar_clientes' },
+  recorrencia:    { texto: 'baixa recorrência reduz previsibilidade',              upside: 'mu_aumentar_recorrencia' },
+  num_clientes:   { texto: 'base pequena reduz resiliência comercial',             upside: 'ro_recuperar_inativos' },
+  ticket_medio:   { texto: 'ticket baixo limita escala de receita',                upside: 'ro_otimizar_precificacao' },
+  // Margens (atenção ou crítico, mas geralmente bom no Forste)
+  margem_operacional: { texto: 'margem operacional aquém do benchmark setorial' },
+  margem_bruta:       { texto: 'margem bruta aquém do benchmark setorial' },
+  margem_liquida:     { texto: 'margem líquida aquém do benchmark setorial' },
+  // Capital de giro / ciclo
+  pmr_dias:       { texto: 'delta moderado vs benchmark do setor' },
+  pmp_dias:       { texto: 'ciclo financeiro adverso para capital de giro' },
+  ciclo_financeiro_dias: { texto: 'ciclo financeiro pressiona caixa' },
+  ncg_valor:      { texto: 'NCG elevada exige capital de giro adicional' },
+  // Produtividade
+  ro_por_funcionario_mensal: { texto: 'produtividade por funcionário aquém do benchmark' },
+};
 
 // Barra horizontal proporcional valor vs benchmark (T2.2).
 // Eixo: max(valor, benchmark). Bar do valor com cor por status. Marca tracejada
