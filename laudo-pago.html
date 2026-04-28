@@ -73,6 +73,10 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 .tbl td:first-child{text-align:left;color:var(--ink2)}
 .tbl tr.sub td{background:var(--bg2);font-weight:700;color:var(--ink);border-bottom:1px solid var(--line2)}
 .tbl tr.tot td{background:var(--em-d);font-weight:700;color:var(--em);border-bottom:2px solid var(--em-l)}
+/* DRE: colunas alinhadas verticalmente entre os 5 blocos via table-layout fixed + colgroup */
+.tbl.dre{table-layout:fixed}
+.tbl.dre td,.tbl.dre th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl.dre td:first-child{white-space:normal} /* label pode quebrar */
 .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:middle}
 .dot.g{background:var(--em)}.dot.a{background:var(--am)}.dot.r{background:var(--rd)}.dot.m{background:var(--ink4)}
 .chip{display:inline-block;font-size:8px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:10px;font-weight:500;margin-left:6px}
@@ -146,6 +150,12 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 .kpi-mini-v{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--ink);line-height:1}
 .kpi-mini-v.g{color:var(--em)}.kpi-mini-v.a{color:var(--am)}.kpi-mini-v.r{color:var(--rd)}
 .kpi-mini-sub{font-size:9px;color:var(--ink4);margin-top:3px}
+/* ind-kpi: variante compacta horizontal pra sumário de indicadores caber em 1 linha */
+.ind-kpi{display:flex;align-items:stretch;gap:1px;background:var(--line2);border:1px solid var(--line2);margin-bottom:14px;overflow:hidden}
+.ind-kpi-card{flex:1;min-width:0;background:var(--bg1);padding:8px 10px;display:flex;flex-direction:column;justify-content:center;text-align:left}
+.ind-kpi-l{font-size:7px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ind-kpi-v{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--ink);line-height:1}
+.ind-kpi-v.g{color:var(--em)}.ind-kpi-v.a{color:var(--am)}.ind-kpi-v.r{color:var(--rd)}
 .compare-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:8px}
 .compare-col{background:var(--bg1);border:1px solid var(--line2);padding:13px 14px}
 .compare-col.recomendado{border-color:var(--em);background:var(--em-d)}
@@ -298,7 +308,8 @@ const DEMO_DATA = {
     pct_produto: 0
   },
   dre: {
-    fat_mensal: 65000, fat_anual: 780000, ro_mensal: 13710, ro_anual: 164520, margem_operacional_pct: 21.1,
+    // RO recalculado: 65000 - 7430 - 0 - 18360 - 4500 - 13200 = 21510 → margem 33.09%
+    fat_mensal: 65000, fat_anual: 780000, ro_mensal: 21510, ro_anual: 258120, margem_operacional_pct: 33.09,
     deducoes_receita: { impostos_calculados_mensal: 7430, impostos_declarados_pelo_vendedor_mensal: 7000, diferenca_potencial_passivo_mensal: 430, taxas_recebimento: 0, comissoes: 0, total_mensal: 7430 },
     rec_liquida_mensal: 57570,
     cmv: 0,
@@ -368,10 +379,10 @@ const DEMO_DATA = {
     multiplo_base: 2.12,
     fator_ise: { classe: 'Consolidado', valor: 1.15, faixa: 'Consolidado (ISE: 79)' },
     fator_final: 2.44,
-    ro_anual: 164520,
-    valor_operacao: 401100,
+    ro_anual: 258120,
+    valor_operacao: 629813,
     patrimonio_liquido: 2679,
-    valor_venda: 403779,
+    valor_venda: 632492,
     ro_negativo: false,
     ro_negativo_msg: null,
     cta_especialista: null,
@@ -467,15 +478,15 @@ const DEMO_DATA = {
     concentracao_status: 'abaixo'
   },
   indicadores_vs_benchmark: {
-    margem_operacional:        { id: 'margem_operacional',        label: 'Margem operacional',                 valor: 21.09, unidade: '%',    benchmark: 30,   delta_pp: -8.91,  status: 'abaixo',  sentido: 'maior_melhor', regra_aplicada: 'valor ≥ benchmark → no_alvo · 90-99% bench → atencao · <90% → abaixo', observacao: null },
+    margem_operacional:        { id: 'margem_operacional',        label: 'Margem operacional',                 valor: 33.09, unidade: '%',    benchmark: 33,   delta_pp: 0.09,   status: 'no_alvo', sentido: 'maior_melhor', regra_aplicada: 'valor ≥ benchmark → no_alvo · 90-99% bench → atencao · <90% → abaixo · benchmark já ajustado pela forma de atuação (presta_servico)', observacao: null },
     margem_bruta:              { id: 'margem_bruta',              label: 'Margem bruta',                       valor: 88.57, unidade: '%',    benchmark: 65,   delta_pp: 23.57,  status: 'no_alvo', sentido: 'maior_melhor', regra_aplicada: 'valor ≥ benchmark → no_alvo · 90-99% bench → atencao · <90% → abaixo', observacao: null },
-    margem_liquida:            { id: 'margem_liquida',            label: 'Margem líquida',                     valor: 21.09, unidade: '%',    benchmark: null, delta_pp: null,   status: null,      sentido: 'maior_melhor', regra_aplicada: 'sem benchmark', observacao: null },
-    cmv_pct:                   { id: 'cmv_pct',                   label: 'CMV / Custo direto',                 valor: 0,     unidade: '%',    benchmark: 5,    delta_pp: -5,     status: 'neutro',  sentido: 'neutro',       regra_aplicada: 'comparação não aplica (neutro)', observacao: 'Serviço puro — CMV não aplicável (pct_produto = 0)' },
-    folha_pct:                 { id: 'folha_pct',                 label: 'Folha (% fat)',                      valor: 28.25, unidade: '%',    benchmark: 35,   delta_pp: -6.75,  status: 'no_alvo', sentido: 'menor_melhor', regra_aplicada: 'valor ≤ benchmark → no_alvo · 100-110% bench → atencao · >110% → abaixo', observacao: null },
-    aluguel_pct:               { id: 'aluguel_pct',               label: 'Aluguel (% fat)',                    valor: 12.31, unidade: '%',    benchmark: 5,    delta_pp: 7.31,   status: 'abaixo',  sentido: 'menor_melhor', regra_aplicada: 'valor ≤ benchmark → no_alvo · 100-110% bench → atencao · >110% → abaixo', observacao: null },
-    mkt_pct:                   { id: 'mkt_pct',                   label: 'Marketing (% fat)',                  valor: 6.15,  unidade: '%',    benchmark: 3,    delta_pp: 3.15,   status: 'abaixo',  sentido: 'menor_melhor', regra_aplicada: 'valor ≤ benchmark → no_alvo · 100-110% bench → atencao · >110% → abaixo', observacao: null },
-    outros_cf_pct:             { id: 'outros_cf_pct',             label: 'Outros custos fixos (% fat)',        valor: 7.69,  unidade: '%',    benchmark: 8,    delta_pp: -0.31,  status: 'no_alvo', sentido: 'menor_melhor', regra_aplicada: 'valor ≤ benchmark → no_alvo · 100-110% bench → atencao · >110% → abaixo', observacao: null },
-    deducoes_pct:              { id: 'deducoes_pct',              label: 'Total de deduções (% fat)',          valor: 11.43, unidade: '%',    benchmark: 12,   delta_pp: -0.57,  status: 'no_alvo', sentido: 'menor_melhor', regra_aplicada: 'valor ≤ benchmark → no_alvo · 100-110% bench → atencao · >110% → abaixo', observacao: null },
+    margem_liquida:            { id: 'margem_liquida',            label: 'Margem líquida',                     valor: 33.09, unidade: '%',    benchmark: null, delta_pp: null,   status: null,      sentido: 'maior_melhor', regra_aplicada: 'sem benchmark', observacao: null },
+    cmv_pct:                   { id: 'cmv_pct',                   label: 'CMV / Custo direto',                 valor: 0,     unidade: '%',    benchmark: 2,    delta_pp: -2,     status: 'neutro',  sentido: 'neutro',       regra_aplicada: 'comparação não aplica (neutro) · benchmark já ajustado pela forma de atuação (presta_servico)', observacao: 'Serviço puro — CMV não aplicável (pct_produto = 0)' },
+    folha_pct:                 { id: 'folha_pct',                 label: 'Folha (% fat)',                      valor: 28.25, unidade: '%',    benchmark: 40,   delta_pp: -11.75, status: 'no_alvo', sentido: 'menor_melhor', regra_aplicada: 'valor ≤ benchmark → no_alvo · 100-110% bench → atencao · >110% → abaixo · benchmark já ajustado pela forma de atuação (presta_servico)', observacao: null },
+    aluguel_pct:               { id: 'aluguel_pct',               label: 'Aluguel (% fat)',                    valor: 6.92,  unidade: '%',    benchmark: 4,    delta_pp: 2.92,   status: 'abaixo',  sentido: 'menor_melhor', regra_aplicada: 'valor ≤ benchmark → no_alvo · 100-110% bench → atencao · >110% → abaixo · benchmark já ajustado pela forma de atuação (presta_servico)', observacao: null },
+    mkt_pct:                   { id: 'mkt_pct',                   label: 'Marketing (% fat)',                  valor: 7.69,  unidade: '%',    benchmark: 3,    delta_pp: 4.69,   status: 'abaixo',  sentido: 'menor_melhor', regra_aplicada: 'valor ≤ benchmark → no_alvo · 100-110% bench → atencao · >110% → abaixo · benchmark já ajustado pela forma de atuação (presta_servico)', observacao: null },
+    outros_cf_pct:             { id: 'outros_cf_pct',             label: 'Outros custos fixos (% fat)',        valor: 10.77, unidade: '%',    benchmark: 8,    delta_pp: 2.77,   status: 'abaixo',  sentido: 'menor_melhor', regra_aplicada: 'valor ≤ benchmark → no_alvo · 100-110% bench → atencao · >110% → abaixo · benchmark já ajustado pela forma de atuação (presta_servico)', observacao: null },
+    deducoes_pct:              { id: 'deducoes_pct',              label: 'Total de deduções (% fat)',          valor: 11.43, unidade: '%',    benchmark: 12,   delta_pp: -0.57,  status: 'no_alvo', sentido: 'menor_melhor', regra_aplicada: 'valor ≤ benchmark → no_alvo · 100-110% bench → atencao · >110% → abaixo · benchmark já ajustado pela forma de atuação (presta_servico)', observacao: null },
     concentracao:              { id: 'concentracao',              label: 'Concentração de cliente',            valor: 45,    unidade: '%',    benchmark: 18,   delta_pp: 27,     status: 'abaixo',  sentido: 'menor_melhor', regra_aplicada: 'valor ≤ benchmark → no_alvo · 100-110% bench → atencao · >110% → abaixo', observacao: null },
     recorrencia:               { id: 'recorrencia',               label: 'Recorrência da receita',             valor: 90,    unidade: '%',    benchmark: 60,   delta_pp: 30,     status: 'no_alvo', sentido: 'maior_melhor', regra_aplicada: 'valor ≥ benchmark → no_alvo · 90-99% bench → atencao · <90% → abaixo', observacao: null },
     num_clientes:              { id: 'num_clientes',              label: 'Clientes ativos',                    valor: 22,    unidade: 'unid', benchmark: null, delta_pp: null,   status: null,      sentido: 'maior_melhor', regra_aplicada: 'sem benchmark', observacao: null },
@@ -484,7 +495,7 @@ const DEMO_DATA = {
     pmp_dias:                  { id: 'pmp_dias',                  label: 'PMP (prazo médio pagamento)',        valor: 15,    unidade: 'dias', benchmark: 30,   delta_pp: -15,    status: 'abaixo',  sentido: 'maior_melhor', regra_aplicada: 'valor ≥ benchmark → no_alvo · 90-99% bench → atencao · <90% → abaixo', observacao: null },
     ciclo_financeiro_dias:     { id: 'ciclo_financeiro_dias',     label: 'Ciclo financeiro',                   valor: 15,    unidade: 'dias', benchmark: null, delta_pp: null,   status: null,      sentido: 'menor_melhor', regra_aplicada: 'sem benchmark', observacao: null },
     ncg_valor:                 { id: 'ncg_valor',                 label: 'Necessidade de capital de giro (NCG)', valor: 2000, unidade: 'R$', benchmark: null, delta_pp: null,   status: null,      sentido: 'menor_melhor', regra_aplicada: 'sem benchmark', observacao: null },
-    ro_por_funcionario_mensal: { id: 'ro_por_funcionario_mensal', label: 'RO por funcionário (mensal)',        valor: 4570,  unidade: 'R$',   benchmark: null, delta_pp: null,   status: null,      sentido: 'maior_melhor', regra_aplicada: 'sem benchmark', observacao: null }
+    ro_por_funcionario_mensal: { id: 'ro_por_funcionario_mensal', label: 'RO por funcionário (mensal)',        valor: 7170,  unidade: 'R$',   benchmark: null, delta_pp: null,   status: null,      sentido: 'maior_melhor', regra_aplicada: 'sem benchmark', observacao: null }
   },
   textos_ia: {
     _gerados_em: null, _modelos_usados: null, status: 'pendente_geracao',
@@ -761,7 +772,14 @@ function renderDRE() {
       + benchTxt + deltaTxt + '</tr>';
   }
   function tHead() {
-    return '<table class="tbl"><thead><tr>'
+    // colgroup: larguras fixas para alinhamento vertical entre os 5 blocos.
+    // 38% Linha · 15% Mensal · 15% Anual · 11% %fat · 10% Bench · 11% Δ = 100%
+    return '<table class="tbl dre">'
+      + '<colgroup>'
+      + '<col style="width:38%"><col style="width:15%"><col style="width:15%">'
+      + '<col style="width:11%"><col style="width:10%"><col style="width:11%">'
+      + '</colgroup>'
+      + '<thead><tr>'
       + '<th>Linha</th><th>Mensal</th><th>Anual</th><th>% fat</th><th>Bench</th><th>Δ</th>'
       + '</tr></thead><tbody>';
   }
@@ -974,13 +992,14 @@ function renderIndicadores() {
     else cont.sem_benchmark++;
   });
 
-  let kpis = '<div class="kpi-mini">'
-    + '<div class="kpi-mini-card"><div class="kpi-mini-l">No alvo</div><div class="kpi-mini-v g">' + cont.no_alvo + '</div></div>'
-    + '<div class="kpi-mini-card"><div class="kpi-mini-l">Atenção</div><div class="kpi-mini-v a">' + cont.atencao + '</div></div>'
-    + '<div class="kpi-mini-card"><div class="kpi-mini-l">Abaixo</div><div class="kpi-mini-v r">' + cont.abaixo + '</div></div>';
-  if (cont.neutro > 0) kpis += '<div class="kpi-mini-card"><div class="kpi-mini-l">Neutro</div><div class="kpi-mini-v">' + cont.neutro + '</div></div>';
-  if (cont.sem_benchmark > 0) kpis += '<div class="kpi-mini-card"><div class="kpi-mini-l">Sem bench</div><div class="kpi-mini-v">' + cont.sem_benchmark + '</div></div>';
-  kpis += '<div class="kpi-mini-card"><div class="kpi-mini-l">Total</div><div class="kpi-mini-v">' + keys.length + '</div></div>'
+  // Sumário compacto em 1 linha: cada card só com label + contador
+  let kpis = '<div class="ind-kpi">'
+    + '<div class="ind-kpi-card"><div class="ind-kpi-l">No alvo</div><div class="ind-kpi-v g">' + cont.no_alvo + '</div></div>'
+    + '<div class="ind-kpi-card"><div class="ind-kpi-l">Atenção</div><div class="ind-kpi-v a">' + cont.atencao + '</div></div>'
+    + '<div class="ind-kpi-card"><div class="ind-kpi-l">Abaixo</div><div class="ind-kpi-v r">' + cont.abaixo + '</div></div>';
+  if (cont.neutro > 0)        kpis += '<div class="ind-kpi-card"><div class="ind-kpi-l">Neutro</div><div class="ind-kpi-v">' + cont.neutro + '</div></div>';
+  if (cont.sem_benchmark > 0) kpis += '<div class="ind-kpi-card"><div class="ind-kpi-l">Sem bench</div><div class="ind-kpi-v">' + cont.sem_benchmark + '</div></div>';
+  kpis += '<div class="ind-kpi-card"><div class="ind-kpi-l">Total</div><div class="ind-kpi-v">' + keys.length + '</div></div>'
     + '</div>';
 
   let tbl = '<table class="tbl"><thead><tr>'

@@ -951,50 +951,59 @@
     const investimentos = D.investimentos;
     const potencial_caixa_mensal = lucro_liquido_mensal - prolabore - parcelas_dividas - investimentos;
 
-    return {
-      bloco_1_receita: {
-        fat_mensal, fat_anual,
-        impostos: {
-          mensal: impostos_mensal,
-          pct: impostos_pct,
-          regime: impostos_regime,
-          anexo: impostos_anexo,
-          detalhes: impostos_detalhes,
-          fator_r_calculado: calcReal && calcReal.fator_r_calculado,
-          fator_r_aplicado: calcReal ? calcReal.fator_r_aplicado : false,
-          migracao_anexo: calcReal && calcReal.migracao_anexo,
-          observacao_fator_r: calcReal && calcReal.observacao_fator_r,
-        },
-        // Decisão #14 — declarado vs calculado, diferença = passivo potencial
-        impostos_calculados_mensal: impostos_mensal,
-        impostos_declarados_pelo_vendedor_mensal: impostos_declarado,
-        diferenca_potencial_passivo_mensal: diferenca_potencial_passivo,
-        taxas_recebimento, comissoes,
-        royalty_pct_aplicado, mkt_franquia_pct_aplicado,
-        total_deducoes,
-        rec_liquida,
+    // ── Shapes flat reutilizadas tanto em bloco_X_* quanto no atalho topo ──
+    // Renderers (laudo-pago, laudo-admin, negocio.html) leem dre.pessoal/ocupacao/etc
+    // diretamente — manter esses caminhos planos é parte do contrato com consumidores.
+    const flatPessoal = {
+      clt_folha_bruta, clt_encargos,
+      clt_encargos_detalhes: enc,
+      pj_custo,
+      royalty_fixo, mkt_franquia_fixo,
+      folha_total,
+      folha_total_mensal: folha_total,
+    };
+    const flatOcupacao = {
+      aluguel, facilities, terceirizados,
+      total: ocupacao_total,
+      total_mensal: ocupacao_total,
+    };
+    const flatOpOutros = {
+      sistemas, outros_cf, mkt_pago,
+      total: operacional_outros_total,
+      total_mensal: operacional_outros_total,
+    };
+    const flatDeducoes = {
+      impostos: {
+        mensal: impostos_mensal,
+        pct: impostos_pct,
+        regime: impostos_regime,
+        anexo: impostos_anexo,
+        detalhes: impostos_detalhes,
+        fator_r_calculado: calcReal && calcReal.fator_r_calculado,
+        fator_r_aplicado: calcReal ? calcReal.fator_r_aplicado : false,
+        migracao_anexo: calcReal && calcReal.migracao_anexo,
+        observacao_fator_r: calcReal && calcReal.observacao_fator_r,
       },
+      impostos_calculados_mensal: impostos_mensal,
+      impostos_declarados_pelo_vendedor_mensal: impostos_declarado,
+      diferenca_potencial_passivo_mensal: diferenca_potencial_passivo,
+      taxas_recebimento, comissoes,
+      royalty_pct_aplicado, mkt_franquia_pct_aplicado,
+      total_deducoes,
+      total_mensal: total_deducoes,
+    };
+
+    return {
+      bloco_1_receita: { fat_mensal, fat_anual, ...flatDeducoes, rec_liquida },
       bloco_2_lucro_bruto: {
         cmv,
         lucro_bruto,
         margem_bruta_pct,
       },
       bloco_3_operacional: {
-        pessoal: {
-          clt_folha_bruta, clt_encargos,
-          clt_encargos_detalhes: enc,
-          pj_custo,
-          royalty_fixo, mkt_franquia_fixo,
-          folha_total,
-        },
-        ocupacao: {
-          aluguel, facilities, terceirizados,
-          total: ocupacao_total,
-        },
-        operacional_outros: {
-          sistemas, outros_cf, mkt_pago,
-          total: operacional_outros_total,
-        },
+        pessoal: flatPessoal,
+        ocupacao: flatOcupacao,
+        operacional_outros: flatOpOutros,
         ro_mensal, ro_anual,
         margem_operacional_pct,
       },
@@ -1011,16 +1020,23 @@
         potencial_caixa_mensal,
       },
 
-      // Atalhos topo (compatibilidade com consumidores planos)
+      // Atalhos topo (compatibilidade com consumidores planos: laudo-pago,
+      // laudo-admin e negocio.html leem destes caminhos diretos)
       fat_mensal, fat_anual,
       rec_liquida,
+      rec_liquida_mensal: rec_liquida,
       cmv,
       lucro_bruto,
+      lucro_bruto_mensal: lucro_bruto,
       folha_total,
       ro_mensal, ro_anual,
       margem_operacional_pct,
       lucro_liquido_mensal,
       potencial_caixa_mensal,
+      deducoes_receita: flatDeducoes,
+      pessoal: flatPessoal,
+      ocupacao: flatOcupacao,
+      operacional_outros: flatOpOutros,
     };
   }
 
@@ -1886,20 +1902,37 @@
     const benchInd = (P.benchmarks_indicadores && P.benchmarks_indicadores[setor]) || {};
     const fat = n(dre.fat_mensal);
 
+    // Bug B fix — benchmarks DRE são ajustados pela forma de atuação principal.
+    // P.modificadores_forma_atuacao_dre[forma][indicador] em pp (ex: presta_servico
+    // adiciona +3pp no benchmark de margem_op, +5pp em folha, -1pp em aluguel...).
+    // benchInd (concentracao/recorrencia/pmr/pmp/margem_bruta) NÃO leva modificador.
+    const formaPrincipal = D.modelo_atuacao_principal || D.modelo_code || 'presta_servico';
+    function benchAjustado(indicadorBench) {
+      const baseB = (benchDre && benchDre[indicadorBench] != null) ? benchDre[indicadorBench] : null;
+      if (baseB == null) return null;
+      const mod = (P.modificadores_forma_atuacao_dre
+        && P.modificadores_forma_atuacao_dre[formaPrincipal]
+        && P.modificadores_forma_atuacao_dre[formaPrincipal][indicadorBench]) || 0;
+      return baseB + mod;
+    }
+
     const round2 = x => Math.round(n(x) * 100) / 100;
+    const REGRA_AJUSTADA_SUFFIX = ' · benchmark já ajustado pela forma de atuação (' + formaPrincipal + ')';
     const REGRAS = {
       maior_melhor: 'valor ≥ benchmark → no_alvo · 90-99% bench → atencao · <90% → abaixo',
       menor_melhor: 'valor ≤ benchmark → no_alvo · 100-110% bench → atencao · >110% → abaixo',
       neutro: 'comparação não aplica (neutro)',
     };
 
-    function ind(id, label, unidade, valor, benchmark, sentido, observacao) {
+    function ind(id, label, unidade, valor, benchmark, sentido, observacao, ajustado) {
       const v = round2(valor);
       const hasBench = benchmark != null && benchmark !== '' && !isNaN(n(benchmark));
       const b = hasBench ? round2(benchmark) : null;
       const delta_pp = hasBench ? round2(n(valor) - n(benchmark)) : null;
       const status = hasBench ? calcStatusIndicador(valor, benchmark, sentido) : null;
-      const regra_aplicada = hasBench ? (REGRAS[sentido] || 'sem regra') : 'sem benchmark';
+      let regra_aplicada;
+      if (!hasBench) regra_aplicada = 'sem benchmark';
+      else regra_aplicada = (REGRAS[sentido] || 'sem regra') + (ajustado ? REGRA_AJUSTADA_SUFFIX : '');
       return {
         id, label, valor: v, unidade,
         benchmark: b, delta_pp, status,
@@ -1911,7 +1944,7 @@
 
     // ── Margens ──
     const margem_operacional = ind('margem_operacional', 'Margem operacional', '%',
-      dre.margem_operacional_pct, benchDre.margem_op, 'maior_melhor');
+      dre.margem_operacional_pct, benchAjustado('margem_op'), 'maior_melhor', null, true);
     const margemBrutaVal = dre.bloco_2_lucro_bruto && dre.bloco_2_lucro_bruto.margem_bruta_pct;
     const margem_bruta = ind('margem_bruta', 'Margem bruta', '%',
       margemBrutaVal, benchInd.margem_bruta, 'maior_melhor');
@@ -1920,38 +1953,56 @@
     const margem_liquida = ind('margem_liquida', 'Margem líquida', '%',
       margemLiqVal, null, 'maior_melhor');
 
-    // ── Custos como % do faturamento ──
+    // ── Custos como % do faturamento (denominador SEMPRE fat_mensal bruto) ──
     const cmvPctVal = fat > 0 ? (n(dre.cmv) / fat) * 100 : 0;
     const isServicoPuro = n(D.pct_produto) === 0;
     const cmv_pct = ind('cmv_pct', 'CMV / Custo direto', '%',
-      cmvPctVal, benchDre.cmv,
+      cmvPctVal, benchAjustado('cmv'),
       isServicoPuro ? 'neutro' : 'menor_melhor',
-      isServicoPuro ? 'Serviço puro — CMV não aplicável (pct_produto = 0)' : null);
+      isServicoPuro ? 'Serviço puro — CMV não aplicável (pct_produto = 0)' : null,
+      true);
 
-    const folhaTotal = n(dre.bloco_3_operacional && dre.bloco_3_operacional.pessoal && dre.bloco_3_operacional.pessoal.folha_total);
+    // Folha total: lê do flat shortcut OU do bloco_3 (compat).
+    const folhaTotal = n(
+      (dre.pessoal && dre.pessoal.folha_total)
+      || (dre.bloco_3_operacional && dre.bloco_3_operacional.pessoal && dre.bloco_3_operacional.pessoal.folha_total)
+      || dre.folha_total
+    );
     const folhaPctVal = fat > 0 ? (folhaTotal / fat) * 100 : 0;
     const folha_pct = ind('folha_pct', 'Folha (% fat)', '%',
-      folhaPctVal, benchDre.folha, 'menor_melhor');
+      folhaPctVal, benchAjustado('folha'), 'menor_melhor', null, true);
 
-    const aluguelVal = n(dre.bloco_3_operacional && dre.bloco_3_operacional.ocupacao && dre.bloco_3_operacional.ocupacao.aluguel);
+    const aluguelVal = n(
+      (dre.ocupacao && dre.ocupacao.aluguel)
+      || (dre.bloco_3_operacional && dre.bloco_3_operacional.ocupacao && dre.bloco_3_operacional.ocupacao.aluguel)
+    );
     const aluguelPctVal = fat > 0 ? (aluguelVal / fat) * 100 : 0;
     const aluguel_pct = ind('aluguel_pct', 'Aluguel (% fat)', '%',
-      aluguelPctVal, benchDre.aluguel, 'menor_melhor');
+      aluguelPctVal, benchAjustado('aluguel'), 'menor_melhor', null, true);
 
-    const mktVal = n(dre.bloco_3_operacional && dre.bloco_3_operacional.operacional_outros && dre.bloco_3_operacional.operacional_outros.mkt_pago);
+    const mktVal = n(
+      (dre.operacional_outros && dre.operacional_outros.mkt_pago)
+      || (dre.bloco_3_operacional && dre.bloco_3_operacional.operacional_outros && dre.bloco_3_operacional.operacional_outros.mkt_pago)
+    );
     const mktPctVal = fat > 0 ? (mktVal / fat) * 100 : 0;
     const mkt_pct = ind('mkt_pct', 'Marketing (% fat)', '%',
-      mktPctVal, benchDre.mkt, 'menor_melhor');
+      mktPctVal, benchAjustado('mkt'), 'menor_melhor', null, true);
 
-    const outrosCfVal = n(dre.bloco_3_operacional && dre.bloco_3_operacional.operacional_outros && dre.bloco_3_operacional.operacional_outros.outros_cf);
+    const outrosCfVal = n(
+      (dre.operacional_outros && dre.operacional_outros.outros_cf)
+      || (dre.bloco_3_operacional && dre.bloco_3_operacional.operacional_outros && dre.bloco_3_operacional.operacional_outros.outros_cf)
+    );
     const outrosCfPctVal = fat > 0 ? (outrosCfVal / fat) * 100 : 0;
     const outros_cf_pct = ind('outros_cf_pct', 'Outros custos fixos (% fat)', '%',
-      outrosCfPctVal, benchDre.outros_cf, 'menor_melhor');
+      outrosCfPctVal, benchAjustado('outros_cf'), 'menor_melhor', null, true);
 
-    const deducoesVal = n(dre.bloco_1_receita && dre.bloco_1_receita.total_deducoes);
+    const deducoesVal = n(
+      (dre.deducoes_receita && (dre.deducoes_receita.total_deducoes != null ? dre.deducoes_receita.total_deducoes : dre.deducoes_receita.total_mensal))
+      || (dre.bloco_1_receita && dre.bloco_1_receita.total_deducoes)
+    );
     const deducoesPctVal = fat > 0 ? (deducoesVal / fat) * 100 : 0;
     const deducoes_pct = ind('deducoes_pct', 'Total de deduções (% fat)', '%',
-      deducoesPctVal, benchDre.deducoes, 'menor_melhor');
+      deducoesPctVal, benchAjustado('deducoes'), 'menor_melhor', null, true);
 
     // ── Comerciais ──
     const concentracao = ind('concentracao', 'Concentração de cliente', '%',
