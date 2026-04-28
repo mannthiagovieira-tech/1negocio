@@ -1603,10 +1603,10 @@
         break;
       }
     }
-    if (fonte_crescimento === 'projecao_vendedor') {
-      penalidade_aplicada = -2;
-      score_crescimento = Math.max(0, score_crescimento - 2);
-    }
+    // Sem penalidade: se cliente informou crescimento (projeção), respeita o valor declarado;
+    // se não informou (sem_dados), score já caiu na faixa estável. fonte_crescimento fica
+    // no calc_json apenas como informação de origem (rastreabilidade).
+    penalidade_aplicada = 0;
 
     // ── Contribuições (score × peso_pct / 10) ──
     const round2 = v => Math.round(v * 100) / 100;
@@ -1616,16 +1616,16 @@
 
     const total = Math.round(contrib_ise + contrib_setor + contrib_cresc);
 
-    // ── Faixa label (5 níveis renomeados — não lê de P.faixas_atratividade
-    //    porque o snapshot v2026.04 está com labels antigos; sobrescreve aqui).
-    // TODO: atualizar migration parametros_versoes pra alinhar.
-    const faixas_atr = [
-      { min: 90, max: 100, label: 'Alta' },
-      { min: 75, max: 89,  label: 'Atrativa' },
-      { min: 60, max: 74,  label: 'Padrão' },
-      { min: 45, max: 59,  label: 'Limitada' },
-      { min: 0,  max: 44,  label: 'Baixa' },
-    ];
+    // ── Faixa label via P.faixas_atratividade (com fallback hardcoded) ──
+    const faixas_atr = (P.faixas_atratividade && P.faixas_atratividade.length > 0)
+      ? P.faixas_atratividade
+      : [
+          { min: 90, max: 100, label: 'Alta' },
+          { min: 75, max: 89,  label: 'Atrativa' },
+          { min: 60, max: 74,  label: 'Padrão' },
+          { min: 45, max: 59,  label: 'Limitada' },
+          { min: 0,  max: 44,  label: 'Baixa' },
+        ];
     let label = '';
     for (const f of faixas_atr) {
       if (total >= f.min && total <= f.max) {
@@ -1925,11 +1925,22 @@
     const aluguelPctVal = fat > 0 ? (aluguelVal / fat) * 100 : 0;
     const aluguel_pct = ind(aluguelPctVal, benchDre.aluguel, 'menor_melhor');
 
+    // Marketing % do faturamento
+    const mktVal = n(dre.bloco_3_operacional && dre.bloco_3_operacional.operacional_outros && dre.bloco_3_operacional.operacional_outros.mkt_pago);
+    const mktPctVal = fat > 0 ? (mktVal / fat) * 100 : 0;
+    const mkt_pct = ind(mktPctVal, benchDre.mkt, 'menor_melhor');
+
+    // Total de deduções % do faturamento (Bloco 1: PIS+COFINS+ISS+ICMS+taxas+royalty etc)
+    const deducoesVal = n(dre.bloco_1_receita && dre.bloco_1_receita.total_deducoes);
+    const deducoesPctVal = fat > 0 ? (deducoesVal / fat) * 100 : 0;
+    const deducoes_pct = ind(deducoesPctVal, benchDre.deducoes, 'menor_melhor');
+
     return {
       margem_operacional, margem_bruta,
       recorrencia, concentracao,
       pmr, pmp,
       cmv_pct, folha_pct, aluguel_pct,
+      mkt_pct, deducoes_pct,
     };
   }
 

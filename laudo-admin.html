@@ -252,7 +252,9 @@
   .upside-card.cat-ganho_rapido{border-left:3px solid var(--green)}
   .upside-card.cat-estrategico{border-left:3px solid var(--blue)}
   .upside-card.cat-transformacional{border-left:3px solid var(--purple)}
-  .upside-card.cat-bloqueado{border-left:3px solid var(--fg3);opacity:0.7}
+  .upside-card.cat-bloqueado{border-left:3px solid var(--fg3)}
+  /* Admin é soberano: upsides bloqueados aparecem nítidos (sem opacidade reduzida).
+     A pill "Bloqueado — visível só em laudo-pago R$99" é renderizada inline pelo JS. */
   .upside-card .up-head{
     display:flex;justify-content:space-between;
     align-items:flex-start;gap:14px;margin-bottom:6px;
@@ -314,6 +316,34 @@
   /* LINKS */
   a{color:var(--green);text-decoration:none}
   a:hover{opacity:0.85;text-decoration:underline}
+
+  /* Box "onde aparece" — anotação visual do laudo-admin (não vai pro calc_json) */
+  .onde-aparece{
+    display:flex;align-items:center;gap:8px;
+    margin-top:14px;padding:8px 12px;
+    background:rgba(106,106,102,0.06);
+    border:1px dashed var(--sep);
+    font-size:10.5px;color:var(--fg3);
+    font-family:'DM Mono',monospace;
+    line-height:1.5;
+  }
+  .onde-aparece .oa-label{
+    color:var(--fg3);text-transform:uppercase;
+    letter-spacing:0.1em;font-size:9.5px;
+    font-weight:500;flex-shrink:0;
+  }
+  .onde-aparece .oa-label::before{content:'📍 ';margin-right:2px}
+  .onde-aparece .oa-destinos{color:var(--fg2)}
+
+  /* Indicador de origem em sub-métricas do ISE */
+  .submet-origem{
+    display:inline-block;width:14px;height:14px;
+    text-align:center;font-size:10px;line-height:14px;
+    margin-left:6px;cursor:help;border-radius:50%;
+    flex-shrink:0;
+  }
+  .submet-origem.ok{color:var(--green);font-weight:700}
+  .submet-origem.default{color:var(--fg3)}
 
   /* RESPONSIVO BÁSICO */
   @media (max-width:768px){
@@ -695,12 +725,12 @@ const DEMO_DATA = {
     alerta_pl_negativo: null
   },
   atratividade: {
-    total: 80,
+    total: 85,
     label: 'Atrativa',
     componentes: [
       { id: 'ise', label: 'Saúde do negócio', peso_pct: 50, score_0_10: 7.91, contribuicao_no_total: 39.55, fonte: 'ise.ise_total' },
       { id: 'setor', label: 'Apelo do setor', peso_pct: 25, score_0_10: 9, contribuicao_no_total: 22.5, fonte: 'parametros.score_setor_atratividade' },
-      { id: 'crescimento', label: 'Momentum de crescimento', peso_pct: 25, score_0_10: 7, contribuicao_no_total: 17.5, fonte_crescimento: 'projecao_vendedor', crescimento_pct_aplicado: 25, penalidade_aplicada: -2 }
+      { id: 'crescimento', label: 'Momentum de crescimento', peso_pct: 25, score_0_10: 9, contribuicao_no_total: 22.5, fonte_crescimento: 'projecao_vendedor', crescimento_pct_aplicado: 25, penalidade_aplicada: 0 }
     ]
   },
   analise_tributaria: {
@@ -748,7 +778,9 @@ const DEMO_DATA = {
     pmp: { valor: 15, benchmark: 30, delta_pp: -15, status: 'abaixo', sentido: 'maior_melhor', observacao: null },
     cmv_pct: { valor: 0, benchmark: 5, delta_pp: -5, status: 'neutro', sentido: 'neutro', observacao: 'Serviço puro — CMV não aplicável (pct_produto = 0)' },
     folha_pct: { valor: 28.25, benchmark: 35, delta_pp: -6.75, status: 'no_alvo', sentido: 'menor_melhor', observacao: null },
-    aluguel_pct: { valor: 12.31, benchmark: 5, delta_pp: 7.31, status: 'abaixo', sentido: 'menor_melhor', observacao: null }
+    aluguel_pct: { valor: 12.31, benchmark: 5, delta_pp: 7.31, status: 'abaixo', sentido: 'menor_melhor', observacao: null },
+    mkt_pct: { valor: 6.15, benchmark: 3, delta_pp: 3.15, status: 'abaixo', sentido: 'menor_melhor', observacao: null },
+    deducoes_pct: { valor: 11.43, benchmark: 12, delta_pp: -0.57, status: 'no_alvo', sentido: 'menor_melhor', observacao: null }
   },
   icd: {
     pct: 64,
@@ -876,6 +908,43 @@ function renderTudo() {
   renderIndicadores();
   renderTextosIA();
   renderRawJSON();
+  renderOndeAparece();
+}
+
+// ─── BOX "ONDE APARECE" — anotação visual do laudo-admin ──────────────────
+// CRÍTICO: este componente é frontend-only. NÃO entra no calc_json,
+// NÃO é gerado pela skill, NÃO é persistido. É apenas uma anotação visual
+// hardcoded no template do laudo-admin.html.
+function renderOndeAparece() {
+  const map = {
+    'sec-metadata':       'apenas laudo-fonte (admin)',
+    'sec-identificacao':  'apenas laudo-fonte (admin)',
+    'sec-inputs-origem':  'apenas laudo-fonte (admin)',
+    'sec-dre':            'laudo-gratuito (resumido) · laudo-pago (completo) · negocio.html (após NDA)',
+    'sec-balanco':        'laudo-pago · negocio.html (após NDA)',
+    'sec-ise':            'laudo-gratuito (geral) · laudo-pago (com sub-métricas) · negocio.html (após NDA)',
+    'sec-valuation':      'laudo-gratuito (3 números) · laudo-pago (completo)',
+    'sec-atratividade':   'laudo-gratuito · laudo-pago · card do index (só nota)',
+    'sec-tributaria':     'laudo-pago · negocio.html (após NDA)',
+    'sec-upsides':        'laudo-gratuito (4 free) · laudo-pago (10) · negocio.html resumido após NDA',
+    'sec-operacional':    'laudo-pago · negocio.html (após NDA)',
+    'sec-indicadores':    'laudo-gratuito · laudo-pago · negocio.html (após NDA)',
+    'sec-textos-ia':      'distribuídos conforme spec Seção 11.1 (laudo) + card index · negocio.html antes NDA · sugestões de título em laudo-fonte (anúncio)',
+    'sec-raw':            'apenas laudo-fonte (admin)',
+  };
+  Object.entries(map).forEach(([secId, destinos]) => {
+    const sec = el(secId);
+    if (!sec) return;
+    if (sec.querySelector('.onde-aparece')) return; // idempotente
+    const body = sec.querySelector('.section-body');
+    if (!body) return;
+    const div = document.createElement('div');
+    div.className = 'onde-aparece';
+    div.innerHTML =
+      '<span class="oa-label">Aparece em:</span>' +
+      '<span class="oa-destinos">' + escapeHtml(destinos) + '</span>';
+    body.appendChild(div);
+  });
 }
 
 // ─── HEADER (top + hero) ──────────────────────────────────
@@ -1043,9 +1112,10 @@ function renderDREv2() {
   }
   html += linhaTbl6('(–) Taxas de recebimento', ded.taxas_recebimento, fat, null, { cls: 'warn' });
   html += linhaTbl6('(–) Comissões', ded.comissoes, fat, null, { cls: 'warn' });
-  if (ded.royalty_pct_aplicado > 0) html += linhaTbl6('(–) Royalty franquia (%)', ded.royalty_pct_aplicado, fat, null, { cls: 'warn' });
-  if (ded.mkt_franquia_pct_aplicado > 0) html += linhaTbl6('(–) Marketing franquia (%)', ded.mkt_franquia_pct_aplicado, fat, null, { cls: 'warn' });
-  html += linhaTbl6('Total deduções', ded.total_mensal, fat, null, { cls: 'warn', total: true });
+  // Admin soberano: linhas zeradas aparecem mesmo (filtros são pros laudos visuais)
+  html += linhaTbl6('(–) Royalty franquia (%)', ded.royalty_pct_aplicado, fat, null, { cls: 'warn' });
+  html += linhaTbl6('(–) Marketing franquia (%)', ded.mkt_franquia_pct_aplicado, fat, null, { cls: 'warn' });
+  html += linhaTbl6('Total deduções', ded.total_mensal, fat, ind.deducoes_pct, { cls: 'warn', total: true });
   html += '</tbody></table>';
 
   // Bloco 2 — CMV e Lucro Bruto
@@ -1062,21 +1132,22 @@ function renderDREv2() {
   const op = dre.operacional_outros || {};
   html += '<h3>Bloco 3 — Despesas operacionais</h3>';
   html += dreTableHead();
+  // Admin: todas as linhas, mesmo zeradas (princípio "soberano vê tudo")
   html += linhaTbl6('Folha CLT bruta', pess.clt_folha_bruta, fat, null, { cls: 'warn' });
   html += linhaTbl6('Encargos CLT', pess.clt_encargos, fat, null, { cls: 'warn' });
-  if (pess.pj_custo > 0) html += linhaTbl6('PJ', pess.pj_custo, fat, null, { cls: 'warn' });
-  if (pess.royalty_fixo > 0) html += linhaTbl6('Royalty fixo', pess.royalty_fixo, fat, null, { cls: 'warn' });
-  if (pess.mkt_franquia_fixo > 0) html += linhaTbl6('Mkt franquia fixo', pess.mkt_franquia_fixo, fat, null, { cls: 'warn' });
+  html += linhaTbl6('PJ', pess.pj_custo, fat, null, { cls: 'warn' });
+  html += linhaTbl6('Royalty fixo', pess.royalty_fixo, fat, null, { cls: 'warn' });
+  html += linhaTbl6('Mkt franquia fixo', pess.mkt_franquia_fixo, fat, null, { cls: 'warn' });
   html += linhaTbl6('Total pessoal (folha + encargos + PJ)', pess.folha_total_mensal, fat, ind.folha_pct, { cls: 'warn', total: true });
 
   html += linhaTbl6('Aluguel', ocp.aluguel, fat, ind.aluguel_pct, { cls: 'warn' });
-  if (ocp.facilities > 0) html += linhaTbl6('Facilities (utilities)', ocp.facilities, fat, null, { cls: 'warn' });
-  if (ocp.terceirizados > 0) html += linhaTbl6('Terceirizados ocupação', ocp.terceirizados, fat, null, { cls: 'warn' });
+  html += linhaTbl6('Facilities (utilities)', ocp.facilities, fat, null, { cls: 'warn' });
+  html += linhaTbl6('Terceirizados ocupação', ocp.terceirizados, fat, null, { cls: 'warn' });
   html += linhaTbl6('Total ocupação', ocp.total_mensal, fat, null, { cls: 'warn', total: true });
 
-  if (op.sistemas > 0) html += linhaTbl6('Sistemas', op.sistemas, fat, null, { cls: 'warn' });
-  if (op.outros_cf > 0) html += linhaTbl6('Outros CF', op.outros_cf, fat, null, { cls: 'warn' });
-  if (op.mkt_pago > 0) html += linhaTbl6('Marketing pago', op.mkt_pago, fat, null, { cls: 'warn' });
+  html += linhaTbl6('Sistemas', op.sistemas, fat, null, { cls: 'warn' });
+  html += linhaTbl6('Outros CF', op.outros_cf, fat, null, { cls: 'warn' });
+  html += linhaTbl6('Marketing pago', op.mkt_pago, fat, ind.mkt_pct, { cls: 'warn' });
   html += linhaTbl6('Total operacional outros', op.total_mensal, fat, null, { cls: 'warn', total: true });
 
   html += linhaTbl6('= Resultado Operacional', dre.ro_mensal, fat, ind.margem_operacional, { cls: 'num', total: true });
@@ -1156,30 +1227,30 @@ function renderBalanco() {
   html += '<div class="kpi-card ' + plClass + '"><div class="kpi-label">Patrimônio líquido</div><div class="kpi-value">' + fc(bal.patrimonio_liquido) + '</div></div>';
   html += '</div>';
 
-  // Ativos
+  // Ativos — admin soberano: todas as linhas, mesmo zeradas
   html += '<h3>Ativos</h3><table class="tbl"><tbody>';
-  if (ativos.caixa > 0) html += linhaTbl('Caixa', fc(ativos.caixa));
-  if (ativos.contas_receber > 0) html += linhaTbl('Contas a receber', fc(ativos.contas_receber));
-  if (ativos.estoque > 0) html += linhaTbl('Estoque', fc(ativos.estoque));
-  if (ativos.equipamentos > 0) html += linhaTbl('Equipamentos', fc(ativos.equipamentos));
-  if (ativos.imovel > 0) html += linhaTbl('Imóvel', fc(ativos.imovel));
-  if (ativos.ativo_franquia > 0) html += linhaTbl('Ativo franquia', fc(ativos.ativo_franquia));
-  if (ativos.outros > 0) html += linhaTbl('Outros', fc(ativos.outros));
+  html += linhaTbl('Caixa', fc(ativos.caixa));
+  html += linhaTbl('Contas a receber', fc(ativos.contas_receber));
+  html += linhaTbl('Estoque', fc(ativos.estoque));
+  html += linhaTbl('Equipamentos', fc(ativos.equipamentos));
+  html += linhaTbl('Imóvel', fc(ativos.imovel));
+  html += linhaTbl('Ativo franquia', fc(ativos.ativo_franquia));
+  html += linhaTbl('Outros', fc(ativos.outros));
   html += linhaTbl('Total', fc(ativos.total), 'num', true);
   html += linhaTbl('Imobilizado total', fc(ativos.imobilizado_total), 'muted');
   html += '</tbody></table>';
 
-  // Passivos
+  // Passivos — admin soberano: todas as linhas, mesmo zeradas
   html += '<h3>Passivos</h3><table class="tbl"><tbody>';
-  if (pass.fornecedores_a_vencer > 0) html += linhaTbl('Fornecedores a vencer', fc(pass.fornecedores_a_vencer), 'warn');
-  if (pass.fornecedores_atrasados > 0) html += linhaTbl('Fornecedores atrasados', fc(pass.fornecedores_atrasados), 'err');
-  if (pass.impostos_atrasados_sem_parcelamento > 0) html += linhaTbl('Impostos atrasados (sem parcelamento)', fc(pass.impostos_atrasados_sem_parcelamento), 'err');
-  if (pass.saldo_devedor_emprestimos > 0) html += linhaTbl('Empréstimos / saldo devedor', fc(pass.saldo_devedor_emprestimos), 'warn');
-  if (provisao.valor > 0) {
-    html += linhaTbl('Provisão CLT (13º + férias)', fc(provisao.valor), 'warn');
+  html += linhaTbl('Fornecedores a vencer', fc(pass.fornecedores_a_vencer), 'warn');
+  html += linhaTbl('Fornecedores atrasados', fc(pass.fornecedores_atrasados), pass.fornecedores_atrasados > 0 ? 'err' : 'warn');
+  html += linhaTbl('Impostos atrasados (sem parcelamento)', fc(pass.impostos_atrasados_sem_parcelamento), pass.impostos_atrasados_sem_parcelamento > 0 ? 'err' : 'warn');
+  html += linhaTbl('Empréstimos / saldo devedor', fc(pass.saldo_devedor_emprestimos), 'warn');
+  html += linhaTbl('Provisão CLT (13º + férias)', fc(provisao.valor || 0), 'warn');
+  if (provisao.formula) {
     html += '<tr><td colspan="2" class="muted" style="font-size:11px;padding-left:24px"><em>fórmula:</em> ' + escapeHtml(provisao.formula || '') + ' · <em>fator:</em> ' + (provisao.fator_encargo_aplicado || '—') + ' · <em>regime:</em> ' + escapeHtml(provisao.regime_referencia || '—') + '</td></tr>';
   }
-  if (pass.outros_passivos > 0) html += linhaTbl('Outros passivos', fc(pass.outros_passivos), 'warn');
+  html += linhaTbl('Outros passivos', fc(pass.outros_passivos), 'warn');
   html += linhaTbl('Total', fc(pass.total), 'warn', true);
   html += '</tbody></table>';
 
@@ -1198,6 +1269,60 @@ function renderBalanco() {
 }
 
 // ─── 6. ISE ──────────────────────────────────
+// Mapeia sub-métrica do ISE para o campo correspondente em inputs_origem.
+// Algumas sub-métricas vêm de cálculos derivados (DRE/balanço) — nesse caso retornamos 'derivado'.
+const SUBMET_ORIGEM_MAP = {
+  // p1_financeiro
+  margem_op_pct: 'derivado',
+  dre_separacao: 'dre_separacao_pf_pj',
+  fluxo_caixa_positivo: 'derivado',
+  contabilidade_formal: 'contabilidade',
+  // p2_resultado
+  ebitda_real: 'derivado',
+  margem_estavel: 'margem_estavel',
+  rentabilidade_imobilizado: 'derivado',
+  // p3_comercial
+  num_clientes: 'clientes_ativos',
+  recorrencia_pct: 'recorrencia_pct',
+  concentracao_pct: 'concentracao_pct',
+  base_clientes_documentada: 'base_clientes',
+  // p4_gestao
+  processos_documentados: 'processos',
+  tem_gestor: 'tem_gestor',
+  sistemas_implantados: 'custo_sistemas',
+  // p5_socio_dependencia
+  opera_sem_dono: 'opera_sem_dono',
+  equipe_permanece: 'equipe_permanece',
+  prolabore_documentado: 'prolabore',
+  // p6_risco_legal
+  sem_passivo_trabalhista: 'passivo_trabalhista',
+  sem_acao_judicial: 'processos_juridicos',
+  impostos_em_dia: 'impostos_dia',
+  sem_impostos_atrasados: 'impostos_atrasados',
+  // p7_balanco
+  patrimonio_positivo: 'derivado',
+  liquidez: 'derivado',
+  ncg_saudavel: 'derivado',
+  // p8_marca
+  marca_inpi: 'marca_inpi',
+  reputacao_online: 'reputacao_online',
+  presenca_digital: 'presenca_digital',
+};
+
+function renderOrigemSubMetrica(sm) {
+  const origemKey = SUBMET_ORIGEM_MAP[sm.id];
+  if (!origemKey) return '';
+  if (origemKey === 'derivado') {
+    return '<span class="submet-origem default" title="Derivado de outros campos (DRE/balanço)">Σ</span>';
+  }
+  const origens = (calcJson && calcJson.inputs_origem) || {};
+  const o = origens[origemKey];
+  if (o === 'informado' || o === 'informado_zero' || o === 'calculado') {
+    return '<span class="submet-origem ok" title="Resposta do cliente (' + escapeHtml(o) + ')">✓</span>';
+  }
+  return '<span class="submet-origem default" title="Cliente não respondeu — default aplicado">…</span>';
+}
+
 function renderISEAdmin() {
   const ise = calcJson.ise || {};
   const wrap = el('ise-content');
@@ -1227,7 +1352,8 @@ function renderISEAdmin() {
       p.sub_metricas.forEach(sm => {
         const subScore = (sm.score_0_10 || 0).toFixed(1);
         const peso = sm.peso_decimal != null ? (sm.peso_decimal * 100).toFixed(0) + '%' : '—';
-        html += '<div class="pilar-sub-item"><span>' + escapeHtml(sm.label || sm.id) + '</span><span>' + subScore + '/10 · peso ' + peso + '</span></div>';
+        const origemHtml = renderOrigemSubMetrica(sm);
+        html += '<div class="pilar-sub-item"><span>' + escapeHtml(sm.label || sm.id) + ' ' + origemHtml + '</span><span>' + subScore + '/10 · peso ' + peso + '</span></div>';
       });
       html += '</div>';
     }
@@ -1258,7 +1384,7 @@ function renderValuationAdmin() {
   html += '<div class="kpi-row">';
   html += '<div class="kpi-card"><div class="kpi-label">Valor de venda</div><div class="kpi-value">' + fc(v.valor_venda) + '</div><div class="kpi-sub">RO × fator + PL</div></div>';
   html += '<div class="kpi-card"><div class="kpi-label">Valor da operação</div><div class="kpi-value">' + fc(v.valor_operacao) + '</div><div class="kpi-sub">RO anual × fator</div></div>';
-  html += '<div class="kpi-card"><div class="kpi-label">Fator final</div><div class="kpi-value">' + (v.fator_final || 0).toFixed(2) + '×</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">Fator 1N</div><div class="kpi-value">' + (v.fator_final || 0).toFixed(2) + '×</div></div>';
   html += '</div>';
 
   // Decomposição
@@ -1280,14 +1406,14 @@ function renderValuationAdmin() {
   }
   html += linhaTbl('= Múltiplo base', (v.multiplo_base || 0).toFixed(2) + '×', 'num', true);
   html += linhaTbl('× Fator ISE (' + escapeHtml(fi.classe || '—') + ')', (fi.valor || 1).toFixed(2) + '×');
-  html += linhaTbl('= Fator final', (v.fator_final || 0).toFixed(2) + '×', 'num', true);
+  html += linhaTbl('= Fator 1N', (v.fator_final || 0).toFixed(2) + '×', 'num', true);
   html += '</tbody></table>';
 
   // Cálculo do valor de venda
   html += '<h3>Cálculo do valor de venda</h3>';
   html += '<table class="tbl"><tbody>';
   html += linhaTbl('Resultado operacional anual', fc(v.ro_anual));
-  html += linhaTbl('× Fator final', (v.fator_final || 0).toFixed(2) + '×');
+  html += linhaTbl('× Fator 1N', (v.fator_final || 0).toFixed(2) + '×');
   html += linhaTbl('= Valor da operação', fc(v.valor_operacao), 'num', true);
   html += linhaTbl('+ Patrimônio líquido', fc(v.patrimonio_liquido));
   html += linhaTbl('= Valor de venda', fc(v.valor_venda), 'num', true);
@@ -1471,7 +1597,12 @@ function renderUpsidesAdmin() {
     html += '<div class="upside-card cat-' + cat + '">';
     html += '<div class="up-head">';
     html += '<div>';
-    html += '<div style="margin-bottom:4px">' + pill(pillLabel, pillCor) + ' ' + pill(acesso, acesso === 'pago' ? 'muted' : 'green') + ' <span class="muted" style="font-size:10px;margin-left:6px">#' + (u.ordem_no_laudo || '?') + '</span></div>';
+    let pillHeader = pill(pillLabel, pillCor) + ' ' + pill(acesso, acesso === 'pago' ? 'muted' : 'green');
+    // Pill informativa pra bloqueados (admin vê todos sem blur, com etiqueta de destino)
+    if (cat === 'bloqueado') {
+      pillHeader += ' <span class="pill muted" style="font-size:9px">Visível só em laudo-pago R$99</span>';
+    }
+    html += '<div style="margin-bottom:4px">' + pillHeader + ' <span class="muted" style="font-size:10px;margin-left:6px">#' + (u.ordem_no_laudo || '?') + '</span></div>';
     html += '<div class="up-title">' + escapeHtml(u.titulo || u.id) + '</div>';
     if (u.subtitulo) html += '<div class="up-sub">' + escapeHtml(u.subtitulo) + '</div>';
     html += '</div>';
