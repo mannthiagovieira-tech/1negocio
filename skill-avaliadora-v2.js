@@ -743,9 +743,26 @@
     const dependencia = d.dependencia || 'parcial';
     const marca_inpi = d.marca_inpi || 'nao';
     const processos_juridicos = String(d.processos_juridicos || 'nao').toLowerCase();
+    // Detalhamento dos processos jurídicos (diag t40, sub-bloco c-juridico):
+    // - juridico_tipo: array multi-select com 'trabalhista'/'fiscal'/'civil'/'outro'
+    // - passivo_juridico: número (R$, "como réu — valor em risco")
+    // - ativo_juridico:  número (R$, "como autor — valor a receber")
+    // Consumidos em calcPilar6.passivos_juridicos (combinação dos 3).
+    const juridico_tipo = Array.isArray(d.juridico_tipo) ? d.juridico_tipo
+      : Array.isArray(dados.juridico_tipo) ? dados.juridico_tipo
+      : [];
+    const passivo_juridico = n(p1(d.passivo_juridico, dados.passivo_juridico));
+    const ativo_juridico = n(p1(d.ativo_juridico, dados.ativo_juridico));
 
     // ── Qualitativo ISE v2 (8 pilares — Decisão #13) ──
-    const dre_separacao_pf_pj = d.dre_separacao_pf_pj || dados.dre_separacao_pf_pj || null;
+    // dre_separacao_pf_pj — diag salva remuneracao_socios (t31) com domínio
+    // 'fixo' (pró-labore formalizado) / 'sobra' (retira o que sobra) / 'nao'
+    // (ainda não retiram). mapDadosV2 deriva pro nome legado pra downstream.
+    // Aproximação consciente: pró-labore formal = separação contábil PF/PJ;
+    // "retira o que sobra" = mistura informal.
+    const remuneracao_socios = d.remuneracao_socios || dados.remuneracao_socios || null;
+    const dre_separacao_pf_pj = remuneracao_socios
+      || d.dre_separacao_pf_pj || dados.dre_separacao_pf_pj || null;
     // contabilidade — diag salva como contabilidade_formal (t34) com domínio
     // 'sim' (contador externo) / 'interno' / 'nao'. mapDadosV2 deriva pro
     // nome legado D.contabilidade pra downstream da skill ler.
@@ -765,14 +782,29 @@
     const equipe_permanece = d.equipe_permanece || dados.equipe_permanece || null;
     const passivo_trabalhista = d.passivo_trabalhista || dados.passivo_trabalhista || null;
     const impostos_dia = d.impostos_dia || dados.impostos_dia || null;
-    const reputacao_online = d.reputacao_online || dados.reputacao_online || null;
-    const presenca_digital = d.presenca_digital || dados.presenca_digital || null;
+    // reputacao — diag salva D.reputacao (t13b, sub-bloco c-reputacao) com domínio
+    // 'excelente' / 'boa' / 'neutra' / 'problemas' (default 'boa'). Skill v2 lia
+    // o nome fantasma D.reputacao_online com domínio 'positiva/neutra/negativa'.
+    // mapDadosV2 deriva pro nome legado pra downstream.
+    const reputacao = d.reputacao || dados.reputacao || null;
+    const reputacao_online = reputacao
+      || d.reputacao_online || dados.reputacao_online || null;
+
+    // online — diag salva D.online (t14, multi-select array) com valores
+    // 'site'/'ecommerce'/'instagram'/'gmaps'/'marketplace'/'nenhum'. Substitui
+    // o fantasma D.presenca_digital. P8.presenca_digital reativada via contagem
+    // de canais (commit calcPilar8).
+    const online = Array.isArray(d.online) ? d.online
+      : Array.isArray(dados.online) ? dados.online
+      : null;
+    const presenca_digital = online; // mantém nome legado pra downstream (uso muda em calcPilar8)
 
     // Origens dos campos qualitativos / comerciais (consumidos por calcICDv2).
     // Tag presence-based: se o campo veio explícito do diagnóstico = informado,
     // senão fallback_zero (mesmo que o default seja 'parcial'/'nao' por convenção).
     ['recorrencia_pct','concentracao_pct','processos','gestor_autonomo','tem_gestor','opera_sem_dono',
-     'passivo_trabalhista','impostos_dia','marca_inpi','reputacao_online','contabilidade_formal'].forEach(k => {
+     'passivo_trabalhista','impostos_dia','marca_inpi','reputacao','online',
+     'contabilidade_formal','remuneracao_socios','juridico_tipo','passivo_juridico'].forEach(k => {
       const v = d[k];
       origem[k] = (v !== undefined && v !== null && v !== '') ? 'informado' : 'fallback_zero';
     });
@@ -858,10 +890,15 @@
       processos, dependencia, marca_inpi, processos_juridicos,
       recorrencia_pct, concentracao_pct,
 
+      // Detalhamento jurídico (diag t40)
+      juridico_tipo, passivo_juridico, ativo_juridico,
+
       // Qualitativo v2 (8 pilares ISE)
       dre_separacao_pf_pj, contabilidade, margem_estavel, base_clientes,
       tem_gestor, opera_sem_dono, equipe_permanece, passivo_trabalhista,
-      impostos_dia, reputacao_online, presenca_digital,
+      impostos_dia, reputacao, reputacao_online,
+      online, presenca_digital,
+      remuneracao_socios,
 
       // Operacional
       num_funcs, clientes, ticket,
