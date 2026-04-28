@@ -2110,6 +2110,71 @@
   // + 5-6 bloqueados (paywall laudo R$ 99)
   // ============================================================
 
+  // ============================================================
+  // calcPotencial12mV2 — auditoria (Fase 3.2.4)
+  // Soma determinística do potencial de upside em 12 meses, baseada nos
+  // upsides JÁ gerados pelo gerarUpsidesV2 (não recria; só agrega).
+  //
+  // Regra (auditável):
+  //   1. Considera apenas upsides em ganho_rapido / estrategico / transformacional
+  //   2. obrigatorio é fix de risco (não conta como ganho)
+  //   3. bloqueado idem (no laudo-pago todos vêm desbloqueados, mas a regra
+  //      cobre o caso de ainda existirem em outros consumidores)
+  //   4. Cada upside contribui com midpoint(min_pct, max_pct) × valor_venda
+  //      onde min/max_pct vêm de upside.impacto_no_valuation
+  //   5. Soma simples — não aplica cap nem desconto por sobreposição.
+  //      Auditor pode ler o breakdown_por_upside e ajustar se quiser.
+  //
+  // Limitação conhecida: upsides não são totalmente independentes (acelerar
+  // crescimento e roadmap profissionalização podem se sobrepor). Em produção
+  // pode fazer sentido aplicar diminishing returns no transformacional. Por
+  // ora mantemos a soma transparente e deixamos o ajuste pra fase posterior.
+  // ============================================================
+  function calcPotencial12mV2(upsides, valuation) {
+    const valorVenda = n(valuation && valuation.valor_venda);
+    const valorOpAtual = n(valuation && valuation.valor_operacao);
+    const round2 = x => Math.round(n(x) * 100) / 100;
+
+    const categoriasContam = ['ganho_rapido', 'estrategico', 'transformacional'];
+    const breakdown = [];
+    let delta_absoluto = 0;
+
+    (upsides || []).forEach(u => {
+      if (!u || !categoriasContam.includes(u.categoria)) return;
+      const imp = u.impacto_no_valuation || {};
+      if (imp.min_pct == null || imp.max_pct == null) return;
+      const pct = (n(imp.min_pct) + n(imp.max_pct)) / 2;       // midpoint conservador
+      const valor = (pct / 100) * valorVenda;
+      delta_absoluto += valor;
+      breakdown.push({
+        upside_id: u.id || null,
+        categoria: u.categoria,
+        ordem_no_laudo: u.ordem_no_laudo || null,
+        pct_min: round2(imp.min_pct),
+        pct_max: round2(imp.max_pct),
+        pct_midpoint: round2(pct),
+        valor_estimado: Math.round(valor),
+      });
+    });
+
+    delta_absoluto = Math.round(delta_absoluto);
+    const valor = Math.round(valorVenda + delta_absoluto);
+    const delta_pct = valorVenda > 0 ? Math.round((delta_absoluto / valorVenda) * 1000) / 10 : 0;
+
+    return {
+      valor,
+      delta_absoluto,
+      delta_pct,
+      base: 'valor_venda',
+      base_valor: Math.round(valorVenda),
+      valor_operacao_atual: Math.round(valorOpAtual),
+      regra_aplicada: 'soma de midpoint(min_pct, max_pct) × valor_venda dos upsides em ganho_rapido/estrategico/transformacional. obrigatorio e bloqueado não somam (fix de risco e paywall, respectivamente). sem cap nem desconto por sobreposição.',
+      breakdown_por_upside: breakdown,
+      categorias_contadas: categoriasContam,
+      n_upsides_contados: breakdown.length,
+    };
+  }
+
   function gerarUpsidesV2(D, dre, balanco, ise, valuation, indicadores, analise_tributaria, P) {
     const valor_venda = n(valuation && valuation.valor_venda) || 0;
     const fat_mensal = n(dre && dre.fat_mensal);
@@ -2665,6 +2730,11 @@
 
     const upsides = gerarUpsidesV2(D, dre, balanco, ise, valuation, indicadores, analise_tributaria, P);
 
+    // Potencial 12m — agregação determinística dos upsides (Fase 3.2.4 audit).
+    // Anexa em valuation.valor_potencial_12m para que renderers (laudo-pago hero
+    // + chart) leiam a fonte da verdade em vez de heurística hardcoded.
+    valuation.valor_potencial_12m = calcPotencial12mV2(upsides, valuation);
+
     const calcJson = montarCalcJsonV2(
       D, dre, balanco, ise, valuation, atratividade,
       operacional, icd, indicadores, analise_tributaria, upsides,
@@ -2718,6 +2788,7 @@
     _calcIndicadores: calcIndicadoresV2,
     _calcICD: calcICDv2,
     _gerarUpsides: gerarUpsidesV2,
+    _calcPotencial12m: calcPotencial12mV2,
     _montarCalcJson: montarCalcJsonV2,
     _salvarCalcJson: salvarCalcJsonV2,
     _nomeRegime: nomeRegime,
