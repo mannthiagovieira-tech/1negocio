@@ -616,9 +616,8 @@
     const fat_anterior = tag('fat_anterior',
       p1(d.fat_anterior, d.fat_ano_anterior, dados.fat_anterior, dados.fat_ano_anterior));
 
-    // TODO Etapa 2.7 (Atratividade): garantir que crescimento_pct usa o histórico
-    // real (fat_anual vs fat_anterior), e não a projeção otimista que o vendedor
-    // possa ter declarado em d.crescimento_pct. Se houver os dois, preferir o calculado.
+    // crescimento_pct = histórico real (fat_anual vs fat_anterior preferido) ou
+    // d.crescimento_pct se já vier informado direto.
     let crescimento_pct = n(d.crescimento_pct);
     if (crescimento_pct !== 0) {
       origem.crescimento_pct = 'informado';
@@ -628,6 +627,12 @@
     } else {
       origem.crescimento_pct = 'fallback_zero';
     }
+
+    // crescimento_proj_pct = projeção declarada pelo vendedor (otimista).
+    // Usado por calcAtratividadeV2 como fallback com penalidade -2 quando
+    // crescimento_pct histórico não está disponível.
+    const crescimento_proj_pct = n(d.crescimento_proj_pct);
+    origem.crescimento_proj_pct = crescimento_proj_pct !== 0 ? 'informado' : 'fallback_zero';
 
     // ── Regime tributário (normalizado) ──
     const regimeRaw = d.regime || d.regime_tributario || dados.regime_tributario || dados.regime || 'simples';
@@ -649,6 +654,10 @@
     // ── Modelo de atuação ──
     const modelo_multi = Array.isArray(d.modelo_atuacao_multi) ? d.modelo_atuacao_multi : [];
     const modelo_code = mapModelo(modelo_multi);
+
+    // ── % produto (T28a — usado pra marcar CMV neutro em serviço puro) ──
+    const pct_produto = n(d.pct_produto);
+    origem.pct_produto = pct_produto > 0 ? 'informado' : 'fallback_zero';
 
     // ── CMV ──
     const cmv_pct_input = n(d.cmv_pct);
@@ -746,6 +755,15 @@
     const reputacao_online = d.reputacao_online || dados.reputacao_online || null;
     const presenca_digital = d.presenca_digital || dados.presenca_digital || null;
 
+    // Origens dos campos qualitativos / comerciais (consumidos por calcICDv2).
+    // Tag presence-based: se o campo veio explícito do diagnóstico = informado,
+    // senão fallback_zero (mesmo que o default seja 'parcial'/'nao' por convenção).
+    ['recorrencia_pct','concentracao_pct','processos','tem_gestor','opera_sem_dono',
+     'passivo_trabalhista','impostos_dia','marca_inpi','reputacao_online'].forEach(k => {
+      const v = d[k];
+      origem[k] = (v !== undefined && v !== null && v !== '') ? 'informado' : 'fallback_zero';
+    });
+
     let recorrencia_pct;
     const rv = d.recorrencia_pct !== undefined ? d.recorrencia_pct : dados.recorrencia_pct;
     if (rv === 'nao' || rv === false || rv === 'false') recorrencia_pct = 0;
@@ -782,7 +800,7 @@
       regime, anexo,
 
       fat_mensal, fat_anual, fat_anterior,
-      crescimento_pct, crescimento_label,
+      crescimento_pct, crescimento_label, crescimento_proj_pct,
 
       // Pré-calculados (overrides do diagnóstico)
       impostos_precalc: n(p1(d.impostos_mensal, d.imposto_calculado)),
@@ -796,7 +814,7 @@
       royalty_pct, royalty_fixo, mkt_franquia_pct, mkt_franquia_fixo,
 
       // CMV
-      cmv_mensal, cmv_pct: cmv_pct_input,
+      cmv_mensal, cmv_pct: cmv_pct_input, pct_produto,
 
       // Pessoal
       clt_folha, clt_qtd, pj_custo, pj_qtd,
@@ -1800,6 +1818,142 @@
   }
 
   // ============================================================
+  // calcStatusIndicador — helper compartilhado pelos indicadores
+  // 'maior_melhor' → no_alvo se ≥ benchmark; atencao se 0,9·b ≤ v < b; abaixo se < 0,9·b
+  // 'menor_melhor' → no_alvo se ≤ benchmark; atencao se b < v ≤ 1,1·b; abaixo se > 1,1·b
+  // 'neutro' → não compara (ex: cmv quando pct_produto = 0)
+  // ============================================================
+
+  function calcStatusIndicador(valor, benchmark, sentido) {
+    const v = n(valor);
+    const b = n(benchmark);
+    if (sentido === 'neutro' || b === 0) return 'neutro';
+    if (sentido === 'maior_melhor') {
+      if (v >= b) return 'no_alvo';
+      if (v >= b * 0.9) return 'atencao';
+      return 'abaixo';
+    }
+    if (sentido === 'menor_melhor') {
+      if (v <= b) return 'no_alvo';
+      if (v <= b * 1.1) return 'atencao';
+      return 'abaixo';
+    }
+    return 'neutro';
+  }
+
+  // ============================================================
+  // calcIndicadoresV2 — 9 indicadores vs benchmark setorial
+  // ============================================================
+
+  function calcIndicadoresV2(D, dre, balanco, P) {
+    const setor = D.setor_code || 'servicos_locais';
+    const benchDre = (P.benchmarks_dre && P.benchmarks_dre[setor]) || {};
+    const benchInd = (P.benchmarks_indicadores && P.benchmarks_indicadores[setor]) || {};
+    const fat = n(dre.fat_mensal);
+
+    const round2 = x => Math.round(n(x) * 100) / 100;
+    const ind = (valor, benchmark, sentido, observacao) => ({
+      valor: round2(valor),
+      benchmark: round2(benchmark),
+      delta_pp: round2(n(valor) - n(benchmark)),
+      status: calcStatusIndicador(valor, benchmark, sentido),
+      sentido,
+      observacao: observacao || null,
+    });
+
+    // Margens
+    const margem_operacional = ind(dre.margem_operacional_pct, benchDre.margem_op, 'maior_melhor');
+    const margemBrutaVal = dre.bloco_2_lucro_bruto && dre.bloco_2_lucro_bruto.margem_bruta_pct;
+    const margem_bruta = ind(margemBrutaVal, benchInd.margem_bruta, 'maior_melhor');
+
+    // Comercial
+    const recorrencia = ind(D.recorrencia_pct, benchInd.recorrencia_tipica, 'maior_melhor');
+    const concentracao = ind(D.concentracao_pct, benchInd.concentracao_max, 'menor_melhor');
+
+    // Ciclo
+    const pmr = ind(D.pmr, benchInd.pmr, 'menor_melhor');
+    const pmp = ind(D.pmp, benchInd.pmp, 'maior_melhor');
+
+    // Custos como % do faturamento
+    const cmvPctVal = fat > 0 ? (n(dre.cmv) / fat) * 100 : 0;
+    const isServicoPuro = n(D.pct_produto) === 0;
+    const cmv_pct = ind(
+      cmvPctVal,
+      benchDre.cmv,
+      isServicoPuro ? 'neutro' : 'menor_melhor',
+      isServicoPuro ? 'Serviço puro — CMV não aplicável (pct_produto = 0)' : null
+    );
+
+    const folhaTotal = n(dre.bloco_3_operacional && dre.bloco_3_operacional.pessoal && dre.bloco_3_operacional.pessoal.folha_total);
+    const folhaPctVal = fat > 0 ? (folhaTotal / fat) * 100 : 0;
+    const folha_pct = ind(folhaPctVal, benchDre.folha, 'menor_melhor');
+
+    const aluguelVal = n(dre.bloco_3_operacional && dre.bloco_3_operacional.ocupacao && dre.bloco_3_operacional.ocupacao.aluguel);
+    const aluguelPctVal = fat > 0 ? (aluguelVal / fat) * 100 : 0;
+    const aluguel_pct = ind(aluguelPctVal, benchDre.aluguel, 'menor_melhor');
+
+    return {
+      margem_operacional, margem_bruta,
+      recorrencia, concentracao,
+      pmr, pmp,
+      cmv_pct, folha_pct, aluguel_pct,
+    };
+  }
+
+  // ============================================================
+  // calcICDv2 — Índice de Completude do Diagnóstico
+  // Lê D._origem_campos (populado por mapDadosV2) e classifica os 22
+  // campos canônicos em respondidos / nao_respondidos / benchmarks.
+  // Críticos sobem ao topo dos não-respondidos.
+  // ============================================================
+
+  function calcICDv2(D, P) {
+    const CAMPOS_ICD = [
+      { id: 'fat_mensal',          label: 'Faturamento mensal',         critico: true },
+      { id: 'fat_anterior',        label: 'Faturamento ano anterior',   critico: false },
+      { id: 'cmv_mensal',          label: 'CMV / Custo direto',         critico: false },
+      { id: 'clt_folha',           label: 'Folha CLT',                  critico: true },
+      { id: 'pj_custo',            label: 'Custos PJ',                  critico: false },
+      { id: 'aluguel',             label: 'Aluguel',                    critico: false },
+      { id: 'caixa',               label: 'Caixa',                      critico: false },
+      { id: 'contas_receber',      label: 'Contas a receber',           critico: false },
+      { id: 'estoque',             label: 'Estoque',                    critico: false },
+      { id: 'equipamentos',        label: 'Equipamentos',               critico: false },
+      { id: 'imovel',              label: 'Imóvel',                     critico: false },
+      { id: 'fornec_a_vencer',     label: 'Fornecedores a vencer',      critico: false },
+      { id: 'saldo_devedor',       label: 'Empréstimos',                critico: false },
+      { id: 'recorrencia_pct',     label: 'Recorrência da receita',     critico: false },
+      { id: 'concentracao_pct',    label: 'Concentração de cliente',    critico: false },
+      { id: 'processos',           label: 'Processos documentados',     critico: false },
+      { id: 'tem_gestor',          label: 'Tem gestor',                 critico: false },
+      { id: 'opera_sem_dono',      label: 'Opera sem o dono',           critico: false },
+      { id: 'passivo_trabalhista', label: 'Passivo trabalhista',        critico: true },
+      { id: 'impostos_dia',        label: 'Impostos em dia',            critico: true },
+      { id: 'marca_inpi',          label: 'Marca registrada INPI',      critico: false },
+      { id: 'reputacao_online',    label: 'Reputação online',           critico: false },
+    ];
+
+    const origens = D._origem_campos || {};
+    const respondidos = [];
+    const nao_respondidos = [];
+    const benchmarks = [];
+
+    CAMPOS_ICD.forEach(c => {
+      const o = origens[c.id];
+      if (o === 'informado' || o === 'informado_zero' || o === 'calculado') respondidos.push(c);
+      else if (o === 'usou_benchmark') benchmarks.push(c);
+      else nao_respondidos.push(c);
+    });
+
+    nao_respondidos.sort((a, b) => (b.critico ? 1 : 0) - (a.critico ? 1 : 0));
+
+    const total = CAMPOS_ICD.length;
+    const pct = total > 0 ? Math.round((respondidos.length / total) * 100) : 0;
+
+    return { pct, total, respondidos, nao_respondidos, benchmarks };
+  }
+
+  // ============================================================
   // gerarUpsidesV2 — upsides em 5 categorias (Etapa 2.9)
   // 1 obrigatorio + 1 ganho_rapido + 2 estrategicos + 1 transformacional
   // + 5-6 bloqueados (paywall laudo R$ 99)
@@ -2335,7 +2489,10 @@
     const atratividade = calcAtratividadeV2(D, dre, ise, P);
     const analise_tributaria = calcAnaliseTributariaV2(D, dre, P);
 
-    // Operacional/ICD/Indicadores: placeholders simples (refinamento posterior)
+    // Indicadores vs benchmark + ICD (substitui placeholders da Etapa 2.9)
+    const indicadores = calcIndicadoresV2(D, dre, balanco, P);
+    const icd = calcICDv2(D, P);
+
     const num_total = n(D.clt_qtd) + n(D.pj_qtd);
     const operacional = {
       num_funcs_clt: n(D.clt_qtd),
@@ -2345,12 +2502,11 @@
       ticket_medio_mensal: n(D.ticket) || null,
       recorrencia_pct: n(D.recorrencia_pct),
       concentracao_pct: n(D.concentracao_pct),
+      concentracao_status: indicadores.concentracao && indicadores.concentracao.status,
       processos: D.processos,
       dependencia_socio: D.dependencia,
-      ro_por_funcionario_mensal: dre.ro_mensal / Math.max(1, num_total),
+      ro_por_funcionario_mensal: num_total > 0 ? Math.round(dre.ro_mensal / num_total) : null,
     };
-    const icd = { _placeholder: true };
-    const indicadores = { _placeholder: true };
 
     const upsides = gerarUpsidesV2(D, dre, balanco, ise, valuation, indicadores, analise_tributaria, P);
 
@@ -2403,6 +2559,9 @@
     _calcImpostoCompleto: calcImpostoCompleto,
     _determinarRegimeMunicipalEstadual: determinarRegimeMunicipalEstadual,
     _determinarPresuncoesPresumido: determinarPresuncoesPresumido,
+    _calcStatusIndicador: calcStatusIndicador,
+    _calcIndicadores: calcIndicadoresV2,
+    _calcICD: calcICDv2,
     _gerarUpsides: gerarUpsidesV2,
     _montarCalcJson: montarCalcJsonV2,
     _salvarCalcJson: salvarCalcJsonV2,
