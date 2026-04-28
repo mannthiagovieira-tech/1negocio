@@ -380,6 +380,8 @@
         <div><span class="label">Parâmetros:</span><span class="pill-mini" id="meta-parametros">—</span></div>
         <div><span class="label">Modo:</span><span class="pill-mini" id="meta-modo">—</span></div>
         <div><span class="label">Avaliado em:</span><span id="meta-data">—</span></div>
+        <div><span class="label">Criado em:</span><span id="meta-criado-em">—</span></div>
+        <div><span class="label">Publicado em:</span><span id="meta-publicado-em">—</span></div>
       </div>
     </div>
   </header>
@@ -390,6 +392,7 @@
       <div class="pretitle">LAUDO SOBERANO • DONO DA VERDADE</div>
       <h1 id="header-nome">—</h1>
       <div class="subtitle" id="header-subtitle">—</div>
+      <div id="header-status-row" style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"></div>
     </div>
 
     <!-- 1. METADATA -->
@@ -558,6 +561,7 @@ const ADMIN_AUTH_REQUIRED = false; // mudar pra true antes de promover pra produ
 const SUPABASE_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
 let calcJson = null;
+let negocioState = null;
 
 // ─── HELPERS ──────────────────────────────────
 const n = v => Number(v) || 0;
@@ -875,6 +879,17 @@ async function fetchLaudoV2(negocioId) {
   return data && data.length > 0 ? data[0].calc_json : null;
 }
 
+// Estado vivo do negócio (status + datas). Lido direto da tabela `negocios`.
+// Decisão D-I do mapeamento: skill é pura, status muda fora do laudo, então
+// laudo-admin lê em paralelo ao calc_json. Sem log de eventos (escopo Fase 4).
+async function fetchNegocioState(negocioId) {
+  const url = SUPABASE_URL + '/rest/v1/negocios?id=eq.' + negocioId + '&select=status,publicado_em,created_at';
+  const r = await fetch(url, { headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + SUPABASE_ANON } });
+  if (!r.ok) return null;
+  const data = await r.json();
+  return data && data[0] ? data[0] : null;
+}
+
 // ─── INIT ──────────────────────────────────
 async function init() {
   // Auth (placeholder, ativar depois)
@@ -899,7 +914,12 @@ async function init() {
       el('loader').textContent = 'Negócio não encontrado: ' + param;
       return;
     }
-    calcJson = await fetchLaudoV2(negocioId);
+    const [calcResult, stateResult] = await Promise.all([
+      fetchLaudoV2(negocioId),
+      fetchNegocioState(negocioId),
+    ]);
+    calcJson = calcResult;
+    negocioState = stateResult;
     if (!calcJson) {
       el('loader').textContent = 'Laudo v2 ainda não foi gerado para este negócio.';
       return;
@@ -917,6 +937,7 @@ document.addEventListener('DOMContentLoaded', init);
 function renderTudo() {
   if (!calcJson) return;
   renderHeader();
+  renderStatusBadge();
   renderMetadata();
   renderIdentificacao();
   renderInputsOrigem();
@@ -932,6 +953,42 @@ function renderTudo() {
   renderTextosIA();
   renderRawJSON();
   renderOndeAparece();
+}
+
+// ─── TAG DE STATUS DO NEGÓCIO ──────────────────────────────────
+// D-I: status atual + sub-indicador "já publicado anteriormente". Sem log
+// (escopo Fase 4). Lê direto de `negocios` — calc_json é snapshot do laudo,
+// status é estado vivo, ficam separados.
+const STATUS_COR = {
+  rascunho: 'muted', em_avaliacao: 'amber', aguardando_aprovacao: 'blue',
+  em_revisao: 'blue', publicado: 'green', em_negociacao: 'purple',
+  proposta_recebida: 'purple', pausado: 'muted', encerrado: 'red',
+  vendido: 'green', expirado: 'muted',
+};
+const STATUS_PUBLICADOS = ['publicado', 'em_negociacao', 'proposta_recebida', 'vendido'];
+
+function renderStatusBadge() {
+  const wrap = el('header-status-row');
+  if (!wrap) return;
+  if (!negocioState) {
+    wrap.innerHTML = '<span class="pill muted">status indisponível</span>';
+    return;
+  }
+  const status = negocioState.status || 'rascunho';
+  const cor = STATUS_COR[status] || 'muted';
+  let html = '<span class="label" style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.1em">Status:</span>';
+  html += '<span class="pill ' + cor + '">' + escapeHtml(status) + '</span>';
+  // Sub-indicador "já publicado anteriormente"
+  const jaPublicado = negocioState.publicado_em && !STATUS_PUBLICADOS.includes(status);
+  if (jaPublicado) {
+    const dt = new Date(negocioState.publicado_em).toLocaleDateString('pt-BR');
+    html += '<span class="muted" style="font-size:11px">· já publicado em ' + escapeHtml(dt) + '</span>';
+  }
+  wrap.innerHTML = html;
+  // Datas no header-meta
+  const fmt = (d) => d ? new Date(d).toLocaleString('pt-BR') : '—';
+  if (el('meta-criado-em')) el('meta-criado-em').textContent = fmt(negocioState.created_at);
+  if (el('meta-publicado-em')) el('meta-publicado-em').textContent = fmt(negocioState.publicado_em);
 }
 
 // ─── BOX "ONDE APARECE" — anotação visual do laudo-admin ──────────────────
