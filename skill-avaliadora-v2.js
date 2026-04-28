@@ -2124,72 +2124,309 @@
 
   // ============================================================
   // gerarUpsidesV2 — upsides em 5 categorias (Etapa 2.9)
-  // 1 obrigatorio + 1 ganho_rapido + 2 estrategicos + 1 transformacional
-  // + 5-6 bloqueados (paywall laudo R$ 99)
   // ============================================================
 
   // ============================================================
-  // calcPotencial12mV2 — auditoria (Fase 3.2.4)
-  // Soma determinística do potencial de upside em 12 meses, baseada nos
-  // upsides JÁ gerados pelo gerarUpsidesV2 (não recria; só agrega).
+  // lerCaminho(path, ctx) — utilitário dot-walk
+  // Resolve "balanco.passivos.fornecedores_atrasados" no contexto.
+  // Retorna null se qualquer trecho do caminho for null/undefined.
+  // ============================================================
+  function lerCaminho(path, ctx) {
+    if (typeof path !== 'string' || !path) return null;
+    return path.split('.').reduce((o, k) => (o == null ? null : o[k]), ctx);
+  }
+
+  // ============================================================
+  // agregarPotencial12mV2 — agregação determinística do potencial 12m
+  // (Fase 3.2.5 — substitui calcPotencial12mV2 antigo)
   //
-  // Regra (auditável):
-  //   1. Considera apenas upsides em ganho_rapido / estrategico / transformacional
-  //   2. obrigatorio é fix de risco (não conta como ganho)
-  //   3. bloqueado idem (no laudo-pago todos vêm desbloqueados, mas a regra
-  //      cobre o caso de ainda existirem em outros consumidores)
-  //   4. Cada upside contribui com midpoint(min_pct, max_pct) × valor_venda
-  //      onde min/max_pct vêm de upside.impacto_no_valuation
-  //   5. Soma simples — não aplica cap nem desconto por sobreposição.
-  //      Auditor pode ler o breakdown_por_upside e ajustar se quiser.
+  // Lê:
+  //   - upsides_ativos (do catálogo, já filtrados pelo gate)
+  //   - ise, valuation, dre, balanco, analise_tributaria
+  //   - P (snapshot v2026.05+ com caps_categoria, caps_ise, cap_absoluto, etc)
   //
-  // Limitação conhecida: upsides não são totalmente independentes (acelerar
-  // crescimento e roadmap profissionalização podem se sobrepor). Em produção
-  // pode fazer sentido aplicar diminishing returns no transformacional. Por
-  // ora mantemos a soma transparente e deixamos o ajuste pra fase posterior.
+  // Calcula contribuicao_brl por upside conforme formula_calculo.tipo,
+  // aplica caps por categoria → cap ISE (sobre alavancas) → cap absoluto.
+  // Tributário entra direto na soma final SEM caps.
+  //
+  // RIGOR DE PONTO FLUTUANTE:
+  //   - cálculos intermediários em float pleno (sem round prematuro)
+  //   - Math.round APENAS em campos *_brl da saída final
+  //   - campos *_pct mantêm float pleno (auditabilidade)
+  //
+  // Saída:
+  //   { potencial_12m: {...}, recomendacoes_pre_venda: [...] }
   // ============================================================
-  function calcPotencial12mV2(upsides, valuation) {
-    const valorVenda = n(valuation && valuation.valor_venda);
-    const valorOpAtual = n(valuation && valuation.valor_operacao);
-    const round2 = x => Math.round(n(x) * 100) / 100;
+  function agregarPotencial12mV2(upsidesAtivos, ise, valuation, dre, balanco, analise_tributaria, P, setor) {
+    const valor_venda    = n(valuation && valuation.valor_venda);
+    const valor_operacao = n(valuation && valuation.valor_operacao);
+    const ro_anual       = n(valuation && valuation.ro_anual) || n(dre && dre.ro_anual);
+    const fat_anual      = n(dre && dre.fat_anual);
+    const folha_mensal   = n(dre && dre.pessoal && dre.pessoal.folha_total_mensal);
+    const multiplo_setor = n((P && P.multiplos_setor || {})[setor]);
+    const ise_score      = n(ise && ise.ise_total);
+    const ise_int        = Math.round(ise_score);
+    const economia_trib_brl = n(analise_tributaria
+      && analise_tributaria.economia_potencial
+      && analise_tributaria.economia_potencial.economia_anual);
 
-    const categoriasContam = ['ganho_rapido', 'estrategico', 'transformacional'];
-    const breakdown = [];
-    let delta_absoluto = 0;
+    // Fail-closed se valor_venda inválido (ex: RO≤0 e PL≤0)
+    if (valor_venda <= 0) {
+      return {
+        potencial_12m: {
+          _versao: 'v2.1',
+          _motivo: 'valor_venda_invalido_ou_zero',
+          upsides_ativos: [],
+          agregacao: null,
+          potencial_final: { pct: 0, brl: 0, valor_projetado_brl: Math.round(valor_venda) },
+          ordenacao_exibicao: [],
+        },
+        recomendacoes_pre_venda: [],
+      };
+    }
 
-    (upsides || []).forEach(u => {
-      if (!u || !categoriasContam.includes(u.categoria)) return;
-      const imp = u.impacto_no_valuation || {};
-      if (imp.min_pct == null || imp.max_pct == null) return;
-      const pct = (n(imp.min_pct) + n(imp.max_pct)) / 2;       // midpoint conservador
-      const valor = (pct / 100) * valorVenda;
-      delta_absoluto += valor;
-      breakdown.push({
-        upside_id: u.id || null,
-        categoria: u.categoria,
-        ordem_no_laudo: u.ordem_no_laudo || null,
-        pct_min: round2(imp.min_pct),
-        pct_max: round2(imp.max_pct),
-        pct_midpoint: round2(pct),
-        valor_estimado: Math.round(valor),
+    // Contexto pra resolver fórmulas e gates
+    const ctx = { D: null, dre, balanco, ise, indicadores: null, valuation, analise_tributaria, P, setor };
+
+    // ── PASSO 1 — Calcular contribuição bruta por upside ────────────────
+    function resolverBaseAnual(baseLabel) {
+      switch (baseLabel) {
+        case 'fat_anual': return fat_anual;
+        case 'ro_anual':  return ro_anual;
+        case 'custos_fixos_nao_ocupacao_total_anual': {
+          const oc = n(dre && dre.operacional_outros && dre.operacional_outros.outros_cf);
+          const sis = n(dre && dre.operacional_outros && dre.operacional_outros.sistemas);
+          return (oc + sis) * 12;
+        }
+        case 'gap_margem_op': {
+          const bench_pct = n((P.benchmarks_dre[setor] || {}).margem_op);
+          const atual_pct = n(dre && dre.margem_operacional_pct);
+          const gap_pct = Math.max(0, bench_pct - atual_pct);
+          return (gap_pct / 100) * fat_anual;
+        }
+        case 'gap_folha_pct': {
+          const bench_pct = n((P.benchmarks_dre[setor] || {}).folha);
+          const atual_pct = n(dre && dre.pessoal && dre.pessoal.folha_total_mensal && fat_anual > 0
+            ? (dre.pessoal.folha_total_mensal * 12 / fat_anual) * 100
+            : 0);
+          const excedente_pct = Math.max(0, atual_pct - bench_pct);
+          return (excedente_pct / 100) * fat_anual;
+        }
+        case 'saldo_devedor_emprestimos':
+          return n(balanco && balanco.passivos && balanco.passivos.saldo_devedor_emprestimos);
+        case 'folha_mensal':
+          return folha_mensal;
+        default:
+          return 0;
+      }
+    }
+
+    function calcularContribuicaoBruta(u) {
+      const tipo = u.formula_calculo && u.formula_calculo.tipo;
+      const params = (u.formula_calculo && u.formula_calculo.parametros) || {};
+      switch (tipo) {
+        case 'ro_direto': {
+          const base = resolverBaseAnual(params.base);
+          const pct = n(params.economia_estimada_pct != null ? params.economia_estimada_pct : params.recuperacao_pct_gap);
+          return base * pct * multiplo_setor; // float pleno
+        }
+        case 'ro_via_margem': {
+          const base = resolverBaseAnual(params.base);
+          const pct = n(params.recuperacao_pct_gap != null ? params.recuperacao_pct_gap : params.recuperacao_pct_fat);
+          return base * pct * multiplo_setor;
+        }
+        case 'multiplo_aumento': {
+          const bonus = n(params.bonus_multiplo);
+          return bonus * ro_anual;
+        }
+        case 'passivo_direto': {
+          const passivo = n(lerCaminho(params.fonte_passivo, ctx));
+          return passivo; // 1:1
+        }
+        case 'passivo_estimado': {
+          // UP-08: reestruturar dívidas (saldo × red_passivo + saldo × juros × multiplo)
+          // UP-09: passivo trabalhista (folha_mensal × meses)
+          if (params.reducao_passivo_pct != null || params.juros_economizados_anual_pct != null) {
+            const saldo = resolverBaseAnual(params.base || 'saldo_devedor_emprestimos');
+            const red = n(params.reducao_passivo_pct);
+            const juros = n(params.juros_economizados_anual_pct);
+            return (saldo * red) + (saldo * juros * multiplo_setor);
+          }
+          if (params.meses_estimados_folha != null) {
+            const meses = n(params.meses_estimados_folha);
+            return folha_mensal * meses;
+          }
+          return 0;
+        }
+        case 'tributario_calculado':
+          return economia_trib_brl;
+        case 'qualitativo_sem_calculo':
+        case 'paywall_display':
+          return null; // sentinel — não soma
+        default:
+          return 0;
+      }
+    }
+
+    // Processa cada upside. Float pleno: contrib_brl é float; contrib_pct
+    // é divisão direta brl_float / valor_venda_float (sem usar round).
+    const upsides_processados = (upsidesAtivos || []).map(u => {
+      const contrib_brl = calcularContribuicaoBruta(u);
+      const contrib_pct = (contrib_brl != null && valor_venda > 0)
+        ? contrib_brl / valor_venda
+        : null;
+      return {
+        ref: u,
+        contrib_brl, // float ou null (qualitativo/paywall)
+        contrib_pct,
+      };
+    });
+
+    // ── PASSO 2 — Agrupar por categoria (tributário fora dos caps) ──────
+    const grupos = { ro: [], passivo: [], multiplo: [] };
+    const qualitativos = [];
+    let tributario = { brl: 0, pct: 0, ref: null };
+
+    upsides_processados.forEach(p => {
+      const cat = p.ref && p.ref.categoria;
+      if (cat === 'tributario') {
+        tributario = {
+          brl: p.contrib_brl != null ? p.contrib_brl : 0,
+          pct: p.contrib_pct != null ? p.contrib_pct : 0,
+          ref: p.ref,
+        };
+      } else if (cat === 'ro' || cat === 'passivo' || cat === 'multiplo') {
+        grupos[cat].push(p);
+      } else if (cat === 'qualitativo') {
+        qualitativos.push(p);
+      }
+      // paywall: ignora aqui (não chega via upsidesAtivos)
+    });
+
+    // ── PASSO 3 — Cap por categoria (proporcional dentro do grupo) ──────
+    const por_categoria = {};
+    const contrib_pos_cap_pct = new Map(); // upside_id → pct pós-cap
+
+    ['ro', 'passivo', 'multiplo'].forEach(cat => {
+      const itens = grupos[cat];
+      const bruto_pct = itens.reduce((s, p) => s + (p.contrib_pct || 0), 0); // float
+      const cap = n((P.caps_categoria || {})[cat]);
+      const cap_aplicado = (bruto_pct > cap);
+      const capped_pct = cap_aplicado ? cap : bruto_pct;
+
+      // Distribuição proporcional do capped entre os upsides do grupo
+      const fator = bruto_pct > 0 ? (capped_pct / bruto_pct) : 0;
+      itens.forEach(p => {
+        contrib_pos_cap_pct.set(p.ref.id, (p.contrib_pct || 0) * fator);
+      });
+
+      por_categoria[cat] = { bruto_pct, cap_aplicado, capped_pct };
+    });
+
+    // ── PASSO 4 — Soma alavancas pré-ISE ────────────────────────────────
+    const potencial_alavancas_pre_ise_pct =
+        por_categoria.ro.capped_pct
+      + por_categoria.passivo.capped_pct
+      + por_categoria.multiplo.capped_pct;
+
+    // ── PASSO 5 — Cap ISE (Math.round antes do lookup pra evitar gaps) ──
+    const faixas = (P.caps_ise || []);
+    const faixa = faixas.find(f => ise_int >= n(f.ise_min) && ise_int <= n(f.ise_max));
+    const cap_ise_aplicavel = faixa ? n(faixa.cap) : n(P.cap_absoluto);
+    const cap_ise_aplicado = (potencial_alavancas_pre_ise_pct > cap_ise_aplicavel);
+    const potencial_alavancas_pos_ise_pct = cap_ise_aplicado
+      ? cap_ise_aplicavel
+      : potencial_alavancas_pre_ise_pct;
+
+    // ── PASSO 6 — Soma tributário + alavancas pós-ISE ───────────────────
+    const potencial_total_bruto_pct = tributario.pct + potencial_alavancas_pos_ise_pct;
+
+    // ── PASSO 7 — Cap absoluto (defesa final) ───────────────────────────
+    const cap_abs = n(P.cap_absoluto);
+    const cap_abs_aplicado = (potencial_total_bruto_pct > cap_abs);
+    const potencial_pos_absoluto_pct = cap_abs_aplicado
+      ? cap_abs
+      : potencial_total_bruto_pct;
+
+    // ── PASSO 8 — Flag tributario_dominante ─────────────────────────────
+    const trib_threshold = n(P.tributario_dominante_threshold);
+    const tributario_dominante = (potencial_pos_absoluto_pct > 0)
+      && (tributario.pct / potencial_pos_absoluto_pct >= trib_threshold);
+
+    // ── Saída final ─────────────────────────────────────────────────────
+    // upsides_ativos: só os que somam (tributário + ro + passivo + multiplo).
+    // Round APENAS em contribuicao_brl (output) — pcts em float pleno.
+    const upsides_ativos_out = [];
+    if (tributario.ref) {
+      upsides_ativos_out.push({
+        id: tributario.ref.id,
+        categoria: 'tributario',
+        label: tributario.ref.label || null,
+        contribuicao_bruta_pct: tributario.pct,
+        contribuicao_pos_cap_categoria_pct: tributario.pct, // tributário sem cap
+        contribuicao_brl: Math.round(tributario.brl),
+      });
+    }
+    ['ro', 'passivo', 'multiplo'].forEach(cat => {
+      grupos[cat].forEach(p => {
+        const pos_cap_pct = contrib_pos_cap_pct.get(p.ref.id) || 0;
+        upsides_ativos_out.push({
+          id: p.ref.id,
+          categoria: cat,
+          label: p.ref.label || null,
+          contribuicao_bruta_pct: p.contrib_pct || 0,
+          contribuicao_pos_cap_categoria_pct: pos_cap_pct,
+          contribuicao_brl: Math.round(pos_cap_pct * valor_venda),
+        });
       });
     });
 
-    delta_absoluto = Math.round(delta_absoluto);
-    const valor = Math.round(valorVenda + delta_absoluto);
-    const delta_pct = valorVenda > 0 ? Math.round((delta_absoluto / valorVenda) * 1000) / 10 : 0;
+    const potencial_final_brl     = Math.round(potencial_pos_absoluto_pct * valor_venda);
+    const valor_projetado_brl     = Math.round(valor_venda + (potencial_pos_absoluto_pct * valor_venda));
+
+    // recomendacoes_pre_venda — campo "mensagem" mapeia de catalogo.descricao
+    const recomendacoes_pre_venda = qualitativos.map(p => ({
+      id: p.ref.id,
+      label: p.ref.label || null,
+      mensagem: p.ref.descricao || null,
+    }));
 
     return {
-      valor,
-      delta_absoluto,
-      delta_pct,
-      base: 'valor_venda',
-      base_valor: Math.round(valorVenda),
-      valor_operacao_atual: Math.round(valorOpAtual),
-      regra_aplicada: 'soma de midpoint(min_pct, max_pct) × valor_venda dos upsides em ganho_rapido/estrategico/transformacional. obrigatorio e bloqueado não somam (fix de risco e paywall, respectivamente). sem cap nem desconto por sobreposição.',
-      breakdown_por_upside: breakdown,
-      categorias_contadas: categoriasContam,
-      n_upsides_contados: breakdown.length,
+      potencial_12m: {
+        _versao: 'v2.1',
+        upsides_ativos: upsides_ativos_out,
+        agregacao: {
+          tributario: {
+            brl: Math.round(tributario.brl),
+            pct: tributario.pct,
+            sem_cap: true,
+            fonte: 'analise_tributaria.economia_potencial.economia_anual',
+          },
+          por_categoria,
+          potencial_alavancas_pre_ise_pct,
+          cap_ise: {
+            ise_score,
+            ise_score_arredondado: ise_int,
+            faixa: faixa ? (faixa.ise_min + '-' + faixa.ise_max) : 'fora_de_faixa_fallback_absoluto',
+            cap_aplicavel: cap_ise_aplicavel,
+            cap_aplicado: cap_ise_aplicado,
+            potencial_pos_ise_pct: potencial_alavancas_pos_ise_pct,
+          },
+          cap_absoluto: {
+            threshold: cap_abs,
+            aplicado: cap_abs_aplicado,
+            potencial_pos_absoluto_pct,
+          },
+          tributario_dominante,
+        },
+        potencial_final: {
+          pct: potencial_pos_absoluto_pct,
+          brl: potencial_final_brl,
+          valor_projetado_brl,
+        },
+        ordenacao_exibicao: [], // commit 5 implementa
+      },
+      recomendacoes_pre_venda,
     };
   }
 
@@ -2479,28 +2716,24 @@
       concentracao_status: indicadores.concentracao && indicadores.concentracao.status,
     };
 
-    // gerarUpsidesV2 agora retorna { ativos, paywalls } (Fase 3.2.5 — catálogo).
-    // Quem soma monetário recebe só ativos; renderers podem precisar do shape
-    // antigo (array flat). Mantemos os 3 caminhos visíveis:
-    //   - upsidesObj            : objeto novo (escopo interno da skill)
-    //   - upsidesObj.ativos     : entra em calcPotencial12mV2 (será substituído por
-    //                             agregarPotencial12mV2 no commit 3)
-    //   - calcJson.upsides      : recebe upsidesObj (renderers se adaptam em commits
-    //                             separados — quebra esperada em laudos antigos).
+    // gerarUpsidesV2 retorna { ativos, paywalls } (Fase 3.2.5 — catálogo).
     const upsidesObj = gerarUpsidesV2(D, dre, balanco, ise, valuation, indicadores, analise_tributaria, P);
 
-    // Potencial 12m — calcPotencial12mV2 ainda é a versão antiga (será substituída
-    // no commit 3 por agregarPotencial12mV2). Categorias do catálogo novo
-    // (tributario/ro/passivo/multiplo/qualitativo) não batem com o filtro antigo
-    // (ganho_rapido/estrategico/transformacional), então o retorno será uma
-    // estrutura zerada — esperado durante a transição.
-    valuation.valor_potencial_12m = calcPotencial12mV2(upsidesObj.ativos, valuation);
+    // Potencial 12m — agregação determinística com 3 caps + tributário sem cap.
+    // (Fase 3.2.6 — substitui calcPotencial12mV2 antigo, removido nesta versão.)
+    const agregado = agregarPotencial12mV2(
+      upsidesObj.ativos, ise, valuation, dre, balanco, analise_tributaria, P, D.setor_code
+    );
 
     const calcJson = montarCalcJsonV2(
       D, dre, balanco, ise, valuation, atratividade,
       operacional, icd, indicadores, analise_tributaria, upsidesObj,
       _parametrosVersaoId
     );
+
+    // Anexa potencial_12m e recomendacoes_pre_venda ao calc_json final.
+    calcJson.potencial_12m = agregado.potencial_12m;
+    calcJson.recomendacoes_pre_venda = agregado.recomendacoes_pre_venda;
 
     if (modo === 'commit' && D.id) {
       try {
@@ -2549,7 +2782,8 @@
     _calcIndicadores: calcIndicadoresV2,
     _calcICD: calcICDv2,
     _gerarUpsides: gerarUpsidesV2,
-    _calcPotencial12m: calcPotencial12mV2,
+    _agregarPotencial12m: agregarPotencial12mV2,
+    _lerCaminho: lerCaminho,
     _montarCalcJson: montarCalcJsonV2,
     _salvarCalcJson: salvarCalcJsonV2,
     _nomeRegime: nomeRegime,
