@@ -1534,7 +1534,10 @@
       pilares.reduce((acc, p) => acc + p.contribuicao_no_total, 0) * 10
     ) / 10;
 
-    // Classe via P.fator_ise (com fallback hardcoded)
+    // Classe via P.fator_ise (com fallback hardcoded). Math.round antes do lookup
+    // pra evitar gaps entre faixas (ex: ISE 84.1 caía entre Consolidado.max=84 e
+    // Estruturado.min=85). Mesmo padrão usado no cap_ise (ise_int).
+    const ise_int = Math.round(ise_total);
     const faixas = (P.fator_ise && P.fator_ise.length > 0) ? P.fator_ise : [
       { min: 85, max: 100, nome: 'Estruturado',  fator: 1.30 },
       { min: 70, max: 84,  nome: 'Consolidado',  fator: 1.15 },
@@ -1545,7 +1548,7 @@
     let classe = 'Embrionario';
     let fator_classe = 0.70;
     for (const f of faixas) {
-      if (ise_total >= f.min && ise_total <= f.max) {
+      if (ise_int >= f.min && ise_int <= f.max) {
         classe = f.nome;
         fator_classe = f.fator;
         break;
