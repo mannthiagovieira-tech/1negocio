@@ -1484,16 +1484,33 @@
       : (m === 'em_processo' || m === 'processo') ? 6
       : 0;
 
-    const r = D.reputacao_online;
-    const s2 = r === 'positiva' ? 10 : r === 'neutra' ? 6 : r === 'negativa' ? 0 : 5;
+    // reputacao — D.reputacao_online é alias derivado de D.reputacao em mapDadosV2.
+    // Domínio real do diag (t13b): 'excelente' / 'boa' / 'neutra' / 'problemas'.
+    const r = D.reputacao_online; // já aliasado de D.reputacao em mapDadosV2
+    const s2 = r === 'excelente' ? 10
+      : r === 'boa' ? 7
+      : r === 'neutra' ? 4
+      : r === 'problemas' ? 0
+      : 0; // fail-closed se ausente
 
+    // presenca_digital — D.presenca_digital agora é array (alias de D.online em
+    // mapDadosV2). Diag salva em t14 multi-select com valores: 'site', 'ecommerce',
+    // 'instagram', 'gmaps', 'marketplace', 'nenhum' (excludente).
+    // Calibração baseada em quantidade de canais ativos (excluindo 'nenhum').
     const pd = D.presenca_digital;
-    const s3 = pd === 'forte' ? 10 : pd === 'media' ? 6 : pd === 'fraca' ? 3 : 0;
+    const canais_ativos = Array.isArray(pd)
+      ? pd.filter(c => c !== 'nenhum').length
+      : 0;
+    let s3;
+    if (canais_ativos === 0) s3 = 0;
+    else if (canais_ativos === 1) s3 = 4;
+    else if (canais_ativos === 2) s3 = 7;
+    else s3 = 10; // 3+ canais
 
     return pilarFromSubs('p8_marca', 'Marca / Reputação', peso_pct, [
       { id: 'marca_inpi', label: 'Marca registrada no INPI', score_0_10: s1, peso_decimal: 1/3, valor: m || null },
-      { id: 'reputacao_online', label: 'Reputação online', score_0_10: s2, peso_decimal: 1/3, valor: r || null },
-      { id: 'presenca_digital', label: 'Presença digital', score_0_10: s3, peso_decimal: 1/3, valor: pd || null },
+      { id: 'reputacao', label: 'Reputação no mercado', score_0_10: s2, peso_decimal: 1/3, valor: r || null },
+      { id: 'presenca_digital', label: 'Presença digital (canais ativos)', score_0_10: s3, peso_decimal: 1/3, valor: { canais: pd || [], total_ativos: canais_ativos } },
     ]);
   }
 
