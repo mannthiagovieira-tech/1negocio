@@ -2267,14 +2267,19 @@ function renderIdentificacao() {
 
   if (id.regime_tributario_declarado) {
     const reg = id.regime_tributario_declarado;
+    // Linha inline: regime + alíquota efetiva + fator R
     let regimeStr = (reg.label || reg.code || '—');
     if (reg.anexo_simples) regimeStr += ' — Anexo ' + reg.anexo_simples;
-    lines.push(kvLine('Regime tributário', regimeStr));
-    if (reg.fator_r_calculado != null) {
-      const fatorPct = (reg.fator_r_calculado * 100).toFixed(2) + '%';
-      const cls = reg.fator_r_calculado < 0.28 ? 'warn' : 'num';
-      lines.push(kvLine('Fator R calculado', fatorPct, cls));
+    // Alíquota efetiva: pegar do comparativo_regimes onde regime === reg.code
+    const at = calcJson.analise_tributaria || {};
+    const comp = (at.comparativo_regimes || []).find(r => r.regime === (reg.code || at.regime_declarado));
+    if (comp && comp.aliquota_efetiva_pct != null) {
+      regimeStr += ' · Alíquota efetiva ' + Number(comp.aliquota_efetiva_pct).toFixed(2) + '%';
     }
+    if (reg.fator_r_calculado != null) {
+      regimeStr += ' · Fator R ' + (reg.fator_r_calculado * 100).toFixed(2) + '%';
+    }
+    lines.push(kvLine('Regime tributário', regimeStr));
     if (reg.observacao_fator_r) {
       lines.push(kvLineRaw('Observação Fator R', '<span class="warn">' + escapeHtml(reg.observacao_fator_r) + '</span>'));
     }
