@@ -788,10 +788,18 @@
     const parceiro_destino_id = dados.parceiro_destino_id || d.parceiro_destino_id || null;
     const tese_id = dados.tese_id || d.tese_id || null;
 
+    // nome_responsavel — capturado na primeira tela do diagnóstico (junto com telefone + OTP).
+    // Vai pra calc_json.identificacao e é exibido na folha de rosto do laudo.
+    const nome_responsavel = tag(
+      'nome_responsavel',
+      dados.nome_responsavel || d.nome_responsavel || dados.responsavel || d.responsavel || ''
+    );
+
     return {
       id: dados.id,
       codigo: d.codigo_diagnostico || dados.codigo_diagnostico || dados.slug || '',
       nome: dados.nome || d.nome_negocio || d.nome || 'Empresa',
+      nome_responsavel,
       setor_raw, setor_code,
       cidade: dados.cidade || d.cidade || '',
       estado: dados.estado || d.estado || '',
@@ -2482,6 +2490,7 @@
         codigo_diagnostico: D.codigo_diagnostico || D.codigo || null,
         slug: D.slug || null,
         nome: D.nome || null,
+        nome_responsavel: D.nome_responsavel || null,
         tipo_negocio_breve: D.tipo_negocio_breve || null,
         setor: { code: D.setor_code, label: D.setor_label || D.setor_raw || D.setor_code },
         modelo_atuacao: {
