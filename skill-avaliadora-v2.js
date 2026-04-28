@@ -1282,48 +1282,33 @@
   }
 
   // ── P2 — Resultado (peso 15%) ──
+  // Sub-métrica margem_estavel removida (Frente 2.2): D.margem_estavel é fantasma,
+  // proxy via crescimento_pct era fraco demais (faturamento != margem). P2 fica
+  // com 2 sub-métricas: ebitda_real (RO anual positivo) + rentabilidade_imobilizado.
+  // Snapshot v2026.07+ tem pesos 0.50 / 0.50.
   function calcPilar2Resultado(D, dre, balanco, P) {
     const peso_pct = pesoPilar(P, 'p2_resultado');
 
     const s1 = dre.ro_anual > 0 ? 10 : 0;
 
-    // margem_estavel — D.margem_estavel é fantasma (sem pergunta no diag).
-    // Proxy via D.crescimento_pct (calculado em mapDadosV2 a partir de
-    // fat_anual vs fat_anterior, ou null se sem histórico).
-    // Proxy fraco — margem e faturamento não são idênticos, mas é o melhor que
-    // existe sem nova pergunta. Fail-closed se crescimento_pct ausente.
-    const cresc = D.crescimento_pct;
-    let s2;
-    if (cresc == null || cresc === 0 && (D._origem_campos && D._origem_campos.crescimento_pct === 'fallback_zero')) {
-      s2 = 0; // sem dado histórico, fail-closed
-    } else if (cresc >= 5) {
-      s2 = 10; // cresceu — sinal positivo
-    } else if (cresc >= -5) {
-      s2 = 6;  // estável
-    } else {
-      s2 = 2;  // caiu
-    }
-    const me = cresc; // valor exibido no schema é crescimento_pct numérico
-
     const imob = balanco.ativos.imobilizado_total;
     const selic = n(P.selic_anual) || 14.0;
-    let s3;
+    let s2;
     let roi_pct = null;
     if (imob > 0) {
       roi_pct = (dre.ro_anual / imob) * 100;
-      if (roi_pct < 0) s3 = 0;
-      else if (roi_pct >= selic * 2) s3 = 10;
-      else if (roi_pct >= selic) s3 = 7;
-      else if (roi_pct >= selic / 2) s3 = 5;
-      else s3 = 3;
+      if (roi_pct < 0) s2 = 0;
+      else if (roi_pct >= selic * 2) s2 = 10;
+      else if (roi_pct >= selic) s2 = 7;
+      else if (roi_pct >= selic / 2) s2 = 5;
+      else s2 = 3;
     } else {
-      s3 = 5; // neutro: sem imobilizado relevante
+      s2 = 5; // neutro: sem imobilizado relevante
     }
 
     return pilarFromSubs('p2_resultado', 'Resultado', peso_pct, [
       { id: 'ebitda_real', label: 'Resultado anual positivo', score_0_10: s1, peso_decimal: pesoSubMetrica(P,'p2_resultado','ebitda_real'), valor: dre.ro_anual },
-      { id: 'margem_estavel', label: 'Margem estável ou crescente', score_0_10: s2, peso_decimal: pesoSubMetrica(P,'p2_resultado','margem_estavel'), valor: me || null },
-      { id: 'rentabilidade_imobilizado', label: 'Rentabilidade do imobilizado vs Selic', score_0_10: s3, peso_decimal: pesoSubMetrica(P,'p2_resultado','rentabilidade_imobilizado'), valor: roi_pct, selic_referencia: selic },
+      { id: 'rentabilidade_imobilizado', label: 'Rentabilidade do imobilizado vs Selic', score_0_10: s2, peso_decimal: pesoSubMetrica(P,'p2_resultado','rentabilidade_imobilizado'), valor: roi_pct, selic_referencia: selic },
     ]);
   }
 
