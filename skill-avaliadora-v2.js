@@ -2838,6 +2838,7 @@
     // Anexa potencial_12m e recomendacoes_pre_venda ao calc_json final.
     calcJson.potencial_12m = agregado.potencial_12m;
     calcJson.recomendacoes_pre_venda = agregado.recomendacoes_pre_venda;
+    calcJson._modo = modo;
 
     if (modo === 'commit' && D.id) {
       try {
