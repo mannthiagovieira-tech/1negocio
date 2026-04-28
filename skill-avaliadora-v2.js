@@ -616,17 +616,18 @@
     const fat_anterior = tag('fat_anterior',
       p1(d.fat_anterior, d.fat_ano_anterior, dados.fat_anterior, dados.fat_ano_anterior));
 
-    // crescimento_pct = histórico real (fat_anual vs fat_anterior preferido) ou
-    // d.crescimento_pct se já vier informado direto.
-    let crescimento_pct = n(d.crescimento_pct);
-    if (crescimento_pct !== 0) {
-      origem.crescimento_pct = 'informado';
-    } else if (fat_anterior > 0 && fat_anual > 0) {
-      crescimento_pct = ((fat_anual - fat_anterior) / fat_anterior) * 100;
-      origem.crescimento_pct = 'calculado';
-    } else {
-      origem.crescimento_pct = 'fallback_zero';
-    }
+    // crescimento_pct — vendedor responde slider em t16 do diagnóstico.
+    // Distingue 0 deliberado ("Estável") de 0 ausente (não respondeu).
+    // Bug B documentado em b174152 + investigação pós-0c67dab: o ramo de
+    // fallback via fat_anterior era código fantasma (diag não coleta esse
+    // campo) — removido nesta correção.
+    const crescimento_respondido = (
+      d.crescimento_pct !== undefined
+      && d.crescimento_pct !== null
+      && d.crescimento_pct !== ''
+    );
+    const crescimento_pct = n(d.crescimento_pct);
+    origem.crescimento_pct = crescimento_respondido ? 'informado' : 'fallback_zero';
 
     // crescimento_proj_pct = projeção declarada pelo vendedor (otimista).
     // Usado por calcAtratividadeV2 como fallback com penalidade -2 quando
