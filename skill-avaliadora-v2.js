@@ -720,7 +720,8 @@
     const equipamentos = tag('equipamentos', p1(d.at_equip, d.equipamentos));
     const imovel = tag('imovel', p1(d.at_imovel, d.imovel));
     const ativo_franquia = tag('ativo_franquia', p1(d.ativo_franquia, d.taxa_franquia_proporcional));
-    const outros_ativos = tag('outros_ativos', n(d.outros_ativos));
+    // outros_ativos — diag salva como d.at_outros. p1 pega primeiro positivo.
+    const outros_ativos = tag('outros_ativos', n(p1(d.outros_ativos, d.at_outros, dados.outros_ativos)));
 
     // ── Balanço ── passivos (naming v2 + split fornecedores)
     const fornec_a_vencer = tag('fornec_a_vencer',
@@ -730,7 +731,8 @@
     const impostos_atrasados = tag('impostos_atrasados', n(d.impostos_atrasados));
     const folha_pagar = tag('folha_pagar', n(d.folha_pagar));
     const saldo_devedor = tag('saldo_devedor', p1(d.saldo_devedor, d.emprestimos, dados.saldo_devedor));
-    const outros_passivos = tag('outros_passivos', n(d.outros_passivos));
+    // outros_passivos — diag salva como d.outro_passivo_val (singular). Alias.
+    const outros_passivos = tag('outros_passivos', n(p1(d.outros_passivos, d.outro_passivo_val, dados.outros_passivos)));
 
     // ── Ciclo financeiro (PMR / PMP em dias) ──
     const pmr = n(p1(d.pmr, d.prazo_medio_recebimento));
@@ -744,7 +746,11 @@
 
     // ── Qualitativo ISE v2 (8 pilares — Decisão #13) ──
     const dre_separacao_pf_pj = d.dre_separacao_pf_pj || dados.dre_separacao_pf_pj || null;
-    const contabilidade = d.contabilidade || dados.contabilidade || null;
+    // contabilidade — diag salva como contabilidade_formal (t34) com domínio
+    // 'sim' (contador externo) / 'interno' / 'nao'. mapDadosV2 deriva pro
+    // nome legado D.contabilidade pra downstream da skill ler.
+    const contabilidade = d.contabilidade_formal || d.contabilidade
+      || dados.contabilidade_formal || dados.contabilidade || null;
     const margem_estavel = d.margem_estavel || dados.margem_estavel || null;
     const base_clientes = d.base_clientes || dados.base_clientes || null;
     // gestor_autonomo é a pergunta única do diagnóstico (t33: "Tem alguém na equipe
@@ -766,7 +772,7 @@
     // Tag presence-based: se o campo veio explícito do diagnóstico = informado,
     // senão fallback_zero (mesmo que o default seja 'parcial'/'nao' por convenção).
     ['recorrencia_pct','concentracao_pct','processos','gestor_autonomo','tem_gestor','opera_sem_dono',
-     'passivo_trabalhista','impostos_dia','marca_inpi','reputacao_online'].forEach(k => {
+     'passivo_trabalhista','impostos_dia','marca_inpi','reputacao_online','contabilidade_formal'].forEach(k => {
       const v = d[k];
       origem[k] = (v !== undefined && v !== null && v !== '') ? 'informado' : 'fallback_zero';
     });
@@ -1203,7 +1209,9 @@
     const s3 = dre.ro_mensal > 0 ? 10 : 0;
 
     const ct = D.contabilidade;
-    const s4 = ct === 'sim' ? 10 : ct === 'parcial' ? 6 : 0;
+    // Domínio real do diagnóstico (t34): 'sim' (contador externo) / 'interno' / 'nao'.
+    // 'sim' = formal terceirizado (10), 'interno' = formal porém in-house (7), 'nao' = 0.
+    const s4 = ct === 'sim' ? 10 : ct === 'interno' ? 7 : 0;
 
     return pilarFromSubs('p1_financeiro', 'Financeiro', peso_pct, [
       { id: 'margem_op_pct', label: 'Margem operacional vs benchmark setorial', score_0_10: s1, peso_decimal: 0.25, valor: margem, benchmark: bench },
