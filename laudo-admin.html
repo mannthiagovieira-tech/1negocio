@@ -1638,88 +1638,67 @@ function renderTributariaAdmin() {
 
 // ─── 10. UPSIDES ──────────────────────────────────
 function renderUpsidesAdmin() {
-  const ups = calcJson.upsides || [];
+  // Schema v2026.07: calcJson.upsides = { ativos: [], paywalls: [] }.
+  // Categorias técnicas: ro · passivo · multiplo · qualitativo · paywall.
+  const upsObj = calcJson.upsides || {};
+  const ativos = Array.isArray(upsObj.ativos) ? upsObj.ativos : [];
+  const paywalls = Array.isArray(upsObj.paywalls) ? upsObj.paywalls : [];
   const wrap = el('upsides-content');
   if (!wrap) return;
 
-  if (ups.length === 0) {
-    wrap.innerHTML = '<div class="alert info">Nenhum upside identificado.</div>';
-    el('upsides-json').textContent = '[]';
-    return;
-  }
-
-  // Sumário por categoria
-  const cont = { obrigatorio:0, ganho_rapido:0, estrategico:0, transformacional:0, bloqueado:0 };
-  ups.forEach(u => { if (cont[u.categoria] !== undefined) cont[u.categoria]++; });
+  // Sumário por categoria técnica (admin vê tudo — D27)
+  const cont = { ro:0, passivo:0, multiplo:0, qualitativo:0, paywall:0 };
+  ativos.concat(paywalls).forEach(u => { if (cont[u.categoria] !== undefined) cont[u.categoria]++; });
 
   let html = '<div class="kpi-row">';
-  html += '<div class="kpi-card ' + (cont.obrigatorio > 0 ? 'err' : 'muted') + '"><div class="kpi-label">Obrigatórios</div><div class="kpi-value">' + cont.obrigatorio + '</div></div>';
-  html += '<div class="kpi-card"><div class="kpi-label">Ganho rápido</div><div class="kpi-value">' + cont.ganho_rapido + '</div></div>';
-  html += '<div class="kpi-card"><div class="kpi-label">Estratégicos</div><div class="kpi-value">' + cont.estrategico + '</div></div>';
-  html += '<div class="kpi-card"><div class="kpi-label">Transformacionais</div><div class="kpi-value">' + cont.transformacional + '</div></div>';
-  html += '<div class="kpi-card muted"><div class="kpi-label">Bloqueados (paywall)</div><div class="kpi-value">' + cont.bloqueado + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">RO</div><div class="kpi-value">' + cont.ro + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">Passivo</div><div class="kpi-value">' + cont.passivo + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">Múltiplo</div><div class="kpi-value">' + cont.multiplo + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">Qualitativo</div><div class="kpi-value">' + cont.qualitativo + '</div></div>';
+  html += '<div class="kpi-card muted"><div class="kpi-label">Paywall</div><div class="kpi-value">' + cont.paywall + '</div></div>';
   html += '</div>';
 
-  // Lista detalhada
-  html += '<h3>Lista completa (' + ups.length + ' upsides)</h3>';
-
-  ups.forEach(u => {
-    const cat = u.categoria || 'normal';
-    const acesso = u.acesso || 'free';
-    const imp = u.impacto_no_valuation || {};
-
-    // Pill da categoria — para 'obrigatorio', usa label_visivel ('Alerta' tributário / 'Crítico' geral)
-    // Cor: âmbar pra Alerta tributário; vermelho-vivo pra Crítico geral; outras seguem catColor.
-    let pillLabel = cat;
-    let pillCor = catColor(cat);
-    if (cat === 'obrigatorio') {
-      pillLabel = u.label_visivel || 'Crítico';
-      pillCor = (u.tipo === 'tributario' || (u.id && u.id.indexOf('tributario') >= 0)) ? 'amber' : 'red';
-    }
-
-    html += '<div class="upside-card cat-' + cat + '">';
-    html += '<div class="up-head">';
-    html += '<div>';
-    let pillHeader = pill(pillLabel, pillCor) + ' ' + pill(acesso, acesso === 'pago' ? 'muted' : 'green');
-    // Pill informativa pra bloqueados (admin vê todos sem blur, com etiqueta de destino)
-    if (cat === 'bloqueado') {
-      pillHeader += ' <span class="pill muted" style="font-size:9px">Visível só em laudo-pago R$99</span>';
-    }
-    html += '<div style="margin-bottom:4px">' + pillHeader + ' <span class="muted" style="font-size:10px;margin-left:6px">#' + (u.ordem_no_laudo || '?') + '</span></div>';
-    html += '<div class="up-title">' + escapeHtml(u.titulo || u.id) + '</div>';
-    if (u.subtitulo) html += '<div class="up-sub">' + escapeHtml(u.subtitulo) + '</div>';
-    html += '</div>';
-    if (imp.label) html += '<div class="num" style="font-size:11px;text-align:right;min-width:120px">' + escapeHtml(imp.label) + '</div>';
-    html += '</div>';
-
-    if (u.descricao_curta) html += '<div class="up-desc">' + escapeHtml(u.descricao_curta) + '</div>';
-    if (u.descricao_polida_ia) html += '<div class="up-desc"><strong style="color:var(--blue);font-size:10px;letter-spacing:0.1em">IA POLIDO:</strong> ' + escapeHtml(u.descricao_polida_ia) + '</div>';
-
+  // Renderizador de card de upside (compartilhado entre ativos e paywalls)
+  const renderCard = (u) => {
+    const cat = u.categoria || 'qualitativo';
+    let card = '<div class="upside-card cat-' + cat + '">';
+    card += '<div class="up-head"><div>';
+    card += '<div style="margin-bottom:4px">' + pill(cat, catColor(cat)) + ' <span class="muted" style="font-size:10px;margin-left:6px">' + escapeHtml(u.id) + '</span></div>';
+    card += '<div class="up-title">' + escapeHtml(u.label || u.id) + '</div>';
+    card += '</div></div>';
+    if (u.descricao) card += '<div class="up-desc">' + escapeHtml(u.descricao) + '</div>';
     const meta = [];
-    if (u.complexidade) meta.push('Complexidade: ' + u.complexidade);
-    if (u.tempo_estimado) meta.push('Tempo: ' + u.tempo_estimado);
-    if (u.exige_apoio) meta.push('Exige apoio: ' + (u.exige_apoio_tipo || 'sim'));
-    if (u.cta_consultoria) meta.push(pill('CTA Consultoria 1Negócio', 'purple'));
-    if (imp.valor_min_estimado != null) meta.push('Ganho estimado: ' + fc(imp.valor_min_estimado) + ' a ' + fc(imp.valor_max_estimado));
-    if (meta.length > 0) html += '<div class="up-meta">' + meta.map(m => '<span>' + m + '</span>').join('') + '</div>';
+    if (u.formula_calculo && u.formula_calculo.tipo) meta.push('fórmula: ' + escapeHtml(u.formula_calculo.tipo));
+    if (u.fonte_de_calculo) meta.push('fonte: ' + escapeHtml(u.fonte_de_calculo));
+    if (meta.length > 0) card += '<div class="up-meta">' + meta.map(m => '<span>' + m + '</span>').join('') + '</div>';
+    if (u.gate && u.gate.expressao) card += '<div class="up-fonte" style="font-family:DM Mono,monospace">gate: ' + escapeHtml(u.gate.expressao) + '</div>';
+    card += '</div>';
+    return card;
+  };
 
-    if (u.fonte_regra) html += '<div class="up-fonte">fonte_regra: ' + escapeHtml(u.fonte_regra) + '</div>';
+  // Lista 1 — Ativos (gates dispararam)
+  html += '<h3>Ativos (' + ativos.length + ')</h3>';
+  if (ativos.length === 0) html += '<div class="muted" style="margin-bottom:14px">Nenhum upside ativo (todos os gates negativos).</div>';
+  else ativos.forEach(u => { html += renderCard(u); });
 
-    html += '</div>';
-  });
+  // Lista 2 — Paywalls (sempre presentes, sem blur no admin — D27)
+  html += '<h3 style="margin-top:18px">Paywalls (' + paywalls.length + ')</h3>';
+  if (paywalls.length === 0) html += '<div class="muted">Nenhum paywall configurado.</div>';
+  else paywalls.forEach(u => { html += renderCard(u); });
 
   wrap.innerHTML = html;
-  el('upsides-json').textContent = JSON.stringify(ups, null, 2);
+  el('upsides-json').textContent = JSON.stringify(upsObj, null, 2);
 }
 
+// Cores por categoria técnica do schema v2026.07
 function catColor(cat) {
   switch(cat) {
-    case 'obrigatorio': return 'red';
-    case 'ganho_rapido': return 'green';
-    case 'estrategico': return 'blue';
-    case 'transformacional': return 'purple';
-    case 'bloqueado': return 'muted';
-    default: return 'muted';
+    case 'ro':           return 'green';
+    case 'passivo':      return 'red';
+    case 'multiplo':     return 'blue';
+    case 'qualitativo':  return 'purple';
+    case 'paywall':      return 'muted';
+    default:             return 'muted';
   }
 }
 
