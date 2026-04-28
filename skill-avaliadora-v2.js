@@ -1268,8 +1268,23 @@
 
     const s1 = dre.ro_anual > 0 ? 10 : 0;
 
-    const me = D.margem_estavel;
-    const s2 = (me === 'sim' || me === 'crescente') ? 10 : me === 'decrescente' ? 3 : 6;
+    // margem_estavel — D.margem_estavel é fantasma (sem pergunta no diag).
+    // Proxy via D.crescimento_pct (calculado em mapDadosV2 a partir de
+    // fat_anual vs fat_anterior, ou null se sem histórico).
+    // Proxy fraco — margem e faturamento não são idênticos, mas é o melhor que
+    // existe sem nova pergunta. Fail-closed se crescimento_pct ausente.
+    const cresc = D.crescimento_pct;
+    let s2;
+    if (cresc == null || cresc === 0 && (D._origem_campos && D._origem_campos.crescimento_pct === 'fallback_zero')) {
+      s2 = 0; // sem dado histórico, fail-closed
+    } else if (cresc >= 5) {
+      s2 = 10; // cresceu — sinal positivo
+    } else if (cresc >= -5) {
+      s2 = 6;  // estável
+    } else {
+      s2 = 2;  // caiu
+    }
+    const me = cresc; // valor exibido no schema é crescimento_pct numérico
 
     const imob = balanco.ativos.imobilizado_total;
     const selic = n(P.selic_anual) || 14.0;
