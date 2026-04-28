@@ -1717,33 +1717,39 @@
     const componente_setor_score = n((P.score_setor_atratividade || {})[setor_code]);
 
     // ── Componente 3: Crescimento (peso 25%) ──
-    let crescimento_pct;
-    let fonte_crescimento;
-    let penalidade_aplicada = 0;
+    // Frente 2.5 — Regra 2 (Coisa A não informa Coisa B):
+    // D.crescimento_proj_pct é projeção do vendedor (opinião não-validada) e
+    // não pode entrar em score. Removido o ramo de fallback que caía nele.
+    // O campo continua exposto em D para exibição contextual no laudo.
+    //
+    // Lógica:
+    //   - origem.crescimento_pct === 'informado': usa D.crescimento_pct +
+    //     P.faixas_crescimento → score (calibração inalterada)
+    //   - origem.crescimento_pct === 'fallback_zero': score 3 (entre "Em queda"=2
+    //     e "Estável"=4), metadata { motivo: 'sem_resposta', score: 3 }
+    //     Razão: pular pergunta é descaso, mas não é queda real. Score 3
+    //     comunica "você deveria ter respondido" sem premiar ausência.
+    const origemCresc = (D._origem_campos && D._origem_campos.crescimento_pct) || 'fallback_zero';
+    const respondido = (origemCresc === 'informado');
+    const crescimento_pct = respondido ? n(D.crescimento_pct) : 0;
+    const fonte_crescimento = respondido ? 'historico_real' : 'sem_resposta';
 
-    if (D.crescimento_pct !== undefined && D.crescimento_pct !== null && D.crescimento_pct !== 0) {
-      crescimento_pct = D.crescimento_pct;
-      fonte_crescimento = 'historico_real';
-    } else if (D.crescimento_proj_pct) {
-      crescimento_pct = D.crescimento_proj_pct;
-      fonte_crescimento = 'projecao_vendedor';
-    } else {
-      crescimento_pct = 0;
-      fonte_crescimento = 'sem_dados';
-    }
-
-    const faixas_cresc = P.faixas_crescimento || [];
-    let score_crescimento = 4; // default neutro (faixa estável)
-    for (const f of faixas_cresc) {
-      if (crescimento_pct >= f.min && crescimento_pct <= f.max) {
-        score_crescimento = f.score;
-        break;
+    let score_crescimento;
+    let metadata_crescimento = null;
+    if (respondido) {
+      const faixas_cresc = P.faixas_crescimento || [];
+      score_crescimento = 4; // default neutro caso nenhuma faixa encaixe
+      for (const f of faixas_cresc) {
+        if (crescimento_pct >= f.min && crescimento_pct <= f.max) {
+          score_crescimento = f.score;
+          break;
+        }
       }
+    } else {
+      score_crescimento = 3; // levemente penalizado: descaso < Estável (4), > Em queda (2)
+      metadata_crescimento = { componente: 'crescimento', motivo: 'sem_resposta', score: 3 };
     }
-    // Sem penalidade: se cliente informou crescimento (projeção), respeita o valor declarado;
-    // se não informou (sem_dados), score já caiu na faixa estável. fonte_crescimento fica
-    // no calc_json apenas como informação de origem (rastreabilidade).
-    penalidade_aplicada = 0;
+    const penalidade_aplicada = 0;
 
     // ── Contribuições (score × peso_pct / 10) ──
     const round2 = v => Math.round(v * 100) / 100;
@@ -1800,6 +1806,7 @@
           fonte_crescimento,
           crescimento_pct_aplicado: crescimento_pct,
           penalidade_aplicada,
+          metadata: metadata_crescimento,
         },
       ],
     };
