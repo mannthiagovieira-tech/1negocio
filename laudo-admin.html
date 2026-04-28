@@ -2865,27 +2865,33 @@ function renderUpsidesAdmin() {
   ativos.concat(paywalls).forEach(u => { if (cont[u.categoria] !== undefined) cont[u.categoria]++; });
 
   let html = '<div class="kpi-row">';
-  html += '<div class="kpi-card"><div class="kpi-label">RO</div><div class="kpi-value">' + cont.ro + '</div></div>';
-  html += '<div class="kpi-card"><div class="kpi-label">Passivo</div><div class="kpi-value">' + cont.passivo + '</div></div>';
-  html += '<div class="kpi-card"><div class="kpi-label">Múltiplo</div><div class="kpi-value">' + cont.multiplo + '</div></div>';
-  html += '<div class="kpi-card"><div class="kpi-label">Qualitativo</div><div class="kpi-value">' + cont.qualitativo + '</div></div>';
-  html += '<div class="kpi-card muted"><div class="kpi-label">Paywall</div><div class="kpi-value">' + cont.paywall + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">' + CATEGORIA_LABEL.ro + '</div><div class="kpi-value">' + cont.ro + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">' + CATEGORIA_LABEL.passivo + '</div><div class="kpi-value">' + cont.passivo + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">' + CATEGORIA_LABEL.multiplo + '</div><div class="kpi-value">' + cont.multiplo + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">' + CATEGORIA_LABEL.qualitativo + '</div><div class="kpi-value">' + cont.qualitativo + '</div></div>';
+  html += '<div class="kpi-card muted"><div class="kpi-label">' + CATEGORIA_LABEL.paywall + '</div><div class="kpi-value">' + cont.paywall + '</div></div>';
   html += '</div>';
 
   // Renderizador de card de upside (compartilhado entre ativos e paywalls)
   const renderCard = (u) => {
     const cat = u.categoria || 'qualitativo';
+    const catLabel = CATEGORIA_LABEL[cat] || cat;
     let card = '<div class="upside-card cat-' + cat + '">';
     card += '<div class="up-head"><div>';
-    card += '<div style="margin-bottom:4px">' + pill(cat, catColor(cat)) + ' <span class="muted" style="font-size:10px;margin-left:6px">' + escapeHtml(u.id) + '</span></div>';
+    card += '<div style="margin-bottom:4px">' + pill(catLabel, catColor(cat)) + ' <span class="muted" style="font-size:10px;margin-left:6px">' + escapeHtml(u.id) + '</span></div>';
     card += '<div class="up-title">' + escapeHtml(u.label || u.id) + '</div>';
     card += '</div></div>';
     if (u.descricao) card += '<div class="up-desc">' + escapeHtml(u.descricao) + '</div>';
-    const meta = [];
-    if (u.formula_calculo && u.formula_calculo.tipo) meta.push('fórmula: ' + escapeHtml(u.formula_calculo.tipo));
-    if (u.fonte_de_calculo) meta.push('fonte: ' + escapeHtml(u.fonte_de_calculo));
-    if (meta.length > 0) card += '<div class="up-meta">' + meta.map(m => '<span>' + m + '</span>').join('') + '</div>';
-    if (u.gate && u.gate.expressao) card += '<div class="up-fonte" style="font-family:DM Mono,monospace">gate: ' + escapeHtml(u.gate.expressao) + '</div>';
+    // Detalhes técnicos colapsáveis (default fechado) — fórmula, fonte, gate
+    const tech = [];
+    if (u.formula_calculo && u.formula_calculo.tipo) tech.push('<div><span class="muted">fórmula:</span> ' + escapeHtml(u.formula_calculo.tipo) + '</div>');
+    if (u.fonte_de_calculo) tech.push('<div><span class="muted">fonte:</span> ' + escapeHtml(u.fonte_de_calculo) + '</div>');
+    if (u.gate && u.gate.expressao) tech.push('<div style="font-family:DM Mono,monospace;font-size:10.5px"><span class="muted">gate:</span> ' + escapeHtml(u.gate.expressao) + '</div>');
+    if (tech.length > 0) {
+      card += '<details class="upside-tech"><summary class="muted" style="cursor:pointer;font-size:11px;margin-top:8px">▸ Detalhes técnicos</summary>';
+      card += '<div style="margin-top:6px;padding-left:14px;font-size:11px;line-height:1.6">' + tech.join('') + '</div>';
+      card += '</details>';
+    }
     card += '</div>';
     return card;
   };
@@ -2921,6 +2927,16 @@ function renderUpsidesAdmin() {
   wrap.innerHTML = html;
   el('upsides-json').textContent = JSON.stringify({ upsides: upsObj, recomendacoes_pre_venda: recs }, null, 2);
 }
+
+// Labels human-readable das categorias técnicas (schema v2026.07).
+// Cor segue catColor — só o texto exibido muda.
+const CATEGORIA_LABEL = {
+  ro:           'Resultado Operacional',
+  passivo:      'Redução de Passivos',
+  multiplo:     'Aumento de Múltiplo',
+  qualitativo:  'Qualitativo',
+  paywall:      'Bloqueado (R$99)',
+};
 
 // Cores por categoria técnica do schema v2026.07
 function catColor(cat) {
