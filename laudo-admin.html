@@ -508,8 +508,18 @@
     </div>
 
     <!-- 11. OPERACIONAL -->
+    <div class="section" id="sec-potencial-12m">
+      <div class="section-head">
+        <h2><span class="num">11</span>POTENCIAL 12M</h2>
+      </div>
+      <div class="section-body">
+        <div id="potencial-12m-content"></div>
+        <details style="margin-top:12px"><summary class="muted">JSON bruto</summary><pre id="potencial-12m-json" class="raw-json"></pre></details>
+      </div>
+    </div>
+
     <div class="section" id="sec-operacional">
-      <div class="section-head"><h2><span class="num">11</span>OPERACIONAL</h2></div>
+      <div class="section-head"><h2><span class="num">12</span>OPERACIONAL</h2></div>
       <div class="section-body">
         <div class="kv-grid" id="operacional-kv"></div>
       </div>
@@ -518,7 +528,7 @@
     <!-- 12. INDICADORES VS BENCHMARK -->
     <div class="section" id="sec-indicadores">
       <div class="section-head">
-        <h2><span class="num">12</span>INDICADORES VS BENCHMARK</h2>
+        <h2><span class="num">13</span>INDICADORES VS BENCHMARK</h2>
         <span class="toggle" onclick="toggleJson('indicadores-json')">[ JSON ]</span>
       </div>
       <div class="section-body">
@@ -530,7 +540,7 @@
     <!-- 13. TEXTOS IA -->
     <div class="section" id="sec-textos-ia">
       <div class="section-head">
-        <h2><span class="num">13</span>TEXTOS GERADOS POR IA</h2>
+        <h2><span class="num">14</span>TEXTOS GERADOS POR IA</h2>
         <span class="toggle" onclick="toggleJson('textos-ia-json')">[ JSON ]</span>
       </div>
       <div class="section-body">
@@ -542,7 +552,7 @@
     <!-- 14. JSON BRUTO COMPLETO -->
     <div class="section" id="sec-raw">
       <div class="section-head">
-        <h2><span class="num">14</span>JSON BRUTO COMPLETO</h2>
+        <h2><span class="num">15</span>JSON BRUTO COMPLETO</h2>
         <span class="toggle" onclick="toggleJson('raw-json')">[ JSON ]</span>
       </div>
       <div class="section-body">
@@ -948,6 +958,7 @@ function renderTudo() {
   renderAtratividadeAdmin();
   renderTributariaAdmin();
   renderUpsidesAdmin();
+  renderPotencial12m();
   renderOperacional();
   renderIndicadores();
   renderTextosIA();
@@ -1702,7 +1713,106 @@ function catColor(cat) {
   }
 }
 
-// ─── 11. OPERACIONAL ──────────────────────────────────
+// ─── 11. POTENCIAL 12M ──────────────────────────────────
+// Schema: potencial_12m.{upsides_ativos[], agregacao.{tributario, por_categoria,
+// potencial_alavancas_pre_ise_pct, cap_ise, cap_absoluto, tributario_dominante},
+// potencial_final.{pct,brl,valor_projetado_brl}}.
+// D-A: pill "tributário dominante" no topo + badge na linha do tributário.
+// D-H: economia=0 mostra zero com observação destacada (admin soberano).
+// D27: mostra TUDO, incluindo zerados.
+function renderPotencial12m() {
+  const p = calcJson.potencial_12m || {};
+  const wrap = el('potencial-12m-content');
+  if (!wrap) return;
+  if (!p.potencial_final) {
+    wrap.innerHTML = '<div class="alert info">potencial_12m ausente do calc_json.</div>';
+    el('potencial-12m-json').textContent = '{}';
+    return;
+  }
+  const a = p.agregacao || {};
+  const trib = a.tributario || { brl: 0, pct: 0 };
+  const cats = a.por_categoria || {};
+  const capIse = a.cap_ise || {};
+  const capAbs = a.cap_absoluto || {};
+  const final = p.potencial_final || {};
+
+  const fmtPct = (v) => v == null ? '—' : (v * 100).toFixed(2) + '%';
+
+  // Pills do header (D-A)
+  let html = '<div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">';
+  html += pill(a.tributario_dominante ? 'Tributário dominante' : 'Tributário acessório', a.tributario_dominante ? 'amber' : 'muted');
+  if (capIse.cap_aplicado) html += pill('Cap ISE aplicado', 'amber');
+  if (capAbs.aplicado) html += pill('Cap absoluto aplicado', 'red');
+  html += '</div>';
+
+  // KPIs principais
+  html += '<div class="kpi-row">';
+  html += '<div class="kpi-card"><div class="kpi-label">Pré-ISE</div><div class="kpi-value">' + fmtPct(a.potencial_alavancas_pre_ise_pct) + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">Pós-ISE</div><div class="kpi-value">' + fmtPct(capIse.potencial_pos_ise_pct) + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">Final %</div><div class="kpi-value">' + fmtPct(final.pct) + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">Final R$</div><div class="kpi-value">' + fc(final.brl || 0) + '</div></div>';
+  html += '<div class="kpi-card"><div class="kpi-label">Valor projetado</div><div class="kpi-value">' + fc(final.valor_projetado_brl || 0) + '</div></div>';
+  html += '</div>';
+
+  // Tributário (D-H — mostrar zero com observação)
+  html += '<h3>Tributário</h3>';
+  html += '<table class="tbl"><tbody>';
+  html += '<tr><td>Contribuição (R$)</td><td class="num" style="text-align:right">' + fc(trib.brl || 0) + '</td>'
+       + '<td>' + (a.tributario_dominante ? pill('dominante', 'amber') : '<span class="muted">não dominante</span>') + '</td></tr>';
+  html += '<tr><td>Contribuição (%)</td><td class="num" style="text-align:right">' + fmtPct(trib.pct) + '</td><td class="muted" style="font-size:11px">sem cap</td></tr>';
+  html += '<tr><td>Fonte</td><td colspan="2" class="muted" style="font-size:11px">' + escapeHtml(trib.fonte || '—') + '</td></tr>';
+  html += '</tbody></table>';
+  // Observação destacada quando economia=0 ou outras
+  const obsTrib = (calcJson.analise_tributaria && calcJson.analise_tributaria.economia_potencial && calcJson.analise_tributaria.economia_potencial.observacao);
+  if (obsTrib) html += '<div class="alert info" style="margin-top:6px">' + escapeHtml(obsTrib) + '</div>';
+
+  // Por categoria (RO / Passivo / Múltiplo)
+  html += '<h3 style="margin-top:18px">Agregação por categoria</h3>';
+  html += '<table class="tbl"><thead><tr><th>Categoria</th><th style="text-align:right">Bruto</th><th>Cap aplicado?</th><th style="text-align:right">Após cap</th></tr></thead><tbody>';
+  ['ro', 'passivo', 'multiplo'].forEach(k => {
+    const c = cats[k] || {};
+    const capCls = c.cap_aplicado ? 'warn' : 'muted';
+    html += '<tr><td>' + k + '</td>'
+         + '<td class="num" style="text-align:right">' + fmtPct(c.bruto_pct) + '</td>'
+         + '<td class="' + capCls + '" style="font-size:11px">' + (c.cap_aplicado ? 'sim' : 'não') + '</td>'
+         + '<td class="num" style="text-align:right">' + fmtPct(c.capped_pct) + '</td></tr>';
+  });
+  html += '</tbody></table>';
+
+  // Caps globais
+  html += '<h3 style="margin-top:18px">Caps globais</h3>';
+  html += '<div class="kv-grid">';
+  html += '<div class="k">ISE score (raw)</div><div class="v">' + (capIse.ise_score != null ? capIse.ise_score : '—') + '</div>';
+  html += '<div class="k">ISE arredondado</div><div class="v">' + (capIse.ise_score_arredondado != null ? capIse.ise_score_arredondado : '—') + '</div>';
+  html += '<div class="k">Faixa cap_ise</div><div class="v">' + escapeHtml(capIse.faixa || '—') + '</div>';
+  html += '<div class="k">cap_ise.aplicavel</div><div class="v">' + (capIse.cap_aplicavel != null ? (capIse.cap_aplicavel * 100).toFixed(0) + '%' : '—') + '</div>';
+  html += '<div class="k">cap_ise.aplicado</div><div class="v ' + (capIse.cap_aplicado ? 'warn' : 'muted') + '">' + (capIse.cap_aplicado ? 'sim' : 'não') + '</div>';
+  html += '<div class="k">cap_absoluto.threshold</div><div class="v">' + (capAbs.threshold != null ? (capAbs.threshold * 100).toFixed(0) + '%' : '—') + '</div>';
+  html += '<div class="k">cap_absoluto.aplicado</div><div class="v ' + (capAbs.aplicado ? 'warn' : 'muted') + '">' + (capAbs.aplicado ? 'sim' : 'não') + '</div>';
+  html += '</div>';
+
+  // Upsides ativos com brl
+  const ups = Array.isArray(p.upsides_ativos) ? p.upsides_ativos : [];
+  html += '<h3 style="margin-top:18px">Upsides com contribuição monetária (' + ups.length + ')</h3>';
+  if (ups.length === 0) {
+    html += '<div class="muted">Nenhum upside ativo com contribuição monetária.</div>';
+  } else {
+    html += '<table class="tbl"><thead><tr><th>Upside</th><th>Categoria</th><th style="text-align:right">Bruto</th><th style="text-align:right">Pós cap categoria</th><th style="text-align:right">R$</th></tr></thead><tbody>';
+    ups.forEach(u => {
+      html += '<tr><td>' + escapeHtml(u.label || u.id) + '</td>'
+           + '<td>' + pill(u.categoria || 'qualitativo', catColor(u.categoria || 'qualitativo')) + '</td>'
+           + '<td class="num" style="text-align:right">' + fmtPct(u.contribuicao_bruta_pct) + '</td>'
+           + '<td class="num" style="text-align:right">' + fmtPct(u.contribuicao_pos_cap_categoria_pct) + '</td>'
+           + '<td class="num" style="text-align:right">' + fc(u.contribuicao_brl || 0) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+
+  wrap.innerHTML = html;
+  el('potencial-12m-json').textContent = JSON.stringify(p, null, 2);
+}
+
+// ─── 12. OPERACIONAL ──────────────────────────────────
 // Operacional: APENAS dados crus do negócio.
 // Indicadores derivados (ticket_medio, ro_por_funcionario, recorrencia_pct,
 // concentracao_pct, etc.) ficam na seção 12 (indicadores_vs_benchmark).
