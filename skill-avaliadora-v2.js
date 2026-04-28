@@ -613,9 +613,6 @@
       p1(d.fat_mensal, dados.fat_mensal, dados.faturamento_anual ? dados.faturamento_anual/12 : 0));
     const fat_anual = tag('fat_anual',
       p1(d.fat_anual, dados.faturamento_anual, d.faturamento_anual, fat_mensal * 12));
-    const fat_anterior = tag('fat_anterior',
-      p1(d.fat_anterior, d.fat_ano_anterior, dados.fat_anterior, dados.fat_ano_anterior));
-
     // crescimento_pct — vendedor responde slider em t16 do diagnóstico.
     // Distingue 0 deliberado ("Estável") de 0 ausente (não respondeu).
     // Bug B documentado em b174152 + investigação pós-0c67dab: o ramo de
@@ -818,12 +815,6 @@
 
     const concentracao_pct = n(p1(d.concentracao_pct, d.maior_cliente_pct));
 
-    let crescimento_label = d.crescimento || 'estavel';
-    if (crescimento_label === 'declinando') crescimento_label = 'caindo';
-    if (!['10a20','ate20','mais20','ate10','caindo','estavel'].includes(crescimento_label)) {
-      crescimento_label = 'estavel';
-    }
-
     // ── Operacional ──
     const num_funcs = n(p1(dados.num_funcionarios, d.num_funcs, d.num_funcionarios, d.clt_qtd));
     const clientes = n(p1(d.cli_1m, d.clientes_ativos));
@@ -853,8 +844,8 @@
 
       regime, anexo,
 
-      fat_mensal, fat_anual, fat_anterior,
-      crescimento_pct, crescimento_label, crescimento_proj_pct,
+      fat_mensal, fat_anual,
+      crescimento_pct, crescimento_proj_pct,
 
       // Pré-calculados (overrides do diagnóstico)
       impostos_precalc: n(p1(d.impostos_mensal, d.imposto_calculado)),
@@ -2198,7 +2189,6 @@
   function calcICDv2(D, P) {
     const CAMPOS_ICD = [
       { id: 'fat_mensal',          label: 'Faturamento mensal',         critico: true },
-      { id: 'fat_anterior',        label: 'Faturamento ano anterior',   critico: false },
       { id: 'cmv_mensal',          label: 'CMV / Custo direto',         critico: false },
       { id: 'clt_folha',           label: 'Folha CLT',                  critico: true },
       { id: 'pj_custo',            label: 'Custos PJ',                  critico: false },
