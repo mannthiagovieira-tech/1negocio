@@ -33,7 +33,7 @@ require(path.join(process.env.HOME, '1negocio/skill-avaliadora-v2.js'));
 const forste = {
   nome:'Forste', nome_responsavel:'Mariah', setor:'servicos_empresas',
   modelo_atuacao_multi:['presta_servico'], regime_tributario:'simples', anexo:'III',
-  fat_mensal:65000, fat_anterior:0, cmv_mensal:0,
+  fat_mensal:65000, cmv_mensal:0, crescimento_pct:8,
   clt_folha:17000, clt_qtd:2, pj_custo:0, pj_qtd:1,
   prolabore:0, num_socios:1,
   aluguel:4500, custo_sistemas:1200, custo_outros:7000, mkt_valor:5000,

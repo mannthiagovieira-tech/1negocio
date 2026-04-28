@@ -1,4 +1,4 @@
-// Validação Forste completa: rodar contra v2026.06, comparar com resultado pré-refactor
+// Validação Forste completa: rodar contra v2026.07 (snapshot ativo), comparar com pré-refactor
 const fs = require('fs'); const path = require('path');
 global.window = global;
 const sqlBase = fs.readFileSync(path.join(process.env.HOME, '1negocio/migrations/002_seed_parametros_v2026_04.sql'), 'utf8');
@@ -18,15 +18,22 @@ while ((m7 = re7.exec(sql07)) !== null) blocks07.push(JSON.parse(m7[1]));
 const v06 = JSON.parse(JSON.stringify(v05));
 v06._meta = blocks07[0];
 for (let i = 1; i < blocks07.length; i++) Object.assign(v06, blocks07[i]);
+// 008: P2 reduzido a 2 sub-métricas (margem_estavel removida)
+const sql08 = fs.readFileSync(path.join(process.env.HOME, '1negocio/migrations/008_seed_parametros_v2026_07.sql'), 'utf8');
+const blocks08 = []; let m8; const re8 = /\$json\$([\s\S]*?)\$json\$/g;
+while ((m8 = re8.exec(sql08)) !== null) blocks08.push(JSON.parse(m8[1]));
+const v07 = JSON.parse(JSON.stringify(v06));
+v07._meta = blocks08[0];
+v07.pesos_sub_metricas_ise.p2_resultado = blocks08[1];
 
-global.fetch = async () => ({ ok:true, json: async ()=>([{id:'v2026.06',ativo:true,snapshot:v06}]) });
+global.fetch = async () => ({ ok:true, json: async ()=>([{id:'v2026.07',ativo:true,snapshot:v07}]) });
 global.document = { addEventListener:()=>{} };
 require(path.join(process.env.HOME, '1negocio/skill-avaliadora-v2.js'));
 
 const forste = {
   nome:'Forste', nome_responsavel:'Mariah', setor:'servicos_empresas',
   modelo_atuacao_multi:['presta_servico'], regime_tributario:'simples', anexo:'III',
-  fat_mensal:65000, fat_anterior:0, cmv_mensal:0,
+  fat_mensal:65000, cmv_mensal:0, crescimento_pct:8,
   clt_folha:17000, clt_qtd:2, pj_custo:0, pj_qtd:1,
   prolabore:0, num_socios:1,
   aluguel:4500, custo_sistemas:1200, custo_outros:7000, mkt_valor:5000,
@@ -51,7 +58,7 @@ const forste = {
   const p12 = calc.potencial_12m;
   const a = p12.agregacao;
 
-  console.log('=== ISE — pós-refactor (snapshot v2026.06) ===');
+  console.log('=== ISE — pós-refactor (snapshot v2026.07) ===');
   console.log(`ISE total: ${ise.ise_total} (classe: ${ise.classe}, fator: ${ise.fator_classe})`);
   console.log('\nBreakdown por pilar:');
   ise.pilares.forEach(p => {

@@ -77,7 +77,7 @@ const forste = {
   regime_tributario:'simples', anexo:'III',
   cidade:'Florianópolis', estado:'SC',
   anos_existencia:7, expectativa_valor_dono:600000, pct_produto:0,
-  fat_mensal:65000, fat_anterior:0, cmv_mensal:0,
+  fat_mensal:65000, cmv_mensal:0, crescimento_pct:8,
   clt_folha:17000, clt_qtd:2, pj_custo:0, pj_qtd:1,
   prolabore:0, num_socios:1,
   aluguel:4500, custo_sistemas:1200, custo_outros:7000, mkt_valor:5000,
