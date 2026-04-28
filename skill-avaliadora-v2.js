@@ -1875,7 +1875,9 @@
   }
 
   // ============================================================
-  // calcIndicadoresV2 — 9 indicadores vs benchmark setorial
+  // calcIndicadoresV2 — 18 indicadores consolidados
+  // Schema: { id, label, valor, unidade, benchmark, delta_pp, status, sentido, regra_aplicada, observacao }
+  // benchmark/delta_pp/status = null quando não há benchmark setorial.
   // ============================================================
 
   function calcIndicadoresV2(D, dre, balanco, P) {
@@ -1885,62 +1887,108 @@
     const fat = n(dre.fat_mensal);
 
     const round2 = x => Math.round(n(x) * 100) / 100;
-    const ind = (valor, benchmark, sentido, observacao) => ({
-      valor: round2(valor),
-      benchmark: round2(benchmark),
-      delta_pp: round2(n(valor) - n(benchmark)),
-      status: calcStatusIndicador(valor, benchmark, sentido),
-      sentido,
-      observacao: observacao || null,
-    });
+    const REGRAS = {
+      maior_melhor: 'valor ≥ benchmark → no_alvo · 90-99% bench → atencao · <90% → abaixo',
+      menor_melhor: 'valor ≤ benchmark → no_alvo · 100-110% bench → atencao · >110% → abaixo',
+      neutro: 'comparação não aplica (neutro)',
+    };
 
-    // Margens
-    const margem_operacional = ind(dre.margem_operacional_pct, benchDre.margem_op, 'maior_melhor');
+    function ind(id, label, unidade, valor, benchmark, sentido, observacao) {
+      const v = round2(valor);
+      const hasBench = benchmark != null && benchmark !== '' && !isNaN(n(benchmark));
+      const b = hasBench ? round2(benchmark) : null;
+      const delta_pp = hasBench ? round2(n(valor) - n(benchmark)) : null;
+      const status = hasBench ? calcStatusIndicador(valor, benchmark, sentido) : null;
+      const regra_aplicada = hasBench ? (REGRAS[sentido] || 'sem regra') : 'sem benchmark';
+      return {
+        id, label, valor: v, unidade,
+        benchmark: b, delta_pp, status,
+        sentido: sentido || null,
+        regra_aplicada,
+        observacao: observacao || null,
+      };
+    }
+
+    // ── Margens ──
+    const margem_operacional = ind('margem_operacional', 'Margem operacional', '%',
+      dre.margem_operacional_pct, benchDre.margem_op, 'maior_melhor');
     const margemBrutaVal = dre.bloco_2_lucro_bruto && dre.bloco_2_lucro_bruto.margem_bruta_pct;
-    const margem_bruta = ind(margemBrutaVal, benchInd.margem_bruta, 'maior_melhor');
+    const margem_bruta = ind('margem_bruta', 'Margem bruta', '%',
+      margemBrutaVal, benchInd.margem_bruta, 'maior_melhor');
+    const lucro_liq_mensal = n(dre.lucro_liquido_mensal);
+    const margemLiqVal = fat > 0 ? (lucro_liq_mensal / fat) * 100 : 0;
+    const margem_liquida = ind('margem_liquida', 'Margem líquida', '%',
+      margemLiqVal, null, 'maior_melhor');
 
-    // Comercial
-    const recorrencia = ind(D.recorrencia_pct, benchInd.recorrencia_tipica, 'maior_melhor');
-    const concentracao = ind(D.concentracao_pct, benchInd.concentracao_max, 'menor_melhor');
-
-    // Ciclo
-    const pmr = ind(D.pmr, benchInd.pmr, 'menor_melhor');
-    const pmp = ind(D.pmp, benchInd.pmp, 'maior_melhor');
-
-    // Custos como % do faturamento
+    // ── Custos como % do faturamento ──
     const cmvPctVal = fat > 0 ? (n(dre.cmv) / fat) * 100 : 0;
     const isServicoPuro = n(D.pct_produto) === 0;
-    const cmv_pct = ind(
-      cmvPctVal,
-      benchDre.cmv,
+    const cmv_pct = ind('cmv_pct', 'CMV / Custo direto', '%',
+      cmvPctVal, benchDre.cmv,
       isServicoPuro ? 'neutro' : 'menor_melhor',
-      isServicoPuro ? 'Serviço puro — CMV não aplicável (pct_produto = 0)' : null
-    );
+      isServicoPuro ? 'Serviço puro — CMV não aplicável (pct_produto = 0)' : null);
 
     const folhaTotal = n(dre.bloco_3_operacional && dre.bloco_3_operacional.pessoal && dre.bloco_3_operacional.pessoal.folha_total);
     const folhaPctVal = fat > 0 ? (folhaTotal / fat) * 100 : 0;
-    const folha_pct = ind(folhaPctVal, benchDre.folha, 'menor_melhor');
+    const folha_pct = ind('folha_pct', 'Folha (% fat)', '%',
+      folhaPctVal, benchDre.folha, 'menor_melhor');
 
     const aluguelVal = n(dre.bloco_3_operacional && dre.bloco_3_operacional.ocupacao && dre.bloco_3_operacional.ocupacao.aluguel);
     const aluguelPctVal = fat > 0 ? (aluguelVal / fat) * 100 : 0;
-    const aluguel_pct = ind(aluguelPctVal, benchDre.aluguel, 'menor_melhor');
+    const aluguel_pct = ind('aluguel_pct', 'Aluguel (% fat)', '%',
+      aluguelPctVal, benchDre.aluguel, 'menor_melhor');
 
-    // Marketing % do faturamento
     const mktVal = n(dre.bloco_3_operacional && dre.bloco_3_operacional.operacional_outros && dre.bloco_3_operacional.operacional_outros.mkt_pago);
     const mktPctVal = fat > 0 ? (mktVal / fat) * 100 : 0;
-    const mkt_pct = ind(mktPctVal, benchDre.mkt, 'menor_melhor');
+    const mkt_pct = ind('mkt_pct', 'Marketing (% fat)', '%',
+      mktPctVal, benchDre.mkt, 'menor_melhor');
 
-    // Total de deduções % do faturamento (Bloco 1: PIS+COFINS+ISS+ICMS+taxas+royalty etc)
+    const outrosCfVal = n(dre.bloco_3_operacional && dre.bloco_3_operacional.operacional_outros && dre.bloco_3_operacional.operacional_outros.outros_cf);
+    const outrosCfPctVal = fat > 0 ? (outrosCfVal / fat) * 100 : 0;
+    const outros_cf_pct = ind('outros_cf_pct', 'Outros custos fixos (% fat)', '%',
+      outrosCfPctVal, benchDre.outros_cf, 'menor_melhor');
+
     const deducoesVal = n(dre.bloco_1_receita && dre.bloco_1_receita.total_deducoes);
     const deducoesPctVal = fat > 0 ? (deducoesVal / fat) * 100 : 0;
-    const deducoes_pct = ind(deducoesPctVal, benchDre.deducoes, 'menor_melhor');
+    const deducoes_pct = ind('deducoes_pct', 'Total de deduções (% fat)', '%',
+      deducoesPctVal, benchDre.deducoes, 'menor_melhor');
+
+    // ── Comerciais ──
+    const concentracao = ind('concentracao', 'Concentração de cliente', '%',
+      D.concentracao_pct, benchInd.concentracao_max, 'menor_melhor');
+    const recorrencia = ind('recorrencia', 'Recorrência da receita', '%',
+      D.recorrencia_pct, benchInd.recorrencia_tipica, 'maior_melhor');
+    const num_clientes = ind('num_clientes', 'Clientes ativos', 'unid',
+      n(D.clientes), null, 'maior_melhor');
+    const numClientes = n(D.clientes);
+    const ticketVal = numClientes > 0 ? fat / numClientes : 0;
+    const ticket_medio = ind('ticket_medio', 'Ticket médio', 'R$',
+      ticketVal, null, 'maior_melhor');
+
+    // ── Capital de giro ──
+    const pmr_dias = ind('pmr_dias', 'PMR (prazo médio recebimento)', 'dias',
+      n(D.pmr), benchInd.pmr, 'menor_melhor');
+    const pmp_dias = ind('pmp_dias', 'PMP (prazo médio pagamento)', 'dias',
+      n(D.pmp), benchInd.pmp, 'maior_melhor');
+    const ciclo_financeiro_dias = ind('ciclo_financeiro_dias', 'Ciclo financeiro', 'dias',
+      n(balanco && balanco.ciclo_financeiro && balanco.ciclo_financeiro.ciclo_dias),
+      null, 'menor_melhor');
+    const ncgVal = n(balanco && balanco.ncg && balanco.ncg.valor);
+    const ncg_valor = ind('ncg_valor', 'Necessidade de capital de giro (NCG)', 'R$',
+      ncgVal, null, 'menor_melhor');
+
+    // ── Produtividade ──
+    const numFuncs = n(D.clt_qtd) + n(D.pj_qtd);
+    const roPorFunc = numFuncs > 0 ? n(dre.ro_mensal) / numFuncs : 0;
+    const ro_por_funcionario_mensal = ind('ro_por_funcionario_mensal', 'RO por funcionário (mensal)', 'R$',
+      roPorFunc, null, 'maior_melhor');
 
     return {
-      margem_operacional, margem_bruta,
-      recorrencia, concentracao,
-      pmr, pmp,
-      cmv_pct, folha_pct, aluguel_pct,
-      mkt_pct, deducoes_pct,
+      margem_operacional, margem_bruta, margem_liquida,
+      cmv_pct, folha_pct, aluguel_pct, mkt_pct, outros_cf_pct, deducoes_pct,
+      concentracao, recorrencia, num_clientes, ticket_medio,
+      pmr_dias, pmp_dias, ciclo_financeiro_dias, ncg_valor,
+      ro_por_funcionario_mensal,
     };
   }
 
@@ -2539,19 +2587,20 @@
     const indicadores = calcIndicadoresV2(D, dre, balanco, P);
     const icd = calcICDv2(D, P);
 
+    // Operacional: APENAS dados crus (não derivados).
+    // Indicadores derivados (ticket_medio, ro_por_funcionario, etc.) estão em
+    // calcJson.indicadores_vs_benchmark. Mantém concentracao_status porque é
+    // status (não valor) e é referência rápida no header da seção.
     const num_total = n(D.clt_qtd) + n(D.pj_qtd);
     const operacional = {
-      num_funcs_clt: n(D.clt_qtd),
-      num_funcs_pj: n(D.pj_qtd),
-      num_funcs_total: num_total,
-      clientes_ativos: n(D.clientes) || null,
-      ticket_medio_mensal: n(D.ticket) || null,
-      recorrencia_pct: n(D.recorrencia_pct),
-      concentracao_pct: n(D.concentracao_pct),
+      num_funcionarios: num_total,
+      num_clientes: n(D.clientes) || null,
+      tempo_operacao_anos: n(D.anos) || null,
+      fat_mensal: n(dre.fat_mensal),
+      fat_anual: n(dre.fat_anual),
+      num_socios: n(D.num_socios) || 1,
+      prolabore_mensal_total: n(D.prolabore),
       concentracao_status: indicadores.concentracao && indicadores.concentracao.status,
-      processos: D.processos,
-      dependencia_socio: D.dependencia,
-      ro_por_funcionario_mensal: num_total > 0 ? Math.round(dre.ro_mensal / num_total) : null,
     };
 
     const upsides = gerarUpsidesV2(D, dre, balanco, ise, valuation, indicadores, analise_tributaria, P);
