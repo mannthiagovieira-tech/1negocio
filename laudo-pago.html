@@ -2483,11 +2483,35 @@ function renderIndicadores() {
   const keys = Object.keys(ind).filter(k => !k.startsWith('_'));
   if (keys.length === 0) return '';
 
-  // Sumário por status
+  // Override de status pra indicadores específicos:
+  // - pmp_dias/pmr_dias: sem status (não há referência universal isolada)
+  // - ciclo_financeiro_dias: regra local baseada em valor (a regra do skill é
+  //   genérica menor_melhor; aqui aplicamos faixas de negócio)
+  function overrideStatus(it, k) {
+    if (k === 'pmp_dias' || k === 'pmr_dias') return null;  // sem status
+    if (k === 'ciclo_financeiro_dias') {
+      const v = n(it.valor);
+      if (v <= 0)  return { chip: 'g', label: 'EXCELENTE' };
+      if (v <= 30) return { chip: 'g', label: 'BOM' };
+      if (v <= 60) return { chip: 'm', label: 'NORMAL' };
+      return       { chip: 'a', label: 'ATENÇÃO' };
+    }
+    return undefined;  // não-overridden — usa it.status
+  }
+
+  // Sumário por status (respeitando override)
   const cont = { no_alvo: 0, atencao: 0, abaixo: 0, neutro: 0, sem_benchmark: 0 };
   keys.forEach(k => {
     const it = ind[k];
     if (!it) return;
+    const ov = overrideStatus(it, k);
+    if (ov === null) return;  // PMP/PMR não entram no sumário
+    if (ov && typeof ov === 'object') {
+      if (ov.chip === 'g')      cont.no_alvo++;
+      else if (ov.chip === 'a') cont.atencao++;
+      else                       cont.neutro++;
+      return;
+    }
     if (it.status && cont[it.status] !== undefined) cont[it.status]++;
     else cont.sem_benchmark++;
   });
@@ -2516,9 +2540,19 @@ function renderIndicadores() {
       const sufx = it.unidade === '%' || it.unidade === 'dias' ? (it.unidade === '%' ? 'pp' : 'd') : '';
       deltaTxt = sign + n(it.delta_pp).toFixed(1) + sufx;
     }
-    const statusTxt = it.status
-      ? '<span class="chip ' + statusCor(it.status) + '">' + statusLabel(it.status) + '</span>'
-      : '<span style="color:var(--ink4);font-size:9px">sem bench</span>';
+    const ov = overrideStatus(it, k);
+    let statusTxt;
+    if (ov === null) {
+      // PMP/PMR — célula vazia (— neutro)
+      statusTxt = '<span style="color:var(--ink4)">—</span>';
+    } else if (ov && typeof ov === 'object') {
+      // Override (ciclo_financeiro_dias)
+      statusTxt = '<span class="chip ' + ov.chip + '">' + ov.label + '</span>';
+    } else if (it.status) {
+      statusTxt = '<span class="chip ' + statusCor(it.status) + '">' + statusLabel(it.status) + '</span>';
+    } else {
+      statusTxt = '<span style="color:var(--ink4);font-size:9px">sem bench</span>';
+    }
     tbl += '<tr>'
       + '<td>' + escapeHtml(it.label || k) + (it.observacao ? '<div style="font-size:9px;color:var(--ink4);font-style:italic;margin-top:2px">' + escapeHtml(it.observacao) + '</div>' : '') + '</td>'
       + '<td>' + valorTxt + '</td>'
