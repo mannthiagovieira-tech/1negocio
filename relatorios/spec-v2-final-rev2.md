@@ -1,88 +1,46 @@
-# 1Negócio · Spec calc_json v2 — Revisão 3
-**Substitui rev2. Incorpora 8 evoluções das sessões 28-29/04/2026 (validação + implementação).**
-*29/04/2026*
-
-> **Histórico:** rev1 (parcial), rev2 (27/04/2026, 1621 linhas, 20 decisões),
-> **rev3** (29/04/2026, +6 decisões = 26 — inclui #21 "Estratégia paralela" que estava em LEIA-ME mas ausente da tabela §1 da rev2 — novo bloco potencial_12m, novo bloco
-> recomendacoes_pre_venda, upsides reorganizados como `{ativos, paywalls}`,
-> componente Crescimento usando histórico em vez de projeção, categorias
-> técnicas dos upsides, regras de exibição padronizadas pra cards).
+> ⚠️ DOCUMENTO HISTÓRICO PRESERVADO PARA REFERÊNCIA
+>
+> Versão vigente: relatorios/spec-v2-final-rev3.md (29/04/2026)
+> Esta rev2 foi escrita em 27/04/2026 e foi substituída pela rev3.
+> Mantida aqui para auditoria de evolução das decisões arquiteturais.
+>
+> Nota sobre a Decisão #21: a tabela §1 deste documento lista 20 decisões.
+> A Decisão #21 (Estratégia paralela — sem DROPs durante desenvolvimento)
+> foi tomada na mesma sessão de 27/04 mas ficou documentada apenas no
+> LEIA-ME do backup e no backlog operacional, não na tabela §1.
+> Esse lapso foi corrigido na rev3, que inclui a #21 oficialmente.
 
 ---
 
-## MUDANÇAS DESTA REVISÃO
-
-### Evolução 1 — Componente Crescimento da Atratividade usa histórico
-**Antes (rev2 §3.8):** `score_crescimento` lia `D.crescimento_proj_pct` (projeção do vendedor).
-**Agora (rev3 §3.8):** lê `D.crescimento_pct` (histórico). Quando ausente, score 3 (penalidade leve, sem fingir score neutro).
-**Razão:** projeção do vendedor não pode informar valuation (Regra inviolável: Coisa A não informa Coisa B). Decisão #22.
-
-### Evolução 2 — Categorias técnicas dos upsides
-**Antes (rev2 §3.13):** 5 categorias produto-style: `obrigatorio`, `ganho_rapido`, `estrategico`, `transformacional`, `bloqueado`.
-**Agora (rev3 §3.13):** 5 categorias técnicas: `ro`, `passivo`, `multiplo`, `qualitativo`, `paywall`.
-**Razão:** categorias técnicas refletem mecanismo matemático no valuation (`ro` = aumenta resultado operacional, `passivo` = reduz dívida etc). Mais auditável e parametrizável que produto-style. Decisão #23.
-
-### Evolução 3 — Bloco `potencial_12m` agregado com 3 caps
-**Antes (rev2):** cada upside tinha `impacto_no_valuation { min_pct, max_pct }` sem agregação.
-**Agora (rev3 §3.16):** bloco `potencial_12m` completo com tributário separado (fora dos caps), agregação por categoria (ro/passivo/multiplo) com bruto + capped, 3 caps em sequência (categoria → ISE → absoluto), `potencial_final` em pct e brl, `valor_projetado_brl`.
-**Razão:** descobrimos que +123% no Forste era fantasia matemática sem caps. Os 3 caps protegem contra fantasia. Decisão #24.
-
-### Evolução 4 — Bloco `recomendacoes_pre_venda`
-**Antes (rev2):** não existia.
-**Agora (rev3 §3.17):** array dedicado com `{id, label, mensagem}` para ações qualitativas que não geram contribuição monetária mas são pré-requisitos (separar PF/PJ, documentar processos, registrar marca, aumentar presença digital). Decisão #25.
-
-### Evolução 5 — Subdivisão upsides: `{ ativos, paywalls }`
-**Antes (rev2):** array único com categoria `'bloqueado'` marcando paywalls.
-**Agora (rev3):** objeto `{ ativos[], paywalls[] }`. Razão: organização de rendering. Não muda metodologia. Aplicado junto com Decisão #23 acima.
-
-### Evolução 6 — Cards de upside SEMPRE mostram R$ (Decisão #26)
-Em todas as superfícies que mostram upsides individualmente (laudo-admin, laudo-pago, laudo-gratuito), cada card exibe: pill da categoria + título humano + descrição curta + **valor R$ em destaque** + notinha `"↑ ganho estimado no valor de venda do negócio se a ação for executada"`.
-- **Qualitativos:** `"Ação necessária — sem valor monetário direto"` (não inventar número).
-- **Paywalls no laudo-pago:** revelar R$ normalmente (cliente já pagou).
-- **Paywalls no laudo-gratuito:** bloquear com `"Liberar com laudo R$99"`.
-**Razão:** laudo-pago e laudo-gratuito não terão a seção POTENCIAL 12M agregada (admin-only). Sem R$ no card individual, vendedor/comprador não vê ganho de cada ação.
-
-### Evolução 7 — Pendência: Breakdown detalhado por categoria (Caminho A)
-Documentado em [`relatorios/2026-04-29-pendencia-breakdown-upsides.md`](2026-04-29-pendencia-breakdown-upsides.md).
-Cada categoria de upside expõe campos próprios: RO (`valor_atual + valor_alvo + economia_mensal + ganho_caixa_12m + ganho_avaliacao`), PASSIVO (`valor_atual + valor_alvo + economia_juros_anual + ganho_avaliacao`), MULTIPLO (`delta_multiplo + ganho_avaliacao`), QUALITATIVO (sem valores), TRIBUTARIO (`economia_anual + ganho_avaliacao`).
-**Status:** ⏸️ pendente, atacar pós-Fase 3. Custo: 4.5–5.5h.
-
-### Evolução 8 — Refinamentos visuais aprovados em 29/04
-- DRE: tirar `"/ ano"` do número grande dos KPIs (sub `"/ mês"` dá contexto).
-- Tabela INDICADORES: cabeçalhos `"Negócio / Média setor / Diferença"` (não `"VALOR / BENCH / Δ"`).
-- PMP/PMR: sem badge de status (não comparam isoladamente).
-- Ciclo financeiro: regra própria (`≤ 0` → EXCELENTE, `1-30` → BOM, `31-60` → NORMAL, `> 60` → ATENÇÃO).
-- `"Regime Ótimo"` → `"Regime Ideal"` em todo o documento.
-- Frases prescritivas hardcoded deletadas (Atratividade veredicto, Fator R, "negócio já está no regime ótimo"). Geração via IA é o caminho oficial (Decisão #15 da rev2).
-- Bug fix: `peso_pct` usar `Math.round()` ou `.toFixed(0)` pra evitar `7.000000000000001%`.
+# 1Negócio · Passo 2 — Spec calc_json v2 (FINAL CONSOLIDADA — REV. 2)
+**Substitui versões anteriores (parcial e final). Integra Blocos 1-5 da revisão.**
+*27/04/2026*
 
 ---
 
 ## ÍNDICE
 
-0. **MUDANÇAS DESTA REVISÃO** (8 evoluções — rev3)
-1. Princípios arquiteturais (**26 decisões** — 20 da rev2 + 1 herdada via LEIA-ME (#21) + 5 da rev3)
+1. Princípios arquiteturais (20 decisões)
 2. Estrutura de tabelas
-3. Schema calc_json v2 completo (subseções 3.16 `potencial_12m` e 3.17 `recomendacoes_pre_venda` novas)
-4. Parâmetros calibrados (motor — subseções 4.20 `upsides_catalogo`, 4.21 `caps`, 4.22 `pesos_sub_metricas_ise` novas)
+3. Schema calc_json v2 completo
+4. Parâmetros calibrados (motor)
 5. Tabelas tributárias (Bloco 5 referenciado)
 6. Ordem oficial do DRE (5 blocos — Bloco 2 da revisão)
 7. Fórmula de cálculo do valuation (Bloco 1 corrigido)
 8. Balanço Patrimonial v2 (Bloco 4)
 9. Fluxo de execução
 10. Implicações nos arquivos
-11. Geração de textos IA (frases prescritivas hardcoded deletadas em 29/04 — geração via IA é o caminho oficial)
+11. Geração de textos IA
 12. Edge Functions necessárias
 13. Versionamento de parâmetros
-14. Mudanças necessárias no diagnóstico (subseção 14.4 nova: Caminho A para breakdown detalhado)
+14. Mudanças necessárias no diagnóstico (mínimas)
 15. Checklist Passo 3
-16. **Estado de implementação rev3** (novo — snapshot do que cada decisão já tem implementado)
 
 ---
 
 ## SEÇÃO 1 — PRINCÍPIOS ARQUITETURAIS
 
-As **26 decisões** que regem toda a v2 (20 da rev2 + 1 herdada via LEIA-ME do backup de 27/04 + 5 incorporadas em rev3):
+As **20 decisões** que regem toda a v2:
 
 | # | Decisão | Origem |
 |---|---|---|
@@ -106,12 +64,6 @@ As **26 decisões** que regem toda a v2 (20 da rev2 + 1 herdada via LEIA-ME do b
 | 18 | **Cálculos centralizados na skill.** Telas intermediárias do diagnóstico (T28, T29, T31, T44) chamam funções da skill. Sem lógica duplicada | Revisão |
 | 19 | **RO ≤ 0:** valor_operacao = 0, valor_venda = patrimônio_líquido + aviso forte + CTA especialista | Revisão |
 | 20 | **Provisão CLT 13º+1/3 férias** vai pro Passivo Circulante do Balanço (não DRE), fator `13% × 6 × encargos` | Revisão |
-| 21 | **Estratégia paralela — sem DROPs durante desenvolvimento.** CREATE/ALTER ADD/INSERT permitidos; DROPs postergados pra 30+ dias após v2 em produção | Sessão 27/04 (corrigido na rev3 — estava em LEIA-ME mas ausente da tabela rev2) |
-| 22 | **Componente Crescimento da Atratividade** usa `D.crescimento_pct` (histórico real). Quando ausente, score 3 (penalidade leve). Projeção do vendedor (`crescimento_proj_pct`) **não entra em score** — Regra "Coisa A não informa Coisa B" | Sessão 28/04 |
-| 23 | **Categorias técnicas dos upsides:** `ro`, `passivo`, `multiplo`, `qualitativo`, `paywall`. Refletem mecanismo matemático no valuation, não percepção comercial. Substituem produto-style (obrigatorio/ganho_rapido/etc) | Sessão 28/04 |
-| 24 | **Bloco `potencial_12m` agregado** com 3 caps em sequência: categoria → ISE → absoluto. Tributário separado (fora dos caps). Protege contra fantasia matemática (e.g. +123% sem caps) | Sessão 28/04 |
-| 25 | **Bloco `recomendacoes_pre_venda` separado** — array `{id, label, mensagem}` para ações qualitativas pré-requisito (PF/PJ, processos, marca, presença digital). Não confundir com `upsides.ativos[]` | Sessão 28/04 |
-| 26 | **Cards de upside SEMPRE mostram R$ em destaque** em laudo-admin/pago/gratuito. Pill da categoria + título + descrição + R$ + notinha. Qualitativos: copy padrão. Paywall: revela no laudo-pago, bloqueia no laudo-gratuito | Sessão 29/04 |
 
 ---
 
@@ -229,12 +181,9 @@ ALTER TABLE negocios DROP COLUMN calc_json;
   "icd":                       { /* 3.10 */ },
   "indicadores_vs_benchmark":  { /* 3.11 */ },
   "analise_tributaria":        { /* 3.12 */ },
-  "upsides":                   { /* 3.13 — { ativos[], paywalls[] } (rev3) */ },
+  "upsides":                   { /* 3.13 */ },
   "textos_ia":                 { /* 3.14 — gerado no commit */ },
-  "textos_anuncio":            { /* 3.15 — gerado na criação do anúncio */ },
-  "potencial_12m":             { /* 3.16 — agregação com 3 caps (rev3) */ },
-  "recomendacoes_pre_venda":   { /* 3.17 — qualitativos sem brl (rev3) */ },
-  "_modo":                     "preview" | "commit" | "demo"
+  "textos_anuncio":            { /* 3.15 — gerado na criação do anúncio */ }
 }
 ```
 
@@ -506,13 +455,10 @@ SE valor_venda < valor_operacao × 0.30 AND ro_mensal > 0:
     },
     {
       "id": "crescimento",
-      "label": "Momentum de crescimento",
+      "label": "Momentum",
       "peso_pct": 25,
-      "score_0_10": 5,
-      "fonte_crescimento": "historico_real",
-      "crescimento_pct_aplicado": 8,
-      "penalidade_aplicada": 0,
-      "metadata": null
+      "score_0_10": 7,
+      "fonte": "D.crescimento_proj_pct = 12%"
     }
   ]
 }
@@ -522,15 +468,6 @@ SE valor_venda < valor_operacao × 0.30 AND ro_mensal > 0:
 ```
 atratividade.total = round((ise/10 × 0.50 + score_setor × 0.25 + score_crescimento × 0.25) × 10)
 ```
-
-**Componente `crescimento` (Decisão #22):**
-- `score_crescimento` é derivado de `D.crescimento_pct` (histórico real, do diagnóstico).
-- `D.crescimento_proj_pct` (projeção do vendedor) **não entra** — Regra "Coisa A não informa Coisa B".
-- `fonte_crescimento` indica origem:
-  - `'historico_real'` — vendedor respondeu (mesmo que tenha respondido `0%` deliberado).
-  - `'sem_resposta'` — vendedor pulou. Score = **3** (penalidade leve, não score neutro).
-- Quando `fonte_crescimento === 'sem_resposta'`, `metadata = { componente: 'crescimento', motivo: 'sem_resposta', score: 3 }` documenta a penalidade aplicada.
-- Faixas históricas: `30+` → 10, `20-29.9` → 9, `10-19.9` → 7, `5-9.9` → 5, `-5 a 4.9` → 4 (Estável), `-15 a -5.1` → 2, `-100 a -15.1` → 0.
 
 ### 3.9 — `operacional`
 
@@ -675,47 +612,17 @@ atratividade.total = round((ise/10 × 0.50 + score_setor × 0.25 + score_crescim
 }
 ```
 
-### 3.13 — `upsides` (Decisão #23 + #26)
+### 3.13 — `upsides`
 
-Schema rev3: `upsides` é objeto `{ ativos[], paywalls[] }`. Cada item carrega:
+Estrutura mantida da spec anterior. Cada upside carrega:
+- `id, categoria, acesso, ordem_no_laudo, titulo, subtitulo`
+- `descricao_curta, descricao_polida_ia`
+- `impacto_no_valuation { min_pct, max_pct, label }`
+- `complexidade, tempo_estimado, exige_apoio, exige_apoio_tipo, cta_consultoria, fonte_regra`
 
-```json
-{
-  "id": "ro_renegociar_custos_fixos",
-  "categoria": "ro",
-  "label": "Renegociar custos fixos",
-  "descricao": "Aluguel, sistemas e outros custos fixos podem ser renegociados...",
-  "gate": { "expressao": "(indicadores && indicadores.aluguel_pct ...)", ... },
-  "formula_calculo": { "tipo": "ro_direto", "parametros": { ... } },
-  "fonte_de_calculo": "Benchmark renegociação de aluguel/contratos..."
-}
-```
+5 categorias: `obrigatorio`, `ganho_rapido`, `estrategico`, `transformacional`, `bloqueado`.
 
-**5 categorias técnicas (Decisão #23):**
-
-| categoria | mecanismo no valuation |
-|---|---|
-| `ro` | Aumenta resultado operacional (renegociar custos, otimizar precificação, reduzir folha, recuperar inativos) |
-| `passivo` | Reduz dívida (regularizar fornecedores, reestruturar dívidas, resolver passivos trabalhistas) |
-| `multiplo` | Move o múltiplo (aumentar recorrência, diversificar clientes, reduzir dependência do sócio) |
-| `qualitativo` | Recomendação sem contribuição monetária direta (formalizar contabilidade, separar PF/PJ, documentar processos, registrar marca, aumentar presença digital) |
-| `paywall` | Análises bloqueadas no laudo-gratuito, reveladas no laudo-pago |
-
-**Distribuição (catálogo v2026.07):** 21 upsides + 3 paywalls + N recomendações pré-venda.
-
-**Regra de exibição em cards (Decisão #26):**
-
-Cada superfície que exibe upsides individualmente (laudo-admin, laudo-pago, laudo-gratuito) renderiza:
-- Pill da categoria (label human-readable: "Resultado Operacional", "Redução de Passivos", "Aumento de Múltiplo", "Qualitativo", "Análise complementar")
-- Título humano (`label`)
-- Descrição curta (`descricao`)
-- **Valor R$ em destaque** (lookup em `potencial_12m.upsides_ativos[id]`)
-- Notinha `"↑ ganho estimado no valor de venda do negócio se a ação for executada"`
-
-Variantes por superfície:
-- **Qualitativo:** `"Ação necessária — sem valor monetário direto"` (não inventar número).
-- **Paywall no laudo-pago:** revelar R$ normalmente (cliente já pagou).
-- **Paywall no laudo-gratuito:** bloquear com `"Liberar com laudo R$99"`.
+Distribuição padrão laudo gratuito: 1 obrigatório (se aplicável) + 1 ganho_rapido + 2 estratégicos + 1 transformacional + 5-6 bloqueados.
 
 ### 3.14 — `textos_ia` (gerados no commit)
 
@@ -769,102 +676,11 @@ Variantes por superfície:
 }
 ```
 
-### 3.16 — `potencial_12m` (Decisão #24 — novo bloco rev3)
-
-Agregação determinística do potencial de aumento do valor de venda em 12 meses.
-Tributário separado fora dos caps. 3 caps em sequência (categoria → ISE → absoluto).
-
-```json
-{
-  "_versao": "v2.1",
-
-  "upsides_ativos": [
-    {
-      "id": "ro_renegociar_custos_fixos",
-      "categoria": "ro",
-      "label": "Renegociar custos fixos",
-      "contribuicao_bruta_pct": 0.04811,
-      "contribuicao_pos_cap_categoria_pct": 0.04811,
-      "contribuicao_brl": 30406
-    },
-    {
-      "id": "mu_diversificar_clientes",
-      "categoria": "multiplo",
-      "label": "Diversificar carteira de clientes",
-      "contribuicao_bruta_pct": 0.20422,
-      "contribuicao_pos_cap_categoria_pct": 0.20422,
-      "contribuicao_brl": 129060
-    }
-  ],
-
-  "agregacao": {
-    "tributario": {
-      "brl": 0,
-      "pct": 0,
-      "sem_cap": true,
-      "fonte": "analise_tributaria.economia_potencial.economia_anual"
-    },
-    "por_categoria": {
-      "ro":       { "bruto_pct": 0.04811, "cap_aplicado": false, "capped_pct": 0.04811 },
-      "passivo":  { "bruto_pct": 0,       "cap_aplicado": false, "capped_pct": 0       },
-      "multiplo": { "bruto_pct": 0.20422, "cap_aplicado": false, "capped_pct": 0.20422 }
-    },
-    "potencial_alavancas_pre_ise_pct": 0.25233,
-    "cap_ise": {
-      "ise_score": 84.1,
-      "ise_score_arredondado": 84,
-      "faixa": "75-89",
-      "cap_aplicavel": 0.65,
-      "cap_aplicado": false,
-      "potencial_pos_ise_pct": 0.25233
-    },
-    "cap_absoluto": {
-      "threshold": 0.80,
-      "aplicado": false,
-      "potencial_pos_absoluto_pct": 0.25233
-    },
-    "tributario_dominante": false
-  },
-
-  "potencial_final": {
-    "pct": 0.25233,
-    "brl": 159466,
-    "valor_projetado_brl": 791441
-  },
-
-  "ordenacao_exibicao": []
-}
-```
-
-**Caps em sequência (Decisão #24):**
-1. **Cap por categoria** — limita contribuição máxima de cada categoria (`ro`, `passivo`, `multiplo`) configurado em `parametros_versoes.caps.por_categoria`.
-2. **Cap ISE** — limita potencial total das alavancas em função do ISE arredondado (faixas: `<60` → 0.30, `60-74` → 0.45, `75-89` → 0.65, `90-100` → 0.80).
-3. **Cap absoluto** — teto global de 80% (`parametros_versoes.cap_absoluto`), independente de ISE.
-
-**Tributário separado:** `agregacao.tributario.sem_cap = true` indica que a economia tributária **não passa por cap nenhum** (é certeza fiscal, não probabilidade). Flag `tributario_dominante = true` quando a contribuição tributária representa mais de 50% do potencial total.
-
-**`valor_projetado_brl`** = `valor_venda` (rev2 §3.7) `+ potencial_final.brl`. É o valor em 12 meses se ações executadas.
-
-### 3.17 — `recomendacoes_pre_venda` (Decisão #25 — novo bloco rev3)
-
-Array dedicado a ações qualitativas pré-requisito que **não geram contribuição monetária direta** mas são pré-requisitos pra destravar valor (separar PF/PJ, documentar processos, registrar marca, aumentar presença digital).
-
-```json
-[
-  { "id": "rec_separar_pf_pj",            "label": "Separar pessoa física de pessoa jurídica",  "mensagem": "Separação PF/PJ é pré-requisito de qualquer comprador profissional" },
-  { "id": "rec_documentar_processos",     "label": "Documentar processos operacionais",         "mensagem": "Processos documentados reduzem risco percebido pelo comprador..." },
-  { "id": "rec_registrar_marca",          "label": "Registrar marca no INPI",                   "mensagem": "Marca registrada no INPI é ativo intangível protegido..." },
-  { "id": "rec_aumentar_presenca_digital", "label": "Aumentar presença digital",                "mensagem": "Presença digital robusta amplia base de compradores..." }
-]
-```
-
-**Diferença em relação a `upsides.ativos[].categoria === 'qualitativo'`:**
-- `recomendacoes_pre_venda` é array dedicado de **mensagens curtas** focado em pré-venda.
-- `upsides.ativos[].categoria === 'qualitativo'` são upsides do catálogo com gate técnico que disparou.
-- Renderização: laudo-pago/admin podem mesclar ambos no sub-bloco "Qualitativos · Pré-venda".
-
 ---
 
+EOF
+echo "Parte 1 (seções 1-3) gravada"
+wc -l /home/claude/spec-v2/spec-v2-final-rev2.md
 ## SEÇÃO 4 — PARÂMETROS CALIBRADOS (motor)
 
 ### 4.1 — `multiplos_setor` (12 setores)
@@ -1110,44 +926,6 @@ Estrutura de regras geradoras de cada categoria. Documentada na Seção 4.15 da 
 ### 4.19 — `mapeamento_setor_anexo_simples` e `mapeamento_setor_presuncao`
 
 Mapeamentos completos documentados na Seção 7 do Bloco 5 (arquivo separado `bloco5-tabelas-tributarias.md`).
-
-### 4.20 — `upsides_catalogo` (rev3 — novo, Decisão #23)
-
-Array de 21 upsides + 3 paywalls em `parametros_versoes.upsides_catalogo`. Cada entrada: `id`, `categoria` (técnica), `label`, `descricao`, `gate.expressao`, `formula_calculo.{tipo, parametros}`, `fonte_de_calculo`. Atualmente em snapshot v2026.07 (migration `006_seed_parametros_v2026_05.sql` introduziu, ajustado por 007 e 008).
-
-### 4.21 — `caps` por categoria (rev3 — novo, Decisão #24)
-
-```json
-{
-  "por_categoria": {
-    "ro":       0.50,
-    "passivo":  0.30,
-    "multiplo": 0.50
-  },
-  "ise_faixas": [
-    { "ise_min": 90, "ise_max": 100, "cap": 0.80 },
-    { "ise_min": 75, "ise_max": 89,  "cap": 0.65 },
-    { "ise_min": 60, "ise_max": 74,  "cap": 0.45 },
-    { "ise_min": 0,  "ise_max": 59,  "cap": 0.30 }
-  ],
-  "absoluto": 0.80
-}
-```
-
-### 4.22 — `pesos_sub_metricas_ise` (rev3 — novo, calibração)
-
-Pesos de cada sub-métrica dentro de cada pilar do ISE. Reorganizados em
-v2026.07 (P2 reduzido a 2 sub-métricas removendo `margem_estavel`,
-P6 renomeado, P8 reativando `presenca_digital`). Estrutura:
-
-```json
-{
-  "p1_financeiro":       { "margem_op_pct": 0.25, "dre_separacao": 0.25, ... },
-  "p2_resultado":        { "ebitda_real": 0.50, "rentabilidade_imobilizado": 0.50 },
-  ...
-  "p8_marca":            { "marca_inpi": 0.33, "reputacao": 0.33, "presenca_digital": 0.33 }
-}
-```
 
 ---
 
@@ -1560,20 +1338,6 @@ Pode ser **positivo ou negativo**. Negativo indica que dívidas líquidas excede
 
 ## SEÇÃO 11 — GERAÇÃO DE TEXTOS IA
 
-> **Nota rev3 (29/04/2026):** frases prescritivas hardcoded foram **deletadas** dos
-> renderers HTML em 29/04 — não foram migradas pra rev3 nem persistidas.
-> Frases removidas:
-> - Veredicto da Atratividade (5 variantes "alta/atrativa/padrão/limitada/baixa") —
->   prescreviam comportamento de negociação (`"janela 5–10%"`, `"desconto 10–20%"`)
->   sem base empírica. **Geração via IA é o caminho oficial** (Decisão #15 da rev2).
-> - `"Negócio já está no regime ótimo"` (vinha de `economia_potencial.observacao`).
-> - `"Sua atividade pode estar sujeita ao Fator R..."` (vinha de `fator_r_observacao`)
->   — info do Fator R agora está inline na seção IDENTIFICAÇÃO (alíquota efetiva +
->   Fator R %), sem repetir.
-> Schema do calc_json mantém os campos (`economia_potencial.observacao`,
-> `fator_r_observacao`, `analise_tributaria.fator_r_calculado`) — só removemos
-> o render. Edge Functions de IA (Fase 4) podem reusar esses campos como input.
-
 ### 11.1 — Tabela consolidada — onde cada texto aparece
 
 | # | Texto | Modelo | Laudo gratuito | Laudo pago | Laudo fonte | Card index | negocio.html antes NDA | negocio.html após NDA | Painel admin |
@@ -1732,29 +1496,6 @@ Quando `D.cnpj_regime` está preenchido (consulta automática):
 - Comparar com `D.regime` declarado pelo vendedor
 - Se diferente → marcar em `analise_tributaria.observacao_cnpj`: "Regime declarado difere do registrado na Receita Federal. Verifique."
 
-### 14.4 — Pendência rev3: breakdown detalhado por categoria de upside (Caminho A)
-
-Documentado em [`relatorios/2026-04-29-pendencia-breakdown-upsides.md`](2026-04-29-pendencia-breakdown-upsides.md). **Não bloqueia v2.**
-
-Mudança proposta no schema:
-- Cada `upsides.ativos[]` (e o item correspondente em `potencial_12m.upsides_ativos[]`)
-  expõe campos próprios por categoria:
-  - **RO:** `valor_atual_brl`, `valor_alvo_brl`, `economia_mensal_brl`,
-    `ganho_caixa_12m_brl`, `ganho_avaliacao_brl`.
-  - **PASSIVO:** `valor_atual_brl`, `valor_alvo_brl`, `economia_juros_anual_brl`,
-    `ganho_avaliacao_brl`.
-  - **MULTIPLO:** `delta_multiplo`, `ganho_avaliacao_brl`.
-  - **QUALITATIVO:** sem campos monetários (mantém só `descricao`).
-  - **TRIBUTARIO:** `economia_anual` (já calculado em `analise_tributaria`) +
-    `ganho_avaliacao_brl`.
-
-A skill já calcula esses valores intermediários em `gerarUpsidesV2` e
-`agregarPotencial12mV2` mas não os expõe. Cards de upside em laudo-pago e
-laudo-admin ganham `<details>` colapsável "▸ Como chegamos nesse valor".
-
-**Custo:** 4.5–5.5h (skill 2-3h, laudo-pago 1h, laudo-admin 0.5h, validação 1h).
-**Quando:** atacar pós-Fase 3 (laudo-gratuito + negocio.html v3 fechados).
-
 ---
 
 ## SEÇÃO 15 — CHECKLIST PASSO 3 (IMPLEMENTAÇÃO)
@@ -1891,31 +1632,4 @@ laudo-admin ganham `<details>` colapsável "▸ Como chegamos nesse valor".
 
 ---
 
-## SEÇÃO 16 — ESTADO DE IMPLEMENTAÇÃO REV3
-
-Snapshot do que cada decisão da rev3 já tem implementado em 29/04/2026:
-
-| Decisão | Descrição curta | Status | Onde |
-|---|---|---|---|
-| #1–#20 | Decisões da rev2 | ✅ herdadas | rev2 + skill v2026.07 |
-| **#21** | Estratégia paralela — sem DROPs durante desenvolvimento | ✅ herdada (via LEIA-ME 27/04) | corrigido na rev3 — estava ausente da tabela §1 da rev2 |
-| **#22** | Crescimento usa histórico, não projeção | ✅ implementado | `skill-avaliadora-v2.js` (Frente 2.5, commit `5c938df`); fixtures atualizados (Frente 2.4) |
-| **#23** | Categorias técnicas dos upsides | ✅ implementado | snapshot v2026.07 (`upsides_catalogo` em `parametros_versoes`); laudo-admin + laudo-pago refatorados |
-| **#24** | Bloco `potencial_12m` com 3 caps | ✅ implementado | `agregarPotencial12mV2` (commit `629359b`); fix gap fator_ise (`f233f0a`) |
-| **#25** | Bloco `recomendacoes_pre_venda` | ✅ implementado | skill emite o array; laudo-admin renderiza sub-bloco; laudo-pago idem |
-| **#26** | Cards mostram R$ em destaque | ✅ laudo-admin + laudo-pago | a aplicar em laudo-gratuito + negocio.html v3 (Fase 3 continuação) |
-| Refinamentos visuais 29/04 | Copy + status PMP/PMR/Ciclo + "Ideal" + frases deletadas + bug peso_pct | ✅ laudo-pago | a replicar parcialmente em laudo-admin/laudo-gratuito conforme aplicável |
-| Caminho A (breakdown) | Skill expõe `valor_atual/valor_alvo/economia_*/ganho_*` por categoria | ⏸️ pendente | atacar pós-Fase 3 (4.5–5.5h) |
-
-### Próximos passos imediatos (pós-rev3)
-
-1. **Validação visual final** do laudo-admin + laudo-pago em browser (light + dark) com `?id=demo`.
-2. **Fase 3 (continuar):**
-   - `laudo-gratuito.html` — criar do zero (subset do laudo-pago, paywalls bloqueados, ~2h).
-   - `negocio.html` v3 — página pública do anúncio com 2 níveis antes/depois NDA (~3-4h).
-3. **Fase 4** — 5 Edge Functions IA (textos analíticos no commit + textos comerciais na criação do anúncio + cron pendentes + selic_watcher).
-4. **Caminho A** (rev3 §14.4) — quando Fase 3 estiver fechada.
-
----
-
-*Spec v2 — Revisão 3 · 29/04/2026 · 1Negócio · Substitui rev2 (preservada como histórico)*
+*Spec v2 final consolidada (REV. 2) · 27/04/2026 · 1Negócio · Pronta para Passo 3*
