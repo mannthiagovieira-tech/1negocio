@@ -1,6 +1,11 @@
 // Edge Function: gerar_textos_laudo
 // Gera UM texto de IA por chamada (genérica, paralelizável no cliente)
-// Spec rev3 §12.6 — Sub-passo 4.3
+// Spec rev3 §12.6 — Sub-passo 4.3 + refator 4.6
+//
+// Schema rico: cada texto vira { modelo, conteudo }.
+// Concorrência: usa RPCs jsonb_set atômicas (migration 013) — sem
+// last-writer-wins entre os 9 fetches paralelos.
+// Roteamento: laudo → calc_json.textos_ia ; anúncio → calc_json.textos_anuncio.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -22,6 +27,16 @@ const PRECO_USD = {
   "claude-haiku-4-5-20251001": { input: 0.0000008, output: 0.000004 },
   "claude-sonnet-4-5":          { input: 0.000003,  output: 0.000015 },
 };
+
+// Roteamento por categoria
+const TEXTOS_ANUNCIO = new Set([
+  "sugestoes_titulo_anuncio",
+  "texto_consideracoes_valor",
+]);
+
+function ramoDoTexto(chave: string): "textos_ia" | "textos_anuncio" {
+  return TEXTOS_ANUNCIO.has(chave) ? "textos_anuncio" : "textos_ia";
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -47,7 +62,6 @@ Deno.serve(async (req: Request) => {
       return jsonResp({ ok: false, erro: "negocio_id e texto_a_gerar são obrigatórios", fase: "validacao" }, 400);
     }
 
-    // 2. Ler calc_json
     const { data: laudo, error: errLaudo } = await supabase
       .from("laudos_v2")
       .select("calc_json")
@@ -61,7 +75,6 @@ Deno.serve(async (req: Request) => {
     }
     const calc = laudo.calc_json;
 
-    // 3. Ler snapshot ativo de prompts
     const { data: param, error: errParam } = await supabase
       .from("parametros_versoes")
       .select("snapshot")
@@ -85,11 +98,12 @@ Deno.serve(async (req: Request) => {
 
     const systemPrompt = promptsCfg.system_prompt_compartilhado ?? "";
     const modelo = promptCfg.modelo;
+    const ramo = ramoDoTexto(texto_a_gerar);
 
-    // 4-9. Caso especial: descricoes_polidas_upsides → loop por upside ativo
+    // Caso especial: descricoes_polidas_upsides → loop por upside ativo
     if (texto_a_gerar === "descricoes_polidas_upsides") {
       const upsidesAtivos = calc?.upsides?.ativos ?? [];
-      const resultados: { id: string; texto: string }[] = [];
+      const conteudoPolido: { upside_id: string; conteudo: string }[] = [];
       let totalIn = 0, totalOut = 0;
 
       for (const ups of upsidesAtivos) {
@@ -103,24 +117,28 @@ Deno.serve(async (req: Request) => {
         };
         const promptFinal = preencherPlaceholders(promptCfg.prompt, dadosUps);
         const resp = await chamarAnthropicComRetry(modelo, systemPrompt, promptFinal);
-        resultados.push({ id: ups.id ?? ups.label ?? `upside_${resultados.length}`, texto: resp.texto });
+        conteudoPolido.push({
+          upside_id: ups.id ?? ups.label ?? `upside_${conteudoPolido.length}`,
+          conteudo: resp.texto,
+        });
         totalIn += resp.tokens_input;
         totalOut += resp.tokens_output;
       }
 
-      await salvarTexto(supabase, negocio_id, texto_a_gerar, resultados);
+      const valor = { modelo, conteudo: conteudoPolido };
+      await salvarTexto(supabase, negocio_id, ramo, texto_a_gerar, valor, modelo);
 
       const duracao = Date.now() - inicio;
       const custo = calcularCusto(modelo, totalIn, totalOut);
       await logar(supabase, {
-        negocio_id, contexto: texto_a_gerar, texto_gerado: JSON.stringify(resultados),
+        negocio_id, contexto: texto_a_gerar, texto_gerado: JSON.stringify(conteudoPolido),
         status: "sucesso", modelo, tokens_input: totalIn, tokens_output: totalOut,
         custo_estimado: custo, duracao_ms: duracao,
       });
 
       return jsonResp({
         ok: true,
-        texto_gerado: resultados,
+        texto_gerado: valor,
         modelo_usado: modelo,
         tokens_input: totalIn,
         tokens_output: totalOut,
@@ -133,9 +151,8 @@ Deno.serve(async (req: Request) => {
     const promptFinal = preencherPlaceholders(promptCfg.prompt, dados);
     const resp = await chamarAnthropicComRetry(modelo, systemPrompt, promptFinal);
 
-    let textoSalvar: any = resp.texto;
+    let conteudo: string | string[] = resp.texto;
 
-    // Caso especial: sugestoes_titulo_anuncio → parsear array
     if (texto_a_gerar === "sugestoes_titulo_anuncio") {
       const limpo = resp.texto
         .replace(/^```(?:json)?\s*/i, "")
@@ -144,7 +161,7 @@ Deno.serve(async (req: Request) => {
       try {
         const parsed = JSON.parse(limpo);
         if (Array.isArray(parsed) && parsed.every((s) => typeof s === "string")) {
-          textoSalvar = parsed;
+          conteudo = parsed;
         } else {
           console.warn("[sugestoes_titulo_anuncio] formato inválido, salvando string crua");
         }
@@ -153,19 +170,21 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    await salvarTexto(supabase, negocio_id, texto_a_gerar, textoSalvar);
+    const valor = { modelo, conteudo };
+    await salvarTexto(supabase, negocio_id, ramo, texto_a_gerar, valor, modelo);
 
     const duracao = Date.now() - inicio;
     const custo = calcularCusto(modelo, resp.tokens_input, resp.tokens_output);
     await logar(supabase, {
-      negocio_id, contexto: texto_a_gerar, texto_gerado: typeof textoSalvar === "string" ? textoSalvar : JSON.stringify(textoSalvar),
+      negocio_id, contexto: texto_a_gerar,
+      texto_gerado: typeof conteudo === "string" ? conteudo : JSON.stringify(conteudo),
       status: "sucesso", modelo, tokens_input: resp.tokens_input, tokens_output: resp.tokens_output,
       custo_estimado: custo, duracao_ms: duracao,
     });
 
     return jsonResp({
       ok: true,
-      texto_gerado: textoSalvar,
+      texto_gerado: valor,
       modelo_usado: modelo,
       tokens_input: resp.tokens_input,
       tokens_output: resp.tokens_output,
@@ -181,7 +200,7 @@ Deno.serve(async (req: Request) => {
         status: "erro", modelo: null, tokens_input: null, tokens_output: null,
         custo_estimado: null, duracao_ms: duracao, erro_mensagem: msg,
       });
-    } catch (_) { /* swallow log error */ }
+    } catch (_) { /* swallow */ }
     return jsonResp({ ok: false, erro: msg, fase: "exception" }, 500);
   }
 });
@@ -237,7 +256,6 @@ function formatarDadosCalc(calc: any): Record<string, string | number> {
   const op = calc?.operacional ?? {};
   const trib = calc?.analise_tributaria ?? {};
 
-  // Pilares ISE
   const pilares = ise?.pilares ?? {};
   const pilaresEntries = Object.entries(pilares) as [string, any][];
   let destaque = "";
@@ -252,7 +270,6 @@ function formatarDadosCalc(calc: any): Record<string, string | number> {
     if (nota < 6) pilaresAtencao.push(pilarLabel(k));
   }
 
-  // Indicadores vs benchmark
   const indEntries = Object.entries(indBench) as [string, any][];
   const indAcima: string[] = [];
   const indAbaixo: string[] = [];
@@ -388,27 +405,27 @@ function calcularCusto(modelo: string, tokensIn: number, tokensOut: number): num
 async function salvarTexto(
   supabase: ReturnType<typeof createClient>,
   negocio_id: string,
+  ramo: "textos_ia" | "textos_anuncio",
   chave: string,
   valor: unknown,
+  modelo: string,
 ) {
-  const { data: cur, error: errR } = await supabase
-    .from("laudos_v2")
-    .select("calc_json, id")
-    .eq("negocio_id", negocio_id)
-    .eq("ativo", true)
-    .limit(1)
-    .maybeSingle();
-  if (errR || !cur) throw new Error(`salvarTexto: laudo ativo não encontrado: ${errR?.message ?? ""}`);
+  const path = `{${ramo},${chave}}`;
+  const { error: errSet } = await supabase.rpc("atualizar_texto_calc_json", {
+    p_negocio_id: negocio_id,
+    p_path: path,
+    p_valor: valor,
+  });
+  if (errSet) throw new Error(`atualizar_texto_calc_json: ${errSet.message}`);
 
-  const novoCalc = { ...((cur.calc_json as Record<string, unknown>) ?? {}) };
-  const textosAtuais = (novoCalc.textos_ia as Record<string, unknown>) ?? {};
-  novoCalc.textos_ia = { ...textosAtuais, [chave]: valor };
-
-  const { error: errU } = await supabase
-    .from("laudos_v2")
-    .update({ calc_json: novoCalc })
-    .eq("id", cur.id);
-  if (errU) throw new Error(`salvarTexto update: ${errU.message}`);
+  const { error: errMeta } = await supabase.rpc("atualizar_metadados_textos", {
+    p_negocio_id: negocio_id,
+    p_ramo: ramo,
+    p_chave: chave,
+    p_modelo: modelo,
+    p_timestamp: new Date().toISOString(),
+  });
+  if (errMeta) throw new Error(`atualizar_metadados_textos: ${errMeta.message}`);
 }
 
 async function logar(
