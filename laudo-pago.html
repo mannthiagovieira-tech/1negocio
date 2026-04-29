@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>1Negócio · Laudo de Avaliação</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 :root{
   --bg:#eef5f0;--bg1:#ffffff;--bg2:#f4f9f5;--bg3:#e8f2eb;
@@ -12,9 +13,31 @@
   --am:#92470a;--am-d:rgba(146,71,10,.08);--am-l:rgba(146,71,10,.22);
   --rd:#b91c1c;--rd-d:rgba(185,28,28,.08);--rd-l:rgba(185,28,28,.22);
   --pu:#6d28d9;--pu-d:rgba(109,40,217,.08);--pu-l:rgba(109,40,217,.22);
+  --bl:#1e40af;--bl-d:rgba(30,64,175,.08);--bl-l:rgba(30,64,175,.22);
   --ink:#0d2b1e;--ink2:#1f4a32;--ink3:#2d6644;--ink4:#4a7c5c;
   --line:rgba(13,43,30,.08);--line2:rgba(13,43,30,.15);
 }
+/* Tema escuro — D-1 do mapeamento. Default mantém light (impressão amigável). */
+:root[data-theme="dark"]{
+  --bg:#0c0c0a;--bg1:#161614;--bg2:#1a1a18;--bg3:#1a1a18;
+  --em:#10b981;--em-d:rgba(16,185,129,.10);--em-l:rgba(16,185,129,.30);
+  --am:#f59e0b;--am-d:rgba(245,158,11,.10);--am-l:rgba(245,158,11,.30);
+  --rd:#f87171;--rd-d:rgba(248,113,113,.10);--rd-l:rgba(248,113,113,.30);
+  --pu:#a78bfa;--pu-d:rgba(167,139,250,.10);--pu-l:rgba(167,139,250,.30);
+  --bl:#60a5fa;--bl-d:rgba(96,165,250,.10);--bl-l:rgba(96,165,250,.30);
+  --ink:#e8e8e6;--ink2:#c8c8c4;--ink3:#a8a8a4;--ink4:#6a6a66;
+  --line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.15);
+}
+/* Toggle dark/light — fixed top-right. Hidden em impressão. */
+.theme-toggle{
+  position:fixed;top:14px;right:14px;z-index:100;
+  background:var(--bg1);border:1px solid var(--line2);
+  color:var(--ink2);padding:6px 12px;
+  font-family:'DM Mono',monospace;font-size:11px;
+  cursor:pointer;letter-spacing:.05em;
+}
+.theme-toggle:hover{border-color:var(--em);color:var(--em)}
+@media print{.theme-toggle{display:none}}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 #loading{position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .5s,visibility .5s}
@@ -34,29 +57,37 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 .logo{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;letter-spacing:-.02em;color:var(--ink);display:flex;align-items:center;gap:2px}
 .logo-1{color:var(--em)}
 .capa-badge{font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--am);background:var(--am-d);border:1px solid var(--am-l);padding:5px 12px}
-.capa-body{flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:72px 32px 40px}
-.capa-logo-grande{margin-bottom:auto;padding-bottom:72px}
-.capa-logo-grande-txt{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(56px,14vw,80px);letter-spacing:-.04em;line-height:.9}
-.capa-tagline{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink4);margin-top:10px}
-.capa-negocio-label{font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink4);margin-bottom:12px}
-.capa-nome{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(26px,6vw,36px);letter-spacing:-.03em;line-height:1.05;color:var(--ink);margin-bottom:10px}
-.capa-setor{font-size:12px;color:var(--ink3);letter-spacing:.05em;display:flex;align-items:center;gap:8px;margin-bottom:28px}
-.capa-setor::before{content:'';width:20px;height:1.5px;background:var(--em)}
-.capa-meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line2);border:1px solid var(--line2)}
-.capa-meta-item{background:var(--bg1);padding:14px 16px}
-.capa-meta-l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:5px}
-.capa-meta-v{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--ink)}
-.capa-bottom{padding:18px 32px;border-top:1px solid var(--line2);display:flex;align-items:center;justify-content:space-between}
-.capa-data{font-size:9px;letter-spacing:.1em;color:var(--ink4)}
-.capa-conf{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--em);display:flex;align-items:center;gap:6px}
-.capa-conf::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--em)}
-.sumario{background:var(--bg1);border-bottom:1px solid var(--line2);padding:32px}
-.sumario-title{font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink4);margin-bottom:20px}
-.sumario-item{display:flex;align-items:center;gap:14px;padding:11px 0;border-bottom:1px solid var(--line)}
-.sumario-item:last-child{border:none}
-.sumario-num{font-size:9px;letter-spacing:.1em;color:var(--em);width:24px;flex-shrink:0}
-.sumario-nome{font-size:12px;color:var(--ink);flex:1}
-.sumario-tag{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+/* Capa (Fase 3.2.4): logo só no header, nome do negócio à ESQUERDA, sem subtítulo de setor */
+.capa-body{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;text-align:left;padding:48px 48px;gap:24px}
+.capa-hero-nome{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(36px,8vw,56px);letter-spacing:-.03em;line-height:1;color:var(--ink);max-width:560px}
+.capa-subtitulo{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;letter-spacing:.04em;color:var(--em);text-transform:uppercase;display:flex;align-items:center;gap:14px;margin-top:6px}
+.capa-subtitulo::before{content:'';width:32px;height:1.5px;background:var(--em)}
+/* Rodapé da capa: encomenda + código (canto inferior esquerdo, alinhado à esquerda) */
+.capa-rodape{position:absolute;left:48px;bottom:28px;display:flex;flex-direction:column;gap:4px;font-size:9px;letter-spacing:.04em;color:var(--ink4)}
+.capa-rodape-linha strong{color:var(--ink3);font-family:'DM Mono',monospace;font-weight:500}
+/* Folha de rosto (Fase 3.2.4 — "Apresentação" simples, sem mega título) */
+.intro{min-height:100vh;display:flex;flex-direction:column;justify-content:space-between;background:var(--bg1);border-bottom:1px solid var(--line2);padding:96px 48px 40px;position:relative}
+.intro-top{max-width:560px}
+/* Eyebrow simples no mesmo tamanho do corpo, peso médio — não é título de destaque */
+.intro-eyebrow{font-size:13px;color:var(--ink2);margin-bottom:24px;font-weight:600;letter-spacing:0}
+.intro-texto{font-size:13px;color:var(--ink2);line-height:1.85;margin-bottom:16px}
+.intro-texto:last-child{margin-bottom:0}
+/* Elementos auditáveis em destaque (datas, versões, nomes) */
+.intro-texto strong{color:var(--em);font-weight:600}
+.intro-rodape{display:flex;justify-content:space-between;align-items:flex-end;padding-top:24px;border-top:1px solid var(--line2);font-size:9px;color:var(--ink4);letter-spacing:.05em}
+.intro-rodape strong{color:var(--ink3);font-weight:500;font-family:'DM Mono',monospace;letter-spacing:.05em}
+/* Índice (C) */
+.indice{min-height:100vh;background:var(--bg);border-bottom:1px solid var(--line2);padding:80px 48px 40px}
+.indice-eyebrow{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--em);margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.indice-eyebrow::before{content:'';width:22px;height:1.5px;background:var(--em)}
+.indice-titulo{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(28px,5vw,36px);letter-spacing:-.03em;line-height:1.05;color:var(--ink);margin-bottom:36px}
+.indice-list{list-style:none;padding:0;margin:0}
+.indice-item{display:flex;align-items:baseline;gap:14px;padding:13px 0;border-bottom:1px solid var(--line)}
+.indice-item:last-child{border-bottom:none}
+.indice-num{font-family:'DM Mono',monospace;font-size:11px;color:var(--em);font-weight:500;width:28px;flex-shrink:0;letter-spacing:.05em}
+.indice-nome{flex:1;font-size:13px;color:var(--ink);line-height:1.4}
+.indice-dots{flex:1;border-bottom:1px dotted var(--line2);margin:0 8px;align-self:flex-end;height:0;min-width:24px}
+.indice-pag{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink4);letter-spacing:.05em;flex-shrink:0;width:24px;text-align:right}
 .sec{border-bottom:1px solid var(--line2)}
 .sec-header{padding:28px 32px 0;display:flex;align-items:flex-start;gap:16px;margin-bottom:22px}
 .sec-num{font-size:9px;letter-spacing:.12em;color:var(--em);flex-shrink:0;padding-top:3px}
@@ -65,13 +96,13 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 .sec-body{padding:0 32px 32px}
 .txt{font-size:11px;color:var(--ink2);line-height:1.85;margin-bottom:12px}
 .txt:last-child{margin-bottom:0}
+.txt-pendente{font-size:11px;color:var(--ink4);line-height:1.7;padding:14px 18px;background:rgba(13,43,30,.04);border:1px dashed var(--line2);border-radius:4px;font-style:italic;margin-bottom:14px}
 .val-nota{font-size:11px;color:var(--ink2);line-height:1.7;padding:14px 16px;background:var(--bg2);border-left:3px solid var(--em);margin-top:10px}
-.footnote{font-size:9px;color:var(--ink3);line-height:1.7;padding:12px 14px;background:var(--bg2);border-left:2px solid var(--line2);margin-top:12px}
-.met-step{display:flex;gap:14px;padding:13px 0;border-bottom:1px solid var(--line)}
-.met-step:last-child{border:none}
-.met-num{width:24px;height:24px;border-radius:50%;background:var(--em-d);border:1px solid var(--em-l);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--em);flex-shrink:0;font-weight:700;margin-top:2px}
-.met-title{font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:var(--ink);margin-bottom:4px}
-.met-desc{font-size:10px;color:var(--ink3);line-height:1.65}
+.alert{font-size:11px;line-height:1.65;padding:12px 14px;margin-bottom:14px;border-left:3px solid}
+.alert.r{background:var(--rd-d);border-color:var(--rd);color:var(--rd)}
+.alert.a{background:var(--am-d);border-color:var(--am);color:var(--am)}
+.alert.g{background:var(--em-d);border-color:var(--em);color:var(--em)}
+.alert.b{background:var(--bl-d);border-color:var(--bl);color:var(--bl)}
 .tbl{width:100%;border-collapse:collapse;margin-bottom:4px}
 .tbl th{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);padding:9px 7px;text-align:right;border-bottom:1px solid var(--line2)}
 .tbl th:first-child{text-align:left}
@@ -79,50 +110,41 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 .tbl td:first-child{text-align:left;color:var(--ink2)}
 .tbl tr.sub td{background:var(--bg2);font-weight:700;color:var(--ink);border-bottom:1px solid var(--line2)}
 .tbl tr.tot td{background:var(--em-d);font-weight:700;color:var(--em);border-bottom:2px solid var(--em-l)}
-.tbl tr.sep td{padding:2px;border:none}
+/* hl (Fase 3.2.4): linha "base" em destaque (ex: Faturamento) — peso + bg sutil */
+.tbl tr.hl td{background:#f0fdf4;font-weight:700;font-size:12px;color:var(--ink)}
+.tbl tr.hl td:first-child{color:var(--ink)}
+/* DRE: colunas alinhadas verticalmente entre os 5 blocos via table-layout fixed + colgroup */
+.tbl.dre{table-layout:fixed}
+.tbl.dre td,.tbl.dre th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl.dre td:first-child{white-space:normal} /* label pode quebrar */
 .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:middle}
-.dot.g{background:var(--em)}.dot.a{background:var(--am)}.dot.r{background:var(--rd)}
-.eq-wrap{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;padding:22px 0 18px}
-.eq-box{background:var(--bg2);border:1px solid var(--line2);padding:14px 16px;text-align:center;min-width:76px}
-.eq-box.hl{background:var(--em-d);border-color:var(--em-l)}
-.eq-label{font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:5px}
-.eq-val{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--ink)}
-.eq-val.g{color:var(--em)}
-.eq-op{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--ink4)}
+.dot.g{background:var(--em)}.dot.a{background:var(--am)}.dot.r{background:var(--rd)}.dot.m{background:var(--ink4)}
+.chip{display:inline-block;font-size:8px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:10px;font-weight:500;margin-left:6px}
+.chip.g{background:var(--em-d);color:var(--em)}.chip.a{background:var(--am-d);color:var(--am)}.chip.r{background:var(--rd-d);color:var(--rd)}.chip.m{background:rgba(13,43,30,.06);color:var(--ink4)}
+.chip.b{background:var(--bl-d);color:var(--bl)}.chip.p{background:var(--pu-d);color:var(--pu)}
+.diag-bloco{margin-bottom:18px}
+.diag-bloco-title{font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--em);margin-bottom:9px;display:flex;align-items:center;gap:8px}
+.diag-bloco-title::after{content:'';flex:1;height:1px;background:var(--em-l)}
 .ise-hero{display:flex;align-items:center;gap:20px;padding:18px;background:var(--em-d);border:1px solid var(--em-l);margin-bottom:16px}
 .ise-score{font-family:'Syne',sans-serif;font-weight:800;font-size:56px;color:var(--em);line-height:1;letter-spacing:-.03em}
 .ise-class{font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin-bottom:4px}
 .ise-class-name{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--em)}
 .ise-desc{font-size:10px;color:var(--ink3);margin-top:5px;line-height:1.55;max-width:280px}
-.pilar{margin-bottom:10px}
+.pilar{margin-bottom:14px}
 .pilar-row{display:flex;align-items:center;gap:10px;margin-bottom:4px}
-.pilar-nome{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);width:110px;flex-shrink:0}
+.pilar-nome{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);width:140px;flex-shrink:0}
 .pilar-bar{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
 .pilar-fill{height:100%;border-radius:3px}
 .pilar-fill.g{background:var(--em)}.pilar-fill.a{background:var(--am)}.pilar-fill.r{background:var(--rd)}
-.pilar-val{font-size:10px;width:36px;text-align:right;flex-shrink:0;font-weight:500}
+.pilar-val{font-size:10px;width:46px;text-align:right;flex-shrink:0;font-weight:500}
 .pilar-val.g{color:var(--em)}.pilar-val.a{color:var(--am)}.pilar-val.r{color:var(--rd)}
-.pilar-desc{font-size:9px;color:var(--ink4);line-height:1.5;padding-left:120px;margin-bottom:4px}
-.ind-card{background:var(--bg1);border:1px solid var(--line2);padding:13px 15px;margin-bottom:9px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start}
-.ind-nome{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px}
-.ind-desc{font-size:10px;color:var(--ink3);line-height:1.55}
-.ind-val{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;text-align:right;white-space:nowrap}
-.ind-val.g{color:var(--em)}.ind-val.a{color:var(--am)}.ind-val.r{color:var(--rd)}
-.ind-status{font-size:8px;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;display:inline-block;margin-top:3px;text-align:right}
-.ind-status.g{background:var(--em-d);color:var(--em)}.ind-status.a{background:var(--am-d);color:var(--am)}.ind-status.r{background:var(--rd-d);color:var(--rd)}
-.bench-item{margin-bottom:16px}
-.bench-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
-.bench-nome{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
-.bench-vals{display:flex;gap:12px;align-items:center}
-.bench-emp{font-size:11px;font-weight:700}
-.bench-emp.g{color:var(--em)}.bench-emp.a{color:var(--am)}.bench-emp.r{color:var(--rd)}
-.bench-ref{font-size:9px;color:var(--ink4)}
-.chip{display:inline-block;font-size:8px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:10px;font-weight:500;margin-left:6px}
-.chip.g{background:var(--em-d);color:var(--em)}.chip.a{background:var(--am-d);color:var(--am)}.chip.r{background:var(--rd-d);color:var(--rd)}
-.bench-bar{height:5px;background:var(--bg3);border-radius:3px;position:relative;overflow:hidden}
-.bench-bar-ref{position:absolute;left:0;top:0;height:100%;background:var(--line2);border-radius:3px}
-.bench-bar-val{position:absolute;left:0;top:0;height:100%;border-radius:3px}
-.bench-bar-val.g{background:var(--em)}.bench-bar-val.a{background:var(--am)}.bench-bar-val.r{background:var(--rd)}
+.pilar-meta{font-size:9px;color:var(--ink4);padding-left:150px;margin-bottom:6px}
+.submet-list{padding-left:150px;margin-top:6px}
+.submet{display:flex;justify-content:space-between;align-items:baseline;font-size:10px;color:var(--ink3);padding:4px 0;border-bottom:1px dashed var(--line)}
+.submet:last-child{border:none}
+.submet-l{flex:1}
+.submet-v{font-family:'DM Mono',monospace;color:var(--ink2);white-space:nowrap}
+.submet-v.g{color:var(--em)}.submet-v.a{color:var(--am)}.submet-v.r{color:var(--rd)}
 .atr-hero{background:var(--bg1);border:1px solid var(--line2);padding:18px;margin-bottom:16px}
 .atr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .atr-score{font-family:'Syne',sans-serif;font-weight:800;font-size:40px;color:var(--em);line-height:1}
@@ -130,110 +152,143 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 .atr-badge{font-size:8px;letter-spacing:.1em;text-transform:uppercase;background:var(--em);color:#fff;padding:5px 12px;font-weight:700}
 .atr-bar-wrap{height:4px;background:var(--line2);margin-bottom:14px;overflow:hidden}
 .atr-bar{height:100%;background:var(--em)}
-.atr-pilar{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
-.atr-pilar:last-child{border:none}
-.atr-pilar-nome{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);width:110px;flex-shrink:0}
-.atr-pilar-bar{flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
-.atr-pilar-fill{height:100%;border-radius:2px;background:var(--em)}
-.atr-pilar-val{font-size:10px;color:var(--em);width:32px;text-align:right;flex-shrink:0}
-.atr-just{font-size:10px;color:var(--ink3);line-height:1.65;margin-top:12px;padding:12px 14px;background:var(--bg2)}
-.op-card{background:var(--bg1);border:1px solid var(--line2);border-left:3px solid var(--em);padding:15px 17px;margin-bottom:9px}
-.op-header{display:flex;align-items:flex-start;gap:10px;margin-bottom:7px}
-.op-num{width:20px;height:20px;border-radius:50%;background:var(--em-d);border:1px solid var(--em-l);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--em);font-weight:700;flex-shrink:0}
-.op-title{font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:var(--ink)}
-.op-desc{font-size:10px;color:var(--ink3);line-height:1.6;margin-bottom:8px}
-.op-ganho{display:inline-block;font-size:9px;letter-spacing:.06em;color:var(--em);background:var(--em-d);border:1px solid var(--em-l);padding:3px 10px}
-.diag-bloco{margin-bottom:18px}
-.diag-bloco-title{font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--em);margin-bottom:9px;display:flex;align-items:center;gap:8px}
-.diag-bloco-title::after{content:'';flex:1;height:1px;background:var(--em-l)}
-.diag-row{display:flex;align-items:baseline;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
-.diag-row:last-child{border:none}
-.diag-label{font-size:10px;color:var(--ink3)}
-.diag-val{font-size:10px;color:var(--ink);text-align:right;font-weight:500}
-.parecer-titulo{margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--line2)}
-.parecer-eyebrow{font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink3);margin-bottom:9px}
-.parecer-h{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--ink);letter-spacing:-.02em;line-height:1.2}
-.parecer-linha{width:32px;height:2px;background:var(--em);margin-top:13px}
-.parecer-texto p{font-size:11px;color:var(--ink2);line-height:1.85;margin-bottom:14px}
-.parecer-texto p:last-child{margin-bottom:0}
-.onep-wrap{border-bottom:1px solid var(--line2)}
-.onep-hero{background:linear-gradient(135deg,var(--em-d),var(--bg1));border-bottom:1px solid var(--em-l);padding:24px 32px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
-.onep-hero-eyebrow{font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--em);margin-bottom:10px;display:flex;align-items:center;gap:8px}
-.onep-hero-eyebrow::before{content:'';width:18px;height:1.5px;background:var(--em)}
-.onep-hero-nome{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;color:var(--ink);letter-spacing:-.03em;line-height:1.1;margin-bottom:5px}
-.onep-hero-setor{font-size:10px;color:var(--ink3)}
-.onep-hero-right{text-align:right;flex-shrink:0}
-.onep-valor-label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:5px}
-.onep-valor{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:var(--em);letter-spacing:-.03em;line-height:1}
-.onep-valor-tipo{font-size:9px;color:var(--ink4);margin-top:4px}
-.onep-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line2)}
-.onep-kpi{background:var(--bg);padding:14px 16px}
-.onep-kpi-l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:5px}
-.onep-kpi-v{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--ink);line-height:1}
-.onep-kpi-v.g{color:var(--em)}.onep-kpi-v.a{color:var(--am)}
-.onep-kpi-sub{font-size:9px;color:var(--ink4);margin-top:3px}
-.onep-body{padding:20px 32px;display:flex;flex-direction:column;gap:16px}
-.onep-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.onep-bloco{background:var(--bg2);border:1px solid var(--line2);padding:16px}
-.onep-bloco-title{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--em);margin-bottom:12px;display:flex;align-items:center;gap:8px}
-.onep-bloco-title::after{content:'';flex:1;height:1px;background:var(--em-l)}
-.onep-item{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line)}
-.onep-item:last-child{border:none}
-.onep-item-l{font-size:10px;color:var(--ink3)}
-.onep-item-v{font-size:10px;color:var(--ink);font-weight:600;text-align:right}
-.onep-item-v.g{color:var(--em)}.onep-item-v.a{color:var(--am)}
-.onep-formula{background:var(--em-d);border:1px solid var(--em-l);padding:14px 16px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
-.onep-fbox{background:var(--bg1);border:1px solid var(--line2);padding:10px 14px;text-align:center;min-width:64px}
-.onep-fbox.hl{background:var(--em);border-color:var(--em)}
-.onep-fbox-label{font-size:7px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:4px}
-.onep-fbox.hl .onep-fbox-label{color:rgba(255,255,255,.7)}
-.onep-fbox-val{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--ink)}
-.onep-fbox.hl .onep-fbox-val{color:#fff}
-.onep-fop{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--ink4)}
-.onep-ise-bar{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.onep-ise-nome{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);width:80px;flex-shrink:0}
-.onep-ise-track{flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
-.onep-ise-fill{height:100%;border-radius:3px}
-.onep-ise-val{font-size:9px;width:30px;text-align:right;flex-shrink:0;font-weight:600}
-.onep-footer{border-top:1px solid var(--line2);padding:14px 32px;display:flex;align-items:center;justify-content:space-between}
-.onep-footer-l{font-size:9px;color:var(--ink4);letter-spacing:.06em}
-.onep-footer-r{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--em)}
-.icd-wrap{background:var(--bg1);border-bottom:1px solid var(--line2);padding:20px 28px}
-.icd-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.icd-title{font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink4)}
-.icd-score{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--em);letter-spacing:-.02em}
-.icd-bar-track{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-bottom:12px}
-.icd-bar-fill{height:100%;border-radius:3px;background:var(--em)}
-.icd-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.icd-col-title{font-size:7px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:6px}
-.icd-col-title::after{content:'';flex:1;height:1px}
-.icd-col-title.g{color:var(--em)}.icd-col-title.g::after{background:var(--em-l)}
-.icd-col-title.a{color:var(--am)}.icd-col-title.a::after{background:var(--am-l)}
-.icd-item{font-size:9px;color:var(--ink3);padding:4px 0;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px}
-.icd-item:last-child{border:none}
-.icd-item-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
-.icd-nota{font-size:9px;color:var(--ink3);line-height:1.6;padding:10px 12px;background:var(--bg2);border-left:2px solid var(--em-l);margin-top:10px}
-.fechamento{background:var(--bg);padding:72px 32px 48px;min-height:80vh;display:flex;flex-direction:column;justify-content:space-between}
+.atr-comp{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.atr-comp:last-child{border:none}
+.atr-comp-nome{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);width:140px;flex-shrink:0}
+.atr-comp-bar{flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
+.atr-comp-fill{height:100%;border-radius:2px;background:var(--em)}
+.atr-comp-val{font-size:10px;color:var(--em);width:60px;text-align:right;flex-shrink:0}
+.up-card{background:var(--bg1);border:1px solid var(--line2);border-left:3px solid var(--em);padding:15px 17px;margin-bottom:9px}
+/* Categorias técnicas v2026.07 */
+.up-card.cat-ro{border-left-color:var(--em)}
+.up-card.cat-passivo{border-left-color:var(--rd)}
+.up-card.cat-multiplo{border-left-color:var(--bl)}
+.up-card.cat-qualitativo{border-left-color:var(--pu)}
+.up-card.cat-paywall{border-left-color:var(--ink4)}
+.up-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:7px}
+.up-header-l{flex:1}
+.up-num{display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--em-d);border:1px solid var(--em-l);text-align:center;font-size:9px;color:var(--em);font-weight:700;line-height:18px;margin-right:6px;vertical-align:middle}
+.up-cat{display:inline-block;font-size:8px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-right:6px;padding:2px 7px;border-radius:3px}
+.up-cat.cat-ro{background:var(--em-d);color:var(--em)}
+.up-cat.cat-passivo{background:var(--rd-d);color:var(--rd)}
+.up-cat.cat-multiplo{background:var(--bl-d);color:var(--bl)}
+.up-cat.cat-qualitativo{background:var(--pu-d);color:var(--pu)}
+.up-cat.cat-paywall{background:rgba(74,124,92,0.12);color:var(--ink4)}
+/* Bloco lateral direito: valor R$ + % bruto + notinha (T1 do refactor laudo-pago) */
+.up-valor-block{text-align:right;min-width:140px;flex-shrink:0;font-family:'DM Mono',monospace}
+.up-valor-block .v-brl{font-size:15px;color:var(--em);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.up-valor-block .v-pct{font-size:11px;color:var(--ink4);margin-top:2px}
+.up-valor-block .v-qual{font-size:11px;color:var(--ink4);font-style:italic}
+.up-valor-block .v-nota{font-size:10px;color:var(--ink4);font-style:italic;margin-top:6px;line-height:1.4;max-width:180px;white-space:normal}
+.up-title{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--ink);line-height:1.3;margin-top:4px}
+.up-sub{font-size:10px;color:var(--ink4);margin-top:3px;line-height:1.4}
+.up-desc{font-size:11px;color:var(--ink2);line-height:1.7;margin:8px 0}
+.up-impacto{display:inline-block;font-size:10px;letter-spacing:.04em;color:var(--em);background:var(--em-d);border:1px solid var(--em-l);padding:4px 10px;font-weight:600;white-space:nowrap}
+.up-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:9px;color:var(--ink4);letter-spacing:.04em}
+.up-meta span{display:inline-flex;align-items:center;gap:4px}
+.up-meta span::before{content:'·';color:var(--line2);margin-right:4px}
+.up-meta span:first-child::before{display:none}
+.up-cta{margin-top:10px;padding:10px 12px;background:var(--pu-d);border:1px solid var(--pu-l);font-size:10px;color:var(--pu);letter-spacing:.04em}
+.op-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line2);border:1px solid var(--line2);margin-top:6px}
+.op-cell{background:var(--bg1);padding:13px 16px;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.op-cell-l{font-size:10px;color:var(--ink4);letter-spacing:.04em}
+.op-cell-v{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--ink);text-align:right}
+.kpi-mini{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line2);border:1px solid var(--line2);margin-bottom:14px}
+.kpi-mini-card{background:var(--bg1);padding:14px 16px}
+.kpi-mini-l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:6px}
+/* anual em destaque (Fase 3.2.3): font-size maior, peso 800, line-height apertado */
+.kpi-mini-v{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;color:var(--ink);line-height:1.1;letter-spacing:-.02em}
+.kpi-mini-v.g{color:var(--em)}.kpi-mini-v.a{color:var(--am)}.kpi-mini-v.r{color:var(--rd)}
+/* mensal pequeno embaixo */
+.kpi-mini-sub{font-size:11px;color:var(--ink4);margin-top:4px;font-family:'DM Mono',monospace}
+/* ind-kpi: variante compacta horizontal pra sumário de indicadores caber em 1 linha */
+.ind-kpi{display:flex;align-items:stretch;gap:1px;background:var(--line2);border:1px solid var(--line2);margin-bottom:14px;overflow:hidden}
+.ind-kpi-card{flex:1;min-width:0;background:var(--bg1);padding:8px 10px;display:flex;flex-direction:column;justify-content:center;text-align:left}
+.ind-kpi-l{font-size:7px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ind-kpi-v{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--ink);line-height:1}
+.ind-kpi-v.g{color:var(--em)}.ind-kpi-v.a{color:var(--am)}.ind-kpi-v.r{color:var(--rd)}
+.compare-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:8px}
+.compare-col{background:var(--bg1);border:1px solid var(--line2);padding:13px 14px}
+.compare-col.recomendado{border-color:var(--em);background:var(--em-d)}
+.compare-col[data-inelegivel="true"]{opacity:.55}
+.compare-title{font-family:'Syne',sans-serif;font-weight:700;font-size:11px;color:var(--ink);margin-bottom:5px;letter-spacing:-.01em}
+.compare-total{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--ink);line-height:1;margin:6px 0 8px}
+.compare-row{display:flex;justify-content:space-between;align-items:baseline;font-size:10px;color:var(--ink3);padding:3px 0;border-bottom:1px solid var(--line)}
+.compare-row:last-child{border:none}
+.compare-row span:last-child{font-family:'DM Mono',monospace;color:var(--ink)}
+.compare-motivo{font-size:9px;color:var(--rd);font-style:italic;margin-top:5px;line-height:1.4}
+.hero-3{background:linear-gradient(135deg,var(--em-d),var(--bg1));border:1px solid var(--em-l);padding:22px 24px;margin-bottom:18px}
+.hero-3-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+.hero-3-eyebrow{font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--em);margin-bottom:9px;display:flex;align-items:center;gap:8px}
+.hero-3-eyebrow::before{content:'';width:18px;height:1.5px;background:var(--em)}
+.hero-3-nome{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--ink);letter-spacing:-.03em;line-height:1.1}
+.hero-3-setor{font-size:10px;color:var(--ink3);margin-top:5px}
+.hero-3-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line2);border:1px solid var(--line2)}
+.hero-3-grid.hero-2-grid{grid-template-columns:repeat(2,1fr)}
+.hero-3-cell{background:var(--bg);padding:14px 16px}
+.hero-3-cell-l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:5px}
+.hero-3-cell-v{font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:var(--ink);line-height:1.05;letter-spacing:-.02em}
+.hero-3-cell-v.g{color:var(--em)}.hero-3-cell-v.a{color:var(--am)}
+.hero-3-cell-sub{font-size:10px;color:var(--ink4);margin-top:4px;font-family:'DM Mono',monospace}
+/* Gráfico 3 — radar ISE 8 pilares + barras complementares (Fase 3.2.3) */
+.chart-radar-wrap{margin:0 0 22px;padding:18px 20px;background:var(--bg2);border:1px solid var(--line2)}
+.chart-radar-head{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:14px}
+.chart-radar-canvas-wrap{position:relative;width:100%;max-width:380px;margin:0 auto 14px;aspect-ratio:1/1}
+.chart-radar-canvas-wrap canvas{width:100% !important;height:100% !important}
+.chart-radar-legend{display:flex;justify-content:center;gap:18px;font-size:10px;color:var(--ink3);margin-top:6px;flex-wrap:wrap}
+.chart-radar-legend-item{display:flex;align-items:center;gap:6px}
+.chart-radar-legend-dot{width:10px;height:10px;border-radius:2px}
+.chart-radar-legend-line{width:14px;height:2px;background:transparent;border-top:2px dashed var(--ink4)}
+.ise-barras{margin-top:8px}
+.ise-barras-head{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:10px}
+.ise-bar-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
+.ise-bar-row:last-child{border:none}
+.ise-bar-nome{font-size:10px;color:var(--ink3);width:140px;flex-shrink:0;letter-spacing:.04em}
+.ise-bar-track{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.ise-bar-fill{height:100%;border-radius:3px}
+.ise-bar-fill.g{background:var(--em)}.ise-bar-fill.a{background:var(--am)}.ise-bar-fill.r{background:var(--rd)}
+.ise-bar-val{font-size:10px;width:46px;text-align:right;flex-shrink:0;font-family:'DM Mono',monospace}
+.ise-bar-val.g{color:var(--em)}.ise-bar-val.a{color:var(--am)}.ise-bar-val.r{color:var(--rd)}
+.ise-bar-peso{font-size:9px;color:var(--ink4);width:36px;text-align:right;flex-shrink:0;font-family:'DM Mono',monospace}
+/* Gráfico 2 — funil DRE em SVG (Fase 3.2.3) */
+.chart-funnel{margin:0 0 22px;padding:18px 20px;background:var(--bg2);border:1px solid var(--line2)}
+.chart-funnel-head{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:14px}
+.chart-funnel-svg{width:100%;display:block}
+.chart-funnel-svg text{font-family:'DM Mono',monospace}
+.chart-funnel-svg .step-label{font-size:11px;font-weight:600;letter-spacing:.02em}
+.chart-funnel-svg .step-val{font-size:12px;font-family:'Syne',sans-serif;font-weight:800}
+.chart-funnel-svg .step-deduz{font-size:10px;fill:#92470a;font-family:'DM Mono',monospace;font-weight:500}
+/* Gráfico 1 — barra avaliação→potencial em SVG (Fase 3.2.3) */
+.chart-bar{margin-top:18px;padding:16px 18px;background:var(--bg2);border:1px solid var(--line2)}
+.chart-bar-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4)}
+.chart-bar-svg{width:100%;height:60px;display:block}
+.chart-bar-legend{display:flex;justify-content:space-between;margin-top:10px;font-size:10px;color:var(--ink3)}
+.chart-bar-legend-item{display:flex;flex-direction:column;align-items:flex-start}
+.chart-bar-legend-label{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);margin-bottom:3px;display:flex;align-items:center;gap:6px}
+.chart-bar-legend-dot{width:8px;height:8px;border-radius:2px}
+.chart-bar-legend-val{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:var(--ink)}
+.fechamento{background:var(--bg);padding:72px 32px 48px;min-height:60vh;display:flex;flex-direction:column;justify-content:space-between}
 .fech-eyebrow{font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:var(--em);margin-bottom:20px;display:flex;align-items:center;gap:12px}
 .fech-eyebrow::before{content:'';width:24px;height:1.5px;background:var(--em)}
-.fech-titulo{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(32px,7vw,44px);letter-spacing:-.03em;color:var(--ink);line-height:1.05;margin-bottom:24px}
+.fech-titulo{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(28px,6vw,40px);letter-spacing:-.03em;color:var(--ink);line-height:1.05;margin-bottom:24px}
 .fech-titulo em{color:var(--em);font-style:normal}
 .fech-texto{font-size:12px;line-height:1.9;color:var(--ink3);max-width:400px;margin-bottom:36px}
-.fech-ass{display:flex;align-items:center;gap:16px;padding:18px 22px;background:var(--bg1);border:1px solid var(--line2);margin-bottom:24px}
-.fech-ass-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;letter-spacing:-.02em;color:var(--ink)}
-.fech-ass-logo em{color:var(--em);font-style:normal}
-.fech-ass-sep{width:1px;height:32px;background:var(--line2)}
-.fech-ass-txt{font-size:9px;color:var(--ink3);line-height:1.55}
 .fech-rodape{display:flex;align-items:center;justify-content:space-between;padding-top:20px;border-top:1px solid var(--line2)}
 .fech-rod-l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4)}
 .fech-rod-r{font-size:8px;color:var(--em);letter-spacing:.08em}
-@media print{.page-break{page-break-before:always;break-before:page}#loading{display:none!important}.btn-pdf{display:none!important}}
+@media print{
+  .page-break{page-break-before:always;break-before:page}
+  #loading{display:none!important}
+  .btn-pdf{display:none!important}
+  /* Cada bloco principal começa em página nova ao imprimir */
+  .capa,.intro,.indice,.sec,.fechamento{page-break-before:always;break-before:page}
+  /* Capa não precisa de break (é a primeira) */
+  .capa{page-break-before:auto;break-before:auto}
+}
 </style>
-<script src="/skill-avaliadora.js"></script>
-
-<script src="/skill-avaliadora.js"></script>
 </head>
 <body>
+<button class="theme-toggle" onclick="toggleTheme()" id="theme-toggle-btn" title="Alternar tema">☾ ESCURO</button>
 <div id="loading">
   <div class="ld-logo"><em>1</em>NEGÓCIO</div>
   <div class="ld-bar-wrap"><div class="ld-bar" id="ld-bar"></div></div>
@@ -244,918 +299,1166 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 <div id="wrap"><div class="doc" id="doc"></div></div>
 
 <script>
-const SB_URL='https://dbijmgqlcrgjlcfrastg.supabase.co';
-const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
-
-let ldStep=0;
-const ldMsgs=['Carregando dados...','Calculando resultado operacional...','Aplicando múltiplos setoriais...','Calculando ISE...','Gerando análise...','Elaborando parecer...','Identificando oportunidades...','Preparando laudo...'];
-
-function n(v){return v?parseFloat(v):0;}
-
-function pct(a,b){return b&&b!==0?(a/b*100):0;}
-
-function brl(v){
-  v=Math.round(n(v));
-  if(Math.abs(v)>=1000000)return'R$ '+(v/1000000).toFixed(1).replace('.',',')+'M';
-  if(Math.abs(v)>=1000)return'R$ '+Math.round(v/1000)+'k';
-  return'R$ '+v.toLocaleString('pt-BR');
+// ─── CONFIG ────────────────────────────────────────────────────────────────
+// Toggle dark/light — D-1 do mapeamento. Default light (impressão).
+// Estado em memória (sem localStorage por design — briefing global).
+function toggleTheme() {
+  const root = document.documentElement;
+  const atual = root.getAttribute('data-theme');
+  const novo = atual === 'dark' ? 'light' : 'dark';
+  if (novo === 'light') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', novo);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = novo === 'dark' ? '☀ CLARO' : '☾ ESCURO';
 }
 
-function brlF(v){return'R$ '+Math.round(n(v)).toLocaleString('pt-BR');}
+const SUPABASE_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+let calcJson = null;
 
-function stCor(v,ref,menor){if(menor)return v<=ref?'g':v<=ref*1.3?'a':'r';return v>=ref?'g':v>=ref*.7?'a':'r';}
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+const n = v => Number(v) || 0;
+const fc = v => 'R$ ' + Math.round(n(v)).toLocaleString('pt-BR');
+const fcShort = v => {
+  const num = n(v);
+  if (Math.abs(num) >= 1000000) return 'R$ ' + (num/1000000).toFixed(1).replace('.', ',') + 'M';
+  if (Math.abs(num) >= 1000) return 'R$ ' + Math.round(num/1000) + 'k';
+  return 'R$ ' + Math.round(num).toLocaleString('pt-BR');
+};
+const escapeHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hoje = () => new Date().toLocaleDateString('pt-BR');
 
-function hoje(){return new Date().toLocaleDateString('pt-BR');}
-
-function animLD(){
-  const bar=document.getElementById('ld-bar'),msg=document.getElementById('ld-msg');
-  if(ldStep<ldMsgs.length){if(msg)msg.textContent=ldMsgs[ldStep];if(bar)bar.style.width=((ldStep+1)/ldMsgs.length*85)+'%';ldStep++;setTimeout(animLD,600);}
-}
-
-function hideLoading(){
-  const bar=document.getElementById('ld-bar');if(bar)bar.style.width='100%';
-  setTimeout(()=>{const ld=document.getElementById('loading'),w=document.getElementById('wrap'),btn=document.getElementById('btn-pdf');if(ld)ld.classList.add('hide');if(w)w.classList.add('show');if(btn)btn.style.display='block';},400);
-}
-
-function pilarHTML(nome,val,peso){
-  const st=val>=7?'g':val>=5?'a':'r';
-  return`<div class="pilar"><div class="pilar-row"><div class="pilar-nome">${nome} (${peso}%)</div><div class="pilar-bar"><div class="pilar-fill ${st}" style="width:${val*10}%"></div></div><div class="pilar-val ${st}">${val}/10</div></div></div>`;
-}
-
-function benchHTML(nome,empStr,refStr,st,barPct){
-  return`<div class="bench-item"><div class="bench-row"><div class="bench-nome">${nome}</div><div class="bench-vals"><span class="bench-emp ${st}">${empStr}</span><span class="bench-ref">ref: ${refStr}</span><span class="chip ${st}">${st==='g'?'Excelente':st==='a'?'Atenção':'Abaixo'}</span></div></div><div class="bench-bar"><div class="bench-bar-ref" style="width:50%"></div><div class="bench-bar-val ${st}" style="width:${Math.min(100,barPct)}%"></div></div></div>`;
-}
-
-async function askClaude(prompt,maxTokens,retries){
-  // ════════════════════════════════════════════════════════════════
-  // CHAMADA À API ANTHROPIC DESABILITADA
-  // A API não permite chamadas diretas do browser (CORS)
-  // Usando fallbacks ricos já calculados a partir dos dados
-  // ════════════════════════════════════════════════════════════════
-  console.log('askClaude: usando fallback (API Anthropic não disponível via browser)');
-  return ''; // Retorna vazio para usar fallback
-}
-
-function getBench(s){
-  // Delega para a skill — que lê benchmarks_dre do banco
-  if(window.AVALIADORA && AVALIADORA._getBench){
-    return AVALIADORA._getBench(s);
+function statusCor(status) {
+  switch(status) {
+    case 'no_alvo': return 'g';
+    case 'atencao': return 'a';
+    case 'abaixo':  return 'r';
+    case 'neutro':  return 'm';
+    default:        return 'm';
   }
-  // Fallback local caso skill não esteja carregada
-  const b={'Alimentacao':{imp:8,tax:6,com:3,cmv:35,fol:22,alu:10,mkt:5,cf:8,ro:18,mulBase:3.5,mulRange:'3-5x'},'Varejo':{imp:10,tax:5,com:4,cmv:55,fol:15,alu:8,mkt:6,cf:6,ro:12,mulBase:3.5,mulRange:'3-5x'},'Servicos':{imp:12,tax:4,com:5,cmv:20,fol:35,alu:6,mkt:10,cf:10,ro:20,mulBase:5,mulRange:'5-8x'},'Tecnologia':{imp:10,tax:3,com:8,cmv:15,fol:40,alu:4,mkt:15,cf:12,ro:25,mulBase:8,mulRange:'8-15x'},'Saude':{imp:10,tax:4,com:4,cmv:25,fol:30,alu:8,mkt:6,cf:8,ro:20,mulBase:5,mulRange:'4-7x'},'Educacao':{imp:10,tax:4,com:5,cmv:20,fol:32,alu:7,mkt:8,cf:9,ro:22,mulBase:5,mulRange:'4-8x'},'Industria':{imp:9,tax:3,com:3,cmv:45,fol:20,alu:5,mkt:4,cf:10,ro:15,mulBase:4,mulRange:'4-6x'},'default':{imp:10,tax:5,com:4,cmv:40,fol:20,alu:8,mkt:8,cf:8,ro:15,mulBase:4,mulRange:'4-6x'}};
-  const norm={'alimentacao':'Alimentacao','food':'Alimentacao','restaurante':'Alimentacao','varejo':'Varejo','comercio':'Varejo','servicos':'Servicos','servicos_empresas':'Servicos','tecnologia':'Tecnologia','saas':'Tecnologia','saude':'Saude','clinica':'Saude','educacao':'Educacao','industria':'Industria'};
-  const k=norm[(s||'').toLowerCase()]||s;
-  return b[k]||b['default'];
 }
-
-function calcISE(fat,ro,recorrencia,concentracao,processos,dependencia,caixa,passivo_juridico,emprest,totAtiv,marca_inpi,D){
-  // Usa parâmetros do banco se disponíveis
-  const P = window.AVALIADORA?._getParams?.() || {};
-  const pesos = P['pesos_ise'] || {};
-  const regras = P['regras_ise'] || {};
-  const limites = P['limites_globais'] || {};
-
-  const roAnual=ro*12;
-  const pl=totAtiv-emprest;
-  const parcelasMensais=D?.parcelas_mensais||0;
-
-  // P1 — Dependência
-  const r1=regras['p1_dependencia']||{};
-  const depNota=dependencia==='total'?9:dependencia==='parcial'?5:2;
-  const p1=10-depNota;
-
-  // P2 — Comercial
-  const p2=D?.comercial_vendas||5;
-
-  // P3 — Financeiro (margem)
-  const margemOp=fat>0?(ro/fat*100):0;
-  const r3=regras['p3_financeiro']||{};
-  const p3=margemOp>=25?+(r3.margem_25_mais||9):margemOp>=15?+(r3.margem_15_24||7):margemOp>=8?+(r3.margem_8_14||5):+(r3.margem_menor_8||3);
-
-  // P4 — Gestão
-  const r4=regras['p4_gestao']||{};
-  const p4=processos==='documentados'?+(r4.documentados||8):processos==='parcial'?+(r4.parcial||5):+(r4.nao||2);
-
-  // P5 — Marca
-  const r5=regras['p5_marca']||{};
-  const p5=marca_inpi==='sim'?+(r5.sim||8):marca_inpi==='processo'?+(r5.processo||6):+(r5.nao||4);
-
-  // P6 — Balanço
-  const r6=regras['p6_balanco']||{};
-  let p6;
-  if(roAnual>0){
-    if(pl>roAnual*2)p6=+(r6.pl_maior_2x_ro||10);
-    else if(pl>roAnual)p6=+(r6.pl_maior_1x_ro||8);
-    else if(pl>0)p6=+(r6.pl_positivo||6);
-    else if(pl>-roAnual)p6=+(r6.pl_negativo_ate_1x||4);
-    else if(pl>-roAnual*2)p6=+(r6.pl_negativo_ate_2x||2);
-    else p6=+(r6.pl_negativo_mais_2x||0);
-  }else{p6=pl>0?6:pl>-50000?3:1;}
-
-  // P7 — Dívida
-  const r7=regras['p7_divida']||{};
-  const dividaPct=roAnual>0?(parcelasMensais*12/roAnual*100):0;
-  let p7;
-  if(parcelasMensais===0)p7=+(r7.zero||10);
-  else if(dividaPct<10)p7=+(r7.ate_10pct||9);
-  else if(dividaPct<20)p7=+(r7.ate_20pct||7);
-  else if(dividaPct<35)p7=+(r7.ate_35pct||5);
-  else if(dividaPct<50)p7=+(r7.ate_50pct||3);
-  else p7=+(r7.acima_50pct||1);
-
-  // P8 — Risco Jurídico
-  const r8=regras['p8_risco']||{};
-  const p8=passivo_juridico?+(r8.com_passivo||3):+(r8.sem_passivo||8);
-
-  // P9 — Concentração
-  const r9=regras['p9_concentracao']||{};
-  const conc=concentracao>0?concentracao:+(r9.default||15);
-  let p9;
-  if(conc<=5)p9=+(r9.ate_5pct||10);
-  else if(conc<=15)p9=+(r9.ate_15pct||8);
-  else if(conc<=25)p9=+(r9.ate_25pct||6);
-  else if(conc<=40)p9=+(r9.ate_40pct||4);
-  else if(conc<=60)p9=+(r9.ate_60pct||2);
-  else p9=+(r9.acima_60pct||0);
-
-  // P10 — Escalabilidade
-  const r10=regras['p10_escalabilidade']||{};
-  let p10;
-  if(!recorrencia||recorrencia===0)p10=+(r10.zero||5);
-  else if(recorrencia<=20)p10=+(r10.ate_20pct||6);
-  else if(recorrencia<=40)p10=+(r10.ate_40pct||7);
-  else if(recorrencia<=60)p10=+(r10.ate_60pct||8);
-  else if(recorrencia<=80)p10=+(r10.ate_80pct||9);
-  else p10=+(r10.acima_80pct||10);
-
-  // Ponderação
-  const pw=pesos;
-  const total=Math.round((
-    p1*+(pw.p1_dependencia||0.09)+
-    p2*+(pw.p2_comercial||0.22)+
-    p3*+(pw.p3_financeiro||0.18)+
-    p4*+(pw.p4_gestao||0.15)+
-    p5*+(pw.p5_marca||0.05)+
-    p6*+(pw.p6_balanco||0.08)+
-    p7*+(pw.p7_divida||0.05)+
-    p8*+(pw.p8_risco||0.05)+
-    p9*+(pw.p9_concentracao||0.08)+
-    p10*+(pw.p10_escalabilidade||0.05)
-  )*10);
-
-  const notaCrit=+(limites.nota_critico_abaixo_de||3);
-  const qtdTrava=+(limites.pilares_criticos_para_trava||2);
-  const teto=+(limites.ise_trava_criticos||40);
-  const criticos=[p1,p2,p3,p4,p6].filter(v=>v<notaCrit).length;
-  const finalTotal=criticos>=qtdTrava?Math.min(total,teto):Math.min(100,Math.max(0,total));
-
-  return{total:finalTotal,dep:p1,com:p2,fin:p3,ges:p4,mar:p5,bal:p6,div:p7,ris:p8,conc:p9,esc:p10};
-}
-
-function calcFator(ro,ise,b,D){
-  const P=window.AVALIADORA?._getParams?.() || {};
-  const mb=P['multiplos_base']||{};
-  const ms=P['modificadores_setor']||{};
-  const fi=P['fator_ise']||[];
-  const limites=P['limites_globais']||{};
-  const mapaSetor=P['mapeamento_setor']||{};
-  const mapaModelo=P['mapeamento_modelo']||{};
-
-  // Mapear setor
-  const setorRaw=(D?.setor||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  let setorCode=mapaSetor[setorRaw]||'outros_servicos';
-  if(!mapaSetor[setorRaw]){for(const k in mapaSetor){if(setorRaw.includes(k)){setorCode=mapaSetor[k];break;}}}
-
-  // Mapear modelo
-  const modeloRaw=(D?.modelo_negocio||D?.modelo_atuacao||'').toLowerCase();
-  let modeloCode='servico';
-  if(modeloRaw){for(const k in mapaModelo){if(modeloRaw.includes(k)){modeloCode=mapaModelo[k];break;}}}
-  if(modeloCode==='servico'&&setorCode==='alimentacao')modeloCode='producao_direta';
-  if(modeloCode==='servico'&&setorCode==='varejo')modeloCode='revenda';
-  if(modeloCode==='servico'&&setorCode==='industria')modeloCode='fabricacao';
-
-  const multiploBase=+(mb[modeloCode]||mb['servico']||2.5);
-  const modificador=+(ms[setorCode]||0);
-
-  function fISE(i){
-    if(fi.length>0){const f=fi.find(x=>i>=x.min&&i<=x.max);return f?+f.fator:1.0;}
-    if(i>=85)return 1.30;if(i>=70)return 1.15;if(i>=50)return 1.00;if(i>=35)return 0.85;return 0.70;
+function statusLabel(status) {
+  // Labels visíveis (Fase 3.2.3) — id interno (no_alvo/atencao/abaixo/neutro) preservado no JSON
+  switch(status) {
+    case 'no_alvo': return 'Bom';
+    case 'atencao': return 'Atenção';
+    case 'abaixo':  return 'Crítico';
+    case 'neutro':  return 'N/A';
+    default:        return '—';
   }
-
-  const multiplo=(multiploBase+modificador)*fISE(ise);
-  const fMin=+(limites.fator_min||1.5);
-  const fMax=+(limites.fator_max||6.0);
-  return Math.max(fMin,Math.min(fMax,multiplo));
+}
+function pilarCor(score10) {
+  if (score10 >= 7) return 'g';
+  if (score10 >= 5) return 'a';
+  return 'r';
+}
+function fmtIndValor(item) {
+  const v = n(item.valor);
+  if (item.unidade === '%')    return v.toFixed(1) + '%';
+  if (item.unidade === 'dias') return v.toFixed(0) + ' dias';
+  if (item.unidade === 'unid') return v.toFixed(0);
+  if (item.unidade === 'R$')   return fcShort(v);
+  return v.toFixed(2);
+}
+function fmtIndBench(item) {
+  if (item.benchmark == null) return '—';
+  const b = n(item.benchmark);
+  if (item.unidade === '%')    return b.toFixed(1) + '%';
+  if (item.unidade === 'dias') return b.toFixed(0) + ' dias';
+  if (item.unidade === 'unid') return b.toFixed(0);
+  if (item.unidade === 'R$')   return fcShort(b);
+  return b.toFixed(2);
 }
 
-function fISE(i){
-    if(fi.length>0){const f=fi.find(x=>i>=x.min&&i<=x.max);return f?+f.fator:1.0;}
-    if(i>=85)return 1.30;if(i>=70)return 1.15;if(i>=50)return 1.00;if(i>=35)return 0.85;return 0.70;
+// ─── LOADING ────────────────────────────────────────────────────────────────
+let ldStep = 0;
+const ldMsgs = ['Carregando dados...','Lendo análise da skill...','Montando DRE...','Calculando ISE...','Aplicando benchmarks...','Identificando upsides...','Preparando laudo...'];
+function animLD() {
+  const bar = document.getElementById('ld-bar');
+  const msg = document.getElementById('ld-msg');
+  if (ldStep < ldMsgs.length) {
+    if (msg) msg.textContent = ldMsgs[ldStep];
+    if (bar) bar.style.width = ((ldStep+1)/ldMsgs.length*85)+'%';
+    ldStep++;
+    setTimeout(animLD, 600);
   }
-
-function calcAtr(ise,margemOp,recorrencia,D){
-  const P=window.AVALIADORA?._getParams?.() || {};
-  const pa=P['pesos_atratividade']||{};
-  const ss=P['score_setor_atratividade']||{};
-  const mapaSetor=P['mapeamento_setor']||{};
-
-  const setorRaw=(D?.setor||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  let setorCode=mapaSetor[setorRaw]||'outros_servicos';
-  if(!mapaSetor[setorRaw]){for(const k in mapaSetor){if(setorRaw.includes(k)){setorCode=mapaSetor[k];break;}}}
-
-  const crescimento=D?.historico_crescimento||5;
-  const margemBench=15;
-
-  const p1=(ise?.total||50)/10;
-  const p2=+(ss[setorCode]||ss['default']||6);
-  const rec=recorrencia||0;
-  const p3=rec<=0?5:rec<=20?6:rec<=40?7:rec<=60?8:rec<=80?9:10;
-  const p4=ise?.dep||5;
-  const p5=crescimento>=8?10:crescimento>=6?7:crescimento>=4?4:2;
-  const p6=Math.min(10,((margemOp||0)/margemBench)*5);
-
-  const score=Math.round((
-    p1*+(pa.p1_ise_solidez||0.17)+
-    p2*+(pa.p2_setor||0.17)+
-    p3*+(pa.p3_recorrencia||0.17)+
-    p4*+(pa.p4_independencia||0.17)+
-    p5*+(pa.p5_crescimento||0.17)+
-    p6*+(pa.p6_margem||0.15)
-  )*10)/10;
-
-  return{score:score||5,sol:p1,set:p2,rec:p3,ges:p4,cre:p5,esc:p5,mar:p6};
+}
+function hideLoading() {
+  const bar = document.getElementById('ld-bar');
+  if (bar) bar.style.width = '100%';
+  setTimeout(() => {
+    const ld  = document.getElementById('loading');
+    const w   = document.getElementById('wrap');
+    const btn = document.getElementById('btn-pdf');
+    if (ld) ld.classList.add('hide');
+    if (w)  w.classList.add('show');
+    if (btn) btn.style.display = 'block';
+  }, 400);
 }
 
-async function render(raw, calcJson){
-  const d=raw.dados_json||{};
-  // Se calc_json fornecido pela skill, sobrepõe valores calculados
-  const CJ = calcJson || window._calcJson || null;
 
-  // ═══════════════════════════════════════════════════════════════
-  // LEITURA DOS DADOS JÁ CALCULADOS PELO DIAGNÓSTICO
-  // O laudo-pago apenas LEIA os valores — não recalcula
-  // Isso garante consistência entre diagnóstico e laudo
-  // ═══════════════════════════════════════════════════════════════
-  
-  // ── FONTE DA VERDADE: calc_json gerado pela skill avaliadora ──
-  // Se CJ disponível, todos os valores vêm dele. Zero recálculo.
-  const fat = CJ ? n(CJ.fat_mensal) : n(raw.fat_mensal||d.fat_mensal);
-  const b = CJ ? (CJ.bench_dre||getBench(raw.setor)) : getBench(raw.setor);
-
-  const impostos    = CJ ? n(CJ.impostos)    : (n(d.impostos_mensal)||fat*0.10);
-  const aliquotaImposto = fat>0?(impostos/fat*100):10;
-  // Todos os valores vêm do CJ (calc_json gerado pela skill)
-  // Os laudos não calculam — apenas exibem
-  const taxas        = n(CJ?.taxas);
-  const comissoes    = n(CJ?.comissoes);
-  const mkt          = n(CJ?.mkt);
-  const cmv          = n(CJ?.cmv);
-  const folhaBruta   = n(CJ?.clt_folha);
-  const encargos     = n(CJ?.encargos);
-  const provisoes    = n(CJ?.provisoes);
-  const folha        = n(CJ?.folha);
-  const pjCusto      = n(CJ?.pj_custo);
-  const aluguel      = n(CJ?.aluguel);
-  const terceirizados= n(CJ?.terceirizados);
-  const facilities   = n(CJ?.facilities);
-  const sistemas     = n(CJ?.sistemas);
-  const outrosCf     = n(CJ?.cf);
-  
-  const recLiq = n(CJ?.rec_liq);
-  const lb     = n(CJ?.lb);
-  const cf     = CJ ? n(CJ.cf)      : terceirizados + facilities + outrosCf;
-  const ro     = n(CJ?.ro_mensal);
-  const prol   = CJ ? n(CJ.prol)    : n(d.prolabore||raw.prolabore);
-  const parc   = CJ ? n(CJ.parcelas): n(d.parcelas_mensais||raw.parcelas_mensais);
-  const rf     = ro - prol - parc;
-  const margem = pct(rf,fat);
-
-  // ── Balanço — usar CJ quando disponível ──
-  const caixa   = CJ ? n(CJ.caixa)   : n(d.at_caixa||raw.at_caixa);
-  const receber = CJ ? n(CJ.receber) : n(d.at_cr||raw.at_cr);
-  const estoque = CJ ? n(CJ.estoque) : n(d.at_estoque||raw.at_estoque);
-  const equip   = CJ ? n(CJ.equip)   : n(d.at_equip||raw.at_equip);
-  const imovel  = CJ ? n(CJ.imovel)  : n(d.at_imovel||raw.at_imovel);
-  const totAtiv = CJ ? n(CJ.totAtiv) : caixa+receber+estoque+equip+imovel;
-  const forn    = CJ ? n(CJ.forn)    : n(d.fornec_a_pagar||raw.fornec_a_pagar);
-  const emprest = CJ ? n(CJ.emprest) : n(d.saldo_devedor||raw.saldo_devedor);
-  const totPass = CJ ? n(CJ.totPass) : forn+emprest;
-  const pl      = CJ ? n(CJ.pl)      : totAtiv-totPass;
-  const recorrencia = CJ ? n(CJ.recorrencia) : n(d.recorrencia_pct||d.pct_recorrencia);
-  const concentracao= CJ ? n(CJ.concentracao): n(d.concentracao_pct||d.maior_cliente_pct);
-  const D = { setor: CJ?CJ.setor:(raw.setor||d.setor), modelo_atuacao_multi: CJ?CJ.modelo_atuacao_multi:(d.modelo_atuacao_multi||[]) };
-  
-  // ISE, Fator, Valuation: SEMPRE RECALCULAR (garante valores idênticos ao laudo-completo)
-  let ise, fator, valorOp, valorVenda;
-  
-  ise = {
-      total:n(CJ?.ise_total), dep:n(CJ?.ise_dep), com:n(CJ?.ise_com), fin:n(CJ?.ise_fin),
-      ges:n(CJ?.ise_ges), mar:n(CJ?.ise_mar), bal:n(CJ?.ise_bal), div:n(CJ?.ise_div),
-      ris:n(CJ?.ise_ris), conc:n(CJ?.ise_conc), esc:n(CJ?.ise_esc)
-    };
-  fator = n(CJ?.fator) || 1.5;
-  valorOp = n(CJ?.valor_op) || ro * 12 * fator;
-  valorVenda = n(CJ?.valor_venda) || valorOp + Math.max(0, pl);
-  
-  console.log('ISE/Fator CALCULADOS:', { ise: ise.total, fator, valorOp, valorVenda });
-  
-  const plLiquido=Math.max(0,pl);
-  const atr=CJ ? {score:CJ.atr_score||5,sol:CJ.atr_sol||5,set:CJ.atr_set||5,rec:CJ.atr_rec||5,ges:CJ.atr_ind||CJ.atr_ges||5,cre:CJ.atr_cre||5,esc:CJ.atr_cre||5,mar:CJ.atr_mar||5} : calcAtr(ise,pct(ro,fat),recorrencia,D);
-
-  const nomeN=raw.nome||d.nome_negocio||'Negócio';
-  const setorLbl=(raw.setor||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())||'N/D';
-  const loc=[raw.cidade||d.cidade,raw.estado||d.estado].filter(Boolean).join(', ');
-  const regimeTxt={simples:'Simples Nacional',lucro_presumido:'Lucro Presumido',presumido:'Lucro Presumido',lucro_real:'Lucro Real',mei:'MEI'}[d.regime||raw.regime_tributario]||'Simples Nacional';
-  const anos=n(raw.anos_existencia||d.anos_existencia);
-  const numFuncs=n(d.clt_qtd||raw.clt_qtd)+n(d.pj_qtd||raw.pj_qtd);
-  const clientes=n(d.cli_1m||d.clientes_ativos||raw.clientes_ativos);
-  const ticket=clientes>0?fat/clientes:0;
-  const codigo=raw.codigo_diagnostico||raw.codigo||'—';
-  const dataAv=hoje();
-
-  const camposOk=[d.fat_mensal,d.regime,(d.pct_comissao||d.taxa_comissao),d.mkt_valor,d.prolabore,(d.cli_1m||d.clientes_ativos),(d.recorrencia_pct||d.pct_recorrencia),d.processos,(d.saldo_devedor!==undefined)].filter(Boolean).length;
-  const icdPct=CJ ? (CJ.icd_pct||Math.round(camposOk/11*100)) : Math.round(camposOk/11*100);
-
-  const iseClass=ise.total>=80?{n:'Excelente',d:'Compradores disputam. Preço protegido.'}:ise.total>=65?{n:'Sólido',d:'Venda em condições normais. Processo padrão.'}:ise.total>=50?{n:'Operacional',d:'Venda possível com negociação de 10–20% de desconto.'}:ise.total>=40?{n:'Em Desenvolvimento',d:'Compradores exigem garantias adicionais.'}:{n:'Em Risco',d:'Venda difícil. Reestruturação recomendada antes.'};
-  const atrLbl=atr.score>=8?'Excelente':atr.score>=6.5?'Boa':atr.score>=5?'Moderada':'Baixa';
-
-  // ── TEXTOS IA ──
-  if(document.getElementById('ld-msg')) document.getElementById('ld-msg').textContent='Gerando contexto do negócio...';
-
-  const ctxTxt=await askClaude(`Você é analista de M&A da 1Negócio. Escreva 2 parágrafos para a seção "Contexto do Negócio" de um laudo profissional.
-Negócio: ${nomeN} | Setor: ${setorLbl} | ${loc} | Modelo: ${d.modelo_negocio||d.modelo_atuacao||'N/D'} | ${anos} ano(s) de operação
-Faturamento: R$${Math.round(fat).toLocaleString('pt-BR')}/mês | Resultado op.: R$${Math.round(ro).toLocaleString('pt-BR')}/mês (${pct(ro,fat).toFixed(0)}% margem)
-Recorrência: ${recorrencia}% | Clientes: ${clientes} | Ticket médio: R$${Math.round(ticket).toLocaleString('pt-BR')}/mês | Equipe: ${numFuncs} pessoas
-Parágrafo 1: descreva o negócio, modelo, métricas e diferenciais. Parágrafo 2: contexto de mercado e oportunidade para comprador.
-Nunca use a palavra EBITDA — use "resultado operacional". Sem markdown. Apenas os dois parágrafos.`,500);
-
-  if(document.getElementById('ld-msg')) document.getElementById('ld-msg').textContent='Elaborando parecer técnico...';
-
-  const parecerTxt=await askClaude(`Você é analista sênior de M&A da 1Negócio. Escreva o Parecer Técnico completo com 4 parágrafos sobre o Fator 1N aplicado.
-Negócio: ${nomeN} | ${setorLbl} | ${loc}
-Faturamento: R$${Math.round(fat).toLocaleString('pt-BR')}/mês | Resultado op.: R$${Math.round(ro).toLocaleString('pt-BR')}/mês (${pct(ro,fat).toFixed(0)}%)
-Recorrência: ${recorrencia}% | Clientes: ${clientes} | Ticket: R$${Math.round(ticket).toLocaleString('pt-BR')}
-ISE: ${ise.total}/100 (${iseClass.n}) — Com:${ise.com} Fin:${ise.fin} Ges:${ise.ges} Dep:${ise.dep} Conc:${ise.conc} Esc:${ise.esc} Bal:${ise.bal} Mar:${ise.mar} Div:${ise.div} Ris:${ise.ris}
-Múltiplo base: ${b.mulBase}x (faixa ${b.mulRange}) | Fator 1N: ${fator.toFixed(2)}x | Valor de venda: ${brl(valorVenda)}
-${anos} ano(s) de operação | Processos: ${d.processos||'N/D'} | Dependência sócio: ${d.dependencia||'N/D'}
-P1: apresente o negócio e métricas de destaque. P2: analise o ISE. P3: riscos identificados. P4: justifique o Fator ${fator.toFixed(2)}x e potencial.
-NUNCA use a palavra EBITDA. Use "resultado operacional". Sem markdown. Apenas os parágrafos.`,800);
-
-  if(document.getElementById('ld-msg')) document.getElementById('ld-msg').textContent='Identificando oportunidades...';
-
-  const opRaw=await askClaude(`Você é consultor de M&A da 1Negócio. Liste 10 oportunidades de valorização.
-Negócio: ${nomeN} | ${setorLbl} | Fat: R$${Math.round(fat).toLocaleString('pt-BR')}/mês | RO: R$${Math.round(ro).toLocaleString('pt-BR')}/mês (${pct(ro,fat).toFixed(0)}%)
-Mkt: ${brl(mkt)}/mês (${pct(mkt,fat).toFixed(0)}% fat) | Rec: ${recorrencia}% | Clientes: ${clientes} | Ticket: ${brl(ticket)}
-ISE: ${ise.total}/100 | Com:${ise.com} Fin:${ise.fin} Ges:${ise.ges} Dep:${ise.dep} Conc:${ise.conc}
-Retorne SOMENTE JSON array com 10 objetos: {"titulo":"string","descricao":"string max 120 chars","ganho":number,"ganho_label":"string"}
-ganho = valor mensal em R$ (0 se for impacto em valor de venda). Sem explicações fora do JSON.`,1200);
-
-  let ops=[];
-  // Se calc_json disponível, usar ops da skill (consistente com laudo-completo)
-  if(CJ&&CJ.ops&&CJ.ops.length>0){
-    ops=CJ.ops;
-  }else{
-  try{const cl=opRaw.replace(/```json|```/g,'').trim();const parsed=JSON.parse(cl);if(Array.isArray(parsed)&&parsed.length>=5)ops=parsed;else throw new Error('less than 5');}
-  catch(e){ops=[
-    {titulo:'Reduzir dependência do sócio-fundador',descricao:'Designar gestor autônomo para operação. Eleva ISE em 10+ pontos e melhora o Fator 1N.',ganho:0,ganho_label:'+ Fator 1N'},
-    {titulo:'Aumentar recorrência de receita',descricao:'Converter clientes avulsos em contratos mensais. Cada 10% de aumento eleva o múltiplo aplicável.',ganho:0,ganho_label:'+múltiplo'},
-    {titulo:'Documentar processos operacionais',descricao:'Criar SOPs para as principais funções. Reduz risco percebido e acelera due diligence.',ganho:0,ganho_label:'+ISE Gestão'},
-    {titulo:'Otimizar investimento em marketing',descricao:'Reduzir custo de aquisição via canais orgânicos e indicações. Eleva resultado operacional direto.',ganho:Math.round(mkt*0.2),ganho_label:'+'+brl(mkt*0.2)+'/mês'},
-    {titulo:'Expandir base de clientes ativos',descricao:'Crescer 20% em clientes mantendo ticket médio atual via outreach estruturado.',ganho:Math.round(ro*0.2),ganho_label:'+'+brl(ro*0.2)+'/mês'},
-    {titulo:'Registrar marca e propriedade intelectual',descricao:'Formalizar o registro da marca junto ao INPI. Eleva pilar de Marca no ISE.',ganho:0,ganho_label:'+ISE Marca'},
-    {titulo:'Implantar sistema de contabilidade gerencial',descricao:'DRE mensal formal aumenta ICD e defensabilidade do valuation em due diligence.',ganho:0,ganho_label:'+ICD'},
-    {titulo:'Criar plano de retenção da equipe-chave',descricao:'Acordos de continuidade pós-venda reduzem risco percebido e melhoram condições da transação.',ganho:0,ganho_label:'+atratividade'},
-    {titulo:'Diversificar base de clientes',descricao:'Reduzir concentração abaixo de 20% por cliente. Elimina desconto de risco no Fator 1N.',ganho:0,ganho_label:'+Fator 1N'},
-    {titulo:'Estruturar funil de upsell',descricao:'Oferecer planos superiores à base atual. Crescimento de ticket sem custo de aquisição.',ganho:Math.round(fat*0.1),ganho_label:'+'+brl(fat*0.1)+'/mês'},
-  ];}
-  }
-
-  const totalOps=CJ ? (CJ.total_ops||ops.reduce((s,o)=>s+n(o.ganho),0)) : ops.reduce((s,o)=>s+n(o.ganho),0);
-
-  if(document.getElementById('ld-msg')) document.getElementById('ld-msg').textContent='Montando laudo...';
-
-  // Fallbacks ricos calculados a partir dos dados — usados se a API falhar
-  const ctxFallback=`${nomeN} é um negócio de ${setorLbl} com ${anos} ano${anos===1?'':'s'} de operação, localizado em ${loc}. Com faturamento de ${brl(fat)}/mês e resultado operacional de ${brl(ro)}/mês (${pct(ro,fat).toFixed(0)}% de margem), o negócio apresenta ${recorrencia>=50?'alta previsibilidade de receita, com '+recorrencia+'% da receita proveniente de contratos recorrentes':'modelo de receita com oportunidade de ampliar a base recorrente, atualmente em '+recorrencia+'%'}. ${clientes>0?'A base de '+clientes+' clientes ativos com ticket médio de '+brl(ticket)+'/mês demonstra capacidade comercial consolidada.':''} A equipe de ${numFuncs>0?numFuncs+' pessoas':' colaboradores'} opera sob regime ${regimeTxt}.\n\nO mercado de ${setorLbl} no Brasil ${ise.com>=7?'atravessa momento de expansão, com crescente demanda por soluções especializadas':'passa por consolidação, com oportunidades para negócios bem posicionados como '+nomeN}. O ISE de ${ise.total}/100 (${iseClass.n}) reflete a maturidade operacional atual, com destaque para o pilar comercial (${ise.com}/10) e financeiro (${ise.fin}/10). Para um potencial comprador ou investidor estratégico, o negócio oferece uma base operacional ${ise.total>=65?'sólida para crescimento acelerado':'a ser otimizada com potencial de valorização relevante'}.`;
-
-  const parecerFallback=`${nomeN} é um negócio de ${setorLbl} localizado em ${loc}, com ${anos} ano${anos===1?'':'s'} de operação e faturamento mensal de ${brlF(fat)}. O resultado operacional de ${brlF(ro)}/mês (${pct(ro,fat).toFixed(0)}% de margem) ${pct(ro,fat)>=b.ro?'supera o benchmark setorial de '+b.ro+'%, posicionando o negócio acima da média do setor':'situa-se abaixo do benchmark setorial de '+b.ro+'%, indicando oportunidade de melhoria operacional'}. ${recorrencia>=50?'A recorrência de '+recorrencia+'% da receita confere alta previsibilidade de fluxo de caixa, um diferencial significativo em processos de M&A.':'A recorrência atual de '+recorrencia+'% representa uma oportunidade de elevação do múltiplo aplicável via crescimento de contratos de longo prazo.'}\n\nO ISE (Índice de Solidez Empresarial) de ${ise.total}/100 classifica o negócio como ${iseClass.n}. Os pilares de maior destaque são Comercial (${ise.com}/10) e Financeiro (${ise.fin}/10), que refletem a capacidade de geração de caixa e a solidez da base de clientes. ${ise.ges<=5?'O pilar de Gestão ('+ise.ges+'/10) e Independência ('+ise.dep+'/10) indicam dependência do sócio-fundador, o que representa o principal vetor de risco operacional identificado.':'Os pilares de Gestão e Independência demonstram maturidade organizacional acima da média para negócios no estágio atual.'}\n\n${emprest>0?'A existência de dívidas de '+brlF(emprest)+' representa um passivo a ser endereçado na estruturação da transação, podendo ser mitigado via cláusulas de earn-out ou retenção do valor de venda até liquidação.':'A ausência de dívidas bancárias é um diferencial relevante — o comprador adquire o negócio sem passivos ocultos, reduzindo o risco de due diligence e acelerando o fechamento.'} ${anos<=2?'O histórico de '+anos+' ano(s) de operação, embora curto para verificação de sazonalidade completa, é compensado pela consistência das métricas apresentadas.':'Com '+anos+' anos de operação, o negócio possui histórico suficiente para validação de sazonalidade e sustentabilidade do modelo.'}\n\nO Fator 1N de ${fator.toFixed(2)}x foi determinado com base no múltiplo setorial de ${b.mulBase}x (referência ${b.mulRange} para ${setorLbl}) e ajustado pelo ISE de ${ise.total}/100. O ajuste de ${(fator-b.mulBase)>=0?'+':''} ${(fator-b.mulBase).toFixed(2)}x em relação ao múltiplo base reflete a solidez operacional relativa do negócio. Aplicado ao resultado operacional anual de ${brlF(ro*12)}, resulta em Valor de Operação de ${brlF(valorOp)}, ao qual se soma o Patrimônio Líquido de ${pl<0?"R\$ 0":brlF(Math.max(0,pl))}, chegando ao Valor de Venda de ${brlF(valorVenda)}. O potencial de valorização é real: a implementação das 10 oportunidades identificadas pode ampliar o resultado operacional mensal em ${brl(totalOps)}, elevando substancialmente o valor de transação em uma segunda rodada de captação.`;
-
-  const ctxParas=(ctxTxt&&ctxTxt.trim().length>100?ctxTxt:ctxFallback).split('\n').filter(p=>p.trim()).map(p=>`<p class="txt">${p.trim()}</p>`).join('');
-  const parecerParas=(parecerTxt&&parecerTxt.trim().length>100?parecerTxt:parecerFallback).split('\n').filter(p=>p.trim()).map(p=>`<p>${p.trim()}</p>`).join('');
-
-  const html=`
-<div class="capa">
-  <div class="capa-accent"></div>
-  <div class="capa-top"><div class="logo"><span class="logo-1">1</span><span>NEGÓCIO</span></div><div class="capa-badge">Documento Confidencial</div></div>
-  <div class="capa-body">
-    <div class="capa-logo-grande"><div class="capa-logo-grande-txt"><span style="color:var(--em)">1</span><span>NEGÓCIO</span></div><div class="capa-tagline">avaliado e vendido.</div></div>
-    <div>
-      <div class="capa-negocio-label">Negócio avaliado</div>
-      <div class="capa-nome">${nomeN}</div>
-      <div class="capa-setor">${setorLbl} · ${loc}</div>
-      <div class="capa-meta-grid">
-        <div class="capa-meta-item"><div class="capa-meta-l">Faturamento anual</div><div class="capa-meta-v">${brl(fat*12)}</div></div>
-        <div class="capa-meta-item"><div class="capa-meta-l">Result. operacional</div><div class="capa-meta-v">${brl(ro*12)}/ano</div></div>
-        <div class="capa-meta-item"><div class="capa-meta-l">Fator 1N</div><div class="capa-meta-v">${fator.toFixed(2).replace('.',',')}x</div></div>
-        <div class="capa-meta-item"><div class="capa-meta-l">Regime tributário</div><div class="capa-meta-v">${regimeTxt}</div></div>
-        <div class="capa-meta-item"><div class="capa-meta-l">Patrimônio líquido</div><div class="capa-meta-v">${pl<0?"R\$ 0 (dívidas negociadas)":brl(pl)}</div></div>
-        <div class="capa-meta-item"><div class="capa-meta-l">Equipe</div><div class="capa-meta-v">${numFuncs>0?numFuncs+' pessoas':'—'}</div></div>
-      </div>
-    </div>
-  </div>
-  <div class="capa-bottom"><div><div class="capa-data">Avaliado em ${dataAv} · Cód. ${codigo}</div></div><div class="capa-conf">Avaliação independente 1Negócio</div></div>
-</div>
-
-<div class="sumario page-break">
-  <div class="sumario-title">Sumário</div>
-  <div class="sumario-item" style="opacity:.6"><span class="sumario-num" style="color:var(--ink4)">ICD</span><span class="sumario-nome">Índice de Confiabilidade dos Dados</span><span class="sumario-tag">Qualidade</span></div>
-  <div class="sumario-item"><span class="sumario-num">01</span><span class="sumario-nome">Metodologia de Avaliação</span><span class="sumario-tag">Laudo Principal</span></div>
-  <div class="sumario-item"><span class="sumario-num">02</span><span class="sumario-nome">Contexto do Negócio</span><span class="sumario-tag">Laudo Principal</span></div>
-  <div class="sumario-item"><span class="sumario-num">03</span><span class="sumario-nome">DRE Estruturada</span><span class="sumario-tag">Laudo Principal</span></div>
-  <div class="sumario-item"><span class="sumario-num">04</span><span class="sumario-nome">Balanço Patrimonial</span><span class="sumario-tag">Laudo Principal</span></div>
-  <div class="sumario-item"><span class="sumario-num">05</span><span class="sumario-nome">ISE · Índice de Solidez Empresarial</span><span class="sumario-tag">Laudo Principal</span></div>
-  <div class="sumario-item"><span class="sumario-num">06</span><span class="sumario-nome">Indicadores Chave</span><span class="sumario-tag">Laudo Principal</span></div>
-  <div class="sumario-item"><span class="sumario-num">07</span><span class="sumario-nome">Comparativo vs Mercado</span><span class="sumario-tag">Laudo Principal</span></div>
-  <div class="sumario-item"><span class="sumario-num">08</span><span class="sumario-nome">Valuation · Fator 1N</span><span class="sumario-tag">Laudo Principal</span></div>
-  <div class="sumario-item"><span class="sumario-num">A1</span><span class="sumario-nome">Parecer Técnico — Fator 1N</span><span class="sumario-tag">Parecer Técnico</span></div>
-  <div class="sumario-item"><span class="sumario-num">A2</span><span class="sumario-nome">Índice de Atratividade</span><span class="sumario-tag">Análise</span></div>
-  <div class="sumario-item"><span class="sumario-num">A3</span><span class="sumario-nome">Top 10 Oportunidades de Valorização</span><span class="sumario-tag">Anexo Exclusivo</span></div>
-  <div class="sumario-item"><span class="sumario-num">A4</span><span class="sumario-nome">Resumo do Diagnóstico</span><span class="sumario-tag">Anexo Exclusivo</span></div>
-  <div class="sumario-item"><span class="sumario-num">A5</span><span class="sumario-nome">Visão Geral · One Page</span><span class="sumario-tag">Resumo Executivo</span></div>
-</div>
-
-<div class="sec page-break">
-  <div class="sec-header"><div class="sec-num">01</div><div><div class="sec-label">Laudo Principal</div><div class="sec-title">Metodologia de Avaliação</div></div></div>
-  <div class="sec-body">
-    <div class="val-nota" style="margin-bottom:20px">A avaliação da 1Negócio combina três abordagens complementares: múltiplos de mercado setoriais, análise de resultado operacional e solidez operacional (ISE). O resultado é um valor de transação ajustado à realidade de M&A de PMEs brasileiras.</div>
-    <div class="met-step"><div class="met-num">1</div><div><div class="met-title">Resultado Operacional Ajustado</div><div class="met-desc">Resultado operacional normalizado — remove pró-labore acima do mercado, despesas não recorrentes e provisões excessivas. Representa a capacidade real de geração de caixa do negócio.</div></div></div>
-    <div class="met-step"><div class="met-num">2</div><div><div class="met-title">Múltiplo Base Setorial</div><div class="met-desc">Referência de transações comparáveis no Brasil para o setor. Reflete o risco, crescimento esperado e liquidez típica de cada segmento de mercado.</div></div></div>
-    <div class="met-step"><div class="met-num">3</div><div><div class="met-title">Fator ISE — Ajuste de Solidez</div><div class="met-desc">O ISE avalia 8 dimensões operacionais do negócio. Empresas mais sólidas recebem múltiplo maior e condições de venda mais favoráveis na negociação.</div></div></div>
-    <div class="met-step"><div class="met-num">4</div><div><div class="met-title">Fator 1N = Múltiplo Base x Ajuste ISE</div><div class="met-desc">Multiplicador proprietário aplicado ao resultado operacional anual. Resultado: o Valor de Operação — quanto vale o negócio com base em sua capacidade produtiva futura.</div></div></div>
-    <div class="met-step"><div class="met-num">5</div><div><div class="met-title">Valor de Venda = Valor de Operação + Patrimônio Líquido</div><div class="met-desc">O valor final inclui os ativos tangíveis líquidos das dívidas: estoque, equipamentos, imóveis, carteira de contratos. É o valor "porteira fechada" apresentado ao comprador.</div></div></div>
-    <div class="footnote">Esta avaliação é baseada nos dados fornecidos pelo proprietário e em benchmarks setoriais da 1Negócio. Não substitui due diligence completa.</div>
-  </div>
-</div>
-
-<div class="sec page-break">
-  <div class="sec-header"><div class="sec-num">02</div><div><div class="sec-label">Laudo Principal</div><div class="sec-title">Contexto do Negócio</div></div></div>
-  <div class="sec-body">${ctxParas}</div>
-</div>
-
-<div class="sec page-break">
-  <div class="sec-header"><div class="sec-num">03</div><div><div class="sec-label">Laudo Principal</div><div class="sec-title">DRE Estruturada</div></div></div>
-  <div class="sec-body">
-    <table class="tbl">
-      <thead><tr><th>Item</th><th>Mensal</th><th>Anual</th><th>%</th><th>Mercado</th><th></th></tr></thead>
-      <tbody>
-        <tr><td>Faturamento Bruto</td><td>${brlF(fat)}</td><td>${brlF(fat*12)}</td><td>100%</td><td>—</td><td><span class="dot g"></span></td></tr>
-        <tr><td style="padding-left:14px;color:var(--ink4)">(−) Impostos ${regimeTxt}</td><td>${brlF(impostos)}</td><td>${brlF(impostos*12)}</td><td>${pct(impostos,fat).toFixed(1)}%</td><td>${b.imp}%</td><td><span class="dot ${stCor(pct(impostos,fat),b.imp,true)}"></span></td></tr>
-        <tr><td style="padding-left:14px;color:var(--ink4)">(−) Taxas de pagamento</td><td>${brlF(taxas)}</td><td>${brlF(taxas*12)}</td><td>${pct(taxas,fat).toFixed(1)}%</td><td>${b.tax}%</td><td><span class="dot ${stCor(pct(taxas,fat),b.tax,true)}"></span></td></tr>
-        ${comissoes>0?`<tr><td style="padding-left:14px;color:var(--ink4)">(−) Comissões</td><td>${brlF(comissoes)}</td><td>${brlF(comissoes*12)}</td><td>${pct(comissoes,fat).toFixed(1)}%</td><td>${b.com}%</td><td><span class="dot ${stCor(pct(comissoes,fat),b.com,true)}"></span></td></tr>`:''}
-        <tr class="sub"><td>(=) Receita Líquida</td><td>${brlF(recLiq)}</td><td>${brlF(recLiq*12)}</td><td>${pct(recLiq,fat).toFixed(1)}%</td><td>—</td><td></td></tr>
-        <tr><td style="padding-left:14px;color:var(--ink4)">(−) CMV</td><td>${brlF(cmv)}</td><td>${brlF(cmv*12)}</td><td>${pct(cmv,fat).toFixed(1)}%</td><td>${b.cmv}%</td><td><span class="dot ${stCor(pct(cmv,fat),b.cmv,true)}"></span></td></tr>
-        <tr class="sub"><td>(=) Lucro Bruto</td><td>${brlF(lb)}</td><td>${brlF(lb*12)}</td><td>${pct(lb,fat).toFixed(1)}%</td><td>—</td><td></td></tr>
-        ${folha>0?`<tr><td style="padding-left:14px;color:var(--ink4)">(−) Folha de pessoal</td><td>${brlF(folha)}</td><td>${brlF(folha*12)}</td><td>${pct(folha,fat).toFixed(1)}%</td><td>${b.fol}%</td><td><span class="dot ${stCor(pct(folha,fat),b.fol,true)}"></span></td></tr>`:`<tr><td style="padding-left:14px;color:var(--ink4)">(−) Folha de pessoal (PJ)</td><td>R$ 0</td><td>R$ 0</td><td>0%</td><td>${b.fol}%</td><td><span class="dot g"></span></td></tr>`}
-        ${mkt>0?`<tr><td style="padding-left:14px;color:var(--ink4)">(−) Marketing</td><td>${brlF(mkt)}</td><td>${brlF(mkt*12)}</td><td>${pct(mkt,fat).toFixed(1)}%</td><td>${b.mkt}%</td><td><span class="dot ${stCor(pct(mkt,fat),b.mkt,true)}"></span></td></tr>`:''}
-        ${aluguel>0?`<tr><td style="padding-left:14px;color:var(--ink4)">(−) Aluguel</td><td>${brlF(aluguel)}</td><td>${brlF(aluguel*12)}</td><td>${pct(aluguel,fat).toFixed(1)}%</td><td>${b.alu}%</td><td><span class="dot ${stCor(pct(aluguel,fat),b.alu,true)}"></span></td></tr>`:''}
-        ${facilities>0?`<tr><td style="padding-left:14px;color:var(--ink4)">(−) Facilities</td><td>${brlF(facilities)}</td><td>${brlF(facilities*12)}</td><td>${pct(facilities,fat).toFixed(1)}%</td><td>—</td><td></td></tr>`:''}
-        ${terceirizados>0?`<tr><td style="padding-left:14px;color:var(--ink4)">(−) Terceirizados</td><td>${brlF(terceirizados)}</td><td>${brlF(terceirizados*12)}</td><td>${pct(terceirizados,fat).toFixed(1)}%</td><td>—</td><td></td></tr>`:''}
-        ${sistemas>0?`<tr><td style="padding-left:14px;color:var(--ink4)">(−) Sistemas / Softwares</td><td>${brlF(sistemas)}</td><td>${brlF(sistemas*12)}</td><td>${pct(sistemas,fat).toFixed(1)}%</td><td>—</td><td></td></tr>`:''}
-        ${outrosCf>0?`<tr><td style="padding-left:14px;color:var(--ink4)">(−) Outros custos fixos</td><td>${brlF(outrosCf)}</td><td>${brlF(outrosCf*12)}</td><td>${pct(outrosCf,fat).toFixed(1)}%</td><td>${b.cf}%</td><td><span class="dot ${stCor(pct(outrosCf,fat),b.cf,true)}"></span></td></tr>`:''}
-        <tr class="tot"><td>(=) Resultado Operacional</td><td>${brlF(ro)}</td><td>${brlF(ro*12)}</td><td>${pct(ro,fat).toFixed(1)}%</td><td>${b.ro}%</td><td><span class="dot ${ro>=0?'g':'r'}"></span></td></tr>
-        <tr class="sep"><td colspan="6"></td></tr>
-        <tr><td style="padding-left:14px;color:var(--ink4)">(−) Pró-labore dos sócios</td><td>${brlF(prol)}</td><td>${brlF(prol*12)}</td><td>${pct(prol,fat).toFixed(1)}%</td><td>—</td><td><span class="dot a"></span></td></tr>
-        ${parc>0?`<tr><td style="padding-left:14px;color:var(--ink4)">(−) Parcelas de dívidas</td><td>${brlF(parc)}</td><td>${brlF(parc*12)}</td><td>${pct(parc,fat).toFixed(1)}%</td><td>—</td><td><span class="dot r"></span></td></tr>`:''}
-        <tr class="sub"><td>(=) Resultado Final</td><td>${brlF(rf)}</td><td>${brlF(rf*12)}</td><td>${margem.toFixed(1)}%</td><td>—</td><td><span class="dot ${rf>=0?'g':'r'}"></span></td></tr>
-      </tbody>
-    </table>
-    <div class="footnote">DRE mensal estimada com base nos dados declarados, anualizados (x12). Benchmarks setoriais 1Negócio usados como referência.</div>
-  </div>
-</div>
-
-<div class="sec page-break">
-  <div class="sec-header"><div class="sec-num">04</div><div><div class="sec-label">Laudo Principal</div><div class="sec-title">Balanço Patrimonial</div></div></div>
-  <div class="sec-body">
-    <table class="tbl"><tbody>
-      <tr class="sub"><td colspan="2">Ativos</td></tr>
-      <tr><td>Caixa e equivalentes</td><td>${brlF(caixa)}</td></tr>
-      <tr><td>Contas a receber</td><td>${brlF(receber)}</td></tr>
-      <tr><td>Estoque</td><td>${brlF(estoque)}</td></tr>
-      <tr><td>Equipamentos e maquinário</td><td>${brlF(equip)}</td></tr>
-      ${imovel>0?`<tr><td>Imóvel próprio</td><td>${brlF(imovel)}</td></tr>`:''}
-      <tr class="sub"><td>Total de Ativos</td><td>${brlF(totAtiv)}</td></tr>
-      <tr class="sep"><td colspan="2"></td></tr>
-      <tr class="sub"><td colspan="2">Passivos</td></tr>
-      <tr><td>Fornecedores a pagar</td><td>${brlF(forn)}</td></tr>
-      ${emprest>0?`<tr><td>Empréstimos e financiamentos</td><td>${brlF(emprest)}</td></tr>`:''}
-      <tr class="sub"><td>Total de Passivos</td><td>${brlF(totPass)}</td></tr>
-      <tr class="sep"><td colspan="2"></td></tr>
-      <tr class="tot"><td>Patrimônio Líquido</td><td style="color:${pl>=0?'var(--em)':'var(--rd)'}">${pl<0?'(−) ':''}${brlF(Math.abs(pl))}</td></tr>
-    </tbody></table>
-    ${totAtiv===0?`<div class="footnote">Negócio sem ativos físicos declarados. Valor de transação deriva integralmente do resultado operacional recorrente.</div>`:''}
-  </div>
-</div>
-
-<div class="sec page-break">
-  <div class="sec-header"><div class="sec-num">05</div><div><div class="sec-label">Laudo Principal</div><div class="sec-title">ISE · Índice de Solidez Empresarial</div></div></div>
-  <div class="sec-body">
-    <div class="ise-hero"><div class="ise-score">${ise.total}</div><div><div class="ise-class">Classificação ISE</div><div class="ise-class-name">${iseClass.n}</div><div class="ise-desc">${iseClass.d}</div></div></div>
-    ${pilarHTML('Comercial/Vendas (24%)',ise.com,24)}
-    ${pilarHTML('Financeiro (20%)',ise.fin,20)}
-    ${pilarHTML('Gestão/Processos (20%)',ise.ges,20)}
-    ${pilarHTML('Independência (18%)',ise.dep,18)}
-    ${pilarHTML('Concentração (10%)',ise.conc,10)}
-    ${pilarHTML('Escalabilidade (10%)',ise.esc,10)}
-    ${pilarHTML('Balanço (8%)',ise.bal,8)}
-    ${pilarHTML('Marca (7%)',ise.mar,7)}
-    ${pilarHTML('Dívida (5%)',ise.div,5)}
-    ${pilarHTML('Risco Jurídico (5%)',ise.ris,5)}
-    <div class="footnote">ISE 0–39: risco · 40–64: básico · 65–79: sólido · 80–100: excelente. O ISE impacta as condições e velocidade da transação.</div>
-  </div>
-</div>
-
-<div class="sec page-break">
-  <div class="sec-header"><div class="sec-num">06</div><div><div class="sec-label">Laudo Principal</div><div class="sec-title">Indicadores Chave</div></div></div>
-  <div class="sec-body">
-    ${[
-      {n:'Resultado por colaborador',v:brl((numFuncs||1)>0?ro/(numFuncs||1):0)+'/mês',st:ro/(numFuncs||1)>=5000?'g':ro/(numFuncs||1)>=2000?'a':'r',desc:`Cada colaborador gera ${brl(ro/(numFuncs||1))}/mês de resultado operacional.`},
-      {n:'Margem operacional',v:pct(ro,fat).toFixed(1)+'%',st:stCor(pct(ro,fat),b.ro,false),desc:`${pct(ro,fat).toFixed(1)}% de margem. Benchmark do setor: ${b.ro}%.`},
-      {n:'Recorrência de receita',v:recorrencia+'%',st:recorrencia>=50?'g':recorrencia>=25?'a':'r',desc:`${recorrencia}% do faturamento é recorrente. ${recorrencia>=50?'Alta previsibilidade de caixa.':'Oportunidade de crescer a receita recorrente.'}`},
-      {n:'Concentração de clientes',v:concentracao+'%',st:concentracao<=15?'g':concentracao<=30?'a':'r',desc:`Maior cliente representa ${concentracao}% do faturamento. ${concentracao<=15?'Base diversificada.':concentracao<=30?'Concentração moderada.':'Risco elevado de dependência.'}`},
-      clientes>0?{n:'Ticket médio mensal',v:brl(ticket),st:'g',desc:`${brl(ticket)}/cliente/mês. ${ticket>2000?'Ticket premium.':'Espaço para planos de maior valor.'}`}:null,
-      {n:'Endividamento total',v:emprest===0?'R$ 0':brl(emprest),st:emprest===0?'g':emprest/(ro*12)<=1?'a':'r',desc:emprest===0?'Zero dívidas. Balanço limpo.':(`Dívida de ${brl(emprest)} representa ${(emprest/(ro*12)).toFixed(1)}x o resultado operacional anual.`)},
-    ].filter(Boolean).map(i=>`<div class="ind-card"><div><div class="ind-nome">${i.n}</div><div class="ind-desc">${i.desc}</div></div><div style="text-align:right"><div class="ind-val ${i.st}">${i.v}</div><div class="ind-status ${i.st}">${i.st==='g'?'Excelente':i.st==='a'?'Atenção':'Crítico'}</div></div></div>`).join('')}
-  </div>
-</div>
-
-<div class="sec page-break">
-  <div class="sec-header"><div class="sec-num">07</div><div><div class="sec-label">Laudo Principal</div><div class="sec-title">Comparativo vs Mercado</div></div></div>
-  <div class="sec-body">
-    <div style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:16px">Empresa vs Benchmark · ${setorLbl}</div>
-    ${benchHTML('Margem Operacional',pct(ro,fat).toFixed(1)+'%',b.ro+'%',stCor(pct(ro,fat),b.ro,false),pct(ro,fat)/b.ro*50)}
-    ${benchHTML('Recorrência de Receita',recorrencia+'%','40%',stCor(recorrencia,40,false),recorrencia/80*50)}
-    ${benchHTML('Impostos sobre Faturamento',pct(impostos,fat).toFixed(1)+'%',b.imp+'%',stCor(pct(impostos,fat),b.imp,true),pct(impostos,fat)/b.imp*50)}
-    ${benchHTML('Fator 1N Aplicado',fator.toFixed(2)+'x',b.mulRange,stCor(fator,b.mulBase,false),fator/b.mulBase*50)}
-    ${numFuncs>0?benchHTML('Resultado por Func./mês',brl(ro/numFuncs),brl(2000),stCor(ro/numFuncs,2000,false),(ro/numFuncs)/4000*50):''}
-    <div class="footnote">Benchmarks baseados em transações de M&A de PMEs brasileiras. Fator 1N de ${fator.toFixed(2)}x ${fator<b.mulBase?'é conservador frente ao benchmark — potencial de valorização com amadurecimento operacional.':'está dentro do benchmark setorial.'}</div>
-  </div>
-</div>
-
-<div class="sec page-break" id="sec-tributario" style="display:none">
-  <div class="sec-header"><div class="sec-num">T</div><div><div class="sec-label">Análise Tributária</div><div class="sec-title">Comparativo de Regimes Tributários</div></div></div>
-  <div class="sec-body" id="trib-body">
-  </div>
-</div>
-
-
-<div class="sec page-break">
-  <div class="sec-header"><div class="sec-num">08</div><div><div class="sec-label">Laudo Principal</div><div class="sec-title">Valuation · Fator 1N</div></div></div>
-  <div class="sec-body">
-    <div class="eq-wrap">
-      <div class="eq-box"><div class="eq-label">Result. op. anual</div><div class="eq-val">${brl(ro*12)}</div></div>
-      <div class="eq-op">x</div>
-      <div class="eq-box"><div class="eq-label">Fator 1N</div><div class="eq-val g">${fator.toFixed(2).replace('.',',')}x</div></div>
-      <div class="eq-op">+</div>
-      <div class="eq-box"><div class="eq-label">Patrimônio</div><div class="eq-val">${pl<0?"R\$ 0 (dívidas negociadas)":brl(pl)}</div></div>
-      <div class="eq-op">=</div>
-      <div class="eq-box hl"><div class="eq-label">Valor de venda</div><div class="eq-val g">${brl(valorVenda)}</div></div>
-    </div>
-    <table class="tbl" style="margin-bottom:12px">
-      <thead><tr><th>Componente</th><th>Valor</th><th>Fonte</th></tr></thead>
-      <tbody>
-        <tr><td>Resultado operacional mensal</td><td>${brlF(ro)}</td><td>DRE declarada</td></tr>
-        <tr><td>Resultado operacional anual</td><td>${brlF(ro*12)}</td><td>Mensal x 12</td></tr>
-        <tr><td>ISE — Solidez empresarial</td><td>${ise.total}/100</td><td>10 pilares</td></tr>
-        <tr><td>Fator 1N aplicado</td><td>${fator.toFixed(2).replace('.',',')}x</td><td>Múltiplo + ISE</td></tr>
-        <tr class="sub"><td>Valor de operação</td><td>${brlF(valorOp)}</td><td>Result. x Fator</td></tr>
-        <tr><td>Patrimônio líquido</td><td>${pl<0?"R\$ 0":brlF(Math.max(0,pl))}</td><td>Ativos − Passivos</td></tr>
-        <tr class="tot"><td>Valor de venda</td><td>${brlF(valorVenda)}</td><td>Porteira fechada</td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<div class="sec page-break">
-  <div class="sec-header"><div class="sec-num">A1</div><div><div class="sec-label" style="color:var(--pu)">Parecer Técnico</div><div class="sec-title">Parecer 1Negócio · Justificativa do Fator 1N</div></div></div>
-  <div class="sec-body">
-    <div class="parecer-titulo"><div class="parecer-eyebrow">Análise Independente · Equipe 1Negócio</div><div class="parecer-h">${nomeN}</div><div class="parecer-linha"></div></div>
-    <div class="parecer-texto">${parecerParas}</div>
-    <div class="footnote" style="margin-top:20px">Este parecer foi elaborado pela equipe de análise 1Negócio com base nos dados declarados, benchmarks setoriais e avaliação operacional do negócio.</div>
-  </div>
-</div>
-
-<div class="sec page-break">
-  <div class="sec-header"><div class="sec-num">A2</div><div><div class="sec-label" style="color:var(--pu)">Análise</div><div class="sec-title">Índice de Atratividade</div></div></div>
-  <div class="sec-body">
-    <div class="atr-hero">
-      <div class="atr-top"><div style="display:flex;align-items:baseline;gap:6px"><div class="atr-score">${atr.score.toFixed(1).replace('.',',')}</div><div class="atr-denom">/10</div></div><div class="atr-badge">${atrLbl}</div></div>
-      <div class="atr-bar-wrap"><div class="atr-bar" style="width:${atr.score*10}%"></div></div>
-      <div class="atr-pilar"><div class="atr-pilar-nome">Solidez operacional</div><div class="atr-pilar-bar"><div class="atr-pilar-fill" style="width:${atr.sol*10}%"></div></div><div class="atr-pilar-val">${atr.sol.toFixed(1)}</div></div>
-      <div class="atr-pilar"><div class="atr-pilar-nome">Margem de resultado</div><div class="atr-pilar-bar"><div class="atr-pilar-fill" style="width:${atr.mar*10}%"></div></div><div class="atr-pilar-val">${atr.mar.toFixed(1)}</div></div>
-      <div class="atr-pilar"><div class="atr-pilar-nome">Previsibilidade</div><div class="atr-pilar-bar"><div class="atr-pilar-fill" style="width:${atr.rec*10}%"></div></div><div class="atr-pilar-val">${atr.rec.toFixed(1)}</div></div>
-      <div class="atr-pilar"><div class="atr-pilar-nome">Gestão e processos</div><div class="atr-pilar-bar"><div class="atr-pilar-fill" style="width:${atr.ges*10}%"></div></div><div class="atr-pilar-val">${atr.ges.toFixed(1)}</div></div>
-      <div class="atr-pilar"><div class="atr-pilar-nome">Escalabilidade</div><div class="atr-pilar-bar"><div class="atr-pilar-fill" style="width:${atr.esc*10}%"></div></div><div class="atr-pilar-val">${atr.esc.toFixed(1)}</div></div>
-    </div>
-    <div class="atr-just">Índice de atratividade ${atrLbl} (${atr.score.toFixed(1).replace('.',',')}/10). Combina solidez operacional (ISE ${ise.total}/100), margem de resultado (${pct(ro,fat).toFixed(0)}%) e previsibilidade de receita (${recorrencia}% recorrente).</div>
-  </div>
-</div>
-
-<div class="sec page-break">
-  <div class="sec-header"><div class="sec-num">A3</div><div><div class="sec-label" style="color:var(--pu)">Anexo Exclusivo do Proprietário</div><div class="sec-title">Top 10 Oportunidades de Valorização</div></div></div>
-  <div class="sec-body">
-    ${ops.slice(0,10).map((op,i)=>`<div class="op-card"><div class="op-header"><div class="op-num">${i+1}</div><div class="op-title">${op.titulo}</div></div><div class="op-desc">${op.descricao}</div><span class="op-ganho">${op.ganho_label||'Ver análise'}</span></div>`).join('')}
-    ${totalOps>0?`<div style="margin-top:12px;padding:14px 16px;background:var(--em-d);border:1px solid var(--em-l);display:flex;align-items:center;justify-content:space-between"><span style="font-size:10px;color:var(--ink3)">Potencial total das oportunidades</span><span style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--em)">+${brl(totalOps)}/mês</span></div>`:''}
-    <div class="footnote">Oportunidades identificadas com base nos dados do diagnóstico e benchmarks setoriais. Ganhos estimados — realização depende de execução.</div>
-  </div>
-</div>
-
-<div class="sec page-break">
-  <div class="sec-header"><div class="sec-num">A4</div><div><div class="sec-label" style="color:var(--pu)">Anexo Exclusivo do Proprietário</div><div class="sec-title">Resumo do Diagnóstico</div></div></div>
-  <div class="sec-body">
-    <div class="diag-bloco"><div class="diag-bloco-title">Identificação</div>
-      <div class="diag-row"><div class="diag-label">Nome do negócio</div><div class="diag-val">${nomeN}</div></div>
-      <div class="diag-row"><div class="diag-label">Setor</div><div class="diag-val">${setorLbl}</div></div>
-      <div class="diag-row"><div class="diag-label">Cidade / Estado</div><div class="diag-val">${loc}</div></div>
-      <div class="diag-row"><div class="diag-label">Tempo de operação</div><div class="diag-val">${anos} ano${anos===1?'':'s'}</div></div>
-      <div class="diag-row"><div class="diag-label">Modelo de negócio</div><div class="diag-val">${d.modelo_negocio||d.modelo_atuacao||'—'}</div></div>
-      <div class="diag-row"><div class="diag-label">Regime tributário</div><div class="diag-val">${regimeTxt}</div></div>
-    </div>
-    <div class="diag-bloco"><div class="diag-bloco-title">Financeiro</div>
-      <div class="diag-row"><div class="diag-label">Faturamento mensal</div><div class="diag-val">${brlF(fat)}</div></div>
-      <div class="diag-row"><div class="diag-label">Faturamento anual</div><div class="diag-val">${brlF(fat*12)}</div></div>
-      <div class="diag-row"><div class="diag-label">Pró-labore</div><div class="diag-val">${brlF(prol)}/mês</div></div>
-      <div class="diag-row"><div class="diag-label">Saldo devedor</div><div class="diag-val">${brlF(emprest)}</div></div>
-    </div>
-    <div class="diag-bloco"><div class="diag-bloco-title">Operacional</div>
-      <div class="diag-row"><div class="diag-label">Funcionários CLT</div><div class="diag-val">${n(d.clt_qtd||raw.clt_qtd)} pessoas</div></div>
-      <div class="diag-row"><div class="diag-label">Funcionários PJ/outros</div><div class="diag-val">${n(d.pj_qtd||raw.pj_qtd)} pessoas</div></div>
-      ${mkt>0?`<div class="diag-row"><div class="diag-label">Marketing mensal</div><div class="diag-val">${brlF(mkt)}</div></div>`:''}
-      <div class="diag-row"><div class="diag-label">Processos</div><div class="diag-val">${d.processos==='documentados'?'Documentados':d.processos==='parcial'?'Parcialmente documentados':'Não documentados'}</div></div>
-    </div>
-    <div class="diag-bloco"><div class="diag-bloco-title">Comercial</div>
-      ${clientes>0?`<div class="diag-row"><div class="diag-label">Clientes ativos</div><div class="diag-val">${clientes} clientes</div></div>`:''}
-      ${ticket>0?`<div class="diag-row"><div class="diag-label">Ticket médio</div><div class="diag-val">${brlF(ticket)}/mês</div></div>`:''}
-      <div class="diag-row"><div class="diag-label">Receita recorrente</div><div class="diag-val">${recorrencia}%</div></div>
-      ${d.canais?.length?`<div class="diag-row"><div class="diag-label">Canais de venda</div><div class="diag-val">${d.canais.join(', ')}</div></div>`:''}
-    </div>
-    <div class="footnote">Dados declarados pelo proprietário em ${dataAv} · Cód. ${codigo}.</div>
-  </div>
-</div>
-
-<div class="onep-wrap page-break">
-  <div class="onep-hero">
-    <div><div class="onep-hero-eyebrow">Visão Geral · One Page</div><div class="onep-hero-nome">${nomeN}</div><div class="onep-hero-setor">${setorLbl} · ${loc} · ${anos} ano${anos===1?'':'s'}</div></div>
-    <div class="onep-hero-right"><div class="onep-valor-label">Valor de venda</div><div class="onep-valor">${brl(valorVenda)}</div><div class="onep-valor-tipo">Porteira fechada</div></div>
-  </div>
-  <div class="onep-kpis">
-    <div class="onep-kpi"><div class="onep-kpi-l">Faturamento anual</div><div class="onep-kpi-v g">${brl(fat*12)}</div></div>
-    <div class="onep-kpi"><div class="onep-kpi-l">Result. operacional anual</div><div class="onep-kpi-v g">${brl(ro*12)}</div></div>
-    <div class="onep-kpi"><div class="onep-kpi-l">Margem operacional</div><div class="onep-kpi-v g">${pct(ro,fat).toFixed(0)}%</div></div>
-    <div class="onep-kpi"><div class="onep-kpi-l">Recorrência</div><div class="onep-kpi-v ${recorrencia>=50?'g':'a'}">${recorrencia}%</div><div class="onep-kpi-sub">receita recorrente</div></div>
-    <div class="onep-kpi"><div class="onep-kpi-l">ISE · Solidez</div><div class="onep-kpi-v ${ise.total>=65?'g':'a'}">${ise.total}/100</div><div class="onep-kpi-sub">${iseClass.n}</div></div>
-    <div class="onep-kpi"><div class="onep-kpi-l">Fator 1N</div><div class="onep-kpi-v">${fator.toFixed(2).replace('.',',')}x</div><div class="onep-kpi-sub">${fator<b.mulBase?'Conservador':'Benchmark'}</div></div>
-  </div>
-  <div class="onep-body">
-    <div class="onep-formula">
-      <div class="onep-fbox"><div class="onep-fbox-label">Result. op. anual</div><div class="onep-fbox-val">${brl(ro*12)}</div></div>
-      <div class="onep-fop">x</div>
-      <div class="onep-fbox"><div class="onep-fbox-label">Fator 1N</div><div class="onep-fbox-val">${fator.toFixed(2).replace('.',',')}x</div></div>
-      <div class="onep-fop">+</div>
-      <div class="onep-fbox"><div class="onep-fbox-label">Patrimônio</div><div class="onep-fbox-val">${pl<0?"R\$ 0 (dívidas negociadas)":brl(pl)}</div></div>
-      <div class="onep-fop">=</div>
-      <div class="onep-fbox hl"><div class="onep-fbox-label">Valor de venda</div><div class="onep-fbox-val">${brl(valorVenda)}</div></div>
-    </div>
-    <div class="onep-row">
-      <div class="onep-bloco">
-        <div class="onep-bloco-title">DRE Resumida</div>
-        <div class="onep-item"><div class="onep-item-l">Faturamento</div><div class="onep-item-v">${brl(fat)}/mês</div></div>
-        <div class="onep-item"><div class="onep-item-l">(−) Impostos</div><div class="onep-item-v">${brl(impostos)}</div></div>
-        ${mkt>0?`<div class="onep-item"><div class="onep-item-l">(−) Marketing</div><div class="onep-item-v a">${brl(mkt)}</div></div>`:''}
-        ${folha>0?`<div class="onep-item"><div class="onep-item-l">(−) Folha</div><div class="onep-item-v">${brl(folha)}</div></div>`:''}
-        ${aluguel>0?`<div class="onep-item"><div class="onep-item-l">(−) Aluguel</div><div class="onep-item-v">${brl(aluguel)}</div></div>`:''}
-        <div class="onep-item"><div class="onep-item-l">(−) Pró-labore</div><div class="onep-item-v">${brl(prol)}</div></div>
-        <div class="onep-item"><div class="onep-item-l">Result. operacional</div><div class="onep-item-v g">${brl(ro)}</div></div>
-      </div>
-      <div class="onep-bloco">
-        <div class="onep-bloco-title">Operação</div>
-        ${d.modelo_negocio||d.modelo_atuacao?`<div class="onep-item"><div class="onep-item-l">Modelo</div><div class="onep-item-v">${d.modelo_negocio||d.modelo_atuacao}</div></div>`:''}
-        ${clientes>0?`<div class="onep-item"><div class="onep-item-l">Clientes ativos</div><div class="onep-item-v">${clientes}</div></div>`:''}
-        ${ticket>0?`<div class="onep-item"><div class="onep-item-l">Ticket médio</div><div class="onep-item-v">${brl(ticket)}</div></div>`:''}
-        <div class="onep-item"><div class="onep-item-l">Equipe</div><div class="onep-item-v">${numFuncs>0?numFuncs+' pessoas':'—'}</div></div>
-        <div class="onep-item"><div class="onep-item-l">Regime</div><div class="onep-item-v">${regimeTxt}</div></div>
-      </div>
-    </div>
-    <div class="onep-row">
-      <div class="onep-bloco">
-        <div class="onep-bloco-title">ISE · 10 Pilares</div>
-        ${[['Comercial',ise.com],['Financeiro',ise.fin],['Gestão',ise.ges],['Independ.',ise.dep],['Concentr.',ise.conc],['Escalab.',ise.esc],['Balanço',ise.bal],['Marca',ise.mar],['Dívida',ise.div],['Risco',ise.ris]].map(([nm,v])=>{const st=v>=7?'var(--em)':v>=5?'var(--am)':'var(--rd)';return`<div class="onep-ise-bar"><div class="onep-ise-nome">${nm}</div><div class="onep-ise-track"><div class="onep-ise-fill" style="width:${v*10}%;background:${st}"></div></div><div class="onep-ise-val" style="color:${st}">${v}/10</div></div>`;}).join('')}
-      </div>
-      <div class="onep-bloco">
-        <div class="onep-bloco-title">Atratividade</div>
-        <div style="display:flex;align-items:baseline;gap:4px;margin-bottom:8px"><span style="font-family:'Syne',sans-serif;font-weight:800;font-size:28px;color:var(--em)">${atr.score.toFixed(1).replace('.',',')}</span><span style="font-size:12px;color:var(--ink3)">/10</span><span style="font-size:8px;letter-spacing:.1em;text-transform:uppercase;background:var(--em);color:#fff;padding:2px 8px;margin-left:6px">${atrLbl}</span></div>
-        <div style="height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-bottom:14px"><div style="width:${atr.score*10}%;height:100%;background:var(--em);border-radius:2px"></div></div>
-        ${ise.fin>=7||ise.com>=7?`<div class="onep-bloco-title" style="margin-top:10px">Pontos positivos</div>${ise.fin>=7?`<div class="onep-item"><div class="onep-item-l" style="color:var(--em)">✓ Margem ${pct(ro,fat).toFixed(0)}%</div></div>`:''} ${recorrencia>=50?`<div class="onep-item"><div class="onep-item-l" style="color:var(--em)">✓ ${recorrencia}% recorrente</div></div>`:''} ${emprest===0?`<div class="onep-item"><div class="onep-item-l" style="color:var(--em)">✓ Zero dívidas</div></div>`:''}`:''}
-        ${ise.dep<=5||anos<=2?`<div class="onep-bloco-title" style="margin-top:10px">Atenção</div>${anos<=2?`<div class="onep-item"><div class="onep-item-l" style="color:var(--am)">⚠ ${anos} ano(s) de histórico</div></div>`:''} ${ise.dep<=5?`<div class="onep-item"><div class="onep-item-l" style="color:var(--am)">⚠ Dep. do sócio</div></div>`:''} ${pct(mkt,fat)>b.mkt*1.5?`<div class="onep-item"><div class="onep-item-l" style="color:var(--am)">⚠ Marketing ${pct(mkt,fat).toFixed(0)}% fat.</div></div>`:''}`:''}
-      </div>
-    </div>
-    ${totalOps>0?`<div style="background:var(--em-d);border:1px solid var(--em-l);padding:16px 18px;display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--em);margin-bottom:6px">Potencial com oportunidades implementadas</div><div style="font-size:10px;color:var(--ink3);line-height:1.6">+${brl(totalOps)}/mês → valor estimado potencial</div></div><div style="text-align:right;flex-shrink:0;margin-left:20px"><div style="font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--em);margin-bottom:4px">Valor potencial</div><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--em)">${brl(valorVenda+totalOps*12*fator)}+</div></div></div>`:''}
-  </div>
-  <div class="onep-footer"><div class="onep-footer-l">${nomeN} · ${loc} · Avaliado em ${dataAv} · Cód. ${codigo}</div><div class="onep-footer-r">1negocio.com.br</div></div>
-</div>
-
-<div class="icd-wrap page-break">
-  <div class="icd-header"><div class="icd-title">ICD · Índice de Confiabilidade dos Dados</div><div class="icd-score">${icdPct}%</div></div>
-  <div class="icd-bar-track"><div class="icd-bar-fill" style="width:${icdPct}%"></div></div>
-  <div class="icd-grid">
-    <div><div class="icd-col-title g">Informado pelo proprietário</div>${[d.fat_mensal?'Faturamento mensal':null,d.regime?'Regime tributário':null,(d.pct_comissao||d.taxa_comissao)?'Comissões de venda':null,d.mkt_valor?'Marketing mensal':null,d.prolabore?'Pró-labore dos sócios':null,(d.cli_1m||d.clientes_ativos)?'Clientes ativos':null,(d.recorrencia_pct||d.pct_recorrencia)?'Recorrência de receita':null,d.processos?'Processos e gestão':null,d.saldo_devedor!==undefined?'Situação de dívidas':null].filter(Boolean).map(i=>`<div class="icd-item"><div class="icd-item-dot" style="background:var(--em)"></div>${i}</div>`).join('')}</div>
-    <div><div class="icd-col-title a">Estimado por benchmark</div>${[!d.at_caixa?'Saldo de caixa':null,!d.at_cr?'Contas a receber':null].filter(Boolean).map(i=>`<div class="icd-item"><div class="icd-item-dot" style="background:var(--am)"></div>${i}</div>`).join('')}</div>
-  </div>
-  <div class="icd-nota">${icdPct}% dos dados foram declarados diretamente pelo proprietário. Os restantes foram estimados com base em benchmarks do setor de ${setorLbl}. Quanto maior o ICD, mais precisa e defensável é a avaliação em uma due diligence.</div>
-</div>
-
-<div class="fechamento page-break">
-  <div>
-    <div class="fech-eyebrow">Documento encerrado</div>
-    <div class="fech-titulo">Seu negócio<br>com <em>mais valor.</em></div>
-    <div class="fech-texto">Este laudo representa a avaliação técnica independente da 1Negócio sobre o negócio avaliado. Os dados aqui contidos são de uso exclusivo do proprietário e não devem ser compartilhados sem autorização expressa da plataforma.</div>
-    <div class="fech-ass"><div class="fech-ass-logo"><em>1</em>NEGÓCIO</div><div class="fech-ass-sep"></div><div class="fech-ass-txt">Plataforma de compra e venda de empresas<br>1negocio.com.br · Avaliação independente</div></div>
-  </div>
-  <div class="fech-rodape"><div class="fech-rod-l">Documento confidencial · ${nomeN} · ${dataAv}</div><div class="fech-rod-r">1negocio.com.br</div></div>
-</div>`;
-
-  document.getElementById('doc').innerHTML=html;
-
-  // ── SALVAR calc_json para laudo-completo usar como espelho ──
-  // Se CJ da skill existe, usar ele como base e complementar com dados de display
-  window._calcJson = CJ ? Object.assign({}, CJ, {
-    // Sobrepor apenas campos que o laudo-pago calculou localmente para display
-    ise_class: iseClass.n,
-    atr_lbl: atrLbl,
-    bench: b,
-    data_avaliacao: hoje(),
-    // Campos de display que podem não estar no CJ da skill
-    num_funcs: numFuncs, clientes: clientes, ticket: ticket,
-  }) : {
-    // Fallback: construir do zero com vars locais
-    nome: nomeN, setor: setorLbl, setor_raw: raw.setor||d.setor,
-    modelo_atuacao_multi: D.modelo_atuacao_multi||[],
-    cidade: raw.cidade||d.cidade, estado: raw.estado||d.estado,
-    anos: anos, regime: regimeTxt, codigo: codigo,
-    fat_mensal: fat, impostos: impostos, taxas: taxas,
-    comissoes: comissoes, cmv: cmv, folha: folha,
-    aluguel: aluguel, mkt: mkt, cf: cf,
-    ro_mensal: ro, ro_anual: ro*12,
-    rec_liq: recLiq, lb: lb,
-    prol: prol, parcelas: parc, rf: rf,
-    potencial_caixa: ro-prol-parc,
-    margem_pct: pct(ro,fat),
-    caixa: caixa, estoque: estoque, equip: equip,
-    imovel: imovel, receber: receber, totAtiv: totAtiv,
-    forn: forn, emprest: emprest, totPass: totPass, pl: pl,
-    ise_total: ise.total, ise_class: iseClass.n,
-    ise_dep: ise.dep, ise_com: ise.com, ise_fin: ise.fin,
-    ise_ges: ise.ges, ise_mar: ise.mar, ise_bal: ise.bal,
-    ise_div: ise.div, ise_ris: ise.ris, ise_conc: ise.conc, ise_esc: ise.esc,
-    fator: fator, valor_op: valorOp, valor_venda: valorVenda,
-    mul_base: b.mulBase||2.5, mul_range: b.mulRange||'2-4x',
-    atr_score: atr.score, atr_lbl: atrLbl,
-    atr_sol: atr.sol, atr_set: atr.set, atr_rec: atr.rec,
-    atr_ind: atr.ges, atr_ges: atr.ges, atr_cre: atr.cre, atr_mar: atr.mar,
-    ops: ops.map(o=>({titulo:o.titulo,descricao:o.descricao,ganho:n(o.ganho),ganho_label:o.ganho_label||''})),
-    total_ops: totalOps,
-    bench_dre: b, bench: b,
-    num_funcs: numFuncs, clientes: clientes, ticket: ticket,
-    recorrencia: recorrencia, concentracao: concentracao,
-    icd_pct: icdPct,
-    data_avaliacao: hoje()
+// ─── FETCH ──────────────────────────────────────────────────────────────────
+async function resolverNegocioId(parametro) {
+  if (parametro.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) return parametro;
+  const tryUrl = async (qs) => {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/negocios?' + qs, { headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + SUPABASE_ANON } });
+    const d = await r.json();
+    return d && d[0] ? d[0].id : null;
   };
+  return await tryUrl('slug=eq.' + parametro + '&select=id') || await tryUrl('codigo_diagnostico=eq.' + parametro + '&select=id');
+}
 
-  // ── Comparativo Tributário ──
-  const reg = CJ ? CJ.analise_regimes : null;
-  if(reg && reg.tem_oportunidade && reg.regimes){
-    const secTrib = document.getElementById('sec-tributario');
-    const tribBody = document.getElementById('trib-body');
-    if(secTrib && tribBody){
-      secTrib.style.display = '';
-      let th = '<div style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:16px">Simulação tributária · regime atual: '+reg.regime_atual+'</div>';
-      th += '<table style="width:100%;border-collapse:collapse;font-size:11px">';
-      th += '<thead><tr style="border-bottom:1px solid var(--line2)">';
-      th += '<th style="text-align:left;padding:8px;color:var(--ink3)">Regime</th>';
-      th += '<th style="text-align:right;padding:8px;color:var(--ink3)">Elegível</th>';
-      th += '<th style="text-align:right;padding:8px;color:var(--ink3)">Imposto/mês</th>';
-      th += '<th style="text-align:right;padding:8px;color:var(--ink3)">% fat</th>';
-      th += '<th style="text-align:right;padding:8px;color:var(--ink3)">Economia/ano</th>';
-      th += '</tr></thead><tbody>';
-      reg.regimes.forEach(r => {
-        const isAtual = r.regime.toLowerCase().includes(reg.regime_atual.replace('_',' ').toLowerCase().split(' ')[0]);
-        const isOtimo = r.regime === reg.regime_otimo;
-        const cor = isOtimo ? 'var(--em)' : isAtual ? 'var(--ink)' : 'var(--ink3)';
-        const eco = isAtual ? '—' : r.elegivel ? brl((reg.imposto_atual_mensal - r.imposto_mensal)*12) : '—';
-        th += `<tr style="border-bottom:1px solid var(--line)">`;
-        th += `<td style="padding:8px;color:${cor};font-weight:${isAtual||isOtimo?'600':'400'}">${r.regime}${isAtual?' ← atual':''}${isOtimo?' ★ ótimo':''}</td>`;
-        th += `<td style="text-align:right;padding:8px;color:${r.elegivel?'var(--em)':'var(--rd)'}">${r.elegivel?'Sim':'Não'}</td>`;
-        th += `<td style="text-align:right;padding:8px;color:${cor}">${r.elegivel?brl(r.imposto_mensal):'—'}</td>`;
-        th += `<td style="text-align:right;padding:8px;color:${cor}">${r.elegivel?(r.pct||0).toFixed(1)+'%':'—'}</td>`;
-        th += `<td style="text-align:right;padding:8px;color:${isOtimo?'var(--em)':'var(--ink4)'};font-weight:${isOtimo?'600':'400'}">${eco}</td>`;
-        th += '</tr>';
-      });
-      th += '</tbody></table>';
-      if(reg.economia_anual > 0){
-        th += `<div style="margin-top:16px;padding:12px 16px;background:var(--em-d);border-radius:6px;border-left:3px solid var(--em)">`;
-        th += `<div style="font-size:11px;color:var(--em);font-weight:600">Oportunidade: economia de ${brl(reg.economia_mensal)}/mês (${brl(reg.economia_anual)}/ano)</div>`;
-        th += `<div style="font-size:10px;color:var(--ink3);margin-top:4px">Migração para ${reg.regime_otimo} — recomendamos consultar contador para validação.</div>`;
-        th += '</div>';
+async function fetchLaudoV2(negocioId) {
+  const url = SUPABASE_URL + '/rest/v1/laudos_v2?negocio_id=eq.' + negocioId + '&ativo=eq.true&select=calc_json,versao,criado_em';
+  const r = await fetch(url, { headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + SUPABASE_ANON } });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const data = await r.json();
+  return data && data.length > 0 ? data[0].calc_json : null;
+}
+
+// ─── INIT ───────────────────────────────────────────────────────────────────
+async function init() {
+  animLD();
+  const params = new URLSearchParams(window.location.search);
+
+  if (params.get('demo') === 'true' || params.get('id') === 'demo') {
+    // Modo demo desabilitado nesta versão (laudo-pago lê só calc_json v2 real).
+    document.getElementById('ld-msg').textContent = 'Modo demo desabilitado. Use ?id=<UUID> com um laudo v2 real.';
+    return;
+  } else {
+    const param = params.get('id') || params.get('c') || params.get('slug');
+    if (!param) {
+      document.getElementById('ld-msg').textContent = 'Parâmetro ?id=, ?c= ou ?slug= não fornecido (ou use ?demo=true).';
+      return;
+    }
+    try {
+      const negocioId = await resolverNegocioId(param);
+      if (!negocioId) {
+        document.getElementById('ld-msg').textContent = 'Negócio não encontrado: ' + param;
+        return;
       }
-      tribBody.innerHTML = th;
+      calcJson = await fetchLaudoV2(negocioId);
+      if (!calcJson) {
+        document.getElementById('ld-msg').textContent = 'Laudo v2 ainda não foi gerado para este negócio.';
+        return;
+      }
+    } catch (e) {
+      console.error(e);
+      document.getElementById('ld-msg').textContent = 'Erro ao carregar laudo: ' + e.message;
+      return;
     }
   }
 
+  renderTudo();
   hideLoading();
 }
 
-async function saveCache(negocioId, html, calcJson){
-  if(!negocioId||negocioId==='DEMO')return;
-  try{
-    const payload = {html:html, atualizado_em:new Date().toISOString()};
-    if(calcJson) payload.calc_json = calcJson;
-    // Atualiza laudos_completos onde slug = negocioId
-    const r = await fetch(SB_URL+'/rest/v1/laudos_completos?slug=eq.'+negocioId,{
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify(payload)
-    });
-    // Se não existir ainda, cria
-    if(r.status===404||r.status===0){
-      await fetch(SB_URL+'/rest/v1/laudos_completos',{
-        method:'POST',
-        headers:{'apikey':SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-        body:JSON.stringify({slug:negocioId,...payload,pago:false})
+window.addEventListener('DOMContentLoaded', init);
+
+// ─── ORQUESTRADOR ───────────────────────────────────────────────────────────
+// 15 seções numeradas conforme índice (não conta capa, folha de rosto, índice e fechamento).
+function renderTudo() {
+  if (!calcJson) return;
+  const doc = document.getElementById('doc');
+
+  const blocks = [
+    renderCapa(),
+    renderFolhaRosto(),
+    renderIndice(),
+    renderHeroResumo(),                                                                                        // 1. Resumo executivo (hero 2 cards + texto IA)
+    renderTextoIA('2',  'Contexto', 'Contexto do negócio',                            'texto_contexto_negocio'),
+    renderDRE(),                                                                                              // 3
+    renderBalanco(),                                                                                          // 4
+    renderISE(),                                                                                              // 5
+    renderIndicadores(),                                                                                      // 6
+    renderTributaria(),                                                                                       // 7
+    renderTextoIA('8',  'Parecer técnico',     'Análise da skill avaliadora',         'texto_parecer_tecnico'),
+    renderTextoIA('9',  'Riscos',              'Pontos de atenção',                    'texto_riscos_atencao'),
+    renderTextoIA('10', 'Diferenciais',        'Pontos fortes do negócio',             'texto_diferenciais'),
+    renderAtratividade(),                                                                                     // 11
+    renderTextoIA('12', 'Público-alvo',        'Perfil ideal do comprador',            'texto_publico_alvo_comprador'),
+    renderUpsides(),                                                                                          // 13
+    renderOperacional(),                                                                                      // 14
+    renderFechamento(),                                                                                       // 15
+  ];
+
+  doc.innerHTML = blocks.filter(Boolean).join('');
+  // Inicializa Chart.js após o HTML estar no DOM (radar do ISE)
+  if (typeof initChartsAfterRender === 'function') initChartsAfterRender();
+}
+
+// ─── CAPA (Fase 3.2.4) ──────────────────────────────────────────────────────
+// Logo só no cabeçalho. Nome do negócio à ESQUERDA. Sem subtítulo do setor.
+// Rodapé com encomenda + código no canto inferior esquerdo.
+function renderCapa() {
+  const id = calcJson.identificacao || {};
+  const responsavel = id.nome_responsavel || '—';
+
+  return ''
+    + '<section class="capa">'
+    + '  <div class="capa-accent"></div>'
+    + '  <div class="capa-top">'
+    + '    <div class="logo"><span class="logo-1">1</span>NEGÓCIO</div>'
+    + '    <div class="capa-badge">Laudo confidencial</div>'
+    + '  </div>'
+    + '  <div class="capa-body">'
+    + '    <div class="capa-hero-nome">' + escapeHtml(id.nome || '—') + '</div>'
+    + '    <div class="capa-subtitulo">Laudo de avaliação</div>'
+    + '  </div>'
+    + '  <div class="capa-rodape">'
+    + '    <div class="capa-rodape-linha">Laudo encomendado por <strong>' + escapeHtml(responsavel) + '</strong></div>'
+    + '    <div class="capa-rodape-linha">Código <strong>' + escapeHtml(id.codigo_diagnostico || '—') + '</strong></div>'
+    + '  </div>'
+    + '</section>';
+}
+
+// ─── FOLHA DE ROSTO (Fase 3.2.4) ────────────────────────────────────────────
+// "Apresentação" como eyebrow simples (não título). Texto com elementos
+// auditáveis em destaque (data, nomes, versões).
+function renderFolhaRosto() {
+  const id = calcJson.identificacao || {};
+  const responsavel = escapeHtml(id.nome_responsavel || '—');
+  const negocio = escapeHtml(id.nome || '—');
+  const data = hoje();
+  const skillVer = escapeHtml(calcJson._skill_versao || '2.0');
+  const benchVer = escapeHtml(calcJson._versao_parametros || '—');
+
+  return ''
+    + '<section class="intro">'
+    + '  <div class="intro-top">'
+    + '    <div class="intro-eyebrow">Apresentação</div>'
+    + '    <div class="intro-texto">Este laudo apresenta uma análise do negócio <strong>' + negocio + '</strong>, encomendada por <strong>' + responsavel + '</strong> em <strong>' + data + '</strong>.</div>'
+    + '    <div class="intro-texto">O diagnóstico estruturado foi preenchido por <strong>' + responsavel + '</strong> e processado pela <strong>skill avaliadora 1N versão ' + skillVer + '</strong>, usando <strong>benchmarks setoriais versão ' + benchVer + '</strong>.</div>'
+    + '    <div class="intro-texto">Este documento foi desenvolvido para apoiar decisões sobre o futuro da operação: precificação, prioridades de melhoria, validação do regime tributário e planejamento estratégico.</div>'
+    + '    <div class="intro-texto">Este laudo é confidencial e destinado ao solicitante.</div>'
+    + '  </div>'
+    + '  <div class="intro-rodape">'
+    + '    <div>Gerado em <strong>' + data + '</strong></div>'
+    + '    <div>Metodologia <strong>1N ' + escapeHtml(calcJson._versao_calc_json || '2.0') + '</strong> · skill <strong>' + skillVer + '</strong> · benchmarks <strong>' + benchVer + '</strong></div>'
+    + '  </div>'
+    + '</section>';
+}
+
+// ─── ÍNDICE (C) ─────────────────────────────────────────────────────────────
+// Lista numerada das 15 seções. Páginas como placeholder (00) — a numeração real
+// só é resolvida na exportação PDF, então mantemos o placeholder aqui.
+function renderIndice() {
+  const itens = [
+    { num: '01', nome: 'Resumo executivo' },
+    { num: '02', nome: 'Contexto do negócio' },
+    { num: '03', nome: 'Demonstração de Resultados (DRE)' },
+    { num: '04', nome: 'Balanço Patrimonial' },
+    { num: '05', nome: 'Índice de Saúde Empresarial (ISE)' },
+    { num: '06', nome: 'Indicadores vs Benchmark' },
+    { num: '07', nome: 'Análise tributária' },
+    { num: '08', nome: 'Parecer técnico' },
+    { num: '09', nome: 'Riscos e atenção' },
+    { num: '10', nome: 'Diferenciais' },
+    { num: '11', nome: 'Atratividade' },
+    { num: '12', nome: 'Público-alvo comprador' },
+    { num: '13', nome: 'Oportunidades de melhoria (upsides)' },
+    { num: '14', nome: 'Dados operacionais' },
+    { num: '15', nome: 'Próximos passos' },
+  ];
+  let lis = '';
+  itens.forEach(it => {
+    lis += ''
+      + '<li class="indice-item">'
+      + '<span class="indice-num">' + it.num + '</span>'
+      + '<span class="indice-nome">' + escapeHtml(it.nome) + '</span>'
+      + '<span class="indice-dots"></span>'
+      + '<span class="indice-pag">00</span>'
+      + '</li>';
+  });
+  return ''
+    + '<section class="indice">'
+    + '  <div class="indice-eyebrow">Sumário</div>'
+    + '  <div class="indice-titulo">Índice</div>'
+    + '  <ul class="indice-list">' + lis + '</ul>'
+    + '</section>';
+}
+
+// ─── 1. RESUMO EXECUTIVO (hero 2 cards + texto IA) ──────────────────────────
+// Hero com 2 cards: AVALIAÇÃO 1N e POTENCIAL EM 12 MESES (sem expectativa).
+function renderHeroResumo() {
+  const id = calcJson.identificacao || {};
+  const v  = calcJson.valuation || {};
+  const avaliacao = n(v.valor_venda);
+  // Schema v2026.07: potencial 12m vem em calcJson.potencial_12m.potencial_final.
+  // valor_projetado_brl é o total projetado (avaliação + delta), correto pra exibir
+  // como "Potencial em 12 meses" no chart de progressão.
+  const p12 = (calcJson.potencial_12m && calcJson.potencial_12m.potencial_final) || {};
+  const potencial = n(p12.valor_projetado_brl) > 0 ? n(p12.valor_projetado_brl) : avaliacao;
+
+  const tIA = calcJson.textos_ia || {};
+  const t   = tIA.texto_resumo_executivo_completo || {};
+  const conteudo = t.conteudo;
+  let textoBody;
+  if (conteudo && (typeof conteudo === 'string' ? conteudo.trim() : true)) {
+    textoBody = '<div class="txt">' + escapeHtml(conteudo).replace(/\n\n+/g, '</div><div class="txt">') + '</div>';
+  } else {
+    textoBody = '<div class="txt-pendente">[Texto pendente — em geração pela IA]</div>';
+  }
+
+  return ''
+    + '<section class="sec">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">1</div>'
+    + '    <div><div class="sec-label">Resumo executivo</div><div class="sec-title">Visão geral do negócio</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">'
+    + '    <div class="hero-3">'
+    + '      <div class="hero-3-head">'
+    + '        <div>'
+    + '          <div class="hero-3-eyebrow">Resumo do laudo</div>'
+    + '          <div class="hero-3-nome">' + escapeHtml(id.nome || '—') + '</div>'
+    + '          <div class="hero-3-setor">' + escapeHtml((id.setor && id.setor.label) || '—') + '</div>'
+    + '        </div>'
+    + '      </div>'
+    + '      <div class="hero-3-grid hero-2-grid">'
+    + '        <div class="hero-3-cell"><div class="hero-3-cell-l">Avaliação 1Negócio</div><div class="hero-3-cell-v g">' + fcShort(avaliacao) + '</div><div class="hero-3-cell-sub">RO × Fator 1N + PL</div></div>'
+    + '        <div class="hero-3-cell"><div class="hero-3-cell-l">Potencial em 12 meses</div><div class="hero-3-cell-v g">' + fcShort(potencial) + '</div><div class="hero-3-cell-sub">com plano de upsides</div></div>'
+    + '      </div>'
+    + chartProgressao(avaliacao, potencial)
+    + '    </div>'
+    + '    ' + textoBody
+    + '  </div>'
+    + '</section>';
+}
+
+// ─── GRÁFICO 1: barra avaliação → potencial (SVG inline) ────────────────────
+// Mostra: |======= avaliação atual =======|------ delta upsides ------|
+//                              ↑ R$ atual                  ↑ R$ potencial
+function chartProgressao(avaliacao, potencial) {
+  const delta = Math.max(0, potencial - avaliacao);
+  const total = potencial > 0 ? potencial : 1;
+  const pctAtual = (avaliacao / total) * 100;
+  const pctDelta = (delta / total) * 100;
+  const W = 600, H = 28; // viewBox base
+  const barAtual = (pctAtual / 100) * W;
+  const barDelta = (pctDelta / 100) * W;
+
+  // Cores: var(--em) verde 1N atual / var(--am) âmbar delta / var(--ink) topo
+  return ''
+    + '<div class="chart-bar">'
+    + '  <div class="chart-bar-head"><span>Avaliação atual</span><span>Potencial em 12 meses</span></div>'
+    + '  <svg class="chart-bar-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Barra de progressão da avaliação atual ao potencial em 12 meses">'
+    + '    <rect x="0" y="6" width="' + W + '" height="' + (H - 12) + '" fill="rgba(13,43,30,0.06)"/>'
+    + '    <rect x="0" y="6" width="' + barAtual.toFixed(1) + '" height="' + (H - 12) + '" fill="#1a7a4a"/>'
+    + '    <rect x="' + barAtual.toFixed(1) + '" y="6" width="' + barDelta.toFixed(1) + '" height="' + (H - 12) + '" fill="#92470a" fill-opacity="0.78"/>'
+    // Marcador no topo do limite atual (linha vertical fina)
+    + '    <line x1="' + barAtual.toFixed(1) + '" y1="2" x2="' + barAtual.toFixed(1) + '" y2="' + (H - 2) + '" stroke="#0d2b1e" stroke-width="1.2"/>'
+    + '  </svg>'
+    + '  <div class="chart-bar-legend">'
+    + '    <div class="chart-bar-legend-item">'
+    + '      <div class="chart-bar-legend-label"><span class="chart-bar-legend-dot" style="background:#1a7a4a"></span>Avaliação 1N</div>'
+    + '      <div class="chart-bar-legend-val">' + fcShort(avaliacao) + '</div>'
+    + '    </div>'
+    + '    <div class="chart-bar-legend-item">'
+    + '      <div class="chart-bar-legend-label"><span class="chart-bar-legend-dot" style="background:#92470a;opacity:.78"></span>Ganho potencial</div>'
+    + '      <div class="chart-bar-legend-val">+ ' + fcShort(delta) + '</div>'
+    + '    </div>'
+    + '    <div class="chart-bar-legend-item" style="align-items:flex-end">'
+    + '      <div class="chart-bar-legend-label"><span class="chart-bar-legend-dot" style="background:#0d2b1e"></span>Total potencial</div>'
+    + '      <div class="chart-bar-legend-val">' + fcShort(potencial) + '</div>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>';
+}
+
+// ─── TEXTO IA (placeholder se conteudo == null) ─────────────────────────────
+function renderTextoIA(num, label, sub, chaveTexto) {
+  const tIA = calcJson.textos_ia || {};
+  const t   = tIA[chaveTexto] || {};
+  const conteudo = t.conteudo;
+
+  let body;
+  if (conteudo && (typeof conteudo === 'string' ? conteudo.trim() : true)) {
+    body = '<div class="txt">' + escapeHtml(conteudo).replace(/\n\n+/g, '</div><div class="txt">') + '</div>';
+  } else {
+    body = '<div class="txt-pendente">[Texto pendente — em geração pela IA]</div>';
+  }
+
+  return ''
+    + '<section class="sec">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">' + escapeHtml(num) + '</div>'
+    + '    <div><div class="sec-label">' + escapeHtml(label) + '</div><div class="sec-title">' + escapeHtml(sub) + '</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + body + '</div>'
+    + '</section>';
+}
+
+// ─── DRE ────────────────────────────────────────────────────────────────────
+// 5 blocos. Filtra linhas zeradas (.filter(l => l.valor > 0)) — diferente do admin.
+// ─── GRÁFICO 3: radar ISE 8 pilares + barras complementares ─────────────────
+// Renderiza canvas + barras inline. O radar é inicializado depois do innerHTML
+// pelo initChartsAfterRender — Chart.js precisa do canvas montado no DOM.
+let _iseChartInstance = null;
+function chartRadarISE(pilares) {
+  if (!pilares || pilares.length === 0) return '';
+  // Bloco "Detalhe por pilar (peso · contribuição)" removido em 29/04 — info
+  // redundante (já está no radar acima e nas barrinhas individuais com
+  // sub-métricas mais abaixo).
+  return ''
+    + '<div class="chart-radar-wrap">'
+    + '  <div class="chart-radar-head">Visão geral · ISE × Excelência</div>'
+    + '  <div class="chart-radar-canvas-wrap"><canvas id="chart-ise-radar"></canvas></div>'
+    + '  <div class="chart-radar-legend">'
+    + '    <div class="chart-radar-legend-item"><span class="chart-radar-legend-dot" style="background:#1a7a4a"></span>ISE atual</div>'
+    + '    <div class="chart-radar-legend-item"><span class="chart-radar-legend-line"></span>Excelência (10/10)</div>'
+    + '  </div>'
+    + '</div>';
+}
+
+// Chama após renderTudo() — Chart.js precisa do canvas no DOM.
+function initChartsAfterRender() {
+  if (typeof Chart === 'undefined') return;
+  const canvas = document.getElementById('chart-ise-radar');
+  if (!canvas) return;
+  const ise = (calcJson && calcJson.ise) || {};
+  const pilares = ise.pilares || [];
+  if (pilares.length === 0) return;
+  if (_iseChartInstance) { try { _iseChartInstance.destroy(); } catch(e){} _iseChartInstance = null; }
+  _iseChartInstance = new Chart(canvas.getContext('2d'), {
+    type: 'radar',
+    data: {
+      labels: pilares.map(p => p.label || p.id),
+      datasets: [
+        {
+          label: 'ISE atual',
+          data: pilares.map(p => n(p.score_0_10)),
+          backgroundColor: 'rgba(26,122,74,0.18)',
+          borderColor: '#1a7a4a',
+          borderWidth: 2,
+          pointBackgroundColor: '#1a7a4a',
+          pointRadius: 3,
+        },
+        {
+          label: 'Excelência',
+          data: pilares.map(() => 10),
+          backgroundColor: 'rgba(13,43,30,0.04)',
+          borderColor: 'rgba(74,124,92,0.7)',
+          borderDash: [4, 3],
+          borderWidth: 1.5,
+          pointRadius: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        r: {
+          min: 0, max: 10,
+          ticks: { stepSize: 2, font: { size: 9, family: 'DM Mono' }, color: '#6a8a76', backdropColor: 'transparent' },
+          pointLabels: { font: { size: 10, family: 'DM Mono' }, color: '#2d6644' },
+          grid: { color: 'rgba(13,43,30,0.10)' },
+          angleLines: { color: 'rgba(13,43,30,0.10)' },
+        },
+      },
+    },
+  });
+}
+
+// ─── GRÁFICO 2: funil DRE (SVG inline) ──────────────────────────────────────
+// Top-down: Faturamento (100%) → Receita líq → Lucro bruto → Após pessoal →
+// Após ocupação → RO. Cada bloco estreita proporcional ao % do faturamento.
+// Linhas pontilhadas entre blocos com a categoria de custo deduzida.
+function chartFunilDRE(dre) {
+  const fat = n(dre.fat_mensal);
+  if (fat <= 0) return '';
+  const ded = dre.deducoes_receita || {};
+  const pess = dre.pessoal || {};
+  const ocp  = dre.ocupacao || {};
+  const op   = dre.operacional_outros || {};
+
+  const recLiq = n(dre.rec_liquida_mensal || dre.rec_liquida);
+  const lb     = n(dre.lucro_bruto_mensal || dre.lucro_bruto);
+  const aposPessoal  = lb - n(pess.folha_total_mensal || pess.folha_total);
+  const aposOcupacao = aposPessoal - n(ocp.total_mensal || ocp.total);
+  const ro = n(dre.ro_mensal); // = aposOcupacao - operacional_outros
+
+  // Steps: label, valor, % do fat, custo deduzido entre o anterior
+  const steps = [
+    { label: 'Faturamento bruto',           valor: fat,           deduz: null },
+    { label: 'Receita líquida',             valor: recLiq,        deduz: 'Deduções: ' + fcShort(n(ded.total_mensal || ded.total_deducoes)) },
+    { label: 'Lucro bruto',                 valor: lb,            deduz: n(dre.cmv) > 0 ? 'CMV: ' + fcShort(dre.cmv) : null },
+    { label: 'Após pessoal',                valor: aposPessoal,   deduz: 'Pessoal: ' + fcShort(n(pess.folha_total_mensal || pess.folha_total)) },
+    { label: 'Após ocupação',               valor: aposOcupacao,  deduz: 'Ocupação: ' + fcShort(n(ocp.total_mensal || ocp.total)) },
+    { label: 'Resultado operacional',       valor: ro,            deduz: 'Operacional outros: ' + fcShort(n(op.total_mensal || op.total)), final: true },
+  ];
+
+  const W = 600;
+  const STEP_H = 50;        // altura visual de cada bloco (Fase 3.2.4: +6 pra respirar)
+  const GAP = 34;           // gap entre blocos: faixa pontilhada não invade vizinhos
+  const N = steps.length;
+  const H = N * STEP_H + (N - 1) * GAP;
+  const cx = W / 2;
+
+  // Paleta de fundos por step (Fase 3.2.4: cores fixas, sem opacity decay)
+  // 0: ink escuro (faturamento, base) — texto branco
+  // 1-4: gradiente verde de claro→médio (intermediários) — texto branco em todos
+  // 5 (final): âmbar sólido — texto branco
+  const FUNNEL_FILLS = ['#0d2b1e', '#1a7a4a', '#2d6644', '#1f4a32', '#1a5238', '#92470a'];
+
+  let svg = '<svg class="chart-funnel-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Funil da DRE — Faturamento até Resultado Operacional">';
+  let y = 0;
+  steps.forEach((s, i) => {
+    const pct = fat > 0 ? Math.max(0, (s.valor / fat) * 100) : 0;
+    // largura proporcional ao %, mín 22% pra os labels caberem
+    const width = Math.max(W * 0.22, (pct / 100) * W);
+    const x = cx - width / 2;
+    const fill = s.final ? FUNNEL_FILLS[5] : FUNNEL_FILLS[Math.min(i, 4)];
+    svg += '<rect x="' + x.toFixed(1) + '" y="' + y + '" width="' + width.toFixed(1) + '" height="' + STEP_H + '" fill="' + fill + '" rx="3"/>';
+    // Texto sempre branco — todos os blocos têm fundo escuro o suficiente
+    svg += '<text class="step-label" x="' + cx + '" y="' + (y + STEP_H / 2 - 3) + '" text-anchor="middle" fill="#ffffff">' + escapeHtml(s.label) + '</text>';
+    svg += '<text class="step-val" x="' + cx + '" y="' + (y + STEP_H / 2 + 14) + '" text-anchor="middle" fill="#ffffff">' + fcShort(s.valor) + ' · ' + pct.toFixed(0) + '%</text>';
+    // Linha pontilhada + label da dedução no espaço entre blocos (centralizada no GAP)
+    if (i < N - 1 && steps[i + 1].deduz) {
+      const ny = y + STEP_H + GAP / 2;
+      svg += '<line x1="' + (cx - 90) + '" y1="' + (ny - 6).toFixed(1) + '" x2="' + (cx + 90) + '" y2="' + (ny - 6).toFixed(1) + '" stroke="#92470a" stroke-width="1" stroke-dasharray="3,3" opacity="0.45"/>';
+      svg += '<text class="step-deduz" x="' + cx + '" y="' + (ny + 5).toFixed(1) + '" text-anchor="middle">↓ ' + escapeHtml(steps[i + 1].deduz) + '</text>';
+    }
+    y += STEP_H + GAP;
+  });
+  svg += '</svg>';
+
+  return ''
+    + '<div class="chart-funnel">'
+    + '  <div class="chart-funnel-head">Funil do resultado operacional · cada bloco estreita conforme o % do faturamento que sobra</div>'
+    + svg
+    + '</div>';
+}
+
+function renderDRE() {
+  const dre = calcJson.dre || {};
+  const ind = calcJson.indicadores_vs_benchmark || {};
+  const fat = n(dre.fat_mensal);
+  const ded = dre.deducoes_receita || {};
+  const pess = dre.pessoal || {};
+  const ocp  = dre.ocupacao || {};
+  const op   = dre.operacional_outros || {};
+
+  // KPIs (Fase 3.2.3): anual em destaque grande, mensal pequeno embaixo
+  let kpis = '<div class="kpi-mini">'
+    + '<div class="kpi-mini-card"><div class="kpi-mini-l">Faturamento</div><div class="kpi-mini-v">' + fcShort(dre.fat_anual) + '</div><div class="kpi-mini-sub">' + fcShort(fat) + ' / mês</div></div>'
+    + '<div class="kpi-mini-card"><div class="kpi-mini-l">Resultado operacional</div><div class="kpi-mini-v">' + fcShort(dre.ro_anual) + '</div><div class="kpi-mini-sub">' + fcShort(dre.ro_mensal) + ' / mês</div></div>'
+    + '<div class="kpi-mini-card"><div class="kpi-mini-l">Margem operacional</div><div class="kpi-mini-v ' + (n(dre.margem_operacional_pct) >= 15 ? 'g' : n(dre.margem_operacional_pct) >= 5 ? 'a' : 'r') + '">' + n(dre.margem_operacional_pct).toFixed(1) + '%</div></div>'
+    + '</div>';
+
+  // DRE enxuta — só Linha · Mensal · Anual · %fat. Comparativo benchmark
+  // continua acessível na seção dedicada "Indicadores vs Benchmark".
+  // O 3º parâmetro (indicador) é mantido por compatibilidade com chamadas existentes
+  // mas não é usado aqui — DRE não exibe benchmark/delta.
+  function rowDRE(label, valor, _indicadorIgnorado, opts) {
+    opts = opts || {};
+    const v = n(valor);
+    if (!opts.always && v <= 0) return ''; // filtra zeradas
+    const anual = v * 12;
+    const pctFat = fat > 0 ? (v / fat) * 100 : 0;
+    let trCls = '';
+    if (opts.tot) trCls = ' class="tot"';
+    else if (opts.sub) trCls = ' class="sub"';
+    else if (opts.hl) trCls = ' class="hl"';  // Fase 3.2.4: destaque sutil pra base (Faturamento)
+    return '<tr' + trCls + '>'
+      + '<td>' + escapeHtml(label) + '</td>'
+      + '<td>' + fc(v) + '</td>'
+      + '<td>' + fc(anual) + '</td>'
+      + '<td>' + pctFat.toFixed(1) + '%</td>'
+      + '</tr>';
+  }
+  function tHead() {
+    // 4 colunas: Linha · Mensal · Anual · %fat (40/22/22/16%).
+    return '<table class="tbl dre">'
+      + '<colgroup>'
+      + '<col style="width:40%"><col style="width:22%"><col style="width:22%"><col style="width:16%">'
+      + '</colgroup>'
+      + '<thead><tr>'
+      + '<th>Linha</th><th>Mensal</th><th>Anual</th><th>% fat</th>'
+      + '</tr></thead><tbody>';
+  }
+
+  // Bloco 1
+  let h = '';
+  h += '<div class="diag-bloco"><div class="diag-bloco-title">Bloco 1 — Receita e deduções</div>';
+  h += tHead();
+  h += rowDRE('Faturamento', fat, null, { always: true, hl: true });
+  h += rowDRE('(–) Impostos', ded.impostos_calculados_mensal);
+  h += rowDRE('(–) Taxas de recebimento', ded.taxas_recebimento);
+  h += rowDRE('(–) Comissões', ded.comissoes);
+  h += rowDRE('(–) Royalty franquia', ded.royalty_pct_aplicado);
+  h += rowDRE('(–) Mkt franquia', ded.mkt_franquia_pct_aplicado);
+  h += rowDRE('Total deduções', ded.total_mensal, ind.deducoes_pct, { sub: true });
+  h += '</tbody></table></div>';
+
+  // Bloco 2
+  h += '<div class="diag-bloco"><div class="diag-bloco-title">Bloco 2 — CMV e lucro bruto</div>';
+  h += tHead();
+  h += rowDRE('Receita líquida', dre.rec_liquida_mensal, null, { always: true });
+  h += rowDRE('(–) CMV / custo direto', dre.cmv, ind.cmv_pct);
+  h += rowDRE('Lucro bruto', dre.lucro_bruto_mensal, null, { always: true, tot: true });
+  h += '</tbody></table></div>';
+
+  // Bloco 3
+  h += '<div class="diag-bloco"><div class="diag-bloco-title">Bloco 3 — Pessoal</div>';
+  h += tHead();
+  h += rowDRE('Folha CLT bruta', pess.clt_folha_bruta);
+  h += rowDRE('Encargos CLT', pess.clt_encargos);
+  h += rowDRE('PJ', pess.pj_custo);
+  h += rowDRE('Royalty fixo', pess.royalty_fixo);
+  h += rowDRE('Mkt franquia fixo', pess.mkt_franquia_fixo);
+  h += rowDRE('Total pessoal', pess.folha_total_mensal, ind.folha_pct, { sub: true });
+  h += '</tbody></table></div>';
+
+  // Bloco 4
+  h += '<div class="diag-bloco"><div class="diag-bloco-title">Bloco 4 — Ocupação</div>';
+  h += tHead();
+  h += rowDRE('Aluguel', ocp.aluguel, ind.aluguel_pct);
+  h += rowDRE('Facilities', ocp.facilities);
+  h += rowDRE('Terceirizados', ocp.terceirizados);
+  h += rowDRE('Total ocupação', ocp.total_mensal, null, { sub: true });
+  h += '</tbody></table></div>';
+
+  // Bloco 5
+  h += '<div class="diag-bloco"><div class="diag-bloco-title">Bloco 5 — Operacional outros</div>';
+  h += tHead();
+  h += rowDRE('Sistemas', op.sistemas);
+  h += rowDRE('Outros custos fixos', op.outros_cf, ind.outros_cf_pct);
+  h += rowDRE('Marketing pago', op.mkt_pago, ind.mkt_pct);
+  h += rowDRE('Total operacional', op.total_mensal, null, { sub: true });
+  h += rowDRE('= Resultado operacional', dre.ro_mensal, ind.margem_operacional, { always: true, tot: true });
+  h += '</tbody></table></div>';
+
+  return ''
+    + '<section class="sec">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">3</div>'
+    + '    <div><div class="sec-label">Demonstrativo de resultados</div><div class="sec-title">DRE</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + kpis + chartFunilDRE(dre) + h + '</div>'
+    + '</section>';
+}
+
+// ─── BALANÇO PATRIMONIAL ────────────────────────────────────────────────────
+function renderBalanco() {
+  const bal = calcJson.balanco || {};
+  const at  = bal.ativos || {};
+  const pa  = bal.passivos || {};
+  const prov = pa.provisao_clt_calculada || {};
+  const ncg = bal.ncg || {};
+  const cic = bal.ciclo_financeiro || {};
+
+  let kpis = '<div class="kpi-mini">'
+    + '<div class="kpi-mini-card"><div class="kpi-mini-l">Total ativos</div><div class="kpi-mini-v">' + fcShort(at.total) + '</div></div>'
+    + '<div class="kpi-mini-card"><div class="kpi-mini-l">Total passivos</div><div class="kpi-mini-v a">' + fcShort(pa.total) + '</div></div>'
+    + '<div class="kpi-mini-card"><div class="kpi-mini-l">Patrimônio líquido</div><div class="kpi-mini-v ' + (n(bal.patrimonio_liquido) < 0 ? 'r' : 'g') + '">' + fcShort(bal.patrimonio_liquido) + '</div></div>'
+    + '</div>';
+
+  function row(label, valor, opts) {
+    opts = opts || {};
+    const v = n(valor);
+    if (!opts.always && v <= 0) return '';
+    const trCls = opts.tot ? ' class="tot"' : opts.sub ? ' class="sub"' : '';
+    return '<tr' + trCls + '><td>' + escapeHtml(label) + '</td><td>' + fc(v) + '</td></tr>';
+  }
+  function tHead() {
+    return '<table class="tbl"><thead><tr><th>Linha</th><th>Valor</th></tr></thead><tbody>';
+  }
+
+  let h = '';
+  h += '<div class="diag-bloco"><div class="diag-bloco-title">Ativos</div>';
+  h += tHead();
+  h += row('Caixa', at.caixa);
+  h += row('Contas a receber', at.contas_receber);
+  h += row('Estoque', at.estoque);
+  h += row('Equipamentos', at.equipamentos);
+  h += row('Imóvel', at.imovel);
+  h += row('Ativo franquia', at.ativo_franquia);
+  h += row('Outros', at.outros);
+  h += row('Total ativos', at.total, { always: true, tot: true });
+  h += '</tbody></table></div>';
+
+  h += '<div class="diag-bloco"><div class="diag-bloco-title">Passivos</div>';
+  h += tHead();
+  h += row('Fornecedores a vencer', pa.fornecedores_a_vencer);
+  h += row('Fornecedores atrasados', pa.fornecedores_atrasados);
+  h += row('Impostos atrasados', pa.impostos_atrasados_sem_parcelamento);
+  h += row('Empréstimos', pa.saldo_devedor_emprestimos);
+  h += row('Provisão CLT (13º + férias)', prov.valor);
+  if (n(prov.valor) > 0 && prov.formula) {
+    h += '<tr><td colspan="2" style="font-size:9px;color:var(--ink4);font-style:italic;padding-left:18px">fórmula: ' + escapeHtml(prov.formula) + '</td></tr>';
+  }
+  h += row('Outros passivos', pa.outros_passivos);
+  h += row('Total passivos', pa.total, { always: true, tot: true });
+  h += '</tbody></table></div>';
+
+  // NCG e ciclo
+  h += '<div class="diag-bloco"><div class="diag-bloco-title">Capital de giro e ciclo financeiro</div>';
+  h += tHead();
+  if (ncg.valor != null) h += row('NCG (necessidade de capital de giro)', ncg.valor, { always: true });
+  if (cic.pmr_dias != null) h += '<tr><td>PMR (prazo médio recebimento)</td><td>' + cic.pmr_dias + ' dias</td></tr>';
+  if (cic.pmp_dias != null) h += '<tr><td>PMP (prazo médio pagamento)</td><td>' + cic.pmp_dias + ' dias</td></tr>';
+  if (cic.ciclo_dias != null) h += '<tr><td>Ciclo financeiro</td><td>' + cic.ciclo_dias + ' dias</td></tr>';
+  h += '</tbody></table></div>';
+
+  return ''
+    + '<section class="sec">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">4</div>'
+    + '    <div><div class="sec-label">Balanço patrimonial</div><div class="sec-title">Ativos · Passivos · PL</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + kpis + h + '</div>'
+    + '</section>';
+}
+
+// ─── ISE ────────────────────────────────────────────────────────────────────
+// 8 pilares com sub-métricas. SEM ícone de origem (exclusivo do admin).
+function renderISE() {
+  const ise = calcJson.ise || {};
+  const pilares = ise.pilares || [];
+  const total = n(ise.ise_total);
+
+  const classDesc = (ise.classe || '').toLowerCase().includes('estrutur') ? 'Negócio sólido. Múltiplo aplicado é o do setor com prêmio.'
+    : (ise.classe || '').toLowerCase().includes('consolid') ? 'Negócio em estado saudável. Vende em condições normais de mercado.'
+    : (ise.classe || '').toLowerCase().includes('operacion') ? 'Operacional. Vendável com negociação de 10–20% de desconto.'
+    : (ise.classe || '').toLowerCase().includes('depend') ? 'Negócio depende fortemente do dono. Comprador exige garantias.'
+    : 'Negócio em estágio inicial. Reestruturação pode preceder a venda.';
+
+  let h = '';
+  h += '<div class="ise-hero">'
+    + '<div class="ise-score">' + total.toFixed(0) + '</div>'
+    + '<div>'
+    + '  <div class="ise-class">Classe ISE</div>'
+    + '  <div class="ise-class-name">' + escapeHtml(ise.classe || '—') + '</div>'
+    + '  <div class="ise-desc">' + escapeHtml(classDesc) + '</div>'
+    + '  <div class="ise-desc" style="margin-top:6px"><strong>Fator de classe aplicado: </strong>' + n(ise.fator_classe).toFixed(2) + '×</div>'
+    + '</div>'
+    + '</div>';
+
+  // Gráfico 3 — radar dos 8 pilares + barras complementares
+  h += chartRadarISE(pilares);
+
+  // Detalhamento textual por pilar (mantido) — gráficos são complementares
+  pilares.forEach(p => {
+    const score = n(p.score_0_10);
+    const cls = pilarCor(score);
+    const fillPct = (score * 10).toFixed(0);
+    h += '<div class="pilar">';
+    h += '<div class="pilar-row">';
+    h += '<div class="pilar-nome">' + escapeHtml(p.label || p.id) + ' (' + Math.round(p.peso_pct || 0) + '%)</div>';
+    h += '<div class="pilar-bar"><div class="pilar-fill ' + cls + '" style="width:' + fillPct + '%"></div></div>';
+    h += '<div class="pilar-val ' + cls + '">' + score.toFixed(1) + '/10</div>';
+    h += '</div>';
+    h += '<div class="pilar-meta">Contribuição no ISE total: ' + n(p.contribuicao_no_total).toFixed(1) + ' pts</div>';
+    if (p.sub_metricas && p.sub_metricas.length > 0) {
+      h += '<div class="submet-list">';
+      p.sub_metricas.forEach(sm => {
+        const sscore = n(sm.score_0_10);
+        const scls = pilarCor(sscore);
+        const peso = sm.peso_decimal != null ? (sm.peso_decimal * 100).toFixed(0) + '%' : '—';
+        h += '<div class="submet"><span class="submet-l">' + escapeHtml(sm.label || sm.id) + '</span>'
+          + '<span class="submet-v ' + scls + '">' + sscore.toFixed(1) + '/10 · peso ' + peso + '</span></div>';
       });
+      h += '</div>';
     }
-  }catch(e){console.error('saveCache:',e);}
+    h += '</div>';
+  });
+
+  return ''
+    + '<section class="sec">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">5</div>'
+    + '    <div><div class="sec-label">Saúde do negócio</div><div class="sec-title">ISE · 8 pilares ponderados</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + h + '</div>'
+    + '</section>';
 }
 
-async function init(){
-  animLD();
-  const p=new URLSearchParams(window.location.search);
-  const id=p.get('id'), codigo=p.get('c')||p.get('slug');
-  const h={'apikey':SB_KEY};
-  let negocioId=null, raw=null;
+// ─── INDICADORES VS BENCHMARK ───────────────────────────────────────────────
+// 18 indicadores em formato tabular, sumário por status no header.
+function renderIndicadores() {
+  const ind = calcJson.indicadores_vs_benchmark || {};
+  const keys = Object.keys(ind).filter(k => !k.startsWith('_'));
+  if (keys.length === 0) return '';
 
-  // 1. Resolver negocioId
-  if(id){ negocioId=id; }
-  else if(codigo){
-    try{ const r=await fetch(SB_URL+'/rest/v1/negocios?codigo_diagnostico=eq.'+codigo+'&select=id',{headers:h}); const data=await r.json(); if(data&&data.length>0) negocioId=data[0].id; }catch(e){}
-    if(!negocioId){
-      try{ const r=await fetch(SB_URL+'/rest/v1/negocios?slug=eq.'+codigo+'&select=id',{headers:h}); const data=await r.json(); if(data&&data.length>0) negocioId=data[0].id; }catch(e){}
+  // Override de status pra indicadores específicos:
+  // - pmp_dias/pmr_dias: sem status (não há referência universal isolada)
+  // - ciclo_financeiro_dias: regra local baseada em valor (a regra do skill é
+  //   genérica menor_melhor; aqui aplicamos faixas de negócio)
+  function overrideStatus(it, k) {
+    if (k === 'pmp_dias' || k === 'pmr_dias') return null;  // sem status
+    if (k === 'ciclo_financeiro_dias') {
+      const v = n(it.valor);
+      if (v <= 0)  return { chip: 'g', label: 'EXCELENTE' };
+      if (v <= 30) return { chip: 'g', label: 'BOM' };
+      if (v <= 60) return { chip: 'm', label: 'NORMAL' };
+      return       { chip: 'a', label: 'ATENÇÃO' };
     }
+    return undefined;  // não-overridden — usa it.status
   }
 
-  // 2. Buscar dados brutos
-  if(negocioId){
-    try{ const r=await fetch(SB_URL+'/rest/v1/negocios?id=eq.'+negocioId+'&select=*',{headers:h}); const data=await r.json(); if(data&&data.length>0) raw=data[0]; }catch(e){console.error(e);}
+  // Sumário por status (respeitando override)
+  const cont = { no_alvo: 0, atencao: 0, abaixo: 0, neutro: 0, sem_benchmark: 0 };
+  keys.forEach(k => {
+    const it = ind[k];
+    if (!it) return;
+    const ov = overrideStatus(it, k);
+    if (ov === null) return;  // PMP/PMR não entram no sumário
+    if (ov && typeof ov === 'object') {
+      if (ov.chip === 'g')      cont.no_alvo++;
+      else if (ov.chip === 'a') cont.atencao++;
+      else                       cont.neutro++;
+      return;
+    }
+    if (it.status && cont[it.status] !== undefined) cont[it.status]++;
+    else cont.sem_benchmark++;
+  });
+
+  // Sumário compacto em 1 linha: cada card só com label + contador
+  let kpis = '<div class="ind-kpi">'
+    + '<div class="ind-kpi-card"><div class="ind-kpi-l">Bom</div><div class="ind-kpi-v g">' + cont.no_alvo + '</div></div>'
+    + '<div class="ind-kpi-card"><div class="ind-kpi-l">Atenção</div><div class="ind-kpi-v a">' + cont.atencao + '</div></div>'
+    + '<div class="ind-kpi-card"><div class="ind-kpi-l">Crítico</div><div class="ind-kpi-v r">' + cont.abaixo + '</div></div>';
+  if (cont.neutro > 0)        kpis += '<div class="ind-kpi-card"><div class="ind-kpi-l">N/A</div><div class="ind-kpi-v">' + cont.neutro + '</div></div>';
+  if (cont.sem_benchmark > 0) kpis += '<div class="ind-kpi-card"><div class="ind-kpi-l">Sem bench</div><div class="ind-kpi-v">' + cont.sem_benchmark + '</div></div>';
+  kpis += '<div class="ind-kpi-card"><div class="ind-kpi-l">Total</div><div class="ind-kpi-v">' + keys.length + '</div></div>'
+    + '</div>';
+
+  let tbl = '<table class="tbl"><thead><tr>'
+    + '<th>Indicador</th><th>Negócio</th><th>Média setor</th><th>Diferença</th><th>Status</th>'
+    + '</tr></thead><tbody>';
+  keys.forEach(k => {
+    const it = ind[k];
+    if (typeof it !== 'object' || it === null) return;
+    const valorTxt = fmtIndValor(it);
+    const benchTxt = it.benchmark != null ? fmtIndBench(it) : '<span style="color:var(--ink4)">—</span>';
+    let deltaTxt = '<span style="color:var(--ink4)">—</span>';
+    if (it.delta_pp != null) {
+      const sign = n(it.delta_pp) >= 0 ? '+' : '';
+      const sufx = it.unidade === '%' || it.unidade === 'dias' ? (it.unidade === '%' ? 'pp' : 'd') : '';
+      deltaTxt = sign + n(it.delta_pp).toFixed(1) + sufx;
+    }
+    const ov = overrideStatus(it, k);
+    let statusTxt;
+    if (ov === null) {
+      // PMP/PMR — célula vazia (— neutro)
+      statusTxt = '<span style="color:var(--ink4)">—</span>';
+    } else if (ov && typeof ov === 'object') {
+      // Override (ciclo_financeiro_dias)
+      statusTxt = '<span class="chip ' + ov.chip + '">' + ov.label + '</span>';
+    } else if (it.status) {
+      statusTxt = '<span class="chip ' + statusCor(it.status) + '">' + statusLabel(it.status) + '</span>';
+    } else {
+      statusTxt = '<span style="color:var(--ink4);font-size:9px">sem bench</span>';
+    }
+    tbl += '<tr>'
+      + '<td>' + escapeHtml(it.label || k) + (it.observacao ? '<div style="font-size:9px;color:var(--ink4);font-style:italic;margin-top:2px">' + escapeHtml(it.observacao) + '</div>' : '') + '</td>'
+      + '<td>' + valorTxt + '</td>'
+      + '<td>' + benchTxt + '</td>'
+      + '<td>' + deltaTxt + '</td>'
+      + '<td>' + statusTxt + '</td>'
+      + '</tr>';
+  });
+  tbl += '</tbody></table>';
+
+  return ''
+    + '<section class="sec">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">6</div>'
+    + '    <div><div class="sec-label">Indicadores</div><div class="sec-title">' + keys.length + ' indicadores vs benchmark setorial</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + kpis + tbl + '</div>'
+    + '</section>';
+}
+
+// ─── ANÁLISE TRIBUTÁRIA ─────────────────────────────────────────────────────
+function renderTributaria() {
+  const at = calcJson.analise_tributaria || {};
+  const comp = at.comparativo_regimes || [];
+  if (comp.length === 0) return '';
+
+  let h = '';
+
+  // Banner de inelegibilidade do regime declarado
+  if (at.alerta_inelegibilidade) {
+    h += '<div class="alert r"><strong>⚠ Você declarou ' + escapeHtml((at.alerta_inelegibilidade.regime || '').toUpperCase()) + ' mas não é elegível.</strong> '
+      + escapeHtml(at.alerta_inelegibilidade.motivo || '') + ' Risco de autuação fiscal — recomenda-se migração imediata.</div>';
   }
 
-  // 3. Buscar calc_json — fonte da verdade
-  if(negocioId){
-    try{
-      const r=await fetch(SB_URL+'/rest/v1/laudos_completos?slug=eq.'+negocioId+'&select=calc_json,html',{headers:h});
-      const data=await r.json();
-      if(data&&data.length>0){
-        // 3a. HTML cacheado — serve direto (mais rápido)
-        if(data[0].html){
-          document.getElementById('ld-msg').textContent='Carregando laudo...';
-          document.getElementById('doc').innerHTML=data[0].html;
-          hideLoading();
-          document.getElementById('btn-pdf').style.display='block';
-          return;
+  // Resumo (toggle 3-way: inelegível → 'r' Crítico vermelho / atual=ótimo → 'g' verde / divergente → 'a' amarelo)
+  const inelegivel = at.alerta_inelegibilidade
+    && at.alerta_inelegibilidade.regime === at.regime_declarado;
+  const sameRegime = at.regime_otimo_calculado === at.regime_declarado;
+  const corRegimeAtual = inelegivel ? 'r' : '';
+  const corRegimeIdeal = inelegivel ? 'r' : (sameRegime ? 'g' : 'a');
+  h += '<div class="kpi-mini">';
+  h += '<div class="kpi-mini-card"><div class="kpi-mini-l">Regime atual</div><div class="kpi-mini-v ' + corRegimeAtual + '">' + escapeHtml((at.regime_declarado || '—').toUpperCase()) + (at.anexo_simples ? ' · ' + at.anexo_simples : '') + '</div></div>';
+  h += '<div class="kpi-mini-card"><div class="kpi-mini-l">Regime ideal</div><div class="kpi-mini-v ' + corRegimeIdeal + '">' + escapeHtml((at.regime_otimo_calculado || '—').toUpperCase()) + (at.regime_otimo_anexo ? ' · ' + at.regime_otimo_anexo : '') + '</div></div>';
+  if (at.fator_r_calculado != null) {
+    const cls = at.fator_r_calculado < 0.28 ? 'a' : 'g';
+    h += '<div class="kpi-mini-card"><div class="kpi-mini-l">Fator R calculado</div><div class="kpi-mini-v ' + cls + '">' + (at.fator_r_calculado * 100).toFixed(2) + '%</div></div>';
+  }
+  const eco = at.economia_potencial || {};
+  if (n(eco.economia_anual) > 0) {
+    h += '<div class="kpi-mini-card"><div class="kpi-mini-l">Economia anual</div><div class="kpi-mini-v g">' + fcShort(eco.economia_anual) + '</div><div class="kpi-mini-sub">' + n(eco.economia_pct_do_ro).toFixed(1) + '% do RO</div></div>';
+  }
+  h += '</div>';
+
+  // Texto explicativo
+  if (n(eco.economia_anual) > 0) {
+    h += '<div class="alert g"><strong>Oportunidade tributária:</strong> migrar para ' + escapeHtml((at.regime_otimo_calculado || '').toUpperCase())
+      + ' pode gerar economia anual de ' + fcShort(eco.economia_anual) + ' (' + n(eco.economia_pct_do_ro).toFixed(1) + '% do RO). Recomenda-se validação com contador antes da migração.</div>';
+  }
+  // 4 cards comparativos
+  h += '<div class="diag-bloco"><div class="diag-bloco-title">Comparativo entre regimes</div>';
+  h += '<div class="compare-grid">';
+  comp.forEach(r => {
+    const isOtimo = r.regime === at.regime_otimo_calculado;
+    const isAtual = r.regime === at.regime_declarado;
+    const isInelegivel = r.elegivel === false;
+    let chips = '';
+    if (isAtual) chips += '<span class="chip g">atual</span>';
+    if (isOtimo && !isInelegivel) chips += '<span class="chip a">ideal</span>';
+    if (isInelegivel) chips += '<span class="chip r">inelegível</span>';
+    const cardCls = (isOtimo && !isInelegivel) ? ' recomendado' : '';
+    h += '<div class="compare-col' + cardCls + '"' + (isInelegivel ? ' data-inelegivel="true"' : '') + '>'
+      + '<div class="compare-title">' + escapeHtml(r.regime.toUpperCase()) + (r.anexo ? ' · ' + r.anexo : '') + chips + '</div>'
+      + '<div class="compare-total">' + fcShort(r.total_anual) + '</div>'
+      + '<div class="compare-row"><span>Imposto</span><span>' + fcShort(r.imposto_anual) + '</span></div>'
+      + '<div class="compare-row"><span>Encargo folha</span><span>' + fcShort(r.encargo_folha_anual) + '</span></div>'
+      + '<div class="compare-row"><span>Alíq. efetiva</span><span>' + n(r.aliquota_efetiva_pct).toFixed(2) + '%</span></div>';
+    if (isInelegivel && r.motivo_inelegibilidade) {
+      h += '<div class="compare-motivo">⚠ ' + escapeHtml(r.motivo_inelegibilidade) + '</div>';
+    }
+    h += '</div>';
+  });
+  h += '</div></div>';
+
+  return ''
+    + '<section class="sec">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">7</div>'
+    + '    <div><div class="sec-label">Análise tributária</div><div class="sec-title">4 regimes comparados · economia potencial</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + h + '</div>'
+    + '</section>';
+}
+
+// ─── ATRATIVIDADE ───────────────────────────────────────────────────────────
+function renderAtratividade() {
+  const at = calcJson.atratividade || {};
+  const total = n(at.total);
+  const componentes = at.componentes || [];
+
+  let h = '';
+  h += '<div class="atr-hero">';
+  h += '<div class="atr-top">';
+  h += '<div><span class="atr-score">' + total.toFixed(0) + '</span><span class="atr-denom">/100</span></div>';
+  h += '<div class="atr-badge">' + escapeHtml(at.label || '—') + '</div>';
+  h += '</div>';
+  h += '<div class="atr-bar-wrap"><div class="atr-bar" style="width:' + Math.min(100, total) + '%"></div></div>';
+  componentes.forEach(c => {
+    const score = n(c.score_0_10);
+    const peso = n(c.peso_pct);
+    const contrib = n(c.contribuicao_no_total);
+    h += '<div class="atr-comp">';
+    h += '<div class="atr-comp-nome">' + escapeHtml(c.label || c.id) + ' (' + peso + '%)</div>';
+    h += '<div class="atr-comp-bar"><div class="atr-comp-fill" style="width:' + (score * 10).toFixed(0) + '%"></div></div>';
+    h += '<div class="atr-comp-val">' + score.toFixed(1) + '/10</div>';
+    h += '</div>';
+    h += '<div style="font-size:9px;color:var(--ink4);padding-left:150px;margin-top:-2px;margin-bottom:2px">contribuição: ' + contrib.toFixed(1) + ' pts</div>';
+  });
+  h += '</div>';
+
+  return ''
+    + '<section class="sec">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">11</div>'
+    + '    <div><div class="sec-label">Atratividade</div><div class="sec-title">' + escapeHtml(at.label || '—') + ' · ' + total.toFixed(0) + '/100</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + h + '</div>'
+    + '</section>';
+}
+
+// ─── UPSIDES ────────────────────────────────────────────────────────────────
+// 10 upsides distribuídos em 4 categorias (sem 'bloqueado'). Filtra defensivamente.
+function renderUpsides() {
+  // Schema v2026.07: calcJson.upsides = { ativos: [], paywalls: [] }.
+  // Categorias técnicas: ro · passivo · multiplo · qualitativo · paywall.
+  const upsObj = calcJson.upsides || {};
+  const ativosTodos = Array.isArray(upsObj.ativos) ? upsObj.ativos : [];
+  const paywalls = Array.isArray(upsObj.paywalls) ? upsObj.paywalls : [];
+  const recs = Array.isArray(calcJson.recomendacoes_pre_venda) ? calcJson.recomendacoes_pre_venda : [];
+
+  if (ativosTodos.length === 0 && paywalls.length === 0 && recs.length === 0) return '';
+
+  // Lookup id → {brl, pct} via potencial_12m.upsides_ativos (filtrado: só monetários).
+  const valorPorId = {};
+  const upsP12 = (calcJson.potencial_12m && calcJson.potencial_12m.upsides_ativos) || [];
+  upsP12.forEach(u => { valorPorId[u.id] = { brl: u.contribuicao_brl, pct: u.contribuicao_bruta_pct }; });
+
+  // Separar ativos por tipo
+  const monetarios = ativosTodos.filter(u => ['ro', 'passivo', 'multiplo'].includes(u.categoria));
+  const qualitativos = ativosTodos.filter(u => u.categoria === 'qualitativo');
+
+  // D-3: ordem por R$ decrescente dentro dos monetários
+  monetarios.sort((a, b) => {
+    const va = (valorPorId[a.id] && valorPorId[a.id].brl) || 0;
+    const vb = (valorPorId[b.id] && valorPorId[b.id].brl) || 0;
+    return vb - va;
+  });
+
+  const CAT_LABEL = {
+    ro: 'Resultado Operacional',
+    passivo: 'Redução de Passivos',
+    multiplo: 'Aumento de Múltiplo',
+    qualitativo: 'Qualitativo',
+    paywall: 'Análise complementar', // D-2: cliente já pagou
+  };
+
+  // Helper de card individual
+  const renderCard = (u, idx) => {
+    const cat = u.categoria || 'qualitativo';
+    const catLabel = CAT_LABEL[cat] || cat;
+    let card = '<div class="up-card cat-' + escapeHtml(cat) + '">';
+    card += '<div class="up-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px">';
+    // Coluna esquerda: numeração + pill + título + descrição
+    card += '<div class="up-header-l" style="flex:1;min-width:0">';
+    card += '<span class="up-num">' + (idx + 1) + '</span>';
+    card += '<span class="up-cat cat-' + escapeHtml(cat) + '">' + escapeHtml(catLabel) + '</span>';
+    card += '<div class="up-title">' + escapeHtml(u.label || u.id) + '</div>';
+    if (u.descricao) card += '<div class="up-desc">' + escapeHtml(u.descricao) + '</div>';
+    if (u.efeito_explicacao) card += '<div class="up-efeito" style="margin-top:8px;font-size:11px;color:var(--ink4);font-style:italic;line-height:1.5">' + escapeHtml(u.efeito_explicacao) + '</div>';
+    card += '</div>';
+    // Coluna direita: valor R$ + notinha OU status textual
+    card += '<div class="up-valor-block">';
+    if (cat === 'qualitativo') {
+      card += '<div class="v-qual">Ação necessária — sem valor monetário direto</div>';
+    } else {
+      // ro/passivo/multiplo OU paywall (D-2: paywall revela R$ no laudo-pago)
+      // Lookup direto na potencial_12m.upsides_ativos pra pegar campos novos
+      // (ganho_mensal_caixa_brl, impacto_valuation_brl) com fallback ao mapa antigo.
+      const u_p12 = upsP12.find(x => x.id === u.id);
+      const v = valorPorId[u.id];
+      if (v && v.brl != null) {
+        card += '<div class="v-brl">' + fcShort(v.brl) + '</div>';
+        card += '<div class="v-pct">' + (v.pct * 100).toFixed(2) + '% bruto</div>';
+        // Se temos ganho_mensal_caixa_brl + impacto_valuation_brl, mostrar breakdown
+        if (u_p12 && cat !== 'multiplo' && n(u_p12.ganho_mensal_caixa_brl) > 0) {
+          card += '<div class="v-nota">+' + fcShort(u_p12.ganho_mensal_caixa_brl) + '/mês de caixa · +' + fcShort(u_p12.impacto_valuation_brl || v.brl) + ' no valor de venda</div>';
+        } else {
+          card += '<div class="v-nota">↑ ganho estimado no valor de venda do negócio se a ação for executada</div>';
         }
-        // 3b. calc_json existe — renderiza a partir dele
-        if(data[0].calc_json&&data[0].calc_json.fat_mensal){
-          window._calcJson=data[0].calc_json;
-          const rawFallback=raw||{id:'DEMO',dados_json:data[0].calc_json};
-          await render(rawFallback, data[0].calc_json);
-          const htmlGerado=document.getElementById('doc').innerHTML;
-          await saveCache(negocioId,htmlGerado,window._calcJson);
-          return;
-        }
+      } else {
+        card += '<div class="v-qual">contribuição não calculada</div>';
       }
-    }catch(e){console.error('cache:',e);}
+    }
+    card += '</div>';
+    card += '</div>';  // fecha .up-header
+    card += '</div>';  // fecha .up-card
+    return card;
+  };
+
+  let h = '';
+  let idx = 0;
+
+  // 1. Monetários (ordenados por R$ desc)
+  if (monetarios.length > 0) {
+    monetarios.forEach(u => { h += renderCard(u, idx++); });
   }
 
-  // 4. Sem cache — gerar via skill avaliadora
-  if(!raw){ raw={id:'DEMO',nome:'Restaurante Modelo',setor:'alimentacao',cidade:'Florianópolis',estado:'SC',anos_existencia:8,regime_tributario:'simples',fat_mensal:120000,dados_json:{cmv_pct:38,prolabore:15000,parcelas_mensais:3500,saldo_devedor:45000,clt_folha:28000,aluguel:8500,at_caixa:35000,at_cr:25000,at_estoque:45000,at_equip:95000,at_imovel:0,fornec_a_pagar:18000,clt_qtd:8,pj_qtd:2,recorrencia_pct:45,concentracao_pct:12,processos:'parcial',dependencia:'parcial',mkt_valor:12000,cli_1m:180}};}
-
-  let calcJson=null;
-  if(negocioId&&window.AVALIADORA){
-    try{ calcJson=await AVALIADORA.avaliar(raw); window._calcJson=calcJson; }catch(e){console.error('skill:',e);}
+  // 2. Análise complementar (paywalls — D-2: revelar R$, copy renomeado)
+  if (paywalls.length > 0) {
+    h += '<div style="margin-top:18px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);font-weight:600">Análises complementares</div>';
+    paywalls.forEach(u => { h += renderCard(u, idx++); });
   }
 
-  await render(raw,calcJson);
-  const htmlGerado=document.getElementById('doc').innerHTML;
-  await saveCache(negocioId||raw.id, htmlGerado, window._calcJson||null);
+  // 3. Qualitativos / Pré-venda
+  if (qualitativos.length > 0 || recs.length > 0) {
+    h += '<div style="margin-top:18px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);font-weight:600">Qualitativos · Pré-venda</div>';
+    qualitativos.forEach(u => { h += renderCard(u, idx++); });
+    recs.forEach(r => {
+      h += '<div class="up-card cat-qualitativo">';
+      h += '<div class="up-header"><div class="up-header-l">';
+      h += '<span class="up-num">' + (idx + 1) + '</span>';
+      h += '<span class="up-cat cat-qualitativo">' + escapeHtml(CAT_LABEL.qualitativo) + '</span>';
+      h += '<div class="up-title">' + escapeHtml(r.label || r.id) + '</div>';
+      if (r.mensagem) h += '<div class="up-desc">' + escapeHtml(r.mensagem) + '</div>';
+      h += '</div></div>';
+      h += '</div>';
+      idx++;
+    });
+  }
+
+  const total = monetarios.length + paywalls.length + qualitativos.length + recs.length;
+
+  const intro = '<p style="font-size:11.5px;color:var(--ink2);line-height:1.6;margin-bottom:18px;max-width:560px">'
+    + 'Cada ação abaixo tem um valor R$ estimado de ganho no valor de venda do negócio se executada nos próximos 12 meses. '
+    + 'As ações qualitativas não geram contribuição monetária direta, mas são pré-requisitos para destravar valor.'
+    + '</p>';
+
+  return ''
+    + '<section class="sec">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">13</div>'
+    + '    <div><div class="sec-label">Oportunidades de melhoria</div><div class="sec-title">' + total + ' ações para destravar valor</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + intro + h + '</div>'
+    + '</section>';
 }
 
-window.onload=init;
+// ─── OPERACIONAL ────────────────────────────────────────────────────────────
+// 8 fields raw (faturamento, num funcionários, num clientes, tempo, num sócios,
+// pró-labore total, concentração status).
+function renderOperacional() {
+  const op = calcJson.operacional || {};
+  if (Object.keys(op).length === 0) return '';
+
+  function cell(label, valor) {
+    return '<div class="op-cell"><div class="op-cell-l">' + escapeHtml(label) + '</div><div class="op-cell-v">' + valor + '</div></div>';
+  }
+
+  let h = '<div class="op-grid">';
+  if (op.fat_mensal != null) h += cell('Faturamento mensal', fcShort(op.fat_mensal));
+  if (op.fat_anual != null)  h += cell('Faturamento anual',  fcShort(op.fat_anual));
+  if (op.num_funcionarios != null) h += cell('Funcionários', op.num_funcionarios);
+  if (op.num_clientes != null)     h += cell('Clientes ativos', op.num_clientes);
+  if (op.tempo_operacao_anos != null) h += cell('Tempo de operação', op.tempo_operacao_anos + ' anos');
+  if (op.num_socios != null)       h += cell('Sócios', op.num_socios);
+  if (op.prolabore_mensal_total != null) h += cell('Pró-labore mensal total', fcShort(op.prolabore_mensal_total));
+  if (op.concentracao_status) {
+    const cls = statusCor(op.concentracao_status);
+    h += cell('Concentração de cliente', '<span class="chip ' + cls + '" style="font-size:9px">' + statusLabel(op.concentracao_status) + '</span>');
+  }
+  h += '</div>';
+
+  return ''
+    + '<section class="sec">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">14</div>'
+    + '    <div><div class="sec-label">Dados operacionais</div><div class="sec-title">Estrutura do negócio (dados crus)</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + h + '</div>'
+    + '</section>';
+}
+
+// ─── FECHAMENTO ─────────────────────────────────────────────────────────────
+function renderFechamento() {
+  return ''
+    + '<section class="fechamento page-break">'
+    + '  <div>'
+    + '    <div class="fech-eyebrow">Fim do laudo</div>'
+    + '    <div class="fech-titulo">Próximos <em>passos</em></div>'
+    + '    <div class="fech-texto">Este é o seu laudo aprofundado. Use-o para tomar decisões sobre o futuro do negócio: ajustar precificação, priorizar upsides, validar regime tributário e, quando fizer sentido, abrir um anúncio na 1Negócio.</div>'
+    + '  </div>'
+    + '  <div class="fech-rodape">'
+    + '    <div class="fech-rod-l">1Negócio · Documento confidencial · ' + hoje() + '</div>'
+    + '    <div class="fech-rod-r">' + escapeHtml(calcJson._versao_calc_json || '2.0') + ' · ' + escapeHtml(calcJson._versao_parametros || '—') + '</div>'
+    + '  </div>'
+    + '</section>';
+}
 </script>
 </body>
 </html>
