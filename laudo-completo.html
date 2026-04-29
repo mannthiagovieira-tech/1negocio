@@ -868,12 +868,13 @@ function renderLaudo() {
   const valorVenda = n(valuation.valor_venda);
 
   // Potencial 1N Consultoria — TUDO vem pronto da skill v2 (S2.1+)
-  const potFinal   = pot.potencial_final || {};
-  const valorPot   = n(potFinal.valor_projetado_brl);
-  const ganhoAnual = n(potFinal.brl);
-  const ganhoMens  = Math.round(ganhoAnual / 12);
-  const valoriz    = n(potFinal.pct) * 100; // pct vem em fração 0-1
-  const expect     = n(ident.expectativa_valor_dono) > 0 ? n(ident.expectativa_valor_dono) : null;
+  const potFinal      = pot.potencial_final || {};
+  const valorPot      = n(potFinal.valor_projetado_brl);
+  const valorizacao12m = n(potFinal.brl);                       // incremento no valor de venda (multiplo + caixa×fator)
+  const ganhoAnualCx  = n(pot.ganho_anual_caixa_brl);           // caixa novo anual (só ro+passivo+tributario)
+  const ganhoMensCx   = n(pot.ganho_mensal_caixa_brl) || Math.round(ganhoAnualCx / 12);
+  const valoriz       = n(potFinal.pct) * 100;                  // pct vem em fração 0-1
+  const expect        = n(ident.expectativa_valor_dono) > 0 ? n(ident.expectativa_valor_dono) : null;
 
   // ── Header ──
   set('hero-nome', ident.nome || 'Empresa');
@@ -971,10 +972,10 @@ function renderLaudo() {
   set('badge-ise',  Math.round(n(ise_obj.ise_total)) + '/100');
   set('badge-fator','Fator ' + fator.toFixed(2) + 'x');
 
-  // ── 1N Consultoria (todos os números vêm de potencial_12m.potencial_final) ──
-  set('socio-anual',       '+' + fs(ganhoAnual));
-  set('socio-mensal',      '+' + fc(ganhoMens) + '/mês');
-  set('socio-valorizacao', '+' + fs(valorPot - valorVenda));
+  // ── 1N Consultoria — Ganho Anual = caixa novo; Valorização 12M = impacto valor de venda ──
+  set('socio-anual',       '+' + fs(ganhoAnualCx));
+  set('socio-mensal',      '+' + fc(ganhoMensCx) + '/mês');
+  set('socio-valorizacao', '+' + fs(valorizacao12m));
   set('socio-pct',         '+' + valoriz.toFixed(0) + '% no valor');
 
   // ── Renders por bloco ──
@@ -1016,8 +1017,8 @@ function renderLaudo() {
   const msgSocio = encodeURIComponent('Olá! Acabei de ver o diagnóstico do meu negócio na 1Negócio e quero entender melhor as oportunidades identificadas.');
   if(el('btn-socio'))   el('btn-socio').href = 'https://wa.me/'+WHATSAPP+'?text='+msgSocio;
   if(el('ps-btn-wa'))   el('ps-btn-wa').href = 'https://wa.me/'+WHATSAPP+'?text='+msgSocio;
-  if(el('ps-ganho-anual')) set('ps-ganho-anual', '+'+fs(ganhoAnual));
-  if(el('ps-valorizacao')) set('ps-valorizacao', '+'+fs(valorPot-valorVenda));
+  if(el('ps-ganho-anual')) set('ps-ganho-anual', '+'+fs(ganhoAnualCx));
+  if(el('ps-valorizacao')) set('ps-valorizacao', '+'+fs(valorizacao12m));
   const stripeUrl = STRIPE_LAUDO + '?client_reference_id=' + negId;
   ['btn-comprar','btn-comprar2','pl-btn-comprar'].forEach(id => { if(el(id)) el(id).onclick = ()=>abrirModalLaudo(stripeUrl); });
   ['btn-modelo','btn-modelo2'].forEach(id => { if(el(id)) el(id).onclick = ()=>window.open('https://1negocio.com.br/modelo-laudo.html','_blank'); });
@@ -1199,11 +1200,11 @@ function renderFator(ro, fator, pl, valorVenda) {
     +'<span class="eq-op">×</span>'
     +'<div class="eq-box highlight"><div class="eq-label">Fator 1N</div><div class="eq-val green">'+fator.toFixed(2)+'×</div></div>'
     +'<span class="eq-op">+</span>'
-    +'<div class="eq-box"><div class="eq-label">Patrimônio</div><div class="eq-val">'+fs(Math.max(0,pl))+'</div></div>'
+    +'<div class="eq-box"><div class="eq-label">Patrimônio</div><div class="eq-val">'+fs(pl)+'</div></div>'
     +'<span class="eq-op">=</span>'
     +'<div class="eq-box highlight"><div class="eq-label">Valor de Venda</div><div class="eq-val green">'+fs(valorVenda)+'</div></div>'
     +'</div>'
-    +'<div style="font-size:11px;color:var(--ink3);line-height:1.6;padding:12px;background:var(--bg2);border-radius:var(--r)">O Fator 1N combina o múltiplo base do modelo de negócio ('+mulBase.toFixed(2)+'×), o modificador setorial ('+mulSetor.toFixed(2)+'×)' + (ajusteForma!==0 ? ', ajuste por forma de atuação ('+(ajusteForma>=0?'+':'')+ajusteForma.toFixed(2)+'×)' : '') + ' e o Fator ISE ('+mulIse.toFixed(2)+'×), que reflete a solidez operacional.</div>';
+    +'<div style="font-size:11px;color:var(--ink3);line-height:1.6;padding:12px;background:var(--bg2);border-radius:var(--r)">O Fator 1N combina o múltiplo setorial padrão de mercado atual, ajustado pelo modelo específico de atuação dentro do setor e a maturidade empresarial.</div>';
   el('fator-content') && (el('fator-content').innerHTML = h);
 }
 
@@ -1283,28 +1284,42 @@ function renderInd() {
   el('ind-content') && (el('ind-content').innerHTML = h);
 }
 
-// ─── UPSIDES — potencial_12m.upsides_ativos[] (com descricao + contribuicao_brl) ──
+// ─── UPSIDES — potencial_12m.upsides_ativos[] com ganho_mensal_caixa + impacto_valuation ──
 function renderOport() {
   const pot = D.potencial_12m || {};
-  // ordenar por contribuicao_brl desc (maior primeiro)
-  const ops = (pot.upsides_ativos || []).slice().sort((a,b) => n(b.contribuicao_brl) - n(a.contribuicao_brl));
+  // ordenar por impacto_valuation_brl desc (mais relevante pra venda)
+  const ops = (pot.upsides_ativos || []).slice()
+    .sort((a,b) => n(b.impacto_valuation_brl || b.contribuicao_brl) - n(a.impacto_valuation_brl || a.contribuicao_brl));
   const total = ops.length;
   let h = '';
 
   for(let i = 0; i < Math.min(3, total); i++) {
     const u = ops[i];
-    const ganhoAnualU = n(u.contribuicao_brl);
-    const gt = ganhoAnualU > 0 ? '+'+fc(Math.round(ganhoAnualU/12))+'/mês' : '+impacto no múltiplo';
+    const ganhoMes = n(u.ganho_mensal_caixa_brl);
+    const impactoVlr = n(u.impacto_valuation_brl);
+    const isMultiplo = u.categoria === 'multiplo';
     const titulo = u.label || u.id || '';
     const desc = u.descricao || '';
+
+    let gt;
+    if (isMultiplo) {
+      // Categoria múltiplo: não gera caixa novo, só impacto direto no valor de venda
+      gt = '+' + fc(impactoVlr) + ' no valor de venda';
+    } else if (ganhoMes > 0) {
+      gt = '+' + fc(ganhoMes) + '/mês de caixa';
+      if (impactoVlr > 0) gt += ' • +' + fs(impactoVlr) + ' após 12m';
+    } else {
+      gt = '+impacto no valor';
+    }
+
     h += '<div class="oport-card"><div class="oport-header"><div class="oport-num">'+(i+1)+'</div><div class="oport-name">'+titulo+'</div></div>';
     h += '<div class="oport-desc">'+desc+'</div><div class="oport-ganho">'+gt+'</div></div>';
   }
   if(total > 3) {
-    let ganhoRestAnual = 0;
-    for(let i = 3; i < total; i++) ganhoRestAnual += n(ops[i].contribuicao_brl);
+    let impactoRestVlr = 0;
+    for(let i = 3; i < total; i++) impactoRestVlr += n(ops[i].impacto_valuation_brl || ops[i].contribuicao_brl);
     const txt = '<span style="font-size:12px;font-weight:600;color:var(--ink)">+ '+(total-3)+' ações identificadas</span>'
-      + (ganhoRestAnual > 0 ? ' <span style="color:var(--ink3)">que combinadas podem totalizar</span> <strong style="color:var(--em)">+'+fc(ganhoRestAnual)+' ganho/ano</strong>' : '')
+      + (impactoRestVlr > 0 ? ' <span style="color:var(--ink3)">que combinadas podem somar</span> <strong style="color:var(--em)">+'+fc(impactoRestVlr)+' no valor de venda</strong>' : '')
       + ' <span style="font-size:11px;color:var(--ink4)">— disponíveis no laudo completo R$99</span>';
     h += '<div class="oport-mais" style="cursor:pointer;border:1px dashed var(--em-l);border-radius:var(--r);padding:12px 16px;margin-top:8px;text-align:center">'+txt+'</div>';
   }
@@ -1329,10 +1344,17 @@ function renderTributario() {
   // labels legíveis
   const REGIME_LABEL = { mei:'MEI', simples:'Simples Nacional', presumido:'Lucro Presumido', real:'Lucro Real' };
 
-  // Badge
+  // Badge — 3 estados (BUG 3 corrigido)
+  const inelegivel = at.alerta_inelegibilidade
+    && at.alerta_inelegibilidade.regime === regimeAtualSlug;
   if(tribBadge) {
-    if(temOportunidade && economiaMensal > 0) {
+    if(inelegivel) {
+      tribBadge.textContent = 'Crítico';
+      tribBadge.style.color = 'var(--rd)';
+      tribBadge.style.background = 'var(--rd-d)';
+    } else if(temOportunidade && economiaMensal > 0) {
       tribBadge.textContent = '+'+fc(economiaMensal)+'/mês';
+      // mantém cor amber padrão da classe block-badge.amber (já no HTML)
     } else {
       tribBadge.textContent = 'Otimizado';
       tribBadge.style.color = 'var(--em)';

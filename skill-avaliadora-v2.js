@@ -2493,8 +2493,16 @@
     // ── Saída final ─────────────────────────────────────────────────────
     // upsides_ativos: só os que somam (tributário + ro + passivo + multiplo).
     // Round APENAS em contribuicao_brl (output) — pcts em float pleno.
+    //
+    // Campos derivados por upside (S2.5 — Bug 2):
+    //  - ganho_mensal_caixa_brl: caixa novo mensal (só categorias ro/passivo/tributario)
+    //  - impacto_valuation_brl: incremento no valor de venda
+    //      • multiplo:               igual a contribuicao_brl (já é incremento de valuation)
+    //      • ro/passivo/tributario:  contribuicao_brl × fator_final (caixa × múltiplo)
+    const fator_final_v = n(valuation && valuation.fator_final) || 1;
     const upsides_ativos_out = [];
     if (tributario.ref) {
+      const contribTributario = Math.round(tributario.brl);
       upsides_ativos_out.push({
         id: tributario.ref.id,
         categoria: 'tributario',
@@ -2502,12 +2510,16 @@
         descricao: tributario.ref.descricao || null,
         contribuicao_bruta_pct: tributario.pct,
         contribuicao_pos_cap_categoria_pct: tributario.pct, // tributário sem cap
-        contribuicao_brl: Math.round(tributario.brl),
+        contribuicao_brl: contribTributario,
+        ganho_mensal_caixa_brl: Math.round(contribTributario / 12),
+        impacto_valuation_brl: Math.round(contribTributario * fator_final_v),
       });
     }
     ['ro', 'passivo', 'multiplo'].forEach(cat => {
       grupos[cat].forEach(p => {
         const pos_cap_pct = contrib_pos_cap_pct.get(p.ref.id) || 0;
+        const contribBrl = Math.round(pos_cap_pct * valor_venda);
+        const isMultiplo = cat === 'multiplo';
         upsides_ativos_out.push({
           id: p.ref.id,
           categoria: cat,
@@ -2515,10 +2527,17 @@
           descricao: p.ref.descricao || null,
           contribuicao_bruta_pct: p.contrib_pct || 0,
           contribuicao_pos_cap_categoria_pct: pos_cap_pct,
-          contribuicao_brl: Math.round(pos_cap_pct * valor_venda),
+          contribuicao_brl: contribBrl,
+          ganho_mensal_caixa_brl: isMultiplo ? 0 : Math.round(contribBrl / 12),
+          impacto_valuation_brl: isMultiplo ? contribBrl : Math.round(contribBrl * fator_final_v),
         });
       });
     });
+
+    // Ganho anual de CAIXA (não-valuation): soma de upsides operacionais
+    const ganho_anual_caixa_brl = upsides_ativos_out
+      .filter(u => u.categoria === 'ro' || u.categoria === 'passivo' || u.categoria === 'tributario')
+      .reduce((acc, u) => acc + n(u.contribuicao_brl), 0);
 
     const potencial_final_brl     = Math.round(potencial_pos_absoluto_pct * valor_venda);
     const valor_projetado_brl     = Math.round(valor_venda + (potencial_pos_absoluto_pct * valor_venda));
@@ -2563,6 +2582,8 @@
           brl: potencial_final_brl,
           valor_projetado_brl,
         },
+        ganho_anual_caixa_brl: ganho_anual_caixa_brl,
+        ganho_mensal_caixa_brl: Math.round(ganho_anual_caixa_brl / 12),
         ordenacao_exibicao: [], // commit 5 implementa
       },
       recomendacoes_pre_venda,
