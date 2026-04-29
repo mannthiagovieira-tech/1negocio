@@ -715,6 +715,10 @@ input[type=range]#sl-assinatura::-webkit-slider-thumb{
   const s1 = document.createElement('script');
   s1.src = '/skill-avaliadora.js';
   document.head.appendChild(s1);
+  // skill v2 em paralelo — popula calc_json v2 em laudos_v2 sem afetar v1
+  const s2 = document.createElement('script');
+  s2.src = '/skill-avaliadora-v2.js';
+  document.head.appendChild(s2);
 })();
 </script>
 <!-- Chat IA 1Negocio — FAB pulsante igual à home -->
@@ -7571,6 +7575,19 @@ async function gerarLaudoInstantaneoConfirmado() {
         : D;
       const calcJson = await AVALIADORA.avaliar(dadosParaAvaliar);
       console.log('[AVALIADORA] calc_json salvo com sucesso');
+
+      // === SKILL V2 EM PARALELO (fire-and-forget, não bloqueante) ===
+      // Chama skill v2 em paralelo à v1 pra popular calc_json v2 em laudos_v2.
+      // Erro silencioso: nunca interrompe o fluxo da v1.
+      // A função salvarCalcJson interna da v2 já gerencia INSERT/UPDATE em laudos_v2.
+      try {
+        console.log('[skill-v2] iniciando avaliação paralela');
+        const calcJsonV2 = await AVALIADORA_V2.avaliar(dadosParaAvaliar);
+        console.log('[skill-v2] avaliação concluída — versão:', calcJsonV2._versao_calc_json);
+      } catch (errV2) {
+        console.error('[skill-v2] erro silencioso (não interrompe v1):', errV2);
+      }
+
       // ── WHATSAPP PÓS-DIAGNÓSTICO ──
       try {
         const telWpp = D.lead_whatsapp || D.whatsapp || '';
