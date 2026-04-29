@@ -453,49 +453,6 @@ Modal que abre antes do redirect pro Stripe.
 
 ---
 
-## ANÁLISE DE DIVERGÊNCIAS CRÍTICAS
-
-### Discrepância de valor v1 vs v2
-
-**Caso real:** Stuido Fit
-- v1 calculou: R$ 192.113
-- v2 calculou: R$ 3.993.207
-- Diferença: ~21×
-
-**laudo-completo.html linha 955:**
-```js
-set('valor-principal', fc(valorVenda));
-// onde valorVenda = n(D.valor_venda) (linha 856)
-// e D = laudos_completos.calc_json (linha 1497)
-```
-
-**Conclusão:** o laudo v1 só LÊ `D.valor_venda` do calc_json v1 que vive em `laudos_completos`. A fórmula que produz R$ 192.113 NÃO está neste arquivo — está em `skill-avaliadora.js` (skill v1, fora deste mapa). Pra entender a divergência, próximo passo é mapear a skill v1 (não solicitado neste briefing).
-
----
-
-## INFORMAÇÕES QUE O LAUDO V1 MOSTRA E PODEM NÃO ESTAR NA V2 (gap a discutir)
-
-Comparando com `relatorios/2026-04-29-mapa-calc-json-v2.md` (resumo de memória):
-
-| Campo v1 | Provável path em v2 | Observação |
-|----------|--------------------:|------------|
-| `D.expectativa_val` | `calc_json.identificacao.expectativa_valor_dono` | Sem flag origem na v2 (handoff) |
-| `D.icd_respondidos` (lista) | `calc_json.icd.respondidos` | A confirmar — v2 tem `icd.pct` mas não sei se preserva listas |
-| `D.icd_nao_respondidos` (lista) | `calc_json.icd.nao_respondidos` | A confirmar |
-| `D.dre_estimados.{cmv,folha,aluguel,outros_cf}` (flags estimado) | `calc_json.dre.estimados.*` (?) | Esses booleanos rotulam linhas como "estimado" no DRE |
-| `D.bench_ind.{margem_op,cmv,folha_pct,aluguel_pct,conc_max}` | `calc_json.benchmarks_indicadores` | Pode/deve vir resolvido na skill em vez de propagado pelo calc_json |
-| `D.analise_regimes.regimes[]` (4 regimes) | `calc_json.analise_tributaria.regimes` | A confirmar formato exato |
-| `D.ops` (10 oportunidades com `ganho`, `ganho_label`, `tipo`) | `calc_json.upsides.ativos` | **Schema diferente** — v2 tem `label`/`descricao` mas não `ganho` em BRL nem `complexidade` (visto na 4.6) |
-| `D.total_ops` (soma de ganhos) | derivar de `upsides.ativos[].contribuicao_brl` | **Não existe em v2 hoje** — upsides v2 não têm valor monetário |
-| `D.atr_score` + 6 pilares | `calc_json.atratividade.score_geral` + `componentes[]` | Componentes da atratividade v2 organizados diferente (visto no mapa v2) |
-| `D.ise_*` (10 pilares) | `calc_json.ise.pilares.{P1..P6}` | **Schema diferente** — v2 tem 6 pilares; v1 tem 10. Mapeamento não-trivial |
-
-**Gap mais crítico para a adaptação:**
-- ISE: 10 pilares v1 vs 6 pilares v2
-- Upsides: v2 não tem ganho monetário hoje, então o "Potencial 1Sócio" (ganhoAnual, valorPot, KPIs do popup, tudo) precisa de um caminho alternativo
-
----
-
 ## RESUMO ESTATÍSTICO
 
 | Categoria | Contagem aproximada |
@@ -511,9 +468,15 @@ Comparando com `relatorios/2026-04-29-mapa-calc-json-v2.md` (resumo de memória)
 
 ## ACHADOS CRÍTICOS
 
-### a) Cálculo do valor de venda v1
+### a) Onde o valor de venda é renderizado
 
-**Não está em laudo-completo.html.** Esse arquivo só renderiza `D.valor_venda`. A divergência R$ 192k vs R$ 3.99M tem que ser caçada na skill v1 (`skill-avaliadora.js`) — fora do escopo deste mapa.
+`laudo-completo.html` é puro renderizador. O valor exibido em tela vem direto de `D.valor_venda`:
+
+- Leitura: linha 856 (`const valorVenda = n(D.valor_venda);`)
+- Render: linha 955 (`set('valor-principal', fc(valorVenda));`)
+- Origem do `D`: linha 1497 (`D = data[0].calc_json;`) — vindo de `laudos_completos.calc_json` (linha 1494)
+
+Nenhum cálculo de valuation acontece neste arquivo.
 
 ### b) Hardcodes problemáticos
 
@@ -560,16 +523,21 @@ Já catalogado no handoff. Move pra parametros editáveis.
 5. `/portal-usuario.html?negocio=<id>` (após publicar)
 6. `/termo-adesao.html?id=<codigo>&valor=<valor>&plano=gratuito` (após preencher popup grátis)
 
-### d) Gaps em relação a v2
+---
 
-Resumo dos campos do calc_json v1 que ainda não têm equivalente óbvio na v2:
+## CAMPOS QUE EXIGEM ESPECIAL ATENÇÃO NA MIGRAÇÃO
 
-1. **`D.ops[].ganho` em BRL** — upsides v2 hoje não têm `contribuicao_brl`. Sem isso, todos os KPIs do "Potencial 1Sócio" quebram (ganho anual, valorização, %, oportunidades top 3, "+ X ações totalizam +R$ Y").
-2. **`D.ise_*` 10 pilares** — v2 tem 6 (P1-P6). Tela v1 mostra 10. Decidir: (a) mapear 10→6 perdendo granularidade, (b) reduzir tela v1 pra mostrar só 6, ou (c) skill v2 expor 10 pilares também.
-3. **`D.bench_ind` exposto no calc_json** — em v2 os benchmarks ficam em `parametros_versoes`. Decidir se a tela busca de lá ou se a skill v2 propaga (preferível: skill propaga já resolvido, igual v1 fazia).
-4. **`D.expectativa_val`** — v2 ainda não tem flag origem (handoff registrou).
-5. **`D.icd_respondidos` / `D.icd_nao_respondidos`** — confirmar se v2 preserva as listas detalhadas.
-6. **`D.dre_estimados`** — booleanos por linha do DRE rotulando "estimado". Confirmar shape em v2.
+Itens onde o cálculo/estrutura v1 é estruturalmente diferente da v2. Apenas listados — sem investigação de causa, sem proposta de solução.
+
+1. **`D.ops[].ganho`** (valor monetário por upside) — ISE v1 carrega `ganho` em BRL por oportunidade. Schema dos upsides em v2 é diferente.
+2. **`D.total_ops`** (soma de ganhos dos upsides) — usado em todos os KPIs do "Potencial 1Sócio" (ganho anual, valorização, % no valor, "+ X ações totalizam +R$ Y").
+3. **`D.ise_*`** — laudo v1 mostra 10 pilares (`com`, `fin`, `ges`, `dep`, `mar`, `bal`, `div`, `ris`, `conc`, `esc`). Estrutura de pilares em v2 é diferente.
+4. **`D.bench_ind.{margem_op,cmv,folha_pct,aluguel_pct,conc_max}`** — benchmarks por indicador são lidos do próprio `D` na v1 (estão no calc_json).
+5. **`D.expectativa_val`** — usado pra montar o termômetro (marker de expectativa, comparativo "X% acima/abaixo").
+6. **`D.icd_respondidos` / `D.icd_nao_respondidos`** — listas detalhadas dos campos respondidos/não respondidos exibidas no detalhe do ICD.
+7. **`D.dre_estimados.{cmv,folha,aluguel,outros_cf}`** — booleanos por linha do DRE que ativam o rótulo "estimado" em laranja.
+8. **`D.atr_score` + 6 pilares de atratividade** (`atr_sol`, `atr_set`, `atr_rec`, `atr_ind`/`atr_ges`, `atr_cre`, `atr_mar`) — escala 0-10, exibidos com pesos em string.
+9. **`D.analise_regimes`** — objeto inteiro com `regime_atual`, `regime_otimo`, `regimes[]` (4 entradas: MEI, Simples, Lucro Presumido, Lucro Real) com `elegivel`, `imposto_mensal`, `pct`, `motivo`.
 
 ---
 
