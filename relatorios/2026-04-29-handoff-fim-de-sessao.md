@@ -100,6 +100,7 @@ Cada página v1 precisa trocar fonte de dados (hardcode → calc_json v2), prese
 - **Case-collision** `_arquivo/diagnostico.htmlBACKUP` (pré-existente)
 - **Retroação:** Padaria da Marta (id `8503ef86-...`) e cadastros antes do commit `1d92a18` NÃO terão laudo_v2 (RLS bloqueou na hora)
 - **Notificações por WhatsApp não estão funcionando** — Thiago registrou na sessão de 29/04. Investigar fluxo: Z-API integration, Edge Functions `enviar-whatsapp-laudo` e `notificar-diagnostico` (ambas sem source local — rodar `supabase functions download` antes), templates de mensagem, números hardcoded (`5511952136406` em 3 telas). Próxima sessão deve começar pelo download das Edge Functions e teste de envio manual.
+- **"Ver modelo" do laudo aponta pra modelo antigo** — Thiago vai revisar e subir modelo novo. Deixar link como está (`https://1negocio.com.br/modelo-laudo.html`) até lá.
 
 ---
 

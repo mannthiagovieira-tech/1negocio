@@ -2500,6 +2500,7 @@
     //      • multiplo:               igual a contribuicao_brl (já é incremento de valuation)
     //      • ro/passivo/tributario:  contribuicao_brl × fator_final (caixa × múltiplo)
     const fator_final_v = n(valuation && valuation.fator_final) || 1;
+    const efeitosPorCategoria = (P && P.efeitos_por_categoria) || {};
     const upsides_ativos_out = [];
     if (tributario.ref) {
       const contribTributario = Math.round(tributario.brl);
@@ -2508,6 +2509,7 @@
         categoria: 'tributario',
         label: tributario.ref.label || null,
         descricao: tributario.ref.descricao || null,
+        efeito_explicacao: efeitosPorCategoria.tributario || null,
         contribuicao_bruta_pct: tributario.pct,
         contribuicao_pos_cap_categoria_pct: tributario.pct, // tributário sem cap
         contribuicao_brl: contribTributario,
@@ -2525,6 +2527,7 @@
           categoria: cat,
           label: p.ref.label || null,
           descricao: p.ref.descricao || null,
+          efeito_explicacao: efeitosPorCategoria[cat] || null,
           contribuicao_bruta_pct: p.contrib_pct || 0,
           contribuicao_pos_cap_categoria_pct: pos_cap_pct,
           contribuicao_brl: contribBrl,

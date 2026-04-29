@@ -149,6 +149,8 @@ body::after{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-50
 .oport-name{font-family:'Syne',sans-serif;font-weight:600;font-size:12px;color:var(--ink)}
 .oport-desc{font-size:11px;color:var(--ink3);line-height:1.5;margin-left:30px}
 .oport-ganho{display:inline-block;margin-left:30px;margin-top:6px;font-family:'DM Mono',monospace;font-size:10px;color:var(--pu);background:var(--pu-d);padding:3px 8px;border-radius:10px}
+.oport-tag{display:inline-block;margin-left:30px;margin-top:4px;font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;background:var(--pu-d);color:var(--pu);padding:2px 6px;font-weight:600}
+.oport-efeito{margin-left:30px;margin-top:8px;font-size:11px;color:var(--ink4);font-style:italic;line-height:1.5}
 .oport-mais{text-align:center;padding:12px;background:var(--pu-d);border:1px dashed var(--pu-l);border-radius:var(--r);font-size:11px;color:var(--pu);margin-top:8px}
 .oport-mais strong{font-weight:700}
 
@@ -474,13 +476,15 @@ body::after{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-50
     <div class="ctas-publicar">
       <a href="#" class="cta-pub gratis" onclick="event.preventDefault();abrirPopup('gratis')">
         <div class="cta-pub-title">Publicar Gratuitamente</div>
-        <div class="cta-pub-desc">R$ 0,00</div>
-        <div class="cta-pub-price">+ 10% taxa de sucesso</div>
+        <div class="cta-pub-desc">Sem custo inicial</div>
+        <div class="cta-pub-price">R$ 0,00</div>
+        <div class="cta-pub-desc">+ 10% taxa de sucesso</div>
       </a>
       <a href="#" class="cta-pub guiado" onclick="event.preventDefault();abrirPopup('guiado')">
         <div class="cta-pub-title">Publicação Guiada</div>
         <div class="cta-pub-desc">Acompanhamento dedicado</div>
-        <div class="cta-pub-price">R$ 588 + 5% taxa de sucesso</div>
+        <div class="cta-pub-price">R$ 588,00</div>
+        <div class="cta-pub-desc">+ 5% taxa de sucesso</div>
       </a>
     </div>
   </div>
@@ -664,7 +668,7 @@ body::after{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-50
       <!-- Valor de publicação + indicador -->
       <div style="margin-bottom:14px">
         <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:6px">Valor de publicação (R$)</div>
-        <input id="pub-valor" type="number" placeholder="0" style="width:100%;padding:10px 14px;background:var(--bg1);border:1px solid var(--sep);border-radius:8px;font-family:'DM Mono',monospace;font-size:15px;color:var(--ink);outline:none" oninput="atualizarIndicador()">
+        <input id="pub-valor" type="text" inputmode="numeric" placeholder="0" style="width:100%;padding:10px 14px;background:var(--bg1);border:1px solid var(--sep);border-radius:8px;font-family:'DM Mono',monospace;font-size:15px;color:var(--ink);outline:none" oninput="formatarValorPub(this);atualizarIndicador()">
         <div id="pub-indicador" style="margin-top:8px;padding:8px 12px;border-radius:6px;font-size:12px;display:none"></div>
       </div>
 
@@ -755,7 +759,7 @@ document.getElementById('modal-laudo-confirm').addEventListener('click', functio
 const SUPABASE_URL  = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
 const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
 const STRIPE_LAUDO  = 'https://buy.stripe.com/9B6fZgfpsdJScKJegH5os04';
-const WHATSAPP      = '5548999279320';
+const WHATSAPP      = '5511952136406';
 const H = {'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY};
 
 // ─── UTILS ─────────────────────────────────────────────────
@@ -797,11 +801,21 @@ function toggleICD() {
   if(i) i.innerHTML = open ? '&#9660;' : '&#9650;';
 }
 
+// Formata input "Valor de publicação" com separadores de milhares (pt-BR).
+// Mantém só dígitos no estado interno; reformata a cada keystroke.
+function formatarValorPub(inp) {
+  const cru = (inp.value || '').replace(/\D/g, '');
+  inp.value = cru ? Number(cru).toLocaleString('pt-BR') : '';
+}
+function parsearValorPub(s) {
+  return parseInt(String(s || '').replace(/\D/g, ''), 10) || 0;
+}
+
 function atualizarIndicador() {
   const inp = document.getElementById('pub-valor');
   const ind = document.getElementById('pub-indicador');
   if(!inp || !ind || !D) return;
-  const valorPub = parseFloat(inp.value) || 0;
+  const valorPub = parsearValorPub(inp.value);
   const valorRef = n(D.valuation && D.valuation.valor_venda);
   if(!valorPub || !valorRef) { ind.style.display='none'; return; }
   const ratio = valorPub / valorRef;
@@ -835,12 +849,12 @@ function atualizarIndicador() {
 
 function irParaTermo() {
   const codigo = (document.getElementById('pub-codigo')?.value || '').trim();
-  const valor  = (document.getElementById('pub-valor')?.value  || '').trim();
-  if(!codigo || !valor || valor === '0') {
+  const valorNumerico = parsearValorPub(document.getElementById('pub-valor')?.value);
+  if(!codigo || !valorNumerico) {
     alert('Preencha o valor de publicação para continuar.');
     return;
   }
-  const url = '/termo-adesao.html?id=' + encodeURIComponent(codigo) + '&valor=' + encodeURIComponent(valor) + '&plano=gratuito';
+  const url = '/termo-adesao.html?id=' + encodeURIComponent(codigo) + '&valor=' + valorNumerico + '&plano=gratuito';
   window.location.href = url;
 }
 function abrirPopup(id) { const o = el('popup-'+id); if(o) o.classList.add('show'); }
@@ -878,7 +892,9 @@ function renderLaudo() {
 
   // ── Header ──
   set('hero-nome', ident.nome || 'Empresa');
-  set('hero-data', 'Avaliado em ' + (D._data_avaliacao ? new Date(D._data_avaliacao).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')));
+  const dataAval = D._data_avaliacao ? new Date(D._data_avaliacao).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR');
+  const codigoNeg = ident.codigo_diagnostico || '';
+  set('hero-data', 'Avaliado em ' + dataAval + (codigoNeg ? ' · Código: ' + codigoNeg : ''));
 
   // Texto descritivo: vem da Edge Function (textos_ia.texto_contexto_negocio.conteudo)
   const ctxObj = textosIA.texto_contexto_negocio;
@@ -1023,7 +1039,10 @@ function renderLaudo() {
   ['btn-comprar','btn-comprar2','pl-btn-comprar'].forEach(id => { if(el(id)) el(id).onclick = ()=>abrirModalLaudo(stripeUrl); });
   ['btn-modelo','btn-modelo2'].forEach(id => { if(el(id)) el(id).onclick = ()=>window.open('https://1negocio.com.br/modelo-laudo.html','_blank'); });
   if(el('pub-codigo')) el('pub-codigo').value = ident.codigo_diagnostico || negId || '—';
-  if(el('pub-valor'))  el('pub-valor').value = Math.round(valorVenda) || '';
+  if(el('pub-valor')) {
+    const vRound = Math.round(valorVenda);
+    el('pub-valor').value = vRound ? vRound.toLocaleString('pt-BR') : '';
+  }
   atualizarIndicador();
   const stripeGuiado = 'https://buy.stripe.com/7sYdR8elo21aeSRegH5os02';
   if(el('gg-btn-contratar')) {
@@ -1293,6 +1312,13 @@ function renderOport() {
   const total = ops.length;
   let h = '';
 
+  const TAG_CATEGORIA = {
+    multiplo:   'MÚLTIPLO',
+    ro:         'OPERACIONAL',
+    passivo:    'PASSIVO',
+    tributario: 'TRIBUTÁRIO',
+  };
+
   for(let i = 0; i < Math.min(3, total); i++) {
     const u = ops[i];
     const ganhoMes = n(u.ganho_mensal_caixa_brl);
@@ -1300,10 +1326,11 @@ function renderOport() {
     const isMultiplo = u.categoria === 'multiplo';
     const titulo = u.label || u.id || '';
     const desc = u.descricao || '';
+    const tagLbl = TAG_CATEGORIA[u.categoria] || (u.categoria || '').toUpperCase();
+    const efeito = u.efeito_explicacao || '';
 
     let gt;
     if (isMultiplo) {
-      // Categoria múltiplo: não gera caixa novo, só impacto direto no valor de venda
       gt = '+' + fc(impactoVlr) + ' no valor de venda';
     } else if (ganhoMes > 0) {
       gt = '+' + fc(ganhoMes) + '/mês de caixa';
@@ -1313,7 +1340,10 @@ function renderOport() {
     }
 
     h += '<div class="oport-card"><div class="oport-header"><div class="oport-num">'+(i+1)+'</div><div class="oport-name">'+titulo+'</div></div>';
-    h += '<div class="oport-desc">'+desc+'</div><div class="oport-ganho">'+gt+'</div></div>';
+    if (tagLbl) h += '<div class="oport-tag">'+tagLbl+'</div>';
+    h += '<div class="oport-desc">'+desc+'</div><div class="oport-ganho">'+gt+'</div>';
+    if (efeito) h += '<div class="oport-efeito">'+efeito+'</div>';
+    h += '</div>';
   }
   if(total > 3) {
     let impactoRestVlr = 0;
