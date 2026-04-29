@@ -50,9 +50,32 @@ Edge Function escrevia string crua, tela esperava `{modelo, conteudo}`. 6 discon
 
 ## PENDÊNCIAS PRA PRÓXIMA SESSÃO
 
-### Refinamento de prompt (P1 — não-bloqueante)
+### Revisão completa dos prompts (P1 — não-bloqueante)
 
-`texto_contexto_negocio` saiu com 37 chars no Stuido Fit (prompt pediu 80-120 palavras). Olhar output real e ajustar prompt em snapshot futuro.
+**Pendência registrada por Thiago ao final da sessão.**
+
+Fazer revisão completa dos 9 prompts em `parametros_versoes.snapshot.prompts_textos_ia` (snapshot v2026.07). Avaliar output real de cada um com casos diversos (faturamentos, setores, scores ISE diferentes) e ajustar:
+
+- Tamanho mínimo/máximo solicitado
+- Tom (positivo, pé no chão, sem ser otimista demais)
+- Estrutura (parágrafos, ordem dos pontos)
+- Linguagem natural (não usar "M&A", não falar concentração de clientes diretamente)
+- Aderência às regras editoriais da plataforma
+
+**Achado já catalogado:** `texto_contexto_negocio` saiu com 37 chars no Stuido Fit (prompt pediu 80-120 palavras) — ponto de partida pra revisão.
+
+**Os 9 prompts pra revisar:**
+1. `texto_resumo_executivo_completo` (Sonnet)
+2. `texto_contexto_negocio` (Haiku) ← curto demais no teste real
+3. `texto_parecer_tecnico` (Sonnet)
+4. `texto_riscos_atencao` (Haiku)
+5. `texto_diferenciais` (Haiku)
+6. `texto_publico_alvo_comprador` (Sonnet)
+7. `descricoes_polidas_upsides` (Haiku)
+8. `sugestoes_titulo_anuncio` (Haiku)
+9. `texto_consideracoes_valor` (Sonnet)
+
+**Processo proposto:** criar snapshot v2026.08 com prompts revisados, regerar testes, comparar outputs, validar e promover. Sem mexer no v2026.07 que está em produção.
 
 ### Adaptação das páginas v1 (P0 da próxima fase)
 
