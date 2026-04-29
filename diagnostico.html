@@ -7588,6 +7588,57 @@ async function gerarLaudoInstantaneoConfirmado() {
         console.error('[skill-v2] erro silencioso (não interrompe v1):', errV2);
       }
 
+      // === DISPARAR GERAÇÃO DE TEXTOS IA EM PARALELO ===
+      // Após calc_json v2 estar gravado em laudos_v2, dispara 9 fetches paralelos.
+      // Cada um gera 1 texto e salva direto em calc_json.textos_ia.<chave>.
+      // Fire-and-forget: não bloqueia, não espera, erros são silenciosos.
+      try {
+        const TEXTOS_PRA_GERAR = [
+          'texto_resumo_executivo_completo',
+          'texto_contexto_negocio',
+          'texto_parecer_tecnico',
+          'texto_riscos_atencao',
+          'texto_diferenciais',
+          'texto_publico_alvo_comprador',
+          'descricoes_polidas_upsides',
+          'sugestoes_titulo_anuncio',
+          'texto_consideracoes_valor'
+        ];
+
+        if (negocioId) {
+          console.log('[textos-ia] disparando 9 fetches em paralelo');
+
+          TEXTOS_PRA_GERAR.forEach(textoKey => {
+            fetch(`${SUPABASE_URL}/functions/v1/gerar_textos_laudo`, {
+              method: 'POST',
+              headers: {
+                'Authorization': 'Bearer ' + SUPABASE_ANON,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                negocio_id: negocioId,
+                texto_a_gerar: textoKey
+              })
+            })
+            .then(r => r.json())
+            .then(data => {
+              if (data.ok) {
+                console.log(`[textos-ia] ✓ ${textoKey} (${data.duracao_ms}ms, ${data.tokens_output} tokens)`);
+              } else {
+                console.warn(`[textos-ia] ✗ ${textoKey}:`, data.erro);
+              }
+            })
+            .catch(err => {
+              console.warn(`[textos-ia] ✗ ${textoKey} (network):`, err);
+            });
+          });
+
+          console.log('[textos-ia] 9 requisições disparadas (fire-and-forget)');
+        }
+      } catch (errTextos) {
+        console.error('[textos-ia] erro ao disparar (não interrompe v1):', errTextos);
+      }
+
       // ── WHATSAPP PÓS-DIAGNÓSTICO ──
       try {
         const telWpp = D.lead_whatsapp || D.whatsapp || '';
