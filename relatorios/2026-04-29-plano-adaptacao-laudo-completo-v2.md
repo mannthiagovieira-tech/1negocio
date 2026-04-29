@@ -39,20 +39,40 @@ Pra renderizar top 3 upsides com texto descritivo, skill v2 precisa propagar.
 
 ---
 
-### S2.2 — Adicionar linhas DRE faltantes
-**Decisão Thiago: DRE completo, mostrar tudo.**
+### S2.2 — Mover antecipação de recebíveis pra bloco_1_receita
+**Decisão Thiago: antecipação fica entre Faturamento Bruto e Receita Líquida.**
 
-Adicionar à `calc_json.dre` (3 campos):
+**Estado atual (bug):**
+- Diagnóstico captura via T23 — gravado em `D.custo_antecipacao`
+- `mapDadosV2` linha 711 mapeia `antecipacao_caixa = n(d.custo_antecipacao)` ✓
+- skill v2 linha 1067: `antecipacao_eventual: 0` ← HARDCODED, IGNORA O INPUT ❌
 
-- `antecipacao_recebiveis_mensal` (BRL)
-- `parcelas_dividas_mensal` (BRL)
-- `investimentos_recorrentes_mensal` (BRL)
+**Trabalho:**
 
-Origem: vir do questionário do diagnóstico (se o vendedor declarou) ou calculado pela skill v2 (se houver heurística).
+1. Adicionar `antecipacao_recebiveis` em `dre.bloco_1_receita` puxando de `D.antecipacao_caixa` (mensal)
+2. Atualizar fórmula de `rec_liquida`:
+   - Antes: `rec_liquida = fat_mensal - impostos - taxas - comissoes`
+   - Depois: `rec_liquida = fat_mensal - impostos - taxas - comissoes - antecipacao_recebiveis`
+3. Atualizar `total_deducoes` em `bloco_1_receita` pra incluir antecipação
+4. REMOVER `antecipacao_eventual: 0` de `bloco_5_caixa` (linha 1067)
+5. Validar cascata: lucro_bruto, RO, lucro_liquido recalculam corretamente
 
-**Trabalho:** verificar se diagnóstico já captura. Se não, adicionar perguntas. Se sim, propagar pro calc_json.
+**Posição no DRE renderizado:**
+- Linha entre Faturamento Bruto e Receita Líquida
+- Junto com impostos, taxas de processamento, comissões
 
-**Prioridade:** P0 (Thiago quer mostrar no laudo).
+**Validação esperada (Stuido Fit):**
+- Antes: rec_liquida = R$ 382.400
+- Depois: rec_liquida = R$ 382.400 − `D.antecipacao_caixa` do Stuido Fit
+- Cascata muda: novo lucro_bruto, novo RO, novo lucro_liquido
+
+**Itens DRE NÃO incluídos neste S2.2 (decisão Thiago):**
+- **Parcelas de dívidas:** já existe em `dre.bloco_5_caixa.parcelas_dividas` (correto, abaixo do RO, informativa). Trabalho zero.
+- **Investimentos recorrentes:** Thiago decidiu que não captura nem importa. Removido do plano. Skill v2 tem `D.investimentos` morto (sempre 0) — pode ficar como está.
+
+**Prioridade:** P0.
+
+**Tamanho:** ~30-45 min (skill v2: adicionar campo + ajustar fórmula + cascata).
 
 ---
 
@@ -180,9 +200,9 @@ Lista consolidada vinda do cruzamento (relatorios/2026-04-29-cruzamento-laudo-x-
 | `D.cf` | `dre.operacional_outros.outros_cf` |
 | `D.mkt` | `dre.operacional_outros.mkt_pago` |
 | `D.prol` | `operacional.prolabore_mensal_total` |
-| `D.antecipacao` | `dre.antecipacao_recebiveis_mensal` (S2.2) |
-| `D.parcelas` | `dre.parcelas_dividas_mensal` (S2.2) |
-| `D.investimentos` | `dre.investimentos_recorrentes_mensal` (S2.2) |
+| `D.antecipacao` | `dre.bloco_1_receita.antecipacao_recebiveis` (NOVO — S2.2 cria, antes hardcoded zero em `bloco_5_caixa.antecipacao_eventual`) |
+| `D.parcelas` | `dre.bloco_5_caixa.parcelas_dividas` (já existe na v2, mantém) |
+| ~~`D.investimentos`~~ | ~~removido~~ — Thiago: não captura nem importa |
 | `D.dre_estimados.{cmv,folha,aluguel,outros_cf}` | `dre.dre_estimados.{cmv,folha,aluguel,outros_cf}` (S2.3) |
 
 **Balanço:**
@@ -418,7 +438,7 @@ Aplicado como S2.4 (skill v2) e L.2 (novo path).
 ## ORDEM DE EXECUÇÃO SUGERIDA
 
 1. **Investigar 3 ambíguos** (rápido, dá clareza)
-2. **Trabalho na skill v2** (S2.1, S2.2, S2.3) — adiciona campos faltantes
+2. **Trabalho na skill v2** (S2.1, S2.2, S2.3, S2.4) — adiciona campos faltantes
 3. **Validar calc_json v2 completo** com novo Stuido Fit gerado
 4. **Adaptar laudo-completo.html** (L.1 a L.6) — em uma só passada
 5. **Testar fim-a-fim** — cadastrar negócio, abrir laudo, comparar valores
@@ -449,6 +469,21 @@ Aplicado como S2.4 (skill v2) e L.2 (novo path).
 
 **Itens P0 (12):** S2.1, S2.2, S2.3, S2.4, CJ.1, L.1, L.2, L.3, L.4, L.5, L.6, L.7
 **Itens P2 (2):** P.1, P.2
+
+---
+
+## 🐛 BUG PRÉ-EXISTENTE catalogado durante investigação de S2.2
+
+**Linha 1067 de `skill-avaliadora-v2.js`:**
+
+```javascript
+antecipacao_eventual: 0  // ← HARDCODED, ignora D.antecipacao_caixa
+                         //   que foi mapeado em linha 711
+```
+
+O input `d.custo_antecipacao` chega no diagnóstico (T23), é mapeado em `mapDadosV2` (linha 711) como `D.antecipacao_caixa`, mas **nunca é usado** na montagem do calc_json — a key `bloco_5_caixa.antecipacao_eventual` é literalmente zerada.
+
+**Será corrigido junto com S2.2** (o conserto inclui mover pra `bloco_1_receita` e remover a key zerada de `bloco_5_caixa`).
 
 ---
 
