@@ -3083,34 +3083,56 @@ function renderPotencial12m() {
   const capIse = a.cap_ise || {};
   const capAbs = a.cap_absoluto || {};
   const final = p.potencial_final || {};
+  const valor_hoje = (calcJson.valuation || {}).valor_venda || 0;
 
-  const fmtPct = (v) => v == null ? '—' : (v * 100).toFixed(2) + '%';
+  const fmtPctLocal = (v) => v == null ? '—' : (v * 100).toFixed(2) + '%';
 
-  // Pills do header (D-A)
+  // Pills do header (D-A) — tributário acessório/dominante + caps quando ativos
   let html = '<div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">';
   html += pill(a.tributario_dominante ? 'Tributário dominante' : 'Tributário acessório', a.tributario_dominante ? 'amber' : 'muted');
   if (capIse.cap_aplicado) html += pill('Cap ISE aplicado', 'amber');
   if (capAbs.aplicado) html += pill('Cap absoluto aplicado', 'red');
   html += '</div>';
 
-  // KPIs principais
+  // 3 cards principais — info essencial visível
+  const pctSinal = final.pct >= 0 ? '+' : '';
   html += '<div class="kpi-row">';
-  html += '<div class="kpi-card"><div class="kpi-label">Pré-ISE</div><div class="kpi-value">' + fmtPct(a.potencial_alavancas_pre_ise_pct) + '</div></div>';
-  html += '<div class="kpi-card"><div class="kpi-label">Pós-ISE</div><div class="kpi-value">' + fmtPct(capIse.potencial_pos_ise_pct) + '</div></div>';
-  html += '<div class="kpi-card"><div class="kpi-label">Final %</div><div class="kpi-value">' + fmtPct(final.pct) + '</div></div>';
-  html += '<div class="kpi-card"><div class="kpi-label">Final R$</div><div class="kpi-value">' + fc(final.brl || 0) + '</div></div>';
-  html += '<div class="kpi-card"><div class="kpi-label">Valor projetado</div><div class="kpi-value">' + fc(final.valor_projetado_brl || 0) + '</div></div>';
+  html += '<div class="kpi-card">'
+       + '<div class="kpi-label">Valor hoje</div>'
+       + '<div class="kpi-value">' + fc(valor_hoje) + '</div>'
+       + '<div class="kpi-sub">valor de venda atual do negócio</div>'
+       + '</div>';
+  html += '<div class="kpi-card">'
+       + '<div class="kpi-label">Potencial 12M</div>'
+       + '<div class="kpi-value">' + fc(final.brl || 0) + '</div>'
+       + '<div style="font-size:13px;color:var(--green);font-family:\'DM Mono\',monospace;margin-top:2px;font-variant-numeric:tabular-nums">' + pctSinal + fmtPctLocal(final.pct) + '</div>'
+       + '<div class="kpi-sub">se ações executadas</div>'
+       + '</div>';
+  html += '<div class="kpi-card">'
+       + '<div class="kpi-label">Valor projetado</div>'
+       + '<div class="kpi-value">' + fc(final.valor_projetado_brl || 0) + '</div>'
+       + '<div class="kpi-sub">valor de venda em 12 meses</div>'
+       + '</div>';
   html += '</div>';
 
-  // Tributário (D-H — mostrar zero com observação)
-  html += '<h3>Tributário</h3>';
+  // Texto explicativo curto
+  html += '<div style="font-size:12px;color:var(--fg2);margin-top:14px;line-height:1.5;max-width:720px">'
+       + 'Quanto o valor de venda do negócio pode aumentar nos próximos 12 meses se as ações monetárias forem executadas. Não inclui ações qualitativas (sem valor monetário direto).'
+       + '</div>';
+
+  // Bloco colapsável — detalhes técnicos do cálculo
+  html += '<details style="margin-top:18px">';
+  html += '<summary class="muted" style="cursor:pointer;font-size:12px;padding:6px 0">▸ Detalhes técnicos do cálculo</summary>';
+  html += '<div style="margin-top:10px">';
+
+  // Tributário (D-H)
+  html += '<h3 style="margin-top:0">Tributário</h3>';
   html += '<table class="tbl"><tbody>';
   html += '<tr><td>Contribuição (R$)</td><td class="num" style="text-align:right">' + fc(trib.brl || 0) + '</td>'
        + '<td>' + (a.tributario_dominante ? pill('dominante', 'amber') : '<span class="muted">não dominante</span>') + '</td></tr>';
-  html += '<tr><td>Contribuição (%)</td><td class="num" style="text-align:right">' + fmtPct(trib.pct) + '</td><td class="muted" style="font-size:11px">sem cap</td></tr>';
+  html += '<tr><td>Contribuição (%)</td><td class="num" style="text-align:right">' + fmtPctLocal(trib.pct) + '</td><td class="muted" style="font-size:11px">sem cap</td></tr>';
   html += '<tr><td>Fonte</td><td colspan="2" class="muted" style="font-size:11px">' + escapeHtml(trib.fonte || '—') + '</td></tr>';
   html += '</tbody></table>';
-  // Observação destacada quando economia=0 ou outras
   const obsTrib = (calcJson.analise_tributaria && calcJson.analise_tributaria.economia_potencial && calcJson.analise_tributaria.economia_potencial.observacao);
   if (obsTrib) html += '<div class="alert info" style="margin-top:6px">' + escapeHtml(obsTrib) + '</div>';
 
@@ -3121,9 +3143,9 @@ function renderPotencial12m() {
     const c = cats[k] || {};
     const capCls = c.cap_aplicado ? 'warn' : 'muted';
     html += '<tr><td>' + k + '</td>'
-         + '<td class="num" style="text-align:right">' + fmtPct(c.bruto_pct) + '</td>'
+         + '<td class="num" style="text-align:right">' + fmtPctLocal(c.bruto_pct) + '</td>'
          + '<td class="' + capCls + '" style="font-size:11px">' + (c.cap_aplicado ? 'sim' : 'não') + '</td>'
-         + '<td class="num" style="text-align:right">' + fmtPct(c.capped_pct) + '</td></tr>';
+         + '<td class="num" style="text-align:right">' + fmtPctLocal(c.capped_pct) + '</td></tr>';
   });
   html += '</tbody></table>';
 
@@ -3149,12 +3171,15 @@ function renderPotencial12m() {
     ups.forEach(u => {
       html += '<tr><td>' + escapeHtml(u.label || u.id) + '</td>'
            + '<td>' + pill(u.categoria || 'qualitativo', catColor(u.categoria || 'qualitativo')) + '</td>'
-           + '<td class="num" style="text-align:right">' + fmtPct(u.contribuicao_bruta_pct) + '</td>'
-           + '<td class="num" style="text-align:right">' + fmtPct(u.contribuicao_pos_cap_categoria_pct) + '</td>'
+           + '<td class="num" style="text-align:right">' + fmtPctLocal(u.contribuicao_bruta_pct) + '</td>'
+           + '<td class="num" style="text-align:right">' + fmtPctLocal(u.contribuicao_pos_cap_categoria_pct) + '</td>'
            + '<td class="num" style="text-align:right">' + fc(u.contribuicao_brl || 0) + '</td></tr>';
     });
     html += '</tbody></table>';
   }
+
+  html += '</div>';  // fecha details body
+  html += '</details>';
 
   wrap.innerHTML = html;
   el('potencial-12m-json').textContent = JSON.stringify(p, null, 2);
