@@ -684,6 +684,7 @@
 
     // ── Pessoal ──
     const clt_folha = tag('clt_folha', p1(d.clt_folha, d.custo_pessoal));
+    origem.clt_folha = clt_folha > 0 ? 'informado' : 'fallback_zero';
     const clt_qtd = n(p1(d.clt_qtd, dados.clt_qtd));
     const pj_custo = tag('pj_custo', n(d.pj_custo));
     const pj_qtd = n(p1(d.pj_qtd, dados.pj_qtd));
@@ -703,6 +704,7 @@
     // ── Operacional outros ──
     const custo_sistemas = tag('custo_sistemas', n(d.custo_sistemas));
     const custo_outros = tag('custo_outros', n(d.custo_outros));
+    origem.custo_outros = custo_outros > 0 ? 'informado' : 'fallback_zero';
     const mkt_valor = tag('mkt_valor', n(d.mkt_valor));
 
     // ── Sócio (abaixo do RO) ──
@@ -954,7 +956,8 @@
     const royalty_pct_aplicado = is_franquia ? fat_mensal * (D.royalty_pct / 100) : 0;
     const mkt_franquia_pct_aplicado = is_franquia ? fat_mensal * (D.mkt_franquia_pct / 100) : 0;
 
-    const total_deducoes = impostos_mensal + taxas_recebimento + comissoes + royalty_pct_aplicado + mkt_franquia_pct_aplicado;
+    const antecipacao_recebiveis = n(D.antecipacao_caixa);
+    const total_deducoes = impostos_mensal + taxas_recebimento + comissoes + royalty_pct_aplicado + mkt_franquia_pct_aplicado + antecipacao_recebiveis;
     const rec_liquida = fat_mensal - total_deducoes;
 
     // ── BLOCO 2: CMV e Lucro Bruto ──
@@ -1039,6 +1042,7 @@
       diferenca_potencial_passivo_mensal: diferenca_potencial_passivo,
       taxas_recebimento, comissoes,
       royalty_pct_aplicado, mkt_franquia_pct_aplicado,
+      antecipacao_recebiveis,
       total_deducoes,
       total_mensal: total_deducoes,
     };
@@ -1064,10 +1068,19 @@
       },
       bloco_5_caixa: {
         prolabore,
-        antecipacao_eventual: 0,
         parcelas_dividas,
         investimentos,
         potencial_caixa_mensal,
+      },
+
+      // Flags "linha do DRE estimada" — true quando vendedor não declarou o valor.
+      // Critério: D._origem_campos[campo] === 'fallback_zero'.
+      // Usado pelo laudo pra rotular linhas como "estimado" em laranja.
+      dre_estimados: {
+        cmv: (D._origem_campos && D._origem_campos.cmv_mensal) === 'fallback_zero',
+        folha: (D._origem_campos && D._origem_campos.clt_folha) === 'fallback_zero',
+        aluguel: (D._origem_campos && D._origem_campos.aluguel) === 'fallback_zero',
+        outros_cf: (D._origem_campos && D._origem_campos.custo_outros) === 'fallback_zero',
       },
 
       // Atalhos topo (compatibilidade com consumidores planos: laudo-pago,
@@ -2165,12 +2178,32 @@
     const ro_por_funcionario_mensal = ind('ro_por_funcionario_mensal', 'RO por funcionário (mensal)', 'R$',
       roPorFunc, null, 'maior_melhor');
 
+    // ── Endividamento (S2.4 — saldo devedor sobre RO anual) ──
+    // Regra customizada: <100% no_alvo · 100-200% atencao · >200% abaixo.
+    // Não usa o helper ind() porque os thresholds 100/200 diferem do padrão menor_melhor (100/110).
+    const saldoDevedorEnd = n(balanco && balanco.passivos && balanco.passivos.saldo_devedor_emprestimos);
+    const roAnualEnd = n(dre.ro_anual);
+    const endividamentoVal = roAnualEnd > 0 ? (saldoDevedorEnd / roAnualEnd) * 100 : 0;
+    const endividamento_vs_ro = {
+      id: 'endividamento_vs_ro',
+      label: 'Endividamento vs RO Anual',
+      valor: round2(endividamentoVal),
+      unidade: '%',
+      benchmark: 100,
+      delta_pp: round2(endividamentoVal - 100),
+      status: endividamentoVal < 100 ? 'no_alvo' : endividamentoVal < 200 ? 'atencao' : 'abaixo',
+      sentido: 'menor_melhor',
+      regra_aplicada: '<100% → no_alvo · 100-200% → atencao · >200% → abaixo',
+      observacao: roAnualEnd <= 0 ? 'RO anual ≤ 0: indicador não aplicável' : null,
+    };
+
     return {
       margem_operacional, margem_bruta, margem_liquida,
       cmv_pct, folha_pct, aluguel_pct, mkt_pct, outros_cf_pct, deducoes_pct,
       concentracao, recorrencia, num_clientes, ticket_medio,
       pmr_dias, pmp_dias, ciclo_financeiro_dias, ncg_valor,
       ro_por_funcionario_mensal,
+      endividamento_vs_ro,
     };
   }
 
@@ -2466,6 +2499,7 @@
         id: tributario.ref.id,
         categoria: 'tributario',
         label: tributario.ref.label || null,
+        descricao: tributario.ref.descricao || null,
         contribuicao_bruta_pct: tributario.pct,
         contribuicao_pos_cap_categoria_pct: tributario.pct, // tributário sem cap
         contribuicao_brl: Math.round(tributario.brl),
@@ -2478,6 +2512,7 @@
           id: p.ref.id,
           categoria: cat,
           label: p.ref.label || null,
+          descricao: p.ref.descricao || null,
           contribuicao_bruta_pct: p.contrib_pct || 0,
           contribuicao_pos_cap_categoria_pct: pos_cap_pct,
           contribuicao_brl: Math.round(pos_cap_pct * valor_venda),
