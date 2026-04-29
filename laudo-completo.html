@@ -802,7 +802,7 @@ function atualizarIndicador() {
   const ind = document.getElementById('pub-indicador');
   if(!inp || !ind || !D) return;
   const valorPub = parseFloat(inp.value) || 0;
-  const valorRef = n(D.valor_venda);
+  const valorRef = n(D.valuation && D.valuation.valor_venda);
   if(!valorPub || !valorRef) { ind.style.display='none'; return; }
   const ratio = valorPub / valorRef;
   ind.style.display = 'block';
@@ -846,126 +846,100 @@ function irParaTermo() {
 function abrirPopup(id) { const o = el('popup-'+id); if(o) o.classList.add('show'); }
 function fecharPopup(id) { const o = el('popup-'+id); if(o) o.classList.remove('show'); }
 
-// ─── RENDER LAUDO — só lê do D (calc_json) ─────────────────
+// ─── RENDER LAUDO — PURO RENDERIZADOR DO calc_json v2 ─────────────────
+// Princípio: zero cálculo no front. Tudo vem pronto em D = calc_json v2.
 function renderLaudo() {
-  // NÃO mostra conteúdo ainda — primeiro preenche tudo
-  const fat = n(D.fat_mensal);
-  const ro  = n(D.ro_mensal);
-  const pl  = n(D.pl);
-  const fator = n(D.fator);
-  const valorVenda = n(D.valor_venda);
-  const ise = {
-    total:n(D.ise_total), cls:D.ise_class||'Operacional',
-    dep:n(D.ise_dep), com:n(D.ise_com), fin:n(D.ise_fin),
-    ges:n(D.ise_ges), mar:n(D.ise_mar), bal:n(D.ise_bal),
-    div:n(D.ise_div), ris:n(D.ise_ris), conc:n(D.ise_conc), esc:n(D.ise_esc)
-  };
+  // Atalhos pra blocos do calc_json v2
+  const ident      = D.identificacao || {};
+  const dre        = D.dre || {};
+  const balanco    = D.balanco || {};
+  const ise_obj    = D.ise || {};
+  const valuation  = D.valuation || {};
+  const atrat      = D.atratividade || {};
+  const pot        = D.potencial_12m || {};
+  const icd        = D.icd || {};
+  const textosIA   = D.textos_ia || {};
 
-  // Potencial 1Sócio
-  const totalOps  = n(D.total_ops);
-  const ganhoMens = totalOps > 0 ? totalOps : Math.round(ro * 0.20);
-  const ganhoAnual= ganhoMens * 12;
-  const valorPot  = valorVenda + (ganhoAnual * fator);
-  const valoriz   = valorVenda > 0 ? ((valorPot - valorVenda) / valorVenda * 100) : 0;
-  const expect    = n(D.expectativa_val) > 0 ? n(D.expectativa_val) : null;
+  // Valores base
+  const fat        = n(dre.fat_mensal);
+  const ro         = n(dre.ro_mensal);
+  const pl         = n(balanco.patrimonio_liquido);
+  const fator      = n(valuation.fator_final);
+  const valorVenda = n(valuation.valor_venda);
 
-  // ── Header
-  set('hero-nome', D.nome || 'Empresa');
-  set('hero-data', 'Avaliado em ' + (D.data_avaliacao || new Date().toLocaleDateString('pt-BR')));
-  // Texto descritivo — fallback rico (mesmo padrão do laudo-pago)
-  const descTexto = (() => {
-    const nomeN = D.nome || 'Negócio';
-    const setorLbl = D.setor_raw || D.setor || 'negócio';
-    const loc = [D.cidade, D.estado].filter(Boolean).join('/') || 'Brasil';
-    const anosN = n(D.anos);
-    const clientes = n(D.clientes);
-    const ticket = clientes > 0 ? Math.round(fat / clientes) : 0;
-    const numFuncs = n(D.num_funcs);
-    const recorrencia = n(D.recorrencia);
-    const regimeTxt = {simples:'Simples Nacional',lucro_presumido:'Lucro Presumido',lucro_real:'Lucro Real',mei:'MEI'}[D.regime]||D.regime||'';
-    const ise_com = n(D.ise_com); const ise_fin = n(D.ise_fin); const ise_ges = n(D.ise_ges);
-    const ise_dep = n(D.ise_dep); const ise_total = n(D.ise_total)||60;
-    const iseClass = ise_total>=75?'Consolidado':ise_total>=55?'Operacional':ise_total>=35?'Em Desenvolvimento':'Em Reestruturação';
-    return `${nomeN} é um negócio de ${setorLbl}${anosN>0?' com '+anosN+' ano'+(anosN===1?'':'s')+' de operação':''}, localizado em ${loc}. Com faturamento de ${fs(fat)}/mês e resultado operacional de ${fs(ro)}/mês (${fat>0?(ro/fat*100).toFixed(0):'0'}% de margem), o negócio apresenta ${recorrencia>=50?'alta previsibilidade de receita, com '+recorrencia+'% da receita proveniente de contratos recorrentes':'modelo de receita com oportunidade de ampliar a base recorrente, atualmente em '+recorrencia+'%'}. ${clientes>0?'A base de '+clientes+' clientes ativos com ticket médio de '+fs(ticket)+'/mês demonstra capacidade comercial consolidada.':''} ${numFuncs>0?'A equipe de '+numFuncs+' pessoas opera sob regime '+regimeTxt+'.':''}
+  // Potencial 1Sócio — TUDO vem pronto da skill v2 (S2.1+)
+  const potFinal   = pot.potencial_final || {};
+  const valorPot   = n(potFinal.valor_projetado_brl);
+  const ganhoAnual = n(potFinal.brl);
+  const ganhoMens  = Math.round(ganhoAnual / 12);
+  const valoriz    = n(potFinal.pct) * 100; // pct vem em fração 0-1
+  const expect     = n(ident.expectativa_valor_dono) > 0 ? n(ident.expectativa_valor_dono) : null;
 
-O mercado de ${setorLbl} no Brasil ${ise_com>=7?'atravessa momento de expansão, com crescente demanda por soluções especializadas':'passa por consolidação, com oportunidades para negócios bem posicionados como '+nomeN}. O ISE de ${ise_total}/100 (${iseClass}) reflete a maturidade operacional atual, com destaque para o pilar comercial (${ise_com}/10) e financeiro (${ise_fin}/10). Para um potencial comprador ou investidor estratégico, o negócio oferece uma base operacional ${ise_total>=65?'sólida para crescimento acelerado':'a ser otimizada com potencial de valorização relevante'}.`;
-  })();
+  // ── Header ──
+  set('hero-nome', ident.nome || 'Empresa');
+  set('hero-data', 'Avaliado em ' + (D._data_avaliacao ? new Date(D._data_avaliacao).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')));
+
+  // Texto descritivo: vem da Edge Function (textos_ia.texto_contexto_negocio.conteudo)
+  const ctxObj = textosIA.texto_contexto_negocio;
+  const descTexto = (ctxObj && ctxObj.conteudo)
+    ? ctxObj.conteudo
+    : (ident.nome || 'Negócio') + ' — texto contextual sendo gerado.';
   set('hero-desc', descTexto);
-  el('tag-setor') && (el('tag-setor').textContent = (D.setor_raw||D.setor||'N/D').toUpperCase());
-  el('tag-local') && (el('tag-local').textContent = (D.cidade||'') + '/' + (D.estado||''));
-  if(n(D.anos) > 0) {
-    el('tag-tempo') && (el('tag-tempo').textContent = D.anos + ' ANOS');
+
+  const setorLbl = (ident.setor && ident.setor.label) || '';
+  el('tag-setor') && (el('tag-setor').textContent = setorLbl ? setorLbl.toUpperCase() : 'N/D');
+  const cidade = (ident.localizacao && ident.localizacao.cidade) || '';
+  const estado = (ident.localizacao && ident.localizacao.estado) || '';
+  el('tag-local') && (el('tag-local').textContent = cidade + (estado ? '/' + estado : ''));
+  const tempoAnos = n(ident.tempo_operacao_anos) || n(D.operacional && D.operacional.tempo_operacao_anos);
+  if(tempoAnos > 0) {
+    el('tag-tempo') && (el('tag-tempo').textContent = tempoAnos + ' ANOS');
   } else {
     el('tag-tempo') && (el('tag-tempo').style.display = 'none');
   }
-  el('tag-regime')&& (el('tag-regime').textContent = D.regime || 'Simples Nacional');
+  const regimeLabel = (ident.regime_tributario_declarado && ident.regime_tributario_declarado.label) || 'Simples Nacional';
+  el('tag-regime') && (el('tag-regime').textContent = regimeLabel);
 
-  // ── ICD
-  const icdPct = n(D.icd_pct);
+  // ── ICD ──
+  const icdPct = n(icd.pct);
   el('icd-bar') && el('icd-bar').style.setProperty('--icd-pct', icdPct+'%');
   set('icd-pct', icdPct + '%');
   const corIcd = icdPct >= 70 ? 'var(--em)' : icdPct >= 50 ? 'var(--am)' : 'var(--rd)';
   if(el('icd-dot')) el('icd-dot').style.background = corIcd;
-  
-  // ICD detalhado — usar arrays da skill OU gerar fallback
-  let icdResp = D.icd_respondidos || [];
-  let icdNResp = D.icd_nao_respondidos || [];
-  
-  // Fallback: se a skill não salvou os arrays, gerar a partir dos dados
-  if(icdResp.length === 0 && icdNResp.length === 0) {
-    const checks = [
-      ['Faturamento mensal', n(D.fat_mensal) > 0],
-      ['Regime tributário', !!D.regime],
-      ['CMV / Custo de produção', n(D.cmv) > 0],
-      ['Meios de recebimento', n(D.taxas) > 0],
-      ['Situação de dívidas', D.emprest !== undefined],
-      ['Dependência do sócio', n(D.ise_dep) > 0],
-      ['Processos documentados', n(D.ise_ges) > 0],
-      ['Gestor autônomo', true],
-      ['Sistema ERP', true],
-      ['Retenção da equipe', true],
-      ['Crescimento histórico', true],
-      ['Folha CLT', n(D.clt_folha) > 0],
-      ['Aluguel', n(D.aluguel) > 0],
-      ['Marketing pago', n(D.mkt) > 0],
-      ['Outros custos fixos', n(D.cf) > 0],
-      ['Pró-labore', n(D.prol) > 0],
-      ['Recorrência de receita', n(D.recorrencia) >= 0 && D.recorrencia !== undefined],
-      ['Clientes ativos', n(D.clientes) > 0],
-      ['Concentração de clientes', n(D.concentracao) >= 0 && D.concentracao !== undefined],
-      ['Marca INPI', n(D.ise_mar) > 0],
-      ['Anos de operação', n(D.anos) > 0],
-    ];
-    icdResp = checks.filter(c => c[1]).map(c => c[0]);
-    icdNResp = checks.filter(c => !c[1]).map(c => c[0]);
-  }
-  
+
+  // ICD detalhado — listas vêm prontas em icd.respondidos[] e icd.nao_respondidos[]
+  // Cada item: {id, label, critico}
+  const icdResp  = icd.respondidos || [];
+  const icdNResp = icd.nao_respondidos || [];
+
   if(el('icd-respondidos') && icdResp.length > 0) {
     let hr = '<div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--em);margin-bottom:8px">✓ Informado ('+icdResp.length+')</div>';
-    icdResp.forEach(k=>{ hr += '<div style="font-size:11px;color:var(--ink3);padding:4px 0;border-bottom:1px solid var(--line)">'+k+'</div>'; });
+    icdResp.forEach(item => {
+      const lbl = (item && item.label) || item || '';
+      hr += '<div style="font-size:11px;color:var(--ink3);padding:4px 0;border-bottom:1px solid var(--line)">'+lbl+'</div>';
+    });
     el('icd-respondidos').innerHTML = hr;
   }
   if(el('icd-nao-respondidos') && icdNResp.length > 0) {
     let hn = '<div style="font-family:DM Mono,monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--am);margin-bottom:8px">~ Não informado — penaliza ICD ('+icdNResp.length+')</div>';
-    icdNResp.forEach(k=>{ hn += '<div style="font-size:11px;color:var(--ink4);padding:4px 0;border-bottom:1px solid var(--line)">'+k+'</div>'; });
+    icdNResp.forEach(item => {
+      const lbl = (item && item.label) || item || '';
+      hn += '<div style="font-size:11px;color:var(--ink4);padding:4px 0;border-bottom:1px solid var(--line)">'+lbl+'</div>';
+    });
     el('icd-nao-respondidos').innerHTML = hn;
   }
 
-  // ── Valor de venda
+  // ── Valor de venda ──
   set('valor-principal', fc(valorVenda));
 
-  // ── Termômetro
-  // Termômetro — sempre mostra 1N + Potencial, expectativa só se informada
+  // ── Termômetro ──
   {
-    const maxVal = expect > 0
-      ? Math.max(valorPot, expect) * 1.15
-      : valorPot * 1.2;
+    const maxVal = expect > 0 ? Math.max(valorPot, expect) * 1.15 : valorPot * 1.2;
 
     if(expect > 0) {
       el('marker-exp').style.left = Math.min(92,Math.max(5,(expect/maxVal)*100))+'%';
       set('leg-exp', fs(expect));
     } else {
-      // Esconder marcador e legenda de expectativa
       const mExp = el('marker-exp');
       if(mExp) mExp.style.display = 'none';
       const legExp = document.querySelector('.legenda-item:first-child');
@@ -991,68 +965,54 @@ O mercado de ${setorLbl} no Brasil ${ise_com>=7?'atravessa momento de expansão,
     }
   }
 
-  // ── Badges
-  set('badge-ro',   fc(ro*12) + '/ano');
+  // ── Badges ──
+  set('badge-ro',   fc(n(dre.ro_anual)) + '/ano');
   set('badge-pl',   fc(pl));
-  set('badge-ise',  ise.total + '/100');
+  set('badge-ise',  Math.round(n(ise_obj.ise_total)) + '/100');
   set('badge-fator','Fator ' + fator.toFixed(2) + 'x');
 
-  // ── 1Sócio
+  // ── 1Sócio (todos os números vêm de potencial_12m.potencial_final) ──
   set('socio-anual',       '+' + fs(ganhoAnual));
   set('socio-mensal',      '+' + fc(ganhoMens) + '/mês');
   set('socio-valorizacao', '+' + fs(valorPot - valorVenda));
   set('socio-pct',         '+' + valoriz.toFixed(0) + '% no valor');
 
-  // ── DRE
+  // ── Renders por bloco ──
   renderDRE();
-
-  // ── Balanço
   renderPL();
-
-  // ── ISE
-  renderISE(ise);
-
-  // ── Fator
+  renderISE();
   renderFator(ro, fator, pl, valorVenda);
-
-  // ── Indicadores
   renderInd();
-
-  // ── Upsides
   renderOport();
-
-  // ── Tributário (preview)
   renderTributario();
 
-  // ── Atratividade
-  const atr = n(D.atr_score) || 5;
-  const atrLbl = atr >= 8 ? 'Alta' : atr >= 6.5 ? 'Boa' : atr >= 5 ? 'Moderada' : 'Baixa';
-  set('atrativ-val', atr.toFixed(1));
-  set('atrativ-label', atrLbl);
-  set('atrativ-nome-negocio', D.nome || '');
-  if(el('atrativ-barra')) setTimeout(()=>{ el('atrativ-barra').style.width = (atr*10)+'%'; }, 200);
-  // Pilares atratividade
-  const pilares = [
-    {n:'ISE — Solidez',        v:n(D.atr_sol), peso:'17%'},
-    {n:'Setor',                v:n(D.atr_set), peso:'17%'},
-    {n:'Recorrência',          v:n(D.atr_rec), peso:'17%'},
-    {n:'Independência',        v:n(D.atr_ind||D.atr_ges), peso:'17%'},
-    {n:'Crescimento',          v:n(D.atr_cre), peso:'17%'},
-    {n:'Margem vs Benchmark',  v:n(D.atr_mar), peso:'15%'},
-  ];
+  // ── Atratividade — 3 componentes (v2) ──
+  const atrTotal = n(atrat.total);                 // 0-100 (?). Skill v2 retorna ~53 pra Padaria
+  const atrScore10 = atrTotal > 10 ? atrTotal / 10 : atrTotal;  // normaliza pra 0-10
+  const atrLabelV2 = atrat.label || (atrScore10 >= 8 ? 'Alta' : atrScore10 >= 6.5 ? 'Boa' : atrScore10 >= 5 ? 'Moderada' : 'Limitada');
+  set('atrativ-val', atrScore10.toFixed(1));
+  set('atrativ-label', atrLabelV2);
+  set('atrativ-nome-negocio', ident.nome || '');
+  if(el('atrativ-barra')) setTimeout(()=>{ el('atrativ-barra').style.width = (atrScore10*10)+'%'; }, 200);
+
+  const componentes = atrat.componentes || [];
   if(el('atrativ-pilares')) {
-    el('atrativ-pilares').innerHTML = pilares.map(pi => {
-      const cor = pi.v>=7?'var(--em)':pi.v>=4?'var(--am)':'var(--rd)';
-      return '<div class="atrativ-pilar"><div class="atrativ-pilar-nome">'+pi.n+' <span style="color:var(--ink4);font-size:8px">('+pi.peso+')</span></div>'
-        +'<div class="atrativ-pilar-bar"><div class="atrativ-pilar-fill" style="width:'+(pi.v*10)+'%;background:'+cor+'"></div></div>'
-        +'<div class="atrativ-pilar-val" style="color:'+cor+'">'+pi.v+'/10</div></div>';
+    el('atrativ-pilares').innerHTML = componentes.map(c => {
+      const v = n(c.score_0_10);
+      const cor = v>=7?'var(--em)':v>=4?'var(--am)':'var(--rd)';
+      const peso = (n(c.peso_pct)).toFixed(0) + '%';
+      return '<div class="atrativ-pilar"><div class="atrativ-pilar-nome">'+(c.label||c.id)+' <span style="color:var(--ink4);font-size:8px">('+peso+')</span></div>'
+        +'<div class="atrativ-pilar-bar"><div class="atrativ-pilar-fill" style="width:'+(v*10)+'%;background:'+cor+'"></div></div>'
+        +'<div class="atrativ-pilar-val" style="color:'+cor+'">'+v.toFixed(1)+'/10</div></div>';
     }).join('');
   }
-  if(el('atrativ-comentario')) el('atrativ-comentario').textContent = 'Índice de atratividade '+atrLbl+' ('+atr.toFixed(1)+'/10). Combina solidez operacional (ISE '+ise.total+'/100), margem de resultado e previsibilidade de receita.';
+  if(el('atrativ-comentario')) {
+    const iseTxt = Math.round(n(ise_obj.ise_total)) + '/100';
+    el('atrativ-comentario').textContent = 'Índice de atratividade '+atrLabelV2+' ('+atrScore10.toFixed(1)+'/10). Combina saúde do negócio (ISE '+iseTxt+'), apelo do setor e momentum de crescimento.';
+  }
 
-  // ── Popups
-  const negId = D.codigo || D.id || '';
-  const waMsg = encodeURIComponent('Olá! Vi o laudo do meu negócio e quero saber mais sobre o 1Sócio.');
+  // ── Popups ──
+  const negId = ident.id || ident.codigo_diagnostico || '';
   const msgSocio = encodeURIComponent('Olá! Acabei de ver o diagnóstico do meu negócio na 1Negócio e quero entender melhor as oportunidades identificadas.');
   if(el('btn-socio'))   el('btn-socio').href = 'https://wa.me/'+WHATSAPP+'?text='+msgSocio;
   if(el('ps-btn-wa'))   el('ps-btn-wa').href = 'https://wa.me/'+WHATSAPP+'?text='+msgSocio;
@@ -1061,88 +1021,132 @@ O mercado de ${setorLbl} no Brasil ${ise_com>=7?'atravessa momento de expansão,
   const stripeUrl = STRIPE_LAUDO + '?client_reference_id=' + negId;
   ['btn-comprar','btn-comprar2','pl-btn-comprar'].forEach(id => { if(el(id)) el(id).onclick = ()=>abrirModalLaudo(stripeUrl); });
   ['btn-modelo','btn-modelo2'].forEach(id => { if(el(id)) el(id).onclick = ()=>window.open('https://1negocio.com.br/modelo-laudo.html','_blank'); });
-  const pubUrl = '/portal-usuario.html?negocio='+negId;
-  // Pré-preencher campos do popup gratuito
-  if(el('pub-codigo')) el('pub-codigo').value = negId || D.codigo || '—';
-  if(el('pub-valor'))  el('pub-valor').value = Math.round(n(D.valor_venda)) || '';
+  if(el('pub-codigo')) el('pub-codigo').value = ident.codigo_diagnostico || negId || '—';
+  if(el('pub-valor'))  el('pub-valor').value = Math.round(valorVenda) || '';
   atualizarIndicador();
-  // Guiado → Stripe
   const stripeGuiado = 'https://buy.stripe.com/7sYdR8elo21aeSRegH5os02';
   if(el('gg-btn-contratar')) {
     el('gg-btn-contratar').href = stripeGuiado + (negId ? '?client_reference_id=' + negId : '');
     el('gg-btn-contratar').target = '_blank';
   }
 
-  // Tudo preenchido — agora sim mostra o conteúdo
   hideLoading();
 }
 
-// ─── DRE ───────────────────────────────────────────────────
+// ─── DRE — paths v2, sem Provisões CLT (decisão Thiago: só no BP) ──
 function renderDRE() {
-  const fat = n(D.fat_mensal);
+  const dre = D.dre || {};
+  const ded = dre.deducoes_receita || dre.bloco_1_receita || {};
+  const pess = dre.pessoal || {};
+  const ocup = dre.ocupacao || {};
+  const opo = dre.operacional_outros || {};
+  const cx = dre.bloco_5_caixa || {};
+  const op = D.operacional || {};
+  const est = dre.dre_estimados || {};
+
+  const fat = n(dre.fat_mensal);
   if(!fat) { el('dre-content') && (el('dre-content').innerHTML = '<p style="color:var(--ink4);font-size:12px;padding:8px 0">Dados financeiros disponíveis no laudo completo.</p>'); return; }
-  const est = D.dre_estimados || {};
+
   const row = (lbl, val, cls, note, estimado) => {
     const pctV = fat > 0 ? p(val,fat).toFixed(1)+'%' : '—';
     const bg = estimado ? ' style="background:rgba(245,158,11,0.08)"' : '';
     const suffix = estimado ? ' <span style="font-size:8px;color:var(--am);background:var(--am-d);padding:1px 5px;border-radius:3px;margin-left:4px">estimado</span>' : '';
     return '<tr class="'+(cls||'')+'"'+bg+'><td>'+(note?'<span style="display:block">'+lbl+suffix+'</span><span style="font-size:9px;color:var(--ink4)">'+note+'</span>':(lbl+suffix))+'</td><td>'+fc(val)+'</td><td>'+fc(val*12)+'</td><td>'+pctV+'</td></tr>';
   };
+
+  // Deduções
+  const impostos_mensal = n(ded.impostos && ded.impostos.mensal);
+  const taxas = n(ded.taxas_recebimento);
+  const comissoes = n(ded.comissoes);
+  const royalty = n(ded.royalty_pct_aplicado);
+  const mkt_franq = n(ded.mkt_franquia_pct_aplicado);
+  const antecipacao = n(ded.antecipacao_recebiveis);
+
   let h = '<table class="dre-table"><thead><tr><th>Item</th><th>Mensal</th><th>Anual</th><th>%</th></tr></thead><tbody>';
   h += row('Faturamento Bruto', fat, 'total-light');
-  h += row('(−) Impostos s/ faturamento', n(D.impostos));
-  if(n(D.taxas))      h += row('(−) Taxas de recebimento', n(D.taxas));
-  if(n(D.comissoes))  h += row('(−) Comissões', n(D.comissoes));
-  if(n(D.royalty))    h += row('(−) Royalties', n(D.royalty));
-  if(n(D.mkt_franq))  h += row('(−) Fundo de propaganda', n(D.mkt_franq));
-  const recLiq = n(D.rec_liq) || (fat - n(D.impostos) - n(D.taxas) - n(D.comissoes) - n(D.royalty) - n(D.mkt_franq));
-  h += row('(=) Receita Líquida', recLiq, 'subtotal');
-  h += row('(−) CMV / Custo de produção', n(D.cmv), '', '', est.cmv);
-  const lb = n(D.lb) || (recLiq - n(D.cmv));
-  h += row('(=) Lucro Bruto', lb, 'subtotal');
-  if(n(D.folha)||n(D.clt_folha)) h += row('(−) Folha ' + (est.folha?'(estimada)':'CLT bruta'), n(D.clt_folha)||n(D.folha), '', '', est.folha);
-  if(n(D.clt_encargos)) h += row('(−) Encargos CLT', n(D.clt_encargos), '', 'Calculado por regime');
-  if(n(D.clt_provisoes))h += row('(−) Provisões CLT', n(D.clt_provisoes), '', 'Férias e 13º');
-  if(n(D.pj_custo))     h += row('(−) Equipe PJ / freela', n(D.pj_custo));
-  if(n(D.aluguel))      h += row('(−) Aluguel', n(D.aluguel), '', '', est.aluguel);
-  if(n(D.facilities))   h += row('(−) Facilities', n(D.facilities));
-  if(n(D.terceirizados))h += row('(−) Terceirizados', n(D.terceirizados));
-  if(n(D.sistemas))     h += row('(−) Sistemas / Softwares', n(D.sistemas));
-  if(n(D.cf))           h += row('(−) Outros custos fixos', n(D.cf), '', '', est.outros_cf);
-  if(n(D.mkt))          h += row('(−) Marketing pago', n(D.mkt));
-  h += row('(=) Resultado Operacional', n(D.ro_mensal), 'total');
+  h += row('(−) Impostos s/ faturamento', impostos_mensal);
+  if(taxas)        h += row('(−) Taxas de recebimento', taxas);
+  if(comissoes)    h += row('(−) Comissões', comissoes);
+  if(royalty)      h += row('(−) Royalties', royalty);
+  if(mkt_franq)    h += row('(−) Fundo de propaganda', mkt_franq);
+  if(antecipacao)  h += row('(−) Antecipação de recebíveis', antecipacao);
+  h += row('(=) Receita Líquida', n(dre.rec_liquida || dre.rec_liquida_mensal), 'subtotal');
+  h += row('(−) CMV / Custo de produção', n(dre.cmv), '', '', est.cmv);
+  h += row('(=) Lucro Bruto', n(dre.lucro_bruto || dre.lucro_bruto_mensal), 'subtotal');
+
+  const cltFolha = n(pess.clt_folha_bruta);
+  if(cltFolha) h += row('(−) Folha ' + (est.folha?'(estimada)':'CLT bruta'), cltFolha, '', '', est.folha);
+  const cltEnc = n(pess.clt_encargos);
+  if(cltEnc) h += row('(−) Encargos CLT', cltEnc, '', 'Calculado por regime');
+  // Provisões CLT NÃO aparecem mais no DRE — agora só no Balanço (decisão Thiago L.7)
+  const pjCusto = n(pess.pj_custo);
+  if(pjCusto) h += row('(−) Equipe PJ / freela', pjCusto);
+  const aluguel = n(ocup.aluguel);
+  if(aluguel) h += row('(−) Aluguel', aluguel, '', '', est.aluguel);
+  const facilities = n(ocup.facilities);
+  if(facilities) h += row('(−) Facilities', facilities);
+  const terceirizados = n(ocup.terceirizados);
+  if(terceirizados) h += row('(−) Terceirizados', terceirizados);
+  const sistemas = n(opo.sistemas);
+  if(sistemas) h += row('(−) Sistemas / Softwares', sistemas);
+  const outrosCf = n(opo.outros_cf);
+  if(outrosCf) h += row('(−) Outros custos fixos', outrosCf, '', '', est.outros_cf);
+  const mktPago = n(opo.mkt_pago);
+  if(mktPago) h += row('(−) Marketing pago', mktPago);
+
+  h += row('(=) Resultado Operacional', n(dre.ro_mensal), 'total');
   h += '<tr><td colspan="4" style="font-size:9px;color:var(--ink4);padding:8px 4px;font-style:italic">— Abaixo: informativo, não entra no valuation —</td></tr>';
-  if(n(D.prol))         h += row('(−) Pró-labore dos sócios', n(D.prol));
-  if(n(D.antecipacao))  h += row('(−) Antecipação de recebíveis', n(D.antecipacao));
-  if(n(D.parcelas))     h += row('(−) Parcelas de dívidas', n(D.parcelas));
-  if(n(D.investimentos))h += row('(−) Investimentos recorrentes', n(D.investimentos));
-  if(n(D.prol)||n(D.parcelas)) h += row('(=) Potencial de caixa', n(D.potencial_caixa), 'subtotal');
+  const prolabore = n(cx.prolabore || op.prolabore_mensal_total);
+  if(prolabore) h += row('(−) Pró-labore dos sócios', prolabore);
+  const parcelas = n(cx.parcelas_dividas);
+  if(parcelas) h += row('(−) Parcelas de dívidas', parcelas);
+  const potCx = n(cx.potencial_caixa_mensal || dre.potencial_caixa_mensal);
+  if(prolabore || parcelas) h += row('(=) Potencial de caixa', potCx, 'subtotal');
   h += '</tbody></table>';
   el('dre-content') && (el('dre-content').innerHTML = h);
 }
 
-// ─── BALANÇO ───────────────────────────────────────────────
+// ─── BALANÇO PATRIMONIAL — paths v2 + "Provisões trabalhistas" (L.7) ──
 function renderPL() {
+  const balanco = D.balanco || {};
+  const at = balanco.ativos || {};
+  const pa = balanco.passivos || {};
+  const provCltVal = n(pa.provisao_clt_calculada && pa.provisao_clt_calculada.valor);
+  const fornVencer = n(pa.fornecedores_a_vencer);
+  const fornAtras = n(pa.fornecedores_atrasados);
+  const impAtras = n(pa.impostos_atrasados_sem_parcelamento);
+  const outrosPas = n(pa.outros_passivos);
+
   let h = '<table class="dre-table"><tbody>';
   h += '<tr class="subtotal"><td colspan="2">ATIVOS</td></tr>';
-  h += '<tr><td>Caixa e equivalentes</td><td style="text-align:right">'+fc(n(D.caixa))+'</td></tr>';
-  h += '<tr><td>Contas a receber</td><td style="text-align:right">'+fc(n(D.receber))+'</td></tr>';
-  h += '<tr><td>Estoque</td><td style="text-align:right">'+fc(n(D.estoque))+'</td></tr>';
-  h += '<tr><td>Equipamentos</td><td style="text-align:right">'+fc(n(D.equip))+'</td></tr>';
-  if(n(D.imovel)) h += '<tr><td>Imóvel</td><td style="text-align:right">'+fc(n(D.imovel))+'</td></tr>';
-  if(n(D.ativo_franquia)) h += '<tr><td>Taxa de franquia</td><td style="text-align:right">'+fc(n(D.ativo_franquia))+'</td></tr>';
-  h += '<tr style="font-weight:600"><td>Total Ativos</td><td style="text-align:right">'+fc(n(D.totAtiv))+'</td></tr>';
+  h += '<tr><td>Caixa e equivalentes</td><td style="text-align:right">'+fc(n(at.caixa))+'</td></tr>';
+  h += '<tr><td>Contas a receber</td><td style="text-align:right">'+fc(n(at.contas_receber))+'</td></tr>';
+  h += '<tr><td>Estoque</td><td style="text-align:right">'+fc(n(at.estoque))+'</td></tr>';
+  h += '<tr><td>Equipamentos</td><td style="text-align:right">'+fc(n(at.equipamentos))+'</td></tr>';
+  if(n(at.imovel)) h += '<tr><td>Imóvel</td><td style="text-align:right">'+fc(n(at.imovel))+'</td></tr>';
+  if(n(at.ativo_franquia)) h += '<tr><td>Taxa de franquia</td><td style="text-align:right">'+fc(n(at.ativo_franquia))+'</td></tr>';
+  if(n(at.outros)) h += '<tr><td>Outros ativos</td><td style="text-align:right">'+fc(n(at.outros))+'</td></tr>';
+  h += '<tr style="font-weight:600"><td>Total Ativos</td><td style="text-align:right">'+fc(n(at.total))+'</td></tr>';
+
   h += '<tr class="subtotal"><td colspan="2">PASSIVOS</td></tr>';
-  h += '<tr><td>Fornecedores</td><td style="text-align:right">'+fc(n(D.forn))+'</td></tr>';
-  if(n(D.emprest)) h += '<tr><td>Dívidas/Saldo devedor</td><td style="text-align:right">'+fc(n(D.emprest))+'</td></tr>';
-  h += '<tr style="font-weight:600"><td>Total Passivos</td><td style="text-align:right">'+fc(n(D.totPass))+'</td></tr>';
-  h += '<tr class="total"><td>Patrimônio Líquido</td><td style="text-align:right">'+fc(n(D.pl))+'</td></tr>';
+  if(fornVencer) h += '<tr><td>Fornecedores a vencer</td><td style="text-align:right">'+fc(fornVencer)+'</td></tr>';
+  if(fornAtras) h += '<tr><td>Fornecedores atrasados</td><td style="text-align:right">'+fc(fornAtras)+'</td></tr>';
+  if(n(pa.saldo_devedor_emprestimos)) h += '<tr><td>Dívidas / Saldo devedor</td><td style="text-align:right">'+fc(n(pa.saldo_devedor_emprestimos))+'</td></tr>';
+  if(impAtras) h += '<tr><td>Impostos atrasados</td><td style="text-align:right">'+fc(impAtras)+'</td></tr>';
+  if(provCltVal) h += '<tr><td>Provisões trabalhistas <span style="font-size:9px;color:var(--ink4)">(férias e 13º)</span></td><td style="text-align:right">'+fc(provCltVal)+'</td></tr>';
+  if(outrosPas) h += '<tr><td>Outros passivos</td><td style="text-align:right">'+fc(outrosPas)+'</td></tr>';
+  h += '<tr style="font-weight:600"><td>Total Passivos</td><td style="text-align:right">'+fc(n(pa.total))+'</td></tr>';
+
+  h += '<tr class="total"><td>Patrimônio Líquido</td><td style="text-align:right">'+fc(n(balanco.patrimonio_liquido))+'</td></tr>';
   h += '</tbody></table>';
   el('pl-content') && (el('pl-content').innerHTML = h);
 }
 
-// ─── ISE ───────────────────────────────────────────────────
-function renderISE(ise) {
+// ─── ISE — 8 pilares iterando calc_json.ise.pilares[] (L.3) ──
+function renderISE() {
+  const iseObj = D.ise || {};
+  const total = Math.round(n(iseObj.ise_total));
+  const classe = iseObj.classe || 'Operacional';
   const clsMap = {
     'Estruturado':'Excelente — compradores disputam, preço protegido',
     'Consolidado':'Sólido — venda em condições normais',
@@ -1150,44 +1154,48 @@ function renderISE(ise) {
     'Dependente':'Dependente — comprador pode exigir garantias',
     'Embrionário':'Em desenvolvimento — venda difícil, processo longo',
   };
-  const cor = ise.total >= 70 ? 'var(--em)' : ise.total >= 50 ? 'var(--am)' : 'var(--rd)';
-  const clsDesc = clsMap[ise.cls] || ise.cls;
-  let h = '<div class="ise-score-wrap"><div class="ise-score" style="color:'+cor+'">'+ise.total+'</div>';
-  h += '<div><div class="ise-class">Classificação</div><div class="ise-class-name" style="color:'+cor+'">'+ise.cls+'</div>';
+  const cor = total >= 70 ? 'var(--em)' : total >= 50 ? 'var(--am)' : 'var(--rd)';
+  const clsDesc = clsMap[classe] || classe;
+
+  let h = '<div class="ise-score-wrap"><div class="ise-score" style="color:'+cor+'">'+total+'</div>';
+  h += '<div><div class="ise-class">Classificação</div><div class="ise-class-name" style="color:'+cor+'">'+classe+'</div>';
   h += '<div style="font-size:11px;color:var(--ink3);margin-top:4px">'+clsDesc+'</div></div></div>';
   h += '<div class="ise-pilares">';
-  const ps = [
-    {n:'Comercial',    v:ise.com},  {n:'Financeiro',   v:ise.fin},
-    {n:'Gestão',       v:ise.ges},  {n:'Independ.',    v:ise.dep},
-    {n:'Concentração', v:ise.conc}, {n:'Escalabilid.', v:ise.esc},
-    {n:'Balanço',      v:ise.bal},  {n:'Marca',        v:ise.mar},
-    {n:'Dívida',       v:ise.div},  {n:'Risco',        v:ise.ris},
-  ];
-  ps.forEach(pi => {
-    const c = pi.v>=7?'green':pi.v>=4?'amber':'red';
-    h += '<div class="ise-pilar"><span class="ise-pilar-name">'+pi.n+'</span>';
-    h += '<div class="ise-pilar-bar"><div class="ise-pilar-fill '+c+'" style="width:'+(pi.v*10)+'%"></div></div>';
-    h += '<span class="ise-pilar-val">'+pi.v+'/10</span></div>';
+
+  const pilares = iseObj.pilares || [];
+  pilares.forEach(p => {
+    const v = n(p.score_0_10);
+    const c = v>=7?'green':v>=4?'amber':'red';
+    const label = p.label || p.id || '';
+    h += '<div class="ise-pilar"><span class="ise-pilar-name">'+label+'</span>';
+    h += '<div class="ise-pilar-bar"><div class="ise-pilar-fill '+c+'" style="width:'+(v*10)+'%"></div></div>';
+    h += '<span class="ise-pilar-val">'+v.toFixed(1)+'/10</span></div>';
   });
   h += '</div>';
   el('ise-content') && (el('ise-content').innerHTML = h);
 }
 
-// ─── FATOR ─────────────────────────────────────────────────
+// ─── FATOR — paths v2 ──
 function renderFator(ro, fator, pl, valorVenda) {
-  const valorOp = n(D.valor_op) || ro * 12 * fator;
-    // RO negativo: mostrar aviso em vez de R$ 0
-      if (ro <= 0) {
-            const roAnualStr = fs(ro*12);
-                const avisoH = '<div style="padding:16px;background:rgba(220,38,38,.08);border:1px solid var(--rd);border-radius:var(--r);color:var(--rd);font-size:13px;line-height:1.6;">'
-                        +'<strong>⚠ Resultado Operacional negativo</strong><br>'
-                              +'RO anual de '+roAnualStr+'. O valor de venda considera o patrimônio líquido e avaliação individual.</div>';
-                                  el('fator-content') && (el('fator-content').innerHTML = avisoH);
-                                      return;
-                }
-    if(!el('fator-content')) return;
+  const val = D.valuation || {};
+  const roAnualV = n(D.dre && D.dre.ro_anual) || ro * 12;
+  // RO negativo: aviso
+  if (ro <= 0) {
+    const avisoH = '<div style="padding:16px;background:rgba(220,38,38,.08);border:1px solid var(--rd);border-radius:var(--r);color:var(--rd);font-size:13px;line-height:1.6;">'
+      +'<strong>⚠ Resultado Operacional negativo</strong><br>'
+      +'RO anual de '+fs(roAnualV)+'. ' + (val.ro_negativo_msg || 'O valor de venda considera o patrimônio líquido e avaliação individual.') + '</div>';
+    el('fator-content') && (el('fator-content').innerHTML = avisoH);
+    return;
+  }
+  if(!el('fator-content')) return;
+
+  const mulBase = n(val.multiplo_base) || fator;
+  const mulSetor = n(val.multiplo_setor && val.multiplo_setor.valor);
+  const mulIse = n(val.fator_ise && val.fator_ise.valor) || 1;
+  const ajusteForma = n(val.ajuste_forma_atuacao && val.ajuste_forma_atuacao.total_ajuste);
+
   const h = '<div class="equacao-visual">'
-    +'<div class="eq-box"><div class="eq-label">RO Anual</div><div class="eq-val">'+fs(ro*12)+'</div></div>'
+    +'<div class="eq-box"><div class="eq-label">RO Anual</div><div class="eq-val">'+fs(roAnualV)+'</div></div>'
     +'<span class="eq-op">×</span>'
     +'<div class="eq-box highlight"><div class="eq-label">Fator 1N</div><div class="eq-val green">'+fator.toFixed(2)+'×</div></div>'
     +'<span class="eq-op">+</span>'
@@ -1195,148 +1203,118 @@ function renderFator(ro, fator, pl, valorVenda) {
     +'<span class="eq-op">=</span>'
     +'<div class="eq-box highlight"><div class="eq-label">Valor de Venda</div><div class="eq-val green">'+fs(valorVenda)+'</div></div>'
     +'</div>'
-    +'<div style="font-size:11px;color:var(--ink3);line-height:1.6;padding:12px;background:var(--bg2);border-radius:var(--r)">O Fator 1N combina o múltiplo base do modelo de negócio ('+(n(D.mul_base)||fator).toFixed(2)+'×), o modificador setorial ('+(n(D.mul_mod)>=0?'+':'')+n(D.mul_mod).toFixed(2)+'×) e o Fator ISE ('+(n(D.mul_ise)||1).toFixed(2)+'×), que reflete a solidez operacional.</div>';
+    +'<div style="font-size:11px;color:var(--ink3);line-height:1.6;padding:12px;background:var(--bg2);border-radius:var(--r)">O Fator 1N combina o múltiplo base do modelo de negócio ('+mulBase.toFixed(2)+'×), o modificador setorial ('+mulSetor.toFixed(2)+'×)' + (ajusteForma!==0 ? ', ajuste por forma de atuação ('+(ajusteForma>=0?'+':'')+ajusteForma.toFixed(2)+'×)' : '') + ' e o Fator ISE ('+mulIse.toFixed(2)+'×), que reflete a solidez operacional.</div>';
   el('fator-content') && (el('fator-content').innerHTML = h);
 }
 
-// ─── INDICADORES ───────────────────────────────────────────
+// ─── INDICADORES — paths v2 (indicadores_vs_benchmark) ──
 function renderInd() {
-  const fat = n(D.fat_mensal), ro = n(D.ro_mensal);
-  const margOp  = fat > 0 ? p(ro, fat) : 0;
-  const rec     = n(D.recorrencia);
-  const conc    = n(D.concentracao);
-  const div     = n(D.emprest);
-  const roAnual = ro * 12;
-  const funcs   = n(D.num_funcs);
-  const clientes= n(D.clientes);
-  const ticket  = n(D.ticket);
-  const cmvPct  = fat > 0 ? p(n(D.cmv), fat) : 0;
-  const bench   = D.bench_ind || {};
+  const ivb = D.indicadores_vs_benchmark || {};
 
-  const inds = [
-    { n:'Margem Operacional',
-      v: margOp.toFixed(1)+'%',
-      st: margOp>=(bench.margem_op||15)?'green':margOp>=8?'amber':'red',
-      desc:'Resultado operacional sobre faturamento. Benchmark do setor: '+(bench.margem_op||15)+'%.' },
-    { n:'Recorrência de receita',
-      v: rec+'%',
-      st: rec>=50?'green':rec>=25?'amber':'red',
-      desc:'Percentual de receita recorrente ou contratual.' },
-    { n:'Concentração de clientes',
-      v: conc > 0 ? conc+'%' : 'Não informado',
-      st: conc<=0?'amber':conc<=15?'green':conc<=30?'amber':'red',
-      desc:'Maior cliente no faturamento total. Acima de 30% é risco alto.' },
-    { n:'Endividamento total',
-      v: div===0?'Zero':fs(div),
-      st: div===0?'green':roAnual>0&&div/roAnual<=1?'amber':'red',
-      desc: roAnual>0 ? 'Dívida representa '+(div/roAnual*100).toFixed(0)+'% do resultado operacional anual.' : 'Total de dívidas bancárias.' },
+  // mapeia status v2 → cor v1
+  const statusCor = (st) => st === 'no_alvo' ? 'green' : st === 'atencao' ? 'amber' : st === 'abaixo' ? 'red' : 'amber';
+  const formatVal = (ind) => {
+    const v = n(ind.valor);
+    if(ind.unidade === '%') return v.toFixed(1) + '%';
+    if(ind.unidade === 'R$') return fc(v);
+    if(ind.unidade === 'dias') return Math.round(v) + ' dias';
+    return String(v);
+  };
+  const descricao = (ind, label) => {
+    const valFmt = formatVal(ind);
+    const benchTxt = (ind.benchmark != null) ? ' Benchmark do setor: ' + (ind.unidade==='%' ? n(ind.benchmark).toFixed(1)+'%' : ind.unidade==='R$' ? fc(ind.benchmark) : ind.benchmark + ' ' + (ind.unidade||'')) + '.' : '';
+    return label + ' = ' + valFmt + '.' + benchTxt;
+  };
+
+  // Construir lista de indicadores que vamos mostrar (na ordem)
+  const definidos = [
+    {key:'margem_operacional', nome:'Margem Operacional'},
+    {key:'recorrencia',        nome:'Recorrência de receita'},
+    {key:'concentracao',       nome:'Concentração de clientes'},
+    {key:'endividamento_vs_ro',nome:'Endividamento vs RO Anual'},
+    {key:'ro_por_funcionario_mensal', nome:'Resultado por colaborador'},
+    {key:'ticket_medio',       nome:'Ticket médio mensal'},
+    {key:'cmv_pct',            nome:'CMV sobre faturamento'},
+    {key:'margem_bruta',       nome:'Margem bruta'},
   ];
 
-  // Adicionar resultado por colaborador se tiver equipe
-  if(funcs > 0) {
-    const rpc = Math.round(ro / funcs);
-    inds.push({
-      n:'Resultado por colaborador',
-      v: fc(rpc)+'/mês',
-      st: rpc >= 1200?'green':rpc>=600?'amber':'red',
-      desc:'Cada colaborador gera '+fc(rpc)+'/mês de resultado operacional.'
-    });
-  }
-
-  // Ticket médio se tiver clientes
-  if(clientes > 0 && ticket > 0) {
-    inds.push({
-      n:'Ticket médio mensal',
-      v: fc(ticket),
-      st: 'green',
-      desc: clientes+' clientes ativos com ticket médio de '+fc(ticket)+'/mês.'
-    });
-  }
-
-  // CMV se relevante
-  if(n(D.cmv) > 0) {
-    const benchCmv = bench.cmv || 40;
-    inds.push({
-      n:'CMV sobre faturamento',
-      v: cmvPct.toFixed(1)+'%',
-      st: cmvPct<=benchCmv?'green':cmvPct<=benchCmv*1.15?'amber':'red',
-      desc:'Custo de produção sobre faturamento. Benchmark: '+benchCmv+'%.'
-    });
-  }
-
   let h = '<div style="display:flex;flex-direction:column;gap:8px">';
-  inds.forEach(ind => {
-    const cor = ind.st==='green'?'var(--em)':ind.st==='amber'?'var(--am)':'var(--rd)';
-    const bg  = ind.st==='green'?'var(--em-d)':ind.st==='amber'?'var(--am-d)':'var(--rd-d)';
-    const lbl = ind.st==='green'?'OK':ind.st==='amber'?'Atenção':'Crítico';
-    h += '<div class="ind-card"><div class="ind-card-header"><span class="ind-card-nome">'+ind.n+'</span><span class="ind-card-valor '+ind.st+'">'+ind.v+'</span></div>';
-    h += '<span class="ind-card-label '+ind.st+'">'+lbl+'</span>';
-    h += '<div class="ind-card-desc">'+ind.desc+'</div></div>';
+  definidos.forEach(d => {
+    const ind = ivb[d.key];
+    if(!ind) return;
+    const v = n(ind.valor);
+    const st = ind.status || 'atencao';
+    const cor = statusCor(st);
+    const lbl = st === 'no_alvo' ? 'OK' : st === 'atencao' ? 'Atenção' : st === 'abaixo' ? 'Crítico' : (st || '');
+    const valExibido = formatVal(ind);
+    h += '<div class="ind-card"><div class="ind-card-header"><span class="ind-card-nome">'+d.nome+'</span><span class="ind-card-valor '+cor+'">'+valExibido+'</span></div>';
+    h += '<span class="ind-card-label '+cor+'">'+lbl+'</span>';
+    h += '<div class="ind-card-desc">'+descricao(ind, d.nome)+'</div></div>';
   });
   h += '</div>';
   el('ind-content') && (el('ind-content').innerHTML = h);
 }
 
-// ─── UPSIDES ───────────────────────────────────────────────
+// ─── UPSIDES — potencial_12m.upsides_ativos[] (com descricao + contribuicao_brl) ──
 function renderOport() {
-  const fat = n(D.fat_mensal);
-  const ro = n(D.ro_mensal);
-  let ops = D.ops || [];
-  // Fallback: se ops vazio, gerar ações básicas a partir dos dados disponíveis
-  if(ops.length === 0) {
-    ops = [];
-    // Tributário — sempre primeiro se há oportunidade
-    const reg = D.analise_regimes;
-    if(reg && reg.tem_oportunidade && reg.economia_mensal > 0) {
-      ops.push({titulo:'Migrar para regime tributário mais eficiente',descricao:'Migração para '+reg.regime_otimo+' pode reduzir a carga tributária em '+fc(reg.economia_mensal)+'/mês ('+fc(reg.economia_anual)+'/ano). Validar com contador.',ganho:reg.economia_mensal,ganho_label:'+'+fc(reg.economia_mensal)+'/mês'});
-    }
-    // Ações calculáveis com base nos dados disponíveis
-    if(n(D.recorrencia) < 30) ops.push({titulo:'Converter clientes avulsos em recorrentes',descricao:'Recorrência atual de '+n(D.recorrencia)+'%. Estruturar planos mensais pode adicionar '+fc(Math.round(fat*0.10))+'/mês de receita previsível.',ganho:Math.round(fat*0.10),ganho_label:'+'+fc(Math.round(fat*0.10))+'/mês'});
-    ops.push({titulo:'Expandir base de clientes ativos',descricao:'Crescer 20% em clientes mantendo ticket médio atual via outreach estruturado.',ganho:Math.round(ro*0.20),ganho_label:'+'+fc(Math.round(ro*0.20))+'/mês'});
-    ops.push({titulo:'Estruturar funil de upsell para base atual',descricao:'Oferecer produtos ou serviços complementares à base existente. Crescimento de receita sem custo de aquisição.',ganho:Math.round(fat*0.07),ganho_label:'+'+fc(Math.round(fat*0.07))+'/mês'});
-    if(n(D.ise_ges) <= 5) ops.push({titulo:'Reduzir dependência do sócio-fundador',descricao:'Designar gestor autônomo para operação. Eleva ISE e melhora o Fator 1N diretamente.',ganho:0,ganho_label:'+Fator 1N'});
-    ops.push({titulo:'Criar programa de indicações com remuneração',descricao:'Canal de aquisição de baixo custo. Clientes indicados têm LTV 20-30% maior.',ganho:Math.round(fat*0.05),ganho_label:'+'+fc(Math.round(fat*0.05))+'/mês'});
-    ops.sort((a,b) => (b.ganho||0) - (a.ganho||0));
-  }
+  const pot = D.potencial_12m || {};
+  // ordenar por contribuicao_brl desc (maior primeiro)
+  const ops = (pot.upsides_ativos || []).slice().sort((a,b) => n(b.contribuicao_brl) - n(a.contribuicao_brl));
   const total = ops.length;
   let h = '';
+
   for(let i = 0; i < Math.min(3, total); i++) {
     const u = ops[i];
-    const gt = u.ganho > 0 ? '+'+fc(u.ganho)+'/mês' : (u.ganho_label || '+impacto');
-    h += '<div class="oport-card"><div class="oport-header"><div class="oport-num">'+(i+1)+'</div><div class="oport-name">'+u.titulo+'</div></div>';
-    h += '<div class="oport-desc">'+u.descricao+'</div><div class="oport-ganho">'+gt+'</div></div>';
+    const ganhoAnualU = n(u.contribuicao_brl);
+    const gt = ganhoAnualU > 0 ? '+'+fc(Math.round(ganhoAnualU/12))+'/mês' : '+impacto no múltiplo';
+    const titulo = u.label || u.id || '';
+    const desc = u.descricao || '';
+    h += '<div class="oport-card"><div class="oport-header"><div class="oport-num">'+(i+1)+'</div><div class="oport-name">'+titulo+'</div></div>';
+    h += '<div class="oport-desc">'+desc+'</div><div class="oport-ganho">'+gt+'</div></div>';
   }
   if(total > 3) {
-    let ganhoRest = 0;
-    for(let i = 3; i < total; i++) ganhoRest += n(ops[i].ganho);
-    const ganhoAnual = ganhoRest * 12;
-    const ganhoTotal = ops.reduce((s,o)=>s+n(o.ganho),0);
+    let ganhoRestAnual = 0;
+    for(let i = 3; i < total; i++) ganhoRestAnual += n(ops[i].contribuicao_brl);
     const txt = '<span style="font-size:12px;font-weight:600;color:var(--ink)">+ '+(total-3)+' ações identificadas</span>'
-      + (ganhoRest > 0 ? ' <span style="color:var(--ink3)">que combinadas podem totalizar</span> <strong style="color:var(--em)">+'+fc(ganhoAnual)+' ganho/ano</strong>' : '')
+      + (ganhoRestAnual > 0 ? ' <span style="color:var(--ink3)">que combinadas podem totalizar</span> <strong style="color:var(--em)">+'+fc(ganhoRestAnual)+' ganho/ano</strong>' : '')
       + ' <span style="font-size:11px;color:var(--ink4)">— disponíveis no laudo completo R$99</span>';
     h += '<div class="oport-mais" style="cursor:pointer;border:1px dashed var(--em-l);border-radius:var(--r);padding:12px 16px;margin-top:8px;text-align:center">'+txt+'</div>';
   }
   el('oport-content') && (el('oport-content').innerHTML = h);
 }
 
-// ─── TRIBUTÁRIO (bloco próprio) ──────────────────────────────────
+// ─── TRIBUTÁRIO — paths v2 (analise_tributaria.comparativo_regimes) ──
 function renderTributario() {
-  const reg = D.analise_regimes;
-  if(!reg || !reg.regimes || !reg.regimes.length) return;
+  const at = D.analise_tributaria;
+  if(!at || !at.comparativo_regimes || !at.comparativo_regimes.length) return;
   const tribContent = el('trib-content');
   const tribBadge = el('badge-trib');
   if(!tribContent) return;
 
+  const eco = at.economia_potencial || {};
+  const economiaAnual = n(eco.economia_anual);
+  const economiaMensal = Math.round(economiaAnual / 12);
+  const temOportunidade = !!at.gera_upside_obrigatorio || economiaAnual > 0;
+  const regimeAtualSlug = at.regime_declarado;
+  const regimeOtimoSlug = at.regime_otimo_calculado;
+
+  // labels legíveis
+  const REGIME_LABEL = { mei:'MEI', simples:'Simples Nacional', presumido:'Lucro Presumido', real:'Lucro Real' };
+
   // Badge
   if(tribBadge) {
-    if(reg.tem_oportunidade && reg.economia_mensal > 0) {
-      tribBadge.textContent = '+'+fc(reg.economia_mensal)+'/mês';
+    if(temOportunidade && economiaMensal > 0) {
+      tribBadge.textContent = '+'+fc(economiaMensal)+'/mês';
     } else {
       tribBadge.textContent = 'Otimizado';
       tribBadge.style.color = 'var(--em)';
       tribBadge.style.background = 'var(--em-d)';
     }
   }
+
+  // Imposto mensal do regime atual (pra calcular economia por linha)
+  const regAtualRow = at.comparativo_regimes.find(r => r.regime === regimeAtualSlug);
+  const impostoAtualMensal = regAtualRow && regAtualRow.elegivel ? n(regAtualRow.imposto_anual)/12 : 0;
 
   let tabela = '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:10px">';
   tabela += '<thead><tr style="border-bottom:1px solid var(--line2)">';
@@ -1346,44 +1324,46 @@ function renderTributario() {
   tabela += '<th style="text-align:right;padding:6px 4px;font-family:DM Mono,monospace;font-size:8px;letter-spacing:.08em;color:var(--ink4)">Economia/ano</th>';
   tabela += '</tr></thead><tbody>';
 
-  reg.regimes.forEach(function(r) {
-    const isAtual = r.regime.toLowerCase().replace(/ /g,'_') === (reg.regime_atual||'').toLowerCase().replace(/ /g,'_')
-      || (reg.regime_atual==='simples' && r.regime==='Simples Nacional')
-      || (reg.regime_atual==='lucro_presumido' && r.regime==='Lucro Presumido')
-      || (reg.regime_atual==='lucro_real' && r.regime==='Lucro Real')
-      || (reg.regime_atual==='mei' && r.regime==='MEI');
-    const isOtimo = r.regime === reg.regime_otimo;
+  at.comparativo_regimes.forEach(function(r) {
+    const isAtual = r.regime === regimeAtualSlug;
+    const isOtimo = r.regime === regimeOtimoSlug;
     const cor = isOtimo ? 'var(--em)' : isAtual ? 'var(--ink)' : 'var(--ink3)';
-    const eco = r.elegivel && !isAtual && reg.imposto_atual_mensal > 0
-      ? fc((reg.imposto_atual_mensal - r.imposto_mensal)*12)
+    const impMensal = n(r.imposto_anual) / 12;
+    const economiaR = (r.elegivel && !isAtual && impostoAtualMensal > 0)
+      ? fc((impostoAtualMensal - impMensal) * 12)
       : '—';
     const rotulos = (isAtual ? ' <span style="font-size:8px;background:var(--bg3);color:var(--ink4);padding:1px 5px;border-radius:3px">atual</span>' : '')
       + (isOtimo && !isAtual ? ' <span style="font-size:8px;background:var(--em-d);color:var(--em);padding:1px 5px;border-radius:3px">★ ótimo</span>' : '');
+    const regimeLbl = REGIME_LABEL[r.regime] || r.regime;
     tabela += '<tr style="border-bottom:1px solid var(--line)">';
-    tabela += '<td style="padding:7px 4px;color:'+cor+';font-weight:'+(isAtual||isOtimo?'600':'400')+'">'+(r.regime||'—')+rotulos+'</td>';
-    tabela += '<td style="text-align:right;padding:7px 4px;color:'+cor+'">'+(r.elegivel?fc(r.imposto_mensal):'<span style="color:var(--ink4)">Inelegível</span>')+'</td>';
-    tabela += '<td style="text-align:right;padding:7px 4px;color:'+cor+'">'+(r.elegivel?(n(r.pct).toFixed(1)+'%'):'—')+'</td>';
-    tabela += '<td style="text-align:right;padding:7px 4px;color:'+(isOtimo&&!isAtual?'var(--em)':'var(--ink4)')+';font-weight:'+(isOtimo&&!isAtual?'600':'400')+'">'+eco+'</td>';
+    tabela += '<td style="padding:7px 4px;color:'+cor+';font-weight:'+(isAtual||isOtimo?'600':'400')+'">'+regimeLbl+rotulos+'</td>';
+    tabela += '<td style="text-align:right;padding:7px 4px;color:'+cor+'">'+(r.elegivel?fc(impMensal):'<span style="color:var(--ink4)">Inelegível</span>')+'</td>';
+    tabela += '<td style="text-align:right;padding:7px 4px;color:'+cor+'">'+(r.elegivel?(n(r.aliquota_efetiva_pct).toFixed(1)+'%'):'—')+'</td>';
+    tabela += '<td style="text-align:right;padding:7px 4px;color:'+(isOtimo&&!isAtual?'var(--em)':'var(--ink4)')+';font-weight:'+(isOtimo&&!isAtual?'600':'400')+'">'+economiaR+'</td>';
     tabela += '</tr>';
   });
   tabela += '</tbody></table>';
 
-  const regAtualObj = reg.regimes ? reg.regimes.find(r => r.regime === reg.regime_atual || (reg.regime_atual==='simples'&&r.regime==='Simples Nacional') || (reg.regime_atual==='lucro_presumido'&&r.regime==='Lucro Presumido') || (reg.regime_atual==='lucro_real'&&r.regime==='Lucro Real') || (reg.regime_atual==='mei'&&r.regime==='MEI')) : null;
-  const regAtualInelegivel = regAtualObj && regAtualObj.elegivel === false;
+  const regAtualInelegivel = at.alerta_inelegibilidade && at.alerta_inelegibilidade.regime === regimeAtualSlug;
 
   let nota = '';
+  const regimeOtimoLbl = REGIME_LABEL[regimeOtimoSlug] || regimeOtimoSlug;
   if(regAtualInelegivel) {
-    nota = '<div style="margin-top:12px;padding:12px 16px;background:var(--red-d,#fff1f1);border-radius:var(--r);border-left:4px solid var(--red,#f87171)">'
-      + '<div style="font-size:13px;font-weight:700;color:var(--red,#dc2626);margin-bottom:6px">⚠️ Alerta: regime atual inelegível</div>'
-      + '<div style="font-size:12px;color:var(--ink2,#333);margin-bottom:8px">Seu negócio <strong>não se enquadra mais</strong> no '+reg.regime_atual+' — possivelmente por ultrapassar o limite de faturamento. Isso pode gerar <strong>autuações fiscais e multas retroativas</strong>.</div>'
-      + '<div style="font-size:12px;color:var(--ink2,#333);margin-bottom:8px">Regime recomendado: <strong style="color:var(--em)">'+reg.regime_otimo+'</strong> — imposto de '+fc(reg.imposto_atual_mensal > 0 ? reg.imposto_atual_mensal : (reg.regimes.find(r=>r.regime===reg.regime_otimo)||{}).imposto_mensal||0)+'/mês ('+((reg.regimes.find(r=>r.regime===reg.regime_otimo)||{}).pct||0).toFixed(1)+'% do faturamento).</div>'
-      + (reg.economia_mensal > 0 ? '<div style="font-size:12px;font-weight:600;color:var(--em);margin-bottom:8px">Economia estimada com a regularização: '+fc(reg.economia_mensal)+'/mês · '+fc(reg.economia_anual)+'/ano</div>' : '')
+    const motivo = at.alerta_inelegibilidade.motivo || '';
+    const regOtimoRow = at.comparativo_regimes.find(r => r.regime === regimeOtimoSlug) || {};
+    const impOtimoMensal = Math.round(n(regOtimoRow.imposto_anual) / 12);
+    const aliqOtimo = n(regOtimoRow.aliquota_efetiva_pct);
+    nota = '<div style="margin-top:12px;padding:12px 16px;background:var(--rd-d);border-radius:var(--r);border-left:4px solid var(--rd)">'
+      + '<div style="font-size:13px;font-weight:700;color:var(--rd);margin-bottom:6px">⚠️ Alerta: regime atual inelegível</div>'
+      + '<div style="font-size:12px;color:var(--ink2);margin-bottom:8px">'+motivo+'. Isso pode gerar <strong>autuações fiscais e multas retroativas</strong>.</div>'
+      + '<div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Regime recomendado: <strong style="color:var(--em)">'+regimeOtimoLbl+'</strong> — imposto de '+fc(impOtimoMensal)+'/mês ('+aliqOtimo.toFixed(1)+'% do faturamento).</div>'
+      + (economiaAnual > 0 ? '<div style="font-size:12px;font-weight:600;color:var(--em);margin-bottom:8px">Economia estimada com a regularização: '+fc(economiaMensal)+'/mês · '+fc(economiaAnual)+'/ano</div>' : '')
       + '<div style="font-size:11px;color:var(--ink4);border-top:1px solid var(--line);padding-top:8px;margin-top:4px">Esta análise é indicativa. Recomendamos validar com um consultor 1Negócio.</div>'
       + '</div>';
-  } else if(reg.tem_oportunidade) {
+  } else if(temOportunidade) {
     nota = '<div style="margin-top:12px;padding:10px 14px;background:var(--am-d);border-radius:var(--r);border-left:3px solid var(--am)">'
-      + '<div style="font-size:12px;font-weight:600;color:var(--am);margin-bottom:3px">Economia potencial: '+fc(reg.economia_mensal)+'/mês · '+fc(reg.economia_anual)+'/ano</div>'
-      + '<div style="font-size:11px;color:var(--ink3);margin-bottom:6px">Migração para <strong>'+reg.regime_otimo+'</strong> pode reduzir a carga tributária.</div>'
+      + '<div style="font-size:12px;font-weight:600;color:var(--am);margin-bottom:3px">Economia potencial: '+fc(economiaMensal)+'/mês · '+fc(economiaAnual)+'/ano</div>'
+      + '<div style="font-size:11px;color:var(--ink3);margin-bottom:6px">Migração para <strong>'+regimeOtimoLbl+'</strong> pode reduzir a carga tributária.</div>'
       + '<div style="font-size:11px;color:var(--ink4)">Esta análise é indicativa. Recomendamos validar com um consultor 1Negócio.</div>'
       + '</div>';
   } else {
@@ -1407,53 +1387,9 @@ function showAguardando() {
 
 // ─── INIT ─────────────────────────────────────────────────
 let D = {};
-// ─── DADOS DEMO ──────────────────────────────────────────────────
-const DEMO_DATA = {
-  id:'demo',nome:'Restaurante Bella Cucina',setor:'alimentacao',setor_raw:'Alimentação',setor_code:'alimentacao',
-  cidade:'Curitiba',estado:'PR',anos:8,regime:'Simples Nacional',codigo:'DEMO-2026',
-  data_avaliacao:'11/04/2026',modelo_atuacao_multi:['presta_servico'],modelo_code:'presta_servico',
-  fat_mensal:120000,dre_estimados:{cmv:false,folha:false,aluguel:false,outros_cf:false},
-  impostos:9600,taxas:3600,comissoes:0,royalty:0,mkt_franq:0,
-  rec_liq:106800,cmv:42000,lb:64800,
-  clt_folha:28000,clt_encargos:2240,clt_provisoes:6480,pj_custo:0,
-  folha:36720,aluguel:8500,facilities:1200,terceirizados:0,sistemas:800,cf:2400,mkt:3600,
-  ro_mensal:11580,ro_anual:138960,prol:12000,antecipacao:0,parcelas:2800,investimentos:0,
-  potencial_caixa:-3220,margem_pct:9.65,
-  caixa:45000,receber:18000,estoque:32000,equip:85000,imovel:0,ativo_franquia:0,
-  totAtiv:180000,forn:22000,emprest:38000,totPass:60000,pl:120000,
-  ise_total:64,ise_class:'Operacional',ise_dep:5,ise_com:7,ise_fin:5,ise_ges:5,
-  ise_mar:4,ise_bal:6,ise_div:7,ise_ris:8,ise_conc:8,ise_esc:7,
-  fator:1.71,mul_base:3.5,mul_mod:0,mul_ise:1.0,mul_range:'3.0–5.0×',mul_ise_nome:'Operacional',
-  valor_op:237318,valor_venda:357318,
-  atr_score:6.2,atr_lbl:'Boa',atr_sol:6.4,atr_set:6,atr_rec:7,atr_ind:5,atr_cre:4,atr_mar:6,
-  num_funcs:10,clientes:320,ticket:375,recorrencia:35,concentracao:8,processos:'parcial',
-  icd_pct:72,
-  icd_respondidos:['Faturamento mensal','Regime tributário','CMV / Custo de produção','Meios de recebimento','Folha CLT','Aluguel','Pró-labore','Recorrência de receita','Clientes ativos','Concentração de clientes','Marca INPI','Anos de operação','Dependência do sócio','Processos documentados','Crescimento histórico'],
-  icd_nao_respondidos:['Situação de dívidas','Marketing pago','Outros custos fixos','Gestor autônomo'],
-  ops:[
-    {titulo:'Migrar para Lucro Presumido',descricao:'Faturamento acima de R$720k/ano pode tornar o Lucro Presumido mais eficiente. Validar com contador.',ganho:2100,ganho_label:'+R$ 2.100/mês',tipo:'tributario'},
-    {titulo:'Reduzir dependência do sócio-fundador',descricao:'Designar um gerente operacional autônomo pode elevar o ISE em 8+ pontos e melhorar o Fator 1N.',ganho:0,ganho_label:'+Fator 1N',tipo:'calculada'},
-    {titulo:'Expandir canal de delivery',descricao:'Estruturar delivery próprio ou ampliar parceria com iFood/Rappi. Canal de baixo custo fixo com alto potencial.',ganho:12000,ganho_label:'+R$ 12.000/mês',tipo:'fixa'},
-    {titulo:'Criar menu executivo / happy hour',descricao:'Operação em horários ociosos com equipe existente. Incremento sem custo fixo adicional.',ganho:7200,ganho_label:'+R$ 7.200/mês',tipo:'fixa'},
-    {titulo:'Converter clientes avulsos em recorrentes',descricao:'Estruturar planos de fidelidade e contratos corporativos. Recorrência atual de 35%.',ganho:12000,ganho_label:'+R$ 12.000/mês',tipo:'calculada'},
-  ],
-  total_ops:33300,
-  analise_regimes:{
-    regime_atual:'simples',regime_atual_label:'Simples Nacional',
-    imposto_atual_mensal:9600,imposto_atual_pct:8.0,
-    regimes:[
-      {regime:'MEI',elegivel:false,motivo:'Faturamento acima de R$ 81k/ano',imposto_mensal:0,pct:0},
-      {regime:'Simples Nacional',elegivel:true,imposto_mensal:9600,pct:8.0,detalhes:'Anexo I — 8.0%'},
-      {regime:'Lucro Presumido',elegivel:true,imposto_mensal:7500,pct:6.25,detalhes:'PIS/COFINS 3,65% + IRPJ/CSLL s/ base 8%'},
-      {regime:'Lucro Real',elegivel:true,imposto_mensal:11100,pct:9.25,detalhes:'PIS/COFINS 9,25% s/ fat'},
-    ],
-    regime_otimo:'Lucro Presumido',economia_mensal:2100,economia_anual:25200,tem_oportunidade:true,
-  },
-  bench_dre:{imp:8,tax:3,com:4,cmv:35,fol:22,alu:8,cf:6,ro:18,marg:18},
-  bench_ind:{margem_op:18,folha_pct:22,aluguel_pct:8,conc_max:15},
-  expectativa_val:280000,
-  descricao:'Restaurante italiano consolidado com 8 anos de operação no bairro Batel, Curitiba.',
-};
+// ─── MODO DEMO desabilitado nesta versão (laudo-completo lê só calc_json v2 real) ──
+// Pra reativar, popular DEMO_DATA com estrutura calc_json v2 (dre, balanco, ise, valuation, etc.)
+const DEMO_DATA = null;
 
 async function init() {
   animateLoading();
@@ -1461,11 +1397,10 @@ async function init() {
   const codigo = params.get('c') || params.get('slug');
   const id     = params.get('id');
 
-  // Modo demo
+  // Modo demo desabilitado nesta versão (calc_json v2 only)
   if(params.get('demo') === 'true' || id === 'demo') {
-    D = DEMO_DATA;
-    console.log('[LAUDO-COMPLETO] modo demo');
-    renderLaudo();
+    console.warn('[LAUDO-COMPLETO] modo demo desabilitado — laudo lê só calc_json v2 real.');
+    showAguardando();
     return;
   }
 
@@ -1488,21 +1423,20 @@ async function init() {
   }
   if(!negocioId) { showErro(codigo, id); return; }
 
-  // Buscar calc_json (com retry — skill pode ainda estar salvando)
+  // Buscar calc_json v2 (com retry — skill pode ainda estar salvando)
   for (let tentativa = 0; tentativa < 3; tentativa++) {
     try {
-      const r = await fetch(SUPABASE_URL+'/rest/v1/laudos_completos?slug=eq.'+negocioId+'&select=calc_json', {headers:H});
+      const r = await fetch(SUPABASE_URL+'/rest/v1/laudos_v2?negocio_id=eq.'+negocioId+'&ativo=eq.true&select=calc_json&limit=1', {headers:H});
       const data = await r.json();
-      if(data && data.length > 0 && data[0].calc_json && n(data[0].calc_json.fat_mensal) > 0) {
+      if(data && data.length > 0 && data[0].calc_json && n(data[0].calc_json.dre && data[0].calc_json.dre.fat_mensal) > 0) {
         D = data[0].calc_json;
-        console.log('[LAUDO-COMPLETO] calc_json encontrado na tentativa', tentativa+1);
+        console.log('[LAUDO-COMPLETO] calc_json v2 encontrado na tentativa', tentativa+1);
         renderLaudo();
         return;
       }
-    } catch(e) { console.error('Erro ao buscar calc_json:', e); }
-    // Espera 1.5s antes de tentar de novo (skill pode estar salvando)
+    } catch(e) { console.error('Erro ao buscar calc_json v2:', e); }
     if (tentativa < 2) {
-      console.log('[LAUDO-COMPLETO] calc_json não encontrado, aguardando... tentativa', tentativa+1);
+      console.log('[LAUDO-COMPLETO] calc_json v2 não encontrado, aguardando... tentativa', tentativa+1);
       await new Promise(r => setTimeout(r, 1500));
     }
   }
