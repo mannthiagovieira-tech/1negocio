@@ -212,3 +212,5 @@ Estimativa pra fechar v2 completa: 15-20h focadas adicionais.
 - DEMO_DATA hardcoded inline nos arquivos de laudo (laudo-admin.html e laudo-pago.html). Cada arquivo tem ~600+ linhas de DEMO_DATA. Em futuro, mover pra arquivo separado tipo demo-data.js importado pelos laudos. Não bloqueia, é polimento.
 
 - chartProgressao SVG no laudo-pago tem cores hardcoded que não adaptam totalmente ao tema dark. Polimento futuro. Documentado no commit 92c451a.
+
+- Breakdown detalhado dos upsides nos cards (laudo-pago e laudo-admin). Hoje cards mostram apenas o ganho no valor de venda. Caminho A (skill expor breakdown por categoria) registrado em relatorios/2026-04-29-pendencia-breakdown-upsides.md. Custo: 4.5-5.5h. Atacar pós-Fase 3.
