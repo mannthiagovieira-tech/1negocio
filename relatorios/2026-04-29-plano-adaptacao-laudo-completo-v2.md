@@ -3,6 +3,8 @@
 **Data:** 29/04/2026
 **Princípio:** laudo é PURO RENDERIZADOR. Tudo vem pronto da v2.
 
+**Princípio v2 ganha:** quando v2 e v1 divergem em estrutura ou conceito, a v2 vence. Adaptações retrocedem v2 pra parecer com v1 são proibidas.
+
 ---
 
 ## DECISÕES DE PRODUTO REGISTRADAS
@@ -14,6 +16,8 @@
 | DRE | Mostrar completo, incluindo Antecipação, Parcelas, Investimentos, flags `dre_estimados`. |
 | Balanço Patrimonial | Mostrar completo. |
 | Stats plataforma | Hardcode segue. Decisão depois. |
+| Provisões trabalhistas | SÓ no Balanço Patrimonial. Label "Provisões trabalhistas". Não aparece no DRE. |
+| Endividamento | Skill v2 calcula `endividamento_pct = saldo_devedor / ro_anual` e expõe como indicador. |
 | Princípio | ZERO cálculo na hora no laudo. |
 
 ---
@@ -69,6 +73,35 @@ Adicionar à `calc_json.dre`:
 A skill v2 já decide internamente quando usa benchmark vs valor declarado; só precisa expor essa info.
 
 **Prioridade:** P0 (Thiago quer mostrar rótulo "estimado" no laudo).
+
+---
+
+### S2.4 — Calcular indicador de endividamento
+**AMB.3 resolvido. Decisão Thiago: skill v2 calcula.**
+
+Adicionar à `calc_json.indicadores_vs_benchmark` novo item:
+
+```json
+"endividamento_vs_ro": {
+  "id": "endividamento_vs_ro",
+  "label": "Endividamento vs RO Anual",
+  "valor": <saldo_devedor_emprestimos / ro_anual>,
+  "valor_formatado": "<X>%",
+  "benchmark_no_alvo_max": 1.0,
+  "benchmark_atencao_max": 2.0,
+  "status": "no_alvo" | "atencao" | "abaixo",
+  "sentido": "menor_melhor",
+  "regra_aplicada": "endividamento sobre RO anual"
+}
+```
+
+Inputs:
+- `balanco.passivos.saldo_devedor_emprestimos`
+- `dre.ro_anual` (ou `valuation.ro_anual`)
+
+**Trabalho:** adicionar cálculo na skill v2, expor no calc_json.
+
+**Prioridade:** P0.
 
 ---
 
@@ -134,10 +167,10 @@ Lista consolidada vinda do cruzamento (relatorios/2026-04-29-cruzamento-laudo-x-
 | `D.comissoes` | `dre.deducoes_receita.comissoes` |
 | `D.royalty` | derivar de `dre.deducoes_receita.royalty_pct_aplicado × fat` |
 | `D.mkt_franq` | derivar de `dre.deducoes_receita.mkt_franquia_pct_aplicado × fat` |
-| `D.cmv` | (ver AMB.1) |
+| `D.cmv` | `dre.cmv` (AMB.1 resolvido — sem `_mensal` no nome) |
 | `D.clt_folha` | `dre.pessoal.clt_folha_bruta` |
 | `D.clt_encargos` | `dre.pessoal.clt_encargos` |
-| `D.clt_provisoes` | (ver AMB.2) |
+| `D.clt_provisoes` | **NÃO renderizar no DRE.** Mover pra BP como "Provisões trabalhistas" via `balanco.passivos.provisao_clt_calculada.valor` (AMB.2 — decisão Thiago) |
 | `D.pj_custo` | `dre.pessoal.pj_custo` |
 | `D.folha` | `dre.pessoal.folha_total` |
 | `D.aluguel` | `dre.ocupacao.aluguel` |
@@ -216,7 +249,7 @@ Lista consolidada vinda do cruzamento (relatorios/2026-04-29-cruzamento-laudo-x-
 | `D.clientes` | `indicadores_vs_benchmark.num_clientes.valor` |
 | `D.bench_ind.*` | cada indicador já traz `benchmark` embutido |
 | (status `green/amber/red`) | mapear `no_alvo→green`, `atencao→amber`, `abaixo→red` |
-| Endividamento total | (ver AMB.3) |
+| Endividamento total (calc inline em v1: `D.emprest / D.ro_anual`) | `indicadores_vs_benchmark.endividamento_vs_ro` (AMB.3 — calculado por S2.4) |
 | Resultado por colaborador | `indicadores_vs_benchmark.ro_por_funcionario_mensal.valor` |
 | CMV % | `indicadores_vs_benchmark.cmv_pct.valor` |
 
@@ -325,6 +358,19 @@ Resultado: o laudo deixa de fazer 2 fetches em `negocios` (resolver código → 
 
 ---
 
+### L.7 — Mover provisões trabalhistas do DRE pro BP
+**AMB.2 resolvido. Decisão Thiago: provisões só no BP.**
+
+No DRE atual do laudo v1 (linha 1105): existe a linha "Provisões CLT — Férias e 13º" na seção mensal. **REMOVER essa linha do DRE renderizado.**
+
+No BP: garantir que renderiza `balanco.passivos.provisao_clt_calculada.valor` com label "Provisões trabalhistas".
+
+**Justificativa semântica:** v2 trata provisão CLT como passivo total acumulado (férias + 13º a pagar — fórmula `clt_folha × 0.13 × 6 × fator_encargo`), não como despesa mensal corrente. Conceitualmente pertence ao Balanço, não ao DRE.
+
+**Prioridade:** P0.
+
+---
+
 ## TRABALHO EM PARÂMETROS / OUTRAS TABELAS
 
 ### P.1 — Stats da plataforma
@@ -353,36 +399,19 @@ Decisão futura: mover pra `parametros_versoes` ou tabela própria.
 
 ---
 
-## ITENS AMBÍGUOS A INVESTIGAR ANTES DA ADAPTAÇÃO
+## ITENS AMBÍGUOS — RESOLVIDOS EM 29/04/2026
 
-### AMB.1 — CMV mensal
+### AMB.1 — CMV mensal ✅ RESOLVIDO
+Path correto: `dre.cmv` (sem `_mensal` no nome). É mensal por convenção da v2 (confirmado contra Stuido Fit: `rec_liquida_mensal - cmv = lucro_bruto_mensal`).
+Aplicado em L.2.
 
-V1 usa `D.cmv` (linha 1100, 1213, etc.). V2 não tem `dre.cmv_mensal` claro nas top-keys que listei (`fat_mensal`, `fat_anual`, `deducoes_receita`, `pessoal`, `ocupacao`, `operacional_outros`, `lucro_bruto`, `lucro_bruto_mensal`, `lucro_liquido_mensal`, `margem_operacional_pct`, `potencial_caixa_mensal`, `rec_liquida`, `rec_liquida_mensal`, `ro_anual`, `ro_mensal`, `folha_total`).
+### AMB.2 — Provisões trabalhistas ✅ RESOLVIDO
+Decisão Thiago: provisões só no BP, label "Provisões trabalhistas". V2 ganha — provisão é passivo acumulado (não despesa mensal), conceito v2 fica.
+Aplicado em L.2 e L.7.
 
-**Trabalho:** verificar se está em outro caminho (`dre.cmv` direto? ou derivado de `rec_liquida_mensal - lucro_bruto_mensal`?). Olhar dump completo do calc_json do Stuido Fit.
-
----
-
-### AMB.2 — Provisões CLT
-
-V1: `D.clt_provisoes` (campo flat).
-V2: `balanco.passivos.provisao_clt_calculada` é objeto `{valor, formula, regime_referencia, fator_encargo_aplicado}`.
-
-**Trabalho:** confirmar que `balanco.passivos.provisao_clt_calculada.valor` é o número que o laudo v1 espera ler. Ajustar leitura no laudo.
-
----
-
-### AMB.3 — Endividamento como indicador
-
-V1: calcula `D.emprest / D.ro_anual` ao vivo (linha 1232) e mostra como indicador chave.
-V2: não tem indicador dedicado em `indicadores_vs_benchmark`.
-
-**Decisão necessária:**
-- (a) skill v2 calcula novo indicador `endividamento_vs_ro_anual` e expõe em `indicadores_vs_benchmark`, OU
-- (b) laudo deriva do `balanco.passivos.saldo_devedor_emprestimos / dre.ro_anual` (viola princípio "zero cálculo no laudo"), OU
-- (c) abandona o indicador.
-
-Recomendação: (a), consistente com o princípio mestre.
+### AMB.3 — Endividamento ✅ RESOLVIDO
+Decisão Thiago: skill v2 calcula `endividamento_pct = saldo_devedor / ro_anual` e expõe em `indicadores_vs_benchmark.endividamento_vs_ro`.
+Aplicado como S2.4 (skill v2) e L.2 (novo path).
 
 ---
 
@@ -410,12 +439,16 @@ Recomendação: (a), consistente com o princípio mestre.
 
 | Categoria | Itens |
 |-----------|-------|
-| Trabalho na skill v2 (S2.x) | 3 |
+| Trabalho na skill v2 (S2.x) | 4 |
 | Trabalho no calc_json v2 (CJ.x) | 1 |
-| Trabalho no laudo-completo.html (L.x) | 6 |
+| Trabalho no laudo-completo.html (L.x) | 7 |
 | Trabalho em parâmetros (P.x) | 2 |
-| Ambíguos a investigar (AMB.x) | 3 |
-| **Total** | **15** |
+| Ambíguos resolvidos (AMB.x) | 3 (histórico) |
+| **Total ativo (sem AMB)** | **14** |
+| **Total registrado** | **17** |
+
+**Itens P0 (12):** S2.1, S2.2, S2.3, S2.4, CJ.1, L.1, L.2, L.3, L.4, L.5, L.6, L.7
+**Itens P2 (2):** P.1, P.2
 
 ---
 
