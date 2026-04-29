@@ -138,18 +138,27 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 .atr-comp-fill{height:100%;border-radius:2px;background:var(--em)}
 .atr-comp-val{font-size:10px;color:var(--em);width:60px;text-align:right;flex-shrink:0}
 .up-card{background:var(--bg1);border:1px solid var(--line2);border-left:3px solid var(--em);padding:15px 17px;margin-bottom:9px}
-.up-card.cat-obrigatorio{border-left-color:var(--rd)}
-.up-card.cat-ganho_rapido{border-left-color:var(--em)}
-.up-card.cat-estrategico{border-left-color:var(--bl)}
-.up-card.cat-transformacional{border-left-color:var(--pu)}
+/* Categorias técnicas v2026.07 */
+.up-card.cat-ro{border-left-color:var(--em)}
+.up-card.cat-passivo{border-left-color:var(--rd)}
+.up-card.cat-multiplo{border-left-color:var(--bl)}
+.up-card.cat-qualitativo{border-left-color:var(--pu)}
+.up-card.cat-paywall{border-left-color:var(--ink4)}
 .up-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:7px}
 .up-header-l{flex:1}
 .up-num{display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--em-d);border:1px solid var(--em-l);text-align:center;font-size:9px;color:var(--em);font-weight:700;line-height:18px;margin-right:6px;vertical-align:middle}
 .up-cat{display:inline-block;font-size:8px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-right:6px;padding:2px 7px;border-radius:3px}
-.up-cat.cat-obrigatorio{background:var(--rd-d);color:var(--rd)}
-.up-cat.cat-ganho_rapido{background:var(--em-d);color:var(--em)}
-.up-cat.cat-estrategico{background:var(--bl-d);color:var(--bl)}
-.up-cat.cat-transformacional{background:var(--pu-d);color:var(--pu)}
+.up-cat.cat-ro{background:var(--em-d);color:var(--em)}
+.up-cat.cat-passivo{background:var(--rd-d);color:var(--rd)}
+.up-cat.cat-multiplo{background:var(--bl-d);color:var(--bl)}
+.up-cat.cat-qualitativo{background:var(--pu-d);color:var(--pu)}
+.up-cat.cat-paywall{background:rgba(74,124,92,0.12);color:var(--ink4)}
+/* Bloco lateral direito: valor R$ + % bruto + notinha (T1 do refactor laudo-pago) */
+.up-valor-block{text-align:right;min-width:140px;flex-shrink:0;font-family:'DM Mono',monospace}
+.up-valor-block .v-brl{font-size:15px;color:var(--em);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.up-valor-block .v-pct{font-size:11px;color:var(--ink4);margin-top:2px}
+.up-valor-block .v-qual{font-size:11px;color:var(--ink4);font-style:italic}
+.up-valor-block .v-nota{font-size:10px;color:var(--ink4);font-style:italic;margin-top:6px;line-height:1.4;max-width:180px;white-space:normal}
 .up-title{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--ink);line-height:1.3;margin-top:4px}
 .up-sub{font-size:10px;color:var(--ink4);margin-top:3px;line-height:1.4}
 .up-desc{font-size:11px;color:var(--ink2);line-height:1.7;margin:8px 0}
@@ -1483,76 +1492,111 @@ function renderAtratividade() {
 // ─── UPSIDES ────────────────────────────────────────────────────────────────
 // 10 upsides distribuídos em 4 categorias (sem 'bloqueado'). Filtra defensivamente.
 function renderUpsides() {
-  const ups = (calcJson.upsides || []).filter(u => u.categoria !== 'bloqueado');
-  if (ups.length === 0) return '';
+  // Schema v2026.07: calcJson.upsides = { ativos: [], paywalls: [] }.
+  // Categorias técnicas: ro · passivo · multiplo · qualitativo · paywall.
+  const upsObj = calcJson.upsides || {};
+  const ativosTodos = Array.isArray(upsObj.ativos) ? upsObj.ativos : [];
+  const paywalls = Array.isArray(upsObj.paywalls) ? upsObj.paywalls : [];
+  const recs = Array.isArray(calcJson.recomendacoes_pre_venda) ? calcJson.recomendacoes_pre_venda : [];
 
-  // Mapa de descrições polidas IA por upside_id
-  const tIA = calcJson.textos_ia || {};
-  const polidas = {};
-  (tIA.descricoes_polidas_upsides || []).forEach(d => {
-    if (d && d.upside_id && d.conteudo) polidas[d.upside_id] = d.conteudo;
+  if (ativosTodos.length === 0 && paywalls.length === 0 && recs.length === 0) return '';
+
+  // Lookup id → {brl, pct} via potencial_12m.upsides_ativos (filtrado: só monetários).
+  const valorPorId = {};
+  const upsP12 = (calcJson.potencial_12m && calcJson.potencial_12m.upsides_ativos) || [];
+  upsP12.forEach(u => { valorPorId[u.id] = { brl: u.contribuicao_brl, pct: u.contribuicao_bruta_pct }; });
+
+  // Separar ativos por tipo
+  const monetarios = ativosTodos.filter(u => ['ro', 'passivo', 'multiplo'].includes(u.categoria));
+  const qualitativos = ativosTodos.filter(u => u.categoria === 'qualitativo');
+
+  // D-3: ordem por R$ decrescente dentro dos monetários
+  monetarios.sort((a, b) => {
+    const va = (valorPorId[a.id] && valorPorId[a.id].brl) || 0;
+    const vb = (valorPorId[b.id] && valorPorId[b.id].brl) || 0;
+    return vb - va;
   });
 
-  // Sumário
-  const cont = { obrigatorio: 0, ganho_rapido: 0, estrategico: 0, transformacional: 0 };
-  ups.forEach(u => { if (cont[u.categoria] !== undefined) cont[u.categoria]++; });
+  const CAT_LABEL = {
+    ro: 'Resultado Operacional',
+    passivo: 'Redução de Passivos',
+    multiplo: 'Aumento de Múltiplo',
+    qualitativo: 'Qualitativo',
+    paywall: 'Análise complementar', // D-2: cliente já pagou
+  };
 
-  let h = '<div class="kpi-mini">'
-    + '<div class="kpi-mini-card"><div class="kpi-mini-l">Obrigatórios</div><div class="kpi-mini-v r">' + cont.obrigatorio + '</div></div>'
-    + '<div class="kpi-mini-card"><div class="kpi-mini-l">Ganho rápido</div><div class="kpi-mini-v g">' + cont.ganho_rapido + '</div></div>'
-    + '<div class="kpi-mini-card"><div class="kpi-mini-l">Estratégicos</div><div class="kpi-mini-v">' + cont.estrategico + '</div></div>'
-    + '<div class="kpi-mini-card"><div class="kpi-mini-l">Transformacionais</div><div class="kpi-mini-v">' + cont.transformacional + '</div></div>'
-    + '</div>';
-
-  ups.forEach((u, i) => {
-    const cat = u.categoria || 'normal';
-    const imp = u.impacto_no_valuation || {};
-    let catLabel = cat.replace('_', ' ');
-    if (cat === 'obrigatorio') catLabel = u.label_visivel || 'Crítico';
-    else if (cat === 'ganho_rapido') catLabel = 'Ganho rápido';
-    else if (cat === 'estrategico') catLabel = 'Estratégico';
-    else if (cat === 'transformacional') catLabel = 'Transformacional';
-
-    h += '<div class="up-card cat-' + escapeHtml(cat) + '">';
-    h += '<div class="up-header"><div class="up-header-l">';
-    h += '<span class="up-num">' + (u.ordem_no_laudo || i + 1) + '</span>';
-    h += '<span class="up-cat cat-' + escapeHtml(cat) + '">' + escapeHtml(catLabel) + '</span>';
-    h += '<div class="up-title">' + escapeHtml(u.titulo || u.id) + '</div>';
-    if (u.subtitulo) h += '<div class="up-sub">' + escapeHtml(u.subtitulo) + '</div>';
-    h += '</div>';
-    if (imp.label) h += '<div class="up-impacto">' + escapeHtml(imp.label) + '</div>';
-    h += '</div>';
-
-    // Texto 7 — descrição polida da IA, com fallback pra descrição curta
-    const polida = polidas[u.id];
-    if (polida) {
-      h += '<div class="up-desc">' + escapeHtml(polida) + '</div>';
-    } else if (u.descricao_curta) {
-      h += '<div class="up-desc">' + escapeHtml(u.descricao_curta) + '</div>';
-      h += '<div class="txt-pendente" style="margin-top:6px;padding:8px 12px;font-size:10px">[Descrição polida pendente — em geração pela IA]</div>';
+  // Helper de card individual
+  const renderCard = (u, idx) => {
+    const cat = u.categoria || 'qualitativo';
+    const catLabel = CAT_LABEL[cat] || cat;
+    let card = '<div class="up-card cat-' + escapeHtml(cat) + '">';
+    card += '<div class="up-header" style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px">';
+    // Coluna esquerda: numeração + pill + título + descrição
+    card += '<div class="up-header-l" style="flex:1;min-width:0">';
+    card += '<span class="up-num">' + (idx + 1) + '</span>';
+    card += '<span class="up-cat cat-' + escapeHtml(cat) + '">' + escapeHtml(catLabel) + '</span>';
+    card += '<div class="up-title">' + escapeHtml(u.label || u.id) + '</div>';
+    if (u.descricao) card += '<div class="up-desc">' + escapeHtml(u.descricao) + '</div>';
+    card += '</div>';
+    // Coluna direita: valor R$ + notinha OU status textual
+    card += '<div class="up-valor-block">';
+    if (cat === 'qualitativo') {
+      card += '<div class="v-qual">Ação necessária — sem valor monetário direto</div>';
     } else {
-      h += '<div class="txt-pendente">[Texto pendente — em geração pela IA]</div>';
+      // ro/passivo/multiplo OU paywall (D-2: paywall revela R$ no laudo-pago)
+      const v = valorPorId[u.id];
+      if (v && v.brl != null) {
+        card += '<div class="v-brl">' + fcShort(v.brl) + '</div>';
+        card += '<div class="v-pct">' + (v.pct * 100).toFixed(2) + '% bruto</div>';
+        card += '<div class="v-nota">↑ ganho estimado no valor de venda do negócio se a ação for executada</div>';
+      } else {
+        card += '<div class="v-qual">contribuição não calculada</div>';
+      }
     }
+    card += '</div>';
+    card += '</div>';  // fecha .up-header
+    card += '</div>';  // fecha .up-card
+    return card;
+  };
 
-    const meta = [];
-    if (u.complexidade) meta.push('Complexidade ' + u.complexidade);
-    if (u.tempo_estimado) meta.push('Tempo ' + u.tempo_estimado);
-    if (u.exige_apoio) meta.push('Apoio ' + (u.exige_apoio_tipo || 'sim'));
-    if (imp.valor_min_estimado != null) meta.push('Ganho ' + fcShort(imp.valor_min_estimado) + '–' + fcShort(imp.valor_max_estimado));
-    if (meta.length > 0) h += '<div class="up-meta">' + meta.map(m => '<span>' + escapeHtml(m) + '</span>').join('') + '</div>';
+  let h = '';
+  let idx = 0;
 
-    if (u.cta_consultoria) {
-      h += '<div class="up-cta"><strong>Programa Consultoria 1Negócio</strong> — agendar conversa para detalhar este plano.</div>';
-    }
+  // 1. Monetários (ordenados por R$ desc)
+  if (monetarios.length > 0) {
+    monetarios.forEach(u => { h += renderCard(u, idx++); });
+  }
 
-    h += '</div>';
-  });
+  // 2. Análise complementar (paywalls — D-2: revelar R$, copy renomeado)
+  if (paywalls.length > 0) {
+    h += '<div style="margin-top:18px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);font-weight:600">Análises complementares</div>';
+    paywalls.forEach(u => { h += renderCard(u, idx++); });
+  }
+
+  // 3. Qualitativos / Pré-venda
+  if (qualitativos.length > 0 || recs.length > 0) {
+    h += '<div style="margin-top:18px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);font-weight:600">Qualitativos · Pré-venda</div>';
+    qualitativos.forEach(u => { h += renderCard(u, idx++); });
+    recs.forEach(r => {
+      h += '<div class="up-card cat-qualitativo">';
+      h += '<div class="up-header"><div class="up-header-l">';
+      h += '<span class="up-num">' + (idx + 1) + '</span>';
+      h += '<span class="up-cat cat-qualitativo">' + escapeHtml(CAT_LABEL.qualitativo) + '</span>';
+      h += '<div class="up-title">' + escapeHtml(r.label || r.id) + '</div>';
+      if (r.mensagem) h += '<div class="up-desc">' + escapeHtml(r.mensagem) + '</div>';
+      h += '</div></div>';
+      h += '</div>';
+      idx++;
+    });
+  }
+
+  const total = monetarios.length + paywalls.length + qualitativos.length + recs.length;
 
   return ''
     + '<section class="sec">'
     + '  <div class="sec-header">'
     + '    <div class="sec-num">13</div>'
-    + '    <div><div class="sec-label">Oportunidades de melhoria</div><div class="sec-title">' + ups.length + ' upsides para destravar valor</div></div>'
+    + '    <div><div class="sec-label">Oportunidades de melhoria</div><div class="sec-title">' + total + ' ações para destravar valor</div></div>'
     + '  </div>'
     + '  <div class="sec-body">' + h + '</div>'
     + '</section>';
