@@ -8,7 +8,7 @@ Sessão de trabalho intensa de ~9 horas no `backend-v2`. Documento serve de pont
 |---|---|---|
 | 1 | Banco e parâmetros | ✅ Migrations criadas (não aplicadas — Decisão #21) |
 | 2 | Skill avaliadora v2 | ✅ Concluída (snapshot v2026.07) |
-| 3 | Frontend dos laudos | 🟡 30% — só laudo-admin pronto |
+| 3 | Frontend dos laudos | 🟡 60% — laudo-admin e laudo-pago prontos |
 | 4 | 5 Edge Functions IA | ⏸️ Não iniciada |
 | 5 | Diagnóstico v2 | ⏸️ Não iniciada |
 | 6 | Index público | ⏸️ Não iniciada |
@@ -48,6 +48,32 @@ Laudo-admin.html completamente refatorado pro schema novo:
 - Bug visual "Consolidac" cortado corrigido
 - Tag "DEMO" elegante no header
 - Toggle dark/light theme via CSS variables
+
+### Fase 3 — Laudo-pago refatorado (segunda peça da Fase 3)
+
+Refactor completo do laudo-pago.html pro schema v2026.07:
+
+- REVAMP renderUpsides com {ativos, paywalls} + categorias técnicas + valor R$ no card + ordem por R$ decrescente
+- Fix campo morto valor_potencial_12m → potencial_12m.potencial_final.valor_projetado_brl
+- Fallback _versao_parametros 'v2026.04' → '—' (não hardcodar versão)
+- Texto introdutório em UPSIDES
+- Toggle dark/light com CSS variables, default LIGHT (impressão amigável)
+- DEMO_DATA regenerado via fixture forste-completo.js
+- laudo-completo.html legado deletado (rollback via tag backup-pre-v2-2026-04-28)
+
+6 bugs críticos pré-existentes corrigidos (forEach em objeto, contadores antigos, DEMO_DATA velho, etc).
+
+Decisões aprovadas:
+- D-1: Default light, toggle dark opcional
+- D-2: Paywalls como "Análise complementar" (cliente já pagou, sem termo "bloqueado")
+- D-3: Ordem cards por R$ decrescente
+- D-4: laudo-completo.html deletado no commit final
+- D-5: Fallback usa '—' em vez de versão hardcoded
+- D-6: DEMO_DATA regenerado via fixture
+
+Mapeamento documentado em relatorios/2026-04-28-mapeamento-laudo-pago.md.
+
+Commits: 3ccdf8b → e2e94a0 → 78eb37f → 92c451a → 3dd762e → b62bb16
 
 ### Outros
 
@@ -112,7 +138,6 @@ Documentadas em relatorios/ (não bloqueiam, atacar quando relevante):
 
 ### Fase 3 (continuar)
 
-- laudo-pago.html — renomear de laudo-completo.html (Decisão #11), adaptar pro schema v2 (similar ao laudo-admin mas com paywall e foco no comprador). Estimativa: 2-3h.
 - laudo-gratuito.html — criar do zero, versão pública. Subset do calc_json sem dados sensíveis. Estimativa: 2h.
 - negocio.html v3 — página pública do anúncio com 2 níveis (antes/depois NDA). Decisão #16 textos anônimos. Estimativa: 3-4h.
 
@@ -176,8 +201,14 @@ Em ordem:
 
 1. Validação visual final do laudo-admin com Forste sintético (DEMO_DATA já regenerado)
 2. Atualizar spec rev2 → rev3 incorporando as 5 evoluções aprovadas
-3. Atacar Fase 3: começar pelo laudo-pago (derivado do laudo-admin, mais barato)
+3. Atacar Fase 3: começar pelo laudo-gratuito (subset do laudo-pago, mais enxuto, com paywalls bloqueados)
 4. Em paralelo: redesign visual do Claude do design (se Thiago quiser começar essa frente)
 5. Quando Fase 3 estiver completa, atacar Fase 4 (Edge Functions IA)
 
 Estimativa pra fechar v2 completa: 15-20h focadas adicionais.
+
+## DÍVIDA TÉCNICA REGISTRADA NESTA SESSÃO
+
+- DEMO_DATA hardcoded inline nos arquivos de laudo (laudo-admin.html e laudo-pago.html). Cada arquivo tem ~600+ linhas de DEMO_DATA. Em futuro, mover pra arquivo separado tipo demo-data.js importado pelos laudos. Não bloqueia, é polimento.
+
+- chartProgressao SVG no laudo-pago tem cores hardcoded que não adaptam totalmente ao tema dark. Polimento futuro. Documentado no commit 92c451a.
