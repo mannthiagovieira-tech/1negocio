@@ -315,7 +315,7 @@ body::after{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-50
         <div class="legenda-valor green" id="leg-1n">R$ 1.245k</div>
       </div>
       <div class="legenda-item">
-        <div class="legenda-label">Potencial 1Socio</div>
+        <div class="legenda-label">Potencial 1N Consultoria</div>
         <div class="legenda-valor purple" id="leg-pot">R$ 1.580k</div>
       </div>
     </div>
@@ -390,8 +390,8 @@ body::after{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-50
 
   <div class="socio-box animate-in delay-5">
     <div class="socio-header">
-      <div class="socio-icon">1S</div>
-      <div class="socio-title">Potencial 1Socio</div>
+      <div class="socio-icon">1N</div>
+      <div class="socio-title">1N Consultoria</div>
     </div>
     <div class="socio-subtitle">
       Consultoria estrategica para abordar as oportunidades identificadas e maximizar o valor do seu negocio.
@@ -417,8 +417,8 @@ body::after{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-50
     <div style="margin-top:20px;background:var(--bg1);border-radius:var(--r2);padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
       <div>
         <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:4px">Investimento</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--pu)">A partir de R$ 1.621/mes</div>
-        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--ink3);margin-top:2px">+ 20% do ganho mensal adicional</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--pu)">A partir de R$ 1.500/mês</div>
+        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--ink3);margin-top:2px">+ % resultado incremental</div>
       </div>
       <a href="#" id="btn-socio" style="flex-shrink:0;background:var(--pu);color:var(--bg);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:12px 20px;border-radius:var(--r2);text-decoration:none;white-space:nowrap;letter-spacing:.03em">
         Quero saber mais
@@ -580,7 +580,7 @@ body::after{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-50
   <div class="popup-sheet" onclick="event.stopPropagation()">
     <div class="popup-handle"></div>
     <div class="popup-hdr">
-      <div class="popup-hdr-left"><div class="popup-icon purple">1S</div><div class="popup-title">Potencial 1Sócio</div></div>
+      <div class="popup-hdr-left"><div class="popup-icon purple">1N</div><div class="popup-title">1N Consultoria</div></div>
       <button class="popup-close" onclick="fecharPopup('socio')">×</button>
     </div>
     <div class="popup-body">
@@ -599,8 +599,8 @@ body::after{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-50
       <div class="popup-pricing-row">
         <div class="popup-pricing-left">
           <div class="popup-pricing-lbl">Investimento mensal</div>
-          <div class="popup-pricing-val" style="color:var(--pu)">1% da receita</div>
-          <div class="popup-pricing-note">+ 20% do ganho mensal adicional comprovado</div>
+          <div class="popup-pricing-val" style="color:var(--pu)">A partir de R$ 1.500/mês</div>
+          <div class="popup-pricing-note">+ % resultado incremental</div>
         </div>
       </div>
     </div>
@@ -867,7 +867,7 @@ function renderLaudo() {
   const fator      = n(valuation.fator_final);
   const valorVenda = n(valuation.valor_venda);
 
-  // Potencial 1Sócio — TUDO vem pronto da skill v2 (S2.1+)
+  // Potencial 1N Consultoria — TUDO vem pronto da skill v2 (S2.1+)
   const potFinal   = pot.potencial_final || {};
   const valorPot   = n(potFinal.valor_projetado_brl);
   const ganhoAnual = n(potFinal.brl);
@@ -971,7 +971,7 @@ function renderLaudo() {
   set('badge-ise',  Math.round(n(ise_obj.ise_total)) + '/100');
   set('badge-fator','Fator ' + fator.toFixed(2) + 'x');
 
-  // ── 1Sócio (todos os números vêm de potencial_12m.potencial_final) ──
+  // ── 1N Consultoria (todos os números vêm de potencial_12m.potencial_final) ──
   set('socio-anual',       '+' + fs(ganhoAnual));
   set('socio-mensal',      '+' + fc(ganhoMens) + '/mês');
   set('socio-valorizacao', '+' + fs(valorPot - valorVenda));
@@ -1207,50 +1207,78 @@ function renderFator(ro, fator, pl, valorVenda) {
   el('fator-content') && (el('fator-content').innerHTML = h);
 }
 
-// ─── INDICADORES — paths v2 (indicadores_vs_benchmark) ──
+// ─── INDICADORES — mix balanceado, máx 5, filtra zeros ──
+// Estratégia: até 3 críticos (abaixo+atencao) + até 2 ok (no_alvo) + até 1 sem benchmark.
+// Filtra valores 0. Se total não-zero > 5, mostra chamadinha discreta.
 function renderInd() {
   const ivb = D.indicadores_vs_benchmark || {};
 
-  // mapeia status v2 → cor v1
   const statusCor = (st) => st === 'no_alvo' ? 'green' : st === 'atencao' ? 'amber' : st === 'abaixo' ? 'red' : 'amber';
+  const statusLbl = (st) => st === 'no_alvo' ? 'OK' : st === 'atencao' ? 'Atenção' : st === 'abaixo' ? 'Crítico' : 'Informativo';
   const formatVal = (ind) => {
     const v = n(ind.valor);
     if(ind.unidade === '%') return v.toFixed(1) + '%';
     if(ind.unidade === 'R$') return fc(v);
     if(ind.unidade === 'dias') return Math.round(v) + ' dias';
+    if(ind.unidade === 'unid') return Math.round(v).toLocaleString('pt-BR');
     return String(v);
   };
-  const descricao = (ind, label) => {
+  const descricao = (ind) => {
     const valFmt = formatVal(ind);
-    const benchTxt = (ind.benchmark != null) ? ' Benchmark do setor: ' + (ind.unidade==='%' ? n(ind.benchmark).toFixed(1)+'%' : ind.unidade==='R$' ? fc(ind.benchmark) : ind.benchmark + ' ' + (ind.unidade||'')) + '.' : '';
-    return label + ' = ' + valFmt + '.' + benchTxt;
+    const benchTxt = (ind.benchmark != null && !isNaN(n(ind.benchmark)))
+      ? ' Benchmark do setor: ' + (ind.unidade==='%' ? n(ind.benchmark).toFixed(1)+'%' : ind.unidade==='R$' ? fc(ind.benchmark) : ind.benchmark + ' ' + (ind.unidade||'')) + '.'
+      : '';
+    return (ind.label || ind.id) + ' = ' + valFmt + '.' + benchTxt;
   };
 
-  // Construir lista de indicadores que vamos mostrar (na ordem)
-  const definidos = [
-    {key:'margem_operacional', nome:'Margem Operacional'},
-    {key:'recorrencia',        nome:'Recorrência de receita'},
-    {key:'concentracao',       nome:'Concentração de clientes'},
-    {key:'endividamento_vs_ro',nome:'Endividamento vs RO Anual'},
-    {key:'ro_por_funcionario_mensal', nome:'Resultado por colaborador'},
-    {key:'ticket_medio',       nome:'Ticket médio mensal'},
-    {key:'cmv_pct',            nome:'CMV sobre faturamento'},
-    {key:'margem_bruta',       nome:'Margem bruta'},
+  // 1. Coletar todos não-zero
+  const todos = Object.entries(ivb)
+    .filter(([k, v]) => v && n(v.valor) !== 0)
+    .map(([k, v]) => ({ key: k, ind: v, status: v.status || null }));
+
+  // 2. Separar por bucket
+  const criticos = todos.filter(x => x.status === 'abaixo' || x.status === 'atencao');
+  const okBucket = todos.filter(x => x.status === 'no_alvo');
+  const semBench = todos.filter(x => x.status === null);
+
+  // 3. Mix balanceado (até 3 críticos + até 2 ok + até 1 sem benchmark = 6, cap em 5)
+  let selecionados = [
+    ...criticos.slice(0, 3),
+    ...okBucket.slice(0, 2),
+    ...semBench.slice(0, 1),
   ];
 
+  // 4. Se faltar pra 5 (caso tenha poucos indicadores em algum bucket), completar
+  if(selecionados.length < 5) {
+    const usados = new Set(selecionados.map(s => s.key));
+    const ordemGravidade = { 'abaixo': 0, 'atencao': 1, 'no_alvo': 2 };
+    const sobra = todos
+      .filter(x => !usados.has(x.key))
+      .sort((a, b) => (ordemGravidade[a.status] ?? 3) - (ordemGravidade[b.status] ?? 3));
+    selecionados = [...selecionados, ...sobra.slice(0, 5 - selecionados.length)];
+  }
+
+  // 5. Cap final em 5
+  selecionados = selecionados.slice(0, 5);
+
+  // 6. Render
   let h = '<div style="display:flex;flex-direction:column;gap:8px">';
-  definidos.forEach(d => {
-    const ind = ivb[d.key];
-    if(!ind) return;
-    const v = n(ind.valor);
-    const st = ind.status || 'atencao';
-    const cor = statusCor(st);
-    const lbl = st === 'no_alvo' ? 'OK' : st === 'atencao' ? 'Atenção' : st === 'abaixo' ? 'Crítico' : (st || '');
+  selecionados.forEach(({ ind }) => {
+    const cor = statusCor(ind.status);
+    const lbl = statusLbl(ind.status);
+    const nome = ind.label || ind.id || '';
     const valExibido = formatVal(ind);
-    h += '<div class="ind-card"><div class="ind-card-header"><span class="ind-card-nome">'+d.nome+'</span><span class="ind-card-valor '+cor+'">'+valExibido+'</span></div>';
+    h += '<div class="ind-card"><div class="ind-card-header"><span class="ind-card-nome">'+nome+'</span><span class="ind-card-valor '+cor+'">'+valExibido+'</span></div>';
     h += '<span class="ind-card-label '+cor+'">'+lbl+'</span>';
-    h += '<div class="ind-card-desc">'+descricao(ind, d.nome)+'</div></div>';
+    h += '<div class="ind-card-desc">'+descricao(ind)+'</div></div>';
   });
+
+  // 7. Chamadinha discreta se houver mais não-zero
+  const extras = todos.length - selecionados.length;
+  if(extras > 0) {
+    h += '<div style="text-align:center;padding:10px 0;font-size:12px;color:var(--ink4);font-style:italic">+ '+extras+' indicador'+(extras>1?'es':'')+' adicional'+(extras>1?'is':'')+' no laudo completo</div>';
+  }
+
   h += '</div>';
   el('ind-content') && (el('ind-content').innerHTML = h);
 }
