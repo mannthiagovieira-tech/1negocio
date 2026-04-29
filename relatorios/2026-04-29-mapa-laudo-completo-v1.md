@@ -200,7 +200,7 @@ const valorPot  = valorVenda + (ganhoAnual * fator);
 
 **⚠️ HARDCODE:** mapa de classes em `clsMap` (linhas 1146-1152). Texto descritivo de cada classe vive no front.
 
-**Note:** ISE v1 tem **10 pilares** (com nomes diferentes da v2 que tem 6: P1-P6). Mapeamento v1↔v2 não é 1:1.
+**Note:** ISE v1 tem **10 pilares** (com nomes diferentes da v2 que tem **8 pilares**: `p1_financeiro`, `p2_resultado`, `p3_comercial`, `p4_gestao`, `p5_socio_dependencia`, `p6_risco_legal`, `p7_balanco`, `p8_marca`). Mapeamento v1↔v2 não é 1:1.
 
 ---
 
