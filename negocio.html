@@ -301,24 +301,41 @@ main{flex:1;max-width:780px;width:100%;margin:0 auto;padding:24px 20px;display:f
 .socio-meta{font-family:var(--mono);font-size:11px;color:var(--ink-3);display:flex;gap:10px;flex-wrap:wrap}
 .socio-pct{display:inline-flex;align-items:center;padding:2px 8px;background:var(--accent-soft);color:var(--accent);border-radius:999px;font-weight:700}
 
-/* ─── TABS STICKY (4 abas v2) ─── */
+/* ─── TABS STICKY (estilo .detail-tabs do index/card) ─── */
 .tabs-sticky{
   position:sticky;top:60px;z-index:50;
+  padding:10px 0 6px;
   background:color-mix(in srgb,var(--bg) 92%,transparent);
   backdrop-filter:saturate(180%) blur(14px);-webkit-backdrop-filter:saturate(180%) blur(14px);
-  border-bottom:1px solid var(--line);
-  display:flex;gap:0;padding:0 8px;margin:0 -20px;
-  overflow-x:auto;scrollbar-width:none;
+  margin:0 -20px;
 }
-.tabs-sticky::-webkit-scrollbar{display:none}
+.tabs-sticky-inner{
+  display:flex;gap:2px;
+  background:rgba(0,0,0,.03);
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:3px;
+  max-width:560px;margin:0 auto;width:calc(100% - 32px);
+}
+:root[data-theme="dark"] .tabs-sticky-inner{background:rgba(255,255,255,.04)}
 .tab-btn{
-  flex:1;min-width:max-content;
-  padding:14px 18px;background:transparent;border:0;border-bottom:2px solid transparent;
-  font-family:var(--sans);font-weight:600;font-size:14px;color:var(--ink-3);
-  cursor:pointer;transition:all .15s ease;white-space:nowrap;
+  flex:1;padding:8px 10px;
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  background:transparent;border:0;cursor:pointer;
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-3);
+  border-radius:999px;transition:all .15s ease;
+  min-width:0;white-space:nowrap;
 }
 .tab-btn:hover{color:var(--ink-2)}
-.tab-btn.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-btn.on{background:var(--ink);color:var(--bg)}
+.tab-brand{font-family:var(--serif);font-weight:800;font-size:12px;letter-spacing:-.04em;display:inline-flex;align-items:baseline;line-height:1}
+.tab-brand em{color:var(--accent);font-style:normal;margin-right:1px}
+.tab-btn.on .tab-brand em{color:var(--accent)}
+@media(max-width:520px){
+  .tab-btn{padding:8px 6px;font-size:9px}
+}
 
 /* ─── ABAS ─── */
 .aba-conteudo{display:flex;flex-direction:column;gap:36px;padding-top:24px}
@@ -697,10 +714,12 @@ function renderHeroV2(){
 function renderTabs(){
   return `
     <nav class="tabs-sticky" role="tablist" aria-label="Detalhes do negócio">
-      <button class="tab-btn on" data-aba="resumo" type="button" role="tab" aria-selected="true">Resumo</button>
-      <button class="tab-btn" data-aba="financeiro" type="button" role="tab" aria-selected="false">Financeiro</button>
-      <button class="tab-btn" data-aba="indicadores" type="button" role="tab" aria-selected="false">Indicadores</button>
-      <button class="tab-btn" data-aba="analise" type="button" role="tab" aria-selected="false">1N Análise</button>
+      <div class="tabs-sticky-inner">
+        <button class="tab-btn on" data-aba="resumo" type="button" role="tab" aria-selected="true">Resumo</button>
+        <button class="tab-btn" data-aba="financeiro" type="button" role="tab" aria-selected="false">Financeiro</button>
+        <button class="tab-btn" data-aba="indicadores" type="button" role="tab" aria-selected="false">Indicadores</button>
+        <button class="tab-btn" data-aba="analise" type="button" role="tab" aria-selected="false"><span class="tab-brand"><em>1</em>N</span> Análise</button>
+      </div>
     </nav>
   `;
 }
@@ -718,24 +737,43 @@ function renderAbaResumo(){
     .map(l => `<div class="diferencial-item">${escapeHtml(l)}</div>`)
     .join('');
 
-  const fatAnual = n(safe(CALC,'dre.fat_anual',0));
-  const roMensal = n(safe(CALC,'dre.ro_mensal',0));
-  const margem = n(safe(CALC,'dre.margem_operacional_pct',0));
-  const anos = safe(CALC,'identificacao.tempo_operacao_anos',null) || safe(CALC,'operacional.tempo_operacao_anos',null);
-  const funcs = n(safe(CALC,'operacional.num_funcionarios',0));
+  const descricao = (TEXTOS.descricao_publica && TEXTOS.descricao_publica.conteudo) || '';
 
-  const potencial = (TEXTOS.potencial_crescimento && TEXTOS.potencial_crescimento.conteudo) || '';
-  const comprador = (TEXTOS.perfil_comprador_ideal && TEXTOS.perfil_comprador_ideal.conteudo) || '';
+  // 6 stats (2x3) replicando viewResumo do index
+  const fatAnual = n(safe(CALC,'dre.fat_anual',0));
+  const roAnual = n(safe(CALC,'dre.ro_anual',0));
+  const margem = n(safe(CALC,'dre.margem_operacional_pct',0));
+  const pl = n(safe(CALC,'balanco.patrimonio_liquido',0));
+  const anos = safe(CALC,'identificacao.tempo_operacao_anos',null) || safe(CALC,'operacional.tempo_operacao_anos',null);
+  const ise = n(safe(CALC,'ise.ise_total',0));
+  const iseClass = safe(CALC,'ise.classe','');
+  const iseColor = ise>=65?'var(--accent)':ise>=50?'var(--warn)':'var(--alert)';
+  const plClass = pl>0?'g':pl<0?'a':'';
+
+  const statsHTML = `
+    <div class="stats">
+      ${fatAnual?`<div class="stat"><span class="stat-l">Faturamento/ano</span><span class="stat-v"><span class="rs">R$</span>${brl(fatAnual)}</span></div>`:''}
+      ${roAnual?`<div class="stat"><span class="stat-l">Resultado/ano</span><span class="stat-v g"><span class="rs">R$</span>${brl(roAnual)}</span></div>`:''}
+      ${margem?`<div class="stat"><span class="stat-l">Margem operac.</span><span class="stat-v">${margem.toFixed(1)}<span class="unit">%</span></span></div>`:''}
+      <div class="stat"><span class="stat-l">Patrimônio líq.</span><span class="stat-v ${plClass}"><span class="rs">R$</span>${brl(pl)}</span></div>
+      ${anos?`<div class="stat"><span class="stat-l">Operação</span><span class="stat-v">${anos}<span class="unit">ano${anos===1?'':'s'}</span></span></div>`:''}
+      ${ise?`<div class="stat"><span class="stat-l">ISE${iseClass?' · '+iseClass:''}</span><span class="stat-v" style="color:${iseColor}">${Math.round(ise)}<span class="unit">/100</span></span><div class="stat-bar"><div style="width:${ise}%;background:${iseColor}"></div></div></div>`:''}
+    </div>
+  `;
 
   return `
     <section class="aba" data-aba="resumo" data-active="true">
-      ${apresentacaoHTML ? `
+      <div class="section">
+        ${statsHTML}
+      </div>
+
+      ${descricao ? `
         <div class="section">
           <div class="section-head">
             <div class="section-sub">SOBRE O NEGÓCIO</div>
-            <h2 class="section-title">Apresentação</h2>
+            <h2 class="section-title">Visão geral</h2>
           </div>
-          <div class="panel editorial">${apresentacaoHTML}</div>
+          <div class="panel editorial"><p>${escapeHtml(descricao)}</p></div>
         </div>
       ` : ''}
 
@@ -749,37 +787,13 @@ function renderAbaResumo(){
         </div>
       ` : ''}
 
-      <div class="section">
-        <div class="section-head">
-          <div class="section-sub">NÚMEROS PRINCIPAIS</div>
-          <h2 class="section-title">Visão financeira</h2>
-        </div>
-        <div class="stats">
-          ${fatAnual?`<div class="stat"><span class="stat-l">Faturamento/ano</span><span class="stat-v"><span class="rs">R$</span>${brl(fatAnual)}</span></div>`:''}
-          ${roMensal?`<div class="stat"><span class="stat-l">Resultado mensal</span><span class="stat-v g"><span class="rs">R$</span>${brl(roMensal)}</span></div>`:''}
-          ${margem?`<div class="stat"><span class="stat-l">Margem operac.</span><span class="stat-v">${margem.toFixed(1)}<span class="unit">%</span></span></div>`:''}
-          ${anos?`<div class="stat"><span class="stat-l">Operação</span><span class="stat-v">${anos}<span class="unit">ano${anos===1?'':'s'}</span></span></div>`:''}
-          ${funcs?`<div class="stat"><span class="stat-l">Equipe</span><span class="stat-v">${funcs}<span class="unit">pessoas</span></span></div>`:''}
-        </div>
-      </div>
-
-      ${potencial ? `
+      ${apresentacaoHTML ? `
         <div class="section">
           <div class="section-head">
-            <div class="section-sub">POTENCIAL</div>
-            <h2 class="section-title">Onde está o crescimento</h2>
+            <div class="section-sub">APRESENTAÇÃO COMPLETA</div>
+            <h2 class="section-title">Análise editorial</h2>
           </div>
-          <div class="panel editorial"><p>${escapeHtml(potencial)}</p></div>
-        </div>
-      ` : ''}
-
-      ${comprador ? `
-        <div class="section">
-          <div class="section-head">
-            <div class="section-sub">PERFIL DO COMPRADOR</div>
-            <h2 class="section-title">Para quem este negócio é</h2>
-          </div>
-          <div class="panel editorial"><p>${escapeHtml(comprador)}</p></div>
+          <div class="panel editorial">${apresentacaoHTML}</div>
         </div>
       ` : ''}
     </section>
@@ -802,6 +816,14 @@ function renderAbaFinanceiro(){
   const cmvPct = fatMensal>0 ? (cmv/fatMensal*100) : 0;
   const deducoes = fatMensal - recLiq;
 
+  // Despesas gerais = lucro_bruto - resultado_operacional (folha + ocupação + outros)
+  const folha = n(safe(CALC,'dre.bloco_3_operacional.pessoal.folha_total_mensal',0));
+  const ocupacao = n(safe(CALC,'dre.bloco_3_operacional.ocupacao.total_mensal',0));
+  const opOutros = n(safe(CALC,'dre.bloco_3_operacional.operacional_outros.total_mensal',0));
+  let despesasGerais = folha + ocupacao + opOutros;
+  if(!despesasGerais && lucroBruto && ro!=null) despesasGerais = lucroBruto - ro;
+  const despesasPct = fatMensal>0 ? (despesasGerais/fatMensal*100) : 0;
+
   const temBalanco = ativos.total || passivos.total || balanco.patrimonio_liquido;
 
   return `
@@ -817,6 +839,7 @@ function renderAbaFinanceiro(){
           ${recLiq?`<div class="kv-row"><span>Receita líquida</span><span class="kv-value">${brlR(recLiq)}</span></div>`:''}
           ${cmv?`<div class="kv-row"><span>(–) CMV / Custo direto</span><span class="kv-value">${brlR(cmv)}${cmvPct?' ('+cmvPct.toFixed(1)+'%)':''}</span></div>`:''}
           ${lucroBruto?`<div class="kv-row"><span><strong>Lucro bruto</strong></span><span class="kv-value"><strong>${brlR(lucroBruto)}${margemBruta!=null?' ('+Number(margemBruta).toFixed(1)+'%)':''}</strong></span></div>`:''}
+          ${despesasGerais>0?`<div class="kv-row"><span>(–) Despesas gerais</span><span class="kv-value">${brlR(despesasGerais)}${despesasPct?' ('+despesasPct.toFixed(1)+'%)':''}</span></div>`:''}
           ${ro!==0?`<div class="kv-row total"><span>Resultado operacional</span><span>${brlR(ro)} (${margemOp.toFixed(2)}%)</span></div>`:''}
           <p class="aviso-nda" style="margin-top:14px"><strong>Acesso completo após NDA:</strong> folha, ocupação, marketing, sistemas, demonstrativos comparativos por mês e composição detalhada de custos.</p>
         </div>
@@ -832,7 +855,6 @@ function renderAbaFinanceiro(){
             ${ativos.total?`<div class="kv-row"><span>Total de ativos</span><span class="kv-value">${brlR(ativos.total)}</span></div>`:''}
             ${passivos.total?`<div class="kv-row"><span>Total de passivos</span><span class="kv-value">${brlR(passivos.total)}</span></div>`:''}
             ${balanco.patrimonio_liquido?`<div class="kv-row total"><span>Patrimônio líquido</span><span>${brlR(balanco.patrimonio_liquido)}</span></div>`:''}
-            ${balanco.ciclo_financeiro && balanco.ciclo_financeiro.ciclo_dias!=null?`<div class="kv-row"><span>Ciclo financeiro</span><span class="kv-value">${balanco.ciclo_financeiro.ciclo_dias} dias</span></div>`:''}
             <p class="aviso-nda" style="margin-top:14px"><strong>Acesso completo após NDA:</strong> caixa, contas a receber, estoque, equipamentos, fornecedores, empréstimos e demonstrativo de fluxo de caixa.</p>
           </div>
         </div>
@@ -853,23 +875,24 @@ function renderAbaFinanceiro(){
 
 function renderAbaIndicadores(){
   const ind = (CALC && CALC.indicadores_vs_benchmark) || {};
-  const ise = (CALC && CALC.ise) || {};
 
-  const ordem = ['margem_operacional','margem_bruta','recorrencia','concentracao','ciclo_financeiro_dias','endividamento_vs_ro'];
+  const fmtVal = (val, u) => {
+    if(val==null||isNaN(val)) return '—';
+    if(u==='R$') return brlR(val);
+    if(u==='%') return Number(val).toFixed(1)+'%';
+    if(u==='dias') return Math.round(val)+' dias';
+    if(u==='x'||u==='×') return Number(val).toFixed(2)+'×';
+    return Math.round(val)+(u?' '+u:'');
+  };
 
-  const indHTML = ordem.map(key => {
+  // 6 indicadores que vêm de indicadores_vs_benchmark (com benchmark + status)
+  const ordemBench = ['margem_operacional','margem_bruta','recorrencia','concentracao','ciclo_financeiro_dias','endividamento_vs_ro'];
+  const benchBoxes = ordemBench.map(key => {
     const i = ind[key];
     if(!i || i.valor==null) return '';
-    const v = Number(i.valor);
     const u = i.unidade || '';
-    const fmt = (val) => {
-      if(u==='R$') return brlR(val);
-      if(u==='%') return Number(val).toFixed(1)+'%';
-      if(u==='dias') return Math.round(val)+' dias';
-      return Math.round(val)+(u?' '+u:'');
-    };
-    const valorFmt = fmt(v);
-    const benchFmt = (i.benchmark!=null) ? fmt(i.benchmark) : '';
+    const valorFmt = fmtVal(i.valor, u);
+    const benchFmt = (i.benchmark!=null) ? fmtVal(i.benchmark, u) : '';
     const status = i.status || 'neutro';
     const statusLabel = status==='no_alvo'?'no alvo':status==='atencao'?'atenção':status==='abaixo'?'abaixo':'';
     return `
@@ -880,9 +903,63 @@ function renderAbaIndicadores(){
         ${statusLabel ? `<div style="margin-top:6px"><span class="bench-pill" data-status="${status}">${statusLabel}</span></div>` : ''}
       </div>
     `;
-  }).join('');
+  }).filter(x=>x).join('');
 
-  const pilares = (ise.pilares||[]).slice(0,4);
+  // Indicadores derivados (calculados a partir do calc_json)
+  const valorPedido = n(ANUNCIO && ANUNCIO.valor_pedido);
+  const roAnual = n(safe(CALC,'dre.ro_anual',0));
+  const ativos = n(safe(CALC,'balanco.ativos.total',0));
+  const passivos = n(safe(CALC,'balanco.passivos.total',0));
+  const numFuncs = n(safe(CALC,'operacional.num_funcionarios',0));
+  const roPorFunc = ind.ro_por_funcionario_mensal && ind.ro_por_funcionario_mensal.valor;
+
+  const liquidez = (passivos>0 && ativos>0) ? (ativos/passivos) : null;
+  const payback = (roAnual>0 && valorPedido>0) ? (valorPedido/roAnual) : null;
+
+  const derivedBoxes = [];
+  if(liquidez!=null){
+    const cls = liquidez>=2?'g':liquidez>=1?'w':'a';
+    derivedBoxes.push(`
+      <div class="ind-box">
+        <div class="ind-l">Liquidez (ativos/passivos)</div>
+        <div class="ind-v ${cls}">${liquidez.toFixed(2)}<span class="unit">×</span></div>
+        <div class="ind-sub">${liquidez>=2?'saudável':liquidez>=1?'aceitável':'apertado'}</div>
+      </div>
+    `);
+  }
+  if(payback!=null){
+    derivedBoxes.push(`
+      <div class="ind-box">
+        <div class="ind-l">Payback simples</div>
+        <div class="ind-v">${payback.toFixed(1)}<span class="unit">anos</span></div>
+        <div class="ind-sub">valor pedido / RO anual</div>
+      </div>
+    `);
+  }
+  if(numFuncs>0){
+    derivedBoxes.push(`
+      <div class="ind-box">
+        <div class="ind-l">Equipe</div>
+        <div class="ind-v">${numFuncs}<span class="unit">pessoas</span></div>
+        <div class="ind-sub">colaboradores</div>
+      </div>
+    `);
+  }
+  if(roPorFunc!=null && numFuncs>0){
+    derivedBoxes.push(`
+      <div class="ind-box">
+        <div class="ind-l">RO / funcionário</div>
+        <div class="ind-v">${brlR(roPorFunc)}<span class="unit">/mês</span></div>
+        <div class="ind-sub">rentabilidade por pessoa</div>
+      </div>
+    `);
+  }
+
+  const allBoxes = benchBoxes + derivedBoxes.join('');
+
+  // ISE pillars (8 ao todo agora — full set)
+  const ise = (CALC && CALC.ise) || {};
+  const pilares = (ise.pilares||[]).slice(0,8);
   const isePillarsHTML = pilares.map(p => {
     const score = Math.round(n(p.score_0_10)*10);
     const color = score>=70?'var(--accent)':score>=50?'var(--warn)':'var(--alert)';
@@ -905,16 +982,16 @@ function renderAbaIndicadores(){
           <h2 class="section-title">Como o negócio compara com o setor</h2>
         </div>
         <div class="panel">
-          ${indHTML ? `<div class="ind-grid">${indHTML}</div>` : '<p style="color:var(--ink-3);font-size:13px">Indicadores comparativos não disponíveis para este negócio.</p>'}
-          <p class="aviso-nda" style="margin-top:14px"><strong>16+ indicadores adicionais após NDA:</strong> folha, aluguel, prazo médio de pagamento e recebimento, NCG, marketing, RO por funcionário, entre outros.</p>
+          ${allBoxes ? `<div class="ind-grid">${allBoxes}</div>` : '<p style="color:var(--ink-3);font-size:13px">Indicadores comparativos não disponíveis para este negócio.</p>'}
+          <p class="aviso-nda" style="margin-top:14px"><strong>Indicadores adicionais após NDA:</strong> CMV, folha, aluguel, prazo médio de pagamento e recebimento, NCG, marketing, ticket médio, número de clientes ativos.</p>
         </div>
       </div>
 
       ${isePillarsHTML ? `
         <div class="section">
           <div class="section-head">
-            <div class="section-sub">PILARES DE SOLIDEZ</div>
-            <h2 class="section-title">Avaliação por dimensão</h2>
+            <div class="section-sub">8 PILARES DE SOLIDEZ</div>
+            <h2 class="section-title">Avaliação ISE por dimensão</h2>
           </div>
           <div class="panel">
             <div class="ise-grid">${isePillarsHTML}</div>
@@ -930,17 +1007,35 @@ function renderAbaAnalise(){
   const valuation = (CALC && CALC.valuation) || {};
   const atratividade = (CALC && CALC.atratividade) || {};
   const upsides = (CALC && CALC.upsides) || {};
+  const balanco = (CALC && CALC.balanco) || {};
 
   const iseTotal = n(ise.ise_total);
   const iseClasse = ise.classe || '';
-  const valorVenda = n(valuation.valor_venda);
+  const iseColor = iseTotal>=65?'var(--accent)':iseTotal>=50?'var(--warn)':'var(--alert)';
+  const iseBgAlpha = iseTotal>=65?'rgba(16,185,129,.12)':iseTotal>=50?'rgba(217,119,6,.15)':'rgba(220,38,38,.15)';
+
+  const valorAval = n(valuation.valor_venda);
+  const valorOperacao = n(valuation.valor_operacao);
+  const valorPedido = n(ANUNCIO && ANUNCIO.valor_pedido);
+  const roAnual = n(safe(CALC,'dre.ro_anual',0));
   const multSetor = safe(CALC,'valuation.multiplo_setor.valor',null);
   const fatorClasseLbl = safe(CALC,'valuation.fator_ise.faixa','');
+  const pl = n(balanco.patrimonio_liquido);
+  const setorLbl = safe(CALC,'identificacao.setor.label','') || '';
+
   const atrTotal = n(atratividade.total);
   const atrLabel = atratividade.label || '';
 
-  const ativos = (upsides.ativos||[]).slice(0,3);
-  const upsidesHTML = ativos.map((u,i) => `
+  // Paybacks
+  const paybackBruto = (roAnual>0 && valorPedido>0) ? (valorPedido/roAnual).toFixed(1) : '—';
+  const valorEfetivo = (valorPedido>0) ? (valorPedido - pl) : null;
+  const paybackEfetivo = (roAnual>0 && valorEfetivo!=null) ? (valorEfetivo/roAnual).toFixed(1) : '—';
+
+  // Upsides — separar quantitativos (com impacto monetário) dos qualitativos
+  const ativos = upsides.ativos || [];
+  const upsidesTop = ativos.slice(0, 3);
+  const upsidesOutros = Math.max(0, ativos.length - 3);
+  const upsidesHTML = upsidesTop.map((u,i) => `
     <div class="upside-row">
       <span class="upside-n">${i+1}</span>
       <div class="upside-body">
@@ -950,6 +1045,37 @@ function renderAbaAnalise(){
     </div>
   `).join('');
 
+  // ISE pilares detalhados (8)
+  const pilares = (ise.pilares||[]).slice(0,8);
+  const pilaresHTML = pilares.map(p => {
+    const score = Math.round(n(p.score_0_10)*10);
+    const cor = score>=70?'var(--accent)':score>=50?'var(--warn)':'var(--alert)';
+    const peso = n(p.peso_pct);
+    return `
+      <div class="ck">
+        <span class="ck-i" style="background:${cor};color:var(--bg)">${score>=70?'✓':score>=50?'~':'!'}</span>
+        <span style="flex:1">${escapeHtml(p.label||'')}<span style="color:var(--ink-4);font-size:11px;font-family:var(--mono);margin-left:6px">peso ${peso}%</span></span>
+        <span style="font-family:var(--serif);font-weight:700;color:${cor};font-size:14px">${score}/100</span>
+      </div>
+    `;
+  }).join('');
+
+  // Transferibilidade — derivada do calc
+  const numFuncs = n(safe(CALC,'operacional.num_funcionarios',0));
+  const recor = n(safe(CALC,'indicadores_vs_benchmark.recorrencia.valor',0));
+  const operaSemDono = ise.pilares && ise.pilares.find(p=>p.id==='p5_socio_dependencia');
+  const socioScore = operaSemDono ? Math.round(n(operaSemDono.score_0_10)*10) : 0;
+  const socioDep = socioScore>=75?'Baixa':socioScore>=50?'Média':'Alta';
+  const checks = [
+    {ok: numFuncs>=3, txt: numFuncs>=3 ? `Equipe de ${numFuncs} colaboradores — operação independente` : 'Equipe enxuta — verificar transferibilidade'},
+    {ok: socioDep==='Baixa', txt: `Sócio-dependência ${socioDep.toLowerCase()}`},
+    {ok: recor>=30, txt: recor>=30 ? `Receita recorrente ${recor.toFixed(0)}% — fluxo previsível` : 'Baixa recorrência — avaliar pipeline'},
+  ];
+  const trOk = checks.filter(c=>c.ok).length;
+  const trConclusion = trOk>=2 ? 'Risco de continuidade <em>BAIXO</em>' : trOk>=1 ? 'Risco de continuidade <em>MÉDIO</em>' : 'Risco de continuidade <em>ALTO</em>';
+
+  const potencial = (TEXTOS.potencial_crescimento && TEXTOS.potencial_crescimento.conteudo) || '';
+  const comprador = (TEXTOS.perfil_comprador_ideal && TEXTOS.perfil_comprador_ideal.conteudo) || '';
   const cta = (TEXTOS.call_to_action && TEXTOS.call_to_action.conteudo) || '';
 
   return `
@@ -959,35 +1085,133 @@ function renderAbaAnalise(){
           <div class="section-sub">ANÁLISE 1NEGÓCIO</div>
           <h2 class="section-title">Avaliação técnica</h2>
         </div>
-        <div class="ana-grid">
-          <div class="ana-block featured">
-            <div class="ana-head"><span>ISE — Índice de Solidez</span>${iseClasse?`<span class="ana-tag">${escapeHtml(iseClasse)}</span>`:''}</div>
-            <div class="ana-big">${iseTotal?iseTotal.toFixed(1):'—'}<span class="rs">/100</span></div>
-            <div class="ana-conclusion">A nota agrega 8 pilares: financeiro, resultado, comercial, gestão, dependência do dono, risco legal, balanço e marca.</div>
+
+        <div class="ana-block">
+          <div class="ana-head">
+            <span>Como chegamos nessa avaliação</span>
+            <span class="ana-tag">AVAL. 1N</span>
           </div>
-          <div class="ana-block">
-            <div class="ana-head"><span>Avaliação técnica</span>${multSetor?`<span class="ana-tag">${Number(multSetor).toFixed(2)}× RO</span>`:''}</div>
-            <div class="ana-big g">${valorVenda?brlR(valorVenda):'—'}</div>
-            ${fatorClasseLbl?`<div class="ana-formula">${escapeHtml(fatorClasseLbl)}</div>`:''}
-          </div>
-          <div class="ana-block">
-            <div class="ana-head"><span>Atratividade de mercado</span>${atrLabel?`<span class="ana-tag">${escapeHtml(atrLabel)}</span>`:''}</div>
-            <div class="ana-big">${atrTotal?atrTotal.toFixed(0):'—'}<span class="rs">/100</span></div>
-            <div class="ana-formula">Score composto: solidez (50%) + apelo do setor (25%) + crescimento (25%).</div>
+          <div class="ana-big g"><span class="rs">R$</span>${brl(valorAval)}</div>
+          <div class="ana-formula">
+            <em>método:</em> Resultado operacional anual × múltiplo 1N${multSetor?` (${Number(multSetor).toFixed(2)}× ${escapeHtml(setorLbl)})`:''}<br>
+            ${fatorClasseLbl?`<span style="opacity:.75;font-size:11px">${escapeHtml(fatorClasseLbl)}</span>`:''}
           </div>
         </div>
+
+        <div class="ana-block featured">
+          <div class="ana-head">
+            <span>Índice de Solidez Empresarial</span>
+            ${iseClasse?`<span class="ana-tag">${escapeHtml(iseClasse).toUpperCase()}</span>`:''}
+          </div>
+          <div class="ana-ise-score">
+            <div class="ise-n" style="color:${iseColor}">${iseTotal?iseTotal.toFixed(1):'—'}<span>/100</span></div>
+            <div class="ise-cls" style="color:${iseColor};background:${iseBgAlpha}">${escapeHtml(iseClasse).toUpperCase()}</div>
+          </div>
+          <div class="ana-ise-desc">
+            ${iseTotal>=80 ? 'Negócio com estrutura operacional madura e baixo risco.' : iseTotal>=65 ? 'Operação estável com fundamentos consistentes.' : iseTotal>=50 ? 'Operação com pontos a monitorar — due diligence recomendada.' : 'Requer atenção em múltiplos pilares — alto potencial de melhoria.'}
+          </div>
+          ${pilaresHTML?`<div class="ana-checks" style="margin-top:14px">${pilaresHTML}</div>`:''}
+        </div>
+
+        <div class="ana-block">
+          <div class="ana-head"><span>Fator de transferibilidade</span></div>
+          <div class="ana-checks">
+            ${checks.map(c=>`<div class="ck ${c.ok?'':'warn'}"><span class="ck-i">${c.ok?'✓':'!'}</span><span>${c.txt}</span></div>`).join('')}
+          </div>
+          <div class="ana-conclusion">${trConclusion}</div>
+        </div>
+
+        ${valorPedido>0?`
+        <div class="ana-block">
+          <div class="ana-head">
+            <span>Payback bruto</span>
+            <span>sobre valor pedido</span>
+          </div>
+          <div class="ana-big">${paybackBruto}<span class="rs" style="margin-left:4px">anos</span></div>
+          <div class="ana-formula">
+            <em>valor pedido:</em> R$${brl(valorPedido)}<br>
+            <em>resultado anual:</em> R$${brl(roAnual)}
+          </div>
+          <div class="ana-conclusion">Tempo para recuperar o valor pago, considerando o resultado operacional anual atual.</div>
+        </div>
+
+        <div class="ana-block">
+          <div class="ana-head">
+            <span>Valor do Negócio vs Valor de Venda</span>
+          </div>
+          <div class="ana-formula" style="margin-bottom:12px;line-height:1.7">
+            <strong style="color:var(--ink)">Valor do Negócio</strong> (intrínseco) — preço técnico calculado pelo método 1N (RO × múltiplo + ajustes ISE/setor).<br>
+            <strong style="color:var(--ink)">Valor de Venda</strong> — Valor do Negócio descontando passivos líquidos. É o que o comprador efetivamente paga pra adquirir o controle.
+          </div>
+          <div class="ana-big ${valorEfetivo>0?'':valorEfetivo<0?'a':''}"><span class="rs">R$</span>${brl(valorEfetivo!=null?valorEfetivo:0)}</div>
+          <div class="ana-formula">
+            <em>valor pedido:</em> R$${brl(valorPedido)}<br>
+            <em>patrimônio líquido:</em> ${pl>=0?'+':''}R$${brl(Math.abs(pl))} ${pl>0?'(positivo)':pl<0?'(negativo)':'(neutro)'}
+          </div>
+          <div class="ana-conclusion">
+            ${ pl < 0
+              ? 'PL negativo — passivos superam ativos. Comprador assume <em>mais obrigações que bens</em>, valor efetivo > valor pedido.'
+              : pl > 0
+                ? 'PL positivo — ativos superam passivos. Parte do valor pedido vira patrimônio real; valor efetivo < valor pedido.'
+                : 'PL neutro — valor efetivo igual ao pedido.'
+            }
+          </div>
+        </div>
+
+        <div class="ana-block">
+          <div class="ana-head">
+            <span>Payback efetivo</span>
+            <span>sobre valor de venda</span>
+          </div>
+          <div class="ana-big">${paybackEfetivo}<span class="rs" style="margin-left:4px">anos</span></div>
+          <div class="ana-formula">
+            <em>valor de venda:</em> R$${brl(valorEfetivo!=null?valorEfetivo:0)}<br>
+            <em>resultado anual:</em> R$${brl(roAnual)}
+          </div>
+          <div class="ana-conclusion">Tempo real pra recuperar o investimento, considerando o patrimônio que vem junto.</div>
+        </div>
+        `:''}
+
+        ${atrTotal?`
+        <div class="ana-block">
+          <div class="ana-head">
+            <span>Atratividade de mercado</span>
+            ${atrLabel?`<span class="ana-tag">${escapeHtml(atrLabel).toUpperCase()}</span>`:''}
+          </div>
+          <div class="ana-big">${atrTotal.toFixed(0)}<span class="rs">/100</span></div>
+          <div class="ana-formula">Score composto: solidez (50%) + apelo do setor (25%) + crescimento (25%).</div>
+        </div>
+        `:''}
+
+        ${upsidesHTML ? `
+        <div class="ana-block">
+          <div class="ana-head">
+            <span>Upsides identificados</span>
+            ${ativos.length?`<span class="ana-tag">${ativos.length} totais</span>`:''}
+          </div>
+          <div class="upsides" style="margin-top:8px">${upsidesHTML}</div>
+          ${upsidesOutros>0 ? `<div class="upsides-more">+ ${upsidesOutros} outro${upsidesOutros>1?'s':''} no laudo completo</div>` : ''}
+        </div>
+        ` : ''}
       </div>
 
-      ${upsidesHTML ? `
+      ${potencial ? `
         <div class="section">
           <div class="section-head">
-            <div class="section-sub">UPSIDES IDENTIFICADOS</div>
-            <h2 class="section-title">Onde o comprador captura valor</h2>
+            <div class="section-sub">POTENCIAL DE CRESCIMENTO</div>
+            <h2 class="section-title">Onde está o crescimento</h2>
           </div>
-          <div class="panel">
-            <div class="upsides">${upsidesHTML}</div>
-            <p class="aviso-nda" style="margin-top:14px"><strong>Upsides adicionais</strong> com cálculo monetário detalhado disponíveis após NDA.</p>
+          <div class="panel editorial"><p>${escapeHtml(potencial)}</p></div>
+        </div>
+      ` : ''}
+
+      ${comprador ? `
+        <div class="section">
+          <div class="section-head">
+            <div class="section-sub">PERFIL DO COMPRADOR IDEAL</div>
+            <h2 class="section-title">Para quem este negócio é</h2>
           </div>
+          <div class="panel editorial"><p>${escapeHtml(comprador)}</p></div>
         </div>
       ` : ''}
 
@@ -1059,12 +1283,19 @@ function inicializarTracking(){
 
 function solicitarInformacoes(){
   if(window.track) window.track('click_solicitar_info');
-  const id = NEG && NEG.id;
-  if(SESSION && id){
-    window.location.href = '/?solicitar=' + id;
-  } else {
-    const next = id ? '/?solicitar=' + id : '/';
-    window.location.href = '/auth?next=' + encodeURIComponent(next);
+  if(!SESSION){
+    const codigo = ANUNCIO && ANUNCIO.codigo;
+    const next = codigo ? '/negocios/' + codigo : '/';
+    window.location.href = '/portal-usuario.html?redirect=' + encodeURIComponent(next) + '&acao=solicitar';
+    return;
+  }
+  // logado → scroll para C3 panel (CTAs state-aware)
+  const c3 = document.getElementById('c3-section');
+  if(c3){
+    const top = c3.getBoundingClientRect().top + window.scrollY - 80;
+    window.scrollTo({top, behavior:'smooth'});
+  } else if(NEG && NEG.id){
+    window.location.href = '/?solicitar=' + NEG.id;
   }
 }
 
@@ -1192,6 +1423,7 @@ function gerarTextoRegiao(estado, cidade){
 function renderCamada3(){
   const sec=document.createElement('section');
   sec.className='section';
+  sec.id='c3-section';
 
   // Não logado → CTA login + solicitar
   if(!SESSION){
