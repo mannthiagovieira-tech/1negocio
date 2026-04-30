@@ -2063,7 +2063,13 @@ async function loadFromSupabase(){
 ═══════════════════════════════════════════════ */
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
-const brl=v=>v>=1e6?(v/1e6).toFixed(1).replace('.0','')+'M':v>=1e3?Math.round(v/1e3)+'k':String(v);
+const brl=v=>{
+  v=Math.round(v||0);
+  const a=Math.abs(v),sign=v<0?'-':'';
+  if(a>=1e6) return sign+(a/1e6).toFixed(1).replace('.0','')+'M';
+  if(a>=1e3) return sign+Math.round(a/1e3)+'k';
+  return sign+a.toLocaleString('pt-BR');
+};
 const fmt=v=>v.toLocaleString('pt-BR');
 
 const TWEAKS = /*EDITMODE-BEGIN*/{
@@ -2400,14 +2406,16 @@ function cardHTML(d){
   const iseColor = ise>=65?'var(--accent)':ise>=50?'var(--warn)':'var(--alert)';
   const iseBgAlpha = ise>=65?'rgba(61,255,149,.12)':ise>=50?'rgba(255,183,77,.15)':'rgba(255,107,107,.15)';
   const multip = roA>0 ? (d.aval/roA).toFixed(1) : '—';
-  // PAYBACKS — sem juízo de valor, só fato
-  // 1) Payback bruto: quantos anos pra recuperar o valor pedido
-  const paybackBruto = roA>0 ? (d.preco/roA).toFixed(1) : '—';
-  // 2) Valor efetivo: o que de fato você paga pelo negócio (descontando patrimônio)
+  // PAYBACKS — sem juízo de valor, só fato (cap 50+ anos, '—' quando RO≤0)
+  const fmtPayback = (num) => {
+    if(roA<=0 || num<=0) return '—';
+    const anos = num/roA;
+    return anos>50 ? '50+' : anos.toFixed(1);
+  };
+  const paybackBruto = fmtPayback(d.preco);
   const bpLiq = d.ativos - d.pass;
-  const valorEfetivo = d.preco - bpLiq;
-  // 3) Payback efetivo: anos pra recuperar o valor efetivo
-  const paybackEfetivo = roA>0 ? (valorEfetivo/roA).toFixed(1) : '—';
+  const valorEfetivo = Math.round(d.preco - bpLiq);
+  const paybackEfetivo = fmtPayback(valorEfetivo);
 
   // ───── UPSIDES (vêm do laudo) — hoje derivamos pelo perfil ─────
   // TODO: substituir por d.upsides quando o laudo expor esse campo

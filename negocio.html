@@ -1062,10 +1062,17 @@ function renderAbaAnalise(){
   const atrTotal = n(atratividade.total);
   const atrLabel = atratividade.label || '';
 
-  // Paybacks
-  const paybackBruto = (roAnual>0 && valorPedido>0) ? (valorPedido/roAnual).toFixed(1) : '—';
-  const valorEfetivo = (valorPedido>0) ? (valorPedido - pl) : null;
-  const paybackEfetivo = (roAnual>0 && valorEfetivo!=null) ? (valorEfetivo/roAnual).toFixed(1) : '—';
+  // Paybacks (com proteção RO≤0 + cap 50 anos)
+  const roPositivo = roAnual > 0;
+  const fmtPayback = (numerador) => {
+    if(!roPositivo || numerador<=0) return '—';
+    const anos = numerador / roAnual;
+    if(anos > 50) return '50+';
+    return anos.toFixed(1);
+  };
+  const paybackBruto = fmtPayback(valorPedido);
+  const valorEfetivo = (valorPedido>0) ? Math.round(valorPedido - pl) : null;
+  const paybackEfetivo = fmtPayback(valorEfetivo!=null ? valorEfetivo : 0);
 
   // Upsides — separar quantitativos (com impacto monetário) dos qualitativos
   const ativos = upsides.ativos || [];
@@ -1158,18 +1165,27 @@ function renderAbaAnalise(){
         </div>
 
         ${valorPedido>0?`
+        ${!roPositivo?`
+        <div class="ana-block" style="border-color:rgba(217,119,6,.28);background:var(--warn-soft)">
+          <div class="ana-head"><span>Resultado operacional negativo</span><span class="ana-tag" style="background:var(--warn-soft);color:var(--warn);border-color:rgba(217,119,6,.28)">N/A</span></div>
+          <div class="ana-formula" style="line-height:1.6">
+            Este negócio apresenta resultado operacional anual de <strong>${brlR(roAnual)}</strong>. Os indicadores de payback (tempo de retorno do investimento) <em>não são calculáveis</em> enquanto o resultado for negativo — o investidor precisa primeiro reverter a operação pra geração de caixa positiva. A análise dos demais indicadores (ISE, balanço, recorrência) ajuda a estimar o esforço de turnaround.
+          </div>
+        </div>
+        `:`
         <div class="ana-block">
           <div class="ana-head">
             <span>Payback bruto</span>
             <span>sobre valor pedido</span>
           </div>
-          <div class="ana-big">${paybackBruto}<span class="rs" style="margin-left:4px">anos</span></div>
+          <div class="ana-big">${paybackBruto}${paybackBruto==='—'?'':`<span class="rs" style="margin-left:4px">anos</span>`}</div>
           <div class="ana-formula">
-            <em>valor pedido:</em> R$${brl(valorPedido)}<br>
-            <em>resultado anual:</em> R$${brl(roAnual)}
+            <em>valor pedido:</em> ${brlR(valorPedido)}<br>
+            <em>resultado anual:</em> ${brlR(roAnual)}
           </div>
-          <div class="ana-conclusion">Tempo para recuperar o valor pago, considerando o resultado operacional anual atual.</div>
+          <div class="ana-conclusion">Tempo para recuperar o valor pago, considerando o resultado operacional anual atual.${paybackBruto==='50+'?' Mais de 50 anos — valor pedido alto vs resultado atual.':''}</div>
         </div>
+        `}
 
         <div class="ana-block">
           <div class="ana-head">
@@ -1179,10 +1195,10 @@ function renderAbaAnalise(){
             <strong style="color:var(--ink)">Valor do Negócio</strong> (intrínseco) — preço técnico calculado pelo método 1N (RO × múltiplo + ajustes ISE/setor).<br>
             <strong style="color:var(--ink)">Valor de Venda</strong> — Valor do Negócio descontando passivos líquidos. É o que o comprador efetivamente paga pra adquirir o controle.
           </div>
-          <div class="ana-big ${valorEfetivo>0?'':valorEfetivo<0?'a':''}"><span class="rs">R$</span>${brl(valorEfetivo!=null?valorEfetivo:0)}</div>
+          <div class="ana-big ${valorEfetivo>0?'':valorEfetivo<0?'a':''}">${brlR(valorEfetivo!=null?valorEfetivo:0)}</div>
           <div class="ana-formula">
-            <em>valor pedido:</em> R$${brl(valorPedido)}<br>
-            <em>patrimônio líquido:</em> ${pl>=0?'+':''}R$${brl(Math.abs(pl))} ${pl>0?'(positivo)':pl<0?'(negativo)':'(neutro)'}
+            <em>valor pedido:</em> ${brlR(valorPedido)}<br>
+            <em>patrimônio líquido:</em> ${pl>=0?brlR(pl):'-'+brlR(Math.abs(pl))} ${pl>0?'(positivo)':pl<0?'(negativo)':'(neutro)'}
           </div>
           <div class="ana-conclusion">
             ${ pl < 0
@@ -1194,18 +1210,20 @@ function renderAbaAnalise(){
           </div>
         </div>
 
+        ${roPositivo?`
         <div class="ana-block">
           <div class="ana-head">
             <span>Payback efetivo</span>
             <span>sobre valor de venda</span>
           </div>
-          <div class="ana-big">${paybackEfetivo}<span class="rs" style="margin-left:4px">anos</span></div>
+          <div class="ana-big">${paybackEfetivo}${paybackEfetivo==='—'?'':`<span class="rs" style="margin-left:4px">anos</span>`}</div>
           <div class="ana-formula">
-            <em>valor de venda:</em> R$${brl(valorEfetivo!=null?valorEfetivo:0)}<br>
-            <em>resultado anual:</em> R$${brl(roAnual)}
+            <em>valor de venda:</em> ${brlR(valorEfetivo!=null?valorEfetivo:0)}<br>
+            <em>resultado anual:</em> ${brlR(roAnual)}
           </div>
-          <div class="ana-conclusion">Tempo real pra recuperar o investimento, considerando o patrimônio que vem junto.</div>
+          <div class="ana-conclusion">Tempo real pra recuperar o investimento, considerando o patrimônio que vem junto.${paybackEfetivo==='50+'?' Mais de 50 anos — investimento de longo prazo vs resultado atual.':''}</div>
         </div>
+        `:''}
         `:''}
 
         ${atrTotal?`
@@ -1341,8 +1359,9 @@ function compartilhar(){
 /* helpers v2 */
 function brlR(v){
   if(v===null||v===undefined||isNaN(v)) return '—';
-  const num = n(v);
+  const num = Math.round(n(v));
   if(num===0) return 'R$0';
+  if(num<0) return '-R$'+brl(-num);
   return 'R$'+brl(num);
 }
 function safe(o, path, fb){
