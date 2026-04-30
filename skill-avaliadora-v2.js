@@ -722,7 +722,20 @@
     const estoque = tag('estoque', p1(d.at_estoque, d.estoque_valor, d.estoque));
     const equipamentos = tag('equipamentos', p1(d.at_equip, d.equipamentos));
     const imovel = tag('imovel', p1(d.at_imovel, d.imovel));
-    const ativo_franquia = tag('ativo_franquia', p1(d.ativo_franquia, d.taxa_franquia_proporcional));
+    // ativo_franquia: defensivo. Se diag salvou 0 mas user preencheu
+    // taxa+contrato+restante válidos (ou flag indeterminado), recalcula
+    // proporcional pra evitar perder o ativo na avaliação.
+    let _af = p1(d.ativo_franquia, d.taxa_franquia_proporcional);
+    if (_af <= 0 && n(d.taxa_franquia) > 0) {
+      const _ct = n(d.franquia_contrato_anos);
+      const _rt = n(d.franquia_restante_anos);
+      if (d.franquia_indeterminado) {
+        _af = n(d.taxa_franquia);
+      } else if (_ct > 0 && _rt > 0) {
+        _af = Math.round(n(d.taxa_franquia) * (_rt / _ct));
+      }
+    }
+    const ativo_franquia = tag('ativo_franquia', _af);
     // outros_ativos — diag salva como d.at_outros. p1 pega primeiro positivo.
     const outros_ativos = tag('outros_ativos', n(p1(d.outros_ativos, d.at_outros, dados.outros_ativos)));
 
