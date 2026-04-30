@@ -2373,18 +2373,18 @@ async function loadAnuncios() {
   const tbl = document.getElementById('tbl-anuncios');
   if (tbl) tbl.innerHTML = '<div class="loading">Carregando...</div>';
   try {
-    // 1. Pega slugs com calc_json
-    const lr = await api('select','laudos_completos',{
-      select: 'slug', limit: 5000
+    // 1. Pega negocio_ids com laudo_v2 ativo (substitui slugs do laudos_completos v1)
+    const lr = await api('select','laudos_v2',{
+      select: 'negocio_id', match: { ativo: true }, limit: 5000
     });
-    const slugs = new Set((lr.data || []).map(l => l.slug).filter(Boolean));
+    const negocioIdsV2 = new Set((lr.data || []).map(l => l.negocio_id).filter(Boolean));
 
-    // 2. Pega negócios e filtra apenas os com laudo
+    // 2. Pega negócios e filtra apenas os com laudo v2
     const nr = await api('select','negocios',{
       select: 'id,codigo_diagnostico,nome,titulo_anuncio,setor,cidade,estado,status,preco_pedido,publicado_em,created_at,vendedor_id',
       order: 'created_at', ascending: false, limit: 1000
     });
-    const negocios = (nr.data || []).filter(n => slugs.has(n.id));
+    const negocios = (nr.data || []).filter(n => negocioIdsV2.has(n.id));
 
     // 3. Pega TODOS os termos de adesão de uma vez
     const tr = await api('select','termos_adesao',{
@@ -2670,9 +2670,10 @@ async function abrirEditor(negocioId) {
         select: 'id,codigo_diagnostico,nome,titulo_anuncio,setor,cidade,estado,status,preco_pedido,publicado_em,created_at,vendedor_id',
         match: { id: negocioId }
       }),
-      api('select','laudos_completos',{
-        select: 'calc_json',
-        match: { slug: negocioId }
+      api('select','laudos_v2',{
+        select: 'calc_json,id',
+        match: { negocio_id: negocioId, ativo: true },
+        limit: 1
       }),
       api('select','termos_adesao',{
         select: 'id,negocio_id,plano,comissao_pct,representante_nome,representante_cpf,assinatura_em,valor_pretendido',
@@ -2715,6 +2716,7 @@ async function abrirEditor(negocioId) {
 
     __anuEdit.negocio = neg;
     __anuEdit.calc = ((laudoRes.data || [])[0] || {}).calc_json || null;
+    __anuEdit.laudoV2Id = ((laudoRes.data || [])[0] || {}).id || null;
     __anuEdit.termo = (termoRes.data || [])[0] || null;
 
     // Busca dados do vendedor
@@ -3261,26 +3263,46 @@ const SETOR_LABEL_MAP = {
   'beleza_estetica':'beleza e estética','hospedagem':'hospedagem','salao':'salão de beleza'
 };
 
+// IA-first: usa textos_anuncio.sugestoes_titulo_anuncio.conteudo se houver,
+// fallback pro schema v2 do calc_json.
 function gerarSugestaoTitulo(calc) {
   if (!calc) return '';
-  const setor = (calc.setor_raw || calc.setor || '').toString().toLowerCase();
-  const setorTxt = SETOR_LABEL_MAP[setor] || setor;
-  const cidade = calc.cidade || '';
-  if (!setorTxt || !cidade) return '';
-  const cap = setorTxt.charAt(0).toUpperCase() + setorTxt.slice(1);
+
+  // Prioridade 1: IA já gerou (Edge Function gerar_textos_laudo)
+  const sugestoesIA = calc.textos_anuncio?.sugestoes_titulo_anuncio?.conteudo;
+  if (Array.isArray(sugestoesIA) && sugestoesIA.length > 0) {
+    return String(sugestoesIA[0] || '').substring(0, 60);
+  }
+
+  // Fallback schema v2
+  const setorRaw = (calc.identificacao?.setor?.label || '').toString().toLowerCase();
+  const setor = SETOR_LABEL_MAP[setorRaw] || setorRaw;
+  const cidade = calc.identificacao?.localizacao?.cidade || '';
+  if (!setor || !cidade) return '';
+
+  const cap = setor.charAt(0).toUpperCase() + setor.slice(1);
   return `${cap} em ${cidade}`.substring(0, 60);
 }
 
 function gerarSugestoesTitulo(calc) {
   if (!calc) return [];
-  const setor = (calc.setor_raw || calc.setor || '').toString().toLowerCase();
-  const setorTxt = SETOR_LABEL_MAP[setor] || setor;
-  const cidade = calc.cidade || '';
-  const anos = calc.anos || 0;
-  const margem = Math.round(parseFloat(calc.margem_pct) || 0);
-  const rec = Math.round(parseFloat(calc.recorrencia) || 0);
-  if (!setorTxt) return [];
-  const cap = setorTxt.charAt(0).toUpperCase() + setorTxt.slice(1);
+
+  // Prioridade 1: IA já gerou
+  const sugestoesIA = calc.textos_anuncio?.sugestoes_titulo_anuncio?.conteudo;
+  if (Array.isArray(sugestoesIA) && sugestoesIA.length > 0) {
+    return sugestoesIA.map(s => String(s || '').substring(0, 60)).slice(0, 5);
+  }
+
+  // Fallback schema v2
+  const setorRaw = (calc.identificacao?.setor?.label || '').toString().toLowerCase();
+  const setor = SETOR_LABEL_MAP[setorRaw] || setorRaw;
+  const cidade = calc.identificacao?.localizacao?.cidade || '';
+  const anos = calc.identificacao?.tempo_operacao_anos || 0;
+  const margem = Math.round(parseFloat(calc.dre?.margem_operacional_pct) || 0);
+  const rec = Math.round(parseFloat(calc.indicadores_vs_benchmark?.recorrencia?.valor) || 0);
+
+  if (!setor) return [];
+  const cap = setor.charAt(0).toUpperCase() + setor.slice(1);
 
   const sugs = [];
   if (cidade && anos >= 5) sugs.push(`${cap} em ${cidade} com ${anos} anos`);
@@ -3289,7 +3311,7 @@ function gerarSugestoesTitulo(calc) {
   else if (anos >= 10 && cidade) sugs.push(`${cap} estabelecido em ${cidade}`);
   if (cidade) sugs.push(`${cap} em ${cidade}`);
 
-  return [...new Set(sugs)].map(s => s.substring(0,60)).slice(0,3);
+  return [...new Set(sugs)].map(s => s.substring(0, 60)).slice(0, 3);
 }
 
 // =============================================
