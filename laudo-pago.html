@@ -408,12 +408,15 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 
 /* ONE-PAGE (A1 teaser denso) */
 .op-wrap{border-bottom:1px solid var(--line2)}
-.op-hero{background:linear-gradient(135deg,var(--em-d),var(--bg1));border-bottom:1px solid var(--em-l);padding:24px 32px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.op-hero{background:linear-gradient(135deg,var(--em-d),var(--bg1));border-bottom:1px solid var(--em-l);padding:24px 32px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:nowrap}
+.op-hero > div:first-child{min-width:0;flex:1 1 auto}
+.op-hero-nome{word-break:break-word}
+@media (max-width:560px){.op-hero{flex-wrap:wrap}.op-hero-right{text-align:left;margin-top:8px}}
 .op-hero-eyebrow{font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--em);margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .op-hero-eyebrow::before{content:'';width:18px;height:1.5px;background:var(--em)}
 .op-hero-nome{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;color:var(--ink);letter-spacing:-.03em;line-height:1.1;margin-bottom:5px}
 .op-hero-setor{font-size:10px;color:var(--ink3)}
-.op-hero-right{text-align:right;flex-shrink:0}
+.op-hero-right{text-align:right;flex:0 0 auto}
 .op-hero-valor-label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:5px}
 .op-hero-valor{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:var(--em);letter-spacing:-.03em;line-height:1}
 .op-hero-valor-tipo{font-size:9px;color:var(--ink4);margin-top:4px}
@@ -486,7 +489,10 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 .txt-md h3{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--ink);margin:14px 0 8px}
 .txt-md h4{font-family:'Syne',sans-serif;font-weight:700;font-size:11px;color:var(--ink);margin:12px 0 6px}
 .txt-md ul{margin:8px 0 12px;padding-left:18px}
-.txt-md li{margin-bottom:6px}
+.txt-md li{font-size:11px;line-height:1.7;color:var(--ink2);margin-bottom:6px}
+/* Ajuste 7: bullets dentro de .diag-bloco (listaPilares em A2) — mesma fonte do .txt */
+.diag-bloco ul{padding-left:18px;margin-top:6px}
+.diag-bloco ul li{font-size:11px;line-height:1.7;color:var(--ink2)}
 .txt-md strong{color:var(--ink)}
 
 /* FOOTNOTE · nota de rodapé interna de seção */
@@ -709,7 +715,7 @@ const SECOES = [
   { num: 'A1',  nome: 'Anexo · Teaser One-page',                                        tag: 'Resumo Executivo', render: 'teaser' },
   { num: 'A2',  nome: 'Anexo · Pontos Fortes e Pontos de Atenção',                      tag: 'Análise',          render: 'pontos' },
   { num: 'A3',  nome: 'Anexo · Estudo Tributário Detalhado',                            tag: 'Análise',          render: 'tributario' },
-  { num: 'ICD', nome: 'Índice de Confiabilidade dos Dados',                             tag: 'Qualidade',        render: 'icd' },
+  { num: 'TR',  nome: 'Transparência das informações',                                  tag: 'Transparência',    render: 'icd' },
 ];
 function getNum(renderKey) {
   const s = SECOES.find(x => x.render === renderKey);
@@ -801,12 +807,12 @@ function renderCapa() {
 function renderSumario() {
   const restante = SECOES.filter(s => s.render !== 'sumario' && s.render !== 'icd');
 
-  // ICD primeiro com opacity reduzida
+  // Transparência primeiro com opacity reduzida
   let lis = ''
     + '<div class="sumario-item" style="opacity:.6">'
-    + '<span class="sumario-num" style="color:var(--ink4)">ICD</span>'
-    + '<span class="sumario-nome">Índice de Confiabilidade dos Dados</span>'
-    + '<span class="sumario-tag">Qualidade</span>'
+    + '<span class="sumario-num" style="color:var(--ink4)">TR</span>'
+    + '<span class="sumario-nome">Transparência das informações</span>'
+    + '<span class="sumario-tag">Transparência</span>'
     + '</div>';
 
   restante.forEach(s => {
@@ -1265,17 +1271,20 @@ function renderIndicadores() {
   const id = calcJson.identificacao || {};
   const setorLabel = (id.setor && id.setor.label) || 'Empresa';
 
-  // Whitelist de 6-8 indicadores principais — exclui ro_por_funcionario_mensal,
+  // Whitelist de 10 indicadores principais — exclui ro_por_funcionario_mensal,
   // PMP/PMR/ciclo (sem benchmark setorial), e indicadores sem media_setor.
+  // Atenção: skill grava `recorrencia` e `concentracao` (sem _pct).
   const whitelist = [
     'margem_operacional',
+    'margem_bruta',
     'cmv_pct',
     'folha_pct',
     'aluguel_pct',
     'mkt_pct',
     'outros_cf_pct',
-    'recorrencia_pct',
-    'concentracao_pct',
+    'deducoes_pct',
+    'recorrencia',
+    'concentracao',
   ];
 
   const itens = whitelist
@@ -1697,7 +1706,21 @@ function renderTeaser() {
     + '<div class="op-kpi"><div class="op-kpi-l">Margem operacional</div><div class="op-kpi-v ' + (margem >= 15 ? 'g' : margem >= 5 ? 'a' : 'r') + '">' + margem.toFixed(1) + '%</div></div>'
     + '<div class="op-kpi"><div class="op-kpi-l">ISE · Solidez</div><div class="op-kpi-v g">' + iseTotal.toFixed(0) + '/100</div><div class="op-kpi-sub">' + escapeHtml(ise.classe || '—') + '</div></div>'
     + '<div class="op-kpi"><div class="op-kpi-l">Fator 1N</div><div class="op-kpi-v">' + fator.toFixed(2).replace('.', ',') + '×</div></div>'
-    + '<div class="op-kpi"><div class="op-kpi-l">Tempo de operação</div><div class="op-kpi-v">' + escapeHtml(tempoLabel || '—') + '</div></div>'
+    + (function() {
+        // Ajuste 6: cascata tempo > regime > equipe
+        if (tempoLabel) {
+          return '<div class="op-kpi"><div class="op-kpi-l">Tempo de operação</div><div class="op-kpi-v">' + escapeHtml(tempoLabel) + '</div></div>';
+        }
+        if (regimeLabel) {
+          return '<div class="op-kpi"><div class="op-kpi-l">Regime tributário</div><div class="op-kpi-v">' + escapeHtml(regimeLabel) + '</div></div>';
+        }
+        const head = (calcJson.dre && calcJson.dre.pessoal && calcJson.dre.pessoal.headcount_total)
+          || (id.num_funcionarios) || null;
+        if (head != null) {
+          return '<div class="op-kpi"><div class="op-kpi-l">Equipe</div><div class="op-kpi-v">' + escapeHtml(String(head)) + ' pessoas</div></div>';
+        }
+        return '<div class="op-kpi"><div class="op-kpi-l">—</div><div class="op-kpi-v">—</div></div>';
+      })()
     + '</div>';
 
   // Bloco DRE Resumida
@@ -1971,7 +1994,7 @@ function renderICD() {
   return ''
     + '<section class="icd-wrap page-break">'
     + '  <div class="icd-header">'
-    + '    <div class="icd-title">ICD · Índice de Confiabilidade dos Dados</div>'
+    + '    <div class="icd-title">Transparência · origem dos dados</div>'
     + '    <div class="icd-score">' + pct + '%</div>'
     + '  </div>'
     + '  <div class="icd-bar-track"><div class="icd-bar-fill" style="width:' + pct + '%"></div></div>'

@@ -2,23 +2,36 @@
 **Data:** 29-30/04/2026
 **Status:** laudo-pago v1→v2 commitado. Próximas 14 tarefas em ordem fixa.
 
-## ORDEM DE EXECUÇÃO (não alterar sem autorização)
+## ORDEM DE EXECUÇÃO (atualizada 29/04 noite)
 
-1. ✅ Terminar laudo-pago (port v1→v2) — concluído
-2. Subir laudo-pago modelo novo no laudo-completo (gratuito) — adaptar mesma estrutura, versão reduzida
-3. Ajeitar index cards — puxar dados de v2 (substituir DATA hardcoded)
-4. Ajeitar negocio.html pré-NDA — info pública anônima
-5. Ajeitar negocio.html pós-NDA — dossiê nível 2/3
-6. Deletar skill-avaliadora v1 + limpa geral do repo (código morto: chartProgressao em laudo-pago, demais funções não-chamadas, fixtures antigas)
-7. Teste fim-a-fim: diagnóstico → anúncio gratuito → termo de adesão → admin cria anúncio → interesse comprador → NDA → acesso aos detalhes
-8. IA atendimento home: ensinar a passar valor sugerido via conversa
-9. IA atendimento home: obrigar a coletar telefone antes de entregar resultado
-10. Testar notificações e fluxos WhatsApp (Z-API + Twilio)
-11. Testar plataforma admin e fazer mudanças
-12. Testar plataforma marketing/conteúdo/scrapings
-13. Testar e recriar plataforma do parceiro sócio + ajustar flow de vincular
-14. Design geral do portal — todas as páginas públicas
-15. Testar checkouts (Stripe — 99/588/397)
+ESTRATÉGIA-CHAVE
+─────────────────
+Diferencial competitivo da 1Negócio = canal de aquisição.
+Parceiros/Sócios = principal motor de aquisição (não feature lateral).
+Próxima sessão começa por discutir/desenhar essa máquina.
+
+ROADMAP
+─────────
+1. ✅ Terminar laudo-pago (port v1→v2) — concluído 29/04
+2. DISCUSSÃO ESTRATÉGICA: máquina de aquisição via parceiros/sócios
+   (canal de aquisição, tracking, comissionamento, materiais, onboarding,
+    dashboard parceiro, cadência de pagamento)
+3. Subir laudo-pago modelo novo no laudo-completo (gratuito)
+4. Ajeitar index cards — puxar dados de v2
+5. Ajeitar negocio.html pré-NDA — info pública anônima
+6. Ajeitar negocio.html pós-NDA — dossiê nível 2/3
+7. Deletar skill-avaliadora v1 + limpa geral do repo (código morto: chartProgressao, fixtures antigas, funções não-chamadas)
+8. Teste fim-a-fim: diagnóstico → anúncio gratuito → termo adesão →
+   admin cria anúncio → interesse comprador → NDA → acesso aos detalhes
+9. IA atendimento home: ensinar a passar valor sugerido via conversa
+10. IA atendimento home: obrigar coletar telefone antes do resultado
+11. Testar notificações e fluxos WhatsApp (Z-API + Twilio)
+12. Testar plataforma admin e fazer mudanças
+13. Testar plataforma marketing/conteúdo/scrapings
+14. EXECUTAR plataforma do parceiro/sócio + flow vincular
+    (executa a estratégia decidida no item 2)
+15. Design geral do portal — todas páginas públicas
+16. Testar checkouts (Stripe — 99/588/397)
 
 ## REGRAS
 
