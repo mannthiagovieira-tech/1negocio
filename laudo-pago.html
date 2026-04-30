@@ -285,9 +285,34 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
   /* Capa não precisa de break (é a primeira) */
   .capa{page-break-before:auto;break-before:auto}
 }
+
+/* ───────── BOTÃO BAIXAR PDF ───────── */
+.btn-pdf{position:fixed;top:14px;right:170px;z-index:9999;background:var(--em);color:#fff;border:none;padding:10px 16px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.04em;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.18);transition:transform .15s,background .15s}
+.btn-pdf:hover{background:#0d5e35;transform:translateY(-1px)}
+
+/* ───────── @MEDIA PRINT — page-break por seção ───────── */
+@media print {
+  .btn-pdf, .theme-toggle { display: none !important; }
+  body { background: #fff !important; color: #000 !important; }
+  #doc { padding: 0 !important; max-width: none !important; }
+  section.capa { page-break-before: avoid; }
+  section.sec, section.fechamento, section.indice, section.intro {
+    page-break-before: always;
+    break-before: page;
+  }
+  h1, h2, h3, h4, .sec-header, .sec-title,
+  .kpi-mini-card, .up-card, .ise-pilar, .pilar-card,
+  table, tr, .ind-card, .compare-grid, .diag-bloco,
+  .alert, .met-step, .teaser-li {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  @page { size: A4; margin: 1.5cm 1cm; }
+}
 </style>
 </head>
 <body>
+<button class="btn-pdf" onclick="window.print()" title="Baixar PDF">📄 Baixar PDF</button>
 <button class="theme-toggle" onclick="toggleTheme()" id="theme-toggle-btn" title="Alternar tema">☾ ESCURO</button>
 <div id="loading">
   <div class="ld-logo"><em>1</em>NEGÓCIO</div>
@@ -461,25 +486,28 @@ function renderTudo() {
   if (!calcJson) return;
   const doc = document.getElementById('doc');
 
+  // Ordem nova: 11 páginas principais + 3 anexos (extras)
   const blocks = [
-    renderCapa(),
-    renderFolhaRosto(),
-    renderIndice(),
-    renderHeroResumo(),                                                                                        // 1. Resumo executivo (hero 2 cards + texto IA)
-    renderTextoIA('2',  'Contexto', 'Contexto do negócio',                            'texto_contexto_negocio'),
-    renderDRE(),                                                                                              // 3
-    renderBalanco(),                                                                                          // 4
-    renderISE(),                                                                                              // 5
-    renderIndicadores(),                                                                                      // 6
-    renderTributaria(),                                                                                       // 7
-    renderTextoIA('8',  'Parecer técnico',     'Análise da skill avaliadora',         'texto_parecer_tecnico'),
-    renderTextoIA('9',  'Riscos',              'Pontos de atenção',                    'texto_riscos_atencao'),
-    renderTextoIA('10', 'Diferenciais',        'Pontos fortes do negócio',             'texto_diferenciais'),
-    renderAtratividade(),                                                                                     // 11
-    renderTextoIA('12', 'Público-alvo',        'Perfil ideal do comprador',            'texto_publico_alvo_comprador'),
-    renderUpsides(),                                                                                          // 13
-    renderOperacional(),                                                                                      // 14
-    renderFechamento(),                                                                                       // 15
+    renderCapa(),                                                                                             // Capa
+    renderApresentacao(),                                                                                     // 01 Apresentação
+    renderIndice(),                                                                                           // Sumário
+    renderMetodologia(),                                                                                      // 02 Metodologia
+    renderTextoIA('03', 'Contexto', 'Contexto do negócio',                            'texto_contexto_negocio'),
+    renderDRE(),                                                                                              // 04 Os Números — DRE
+    renderBalanco(),                                                                                          //    Os Números — BP
+    renderISE(),                                                                                              // 05 A Gestão (ISE)
+    renderIndicadores(),                                                                                      // 06 Indicadores X Mercado
+    renderHeroResumo(),                                                                                       // 07 A Avaliação (hero com valor + chartProgressao)
+    renderTextoIA('08', 'Parecer técnico', 'Análise da skill avaliadora',             'texto_parecer_tecnico'),
+    renderTextoIA('09', 'Público-alvo',    'Perfil ideal do comprador',               'texto_publico_alvo_comprador'),
+    renderUpsides(),                                                                                          // 10 Oportunidades
+    renderFechamento(),                                                                                       // 11 Próximos passos
+    // ── ANEXOS (extras) ──
+    renderTeaser(),                                                                                           // A1 Teaser one-page anônimo
+    renderPontosFortesAtencao(),                                                                              // A2 Pontos Fortes + Atenção
+    renderEstudoTributarioDetalhado(),                                                                        // A3 Tributário detalhado
+    // REMOVIDOS: renderFolhaRosto, renderAtratividade, renderTributaria (movido pra A3),
+    //            renderOperacional, renderTextoIA('riscos_atencao'/'diferenciais') — usados em A2
   ];
 
   doc.innerHTML = blocks.filter(Boolean).join('');
@@ -544,21 +572,19 @@ function renderFolhaRosto() {
 // só é resolvida na exportação PDF, então mantemos o placeholder aqui.
 function renderIndice() {
   const itens = [
-    { num: '01', nome: 'Resumo executivo' },
-    { num: '02', nome: 'Contexto do negócio' },
-    { num: '03', nome: 'Demonstração de Resultados (DRE)' },
-    { num: '04', nome: 'Balanço Patrimonial' },
-    { num: '05', nome: 'Índice de Saúde Empresarial (ISE)' },
-    { num: '06', nome: 'Indicadores vs Benchmark' },
-    { num: '07', nome: 'Análise tributária' },
-    { num: '08', nome: 'Parecer técnico' },
-    { num: '09', nome: 'Riscos e atenção' },
-    { num: '10', nome: 'Diferenciais' },
-    { num: '11', nome: 'Atratividade' },
-    { num: '12', nome: 'Público-alvo comprador' },
-    { num: '13', nome: 'Oportunidades de melhoria (upsides)' },
-    { num: '14', nome: 'Dados operacionais' },
-    { num: '15', nome: 'Próximos passos' },
+    { num: '01', nome: 'Apresentação' },
+    { num: '02', nome: 'Metodologia' },
+    { num: '03', nome: 'Contexto do negócio' },
+    { num: '04', nome: 'Os Números (DRE + Balanço Patrimonial)' },
+    { num: '05', nome: 'A Gestão (ISE)' },
+    { num: '06', nome: 'Indicadores X Mercado' },
+    { num: '07', nome: 'A Avaliação · Como chegamos até aqui' },
+    { num: '08', nome: 'Parecer Técnico' },
+    { num: '09', nome: 'Oportunidades de melhoria (upsides)' },
+    { num: '10', nome: 'Próximos passos' },
+    { num: 'A1', nome: 'Anexo · Teaser de Apresentação' },
+    { num: 'A2', nome: 'Anexo · Pontos Fortes e Pontos de Atenção' },
+    { num: 'A3', nome: 'Anexo · Estudo Tributário Detalhado' },
   ];
   let lis = '';
   itens.forEach(it => {
@@ -572,8 +598,8 @@ function renderIndice() {
   });
   return ''
     + '<section class="indice">'
-    + '  <div class="indice-eyebrow">Sumário</div>'
-    + '  <div class="indice-titulo">Índice</div>'
+    + '  <div class="indice-eyebrow">Documento</div>'
+    + '  <div class="indice-titulo">Sumário</div>'
     + '  <ul class="indice-list">' + lis + '</ul>'
     + '</section>';
 }
@@ -1458,6 +1484,135 @@ function renderFechamento() {
     + '    <div class="fech-rod-r">' + escapeHtml(calcJson._versao_calc_json || '2.0') + ' · ' + escapeHtml(calcJson._versao_parametros || '—') + '</div>'
     + '  </div>'
     + '</section>';
+}
+
+// ─── APRESENTAÇÃO (NOVA — após Capa, antes do Sumário) ───────────────────────
+function renderApresentacao() {
+  const id = calcJson.identificacao || {};
+  const nome = id.nome || '—';
+  const solicitante = id.solicitante || id.nome_responsavel || '—';
+  const dataAvalIso = calcJson._data_avaliacao || (id && id.data_avaliacao);
+  const dataAval = dataAvalIso ? new Date(dataAvalIso).toLocaleDateString('pt-BR') : hoje();
+  const versaoSkill = calcJson._versao_skill || calcJson._versao_calc_json || '2.0';
+  const versaoParam = calcJson._versao_parametros || '—';
+  return ''
+    + '<section class="sec page-break apresentacao">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">01</div>'
+    + '    <div><div class="sec-label">Apresentação</div><div class="sec-title">Sobre este laudo</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">'
+    + '    <div class="txt">Este laudo apresenta uma análise aprofundada do negócio <strong>' + escapeHtml(nome) + '</strong>, encomendado por ' + escapeHtml(solicitante) + ' em ' + escapeHtml(dataAval) + '.</div>'
+    + '    <div class="txt">O diagnóstico foi estruturado e processado pela 1N em sua versão <strong>' + escapeHtml(versaoSkill) + '</strong>, usando parâmetros e benchmarks setoriais versão <strong>' + escapeHtml(versaoParam) + '</strong>.</div>'
+    + '    <div class="txt">Este documento foi elaborado para apoiar decisões sobre o futuro da operação: avaliação do negócio, prioridades de melhoria, validação do regime tributário e planejamento estratégico.</div>'
+    + '    <div class="txt confidencial" style="margin-top:24px;font-size:11px;color:var(--ink4);font-style:italic">Este laudo é confidencial e destinado ao solicitante.</div>'
+    + '  </div>'
+    + '</section>';
+}
+
+// ─── METODOLOGIA (NOVA — explicar a abordagem) ───────────────────────────────
+function renderMetodologia() {
+  return ''
+    + '<section class="sec page-break metodologia">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">02</div>'
+    + '    <div><div class="sec-label">Metodologia</div><div class="sec-title">Como esta avaliação foi construída</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">'
+    + '    <div class="txt">A avaliação 1Negócio combina três abordagens complementares: múltiplos de mercado setoriais, análise de resultado operacional ajustado e solidez operacional medida pelo ISE (Índice de Saúde Empresarial). O resultado é um valor de transação ancorado na realidade de M&A de PMEs brasileiras.</div>'
+    + '    <ol class="met-lista" style="margin:14px 0 0;padding-left:18px;line-height:1.6">'
+    + '      <li><strong>Resultado Operacional Ajustado:</strong> RO normalizado, removendo pró-labore acima do mercado, despesas não recorrentes e provisões excessivas. Representa a capacidade real de geração de caixa.</li>'
+    + '      <li><strong>Múltiplo Base Setorial:</strong> referência de transações comparáveis no Brasil para o setor, refletindo risco, crescimento esperado e liquidez.</li>'
+    + '      <li><strong>Fator ISE:</strong> ajuste pela solidez operacional. Empresas mais sólidas recebem múltiplo maior e condições de venda mais favoráveis.</li>'
+    + '      <li><strong>Fator 1N = Múltiplo Setorial × Fator ISE</strong>, ajustado pela forma específica de atuação dentro do setor.</li>'
+    + '      <li><strong>Valor de Venda = (RO Anual × Fator 1N) + Patrimônio Líquido.</strong> Inclui ativos tangíveis líquidos das dívidas — o valor "porteira fechada".</li>'
+    + '    </ol>'
+    + '  </div>'
+    + '</section>';
+}
+
+// ─── EXTRA 1: Teaser one-page (anônimo) ──────────────────────────────────────
+function renderTeaser() {
+  const id = calcJson.identificacao || {};
+  const v  = calcJson.valuation || {};
+  const dre = calcJson.dre || {};
+  const setorLbl = (id.setor && id.setor.label) || '—';
+  const cidade = (id.localizacao && id.localizacao.cidade) || '';
+  const estado = (id.localizacao && id.localizacao.estado) || '';
+  const local = [cidade, estado].filter(Boolean).join('/') || '—';
+  const fatAnual = n(dre.fat_anual);
+  const faixa = (function(f){
+    if (f < 500000) return 'até R$ 500k/ano';
+    if (f < 1000000) return 'R$ 500k a R$ 1M/ano';
+    if (f < 5000000) return 'R$ 1M a R$ 5M/ano';
+    if (f < 10000000) return 'R$ 5M a R$ 10M/ano';
+    return 'acima de R$ 10M/ano';
+  })(fatAnual);
+
+  const ups = (calcJson.potencial_12m && calcJson.potencial_12m.upsides_ativos) || [];
+  const top3 = ups.slice().sort((a,b) => n(b.contribuicao_brl) - n(a.contribuicao_brl)).slice(0,3);
+  let highlights = '';
+  top3.forEach(u => {
+    const valor = n(u.impacto_valuation_brl) || n(u.contribuicao_brl);
+    highlights += '<li class="teaser-li"><strong>' + escapeHtml(u.label || u.id) + '</strong> · +' + fcShort(valor) + ' no valor de venda</li>';
+  });
+
+  return ''
+    + '<section class="sec page-break extra teaser">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">A1</div>'
+    + '    <div><div class="sec-label">Anexo · Teaser</div><div class="sec-title">Apresentação anônima · One-page</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">'
+    + '    <div class="kpi-mini" style="margin-bottom:18px">'
+    + '      <div class="kpi-mini-card"><div class="kpi-mini-l">Setor</div><div class="kpi-mini-v">' + escapeHtml(setorLbl) + '</div></div>'
+    + '      <div class="kpi-mini-card"><div class="kpi-mini-l">Localização</div><div class="kpi-mini-v">' + escapeHtml(local) + '</div></div>'
+    + '      <div class="kpi-mini-card"><div class="kpi-mini-l">Faturamento</div><div class="kpi-mini-v">' + escapeHtml(faixa) + '</div></div>'
+    + '      <div class="kpi-mini-card"><div class="kpi-mini-l">Valor de venda</div><div class="kpi-mini-v g">' + fcShort(n(v.valor_venda)) + '</div></div>'
+    + '    </div>'
+    + (highlights ? '    <div class="diag-bloco"><div class="diag-bloco-title">Destaques</div><ul style="margin:8px 0 0;padding-left:18px;line-height:1.7">' + highlights + '</ul></div>' : '')
+    + '    <div class="txt" style="margin-top:24px;color:var(--ink4);font-size:11px">Quer saber mais sobre este negócio? Acesse <strong>1negocio.com.br</strong></div>'
+    + '  </div>'
+    + '</section>';
+}
+
+// ─── EXTRA 2: Pontos Fortes + Pontos de Atenção ─────────────────────────────
+function renderPontosFortesAtencao() {
+  const tIA = calcJson.textos_ia || {};
+  const fortes = (tIA.texto_diferenciais && tIA.texto_diferenciais.conteudo) || '';
+  const atencao = (tIA.texto_riscos_atencao && tIA.texto_riscos_atencao.conteudo) || '';
+
+  // Derivação adicional via pilares ISE (score >= 8 = forte; <= 4 = atenção)
+  const pilares = (calcJson.ise && calcJson.ise.pilares) || [];
+  const pFortes = pilares.filter(p => n(p.score_0_10) >= 8).map(p => p.label || p.id);
+  const pAtencao = pilares.filter(p => n(p.score_0_10) <= 4).map(p => p.label || p.id);
+
+  const fmtTexto = (s) => s ? '<div class="txt">' + escapeHtml(s).replace(/\n\n+/g, '</div><div class="txt">') + '</div>' : '<div class="txt-pendente">[Texto pendente]</div>';
+  const listaPilares = (arr) => arr.length ? '<ul style="margin:8px 0 0;padding-left:18px;line-height:1.7">' + arr.map(l => '<li>' + escapeHtml(l) + '</li>').join('') + '</ul>' : '<div class="txt-pendente" style="font-size:11px;color:var(--ink4)">Nenhum pilar nessa faixa.</div>';
+
+  return ''
+    + '<section class="sec page-break extra">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">A2</div>'
+    + '    <div><div class="sec-label">Anexo · Análise consolidada</div><div class="sec-title">Pontos Fortes e Pontos de Atenção</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">'
+    + '    <div class="diag-bloco"><div class="diag-bloco-title">Pontos Fortes</div>' + fmtTexto(fortes) + '<div style="margin-top:12px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4)">Pilares ISE com score ≥ 8</div>' + listaPilares(pFortes) + '</div>'
+    + '    <div class="diag-bloco" style="margin-top:18px"><div class="diag-bloco-title">Pontos de Atenção</div>' + fmtTexto(atencao) + '<div style="margin-top:12px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4)">Pilares ISE com score ≤ 4</div>' + listaPilares(pAtencao) + '</div>'
+    + '  </div>'
+    + '</section>';
+}
+
+// ─── EXTRA 3: Estudo Tributário Detalhado ───────────────────────────────────
+function renderEstudoTributarioDetalhado() {
+  // Reutiliza renderTributaria mas envelopa como anexo
+  const tributariaHTML = renderTributaria();
+  if (!tributariaHTML) return '';
+  // Substitui o sec-num e label do bloco original pra A3
+  return tributariaHTML
+    .replace(/<div class="sec-num">7<\/div>/, '<div class="sec-num">A3</div>')
+    .replace(/<div class="sec-label">Análise tributária<\/div>/, '<div class="sec-label">Anexo · Tributário detalhado</div>')
+    .replace(/<section class="sec">/, '<section class="sec page-break extra">');
 }
 </script>
 </body>
