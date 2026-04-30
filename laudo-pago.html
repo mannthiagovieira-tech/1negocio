@@ -286,13 +286,14 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
   .capa{page-break-before:auto;break-before:auto}
 }
 
-/* ───────── BOTÃO BAIXAR PDF ───────── */
-.btn-pdf{position:fixed;top:14px;right:170px;z-index:9999;background:var(--em);color:#fff;border:none;padding:10px 16px;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:.04em;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.18);transition:transform .15s,background .15s}
-.btn-pdf:hover{background:#0d5e35;transform:translateY(-1px)}
+/* ───────── BOTÃO BAIXAR PDF — floating mobile-first ───────── */
+.btn-pdf-floating{position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--em);color:#fff;border:none;padding:14px 22px;border-radius:0;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.04em;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.18);transition:filter .15s,transform .15s}
+.btn-pdf-floating:hover{filter:brightness(1.1);transform:translateY(-1px)}
+@media (max-width:640px){.btn-pdf-floating{bottom:16px;right:16px;padding:12px 18px;font-size:12px}}
 
 /* ───────── @MEDIA PRINT — page-break por seção ───────── */
 @media print {
-  .btn-pdf, .theme-toggle { display: none !important; }
+  .btn-pdf-floating, .theme-toggle { display: none !important; }
   body { background: #fff !important; color: #000 !important; }
   #doc { padding: 0 !important; max-width: none !important; }
   section.capa { page-break-before: avoid; }
@@ -312,7 +313,7 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 </style>
 </head>
 <body>
-<button class="btn-pdf" onclick="window.print()" title="Baixar PDF">📄 Baixar PDF</button>
+<button class="btn-pdf-floating" onclick="window.print()" title="Baixar PDF">📄 Baixar PDF</button>
 <button class="theme-toggle" onclick="toggleTheme()" id="theme-toggle-btn" title="Alternar tema">☾ ESCURO</button>
 <div id="loading">
   <div class="ld-logo"><em>1</em>NEGÓCIO</div>
@@ -385,6 +386,36 @@ function fmtIndValor(item) {
   if (item.unidade === 'R$')   return fcShort(v);
   return v.toFixed(2);
 }
+// Parser markdown enxuto pra textos da Edge Function (#, ##, **, listas, parágrafos)
+function markdownSimples(texto) {
+  if (!texto) return '';
+  let s = String(texto);
+  // Escapa HTML primeiro pra não vazar tags do conteúdo do modelo
+  s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Negrito **texto** → <strong>
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  // Headers ## → h3, # → h3 (evita h1 dentro do laudo)
+  s = s.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+  s = s.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+  s = s.replace(/^# (.+)$/gm, '<h3>$1</h3>');
+  // Listas (- ou *)
+  s = s.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+  // Agrupa <li> consecutivos em <ul>
+  s = s.replace(/(<li>[\s\S]*?<\/li>(?:\s*<li>[\s\S]*?<\/li>)*)/g, '<ul>$1</ul>');
+  // Parágrafos: linhas em branco viram quebras de parágrafo
+  // Quebra em blocos por 2+ \n
+  const blocos = s.split(/\n{2,}/);
+  s = blocos.map(b => {
+    const t = b.trim();
+    if (!t) return '';
+    // Se já é tag de bloco (h3/h4/ul), retorna direto
+    if (/^<(h[1-6]|ul|ol|li|p|div)/i.test(t)) return t;
+    // Senão, envolve em <p>
+    return '<p>' + t.replace(/\n/g, '<br>') + '</p>';
+  }).join('\n');
+  return s;
+}
+
 function fmtIndBench(item) {
   if (item.benchmark == null) return '—';
   const b = n(item.benchmark);
@@ -486,28 +517,28 @@ function renderTudo() {
   if (!calcJson) return;
   const doc = document.getElementById('doc');
 
-  // Ordem nova: 11 páginas principais + 3 anexos (extras)
+  // Ordem nova (revisão pós-validação): 10 principais + 3 anexos
+  // Capa não tem número. Numeração 2 dígitos (01..10). Anexos A1/A2/A3.
   const blocks = [
-    renderCapa(),                                                                                             // Capa
+    renderCapa(),                                                                                             // Capa (sem número)
     renderApresentacao(),                                                                                     // 01 Apresentação
-    renderIndice(),                                                                                           // Sumário
-    renderMetodologia(),                                                                                      // 02 Metodologia
-    renderTextoIA('03', 'Contexto', 'Contexto do negócio',                            'texto_contexto_negocio'),
-    renderDRE(),                                                                                              // 04 Os Números — DRE
-    renderBalanco(),                                                                                          //    Os Números — BP
-    renderISE(),                                                                                              // 05 A Gestão (ISE)
-    renderIndicadores(),                                                                                      // 06 Indicadores X Mercado
-    renderHeroResumo(),                                                                                       // 07 A Avaliação (hero com valor + chartProgressao)
-    renderTextoIA('08', 'Parecer técnico', 'Análise da skill avaliadora',             'texto_parecer_tecnico'),
-    renderTextoIA('09', 'Público-alvo',    'Perfil ideal do comprador',               'texto_publico_alvo_comprador'),
-    renderUpsides(),                                                                                          // 10 Oportunidades
-    renderFechamento(),                                                                                       // 11 Próximos passos
-    // ── ANEXOS (extras) ──
-    renderTeaser(),                                                                                           // A1 Teaser one-page anônimo
-    renderPontosFortesAtencao(),                                                                              // A2 Pontos Fortes + Atenção
-    renderEstudoTributarioDetalhado(),                                                                        // A3 Tributário detalhado
-    // REMOVIDOS: renderFolhaRosto, renderAtratividade, renderTributaria (movido pra A3),
-    //            renderOperacional, renderTextoIA('riscos_atencao'/'diferenciais') — usados em A2
+    renderIndice(),                                                                                           // 02 Sumário
+    renderMetodologia(),                                                                                      // 03 Metodologia
+    renderTextoIA('04', 'Contexto', 'Contexto do negócio',                            'texto_contexto_negocio'),
+    renderDRE(),                                                                                              // 05 Os Números — DRE
+    renderBalanco(),                                                                                          //    Os Números — BP (mesma seção visual)
+    renderISE(),                                                                                              // 06 A Gestão (ISE)
+    renderIndicadores(),                                                                                      // 07 Indicadores X Mercado
+    renderAvaliacao(),                                                                                        // 08 A Avaliação (hero + parecer)
+    renderUpsides(),                                                                                          // 09 Oportunidades
+    renderFechamento(),                                                                                       // 10 Próximos passos
+    // ── ANEXOS ──
+    renderTeaser(),                                                                                           // A1
+    renderPontosFortesAtencao(),                                                                              // A2
+    renderEstudoTributarioDetalhado(),                                                                        // A3
+    // REMOVIDOS: renderHeroResumo (Resumo Executivo — duplicava cards),
+    //            renderTextoIA('publico_alvo_comprador') (não pedido como principal),
+    //            renderAtratividade, renderTributaria do meio, renderOperacional
   ];
 
   doc.innerHTML = blocks.filter(Boolean).join('');
@@ -621,7 +652,7 @@ function renderHeroResumo() {
   const conteudo = t.conteudo;
   let textoBody;
   if (conteudo && (typeof conteudo === 'string' ? conteudo.trim() : true)) {
-    textoBody = '<div class="txt">' + escapeHtml(conteudo).replace(/\n\n+/g, '</div><div class="txt">') + '</div>';
+    textoBody = '<div class="txt-md">' + markdownSimples(conteudo) + '</div>';
   } else {
     textoBody = '<div class="txt-pendente">[Texto pendente — em geração pela IA]</div>';
   }
@@ -700,7 +731,7 @@ function renderTextoIA(num, label, sub, chaveTexto) {
 
   let body;
   if (conteudo && (typeof conteudo === 'string' ? conteudo.trim() : true)) {
-    body = '<div class="txt">' + escapeHtml(conteudo).replace(/\n\n+/g, '</div><div class="txt">') + '</div>';
+    body = '<div class="txt-md">' + markdownSimples(conteudo) + '</div>';
   } else {
     body = '<div class="txt-pendente">[Texto pendente — em geração pela IA]</div>';
   }
@@ -960,8 +991,8 @@ function renderDRE() {
   return ''
     + '<section class="sec">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">3</div>'
-    + '    <div><div class="sec-label">Demonstrativo de resultados</div><div class="sec-title">DRE</div></div>'
+    + '    <div class="sec-num">05</div>'
+    + '    <div><div class="sec-label">Os Números</div><div class="sec-title">DRE — Demonstrativo de Resultados</div></div>'
     + '  </div>'
     + '  <div class="sec-body">' + kpis + chartFunilDRE(dre) + h + '</div>'
     + '</section>';
@@ -1032,8 +1063,8 @@ function renderBalanco() {
   return ''
     + '<section class="sec">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">4</div>'
-    + '    <div><div class="sec-label">Balanço patrimonial</div><div class="sec-title">Ativos · Passivos · PL</div></div>'
+    + '    <div class="sec-num"></div>'
+    + '    <div><div class="sec-label">Os Números</div><div class="sec-title">Balanço Patrimonial</div></div>'
     + '  </div>'
     + '  <div class="sec-body">' + kpis + h + '</div>'
     + '</section>';
@@ -1095,7 +1126,7 @@ function renderISE() {
   return ''
     + '<section class="sec">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">5</div>'
+    + '    <div class="sec-num">06</div>'
     + '    <div><div class="sec-label">Saúde do negócio</div><div class="sec-title">ISE · 8 pilares ponderados</div></div>'
     + '  </div>'
     + '  <div class="sec-body">' + h + '</div>'
@@ -1192,8 +1223,8 @@ function renderIndicadores() {
   return ''
     + '<section class="sec">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">6</div>'
-    + '    <div><div class="sec-label">Indicadores</div><div class="sec-title">' + keys.length + ' indicadores vs benchmark setorial</div></div>'
+    + '    <div class="sec-num">07</div>'
+    + '    <div><div class="sec-label">Indicadores X Mercado</div><div class="sec-title">' + keys.length + ' indicadores vs benchmark setorial</div></div>'
     + '  </div>'
     + '  <div class="sec-body">' + kpis + tbl + '</div>'
     + '</section>';
@@ -1316,9 +1347,11 @@ function renderUpsides() {
   const upsObj = calcJson.upsides || {};
   const ativosTodos = Array.isArray(upsObj.ativos) ? upsObj.ativos : [];
   const paywalls = Array.isArray(upsObj.paywalls) ? upsObj.paywalls : [];
-  const recs = Array.isArray(calcJson.recomendacoes_pre_venda) ? calcJson.recomendacoes_pre_venda : [];
+  // recomendacoes_pre_venda é GERADA PELA SKILL a partir dos qualitativos do
+  // catálogo (skill linha ~2530), portanto duplica os qualitativos de
+  // upsides.ativos. Não iterar — caso contrário cada qualitativo aparece 2×.
 
-  if (ativosTodos.length === 0 && paywalls.length === 0 && recs.length === 0) return '';
+  if (ativosTodos.length === 0 && paywalls.length === 0) return '';
 
   // Lookup id → {brl, pct} via potencial_12m.upsides_ativos (filtrado: só monetários).
   const valorPorId = {};
@@ -1402,23 +1435,12 @@ function renderUpsides() {
   }
 
   // 3. Qualitativos / Pré-venda
-  if (qualitativos.length > 0 || recs.length > 0) {
+  if (qualitativos.length > 0) {
     h += '<div style="margin-top:18px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);font-weight:600">Qualitativos · Pré-venda</div>';
     qualitativos.forEach(u => { h += renderCard(u, idx++); });
-    recs.forEach(r => {
-      h += '<div class="up-card cat-qualitativo">';
-      h += '<div class="up-header"><div class="up-header-l">';
-      h += '<span class="up-num">' + (idx + 1) + '</span>';
-      h += '<span class="up-cat cat-qualitativo">' + escapeHtml(CAT_LABEL.qualitativo) + '</span>';
-      h += '<div class="up-title">' + escapeHtml(r.label || r.id) + '</div>';
-      if (r.mensagem) h += '<div class="up-desc">' + escapeHtml(r.mensagem) + '</div>';
-      h += '</div></div>';
-      h += '</div>';
-      idx++;
-    });
   }
 
-  const total = monetarios.length + paywalls.length + qualitativos.length + recs.length;
+  const total = monetarios.length + paywalls.length + qualitativos.length;
 
   const intro = '<p style="font-size:11.5px;color:var(--ink2);line-height:1.6;margin-bottom:18px;max-width:560px">'
     + 'Cada ação abaixo tem um valor R$ estimado de ganho no valor de venda do negócio se executada nos próximos 12 meses. '
@@ -1428,7 +1450,7 @@ function renderUpsides() {
   return ''
     + '<section class="sec">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">13</div>'
+    + '    <div class="sec-num">09</div>'
     + '    <div><div class="sec-label">Oportunidades de melhoria</div><div class="sec-title">' + total + ' ações para destravar valor</div></div>'
     + '  </div>'
     + '  <div class="sec-body">' + intro + h + '</div>'
@@ -1599,6 +1621,47 @@ function renderPontosFortesAtencao() {
     + '  <div class="sec-body">'
     + '    <div class="diag-bloco"><div class="diag-bloco-title">Pontos Fortes</div>' + fmtTexto(fortes) + '<div style="margin-top:12px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4)">Pilares ISE com score ≥ 8</div>' + listaPilares(pFortes) + '</div>'
     + '    <div class="diag-bloco" style="margin-top:18px"><div class="diag-bloco-title">Pontos de Atenção</div>' + fmtTexto(atencao) + '<div style="margin-top:12px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4)">Pilares ISE com score ≤ 4</div>' + listaPilares(pAtencao) + '</div>'
+    + '  </div>'
+    + '</section>';
+}
+
+// ─── 08 · A AVALIAÇÃO (Hero cards + Parecer Técnico) ─────────────────────────
+// Junta cards "Avaliação 1N" + "Potencial 12m" (de renderHeroResumo) com texto
+// IA do parecer técnico, numa única seção principal "08 · A Avaliação".
+// Texto IA renderizado via markdownSimples (issue de markdown cru no PDF).
+function renderAvaliacao() {
+  const id = calcJson.identificacao || {};
+  const v  = calcJson.valuation || {};
+  const avaliacao = n(v.valor_venda);
+  const p12 = (calcJson.potencial_12m && calcJson.potencial_12m.potencial_final) || {};
+  const potencial = n(p12.valor_projetado_brl) > 0 ? n(p12.valor_projetado_brl) : avaliacao;
+
+  const tIA = calcJson.textos_ia || {};
+  const tParecer = tIA.texto_parecer_tecnico || {};
+  const parecerHtml = tParecer.conteudo
+    ? '<div class="txt-md">' + markdownSimples(tParecer.conteudo) + '</div>'
+    : '<div class="txt-pendente">[Parecer pendente — em geração pela IA]</div>';
+
+  return ''
+    + '<section class="sec page-break avaliacao">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">08</div>'
+    + '    <div><div class="sec-label">Valuation</div><div class="sec-title">A Avaliação · como chegamos a esse valor</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">'
+    + '    <div class="hero-3">'
+    + '      <div class="hero-3-head"><div>'
+    + '        <div class="hero-3-eyebrow">' + escapeHtml(id.nome || '—') + '</div>'
+    + '        <div class="hero-3-setor">' + escapeHtml((id.setor && id.setor.label) || '—') + '</div>'
+    + '      </div></div>'
+    + '      <div class="hero-3-grid hero-2-grid">'
+    + '        <div class="hero-3-cell"><div class="hero-3-cell-l">Avaliação 1Negócio</div><div class="hero-3-cell-v g">' + fcShort(avaliacao) + '</div><div class="hero-3-cell-sub">RO × Fator 1N + PL</div></div>'
+    + '        <div class="hero-3-cell"><div class="hero-3-cell-l">Potencial em 12 meses</div><div class="hero-3-cell-v g">' + fcShort(potencial) + '</div><div class="hero-3-cell-sub">com plano de upsides</div></div>'
+    + '      </div>'
+    + chartProgressao(avaliacao, potencial)
+    + '    </div>'
+    + '    <div style="margin-top:24px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);font-weight:600">Parecer Técnico</div>'
+    + '    ' + parecerHtml
     + '  </div>'
     + '</section>';
 }
