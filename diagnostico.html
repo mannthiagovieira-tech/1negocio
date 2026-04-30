@@ -716,8 +716,17 @@ input[type=range]#sl-assinatura::-webkit-slider-thumb{
   s1.src = '/skill-avaliadora.js';
   document.head.appendChild(s1);
   // skill v2 em paralelo — popula calc_json v2 em laudos_v2 sem afetar v1
+  // T43b consome a skill via avaliar('preview') desde commit 3 (single source of truth)
   const s2 = document.createElement('script');
   s2.src = '/skill-avaliadora-v2.js';
+  s2.onload = () => {
+    // Pré-carrega parâmetros da skill pra primeira chamada em T43b ser instantânea
+    if (window.AVALIADORA_V2 && typeof AVALIADORA_V2.carregarParametros === 'function') {
+      AVALIADORA_V2.carregarParametros()
+        .then(() => console.log('[skill-v2] parametros pré-carregados'))
+        .catch(e => console.warn('[skill-v2] pre-load falhou (lazy load no T43b):', e));
+    }
+  };
   document.head.appendChild(s2);
 })();
 </script>
@@ -6425,7 +6434,23 @@ function calcPassivos() {
 
 // Preencher tela de revisão T44
 // Preencher T43b - Confirmação geral (DRE, BP, Dados)
+// ────────────────────────────────────────────────────────────────
+// preencherConfirmacao — agora consome skill v2 como single source of truth.
+// Tornou-se async em refactor (commit 3 da etapa "skill consume").
+// Wrapper síncrono mantido pra compat com callers existentes (fire-and-forget).
+// ────────────────────────────────────────────────────────────────
 function preencherConfirmacao() {
+  _preencherConfirmacaoAsync().catch(e => {
+    console.error('[preencherConfirmacao] erro:', e);
+    const aviso = document.getElementById('conf-aviso-fat');
+    if(aviso){
+      aviso.style.display = 'block';
+      aviso.textContent = 'Erro ao calcular preview. Recarregue a página.';
+    }
+  });
+}
+
+async function _preencherConfirmacaoAsync() {
   console.log('preencherConfirmacao chamada');
   console.log('D.nome_negocio:', D.nome_negocio);
   console.log('D.fat_mensal:', D.fat_mensal);
@@ -6471,11 +6496,241 @@ function preencherConfirmacao() {
     return;
   }
 
-  // === DRE COMPLETA NA ORDEM OFICIAL ===
-  const fat = D.fat_mensal || 0;
-  const fatAnual = fat * 12;
-  
-  // 1. IMPOSTOS SOBRE FATURAMENTO
+  // === SKILL v2 — single source of truth ===
+  // Refactor commit 3: substitui ~378 linhas de cálculo local por
+  // chamada à skill v2 (mesma fórmula que gera o laudo final).
+  // Garante T43b idêntico ao laudo pago, eliminando divergências.
+  let calcJson = null;
+  if (window.AVALIADORA_V2 && typeof AVALIADORA_V2.avaliar === 'function') {
+    try {
+      calcJson = await AVALIADORA_V2.avaliar(D, 'preview');
+      console.log('[preencherConfirmacao] skill v2 OK — RO mensal:', calcJson?.dre?.ro_mensal);
+    } catch(e) {
+      console.error('[preencherConfirmacao] skill v2 falhou — fallback:', e);
+    }
+  } else {
+    console.warn('[preencherConfirmacao] AVALIADORA_V2 não carregada — fallback');
+  }
+
+  // Se skill falhou, mostra aviso e mantém UI básica
+  if (!calcJson) {
+    const aviso = document.getElementById('conf-aviso-fat');
+    if (aviso) {
+      aviso.style.display = 'block';
+      aviso.textContent = 'Não foi possível calcular preview. Recarregue a página.';
+    }
+    return;
+  }
+
+  // ── Leitura defensiva do calc_json ──
+  const dre = calcJson.dre || {};
+  const balanco = calcJson.balanco || {};
+  const ativos_obj = balanco.ativos || {};
+  const passivos_obj = balanco.passivos || {};
+  const ded = dre.deducoes_receita || {};
+  const bloco3 = dre.bloco_3_operacional || {};
+  const pessoal = bloco3.pessoal || {};
+  const ocupacao = bloco3.ocupacao || {};
+  const opOutros = bloco3.operacional_outros || {};
+  const bloco5 = dre.bloco_5_caixa || {};
+
+  // Fields renomeados pra clareza (vindos do calc_json):
+  const fat = dre.fat_mensal || D.fat_mensal || 0;
+  const impostos = (ded.impostos && ded.impostos.mensal) || 0;
+  const comissao = ded.comissoes || 0;
+  const taxasProc = ded.taxas_recebimento || 0;
+  const royaltyMensal = ded.royalty_pct_aplicado || 0;
+  const fundoMensal = ded.mkt_franquia_pct_aplicado || 0;
+  const royaltyFixo = (D.franquia === 'sim' && D.royalty_fixo) || 0;
+  const mktFranFixo = (D.franquia === 'sim' && D.mkt_franquia_fixo) || 0;
+  const royaltyPct = royaltyMensal;  // alias
+  const mktFranPct = fundoMensal;     // alias
+  const receitaLiq = dre.rec_liquida_mensal || 0;
+  const cmv = dre.cmv || 0;
+  const margemBruta = dre.lucro_bruto || 0;
+  const folhaClt = pessoal.clt_folha_bruta || 0;
+  const encargosClt = pessoal.clt_encargos || 0;
+  const equipePj = pessoal.pj_custo || 0;
+  const aluguel = ocupacao.aluguel || 0;
+  const facilities = ocupacao.facilities || 0;
+  const terceirizados = ocupacao.terceirizados || 0;
+  const outrosCf = (opOutros.outros_cf || 0) + (opOutros.sistemas || 0);
+  const mktPago = opOutros.mkt_pago || 0;
+  const resultadoOp = dre.ro_mensal || 0;
+
+  // Linhas informativas (caixa) — vêm de bloco_5_caixa
+  const custoAntecipacao = D.custo_antecipacao || 0;
+  const parcelas = bloco5.parcelas_dividas || D.parcelas_mensais || 0;
+  const prolabore = bloco5.prolabore || D.prolabore || 0;
+  const potencialCaixa = bloco5.potencial_caixa_mensal || 0;
+
+  // Provisão CLT (passivo no BP — alinhado com skill)
+  const provisaoCltPassivo = (passivos_obj.provisao_clt_calculada && passivos_obj.provisao_clt_calculada.valor) || 0;
+
+  // Renderização HTML — preencher DRE
+  setEl('conf-fat', formatMoney(fat));
+  setEl('conf-impostos', formatMoney(impostos));
+
+  // Show/hide condicional preservado
+  const rowComissao = document.getElementById('conf-comissao-row');
+  if (comissao > 0) {
+    setEl('conf-comissao', formatMoney(comissao));
+    if(rowComissao) rowComissao.style.display = '';
+    document.getElementById('conf-comissao').style.display = '';
+  } else {
+    if(rowComissao) rowComissao.style.display = 'none';
+    document.getElementById('conf-comissao').style.display = 'none';
+  }
+
+  const rowTaxas = document.getElementById('conf-taxas-row');
+  if (taxasProc > 0) {
+    setEl('conf-taxas', formatMoney(taxasProc));
+    if(rowTaxas) rowTaxas.style.display = '';
+    document.getElementById('conf-taxas').style.display = '';
+  } else {
+    if(rowTaxas) rowTaxas.style.display = 'none';
+    document.getElementById('conf-taxas').style.display = 'none';
+  }
+
+  // ── Royalty / Fundo propaganda (franquia) — show/hide condicional ──
+  const rowRoyaltyPct = document.getElementById('conf-royalty-pct-row');
+  const valRoyaltyPct = document.getElementById('conf-royalty-pct');
+  const rowMktFranPct = document.getElementById('conf-mkt-fran-pct-row');
+  const valMktFranPct = document.getElementById('conf-mkt-fran-pct');
+  const rowRoyaltyFixo = document.getElementById('conf-royalty-fixo-row');
+  const valRoyaltyFixo = document.getElementById('conf-royalty-fixo');
+  const rowMktFranFixo = document.getElementById('conf-mkt-fran-fixo-row');
+  const valMktFranFixo = document.getElementById('conf-mkt-fran-fixo');
+  if (royaltyPct > 0) {
+    setEl('conf-royalty-pct', formatMoney(royaltyPct));
+    if(rowRoyaltyPct) rowRoyaltyPct.style.display = '';
+    if(valRoyaltyPct) valRoyaltyPct.style.display = '';
+  } else {
+    if(rowRoyaltyPct) rowRoyaltyPct.style.display = 'none';
+    if(valRoyaltyPct) valRoyaltyPct.style.display = 'none';
+  }
+  if (mktFranPct > 0) {
+    setEl('conf-mkt-fran-pct', formatMoney(mktFranPct));
+    if(rowMktFranPct) rowMktFranPct.style.display = '';
+    if(valMktFranPct) valMktFranPct.style.display = '';
+  } else {
+    if(rowMktFranPct) rowMktFranPct.style.display = 'none';
+    if(valMktFranPct) valMktFranPct.style.display = 'none';
+  }
+  if (royaltyFixo > 0) {
+    setEl('conf-royalty-fixo', formatMoney(royaltyFixo));
+    if(rowRoyaltyFixo) rowRoyaltyFixo.style.display = '';
+    if(valRoyaltyFixo) valRoyaltyFixo.style.display = '';
+  } else {
+    if(rowRoyaltyFixo) rowRoyaltyFixo.style.display = 'none';
+    if(valRoyaltyFixo) valRoyaltyFixo.style.display = 'none';
+  }
+  if (mktFranFixo > 0) {
+    setEl('conf-mkt-fran-fixo', formatMoney(mktFranFixo));
+    if(rowMktFranFixo) rowMktFranFixo.style.display = '';
+    if(valMktFranFixo) valMktFranFixo.style.display = '';
+  } else {
+    if(rowMktFranFixo) rowMktFranFixo.style.display = 'none';
+    if(valMktFranFixo) valMktFranFixo.style.display = 'none';
+  }
+
+  setEl('conf-receita-liq', formatMoney(receitaLiq));
+  setEl('conf-cmv', formatMoney(cmv));
+  setEl('conf-margem-bruta', formatMoney(margemBruta));
+  setEl('conf-folha', formatMoney(folhaClt));
+  setEl('conf-encargos', formatMoney(encargosClt));
+  setEl('conf-pj', formatMoney(equipePj));
+  setEl('conf-aluguel', formatMoney(aluguel));
+  setEl('conf-facilities', formatMoney(facilities));
+  setEl('conf-terceirizados', formatMoney(terceirizados));
+  setEl('conf-fixos', formatMoney(outrosCf));
+  setEl('conf-mkt', formatMoney(mktPago));
+  setEl('conf-resultado', formatMoney(resultadoOp));
+
+  // Antecipação - mostrar só se tiver valor
+  const rowAntecip = document.getElementById('conf-antecip-row');
+  const valAntecip = document.getElementById('conf-antecip');
+  if (custoAntecipacao > 0) {
+    setEl('conf-antecip', formatMoney(custoAntecipacao));
+    if(rowAntecip) rowAntecip.style.display = '';
+    if(valAntecip) valAntecip.style.display = '';
+  } else {
+    if(rowAntecip) rowAntecip.style.display = 'none';
+    if(valAntecip) valAntecip.style.display = 'none';
+  }
+
+  setEl('conf-parcelas', formatMoney(parcelas));
+  setEl('conf-prolabore', formatMoney(prolabore));
+  setEl('conf-caixa-pot', formatMoney(potencialCaixa));
+
+  // Salva valores calculados pela skill em D pra retro-compat
+  D.custo_antecipacao = custoAntecipacao;
+  D.resultado_op = resultadoOp;
+  D.ro_mensal = resultadoOp;
+  D.impostos_mensal = impostos;
+  D.receita_liquida = receitaLiq;
+  D.margem_bruta = margemBruta;
+  D.folha_total = folhaClt + encargosClt + equipePj;
+  D.potencial_caixa = potencialCaixa;
+  D.provisao_clt_passivo = provisaoCltPassivo;
+
+  // ── BALANÇO — todos os valores vêm do calc_json (skill v2) ──
+  const atCaixa = ativos_obj.caixa || 0;
+  const atCr = ativos_obj.contas_receber || 0;
+  const atEstoque = ativos_obj.estoque || 0;
+  const atEquip = ativos_obj.equipamentos || 0;
+  const atImovel = ativos_obj.imovel || 0;
+  const atFranquia = ativos_obj.ativo_franquia || 0;
+  const ativos = ativos_obj.total || 0;
+
+  setEl('conf-at-caixa', formatMoney(atCaixa));
+  setEl('conf-at-cr', formatMoney(atCr));
+  setEl('conf-at-estoque', formatMoney(atEstoque));
+  setEl('conf-at-equip', formatMoney(atEquip));
+  setEl('conf-at-imovel', formatMoney(atImovel));
+  setEl('conf-at-franquia', formatMoney(atFranquia));
+  setEl('conf-ativos', formatMoney(ativos));
+
+  // Esconder linha franquia se 0
+  const franquiaRow = document.getElementById('conf-at-franquia-row');
+  const franquiaVal = document.getElementById('conf-at-franquia');
+  if(atFranquia === 0) {
+    if(franquiaRow) franquiaRow.style.display = 'none';
+    if(franquiaVal) franquiaVal.style.display = 'none';
+  } else {
+    if(franquiaRow) franquiaRow.style.display = '';
+    if(franquiaVal) franquiaVal.style.display = '';
+  }
+
+  // ── PASSIVOS — vêm do calc_json (inclui provisão CLT) ──
+  const paFornec = (passivos_obj.fornecedores_a_vencer || 0) + (passivos_obj.fornecedores_atrasados || 0);
+  const paDividas = passivos_obj.saldo_devedor_emprestimos || 0;
+  const paImpostos = passivos_obj.impostos_atrasados_sem_parcelamento || 0;
+  const paProv = provisaoCltPassivo;
+  const passivos = passivos_obj.total || 0;
+  const pl = balanco.patrimonio_liquido !== undefined ? balanco.patrimonio_liquido : (ativos - passivos);
+
+  D.total_ativos = ativos;
+  D.total_passivos = passivos;
+
+  setEl('conf-pa-fornec', formatMoney(paFornec));
+  setEl('conf-pa-dividas', formatMoney(paDividas));
+  setEl('conf-pa-impostos', formatMoney(paImpostos));
+  setEl('conf-pa-prov', formatMoney(paProv));
+  const provRow = document.getElementById('conf-pa-prov-row');
+  const provVal = document.getElementById('conf-pa-prov');
+  if(paProv === 0){
+    if(provRow) provRow.style.display = 'none';
+    if(provVal) provVal.style.display = 'none';
+  } else {
+    if(provRow) provRow.style.display = '';
+    if(provVal) provVal.style.display = '';
+  }
+  setEl('conf-passivos', formatMoney(passivos));
+  setEl('conf-pl', formatMoney(pl));
+
+  // Bloco antigo de cálculo manual desabilitado
+  if (false) {
   let aliquotaImposto = 0.10;
   if (D.regime_tributario === 'simples') {
     if (fatAnual <= 180000) aliquotaImposto = 0.06;
@@ -6815,7 +7070,8 @@ function preencherConfirmacao() {
   }
   setEl('conf-passivos', formatMoney(passivos));
   setEl('conf-pl', formatMoney(pl));
-  
+  } // fim do if(false) — bloco antigo de cálculo manual
+
   // Time
   const clt = D.clt_qtd || 0;
   const pj = D.pj_qtd || 0;
