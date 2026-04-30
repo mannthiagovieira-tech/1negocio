@@ -43,32 +43,57 @@ const PROMPTS: Record<string, { modelo: string; max_tokens: number; prompt: (cal
     max_tokens: 100,
     prompt: (calc) => `${REGRAS_EDITORIAIS_GLOBAIS}
 
-TAREFA: Gere UM título curto que descreva ESPECIFICAMENTE o que o negócio faz.
-NÃO repita info que já está visível no card (setor, cidade, faturamento).
+TAREFA: Gere UM título curto que descreva ESPECIFICAMENTE o tipo de negócio MAIS um atributo distintivo. Você está dando o "sobrenome" do negócio.
 
-DADOS:
-- Setor: ${calc.identificacao?.setor?.label}
-- Subcategoria: ${calc.identificacao?.subcategoria}
-- Modelo: ${calc.identificacao?.modelo_negocio}
+ESTRUTURA OBRIGATÓRIA: {Tipo do negócio} + {atributo distintivo}
 
-EXEMPLOS BONS:
-- "Padaria artesanal"
-- "Clínica de estética facial"
-- "Oficina de escapamentos"
-- "Pet shop com banho e tosa"
-- "Boutique de roupas femininas"
-- "Empresa de limpeza corporativa"
+DADOS DO NEGÓCIO:
+- Setor: ${calc.identificacao?.setor?.label || ''}
+- Subcategoria: ${calc.identificacao?.subcategoria || ''}
+- Modelo: ${calc.identificacao?.modelo_negocio || ''}
+- Tempo operação: ${calc.identificacao?.tempo_operacao_anos || 0} anos
+- Marca registrada: ${calc.identificacao?.marca_inpi || false}
+- Recorrência: ${calc.indicadores_vs_benchmark?.recorrencia?.valor || 0}%
+- Concentração de cliente max: ${calc.indicadores_vs_benchmark?.concentracao?.valor || 0}%
+- Localização: ${calc.identificacao?.localizacao?.cidade || ''}/${calc.identificacao?.localizacao?.estado || ''}
+- Ticket médio: R$ ${calc.indicadores_vs_benchmark?.ticket_medio?.valor || 0}
+- Equipe: ${calc.dre?.pessoal?.headcount_total ?? calc.equipe?.clt_qtd ?? 0} CLT, ${calc.equipe?.pj_qtd ?? 0} PJ
+- Faturamento anual: R$ ${calc.dre?.fat_anual ?? calc.dre?.faturamento_anual ?? 0}
 
-EXEMPLOS RUINS:
-- "Negócio alimentício faturando R$ 1-5M"
-- "Saude em São Paulo"
-- "Empresa consolidada setor varejo"
+LÓGICA DE CONSTRUÇÃO:
+1. Comece pelo TIPO DO NEGÓCIO (use subcategoria se houver, senão setor especificado)
+2. Adicione UM atributo distintivo escolhido entre:
+   - Combinação de operações ("padaria e restaurante", "loja e oficina")
+   - Especialização do público ("de caminhões", "feminina", "infantil")
+   - Característica geográfica ("no litoral", "no centro", "em condomínio")
+   - Serviço adicional ("com banho e tosa", "com delivery próprio")
+   - Posicionamento ("premium", "popular", "especializada")
+   - Modelo B2B ("corporativa", "industrial", "para empresas")
+   - Tempo/tradição ("tradicional", "histórica") - só se >10 anos
+
+EXEMPLOS DESEJADOS:
+✅ "Padaria e restaurante"
+✅ "Oficina mecânica de caminhões"
+✅ "Pousada no litoral"
+✅ "Pet shop com banho e tosa"
+✅ "Clínica de estética facial"
+✅ "Boutique feminina premium"
+✅ "Empresa de limpeza corporativa"
+✅ "Restaurante popular tradicional"
+
+EXEMPLOS RUINS (NÃO use estes formatos):
+❌ "Restaurante de culinária caseira" (vago, sem distintivo claro)
+❌ "Negócio de alimentação" (categoria pura)
+❌ "Saude em São Paulo" (info já está no card)
+❌ "Padaria artesanal" (falta atributo distintivo concreto)
+❌ "Empresa consolidada de varejo" (genérico)
 
 REGRAS:
-- 3-6 palavras
-- Sem cidade, faturamento, faixa
-- Específico: O QUE o negócio faz
-- Sem palavras proibidas
+- 3-7 palavras
+- NÃO mencione cidade, estado, faturamento, faixa de valor
+- NÃO use palavras proibidas (vendo, oportunidade, à venda, etc)
+- O atributo deve ser CONCRETO, não adjetivo abstrato
+- Se não tiver dados pra atributo distintivo, use só o tipo: "Padaria" (melhor que inventar atributo falso)
 
 Responda APENAS o título, sem aspas, sem ponto final, sem comentários.`
   },
@@ -204,11 +229,30 @@ Responda APENAS a frase.`
   },
 
   apresentacao_editorial: {
-    modelo: "claude-sonnet-4-5",
+    modelo: "claude-sonnet-4-5-20250929",
     max_tokens: 1500,
     prompt: (calc) => `${REGRAS_EDITORIAIS_GLOBAIS}
 
 TAREFA: Escreva uma apresentação editorial completa do negócio. Este texto aparece SOMENTE para investidores que assinaram o NDA. É a peça central do material confidencial.
+
+REGRAS ADICIONAIS DE FORMATAÇÃO E LINGUAGEM:
+
+1. NÃO use markdown — sem #, ##, **, *, listas com -, ou qualquer formatação. Apenas texto corrido em parágrafos separados por linha em branco.
+
+2. NÃO comece com título nem cabeçalho. Comece direto pelo primeiro parágrafo de apresentação.
+
+3. DIVERSIFIQUE O VOCABULÁRIO. Alterne entre estes substitutos para "negócio":
+   - operação (uso máximo: 4 vezes no texto inteiro)
+   - empresa (uso máximo: 4 vezes)
+   - estabelecimento (uso máximo: 3 vezes)
+   - negócio (uso máximo: 3 vezes)
+   - companhia (uso máximo: 2 vezes)
+
+   Use também referências indiretas: "este caso", "a oferta", "o ativo em análise", "a oportunidade analisada".
+
+4. Tom narrativo fluido. Cada parágrafo conecta ao anterior por transição natural (não por "Adicionalmente," ou "Por outro lado," — use estruturas mais sofisticadas).
+
+5. Comece o texto com: "Trata-se de..." OU "Esta análise refere-se a..." OU "Apresentamos..." OU descrição direta sem fórmula.
 
 CONTEXTO COMPLETO:
 ${JSON.stringify({
@@ -224,7 +268,7 @@ ${JSON.stringify({
 ESTRUTURA OBRIGATÓRIA (4 parágrafos):
 
 PARÁGRAFO 1 — APRESENTAÇÃO GERAL (~100 palavras):
-- O que é o negócio
+- O que é o negócio (use o tipo, não o nome)
 - Onde está localizado (cidade, NÃO endereço)
 - Há quanto tempo opera
 - Tamanho da operação (faturamento, equipe)
@@ -241,7 +285,7 @@ PARÁGRAFO 3 — ANÁLISE TÉCNICA (~200 palavras):
 - Score ISE detalhado (pilares fortes/fracos)
 
 PARÁGRAFO 4 — TESE DE VALOR E POTENCIAL (~150 palavras):
-- Por que o negócio merece atenção do investidor
+- Por que merece atenção do investidor
 - Upsides identificados com potencial de valor
 - Perfil de comprador que mais se beneficiaria
 - Convite sutil para próxima etapa (sem CTA agressivo)
@@ -252,11 +296,12 @@ REGRAS RÍGIDAS:
 - Ancorar TODA afirmação em dados específicos do JSON acima
 - Vocabulário M&A profissional
 - NUNCA: nome próprio, CNPJ, telefone, email, endereço
-- USE: "a operação" / "o negócio" (não cite o nome real)
 - EVITE: "incrível", "único", "imperdível", "oportunidade única"
 - TERMINE com convite sutil ao próximo passo
+- NÃO use markdown headers, bullets, asteriscos ou formatação especial
+- Diversifique vocabulário (NÃO repita "operação" mais de 4 vezes)
 
-Responda APENAS o texto editorial completo, em 4 parágrafos separados por linha em branco.`
+Responda APENAS o texto editorial em 4 parágrafos separados por linha em branco. NÃO inclua título, cabeçalho ou qualquer formatação.`
   },
 };
 
@@ -382,18 +427,12 @@ serve(async (req) => {
       validacao,
     };
 
-    const textosAtualizados = {
-      ...(anuncio.textos_negocio || {}),
-      [texto_a_gerar]: novoTexto,
-    };
-
-    const { error: updErr } = await supabase
-      .from("anuncios_v2")
-      .update({
-        textos_negocio: textosAtualizados,
-        textos_negocio_geradas_em: new Date().toISOString(),
-      })
-      .eq("id", anuncio_id);
+    // RPC atomic — jsonb_set evita race entre chamadas paralelas
+    const { error: updErr } = await supabase.rpc("atualizar_texto_anuncio", {
+      p_anuncio_id: anuncio_id,
+      p_chave: texto_a_gerar,
+      p_valor: novoTexto,
+    });
 
     if (updErr) {
       console.error("Erro ao salvar:", updErr);
