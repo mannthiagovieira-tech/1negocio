@@ -2294,17 +2294,18 @@ function cardHTML(d){
   const _passivosTotal = _passivos.total || d.pass || 0;
   const _pl = _bal.patrimonio_liquido !== undefined ? _bal.patrimonio_liquido : Math.max(0, _ativosTotal - _passivosTotal);
 
-  // DRE simplificada do card (4 linhas) — versão completa fica em /negocios/CODIGO
-  const recLiqA = far - impostosA;
-  const custosTotaisA = cmvA + folhaA;
+  // DRE 5 linhas (Receita bruta, Detratores, Custos diretos, Despesas gerais, Resultado op)
+  const custosDiretosA = cmvA + folhaA;
+  const plClass = _pl >= 0 ? 'g' : 'r';
   const viewFinanceiro = `
     <div class="view-scroll">
       <div class="view-title">DRE <span class="view-sub">· mensal · anual</span></div>
       <table class="dre-table">
         <thead><tr><th>Rubrica</th><th>Mensal</th><th>Anual</th><th>%Rec</th><th>Benchmark</th></tr></thead>
         <tbody>
-          ${row('Receita líquida', recLiqA?Math.round(recLiqA/12):fam, recLiqA||far, 'sub')}
-          ${custosTotaisA?row('(–) Custos totais', -Math.round(custosTotaisA/12), -custosTotaisA, 'neg', 'CMV + folha'):''}
+          ${row('Receita bruta', fam, far)}
+          ${impostosA?row('(–) Detratores', -Math.round(impostosA/12), -impostosA, 'neg', 'impostos + deduções'):''}
+          ${custosDiretosA?row('(–) Custos diretos', -Math.round(custosDiretosA/12), -custosDiretosA, 'neg', 'CMV + folha'):''}
           ${despA?row('(–) Despesas gerais', -Math.round(despA/12), -despA, 'neg', 'ocupação + outros'):''}
           <tr class="total"><td>Resultado operacional</td><td>R$${brl(Math.round(roA/12))}</td><td>R$${brl(roA)}</td><td class="pct">${pctF(roA)}</td><td class="bench">${d.margem>=20?'acima':d.margem>=15?'na média':'abaixo'}</td></tr>
         </tbody>
@@ -2316,9 +2317,9 @@ function cardHTML(d){
 
       <div class="view-title" style="margin-top:6px">Balanço patrimonial <span class="view-sub">· consolidado</span></div>
       <div class="balanco">
-        <div class="b-row b-total g"><span>Ativos totais</span><span>R$${brl(_ativosTotal)}</span></div>
-        <div class="b-row b-total r"><span>Passivos totais</span><span>R$${brl(_passivosTotal)}</span></div>
-        <div class="b-row b-total"><span>Patrimônio líquido</span><span>R$${brl(_pl)}</span></div>
+        <div class="b-row b-total"><span>Ativos totais</span><span>R$${brl(_ativosTotal)}</span></div>
+        <div class="b-row b-total"><span>Passivos totais</span><span>R$${brl(_passivosTotal)}</span></div>
+        <div class="b-row b-total ${plClass}"><span>Patrimônio líquido</span><span>R$${brl(_pl)}</span></div>
       </div>
     </div>
   `;

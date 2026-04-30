@@ -1289,57 +1289,44 @@ function renderAbaPrivado(){
   const liberado = acesso.tipo === 'liberado' && MATERIAL_C3;
 
   if(liberado){
-    // Fase 2 — conteúdo completo do laudo readaptado pra lente comprador (em construção)
-    return `
-      <section class="aba" data-aba="privado" data-active="false">
-        <div class="section">
-          <div class="section-head">
-            <div class="section-sub">MATERIAL CONFIDENCIAL — ACESSO LIBERADO</div>
-            <h2 class="section-title">Laudo completo do ativo</h2>
-          </div>
-          <div class="panel" style="border-color:var(--accent-line);background:var(--accent-soft)">
-            <p style="font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.08em;margin-bottom:10px">✓ NDA ativo · acesso liberado por ${MATERIAL_C3.dias_restantes||'—'} dias</p>
-            <p style="font-size:14px;color:var(--ink-2);line-height:1.6">O laudo completo readaptado em lente de comprador será exibido aqui em breve. Por ora, todos os dados confidenciais (identificação, sócios, ponto comercial, motivação da venda, documentos) estão disponíveis abaixo neste mesmo carregamento — role pra ver.</p>
-            <p style="margin-top:12px;font-size:13px;color:var(--ink-3)"><em>Em construção:</em> tese de aquisição, DRE detalhada, balanço completo, ISE com 8 pilares, indicadores qualitativos e quantitativos, upsides com valor monetário, análise tributária, transferibilidade, riscos identificados.</p>
-          </div>
-        </div>
-      </section>
-    `;
+    return renderAbaPrivadoLiberada(acesso);
   }
+  return renderAbaPrivadoBloqueada(acesso);
+}
 
-  // Estado bloqueado — paywall
+function renderAbaPrivadoBloqueada(acesso){
   const bullets = [
-    'Identificação completa: nome real, endereço, CNPJ',
-    'Lista nominal de sócios e equipe principal',
-    'Composição detalhada da DRE (todas as rubricas)',
-    'Balanço com caixa, contas a receber, estoque',
-    'Motivação da venda + termos negociáveis',
-    'Documentos da empresa (contratos, certidões)',
-    'Tese de aquisição reescrita pra perfil comprador',
-    'Upsides com cálculo monetário detalhado',
+    'DRE detalhada (todas as rubricas)',
+    'Balanço completo (caixa, contas a receber, estoque)',
+    'Análise técnica completa do ativo',
+    'Tese de aquisição em lente comprador',
+    'Razão da venda + termos negociáveis',
+    'Nome real do negócio + identificação completa',
   ];
 
-  let ctaTexto, ctaLabel, ctaAcao;
+  let ctaTexto, ctaLabel, ctaAcao, ctaSubtexto = '';
   if(acesso.tipo === 'nao_logado'){
-    ctaTexto = 'Faça login pra solicitar acesso';
-    ctaLabel = 'Entrar e solicitar';
-    ctaAcao = 'solicitarInformacoes()';
+    ctaTexto = 'Esta seção contém o laudo técnico completo da operação, informações financeiras detalhadas, nome real e razão da venda.';
+    ctaLabel = 'Solicitar acesso confidencial';
+    ctaAcao = 'solicitarNDA()';
+    ctaSubtexto = 'Acesso liberado em até 24h após análise da equipe 1Negócio.';
   } else if(acesso.tipo === 'aguardando_analise'){
-    ctaTexto = 'Sua solicitação está em análise pela equipe 1Negócio.';
+    ctaTexto = 'Sua solicitação de acesso está em análise pela equipe 1Negócio. Você será notificado.';
     ctaLabel = 'Acompanhar status';
-    ctaAcao = `(function(){const c3=document.getElementById('c3-section');if(c3){const t=c3.getBoundingClientRect().top+window.scrollY-80;window.scrollTo({top:t,behavior:'smooth'})}})()`;
+    ctaAcao = `scrollC3()`;
   } else if(acesso.tipo === 'aprovado_assinar'){
-    ctaTexto = 'Solicitação aprovada — assine o termo de confidencialidade pra liberar.';
+    ctaTexto = 'Solicitação aprovada. Assine o termo de confidencialidade pra liberar o material.';
     ctaLabel = 'Assinar termo';
     ctaAcao = `window.location.href='/termo-sigilo.html?negocio_id=${NEG && NEG.id}'`;
   } else if(acesso.tipo === 'aguardando_liberacao'){
     ctaTexto = 'Termo assinado — aguardando liberação final pela equipe.';
     ctaLabel = 'Acompanhar';
-    ctaAcao = `(function(){const c3=document.getElementById('c3-section');if(c3){const t=c3.getBoundingClientRect().top+window.scrollY-80;window.scrollTo({top:t,behavior:'smooth'})}})()`;
+    ctaAcao = `scrollC3()`;
   } else {
-    ctaTexto = 'Compradores qualificados podem solicitar acesso ao material confidencial mediante NDA.';
-    ctaLabel = 'Solicitar acesso';
-    ctaAcao = 'solicitarInformacoes()';
+    ctaTexto = 'Esta seção contém o laudo técnico completo da operação, informações financeiras detalhadas, nome real e razão da venda.';
+    ctaLabel = 'Solicitar acesso confidencial';
+    ctaAcao = 'solicitarNDA()';
+    ctaSubtexto = 'Acesso liberado em até 24h após análise da equipe 1Negócio.';
   }
 
   return `
@@ -1355,10 +1342,311 @@ function renderAbaPrivado(){
           <div class="state-actions">
             <button class="btn btn-primary" type="button" onclick="${ctaAcao}">${escapeHtml(ctaLabel)}</button>
           </div>
+          ${ctaSubtexto ? `<p style="margin-top:14px;font-size:11px;color:var(--ink-4);font-family:var(--mono);letter-spacing:.04em">${escapeHtml(ctaSubtexto)}</p>` : ''}
         </div>
       </div>
     </section>
   `;
+}
+
+function renderAbaPrivadoLiberada(acesso){
+  const calc = CALC || {};
+  const dre = calc.dre || {};
+  const balanco = calc.balanco || {};
+  const ativos = balanco.ativos || {};
+  const passivos = balanco.passivos || {};
+  const ise = calc.ise || {};
+  const valuation = calc.valuation || {};
+  const upsides = calc.upsides || {};
+  const operacional = calc.operacional || {};
+  const identif = calc.identificacao || {};
+  const tributaria = calc.analise_tributaria || {};
+  const mat = MATERIAL_C3 || {};
+
+  const dias = acesso.liberado_ate ? Math.max(0, Math.ceil((new Date(acesso.liberado_ate)-new Date())/86400000)) : null;
+  const nomeReal = mat.nome || NEG.nome || '—';
+  const codigo = ANUNCIO.codigo || '—';
+
+  // ── HEADER ──
+  const headerHTML = `
+    <div class="section-head">
+      <div class="section-sub" style="color:var(--accent)">✓ ACESSO CONFIDENCIAL LIBERADO${dias!=null?' · '+dias+' dia'+(dias===1?'':'s')+' restante'+(dias===1?'':'s'):''}</div>
+      <h2 class="section-title" style="font-size:28px">${escapeHtml(nomeReal)}</h2>
+      <div style="font-family:var(--mono);font-size:12px;color:var(--ink-3);letter-spacing:.04em;margin-top:4px">${escapeHtml(codigo)}</div>
+    </div>
+  `;
+
+  // ── SEÇÃO 1: TESE DE AQUISIÇÃO ──
+  const apresentacao = (TEXTOS.apresentacao_editorial && TEXTOS.apresentacao_editorial.conteudo) || '';
+  const apresentacaoHTML = apresentacao
+    ? apresentacao.split('\n\n').filter(p=>p.trim()).map(p=>`<p>${escapeHtml(p.trim())}</p>`).join('')
+    : '<p style="color:var(--ink-3)">Tese de aquisição em geração.</p>';
+
+  // ── SEÇÃO 2: VISÃO GERAL DA OPERAÇÃO ──
+  const motivoVenda = mat.motivo_venda || '';
+  const urgencia = mat.urgencia || '';
+  const aceitaParcel = mat.aceita_parcelamento;
+  const aceitaTransicao = mat.aceita_transicao;
+  const anos = identif.tempo_operacao_anos || operacional.tempo_operacao_anos || 0;
+  const modelo = (identif.modelo_atuacao && identif.modelo_atuacao.principal) || '—';
+  const setor = (identif.setor && identif.setor.label) || '—';
+  const cidade = (identif.localizacao && identif.localizacao.cidade) || '';
+  const estado = (identif.localizacao && identif.localizacao.estado) || '';
+
+  // ── SEÇÃO 3: DRE COMPLETA ──
+  const fatM = n(dre.fat_mensal);
+  const fatA = n(dre.fat_anual) || (fatM*12);
+  const dedM = n(safe(calc,'dre.deducoes_receita.total_mensal',0));
+  const cmvM = n(dre.cmv);
+  const folhaM = n(safe(calc,'dre.bloco_3_operacional.pessoal.folha_total_mensal',0));
+  const cltFolhaBruta = n(safe(calc,'dre.bloco_3_operacional.pessoal.clt_folha_bruta',0));
+  const cltEncargos = n(safe(calc,'dre.bloco_3_operacional.pessoal.clt_encargos',0));
+  const pjCusto = n(safe(calc,'dre.bloco_3_operacional.pessoal.pj_custo',0));
+  const ocupacaoM = n(safe(calc,'dre.bloco_3_operacional.ocupacao.total_mensal',0));
+  const aluguelM = n(safe(calc,'dre.bloco_3_operacional.ocupacao.aluguel',0));
+  const facilitiesM = n(safe(calc,'dre.bloco_3_operacional.ocupacao.facilities',0));
+  const opOutrosM = n(safe(calc,'dre.bloco_3_operacional.operacional_outros.total_mensal',0));
+  const mktM = n(safe(calc,'dre.bloco_3_operacional.operacional_outros.mkt_pago',0));
+  const sistemasM = n(safe(calc,'dre.bloco_3_operacional.operacional_outros.sistemas',0));
+  const outrosCfM = n(safe(calc,'dre.bloco_3_operacional.operacional_outros.outros_cf',0));
+  const prolaboreM = n(safe(calc,'dre.bloco_5_caixa.prolabore',0));
+  const roM = n(dre.ro_mensal);
+  const roA = n(dre.ro_anual);
+  const margemOp = n(dre.margem_operacional_pct);
+
+  // ── SEÇÃO 4: BALANÇO COMPLETO ──
+  const caixa = n(ativos.caixa);
+  const contasReceber = n(ativos.contas_receber);
+  const estoque = n(ativos.estoque);
+  const equipamentos = n(ativos.equipamentos);
+  const ativosTotal = n(ativos.total);
+  const dividas = n(passivos.saldo_devedor_emprestimos);
+  const fornecVencer = n(passivos.fornecedores_a_vencer);
+  const fornecAtrasados = n(passivos.fornecedores_atrasados);
+  const provisoesCLT = n(safe(calc,'balanco.passivos.provisao_clt_calculada.valor',0));
+  const impAtrasados = n(passivos.impostos_atrasados_sem_parcelamento);
+  const passivosTotal = n(passivos.total);
+  const pl = n(balanco.patrimonio_liquido);
+  const plClass = pl>=0?'g':'a';
+
+  // ── SEÇÃO 5: PERFIL OPERACIONAL ──
+  const numFuncs = n(operacional.num_funcionarios);
+  const numSocios = n(operacional.num_socios);
+  const _findPilar = (id) => (ise.pilares||[]).find(p => p && p.id === id) || {};
+  const _findSub = (pid, sid) => ((_findPilar(pid).sub_metricas)||[]).find(s => s && s.id === sid) || {};
+  const sistemasSub = _findSub('p4_gestao','sistemas_implantados');
+  const processosSub = _findSub('p4_gestao','processos_documentados');
+  const operaSemDono = _findSub('p5_socio_dependencia','opera_sem_dono');
+  const equipePerm = _findSub('p5_socio_dependencia','equipe_permanece');
+  const marcaInpi = _findSub('p8_marca','marca_inpi');
+  const reputacao = _findSub('p8_marca','reputacao');
+  const contabilidade = _findSub('p1_financeiro','contabilidade_formal');
+
+  // ── SEÇÃO 6: TESE DE VALOR ──
+  const valorAval = n(valuation.valor_venda);
+  const valorPedido = n(ANUNCIO.valor_pedido);
+  const gap = valorPedido - valorAval;
+  const ativosUpsides = upsides.ativos || [];
+
+  // riscos = pilares com score < 5
+  const riscos = (ise.pilares||[]).filter(p => n(p.score_0_10) < 5);
+
+  // ── SEÇÃO 7: PRÓXIMOS PASSOS — CTAs ──
+
+  return `
+    <section class="aba" data-aba="privado" data-active="false">
+
+      <div class="section">${headerHTML}</div>
+
+      <div class="section">
+        <div class="section-head">
+          <div class="section-sub">01 · TESE DE AQUISIÇÃO</div>
+          <h2 class="section-title">Por que esta operação é uma oportunidade</h2>
+        </div>
+        <div class="panel editorial">${apresentacaoHTML}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <div class="section-sub">02 · VISÃO GERAL DA OPERAÇÃO</div>
+          <h2 class="section-title">Identificação e contexto</h2>
+        </div>
+        <div class="panel">
+          <div class="kv-row"><span>Setor / segmento</span><span class="kv-value">${escapeHtml(setor)}${identif.subcategoria?' · '+escapeHtml(identif.subcategoria):''}</span></div>
+          ${cidade?`<div class="kv-row"><span>Localização</span><span class="kv-value">${escapeHtml(cidade)}/${escapeHtml(estado)}</span></div>`:''}
+          ${anos?`<div class="kv-row"><span>Tempo de operação</span><span class="kv-value">${anos} ano${anos===1?'':'s'}</span></div>`:''}
+          ${modelo!=='—'?`<div class="kv-row"><span>Modelo de atuação</span><span class="kv-value">${escapeHtml(modelo)}</span></div>`:''}
+          ${tributaria.regime_declarado?`<div class="kv-row"><span>Regime tributário</span><span class="kv-value">${escapeHtml(tributaria.regime_declarado.toUpperCase())}${tributaria.anexo_simples?' · Anexo '+tributaria.anexo_simples:''}</span></div>`:''}
+          ${motivoVenda?`<div style="margin-top:12px;padding:12px 14px;background:var(--surface-2);border-radius:10px"><strong style="display:block;font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase;margin-bottom:6px">Razão da venda</strong><span style="font-size:14px;line-height:1.6;color:var(--ink-2)">${escapeHtml(motivoVenda)}</span></div>`:''}
+          ${urgencia||aceitaParcel!==undefined||aceitaTransicao!==undefined?`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+            ${urgencia?`<span style="padding:4px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;font-family:var(--mono);font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em">Urgência: ${escapeHtml(urgencia)}</span>`:''}
+            ${aceitaParcel===true?`<span style="padding:4px 10px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);border-radius:999px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em">Aceita parcelamento</span>`:''}
+            ${aceitaTransicao===true?`<span style="padding:4px 10px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);border-radius:999px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em">Aceita transição com vendedor</span>`:''}
+          </div>`:''}
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <div class="section-sub">03 · DRE DETALHADA</div>
+          <h2 class="section-title">Demonstrativo completo · base mensal</h2>
+        </div>
+        <div class="panel">
+          ${fatM?`<div class="kv-row"><span>Receita bruta</span><span class="kv-value">${brlR(fatM)}</span></div>`:''}
+          ${dedM?`<div class="kv-row"><span>(–) Impostos + deduções</span><span class="kv-value">${brlR(dedM)}</span></div>`:''}
+          ${cmvM?`<div class="kv-row"><span>(–) CMV / Custo direto</span><span class="kv-value">${brlR(cmvM)}</span></div>`:''}
+          ${folhaM?`<div class="kv-row"><span>(–) Folha + encargos${cltFolhaBruta?' (CLT '+brlR(cltFolhaBruta)+' + enc '+brlR(cltEncargos)+')':''}</span><span class="kv-value">${brlR(folhaM)}</span></div>`:''}
+          ${pjCusto?`<div class="kv-row"><span>(–) PJ / freelance</span><span class="kv-value">${brlR(pjCusto)}</span></div>`:''}
+          ${prolaboreM?`<div class="kv-row"><span>(–) Pró-labore</span><span class="kv-value">${brlR(prolaboreM)}</span></div>`:''}
+          ${aluguelM?`<div class="kv-row"><span>(–) Aluguel</span><span class="kv-value">${brlR(aluguelM)}</span></div>`:''}
+          ${facilitiesM?`<div class="kv-row"><span>(–) Facilities (água, luz, internet)</span><span class="kv-value">${brlR(facilitiesM)}</span></div>`:''}
+          ${mktM?`<div class="kv-row"><span>(–) Marketing</span><span class="kv-value">${brlR(mktM)}</span></div>`:''}
+          ${sistemasM?`<div class="kv-row"><span>(–) Sistemas / ERP</span><span class="kv-value">${brlR(sistemasM)}</span></div>`:''}
+          ${outrosCfM?`<div class="kv-row"><span>(–) Outros custos fixos</span><span class="kv-value">${brlR(outrosCfM)}</span></div>`:''}
+          <div class="kv-row total"><span>Resultado operacional</span><span>${brlR(roM)}/mês · ${brlR(roA)}/ano (${margemOp.toFixed(2)}%)</span></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <div class="section-sub">04 · BALANÇO PATRIMONIAL</div>
+          <h2 class="section-title">Composição completa</h2>
+        </div>
+        <div class="panel">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase;margin-bottom:6px">Ativos</div>
+          ${caixa?`<div class="kv-row"><span>Caixa e equivalentes</span><span class="kv-value">${brlR(caixa)}</span></div>`:''}
+          ${contasReceber?`<div class="kv-row"><span>Contas a receber</span><span class="kv-value">${brlR(contasReceber)}</span></div>`:''}
+          ${estoque?`<div class="kv-row"><span>Estoque/suprimentos</span><span class="kv-value">${brlR(estoque)}</span></div>`:''}
+          ${equipamentos?`<div class="kv-row"><span>Equipamentos / imóveis</span><span class="kv-value">${brlR(equipamentos)}</span></div>`:''}
+          <div class="kv-row" style="font-weight:600;color:var(--ink)"><span>Total ativos</span><span class="kv-value">${brlR(ativosTotal)}</span></div>
+
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--ink-3);text-transform:uppercase;margin:14px 0 6px">Passivos</div>
+          ${dividas?`<div class="kv-row"><span>Dívidas bancárias</span><span class="kv-value">${brlR(dividas)}</span></div>`:''}
+          ${fornecVencer?`<div class="kv-row"><span>Fornecedores a vencer</span><span class="kv-value">${brlR(fornecVencer)}</span></div>`:''}
+          ${fornecAtrasados?`<div class="kv-row"><span>Fornecedores em atraso</span><span class="kv-value">${brlR(fornecAtrasados)}</span></div>`:''}
+          ${provisoesCLT?`<div class="kv-row"><span>Provisões CLT (rescisão estimada)</span><span class="kv-value">${brlR(provisoesCLT)}</span></div>`:''}
+          ${impAtrasados?`<div class="kv-row"><span>Impostos em atraso (sem parcelamento)</span><span class="kv-value">${brlR(impAtrasados)}</span></div>`:''}
+          <div class="kv-row" style="font-weight:600;color:var(--ink)"><span>Total passivos</span><span class="kv-value">${brlR(passivosTotal)}</span></div>
+
+          <div class="kv-row total" style="margin-top:12px;${plClass==='a'?'background:var(--alert-soft);color:var(--alert);border-color:rgba(220,38,38,.28)':''}"><span>Patrimônio líquido</span><span>${brlR(pl)}</span></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <div class="section-sub">05 · PERFIL OPERACIONAL</div>
+          <h2 class="section-title">Estrutura e governança</h2>
+        </div>
+        <div class="panel">
+          ${numFuncs?`<div class="kv-row"><span>Equipe</span><span class="kv-value">${numFuncs} pessoa${numFuncs===1?'':'s'}</span></div>`:''}
+          ${numSocios?`<div class="kv-row"><span>Sócios</span><span class="kv-value">${numSocios}</span></div>`:''}
+          ${sistemasSub.valor!==undefined?`<div class="kv-row"><span>Sistemas implantados</span><span class="kv-value">${sistemasSub.valor>0?'Sim · '+brlR(sistemasSub.valor)+'/mês':'Sem ERP'}</span></div>`:''}
+          ${processosSub.valor?`<div class="kv-row"><span>Processos documentados</span><span class="kv-value">${escapeHtml(String(processosSub.valor)).charAt(0).toUpperCase()+String(processosSub.valor).slice(1)}</span></div>`:''}
+          ${operaSemDono.valor?`<div class="kv-row"><span>Opera sem o dono (15 dias)</span><span class="kv-value">${operaSemDono.valor==='sim'?'Sim — operação independente':operaSemDono.valor==='parcial'?'Parcial':'Não — sócio-dependente'}</span></div>`:''}
+          ${equipePerm.valor?`<div class="kv-row"><span>Equipe permanece pós-venda</span><span class="kv-value">${escapeHtml(String(equipePerm.valor))}</span></div>`:''}
+          ${marcaInpi.valor?`<div class="kv-row"><span>Marca registrada</span><span class="kv-value">${marcaInpi.valor==='registrada'?'Sim · INPI':'Não registrada'}</span></div>`:''}
+          ${reputacao.valor?`<div class="kv-row"><span>Reputação no mercado</span><span class="kv-value">${escapeHtml(String(reputacao.valor)).charAt(0).toUpperCase()+String(reputacao.valor).slice(1)}</span></div>`:''}
+          ${contabilidade.valor!==undefined?`<div class="kv-row"><span>Contabilidade formal</span><span class="kv-value">${contabilidade.valor===true?'Sim':'Não'}</span></div>`:''}
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <div class="section-sub">06 · TESE DE VALOR</div>
+          <h2 class="section-title">Avaliação, gap e oportunidades</h2>
+        </div>
+        <div class="ana-grid">
+          <div class="ana-block">
+            <div class="ana-head"><span>Avaliação técnica 1N</span><span class="ana-tag">${(safe(calc,'valuation.multiplo_setor.valor',0)).toFixed(2)}× RO</span></div>
+            <div class="ana-big g">${brlR(valorAval)}</div>
+          </div>
+          <div class="ana-block">
+            <div class="ana-head"><span>Valor pedido pelo vendedor</span></div>
+            <div class="ana-big">${brlR(valorPedido)}</div>
+            <div class="ana-formula">${gap>0?'Pedido R$'+brl(gap)+' acima da avaliação':gap<0?'Pedido R$'+brl(Math.abs(gap))+' abaixo da avaliação':'Pedido alinhado à avaliação técnica'}</div>
+          </div>
+        </div>
+        ${ativosUpsides.length?`
+          <div class="section" style="margin-top:18px">
+            <div class="section-head">
+              <div class="section-sub">UPSIDES IDENTIFICADOS</div>
+              <h3 class="section-title" style="font-size:18px">Onde o comprador captura valor</h3>
+            </div>
+            <div class="panel">
+              <div class="upsides">
+                ${ativosUpsides.slice(0,8).map((u,i)=>`
+                  <div class="upside-row">
+                    <span class="upside-n">${i+1}</span>
+                    <div class="upside-body">
+                      <div class="upside-t">${escapeHtml(u.label||'')}</div>
+                      <div class="upside-sub">${escapeHtml(u.descricao||'')}</div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `:''}
+        ${riscos.length?`
+          <div class="section" style="margin-top:18px">
+            <div class="section-head">
+              <div class="section-sub">RISCOS IDENTIFICADOS</div>
+              <h3 class="section-title" style="font-size:18px">Pontos de atenção pra due diligence</h3>
+            </div>
+            <div class="panel" style="border-color:rgba(217,119,6,.28);background:var(--warn-soft)">
+              ${riscos.map(r=>`
+                <div class="kv-row"><span>${escapeHtml(r.label||'')}</span><span style="font-family:var(--serif);font-weight:700;color:var(--warn)">${Math.round(n(r.score_0_10)*10)}/100</span></div>
+              `).join('')}
+            </div>
+          </div>
+        `:''}
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <div class="section-sub">07 · PRÓXIMOS PASSOS</div>
+          <h2 class="section-title">Como avançar</h2>
+        </div>
+        <div class="ana-grid">
+          <div class="ana-block">
+            <div class="ana-head"><span>Quer conversar com o vendedor?</span></div>
+            <p style="font-size:13px;color:var(--ink-2);line-height:1.5;margin:8px 0 14px">Abra uma mesa de negociação privada. A equipe 1Negócio facilita o primeiro contato e garante confidencialidade.</p>
+            <button class="btn btn-primary" type="button" onclick="iniciarNegociacao()" style="width:100%">Iniciar negociação</button>
+          </div>
+          <div class="ana-block">
+            <div class="ana-head"><span>Tem dúvidas técnicas?</span></div>
+            <p style="font-size:13px;color:var(--ink-2);line-height:1.5;margin:8px 0 14px">Fale com um especialista 1Negócio sobre due diligence, estruturação tributária ou financiamento da aquisição.</p>
+            <button class="btn btn-secondary" type="button" onclick="falarEspecialista()" style="width:100%">Falar com especialista</button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  `;
+}
+
+function scrollC3(){
+  const c3 = document.getElementById('c3-section');
+  if(c3){
+    const t = c3.getBoundingClientRect().top + window.scrollY - 80;
+    window.scrollTo({top:t, behavior:'smooth'});
+  }
+}
+function solicitarNDA(){
+  if(window.track) window.track('click_solicitar_nda');
+  solicitarInformacoes();
+}
+function iniciarNegociacao(){
+  if(window.track) window.track('click_iniciar_negociacao');
+  if(NEG && NEG.id){
+    window.location.href = '/?solicitar=' + NEG.id + '&modo=nego';
+  }
+}
+function falarEspecialista(){
+  if(window.track) window.track('click_falar_especialista');
+  const codigo = ANUNCIO && ANUNCIO.codigo;
+  const m = encodeURIComponent('Olá! Tenho interesse no anúncio ' + (codigo||'') + ' e gostaria de falar com um especialista 1Negócio.');
+  window.open('https://wa.me/5511952136406?text=' + m, '_blank');
 }
 
 function inicializarTabs(){
