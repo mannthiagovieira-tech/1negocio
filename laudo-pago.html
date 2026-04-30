@@ -130,16 +130,16 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 .ise-class{font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin-bottom:4px}
 .ise-class-name{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--em)}
 .ise-desc{font-size:10px;color:var(--ink3);margin-top:5px;line-height:1.55;max-width:280px}
-.pilar{margin-bottom:14px}
-.pilar-row{display:flex;align-items:center;gap:10px;margin-bottom:4px}
-.pilar-nome{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);width:140px;flex-shrink:0}
-.pilar-bar{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.pilar{margin-bottom:18px}
+.pilar-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:10px}
+.pilar-nome{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);width:auto;flex:none;flex-shrink:0}
+.pilar-bar{width:100%;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-bottom:6px}
 .pilar-fill{height:100%;border-radius:3px}
 .pilar-fill.g{background:var(--em)}.pilar-fill.a{background:var(--am)}.pilar-fill.r{background:var(--rd)}
-.pilar-val{font-size:10px;width:46px;text-align:right;flex-shrink:0;font-weight:500}
+.pilar-val{font-size:10px;width:auto;flex:none;flex-shrink:0;font-weight:500}
 .pilar-val.g{color:var(--em)}.pilar-val.a{color:var(--am)}.pilar-val.r{color:var(--rd)}
-.pilar-meta{font-size:9px;color:var(--ink4);padding-left:150px;margin-bottom:6px}
-.submet-list{padding-left:150px;margin-top:6px}
+.pilar-meta{padding-left:0;font-size:9px;color:var(--ink4);margin-bottom:6px}
+.submet-list{padding-left:0;margin-top:6px;margin-bottom:10px}
 .submet{display:flex;justify-content:space-between;align-items:baseline;font-size:10px;color:var(--ink3);padding:4px 0;border-bottom:1px dashed var(--line)}
 .submet:last-child{border:none}
 .submet-l{flex:1}
@@ -1223,11 +1223,14 @@ function renderISE() {
     const cls = pilarCor(score);
     const fillPct = (score * 10).toFixed(0);
     h += '<div class="pilar">';
+    // Linha 1: nome | score (flex space-between)
     h += '<div class="pilar-row">';
     h += '<div class="pilar-nome">' + escapeHtml(p.label || p.id) + ' (' + Math.round(p.peso_pct || 0) + '%)</div>';
-    h += '<div class="pilar-bar"><div class="pilar-fill ' + cls + '" style="width:' + fillPct + '%"></div></div>';
     h += '<div class="pilar-val ' + cls + '">' + score.toFixed(1) + '/10</div>';
     h += '</div>';
+    // Linha 2: barra full-width
+    h += '<div class="pilar-bar"><div class="pilar-fill ' + cls + '" style="width:' + fillPct + '%"></div></div>';
+    // Linha 3: meta + submétricas (sem indentação)
     h += '<div class="pilar-meta">Contribuição no ISE total: ' + n(p.contribuicao_no_total).toFixed(1) + ' pts</div>';
     if (p.sub_metricas && p.sub_metricas.length > 0) {
       h += '<div class="submet-list">';
@@ -1437,7 +1440,8 @@ function renderUpsides() {
     const catLabel = CAT_LABEL[cat] || cat;
     const valorObj = valorPorId[u.id];
 
-    let ganhoTag;
+    // Paywalls não recebem badge — já têm chip "ANÁLISE" no header.
+    let ganhoTag = '';
     if (cat === 'qualitativo') {
       ganhoTag = '<span class="op-ganho qual">Pré-requisito · sem valor direto</span>';
     } else if (valorObj && n(valorObj.contribuicao_brl) > 0) {
@@ -1447,7 +1451,7 @@ function renderUpsides() {
         ? ' (+' + fcShort(ganhoMensal) + '/mês caixa)'
         : '';
       ganhoTag = '<span class="op-ganho">+' + fcShort(valor) + ' no valor de venda' + sufixo + '</span>';
-    } else {
+    } else if (cat !== 'paywall') {
       ganhoTag = '<span class="op-ganho qual">Contribuição não calculada</span>';
     }
 
@@ -1655,7 +1659,15 @@ function renderTeaser() {
   const cidade = (id.localizacao && id.localizacao.cidade) || '';
   const estado = (id.localizacao && id.localizacao.estado) || '';
   const local = [cidade, estado].filter(Boolean).join('/') || '—';
-  const tempo = id.tempo_operacao_anos != null ? id.tempo_operacao_anos + ' anos' : '—';
+  // Tempo: omitir se 0/null em vez de mostrar "—"
+  const tempoNum = n(id.tempo_operacao_anos);
+  const tempoLabel = tempoNum > 0 ? tempoNum + ' anos' : null;
+  // Regime: omitir se vazio em vez de mostrar "—"
+  const regimeLabel = (id && calcJson.analise_tributaria && calcJson.analise_tributaria.regime_declarado || '').trim()
+    ? calcJson.analise_tributaria.regime_declarado.toUpperCase()
+    : null;
+  // Linha do hero do teaser (tempo · regime) — vazia → omite a div inteira
+  const setorLinha = [tempoLabel, regimeLabel].filter(Boolean).join(' · ');
   const codigo = id.codigo_diagnostico || '—';
   const dataAvalIso = calcJson._data_avaliacao || (id && id.data_avaliacao);
   const dataAval = dataAvalIso ? new Date(dataAvalIso).toLocaleDateString('pt-BR') : hoje();
@@ -1685,7 +1697,7 @@ function renderTeaser() {
     + '<div class="op-kpi"><div class="op-kpi-l">Margem operacional</div><div class="op-kpi-v ' + (margem >= 15 ? 'g' : margem >= 5 ? 'a' : 'r') + '">' + margem.toFixed(1) + '%</div></div>'
     + '<div class="op-kpi"><div class="op-kpi-l">ISE · Solidez</div><div class="op-kpi-v g">' + iseTotal.toFixed(0) + '/100</div><div class="op-kpi-sub">' + escapeHtml(ise.classe || '—') + '</div></div>'
     + '<div class="op-kpi"><div class="op-kpi-l">Fator 1N</div><div class="op-kpi-v">' + fator.toFixed(2).replace('.', ',') + '×</div></div>'
-    + '<div class="op-kpi"><div class="op-kpi-l">Tempo de operação</div><div class="op-kpi-v">' + escapeHtml(tempo) + '</div></div>'
+    + '<div class="op-kpi"><div class="op-kpi-l">Tempo de operação</div><div class="op-kpi-v">' + escapeHtml(tempoLabel || '—') + '</div></div>'
     + '</div>';
 
   // Bloco DRE Resumida
@@ -1778,7 +1790,7 @@ function renderTeaser() {
     + '    <div>'
     + '      <div class="op-hero-eyebrow">Negócio em avaliação</div>'
     + '      <div class="op-hero-nome">' + escapeHtml(setorLbl) + ' em ' + escapeHtml(local) + '</div>'
-    + '      <div class="op-hero-setor">' + escapeHtml(tempo) + ' · ' + escapeHtml(regime) + '</div>'
+    + (setorLinha ? '      <div class="op-hero-setor">' + escapeHtml(setorLinha) + '</div>' : '')
     + '    </div>'
     + '    <div class="op-hero-right">'
     + '      <div class="op-hero-valor-label">Valor de venda</div>'
