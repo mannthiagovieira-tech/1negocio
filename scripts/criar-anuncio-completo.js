@@ -68,6 +68,7 @@ function mapPerfilParaDadosJson(perfil) {
 
   return {
     nome_responsavel: 'Thiago Mann',
+    subcategoria: id.subcategoria || null,
     fat_mensal: fatMensal,
     fat_anterior: fatAnterior,
     crescimento_pct: Number(cresc.toFixed(1)),

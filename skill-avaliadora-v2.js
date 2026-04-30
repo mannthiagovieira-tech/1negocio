@@ -2709,6 +2709,7 @@
         nome_responsavel: D.nome_responsavel || null,
         tipo_negocio_breve: D.tipo_negocio_breve || null,
         setor: { code: D.setor_code, label: D.setor_label || D.setor_raw || D.setor_code },
+        subcategoria: D.subcategoria || null,
         modelo_atuacao: {
           selecionados: D.modelo_atuacao_multi || D.modelo_multi || [],
           principal: D.modelo_atuacao_principal || D.modelo_code || null,

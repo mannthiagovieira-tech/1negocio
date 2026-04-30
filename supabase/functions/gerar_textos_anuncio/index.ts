@@ -60,6 +60,24 @@ DADOS DO NEGÓCIO:
 - Equipe: ${calc.dre?.pessoal?.headcount_total ?? calc.equipe?.clt_qtd ?? 0} CLT, ${calc.equipe?.pj_qtd ?? 0} PJ
 - Faturamento anual: R$ ${calc.dre?.fat_anual ?? calc.dre?.faturamento_anual ?? 0}
 
+REGRA CRÍTICA — IDENTIFICAÇÃO DO TIPO:
+
+1. Se subcategoria existe e é específica, USE-A:
+   - "padaria" → escreva "Padaria" (não "Negócio de alimentação")
+   - "odontologia" → escreva "Clínica odontológica"
+   - "automotivo" → escreva "Oficina mecânica"
+   - "pet" → escreva "Pet shop"
+   - "vestuario" → escreva "Boutique" ou "Loja de roupas"
+   - "limpeza" → escreva "Empresa de limpeza"
+
+2. Só use o setor genérico se subcategoria estiver vazia/null.
+
+3. NUNCA escreva "Negócio de [setor]" — use o tipo específico.
+   ❌ "Negócio de alimentação"
+   ✅ "Padaria"
+   ✅ "Restaurante"
+   ✅ "Lanchonete"
+
 LÓGICA DE CONSTRUÇÃO:
 1. Comece pelo TIPO DO NEGÓCIO (use subcategoria se houver, senão setor especificado)
 2. Adicione UM atributo distintivo escolhido entre:
