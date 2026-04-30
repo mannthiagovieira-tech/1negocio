@@ -23,6 +23,7 @@ const ALLOWED_TABLES = [
   "termos_adesao",
   "laudos_v2",
   "anuncios_v2",
+  "anuncio_eventos",
 ];
 
 const corsHeaders = {
