@@ -241,8 +241,40 @@ document.getElementById('r-codigo').textContent   = pId || '—';
 document.getElementById('r-valor').textContent    = pValor ? 'R$ ' + pValor.toLocaleString('pt-BR') : '—';
 document.getElementById('r-plano').textContent    = pPlano === 'guiado' ? 'Guiado R$ 588' : 'Gratuito';
 document.getElementById('r-comissao').textContent = comissao + ' sobre o valor da venda';
-// Buscar codigo amigavel e atualizar resumo
-if(pId) { fetch(SB_URL + '/rest/v1/negocios?id=eq.' + pId + '&select=codigo_diagnostico', { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } }).then(r => r.json()).then(d => { if(d && d[0] && d[0].codigo_diagnostico) { codigoDiagnostico = d[0].codigo_diagnostico; document.getElementById('r-codigo').textContent = codigoDiagnostico; } }); }
+// FIX 1 — aceita pId como UUID (36 chars) OU código diagnóstico (1N-XXXXXX, sem AN-).
+// CTA do laudo manda /termo-adesao.html?id=1N-VFVX9A (código).
+// Admin manda /termo-adesao.html?id=<UUID> (UUID).
+// Detecta formato e roteia query apropriada.
+let _negocioIdResolvido = null;
+if (pId) {
+  const _isUuid = pId.length === 36 && /^[0-9a-f-]+$/i.test(pId);
+  const _isCodigoDiag = /^1N-(?!AN-)[A-Z0-9]+$/i.test(pId);
+  let _queryUrl = null;
+  if (_isUuid) {
+    _queryUrl = SB_URL + '/rest/v1/negocios?id=eq.' + pId + '&select=id,codigo_diagnostico';
+  } else if (_isCodigoDiag) {
+    _queryUrl = SB_URL + '/rest/v1/negocios?codigo_diagnostico=eq.' + encodeURIComponent(pId) + '&select=id,codigo_diagnostico';
+  }
+  if (_queryUrl) {
+    fetch(_queryUrl, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } })
+      .then(r => r.json())
+      .then(d => {
+        if (d && d[0]) {
+          _negocioIdResolvido = d[0].id;
+          window._negocioIdResolvido = d[0].id;
+          if (d[0].codigo_diagnostico) {
+            codigoDiagnostico = d[0].codigo_diagnostico;
+            document.getElementById('r-codigo').textContent = codigoDiagnostico;
+          }
+        } else {
+          console.warn('[termo-adesao] negócio não encontrado pra:', pId);
+        }
+      })
+      .catch(e => console.error('[termo-adesao] erro fetch:', e));
+  } else {
+    console.warn('[termo-adesao] formato de id inválido:', pId, '— esperado UUID ou 1N-XXXXX');
+  }
+}
 
 // Indicador de valor
 if(pValor && pId) {
@@ -337,15 +369,25 @@ async function assinar() {
     const btn = document.getElementById('btn-assinar');
     btn.disabled = true;
     btn.textContent = 'Salvando...';
-    let negocioUUID = null;
-    try {
-      const slugRes = await fetch(SB_URL + '/rest/v1/negocios?id=eq.' + pId + '&select=id,codigo_diagnostico', {
-        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
-      });
-      const slugData = await slugRes.json();
-      if(slugData && slugData[0]) negocioUUID = slugData[0].id;
-          codigoDiagnostico = (slugData && slugData[0] && slugData[0].codigo_diagnostico) ? slugData[0].codigo_diagnostico : pId;
-    } catch(e) {}
+    let negocioUUID = window._negocioIdResolvido || null;
+    // Re-resolve se ainda não tiver (FIX 1 — aceita UUID ou código)
+    if (!negocioUUID) {
+      try {
+        const isUuid = pId.length === 36 && /^[0-9a-f-]+$/i.test(pId);
+        const isCodigoDiag = /^1N-(?!AN-)[A-Z0-9]+$/i.test(pId);
+        let qUrl = null;
+        if (isUuid) qUrl = SB_URL + '/rest/v1/negocios?id=eq.' + pId + '&select=id,codigo_diagnostico';
+        else if (isCodigoDiag) qUrl = SB_URL + '/rest/v1/negocios?codigo_diagnostico=eq.' + encodeURIComponent(pId) + '&select=id,codigo_diagnostico';
+        if (qUrl) {
+          const slugRes = await fetch(qUrl, { headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY } });
+          const slugData = await slugRes.json();
+          if (slugData && slugData[0]) {
+            negocioUUID = slugData[0].id;
+            codigoDiagnostico = slugData[0].codigo_diagnostico || codigoDiagnostico || pId;
+          }
+        }
+      } catch(e) { console.error('[termo-adesao] erro resolve UUID:', e); }
+    }
 
     // Sem negocioUUID, o termo viraria órfão no banco. Aborta com erro claro.
     if (!negocioUUID) {
