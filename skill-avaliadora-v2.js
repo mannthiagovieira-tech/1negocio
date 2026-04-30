@@ -670,8 +670,11 @@
     }
 
     // ── Custos de transação ──
+    // Apenas taxas (sem antecipação). custo_recebimento_total agrega
+    // taxas+antecipação+comissão e causaria double-count com
+    // antecipacao_caixa (linha 713) na soma de total_deducoes.
     const taxas_recebimento = tag('taxas_recebimento',
-      p1(d.custo_recebimento_total, d.custo_cartoes, d.custo_taxas_recebimento, d.custo_recebimento));
+      p1(d.custo_taxas_recebimento, d.custo_cartoes, d.custo_recebimento));
     const comissoes = tag('comissoes', n(d.custo_comissoes));
 
     // ── Franquia (T07 — gate para royalty/fundo) ──
