@@ -907,6 +907,9 @@
       expectativa_val: n(p1(d.expectativa_val, dados.expectativa_val)),
       descricao: dados.descricao || d.descricao_final || d.descricao || '',
 
+      // Subcategoria (commit 2.6 só adicionou no uso linha 2712, faltava aqui no source)
+      subcategoria: d.subcategoria || dados.subcategoria || null,
+
       _origem_campos: origem,
       _raw: d,
     };
