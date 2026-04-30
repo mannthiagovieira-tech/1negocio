@@ -2889,9 +2889,7 @@ input[type=range]#sl-assinatura::-webkit-slider-thumb{
       <div style="color:var(--ink);font-weight:500" id="conf-folha">—</div>
       <div style="color:var(--ink3)">(-) Encargos CLT:</div>
       <div style="color:var(--ink);font-weight:500" id="conf-encargos">—</div>
-      <div style="color:var(--ink3)">(-) Provisões CLT:</div>
-      <div style="color:var(--ink);font-weight:500" id="conf-provisoes">—</div>
-      <div style="grid-column:1/3;font-size:9px;color:var(--ink4);margin-bottom:4px;padding-left:12px">* Cálculo automático baseado no regime. Pode diferir do valor efetivamente pago.</div>
+      <div style="grid-column:1/3;font-size:9px;color:var(--ink4);margin-bottom:4px;padding-left:12px">* Encargos calculados pela regra do regime. Provisões trabalhistas (13º/férias/rescisão) são tratadas como passivo no Balanço, não como despesa mensal.</div>
       <div style="color:var(--ink3)" id="conf-pj-row">(-) Equipe PJ / freela:</div>
       <div style="color:var(--ink);font-weight:500" id="conf-pj">—</div>
       <div style="color:var(--ink3)">(-) Aluguel:</div>
@@ -2900,7 +2898,7 @@ input[type=range]#sl-assinatura::-webkit-slider-thumb{
       <div style="color:var(--ink);font-weight:500" id="conf-facilities">—</div>
       <div style="color:var(--ink3)">(-) Terceirizados:</div>
       <div style="color:var(--ink);font-weight:500" id="conf-terceirizados">—</div>
-      <div style="color:var(--ink3)">(-) Outros custos fixos:</div>
+      <div style="color:var(--ink3)">(-) Sistemas / Softwares:</div>
       <div style="color:var(--ink);font-weight:500" id="conf-fixos">—</div>
       <div style="color:var(--ink3);display:none" id="conf-royalty-fixo-row">(-) Royalties (fixo):</div>
       <div style="color:var(--ink);font-weight:500;display:none" id="conf-royalty-fixo">—</div>
@@ -2955,6 +2953,8 @@ input[type=range]#sl-assinatura::-webkit-slider-thumb{
       <div style="color:var(--ink);font-weight:500" id="conf-pa-dividas">—</div>
       <div style="color:var(--ink4);padding-left:10px">Impostos a pagar:</div>
       <div style="color:var(--ink);font-weight:500" id="conf-pa-impostos">—</div>
+      <div style="color:var(--ink4);padding-left:10px" id="conf-pa-prov-row">Provisões trabalhistas (13º + férias + rescisão):</div>
+      <div style="color:var(--ink);font-weight:500" id="conf-pa-prov">—</div>
       <div style="color:var(--ink3);font-weight:600;border-top:1px solid var(--line);padding-top:6px;margin-top:4px">Total Passivos:</div>
       <div style="color:var(--ink);font-weight:600;border-top:1px solid var(--line);padding-top:6px;margin-top:4px" id="conf-passivos">—</div>
       
@@ -3716,7 +3716,8 @@ function usarCNPJ() {
   if (D.cnpj_uf)        D.estado = D.cnpj_uf;
   if (D.cnpj_municipio) D.cidade = D.cnpj_municipio;
   if (D.cnpj_anos)      D.anos_existencia = D.cnpj_anos;
-  if (D.cnpj_regime)    D.regime_tributario = D.cnpj_regime;
+  // Regime: manual prevails. CNPJ só preenche se user ainda não escolheu.
+  if (D.cnpj_regime && !D.regime_tributario) D.regime_tributario = D.cnpj_regime;
   if (D.cnpj_setor)     D.setor = D.cnpj_setor;
   ir('t01');
 }
@@ -5982,41 +5983,55 @@ function calcCMVdireto() {
 function calcFolha() {
   const cltBruto = D.clt_folha || 0;
   const pjCusto = D.pj_custo || 0;
-  
-  // Encargos por regime
-  // MEI: sem encargos adicionais (só o valor bruto)
-  // Simples: FGTS 8% + INSS patronal ~5.8% (CPP) + provisões
-  // Presumido/Real: FGTS 8% + INSS patronal 20% + RAT 3% + provisões
-  
-  let fgts = 0, inss = 0, prov13 = 0, provFerias = 0, inssPercent = 0;
-  
-  if(cltBruto > 0 && D.regime !== 'mei') {
-    fgts = cltBruto * 0.08; // 8%
-    
-    if(D.regime === 'simples') {
-      // Simples Nacional: CPP incluso no DAS, só FGTS + provisões
-      inssPercent = 0;
+
+  // Encargos alinhados com skill v2 (calcEncargosCLT):
+  //   MEI:                 11% (FGTS 8% + INSS 3% empregador MEI)
+  //   Simples I-V:         8% (só FGTS — INSS patronal já no DAS)
+  //   Anexo IV/Presumido/Real: 37.5% + RAT (~3% médio) = 40.5%
+  // Provisões trabalhistas (13º + férias + rescisão estimada) NÃO entram no DRE — vão pra BP como passivo.
+  // Fórmula skill v2 BP: clt_folha × 0.13 × 6 × fator_encargo (1.08 Simples non-IV, 1.395 outros).
+
+  const regime = D.regime_tributario || D.regime || 'simples';
+  const isMei = regime === 'mei';
+  const isSimplesNonIV = regime === 'simples' && D.anexo_simples !== 'IV';
+
+  let fgts = 0, inss = 0, encargosTotal = 0, encargosPercent = 0;
+
+  if(cltBruto > 0){
+    if(isMei){
+      encargosPercent = 11;
+      fgts = cltBruto * 0.08;
+      inss = cltBruto * 0.03;
+    } else if(isSimplesNonIV){
+      encargosPercent = 8;
+      fgts = cltBruto * 0.08;
       inss = 0;
     } else {
-      // Presumido ou Real: INSS patronal 20% + RAT ~3%
-      inssPercent = 23;
-      inss = cltBruto * 0.23;
+      // Presumido / Real / Simples Anexo IV
+      encargosPercent = 40.5;
+      fgts = cltBruto * 0.08;
+      inss = cltBruto * 0.325; // 32.5% restante (INSS 20% + outros encargos + RAT médio 3%)
     }
-    
-    // Provisões (todo regime exceto MEI)
-    prov13 = cltBruto * 0.0833; // 8,33% (1/12)
-    provFerias = cltBruto * 0.1111; // 11,11% (1/12 + 1/3)
+    encargosTotal = fgts + inss;
   }
-  
-  const cltTotal = cltBruto + fgts + inss + prov13 + provFerias;
+
+  const fatorEncargoProv = isSimplesNonIV ? 1.08 : 1.395;
+  const provisaoBp = Math.round(cltBruto * 0.13 * 6 * fatorEncargoProv);
+
+  const cltTotal = cltBruto + encargosTotal; // Provisões NÃO entram aqui (vão pro BP)
   const total = cltTotal + pjCusto;
-  
+
   // Salva no objeto D
-  D.clt_encargos = fgts + inss;
-  D.clt_provisoes = prov13 + provFerias;
+  D.clt_encargos = Math.round(encargosTotal);
+  D.clt_provisoes = provisaoBp;
   D.clt_total = cltTotal;
   D.custo_pessoal = total;
   D.folha_total = total;
+  D.encargos_rate = encargosPercent / 100;
+  // Mantém compat retroativa (prov13/provFerias usados pelo HTML — agora apenas pra mostrar acumulado no BP, não no DRE)
+  const prov13 = 0; // não exibe mais separado no DRE
+  const provFerias = 0;
+  const inssPercent = encargosPercent;
   
   // Atualiza memória de cálculo visual
   const memoria = document.getElementById('folha-memoria');
@@ -6588,32 +6603,37 @@ function preencherConfirmacao() {
   // = MARGEM BRUTA
   const margemBruta = receitaLiq - cmv;
   
-  // 7-10. FOLHA CLT
+  // 7-10. FOLHA CLT — alinhado com skill v2 (calcEncargosCLT)
   const folhaClt = D.clt_folha || D.custo_pessoal || 0;
-  // Encargos: Simples = 29,2%, outros regimes = 58%
-  const encargosRate = (D.regime_tributario === 'simples' || D.regime_tributario === 'mei') ? 0.292 : 0.58;
+  // Skill v2: Simples non-IV = 8% (só FGTS, INSS já no DAS) | MEI = 11% | Anexo IV/Presumido/Real = 37.5% + RAT médio 3%
+  const isMei = D.regime_tributario === 'mei';
+  const isSimplesNonIV = D.regime_tributario === 'simples' && D.anexo_simples !== 'IV';
+  const encargosRate = isMei ? 0.11 : isSimplesNonIV ? 0.08 : 0.405;
   const encargosClt = Math.round(folhaClt * encargosRate);
-  const provisoesClt = Math.round(folhaClt * 0.224); // 22,4% (13º + férias + rescisão)
-  
+  // PROVISÃO CLT: NÃO entra no DRE — vai pra BP (passivo)
+  // Fórmula skill v2: clt_folha × 0.13 × 6 × fator_encargo
+  const fatorEncargoProv = isSimplesNonIV ? 1.08 : 1.395;  // Simples non-IV = 1.08 | resto = 1 + 0.365 + 0.03 RAT padrão
+  const provisaoCltPassivo = Math.round(folhaClt * 0.13 * 6 * fatorEncargoProv);
+
   // SALVAR NO D para o laudo usar
   D.clt_encargos = encargosClt;
-  D.clt_provisoes = provisoesClt;
+  D.clt_provisoes = provisaoCltPassivo; // agora valor pra passivo (não despesa mensal)
   D.encargos_rate = encargosRate;
-  
+
   // 11. EQUIPE PJ
   const equipePj = D.pj_custo || 0;
-  
+
   // 12-15. CUSTOS OPERACIONAIS
   const aluguel = D.aluguel || 0;
   const facilities = D.facilities || D.custo_utilities || 0;
   const terceirizados = D.terceirizados || D.custo_terceiros || 0;
   const outrosCf = D.outros_custos_fixos || D.custo_outros || D.custo_sistemas || 0;
-  
+
   // 18. MARKETING PAGO
   const mktPago = D.mkt_valor || 0;
-  
-  // = RESULTADO OPERACIONAL
-  const custosPessoal = folhaClt + encargosClt + provisoesClt + equipePj;
+
+  // = RESULTADO OPERACIONAL (provisões NÃO entram — vão pro BP como passivo)
+  const custosPessoal = folhaClt + encargosClt + equipePj;
   // royaltyMensal e fundoMensal JÁ deduzidos da recLiq — não deduzir novamente
   const custosFixos = aluguel + facilities + terceirizados + outrosCf + mktPago;
   const resultadoOp = margemBruta - custosPessoal - custosFixos;
@@ -6704,7 +6724,7 @@ function preencherConfirmacao() {
   setEl('conf-margem-bruta', formatMoney(margemBruta));
   setEl('conf-folha', formatMoney(folhaClt));
   setEl('conf-encargos', formatMoney(encargosClt));
-  setEl('conf-provisoes', formatMoney(provisoesClt));
+  // conf-provisoes removido do DRE — agora vai pro BP como passivo
   setEl('conf-pj', formatMoney(equipePj));
   setEl('conf-aluguel', formatMoney(aluguel));
   setEl('conf-facilities', formatMoney(facilities));
@@ -6746,7 +6766,9 @@ function preencherConfirmacao() {
   const atEquip = D.at_equip || 0;
   const atImovel = D.at_imovel || 0;
   const atVeiculos = D.at_veiculos || 0;
-  const atFranquia = D.ativo_franquia || D.taxa_franquia || 0;
+  // Taxa franquia: usa SOMENTE ativo_franquia (já calculada proporcional via calcAtivoFranquia).
+  // Se user não preencheu duração/restante, ativo_franquia=0 → taxa não entra no ativo.
+  const atFranquia = D.ativo_franquia || 0;
   const ativos = D.total_ativos || (atCaixa + atCr + atEstoque + atEquip + atImovel + atVeiculos + atFranquia);
   
   setEl('conf-at-caixa', formatMoney(atCaixa));
@@ -6765,17 +6787,32 @@ function preencherConfirmacao() {
     if(franquiaVal) franquiaVal.style.display = 'none';
   }
   
-  // Balanço - PASSIVOS DETALHADOS
+  // Balanço - PASSIVOS DETALHADOS (inclui provisão trabalhista — alinhado com skill v2)
   calcPassivos(); // Recalcular passivos antes de mostrar
   const paFornec = D.fornec_a_pagar || 0;
   const paDividas = D.saldo_devedor || 0;
   const paImpostos = D.impostos_atrasados || 0;
-  const passivos = D.total_passivos || 0;
+  const paProv = provisaoCltPassivo || 0;
+  const passivosBase = D.total_passivos || 0;
+  const passivos = passivosBase + paProv;
+  D.total_passivos = passivos; // re-sobrescreve com provisão incluída
+  D.provisao_clt_passivo = paProv;
   const pl = ativos - passivos;
-  
+
   setEl('conf-pa-fornec', formatMoney(paFornec));
   setEl('conf-pa-dividas', formatMoney(paDividas));
   setEl('conf-pa-impostos', formatMoney(paImpostos));
+  setEl('conf-pa-prov', formatMoney(paProv));
+  // Esconder linha provisão se folha=0 (paProv=0)
+  const provRow = document.getElementById('conf-pa-prov-row');
+  const provVal = document.getElementById('conf-pa-prov');
+  if(paProv === 0){
+    if(provRow) provRow.style.display = 'none';
+    if(provVal) provVal.style.display = 'none';
+  } else {
+    if(provRow) provRow.style.display = '';
+    if(provVal) provVal.style.display = '';
+  }
   setEl('conf-passivos', formatMoney(passivos));
   setEl('conf-pl', formatMoney(pl));
   
@@ -7735,13 +7772,19 @@ function calcAvaliacaoFinal() {
   const outrosCf = D.outros_custos_fixos || D.custo_outros || D.custo_sistemas || 0;
   const mktPago = D.mkt_valor || 0;
   const folhaClt = D.clt_folha || D.custo_pessoal || 0;
-  const encargosRate = (D.regime_tributario === 'simples' || D.regime_tributario === 'mei') ? 0.292 : 0.58;
+  // Encargos alinhados com skill v2: MEI 11% | Simples non-IV 8% | resto 40.5%
+  const _isMei = D.regime_tributario === 'mei';
+  const _isSimNonIV = D.regime_tributario === 'simples' && D.anexo_simples !== 'IV';
+  const encargosRate = _isMei ? 0.11 : _isSimNonIV ? 0.08 : 0.405;
   const encargosClt = Math.round(folhaClt * encargosRate);
-  const provisoesClt = Math.round(folhaClt * 0.224);
+  // Provisão CLT vai pro BP (passivo), não pro DRE — skill v2 fórmula
+  const _fatorProv = _isSimNonIV ? 1.08 : 1.395;
+  const provisaoBp = Math.round(folhaClt * 0.13 * 6 * _fatorProv);
   D.clt_encargos = encargosClt;
-  D.clt_provisoes = provisoesClt;
+  D.clt_provisoes = provisaoBp;
   D.encargos_rate = encargosRate;
-  D.folha_total = folhaClt + encargosClt + provisoesClt + (D.pj_custo || 0);
+  D.provisao_clt_passivo = provisaoBp;
+  D.folha_total = folhaClt + encargosClt + (D.pj_custo || 0); // sem provisão (vai pro BP)
   D.outros_custos_fixos = outrosCf;
   // Salvar campos brutos — skill calculará o resto
   D.valor_1n = 0;
