@@ -2693,8 +2693,8 @@ async function abrirEditor(negocioId) {
   document.getElementById('anu-editor-footer').innerHTML = '';
 
   try {
-    // Busca os 3 conjuntos de dados em paralelo (colunas reais)
-    const [negRes, laudoRes, termoRes] = await Promise.all([
+    // Busca os 4 conjuntos de dados em paralelo (colunas reais)
+    const [negRes, laudoRes, termoRes, anuncioRes] = await Promise.all([
       api('select','negocios',{
         select: 'id,codigo_diagnostico,nome,titulo_anuncio,setor,cidade,estado,status,preco_pedido,publicado_em,created_at,vendedor_id',
         match: { id: negocioId }
@@ -2708,6 +2708,11 @@ async function abrirEditor(negocioId) {
         select: 'id,negocio_id,plano,comissao_pct,representante_nome,representante_cpf,assinatura_em,valor_pretendido',
         match: { negocio_id: negocioId },
         order: 'assinatura_em', ascending: false, limit: 1
+      }),
+      api('select','anuncios_v2',{
+        select: 'id,codigo,negocio_id,laudo_v2_id,vendedor_id,titulo,descricao_card,valor_pedido,status,publicado_em,pausado_em,vendido_em,termo_adesao_id,termo_assinado_em,arquivo_html_path,criado_em,atualizado_em',
+        match: { negocio_id: negocioId },
+        limit: 1
       })
     ]);
 
@@ -2747,6 +2752,7 @@ async function abrirEditor(negocioId) {
     __anuEdit.calc = ((laudoRes.data || [])[0] || {}).calc_json || null;
     __anuEdit.laudoV2Id = ((laudoRes.data || [])[0] || {}).id || null;
     __anuEdit.termo = (termoRes.data || [])[0] || null;
+    __anuEdit.anuncio = (anuncioRes.data || [])[0] || null;
 
     // Busca dados do vendedor
     if (neg.vendedor_id) {
@@ -2897,10 +2903,13 @@ function renderEditor() {
   }
 
   // Bloco CAMPOS EDITÁVEIS
-  // Pré-preencher: título existente OU sugestão | descrição vem só do calc_json (coluna descricao_anuncio não existe) | preço do preco_pedido OU valor_pretendido do termo
-  const tituloAtual = neg.titulo_anuncio || gerarSugestaoTitulo(calc) || '';
-  const descAtual = (calc && (calc.narrativa_negocio || calc.descricao || '')) || '';
-  let precoAtual = neg.preco_pedido ? Number(neg.preco_pedido) : 0;
+  // Pré-preencher na ordem de preferência: anuncios_v2 → negocios (legacy) → sugestão IA / calc_json / termo
+  const anuncio = __anuEdit.anuncio;
+  const tituloAtual = (anuncio && anuncio.titulo) || neg.titulo_anuncio || gerarSugestaoTitulo(calc) || '';
+  const descAtual = (anuncio && anuncio.descricao_card)
+    || (calc && (calc.narrativa_negocio || calc.descricao || ''))
+    || '';
+  let precoAtual = (anuncio && Number(anuncio.valor_pedido)) || (neg.preco_pedido ? Number(neg.preco_pedido) : 0);
   if (!precoAtual && termo && termo.valor_pretendido) precoAtual = Number(termo.valor_pretendido);
   const sugestoes = gerarSugestoesTitulo(calc);
 
@@ -3089,11 +3098,12 @@ function atualizarBotaoPublicar() {
   const titulo = (document.getElementById('anu-titulo-input')?.value || '').trim();
   const desc = (document.getElementById('anu-desc-input')?.value || '').trim();
   const preco = parseInt(String(document.getElementById('anu-preco-input')?.value || '').replace(/\D/g,''), 10) || 0;
-  const isPublicado = __anuEdit.negocio.status === 'publicado';
+  const isPublicado = !!(__anuEdit.anuncio && __anuEdit.anuncio.status === 'publicado');
   const termoOk = !!(__anuEdit.termo && __anuEdit.termo.assinatura_em);
 
   const tituloOk = titulo.length >= 5 && titulo.length <= 60;
-  const descOk = desc.length >= 20 && desc.length <= 280;
+  // Descrição opcional: vazia OU 20-280 chars
+  const descOk = desc.length === 0 || (desc.length >= 20 && desc.length <= 280);
   const precoOk = preco > 0;
 
   // Se já publicado, não exige termo (já estava válido)
@@ -3106,7 +3116,7 @@ function atualizarBotaoPublicar() {
   if (!ok) {
     const motivos = [];
     if (!tituloOk) motivos.push('título (5-60 chars)');
-    if (!descOk) motivos.push('descrição (20-280 chars)');
+    if (!descOk) motivos.push('descrição (vazia ou 20-280 chars)');
     if (!precoOk) motivos.push('valor');
     if (!isPublicado && !termoOk) motivos.push('termo assinado');
     btn.title = 'Falta: ' + motivos.join(', ');
@@ -3115,66 +3125,132 @@ function atualizarBotaoPublicar() {
   }
 }
 
-// ─── SALVAR / PUBLICAR ───────────────────────────
+// Palavras proibidas (regra editorial — redundantes em plataforma de M&A)
+const PALAVRAS_PROIBIDAS_ANUNCIO = [
+  'vendo', 'vende-se', 'à venda', 'a venda',
+  'oportunidade', 'passo ponto', 'passa-se ponto',
+  'negócio em venda', 'empresa para venda'
+];
+
+// ─── SALVAR / PUBLICAR (anuncios_v2 UPSERT) ───────────────────────────
 async function salvarAnuncio(publicar) {
   const titulo = (document.getElementById('anu-titulo-input')?.value || '').trim();
   const desc = (document.getElementById('anu-desc-input')?.value || '').trim();
   const preco = parseInt(String(document.getElementById('anu-preco-input')?.value || '').replace(/\D/g,''), 10) || 0;
   const neg = __anuEdit.negocio;
+  const anuncioExistente = __anuEdit.anuncio;
 
   // Validações
-  if (titulo.length < 5) { alert('Título precisa ter pelo menos 5 caracteres.'); return; }
-  if (titulo.length > 60) { alert('Título passou de 60 caracteres.'); return; }
-  if (desc.length < 20) { alert('Descrição precisa ter pelo menos 20 caracteres.'); return; }
-  if (preco <= 0) { alert('Defina o valor de venda.'); return; }
+  if (titulo.length < 5 || titulo.length > 60) {
+    alert('Título deve ter entre 5 e 60 caracteres.');
+    return;
+  }
+  if (desc.length > 0 && (desc.length < 20 || desc.length > 280)) {
+    alert('Descrição, se preenchida, deve ter entre 20 e 280 caracteres.');
+    return;
+  }
+  if (preco <= 0) {
+    alert('Defina o valor de venda.');
+    return;
+  }
 
-  const isPublicado = neg.status === 'publicado';
+  // Palavras proibidas (alerta com bypass)
+  const textoCompleto = (titulo + ' ' + desc).toLowerCase();
+  const proibida = PALAVRAS_PROIBIDAS_ANUNCIO.find(p => textoCompleto.includes(p));
+  if (proibida) {
+    if (!confirm('Atenção: o texto contém "' + proibida + '", que é redundante numa plataforma de compra e venda. Tem certeza que deseja salvar assim?')) {
+      return;
+    }
+  }
+
+  // Termo é obrigatório pra publicar (na primeira publicação)
+  const isPublicado = anuncioExistente && anuncioExistente.status === 'publicado';
   const termoOk = !!(__anuEdit.termo && __anuEdit.termo.assinatura_em);
-
   if (publicar && !isPublicado && !termoOk) {
     alert('Não é possível publicar sem termo de adesão assinado.');
     return;
   }
 
-  const data = {
-    titulo_anuncio: titulo,
-    preco_pedido: preco
-    // descricao_anuncio removido — coluna não existe na tabela negocios
-  };
-
-  if (publicar && !isPublicado) {
-    data.status = 'publicado';
-    data.publicado_em = new Date().toISOString();
-  }
-
   try {
-    await api('update','negocios',{ match:{id: neg.id} }, data);
+    let result;
+    if (!anuncioExistente) {
+      // INSERT — código gerado pelo trigger setar_codigo_anuncio_se_vazio
+      const insertData = {
+        negocio_id: neg.id,
+        laudo_v2_id: __anuEdit.laudoV2Id || null,
+        vendedor_id: neg.vendedor_id || null,
+        titulo: titulo,
+        descricao_card: desc || null,
+        valor_pedido: preco,
+        termo_adesao_id: (__anuEdit.termo && __anuEdit.termo.id) || null,
+        termo_assinado_em: (__anuEdit.termo && __anuEdit.termo.assinatura_em) || null,
+        status: publicar ? 'publicado' : 'rascunho',
+        publicado_em: publicar ? new Date().toISOString() : null
+      };
+      result = await api('insert','anuncios_v2',{}, insertData);
+      if (result && result.error) throw new Error(result.error);
+      alert(publicar ? '✓ Anúncio criado e publicado!' : '✓ Anúncio salvo como rascunho.');
+    } else {
+      // UPDATE — preserva codigo + criado_em
+      const updateData = {
+        titulo: titulo,
+        descricao_card: desc || null,
+        valor_pedido: preco
+      };
+      if (publicar && !isPublicado) {
+        updateData.status = 'publicado';
+        updateData.publicado_em = new Date().toISOString();
+      }
+      if (__anuEdit.termo && __anuEdit.termo.id && __anuEdit.termo.id !== anuncioExistente.termo_adesao_id) {
+        updateData.termo_adesao_id = __anuEdit.termo.id;
+        updateData.termo_assinado_em = __anuEdit.termo.assinatura_em || null;
+      }
+      result = await api('update','anuncios_v2',{ match:{id: anuncioExistente.id} }, updateData);
+      if (result && result.error) throw new Error(result.error);
+      alert(publicar && !isPublicado ? '✓ Anúncio atualizado e publicado!' : '✓ Salvo.');
+    }
+
     fecharEditor();
     loadAnuncios();
-    if (publicar && !isPublicado) {
-      alert('✓ Anúncio publicado!');
-    } else {
-      alert('✓ Salvo.');
-    }
   } catch(e) {
-    alert('Erro: ' + e.message);
+    alert('Erro ao salvar: ' + e.message);
+    console.error(e);
   }
 }
 
 async function alterarStatus(novoStatus) {
-  const neg = __anuEdit.negocio;
-  const labels = { pausado: 'tirar do ar', publicado: 'reativar' };
-  if (!confirm(`Confirma ${labels[novoStatus] || novoStatus} este anúncio?`)) return;
+  const anuncio = __anuEdit.anuncio;
+  if (!anuncio) {
+    alert('Não há anúncio criado pra alterar status. Salve primeiro.');
+    return;
+  }
 
-  const data = { status: novoStatus };
-  if (novoStatus === 'publicado') data.publicado_em = new Date().toISOString();
+  const STATUS_VALIDOS = ['rascunho','aguardando_aprovacao','publicado','pausado','vendido','expirado'];
+  if (!STATUS_VALIDOS.includes(novoStatus)) {
+    alert('Status inválido: ' + novoStatus);
+    return;
+  }
+
+  const labels = { pausado: 'tirar do ar', publicado: 'reativar', vendido: 'marcar como vendido', expirado: 'marcar como expirado' };
+  if (!confirm('Confirma ' + (labels[novoStatus] || novoStatus) + ' este anúncio?')) return;
 
   try {
-    await api('update','negocios',{ match:{id: neg.id} }, data);
+    const updateData = { status: novoStatus };
+    if (novoStatus === 'publicado' && anuncio.status !== 'publicado') {
+      updateData.publicado_em = new Date().toISOString();
+    }
+    if (novoStatus === 'pausado') updateData.pausado_em = new Date().toISOString();
+    if (novoStatus === 'vendido') updateData.vendido_em = new Date().toISOString();
+
+    const r = await api('update','anuncios_v2',{ match:{id: anuncio.id} }, updateData);
+    if (r && r.error) throw new Error(r.error);
+
+    alert('✓ Status alterado para: ' + novoStatus);
     fecharEditor();
     loadAnuncios();
   } catch(e) {
-    alert('Erro: ' + e.message);
+    alert('Erro ao alterar status: ' + e.message);
+    console.error(e);
   }
 }
 
