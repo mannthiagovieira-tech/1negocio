@@ -2294,18 +2294,18 @@ function cardHTML(d){
   const _passivosTotal = _passivos.total || d.pass || 0;
   const _pl = _bal.patrimonio_liquido !== undefined ? _bal.patrimonio_liquido : Math.max(0, _ativosTotal - _passivosTotal);
 
+  // DRE simplificada do card (4 linhas) — versão completa fica em /negocios/CODIGO
+  const recLiqA = far - impostosA;
+  const custosTotaisA = cmvA + folhaA;
   const viewFinanceiro = `
     <div class="view-scroll">
       <div class="view-title">DRE <span class="view-sub">· mensal · anual</span></div>
       <table class="dre-table">
         <thead><tr><th>Rubrica</th><th>Mensal</th><th>Anual</th><th>%Rec</th><th>Benchmark</th></tr></thead>
         <tbody>
-          ${row('Receita Bruta', fam, far)}
-          ${impostosA?row('(–) Impostos', -Math.round(impostosA/12), -impostosA, 'neg', '8–10%'):''}
-          ${row('Receita líquida', fam - Math.round(impostosA/12), far - impostosA, 'sub')}
-          ${cmvA?row('(–) Custos variáveis', -Math.round(cmvA/12), -cmvA, 'neg', '28–35%'):''}
-          ${folhaA?row('(–) Folha + encargos', -Math.round(folhaA/12), -folhaA, 'neg', '25–32%'):''}
-          ${despA?row('(–) Despesas operac.', -Math.round(despA/12), -despA, 'neg', '10–14%'):''}
+          ${row('Receita líquida', recLiqA?Math.round(recLiqA/12):fam, recLiqA||far, 'sub')}
+          ${custosTotaisA?row('(–) Custos totais', -Math.round(custosTotaisA/12), -custosTotaisA, 'neg', 'CMV + folha'):''}
+          ${despA?row('(–) Despesas gerais', -Math.round(despA/12), -despA, 'neg', 'ocupação + outros'):''}
           <tr class="total"><td>Resultado operacional</td><td>R$${brl(Math.round(roA/12))}</td><td>R$${brl(roA)}</td><td class="pct">${pctF(roA)}</td><td class="bench">${d.margem>=20?'acima':d.margem>=15?'na média':'abaixo'}</td></tr>
         </tbody>
       </table>
@@ -2314,18 +2314,10 @@ function cardHTML(d){
         ${d.margem>=25 ? 'Margem operacional acima da média setorial — bom controle de custos.' : d.margem>=18 ? 'Margem operacional dentro da média do setor.' : 'Margem abaixo do benchmark — oportunidade de otimização.'}
       </div>
 
-      <div class="view-title" style="margin-top:6px">Balanço patrimonial <span class="view-sub">· simplificado</span></div>
+      <div class="view-title" style="margin-top:6px">Balanço patrimonial <span class="view-sub">· consolidado</span></div>
       <div class="balanco">
         <div class="b-row b-total g"><span>Ativos totais</span><span>R$${brl(_ativosTotal)}</span></div>
-        ${_caixa?`<div class="b-row b-sub"><span>Caixa e equivalentes</span><span>R$${brl(_caixa)}</span></div>`:''}
-        ${_contasReceber?`<div class="b-row b-sub"><span>Contas a receber</span><span>R$${brl(_contasReceber)}</span></div>`:''}
-        ${_estoque?`<div class="b-row b-sub"><span>Estoque/suprimentos</span><span>R$${brl(_estoque)}</span></div>`:''}
-        ${_equipamentos?`<div class="b-row b-sub"><span>Equipamentos/imóveis</span><span>R$${brl(_equipamentos)}</span></div>`:''}
         <div class="b-row b-total r"><span>Passivos totais</span><span>R$${brl(_passivosTotal)}</span></div>
-        ${_emprestimos?`<div class="b-row b-sub"><span>Dívidas bancárias</span><span>R$${brl(_emprestimos)}</span></div>`:''}
-        ${_fornec?`<div class="b-row b-sub"><span>Fornecedores</span><span>R$${brl(_fornec)}</span></div>`:''}
-        ${_provisoes?`<div class="b-row b-sub"><span>Provisões</span><span>R$${brl(_provisoes)}</span></div>`:''}
-        ${_impAtrasados?`<div class="b-row b-sub"><span>Impostos em atraso</span><span>R$${brl(_impAtrasados)}</span></div>`:''}
         <div class="b-row b-total"><span>Patrimônio líquido</span><span>R$${brl(_pl)}</span></div>
       </div>
     </div>

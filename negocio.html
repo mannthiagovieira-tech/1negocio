@@ -337,6 +337,8 @@ main{flex:1;max-width:780px;width:100%;margin:0 auto;padding:24px 20px;display:f
 .tab-brand{font-family:var(--serif);font-weight:800;font-size:11px;letter-spacing:-.04em;display:inline-flex;align-items:baseline;line-height:1}
 .tab-brand em{color:var(--accent);font-style:normal;margin-right:1px}
 .tab-btn.on .tab-brand em{color:var(--accent)}
+.tab-privado svg{flex-shrink:0;margin-right:1px}
+.tab-privado{gap:4px}
 .stage-footer-bar .cta-row{
   display:flex;gap:8px;max-width:560px;width:100%;margin:0 auto;
 }
@@ -652,13 +654,14 @@ function renderPaginaCompleta(){
   heroEl.innerHTML = renderHeroV2();
   main.appendChild(heroEl);
 
-  // 2. Conteúdo das 4 abas
+  // 2. Conteúdo das 5 abas
   main.insertAdjacentHTML('beforeend', `
     <div id="aba-conteudo" class="aba-conteudo">
       ${renderAbaResumo()}
       ${renderAbaFinanceiro()}
       ${renderAbaIndicadores()}
       ${renderAbaAnalise()}
+      ${renderAbaPrivado()}
     </div>
   `);
 
@@ -750,6 +753,7 @@ function renderStageFooterBar(){
           <button class="tab-btn" data-aba="financeiro" type="button" role="tab" aria-selected="false">Financeiro</button>
           <button class="tab-btn" data-aba="indicadores" type="button" role="tab" aria-selected="false">Indicadores</button>
           <button class="tab-btn" data-aba="analise" type="button" role="tab" aria-selected="false"><span class="tab-brand"><em>1</em>N</span> Análise</button>
+          <button class="tab-btn tab-privado" data-aba="privado" type="button" role="tab" aria-selected="false"><svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Privado</button>
         </div>
       </div>
       <div class="cta-row">
@@ -1280,6 +1284,83 @@ function renderAbaAnalise(){
   `;
 }
 
+function renderAbaPrivado(){
+  const acesso = ACESSO_C3 || {tipo: SESSION ? 'logado_sem_solicitar' : 'nao_logado'};
+  const liberado = acesso.tipo === 'liberado' && MATERIAL_C3;
+
+  if(liberado){
+    // Fase 2 — conteúdo completo do laudo readaptado pra lente comprador (em construção)
+    return `
+      <section class="aba" data-aba="privado" data-active="false">
+        <div class="section">
+          <div class="section-head">
+            <div class="section-sub">MATERIAL CONFIDENCIAL — ACESSO LIBERADO</div>
+            <h2 class="section-title">Laudo completo do ativo</h2>
+          </div>
+          <div class="panel" style="border-color:var(--accent-line);background:var(--accent-soft)">
+            <p style="font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.08em;margin-bottom:10px">✓ NDA ativo · acesso liberado por ${MATERIAL_C3.dias_restantes||'—'} dias</p>
+            <p style="font-size:14px;color:var(--ink-2);line-height:1.6">O laudo completo readaptado em lente de comprador será exibido aqui em breve. Por ora, todos os dados confidenciais (identificação, sócios, ponto comercial, motivação da venda, documentos) estão disponíveis abaixo neste mesmo carregamento — role pra ver.</p>
+            <p style="margin-top:12px;font-size:13px;color:var(--ink-3)"><em>Em construção:</em> tese de aquisição, DRE detalhada, balanço completo, ISE com 8 pilares, indicadores qualitativos e quantitativos, upsides com valor monetário, análise tributária, transferibilidade, riscos identificados.</p>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  // Estado bloqueado — paywall
+  const bullets = [
+    'Identificação completa: nome real, endereço, CNPJ',
+    'Lista nominal de sócios e equipe principal',
+    'Composição detalhada da DRE (todas as rubricas)',
+    'Balanço com caixa, contas a receber, estoque',
+    'Motivação da venda + termos negociáveis',
+    'Documentos da empresa (contratos, certidões)',
+    'Tese de aquisição reescrita pra perfil comprador',
+    'Upsides com cálculo monetário detalhado',
+  ];
+
+  let ctaTexto, ctaLabel, ctaAcao;
+  if(acesso.tipo === 'nao_logado'){
+    ctaTexto = 'Faça login pra solicitar acesso';
+    ctaLabel = 'Entrar e solicitar';
+    ctaAcao = 'solicitarInformacoes()';
+  } else if(acesso.tipo === 'aguardando_analise'){
+    ctaTexto = 'Sua solicitação está em análise pela equipe 1Negócio.';
+    ctaLabel = 'Acompanhar status';
+    ctaAcao = `(function(){const c3=document.getElementById('c3-section');if(c3){const t=c3.getBoundingClientRect().top+window.scrollY-80;window.scrollTo({top:t,behavior:'smooth'})}})()`;
+  } else if(acesso.tipo === 'aprovado_assinar'){
+    ctaTexto = 'Solicitação aprovada — assine o termo de confidencialidade pra liberar.';
+    ctaLabel = 'Assinar termo';
+    ctaAcao = `window.location.href='/termo-sigilo.html?negocio_id=${NEG && NEG.id}'`;
+  } else if(acesso.tipo === 'aguardando_liberacao'){
+    ctaTexto = 'Termo assinado — aguardando liberação final pela equipe.';
+    ctaLabel = 'Acompanhar';
+    ctaAcao = `(function(){const c3=document.getElementById('c3-section');if(c3){const t=c3.getBoundingClientRect().top+window.scrollY-80;window.scrollTo({top:t,behavior:'smooth'})}})()`;
+  } else {
+    ctaTexto = 'Compradores qualificados podem solicitar acesso ao material confidencial mediante NDA.';
+    ctaLabel = 'Solicitar acesso';
+    ctaAcao = 'solicitarInformacoes()';
+  }
+
+  return `
+    <section class="aba" data-aba="privado" data-active="false">
+      <div class="section">
+        <div class="c3-locked" style="margin:0">
+          <div class="c3-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
+          <h2 class="c3-title">Material confidencial</h2>
+          <p class="c3-msg">${escapeHtml(ctaTexto)}</p>
+          <div class="c3-bullets">
+            ${bullets.map(b => `<div class="c3-bullet">${escapeHtml(b)}</div>`).join('')}
+          </div>
+          <div class="state-actions">
+            <button class="btn btn-primary" type="button" onclick="${ctaAcao}">${escapeHtml(ctaLabel)}</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function inicializarTabs(){
   const tabs = document.querySelectorAll('.tab-btn');
   const abas = document.querySelectorAll('.aba');
@@ -1293,6 +1374,10 @@ function inicializarTabs(){
       });
       abas.forEach(a => a.dataset.active = (a.dataset.aba === target ? 'true' : 'false'));
       if(window.track) window.track('click_aba_' + target);
+      if(target === 'privado' && window.track){
+        const liberada = ACESSO_C3 && ACESSO_C3.tipo === 'liberado' && MATERIAL_C3;
+        window.track(liberada ? 'view_aba_privado_liberada' : 'view_aba_privado_bloqueada');
+      }
       // tabs estão fixed no rodapé; ao trocar de aba, scroll suave pro topo do conteúdo
       const conteudo = document.getElementById('aba-conteudo');
       if(conteudo){
