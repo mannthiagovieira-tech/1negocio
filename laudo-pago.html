@@ -511,8 +511,30 @@ async function init() {
 
 window.addEventListener('DOMContentLoaded', init);
 
+// ─── FONTE ÚNICA DE VERDADE DA ORDEM ────────────────────────────────────────
+// Toda numeração e nome de seção vem daqui. renderIndice consome direto.
+// Cada render function busca seu próprio número via getNum(renderKey).
+const SECOES = [
+  { num: '01', nome: 'Apresentação',                                                   render: 'apresentacao' },
+  { num: '02', nome: 'Sumário',                                                        render: 'indice' },
+  { num: '03', nome: 'Metodologia',                                                    render: 'metodologia' },
+  { num: '04', nome: 'Contexto do negócio',                                            render: 'contexto' },
+  { num: '05', nome: 'Os Números (DRE + Balanço Patrimonial)',                         render: 'numeros' },
+  { num: '06', nome: 'A Gestão (ISE)',                                                 render: 'ise' },
+  { num: '07', nome: 'Indicadores X Mercado',                                          render: 'indicadores' },
+  { num: '08', nome: 'A Avaliação · Como chegamos a esse valor (com Parecer Técnico)', render: 'avaliacao' },
+  { num: '09', nome: 'Oportunidades de melhoria (upsides)',                            render: 'upsides' },
+  { num: '10', nome: 'Próximos passos',                                                render: 'fechamento' },
+  { num: 'A1', nome: 'Anexo · Teaser de Apresentação',                                 render: 'teaser' },
+  { num: 'A2', nome: 'Anexo · Pontos Fortes e Pontos de Atenção',                      render: 'pontos' },
+  { num: 'A3', nome: 'Anexo · Estudo Tributário Detalhado',                            render: 'tributario' },
+];
+function getNum(renderKey) {
+  const s = SECOES.find(x => x.render === renderKey);
+  return s ? s.num : '';
+}
+
 // ─── ORQUESTRADOR ───────────────────────────────────────────────────────────
-// 15 seções numeradas conforme índice (não conta capa, folha de rosto, índice e fechamento).
 function renderTudo() {
   if (!calcJson) return;
   const doc = document.getElementById('doc');
@@ -524,7 +546,7 @@ function renderTudo() {
     renderApresentacao(),                                                                                     // 01 Apresentação
     renderIndice(),                                                                                           // 02 Sumário
     renderMetodologia(),                                                                                      // 03 Metodologia
-    renderTextoIA('04', 'Contexto', 'Contexto do negócio',                            'texto_contexto_negocio'),
+    renderTextoIA(getNum('contexto'), 'Contexto', 'Contexto do negócio', 'texto_contexto_negocio'),
     renderDRE(),                                                                                              // 05 Os Números — DRE
     renderBalanco(),                                                                                          //    Os Números — BP (mesma seção visual)
     renderISE(),                                                                                              // 06 A Gestão (ISE)
@@ -551,7 +573,12 @@ function renderTudo() {
 // Rodapé com encomenda + código no canto inferior esquerdo.
 function renderCapa() {
   const id = calcJson.identificacao || {};
-  const responsavel = id.nome_responsavel || '—';
+  // Quando solicitante/nome_responsavel não vieram preenchidos, omite a linha
+  // inteira em vez de mostrar "encomendado por —" pendurado.
+  const solicitante = id.solicitante || id.nome_responsavel || null;
+  const linhaEncomenda = solicitante
+    ? '<div class="capa-rodape-linha">Laudo encomendado por <strong>' + escapeHtml(solicitante) + '</strong></div>'
+    : '';
 
   return ''
     + '<section class="capa">'
@@ -565,35 +592,8 @@ function renderCapa() {
     + '    <div class="capa-subtitulo">Laudo de avaliação</div>'
     + '  </div>'
     + '  <div class="capa-rodape">'
-    + '    <div class="capa-rodape-linha">Laudo encomendado por <strong>' + escapeHtml(responsavel) + '</strong></div>'
+    + '    ' + linhaEncomenda
     + '    <div class="capa-rodape-linha">Código <strong>' + escapeHtml(id.codigo_diagnostico || '—') + '</strong></div>'
-    + '  </div>'
-    + '</section>';
-}
-
-// ─── FOLHA DE ROSTO (Fase 3.2.4) ────────────────────────────────────────────
-// "Apresentação" como eyebrow simples (não título). Texto com elementos
-// auditáveis em destaque (data, nomes, versões).
-function renderFolhaRosto() {
-  const id = calcJson.identificacao || {};
-  const responsavel = escapeHtml(id.nome_responsavel || '—');
-  const negocio = escapeHtml(id.nome || '—');
-  const data = hoje();
-  const skillVer = escapeHtml(calcJson._skill_versao || '2.0');
-  const benchVer = escapeHtml(calcJson._versao_parametros || '—');
-
-  return ''
-    + '<section class="intro">'
-    + '  <div class="intro-top">'
-    + '    <div class="intro-eyebrow">Apresentação</div>'
-    + '    <div class="intro-texto">Este laudo apresenta uma análise do negócio <strong>' + negocio + '</strong>, encomendada por <strong>' + responsavel + '</strong> em <strong>' + data + '</strong>.</div>'
-    + '    <div class="intro-texto">O diagnóstico estruturado foi preenchido por <strong>' + responsavel + '</strong> e processado pela <strong>skill avaliadora 1N versão ' + skillVer + '</strong>, usando <strong>benchmarks setoriais versão ' + benchVer + '</strong>.</div>'
-    + '    <div class="intro-texto">Este documento foi desenvolvido para apoiar decisões sobre o futuro da operação: precificação, prioridades de melhoria, validação do regime tributário e planejamento estratégico.</div>'
-    + '    <div class="intro-texto">Este laudo é confidencial e destinado ao solicitante.</div>'
-    + '  </div>'
-    + '  <div class="intro-rodape">'
-    + '    <div>Gerado em <strong>' + data + '</strong></div>'
-    + '    <div>Metodologia <strong>1N ' + escapeHtml(calcJson._versao_calc_json || '2.0') + '</strong> · skill <strong>' + skillVer + '</strong> · benchmarks <strong>' + benchVer + '</strong></div>'
     + '  </div>'
     + '</section>';
 }
@@ -602,27 +602,13 @@ function renderFolhaRosto() {
 // Lista numerada das 15 seções. Páginas como placeholder (00) — a numeração real
 // só é resolvida na exportação PDF, então mantemos o placeholder aqui.
 function renderIndice() {
-  const itens = [
-    { num: '01', nome: 'Apresentação' },
-    { num: '02', nome: 'Metodologia' },
-    { num: '03', nome: 'Contexto do negócio' },
-    { num: '04', nome: 'Os Números (DRE + Balanço Patrimonial)' },
-    { num: '05', nome: 'A Gestão (ISE)' },
-    { num: '06', nome: 'Indicadores X Mercado' },
-    { num: '07', nome: 'A Avaliação · Como chegamos até aqui' },
-    { num: '08', nome: 'Parecer Técnico' },
-    { num: '09', nome: 'Oportunidades de melhoria (upsides)' },
-    { num: '10', nome: 'Próximos passos' },
-    { num: 'A1', nome: 'Anexo · Teaser de Apresentação' },
-    { num: 'A2', nome: 'Anexo · Pontos Fortes e Pontos de Atenção' },
-    { num: 'A3', nome: 'Anexo · Estudo Tributário Detalhado' },
-  ];
+  // Consome SECOES (fonte única de verdade). O sumário em si não se lista.
   let lis = '';
-  itens.forEach(it => {
+  SECOES.filter(s => s.render !== 'indice').forEach(s => {
     lis += ''
       + '<li class="indice-item">'
-      + '<span class="indice-num">' + it.num + '</span>'
-      + '<span class="indice-nome">' + escapeHtml(it.nome) + '</span>'
+      + '<span class="indice-num">' + s.num + '</span>'
+      + '<span class="indice-nome">' + escapeHtml(s.nome) + '</span>'
       + '<span class="indice-dots"></span>'
       + '<span class="indice-pag">00</span>'
       + '</li>';
@@ -635,53 +621,6 @@ function renderIndice() {
     + '</section>';
 }
 
-// ─── 1. RESUMO EXECUTIVO (hero 2 cards + texto IA) ──────────────────────────
-// Hero com 2 cards: AVALIAÇÃO 1N e POTENCIAL EM 12 MESES (sem expectativa).
-function renderHeroResumo() {
-  const id = calcJson.identificacao || {};
-  const v  = calcJson.valuation || {};
-  const avaliacao = n(v.valor_venda);
-  // Schema v2026.07: potencial 12m vem em calcJson.potencial_12m.potencial_final.
-  // valor_projetado_brl é o total projetado (avaliação + delta), correto pra exibir
-  // como "Potencial em 12 meses" no chart de progressão.
-  const p12 = (calcJson.potencial_12m && calcJson.potencial_12m.potencial_final) || {};
-  const potencial = n(p12.valor_projetado_brl) > 0 ? n(p12.valor_projetado_brl) : avaliacao;
-
-  const tIA = calcJson.textos_ia || {};
-  const t   = tIA.texto_resumo_executivo_completo || {};
-  const conteudo = t.conteudo;
-  let textoBody;
-  if (conteudo && (typeof conteudo === 'string' ? conteudo.trim() : true)) {
-    textoBody = '<div class="txt-md">' + markdownSimples(conteudo) + '</div>';
-  } else {
-    textoBody = '<div class="txt-pendente">[Texto pendente — em geração pela IA]</div>';
-  }
-
-  return ''
-    + '<section class="sec">'
-    + '  <div class="sec-header">'
-    + '    <div class="sec-num">1</div>'
-    + '    <div><div class="sec-label">Resumo executivo</div><div class="sec-title">Visão geral do negócio</div></div>'
-    + '  </div>'
-    + '  <div class="sec-body">'
-    + '    <div class="hero-3">'
-    + '      <div class="hero-3-head">'
-    + '        <div>'
-    + '          <div class="hero-3-eyebrow">Resumo do laudo</div>'
-    + '          <div class="hero-3-nome">' + escapeHtml(id.nome || '—') + '</div>'
-    + '          <div class="hero-3-setor">' + escapeHtml((id.setor && id.setor.label) || '—') + '</div>'
-    + '        </div>'
-    + '      </div>'
-    + '      <div class="hero-3-grid hero-2-grid">'
-    + '        <div class="hero-3-cell"><div class="hero-3-cell-l">Avaliação 1Negócio</div><div class="hero-3-cell-v g">' + fcShort(avaliacao) + '</div><div class="hero-3-cell-sub">RO × Fator 1N + PL</div></div>'
-    + '        <div class="hero-3-cell"><div class="hero-3-cell-l">Potencial em 12 meses</div><div class="hero-3-cell-v g">' + fcShort(potencial) + '</div><div class="hero-3-cell-sub">com plano de upsides</div></div>'
-    + '      </div>'
-    + chartProgressao(avaliacao, potencial)
-    + '    </div>'
-    + '    ' + textoBody
-    + '  </div>'
-    + '</section>';
-}
 
 // ─── GRÁFICO 1: barra avaliação → potencial (SVG inline) ────────────────────
 // Mostra: |======= avaliação atual =======|------ delta upsides ------|
@@ -991,7 +930,7 @@ function renderDRE() {
   return ''
     + '<section class="sec">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">05</div>'
+    + '    <div class="sec-num">' + getNum('numeros') + '</div>'
     + '    <div><div class="sec-label">Os Números</div><div class="sec-title">DRE — Demonstrativo de Resultados</div></div>'
     + '  </div>'
     + '  <div class="sec-body">' + kpis + chartFunilDRE(dre) + h + '</div>'
@@ -1126,7 +1065,7 @@ function renderISE() {
   return ''
     + '<section class="sec">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">06</div>'
+    + '    <div class="sec-num">' + getNum('ise') + '</div>'
     + '    <div><div class="sec-label">Saúde do negócio</div><div class="sec-title">ISE · 8 pilares ponderados</div></div>'
     + '  </div>'
     + '  <div class="sec-body">' + h + '</div>'
@@ -1137,7 +1076,9 @@ function renderISE() {
 // 18 indicadores em formato tabular, sumário por status no header.
 function renderIndicadores() {
   const ind = calcJson.indicadores_vs_benchmark || {};
-  const keys = Object.keys(ind).filter(k => !k.startsWith('_'));
+  // ro_por_funcionario_mensal foi abandonado (decisão Thiago — handoff). Skill v2
+  // continua calculando, mas o laudo não exibe.
+  const keys = Object.keys(ind).filter(k => !k.startsWith('_') && k !== 'ro_por_funcionario_mensal');
   if (keys.length === 0) return '';
 
   // Override de status pra indicadores específicos:
@@ -1223,7 +1164,7 @@ function renderIndicadores() {
   return ''
     + '<section class="sec">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">07</div>'
+    + '    <div class="sec-num">' + getNum('indicadores') + '</div>'
     + '    <div><div class="sec-label">Indicadores X Mercado</div><div class="sec-title">' + keys.length + ' indicadores vs benchmark setorial</div></div>'
     + '  </div>'
     + '  <div class="sec-body">' + kpis + tbl + '</div>'
@@ -1296,44 +1237,8 @@ function renderTributaria() {
   return ''
     + '<section class="sec">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">7</div>'
-    + '    <div><div class="sec-label">Análise tributária</div><div class="sec-title">4 regimes comparados · economia potencial</div></div>'
-    + '  </div>'
-    + '  <div class="sec-body">' + h + '</div>'
-    + '</section>';
-}
-
-// ─── ATRATIVIDADE ───────────────────────────────────────────────────────────
-function renderAtratividade() {
-  const at = calcJson.atratividade || {};
-  const total = n(at.total);
-  const componentes = at.componentes || [];
-
-  let h = '';
-  h += '<div class="atr-hero">';
-  h += '<div class="atr-top">';
-  h += '<div><span class="atr-score">' + total.toFixed(0) + '</span><span class="atr-denom">/100</span></div>';
-  h += '<div class="atr-badge">' + escapeHtml(at.label || '—') + '</div>';
-  h += '</div>';
-  h += '<div class="atr-bar-wrap"><div class="atr-bar" style="width:' + Math.min(100, total) + '%"></div></div>';
-  componentes.forEach(c => {
-    const score = n(c.score_0_10);
-    const peso = n(c.peso_pct);
-    const contrib = n(c.contribuicao_no_total);
-    h += '<div class="atr-comp">';
-    h += '<div class="atr-comp-nome">' + escapeHtml(c.label || c.id) + ' (' + peso + '%)</div>';
-    h += '<div class="atr-comp-bar"><div class="atr-comp-fill" style="width:' + (score * 10).toFixed(0) + '%"></div></div>';
-    h += '<div class="atr-comp-val">' + score.toFixed(1) + '/10</div>';
-    h += '</div>';
-    h += '<div style="font-size:9px;color:var(--ink4);padding-left:150px;margin-top:-2px;margin-bottom:2px">contribuição: ' + contrib.toFixed(1) + ' pts</div>';
-  });
-  h += '</div>';
-
-  return ''
-    + '<section class="sec">'
-    + '  <div class="sec-header">'
-    + '    <div class="sec-num">11</div>'
-    + '    <div><div class="sec-label">Atratividade</div><div class="sec-title">' + escapeHtml(at.label || '—') + ' · ' + total.toFixed(0) + '/100</div></div>'
+    + '    <div class="sec-num">' + getNum('tributario') + '</div>'
+    + '    <div><div class="sec-label">Anexo · Tributário detalhado</div><div class="sec-title">4 regimes comparados · economia potencial</div></div>'
     + '  </div>'
     + '  <div class="sec-body">' + h + '</div>'
     + '</section>';
@@ -1450,45 +1355,10 @@ function renderUpsides() {
   return ''
     + '<section class="sec">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">09</div>'
+    + '    <div class="sec-num">' + getNum('upsides') + '</div>'
     + '    <div><div class="sec-label">Oportunidades de melhoria</div><div class="sec-title">' + total + ' ações para destravar valor</div></div>'
     + '  </div>'
     + '  <div class="sec-body">' + intro + h + '</div>'
-    + '</section>';
-}
-
-// ─── OPERACIONAL ────────────────────────────────────────────────────────────
-// 8 fields raw (faturamento, num funcionários, num clientes, tempo, num sócios,
-// pró-labore total, concentração status).
-function renderOperacional() {
-  const op = calcJson.operacional || {};
-  if (Object.keys(op).length === 0) return '';
-
-  function cell(label, valor) {
-    return '<div class="op-cell"><div class="op-cell-l">' + escapeHtml(label) + '</div><div class="op-cell-v">' + valor + '</div></div>';
-  }
-
-  let h = '<div class="op-grid">';
-  if (op.fat_mensal != null) h += cell('Faturamento mensal', fcShort(op.fat_mensal));
-  if (op.fat_anual != null)  h += cell('Faturamento anual',  fcShort(op.fat_anual));
-  if (op.num_funcionarios != null) h += cell('Funcionários', op.num_funcionarios);
-  if (op.num_clientes != null)     h += cell('Clientes ativos', op.num_clientes);
-  if (op.tempo_operacao_anos != null) h += cell('Tempo de operação', op.tempo_operacao_anos + ' anos');
-  if (op.num_socios != null)       h += cell('Sócios', op.num_socios);
-  if (op.prolabore_mensal_total != null) h += cell('Pró-labore mensal total', fcShort(op.prolabore_mensal_total));
-  if (op.concentracao_status) {
-    const cls = statusCor(op.concentracao_status);
-    h += cell('Concentração de cliente', '<span class="chip ' + cls + '" style="font-size:9px">' + statusLabel(op.concentracao_status) + '</span>');
-  }
-  h += '</div>';
-
-  return ''
-    + '<section class="sec">'
-    + '  <div class="sec-header">'
-    + '    <div class="sec-num">14</div>'
-    + '    <div><div class="sec-label">Dados operacionais</div><div class="sec-title">Estrutura do negócio (dados crus)</div></div>'
-    + '  </div>'
-    + '  <div class="sec-body">' + h + '</div>'
     + '</section>';
 }
 
@@ -1520,7 +1390,7 @@ function renderApresentacao() {
   return ''
     + '<section class="sec page-break apresentacao">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">01</div>'
+    + '    <div class="sec-num">' + getNum('apresentacao') + '</div>'
     + '    <div><div class="sec-label">Apresentação</div><div class="sec-title">Sobre este laudo</div></div>'
     + '  </div>'
     + '  <div class="sec-body">'
@@ -1537,7 +1407,7 @@ function renderMetodologia() {
   return ''
     + '<section class="sec page-break metodologia">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">02</div>'
+    + '    <div class="sec-num">' + getNum('metodologia') + '</div>'
     + '    <div><div class="sec-label">Metodologia</div><div class="sec-title">Como esta avaliação foi construída</div></div>'
     + '  </div>'
     + '  <div class="sec-body">'
@@ -1582,7 +1452,7 @@ function renderTeaser() {
   return ''
     + '<section class="sec page-break extra teaser">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">A1</div>'
+    + '    <div class="sec-num">' + getNum('teaser') + '</div>'
     + '    <div><div class="sec-label">Anexo · Teaser</div><div class="sec-title">Apresentação anônima · One-page</div></div>'
     + '  </div>'
     + '  <div class="sec-body">'
@@ -1609,13 +1479,13 @@ function renderPontosFortesAtencao() {
   const pFortes = pilares.filter(p => n(p.score_0_10) >= 8).map(p => p.label || p.id);
   const pAtencao = pilares.filter(p => n(p.score_0_10) <= 4).map(p => p.label || p.id);
 
-  const fmtTexto = (s) => s ? '<div class="txt">' + escapeHtml(s).replace(/\n\n+/g, '</div><div class="txt">') + '</div>' : '<div class="txt-pendente">[Texto pendente]</div>';
+  const fmtTexto = (s) => s ? '<div class="txt-md">' + markdownSimples(s) + '</div>' : '<div class="txt-pendente">[Texto pendente]</div>';
   const listaPilares = (arr) => arr.length ? '<ul style="margin:8px 0 0;padding-left:18px;line-height:1.7">' + arr.map(l => '<li>' + escapeHtml(l) + '</li>').join('') + '</ul>' : '<div class="txt-pendente" style="font-size:11px;color:var(--ink4)">Nenhum pilar nessa faixa.</div>';
 
   return ''
     + '<section class="sec page-break extra">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">A2</div>'
+    + '    <div class="sec-num">' + getNum('pontos') + '</div>'
     + '    <div><div class="sec-label">Anexo · Análise consolidada</div><div class="sec-title">Pontos Fortes e Pontos de Atenção</div></div>'
     + '  </div>'
     + '  <div class="sec-body">'
@@ -1645,7 +1515,7 @@ function renderAvaliacao() {
   return ''
     + '<section class="sec page-break avaliacao">'
     + '  <div class="sec-header">'
-    + '    <div class="sec-num">08</div>'
+    + '    <div class="sec-num">' + getNum('avaliacao') + '</div>'
     + '    <div><div class="sec-label">Valuation</div><div class="sec-title">A Avaliação · como chegamos a esse valor</div></div>'
     + '  </div>'
     + '  <div class="sec-body">'
@@ -1667,15 +1537,12 @@ function renderAvaliacao() {
 }
 
 // ─── EXTRA 3: Estudo Tributário Detalhado ───────────────────────────────────
+// renderTributaria já usa getNum('tributario') = "A3" e label "Anexo · Tributário detalhado".
+// Aqui só envolvemos com page-break/extra.
 function renderEstudoTributarioDetalhado() {
-  // Reutiliza renderTributaria mas envelopa como anexo
   const tributariaHTML = renderTributaria();
   if (!tributariaHTML) return '';
-  // Substitui o sec-num e label do bloco original pra A3
-  return tributariaHTML
-    .replace(/<div class="sec-num">7<\/div>/, '<div class="sec-num">A3</div>')
-    .replace(/<div class="sec-label">Análise tributária<\/div>/, '<div class="sec-label">Anexo · Tributário detalhado</div>')
-    .replace(/<section class="sec">/, '<section class="sec page-break extra">');
+  return tributariaHTML.replace(/<section class="sec">/, '<section class="sec page-break extra">');
 }
 </script>
 </body>
