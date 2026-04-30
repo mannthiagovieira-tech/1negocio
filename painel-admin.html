@@ -2409,29 +2409,49 @@ async function loadAnuncios() {
       } catch(e) { console.warn('vendedores:', e); }
     }
 
-    // 5. Anota cada negócio com seu termo + vendedor + maturidade
+    // 5. Pega TODOS os anuncios_v2 (LEFT JOIN client-side por negocio_id)
+    const ar = await api('select','anuncios_v2',{
+      select: 'id,codigo,negocio_id,laudo_v2_id,titulo,descricao_card,valor_pedido,status,publicado_em,pausado_em,vendido_em,termo_adesao_id,termo_assinado_em,arquivo_html_path,criado_em,atualizado_em',
+      limit: 5000
+    });
+    const anunciosPorNegocio = new Map(
+      (ar.data || []).map(a => [a.negocio_id, a])
+    );
+
+    // 6. Anota cada negócio com seu termo + vendedor + anúncio + maturidade
     __anuTodos = negocios.map(n => {
       const termo = termosPorNegocio.get(n.id) || null;
       const vendedor = n.vendedor_id ? vendedoresPorId.get(n.vendedor_id) : null;
+      const anuncio = anunciosPorNegocio.get(n.id) || null;
       const termoAssinado = !!(termo && termo.assinatura_em);
       const valorPretendido = termo ? (Number(termo.valor_pretendido) || 0) : 0;
-      const temTitulo = !!(n.titulo_anuncio && n.titulo_anuncio.trim().length >= 5);
 
-      // Maturidade
-      let maturidade = 'sem_termo'; // padrão
-      if (termoAssinado && (n.preco_pedido || valorPretendido > 0) && temTitulo) {
-        maturidade = 'pronto'; // tudo OK: termo + título + valor — só falta admin clicar publicar
-      } else if (termoAssinado && (n.preco_pedido || valorPretendido > 0)) {
-        maturidade = 'falta_titulo'; // termo + valor mas admin ainda não definiu título
+      // Título/valor agora vêm de anuncios_v2 (fallback nos campos legacy de negocios)
+      const tituloAnuncio = (anuncio && anuncio.titulo) || n.titulo_anuncio || '';
+      const valorAnuncio = Number((anuncio && anuncio.valor_pedido) || n.preco_pedido) || 0;
+      const temTitulo = !!(tituloAnuncio && tituloAnuncio.trim().length >= 5);
+      const temValor = valorAnuncio > 0;
+
+      // Maturidade (usa dados de anuncios_v2 se houver)
+      let maturidade = 'sem_termo';
+      if (termoAssinado && (temValor || valorPretendido > 0) && temTitulo) {
+        maturidade = 'pronto';
+      } else if (termoAssinado && (temValor || valorPretendido > 0)) {
+        maturidade = 'falta_titulo';
       } else if (termoAssinado) {
-        maturidade = 'falta_valor'; // só termo, sem valor nem título
+        maturidade = 'falta_valor';
       } else if (valorPretendido > 0) {
-        maturidade = 'falta_termo_com_valor'; // dono informou valor mas não assinou termo
-      } else {
-        maturidade = 'sem_termo'; // nada feito ainda
+        maturidade = 'falta_termo_com_valor';
       }
 
-      return { ...n, _termo: termo, _vendedor: vendedor, _maturidade: maturidade, _valorPretendido: valorPretendido };
+      return {
+        ...n,
+        _termo: termo,
+        _vendedor: vendedor,
+        _anuncio: anuncio,
+        _maturidade: maturidade,
+        _valorPretendido: valorPretendido
+      };
     });
 
     atualizarContadoresAbas();
@@ -2442,10 +2462,13 @@ async function loadAnuncios() {
 }
 
 function atualizarContadoresAbas() {
-  const aguardando = __anuTodos.filter(n => !['publicado','pausado','vendido'].includes(n.status)).length;
-  const publicados = __anuTodos.filter(n => n.status === 'publicado').length;
-  const pausados = __anuTodos.filter(n => n.status === 'pausado').length;
-  const vendidos = __anuTodos.filter(n => n.status === 'vendido').length;
+  // Aguardando = sem anuncios_v2 OU em rascunho/aguardando_aprovacao
+  const aguardando = __anuTodos.filter(n =>
+    !n._anuncio || n._anuncio.status === 'rascunho' || n._anuncio.status === 'aguardando_aprovacao'
+  ).length;
+  const publicados = __anuTodos.filter(n => n._anuncio && n._anuncio.status === 'publicado').length;
+  const pausados   = __anuTodos.filter(n => n._anuncio && n._anuncio.status === 'pausado').length;
+  const vendidos   = __anuTodos.filter(n => n._anuncio && n._anuncio.status === 'vendido').length;
   document.getElementById('anu-cnt-aguardando').textContent = aguardando;
   document.getElementById('anu-cnt-publicados').textContent = publicados;
   document.getElementById('anu-cnt-pausados').textContent = pausados;
@@ -2495,15 +2518,17 @@ function aplicarFiltroAnuncios() {
   const q = (document.getElementById('search-anuncios')?.value || '').toLowerCase().trim();
   let lista = __anuTodos;
 
-  // Filtro por aba
+  // Filtro por aba (status agora vive em _anuncio.status)
   if (__anuTabAtual === 'aguardando') {
-    lista = lista.filter(n => !['publicado','pausado','vendido'].includes(n.status));
+    lista = lista.filter(n =>
+      !n._anuncio || n._anuncio.status === 'rascunho' || n._anuncio.status === 'aguardando_aprovacao'
+    );
   } else if (__anuTabAtual === 'publicados') {
-    lista = lista.filter(n => n.status === 'publicado');
+    lista = lista.filter(n => n._anuncio && n._anuncio.status === 'publicado');
   } else if (__anuTabAtual === 'pausados') {
-    lista = lista.filter(n => n.status === 'pausado');
+    lista = lista.filter(n => n._anuncio && n._anuncio.status === 'pausado');
   } else if (__anuTabAtual === 'vendidos') {
-    lista = lista.filter(n => n.status === 'vendido');
+    lista = lista.filter(n => n._anuncio && n._anuncio.status === 'vendido');
   }
 
   // Sub-filtro (apenas na aba aguardando)
@@ -2518,10 +2543,12 @@ function aplicarFiltroAnuncios() {
     // 'todos' = sem filtro
   }
 
-  // Filtro por busca
+  // Filtro por busca (inclui código + título do anuncios_v2)
   if (q) {
     lista = lista.filter(n =>
       (n.codigo_diagnostico||'').toLowerCase().includes(q) ||
+      (n._anuncio && n._anuncio.codigo ? n._anuncio.codigo.toLowerCase().includes(q) : false) ||
+      (n._anuncio && n._anuncio.titulo ? n._anuncio.titulo.toLowerCase().includes(q) : false) ||
       (n.titulo_anuncio||'').toLowerCase().includes(q) ||
       (n.nome||'').toLowerCase().includes(q) ||
       (n.cidade||'').toLowerCase().includes(q) ||
@@ -2530,9 +2557,7 @@ function aplicarFiltroAnuncios() {
     );
   }
 
-  // Ordenação:
-  // Aba aguardando: prontos primeiro, depois por data
-  // Demais abas: só por data
+  // Ordenação
   if (__anuTabAtual === 'aguardando') {
     const peso = { pronto: 0, falta_titulo: 1, falta_valor: 2, falta_termo_com_valor: 3, sem_termo: 4 };
     lista.sort((a, b) => {
@@ -2544,9 +2569,10 @@ function aplicarFiltroAnuncios() {
       return __anuOrdem === 'antigo' ? da - db : db - da;
     });
   } else {
+    // Demais abas: data de publicação do anuncios_v2 (com fallback)
     lista.sort((a, b) => {
-      const da = new Date(a.publicado_em || a.created_at).getTime();
-      const db = new Date(b.publicado_em || b.created_at).getTime();
+      const da = new Date((a._anuncio && a._anuncio.publicado_em) || a.publicado_em || a.created_at).getTime();
+      const db = new Date((b._anuncio && b._anuncio.publicado_em) || b.publicado_em || b.created_at).getTime();
       return __anuOrdem === 'antigo' ? da - db : db - da;
     });
   }
@@ -2594,9 +2620,10 @@ function renderListaAnuncios(lista) {
   // Função pra montar o badge de status do termo + valor
   function badgeMaturidade(n) {
     const m = n._maturidade;
-    if (n.status === 'publicado') return '<span class="anu-mat-badge ok">no ar</span>';
-    if (n.status === 'pausado') return '<span class="anu-mat-badge gray">pausado</span>';
-    if (n.status === 'vendido') return '<span class="anu-mat-badge gray">vendido</span>';
+    const s = n._anuncio && n._anuncio.status;
+    if (s === 'publicado') return '<span class="anu-mat-badge ok">no ar</span>';
+    if (s === 'pausado')   return '<span class="anu-mat-badge gray">pausado</span>';
+    if (s === 'vendido')   return '<span class="anu-mat-badge gray">vendido</span>';
     if (m === 'pronto') return '<span class="anu-mat-badge ok">✓ pronto pra publicar</span>';
     if (m === 'falta_titulo') return '<span class="anu-mat-badge ok-soft">termo OK · falta título</span>';
     if (m === 'falta_valor') return '<span class="anu-mat-badge warn">termo OK · falta valor</span>';
@@ -2605,12 +2632,14 @@ function renderListaAnuncios(lista) {
   }
 
   const rows = lista.map(n => {
-    const titulo = n.titulo_anuncio
-      ? `<span class="anu-list-titulo">${escapeHtml(n.titulo_anuncio)}</span>`
+    // Título e valor agora vêm de anuncios_v2 (fallback nos campos legacy)
+    const tituloDoAnuncio = (n._anuncio && n._anuncio.titulo) || n.titulo_anuncio || '';
+    const titulo = tituloDoAnuncio
+      ? `<span class="anu-list-titulo">${escapeHtml(tituloDoAnuncio)}</span>`
       : `<span class="anu-list-titulo empty">— sem título definido —</span>`;
     const cidade = (n.cidade||'') + (n.estado ? '/'+n.estado : '');
-    const valorReal = n.preco_pedido || n._valorPretendido || 0;
-    const valor = valorReal > 0 ? 'R$ ' + Number(valorReal).toLocaleString('pt-BR') : '<span style="color:#aaa">—</span>';
+    const valorReal = Number((n._anuncio && n._anuncio.valor_pedido) || n.preco_pedido || n._valorPretendido) || 0;
+    const valor = valorReal > 0 ? 'R$ ' + valorReal.toLocaleString('pt-BR') : '<span style="color:#aaa">—</span>';
     const dono = n._vendedor && n._vendedor.nome ? n._vendedor.nome : (n.nome || '—');
     const tempoRel = fmtTempoRelativo(n.created_at);
     const dataAbs = fmtDataBR(n.created_at);
