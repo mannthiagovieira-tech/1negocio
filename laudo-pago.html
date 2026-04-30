@@ -58,7 +58,7 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 .logo-1{color:var(--em)}
 .capa-badge{font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--am);background:var(--am-d);border:1px solid var(--am-l);padding:5px 12px}
 /* Capa (Fase 3.2.4): logo só no header, nome do negócio à ESQUERDA, sem subtítulo de setor */
-.capa-body{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;text-align:left;padding:48px 48px;gap:24px}
+.capa-body{flex:1;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;text-align:left;padding:48px 48px 32px;gap:24px}
 .capa-hero-nome{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(36px,8vw,56px);letter-spacing:-.03em;line-height:1;color:var(--ink);max-width:560px}
 .capa-subtitulo{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;letter-spacing:.04em;color:var(--em);text-transform:uppercase;display:flex;align-items:center;gap:14px;margin-top:6px}
 .capa-subtitulo::before{content:'';width:32px;height:1.5px;background:var(--em)}
@@ -276,38 +276,37 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 .fech-rodape{display:flex;align-items:center;justify-content:space-between;padding-top:20px;border-top:1px solid var(--line2)}
 .fech-rod-l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4)}
 .fech-rod-r{font-size:8px;color:var(--em);letter-spacing:.08em}
-@media print{
-  .page-break{page-break-before:always;break-before:page}
-  #loading{display:none!important}
-  .btn-pdf{display:none!important}
-  /* Cada bloco principal começa em página nova ao imprimir */
-  .capa,.intro,.indice,.sec,.fechamento{page-break-before:always;break-before:page}
-  /* Capa não precisa de break (é a primeira) */
-  .capa{page-break-before:auto;break-before:auto}
-}
+/* placeholder removido — unificado mais adiante */
 
 /* ───────── BOTÃO BAIXAR PDF — floating mobile-first ───────── */
 .btn-pdf-floating{position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--em);color:#fff;border:none;padding:14px 22px;border-radius:0;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.04em;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.18);transition:filter .15s,transform .15s}
 .btn-pdf-floating:hover{filter:brightness(1.1);transform:translateY(-1px)}
 @media (max-width:640px){.btn-pdf-floating{bottom:16px;right:16px;padding:12px 18px;font-size:12px}}
 
-/* ───────── @MEDIA PRINT — page-break por seção ───────── */
+/* ───────── @MEDIA PRINT — page-break padronizado por seção ───────── */
 @media print {
-  .btn-pdf-floating, .theme-toggle { display: none !important; }
+  .btn-pdf-floating, .theme-toggle, #loading, .btn-pdf { display: none !important; }
   body { background: #fff !important; color: #000 !important; }
   #doc { padding: 0 !important; max-width: none !important; }
-  section.capa { page-break-before: avoid; }
-  section.sec, section.fechamento, section.indice, section.intro {
+
+  /* Cada seção principal começa em página nova */
+  .sec, .sumario, .fechamento, .op-wrap, .icd-wrap {
     page-break-before: always;
     break-before: page;
   }
-  h1, h2, h3, h4, .sec-header, .sec-title,
-  .kpi-mini-card, .up-card, .ise-pilar, .pilar-card,
-  table, tr, .ind-card, .compare-grid, .diag-bloco,
-  .alert, .met-step, .teaser-li {
+  /* Capa é a primeira página — não força break antes */
+  .capa { page-break-before: avoid; break-before: avoid; }
+
+  /* renderBalanco antigo: NÃO existe mais como seção separada — está dentro de
+     renderNumeros. Garantia: sem regra de break extra dentro de .sec. */
+
+  /* Evita quebra interna de blocos coesos */
+  .sec, .ind-card, .op-card, .pilar, .bench-item, .met-step,
+  .diag-bloco, .icd-wrap, .op-bloco {
     page-break-inside: avoid;
     break-inside: avoid;
   }
+
   @page { size: A4; margin: 1.5cm 1cm; }
 }
 
@@ -420,7 +419,7 @@ html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
 .op-hero-valor-label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:5px}
 .op-hero-valor{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:var(--em);letter-spacing:-.03em;line-height:1}
 .op-hero-valor-tipo{font-size:9px;color:var(--ink4);margin-top:4px}
-.op-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line2)}
+.op-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line2);margin:0 32px}
 .op-kpi{background:var(--bg);padding:14px 16px}
 .op-kpi-l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:5px}
 .op-kpi-v{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--ink);line-height:1}
@@ -782,8 +781,10 @@ function renderCapa() {
     + '    <div class="capa-badge">Laudo confidencial</div>'
     + '  </div>'
     + '  <div class="capa-body">'
-    + '    <div class="capa-hero-nome">' + escapeHtml(id.nome || '—') + '</div>'
-    + '    <div class="capa-subtitulo">Laudo de avaliação</div>'
+    + '    <div>'
+    + '      <div class="capa-hero-nome">' + escapeHtml(id.nome || '—') + '</div>'
+    + '      <div class="capa-subtitulo">Laudo de avaliação</div>'
+    + '    </div>'
     + '    <div class="capa-meta-grid">'
     + '      <div class="capa-meta-item"><div class="capa-meta-l">Setor</div><div class="capa-meta-v">' + escapeHtml(setor) + '</div></div>'
     + '      <div class="capa-meta-item"><div class="capa-meta-l">Localização</div><div class="capa-meta-v">' + escapeHtml(local) + '</div></div>'
@@ -1190,7 +1191,7 @@ function renderNumeros() {
     + '    <div><div class="sec-label">Laudo Principal</div><div class="sec-title">Os Números (DRE + Balanço Patrimonial)</div></div>'
     + '  </div>'
     + '  <div class="sec-body">'
-    + '    <div class="diag-bloco"><div class="diag-bloco-title">DRE Estruturada</div>' + dreH + '<div class="footnote">' + escapeHtml(dreFootnote) + '</div></div>'
+    + '    <div class="diag-bloco"><div class="diag-bloco-title">DRE Estruturada</div>' + chartFunilDRE(dre) + dreH + '<div class="footnote">' + escapeHtml(dreFootnote) + '</div></div>'
     + '    <div class="diag-bloco" style="margin-top:24px"><div class="diag-bloco-title">Balanço Patrimonial</div>' + bpH + '<div class="footnote">' + escapeHtml(bpFootnote) + '</div></div>'
     + '  </div>'
     + '</section>';
@@ -1535,7 +1536,7 @@ function renderFechamento() {
     + '  <div>'
     + '    <div class="fech-eyebrow">Fim do laudo</div>'
     + '    <div class="fech-titulo">Próximos <em>passos</em></div>'
-    + '    <div class="fech-texto">Use este laudo para tomar decisões sobre o futuro do negócio: ajustar precificação, priorizar upsides, validar regime tributário e, quando fizer sentido, abrir um anúncio na 1Negócio.</div>'
+    + '    <div class="fech-texto">Use este laudo para tomar decisões sobre o futuro do negócio: acompanhar avaliação, ajustar processos, priorizar ações de upsides, reavaliar regime tributário e, quando fizer sentido, abrir um anúncio na 1Negócio.</div>'
     + '    <div class="fech-ass">'
     + '      <div class="fech-ass-logo"><em>1</em>NEGÓCIO</div>'
     + '      <div class="fech-ass-sep"></div>'
