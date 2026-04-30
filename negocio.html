@@ -463,7 +463,11 @@ $('#btn-share').addEventListener('click',async()=>{
 });
 
 const params=new URLSearchParams(window.location.search);
-const codigoParam=params.get('c')||params.get('codigo')||params.get('slug');
+let codigoParam=params.get('c')||params.get('codigo')||params.get('slug');
+if(!codigoParam){
+  const m=window.location.pathname.match(/\/negocios\/([^\/?#]+)/);
+  if(m) codigoParam=decodeURIComponent(m[1]);
+}
 const idParam=params.get('id');
 
 let ANUNCIO=null;
@@ -500,17 +504,21 @@ async function init(){
   try{
     const [rNeg,rLaudo]=await Promise.all([
       fetch(SUPABASE_URL+'/rest/v1/negocios?id=eq.'+ANUNCIO.negocio_id+'&select=id,nome,categoria,subcategoria,cidade,estado,setor,faturamento_anual,publicado_em,created_at,codigo_diagnostico,titulo_anuncio',{headers:H}),
-      fetch(SUPABASE_URL+'/rest/v1/laudos_v2?id=eq.'+ANUNCIO.laudo_v2_id+'&select=calc_json,atualizado_em',{headers:H})
+      fetch(SUPABASE_URL+'/rest/v1/laudos_v2?id=eq.'+ANUNCIO.laudo_v2_id+'&select=calc_json,criado_em',{headers:H})
     ]);
     const negArr=await rNeg.json();
     const lauArr=await rLaudo.json();
-    if(!negArr||negArr.length===0) return showError('Negócio não encontrado','Verifique o link.');
+    console.log('[negocio.html] ANUNCIO:', ANUNCIO);
+    console.log('[negocio.html] negArr:', negArr);
+    console.log('[negocio.html] lauArr:', lauArr);
+    if(!Array.isArray(negArr)||negArr.length===0) return showError('Negócio não encontrado','Verifique o link.');
     NEG=negArr[0];
-    if(lauArr&&lauArr[0]&&lauArr[0].calc_json){
+    if(Array.isArray(lauArr)&&lauArr[0]&&lauArr[0].calc_json){
       CALC=lauArr[0].calc_json;
       if(SESSION) await verificarAcessoC3(NEG.id);
       renderPaginaCompleta();
     }else{
+      console.warn('[negocio.html] Caindo em showPreparing. laudo response:', lauArr);
       showPreparing(NEG);
     }
   }catch(e){
