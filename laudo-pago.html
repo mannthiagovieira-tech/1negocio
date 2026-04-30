@@ -702,6 +702,7 @@ async function init() {
         document.getElementById('ld-msg').textContent = 'Laudo v2 ainda não foi gerado para este negócio.';
         return;
       }
+      _currentNegocioId = negocioId;
     } catch (e) {
       console.error(e);
       document.getElementById('ld-msg').textContent = 'Erro ao carregar laudo: ' + e.message;
@@ -711,6 +712,157 @@ async function init() {
 
   renderTudo();
   hideLoading();
+  iniciarPollingTextos();
+}
+
+// ─── POLLING DE TEXTOS IA (commit 4 — fix BUG E race condition) ─────────────
+// Edge gerar_textos_laudo dispara 9 fetches paralelos (2-17s cada). Se user
+// abre laudo imediatamente após diag, alguns textos podem ainda estar vazios.
+// Antes: ficava preso em "[Texto pendente]" pra sempre.
+// Agora: poll a cada 5s pra refresh calcJson; re-render quando todos prontos
+// ou timeout 60s (mostra botão "Atualizar" manual).
+
+const TEXTOS_IA_KEYS = [
+  'texto_resumo_executivo_completo',
+  'texto_contexto_negocio',
+  'texto_parecer_tecnico',
+  'texto_riscos_atencao',
+  'texto_diferenciais',
+  'texto_publico_alvo_comprador',
+  'descricoes_polidas_upsides',
+  'sugestoes_titulo_anuncio',
+  'texto_consideracoes_valor',
+];
+
+let _currentNegocioId = null;
+let _pollingInterval = null;
+let _pollingStart = null;
+
+function contarTextosPreenchidos(cj) {
+  const tIA = (cj && cj.textos_ia) || {};
+  let n = 0;
+  for (const k of TEXTOS_IA_KEYS) {
+    const t = tIA[k];
+    if (t && t.conteudo && String(t.conteudo).trim().length > 0) n++;
+  }
+  return n;
+}
+
+function mostrarIndicadorPolling(prontos, total) {
+  let el = document.getElementById('polling-indicator');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'polling-indicator';
+    el.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;'
+      + 'padding:10px 16px;background:#fff;border:1px solid #e5e5e0;'
+      + 'border-radius:999px;font-family:DM Mono,monospace;font-size:11px;'
+      + 'color:#5e5e58;letter-spacing:.04em;box-shadow:0 4px 14px rgba(0,0,0,.08);'
+      + 'display:flex;align-items:center;gap:8px';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = '<span style="display:inline-block;width:10px;height:10px;border:2px solid #e5e5e0;border-top-color:#10b981;border-radius:50%;animation:spin .8s linear infinite"></span>'
+    + 'Gerando textos da IA · ' + prontos + '/' + total;
+  // injeta keyframes spin se ainda não exista
+  if (!document.getElementById('polling-spin-style')) {
+    const s = document.createElement('style');
+    s.id = 'polling-spin-style';
+    s.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(s);
+  }
+}
+
+function esconderIndicadorPolling() {
+  const el = document.getElementById('polling-indicator');
+  if (el) el.remove();
+}
+
+function mostrarBotaoAtualizar() {
+  let el = document.getElementById('polling-indicator');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'polling-indicator';
+    el.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;'
+      + 'padding:10px 16px;background:#fff;border:1px solid #e5e5e0;'
+      + 'border-radius:999px;font-family:DM Mono,monospace;font-size:11px;'
+      + 'color:#5e5e58;letter-spacing:.04em;box-shadow:0 4px 14px rgba(0,0,0,.08);'
+      + 'display:flex;align-items:center;gap:8px';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = '<span style="color:#d97706">⚠</span>'
+    + 'Alguns textos ainda não geraram · '
+    + '<button onclick="atualizarLaudoManual()" style="padding:4px 12px;background:#0c0c0a;color:#fff;border:0;border-radius:999px;font-family:inherit;font-size:11px;cursor:pointer">Atualizar</button>';
+}
+
+async function atualizarLaudoManual(){
+  if (!_currentNegocioId) return;
+  try {
+    const novo = await fetchLaudoV2(_currentNegocioId);
+    if (novo) {
+      calcJson = novo;
+      renderTudo();
+      const prontos = contarTextosPreenchidos(calcJson);
+      if (prontos >= TEXTOS_IA_KEYS.length) {
+        esconderIndicadorPolling();
+      } else {
+        // Reativar polling se ainda incompleto
+        iniciarPollingTextos();
+      }
+    }
+  } catch (e) {
+    console.error('[polling] atualização manual falhou:', e);
+  }
+}
+
+function iniciarPollingTextos() {
+  if (!_currentNegocioId || !calcJson) return;
+  if (_pollingInterval) clearInterval(_pollingInterval);
+
+  const prontosInicial = contarTextosPreenchidos(calcJson);
+  const total = TEXTOS_IA_KEYS.length;
+
+  if (prontosInicial >= total) {
+    esconderIndicadorPolling();
+    return; // Tudo pronto, nada a fazer
+  }
+
+  console.log('[polling] iniciando — ' + prontosInicial + '/' + total + ' textos prontos');
+  mostrarIndicadorPolling(prontosInicial, total);
+  _pollingStart = Date.now();
+
+  _pollingInterval = setInterval(async () => {
+    const elapsed = Date.now() - _pollingStart;
+    if (elapsed > 60000) {
+      // Timeout 60s — para de poll, oferece botão atualizar
+      clearInterval(_pollingInterval);
+      _pollingInterval = null;
+      console.warn('[polling] timeout 60s — '
+        + contarTextosPreenchidos(calcJson) + '/' + total
+        + ' textos prontos. Mostrando botão atualizar.');
+      mostrarBotaoAtualizar();
+      return;
+    }
+
+    try {
+      const novo = await fetchLaudoV2(_currentNegocioId);
+      if (!novo) return;
+      const prontos = contarTextosPreenchidos(novo);
+      if (prontos > contarTextosPreenchidos(calcJson)) {
+        // Houve novos textos — atualiza calcJson e re-renderiza
+        calcJson = novo;
+        renderTudo();
+      }
+      mostrarIndicadorPolling(prontos, total);
+
+      if (prontos >= total) {
+        clearInterval(_pollingInterval);
+        _pollingInterval = null;
+        console.log('[polling] todos os ' + total + ' textos prontos — parando');
+        setTimeout(esconderIndicadorPolling, 1500);
+      }
+    } catch (e) {
+      console.warn('[polling] fetch falhou (vai retentar):', e);
+    }
+  }, 5000);
 }
 
 window.addEventListener('DOMContentLoaded', init);
