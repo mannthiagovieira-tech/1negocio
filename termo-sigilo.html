@@ -539,7 +539,7 @@ function fmtDateTime(d){
 
     // 5) Buscar negócio
     if(ctx.solicitacao.negocio_id){
-      const rn = await fetch(SUPABASE_URL + '/rest/v1/negocios?id=eq.' + ctx.solicitacao.negocio_id + '&select=id,tag,nome,categoria,cidade,estado,preco_pedido,faturamento_anual', {
+      const rn = await fetch(SUPABASE_URL + '/rest/v1/negocios?id=eq.' + ctx.solicitacao.negocio_id + '&select=id,tag,nome,categoria,setor,cidade,estado,preco_pedido,faturamento_anual,codigo_diagnostico', {
         headers: { 'apikey': SUPABASE_ANON, 'Authorization':'Bearer '+SUPABASE_ANON }
       });
       const negs = await rn.json();
@@ -613,11 +613,13 @@ async function garantirSessaoValida(){
 function preencherFormulario(){
   // Resumo do negócio
   if(ctx.negocio){
-    $('r-codigo').textContent = ctx.negocio.tag || '—';
-    $('r-setor').textContent = ctx.negocio.categoria || '—';
+    // FIX 7 — código_diagnostico é o campo real (tag pode estar vazio em legacy)
+    const codigoExibido = ctx.negocio.codigo_diagnostico || ctx.negocio.tag || '—';
+    $('r-codigo').textContent = codigoExibido;
+    $('r-setor').textContent = ctx.negocio.categoria || ctx.negocio.setor || '—';
     $('r-local').textContent = [ctx.negocio.cidade, ctx.negocio.estado].filter(Boolean).join(', ') || '—';
     $('r-valor').textContent = fmtMoney(ctx.negocio.preco_pedido);
-    $('aceite-codigo').textContent = ctx.negocio.tag || '—';
+    $('aceite-codigo').textContent = codigoExibido;
   }
 
   // Dados do usuário
@@ -683,7 +685,13 @@ function renderTermo(){
   const cidade = neg.cidade || 'da cidade do negócio';
   const estado = neg.estado || '';
   const comarca = cidade + (estado ? '/'+estado : '');
-  const codigo = neg.codigo || '—';
+  // FIX 7 — código real do negócio (codigo_diagnostico ou tag) + setor pra dar contexto legal
+  const codigo = neg.codigo_diagnostico || neg.tag || neg.codigo || '—';
+  const setor = neg.categoria || neg.setor || '—';
+  const localTxt = (cidade && cidade !== 'da cidade do negócio')
+    ? cidade + (estado ? '/' + estado : '')
+    : 'localização confidencial';
+  const negocioAlvoDescricao = `código <strong>${codigo}</strong>, setor <strong>${setor}</strong>, localizado em <strong>${localTxt}</strong>`;
   const faturamento = neg.faturamento_anual;
   const fatTxt = faturamento ? fmtMoney(faturamento) : 'o valor informado na documentação';
   const fatDobro = faturamento ? fmtMoney(faturamento * 2) : 'o dobro do faturamento bruto anual';
@@ -698,7 +706,7 @@ function renderTermo(){
 
     <div class="termo-clausula">
       <div class="termo-clausula-title">2. Do objeto</div>
-      <p>O presente termo tem por finalidade assegurar o sigilo absoluto sobre todas as informações confidenciais que venham a ser disponibilizadas pela 1Negócio ao Interessado acerca do negócio cadastrado sob o código <strong>${codigo}</strong>, incluindo, mas não se limitando a: razão social, nome fantasia, identidade dos sócios, endereço, CNPJ, demonstrações financeiras, contratos com clientes e fornecedores, processos internos e quaisquer documentos sensíveis.</p>
+      <p>O presente termo tem por finalidade assegurar o sigilo absoluto sobre todas as informações confidenciais que venham a ser disponibilizadas pela 1Negócio ao Interessado acerca do <strong>Negócio Alvo</strong>, identificado pelo ${negocioAlvoDescricao}, incluindo, mas não se limitando a: razão social, nome fantasia, identidade dos sócios, endereço, CNPJ, demonstrações financeiras, contratos com clientes e fornecedores, processos internos e quaisquer documentos sensíveis.</p>
     </div>
 
     <div class="termo-clausula">
