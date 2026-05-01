@@ -1389,7 +1389,7 @@ async function carregarTudo() {
   const uid = session.user_id;
   const nowIso = new Date().toISOString();
 
-  const [negocios, solInfos, termos, teses, favs] = await Promise.all([
+  const [negocios, solInfos, termos, teses, favs, anunciosV2] = await Promise.all([
     fetch(SUPABASE_URL + '/rest/v1/negocios'
       + '?vendedor_id=eq.' + uid
       + '&select=id,slug,tag,codigo,codigo_anuncio,codigo_diagnostico,nome,setor,categoria,cidade,estado,status,faturamento_anual,preco_pedido,avaliacao_min,avaliacao_max,score_saude,laudo_pago_liberado,laudo_html,plano,created_at,publicado_em,funil_impressoes,funil_visualizacoes,funil_cliques,funil_salvamentos,funil_compartilhamentos,rascunho_iniciado_em'
@@ -1423,8 +1423,34 @@ async function carregarTudo() {
       + '&select=id,negocio_id,created_at'
       + '&order=created_at.desc',
       { headers: authHeaders() }
+    ).then(r => r.ok ? r.json() : []).catch(() => []),
+
+    // FIX 5 — busca anuncios_v2 do vendedor pra calcular status efetivo
+    fetch(SUPABASE_URL + '/rest/v1/anuncios_v2'
+      + '?vendedor_id=eq.' + uid
+      + '&select=id,codigo,negocio_id,status,publicado_em,titulo,valor_pedido'
+      + '&order=publicado_em.desc.nullslast',
+      { headers: authHeaders() }
     ).then(r => r.ok ? r.json() : []).catch(() => [])
   ]);
+
+  // FIX 5 — Map anuncio_v2 por negocio_id (preferindo publicado)
+  const anunciosMap = {};
+  (anunciosV2 || []).forEach(a => {
+    const existing = anunciosMap[a.negocio_id];
+    if (!existing || a.status === 'publicado') anunciosMap[a.negocio_id] = a;
+  });
+
+  // Sobrescreve status efetivo de cada negocio baseado no anúncio v2
+  negocios.forEach(n => {
+    const an = anunciosMap[n.id];
+    if (an) {
+      n._anuncio_v2 = an;
+      // Status efetivo: anúncio publicado > rascunho admin > status original do negocio
+      if (an.status === 'publicado') n.status = 'publicado';
+      else if (an.status === 'rascunho') n.status = 'em_revisao';
+    }
+  });
 
   // Carrega NDA solicitações pendentes (status aprovado, dentro do prazo, sem assinatura)
   const ndaPendRes = await fetch(SUPABASE_URL + '/rest/v1/nda_solicitacoes'
@@ -1472,6 +1498,8 @@ async function carregarTudo() {
   portalCache.favoritos = favs;
   portalCache.ndaPendentes = ndaPendentes;
   portalCache.negMap = negMap;
+  portalCache.anunciosV2 = anunciosV2 || [];
+  portalCache.anunciosMap = anunciosMap;
 
   // Atualiza badges
   setBadge('badge-negocios', negocios.length);
@@ -1678,9 +1706,15 @@ function renderCardNegocio(n) {
     const laudoCta = n.laudo_pago_liberado
       ? `<a href="/laudo.html?id=${n.slug || n.id}" class="card-cta">Ver laudo PDF</a>`
       : `<a href="/checkout.html?produto=laudo&negocio=${n.id}" class="card-cta">Gerar laudo R$99</a>`;
+    // FIX 5 — link "Ver anúncio público" usando codigo do anuncios_v2
+    const anuncioV2 = n._anuncio_v2;
+    const anuncioPubCta = (anuncioV2 && anuncioV2.codigo)
+      ? `<a href="/negocios/${anuncioV2.codigo}" class="card-cta primary" target="_blank">Ver anúncio público ↗</a>`
+      : '';
     ctas = `
       ${metrics}
       <div class="card-ctas">
+        ${anuncioPubCta}
         ${laudoCta}
         <a href="/solicitar-alteracao.html?id=${n.id}" class="card-cta">Solicitar alteração</a>
       </div>
