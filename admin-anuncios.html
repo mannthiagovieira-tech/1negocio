@@ -158,6 +158,52 @@ textarea.form-inp{min-height:60px;resize:vertical}
       <input type="hidden" id="f-id">
       <input type="hidden" id="f-codigo-diag">
 
+      <!-- FIX 4: SEÇÃO 0 — RESUMO DA AVALIAÇÃO 1N (visão completa antes de publicar) -->
+      <div class="form-section" id="sec-resumo-aval" style="background:var(--gbg2);border:1px solid var(--green);border-radius:6px;padding:18px 20px">
+        <div class="form-sec-title" style="border-bottom-color:var(--green);display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <span>Resumo da Avaliação 1N <span style="font-size:9px;color:var(--gm);font-family:'DM Mono',monospace;letter-spacing:0">— confira antes de publicar</span></span>
+          <a id="aval-link-laudo" href="#" target="_blank" style="font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:8px 14px;background:var(--green);color:#fff;text-decoration:none;font-family:'DM Mono',monospace;border-radius:4px">Ver laudo admin completo →</a>
+        </div>
+
+        <!-- Linha 1: Avaliação 1N central + faixa min-max + valor pedido -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px">
+          <div style="background:#fff;padding:12px 14px;border-radius:4px;border:1px solid var(--line)">
+            <div style="font-size:9px;color:var(--tm);font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Avaliação 1N (central)</div>
+            <div id="aval-r-central" style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--gd)">—</div>
+          </div>
+          <div style="background:#fff;padding:12px 14px;border-radius:4px;border:1px solid var(--line)">
+            <div style="font-size:9px;color:var(--tm);font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Faixa min — máx</div>
+            <div id="aval-r-faixa" style="font-family:'DM Mono',monospace;font-weight:500;font-size:13px;color:var(--tx)">—</div>
+          </div>
+          <div style="background:#fff;padding:12px 14px;border-radius:4px;border:1px solid var(--line)">
+            <div style="font-size:9px;color:var(--tm);font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Valor pedido</div>
+            <div id="aval-r-pedido" style="font-family:'DM Mono',monospace;font-weight:500;font-size:14px;color:var(--tx)">—</div>
+            <div id="aval-r-pedido-tag" style="font-size:10px;font-family:'DM Mono',monospace;margin-top:2px;color:var(--tm)">—</div>
+          </div>
+          <div style="background:#fff;padding:12px 14px;border-radius:4px;border:1px solid var(--line)">
+            <div style="font-size:9px;color:var(--tm);font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Múltiplo · Atratividade</div>
+            <div id="aval-r-mult" style="font-family:'DM Mono',monospace;font-weight:500;font-size:13px;color:var(--tx)">—</div>
+          </div>
+        </div>
+
+        <!-- Linha 2: ISE + DRE mini + BP mini -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div style="background:#fff;padding:12px 14px;border-radius:4px;border:1px solid var(--line)">
+            <div style="font-size:10px;color:var(--gd);font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">ISE — Saúde do Negócio</div>
+            <div id="aval-r-ise-total" style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--gd);margin-bottom:6px">—</div>
+            <div id="aval-r-ise-detail" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--tl);line-height:1.5">—</div>
+          </div>
+          <div style="background:#fff;padding:12px 14px;border-radius:4px;border:1px solid var(--line)">
+            <div style="font-size:10px;color:var(--gd);font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">DRE (mensal)</div>
+            <div id="aval-r-dre" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--tx);line-height:1.7">—</div>
+          </div>
+          <div style="background:#fff;padding:12px 14px;border-radius:4px;border:1px solid var(--line)">
+            <div style="font-size:10px;color:var(--gd);font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">Balanço</div>
+            <div id="aval-r-bp" style="font-family:'DM Mono',monospace;font-size:11px;color:var(--tx);line-height:1.7">—</div>
+          </div>
+        </div>
+      </div>
+
       <!-- SEÇÃO 1: Título e Identificação -->
       <div class="form-section">
         <div class="form-sec-title">Título e identificação do anúncio</div>
@@ -426,6 +472,67 @@ function preencherForm(){
 
   document.getElementById('form-anuncio').style.display='block';
   updCC();updPreview();
+  popularResumoAval();
+}
+
+// FIX 4: popular resumo da Avaliação 1N (visão completa antes de publicar)
+function popularResumoAval(){
+  const n=negData||{}, d=djData||{}, c=calcData||{};
+  const fatM=Number(c.fat_mensal)||Number(d.fat_mensal)||0;
+  const fat=Number(d.fat_anual)||(fatM*12)||Number(n.faturamento_anual)||0;
+  const ro=Number(c.ro_mensal)||Number(d.ro_mensal)||0;
+  const margem=fatM>0?(ro/fatM*100):0;
+  const fator=Number(c.fator)||0;
+  const atr=Number(c.atr_score)||0;
+  const ise=Number(c.ise_total)||Number(d.ise_parcial)||0;
+  const valCentral=Number(c.valor_venda)||Number(n.valor_1n)||0;
+  const valMin=Number(c.valor_min)||Number(n.avaliacao_min)||(valCentral*0.8);
+  const valMax=Number(c.valor_max)||Number(n.avaliacao_max)||(valCentral*1.2);
+  const pedido=Number(n.preco_pedido)||0;
+  const totAtiv=Number(c.totAtiv)||Number(d.total_ativos)||0;
+  const totPass=Number(c.totPass)||Number(d.total_passivos)||0;
+  const pl=totAtiv-totPass;
+  const cmv=Number(c.cmv)||0, folha=Number(c.folha)||0, aluguel=Number(c.aluguel)||0, cf=Number(c.cf)||0;
+  const impostos=Number(c.impostos)||0, taxas=Number(c.taxas)||0;
+  const totCustos=cmv+folha+aluguel+cf+impostos+taxas;
+
+  // ISE breakdown
+  const iseDep=Number(c.ise_dep)||0, iseCom=Number(c.ise_com)||0, iseFin=Number(c.ise_fin)||0;
+  const iseGes=Number(c.ise_ges)||0, iseMar=Number(c.ise_mar)||0, iseBal=Number(c.ise_bal)||0;
+
+  document.getElementById('aval-r-central').textContent = brl(Math.round(valCentral));
+  document.getElementById('aval-r-faixa').textContent = brl(Math.round(valMin)) + ' — ' + brl(Math.round(valMax));
+  document.getElementById('aval-r-pedido').textContent = pedido ? brl(pedido) : '— (vendedor não informou)';
+  if (pedido && valCentral){
+    const tag = tagPreco(pedido, valCentral);
+    document.getElementById('aval-r-pedido-tag').innerHTML =
+      '<span style="color:'+pcDeltaColor(tag.d)+';background:'+pcDeltaBg(tag.d)+';padding:1px 6px;border-radius:2px">'+tag.t+(tag.d?' '+(tag.d>0?'+':'')+tag.d+'%':'')+'</span>';
+  } else {
+    document.getElementById('aval-r-pedido-tag').textContent = '—';
+  }
+  document.getElementById('aval-r-mult').textContent =
+    (fator?fator.toFixed(2)+'x':'—') + ' · Atr ' + (atr?atr.toFixed(1):'—');
+
+  document.getElementById('aval-r-ise-total').textContent = ise ? Math.round(ise)+'/100' : '—';
+  document.getElementById('aval-r-ise-detail').innerHTML =
+    'Dep '+(iseDep?Math.round(iseDep):'—')+' · Com '+(iseCom?Math.round(iseCom):'—')+
+    ' · Fin '+(iseFin?Math.round(iseFin):'—')+'<br>Ges '+(iseGes?Math.round(iseGes):'—')+
+    ' · Mar '+(iseMar?Math.round(iseMar):'—')+' · Bal '+(iseBal?Math.round(iseBal):'—');
+
+  document.getElementById('aval-r-dre').innerHTML =
+    'Faturamento &nbsp;<strong>'+brl(Math.round(fatM))+'</strong><br>' +
+    'Total custos &nbsp;<strong>'+brl(Math.round(totCustos))+'</strong><br>' +
+    'Resultado op. &nbsp;<strong style="color:'+(ro>=0?'var(--gd)':'var(--rd)')+'">'+brl(Math.round(ro))+'</strong><br>' +
+    'Margem &nbsp;<strong>'+(margem?margem.toFixed(1):'—')+'%</strong>';
+
+  document.getElementById('aval-r-bp').innerHTML =
+    'Ativos &nbsp;<strong>'+brl(Math.round(totAtiv))+'</strong><br>' +
+    'Passivos &nbsp;<strong>'+brl(Math.round(totPass))+'</strong><br>' +
+    'Patrimônio líq. &nbsp;<strong style="color:'+(pl>=0?'var(--gd)':'var(--rd)')+'">'+brl(Math.round(pl))+'</strong>';
+
+  // Link "Ver laudo admin completo"
+  const laudoLink = document.getElementById('aval-link-laudo');
+  if (laudoLink) laudoLink.setAttribute('href', '/laudo-admin.html?id=' + n.id);
 }
 
 // ── CHAR COUNT ──
