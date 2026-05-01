@@ -2038,18 +2038,11 @@ let __ndaMap = {};        // id_da_solicitacao_info -> {token, expira_em, doc_ur
 
 async function carregarModoLiberacao() {
   try {
-    // Fetch direto via PostgREST (admin-api edge function tem whitelist
-    // de tabelas que não inclui config_plataforma). RLS permite leitura
-    // pra usuário authenticated.
-    const res = await fetch(SB + '/rest/v1/config_plataforma?select=valor&chave=eq.modo_liberacao_dossie&limit=1', {
-      headers: {
-        'apikey': AK,
-        'Authorization': 'Bearer ' + (__token || AK)
-      }
+    // Via admin-api edge function (SERVICE_ROLE bypass — RLS não importa).
+    const r = await api('select', 'config_plataforma', {
+      query: 'select=valor&chave=eq.modo_liberacao_dossie&limit=1'
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    const valor = (data && data[0] && data[0].valor) || 'manual';
+    const valor = (r.data && r.data[0] && r.data[0].valor) || 'manual';
     const sel = document.getElementById('modoLiberacaoDossie');
     if (sel) sel.value = valor;
   } catch(e) { console.warn('carregarModoLiberacao:', e); }
@@ -2060,22 +2053,12 @@ async function salvarModoLiberacao() {
   const status = document.getElementById('modoLiberacaoStatus');
   if (status) status.textContent = 'salvando...';
   try {
-    // UPSERT direto via PostgREST (Prefer: resolution=merge-duplicates)
-    const res = await fetch(SB + '/rest/v1/config_plataforma', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': AK,
-        'Authorization': 'Bearer ' + (__token || AK),
-        'Prefer': 'resolution=merge-duplicates,return=minimal'
-      },
-      body: JSON.stringify({
-        chave: 'modo_liberacao_dossie',
-        valor: valor,
-        updated_at: new Date().toISOString()
-      })
+    // UPSERT via admin-api (action 'upsert' usa Prefer: resolution=merge-duplicates).
+    await api('upsert', 'config_plataforma', {}, {
+      chave: 'modo_liberacao_dossie',
+      valor: valor,
+      updated_at: new Date().toISOString()
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
     if (status) { status.textContent = '✓ salvo'; setTimeout(() => status.textContent = '', 2500); }
   } catch(e) {
     console.error('salvarModoLiberacao:', e);

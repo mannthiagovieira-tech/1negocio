@@ -24,6 +24,7 @@ const ALLOWED_TABLES = [
   "laudos_v2",
   "anuncios_v2",
   "anuncio_eventos",
+  "config_plataforma",
 ];
 
 const corsHeaders = {
@@ -152,6 +153,21 @@ Deno.serve(async (req: Request) => {
           Authorization: "Bearer " + SUPABASE_SERVICE_ROLE_KEY,
           "Content-Type": "application/json",
           Prefer: "return=representation",
+        },
+        body: JSON.stringify(data),
+      });
+      result = await res.json();
+
+    } else if (action === "upsert") {
+      // POST com Prefer: resolution=merge-duplicates (PostgREST UPSERT
+      // por unique constraint — pra config_plataforma é PK 'chave').
+      const res = await fetch(SUPABASE_URL + "/rest/v1/" + table, {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: "Bearer " + SUPABASE_SERVICE_ROLE_KEY,
+          "Content-Type": "application/json",
+          Prefer: "return=representation,resolution=merge-duplicates",
         },
         body: JSON.stringify(data),
       });
