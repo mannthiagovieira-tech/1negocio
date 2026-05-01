@@ -2038,10 +2038,18 @@ let __ndaMap = {};        // id_da_solicitacao_info -> {token, expira_em, doc_ur
 
 async function carregarModoLiberacao() {
   try {
-    const r = await api('select','config_plataforma',{
-      query: "select=valor&chave=eq.modo_liberacao_dossie&limit=1"
+    // Fetch direto via PostgREST (admin-api edge function tem whitelist
+    // de tabelas que não inclui config_plataforma). RLS permite leitura
+    // pra usuário authenticated.
+    const res = await fetch(SB + '/rest/v1/config_plataforma?select=valor&chave=eq.modo_liberacao_dossie&limit=1', {
+      headers: {
+        'apikey': AK,
+        'Authorization': 'Bearer ' + (__token || AK)
+      }
     });
-    const valor = (r.data && r.data[0] && r.data[0].valor) || 'manual';
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const valor = (data && data[0] && data[0].valor) || 'manual';
     const sel = document.getElementById('modoLiberacaoDossie');
     if (sel) sel.value = valor;
   } catch(e) { console.warn('carregarModoLiberacao:', e); }
