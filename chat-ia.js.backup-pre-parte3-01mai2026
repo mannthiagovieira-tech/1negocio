@@ -1,4 +1,4 @@
-/** * Chat IA 1NEGÓCIO - Widget * Versao 2.8 - 2026-05-01 * Design: frosted glass, logo 1N identica a home * v2.8: tool calling valuation rápido + JWT logado + validação telefone BR */
+/** * Chat IA 1NEGÓCIO - Widget * Versao 2.7 - 2026-04-20 * Design: frosted glass, logo 1N identica a home * v2.7: tema verde #0aa85a (igual home/brandbook) + '1NEGÓCIO' maiusculo */
 (function() {
   'use strict';
   const API_ENDPOINT = 'https://dbijmgqlcrgjlcfrastg.supabase.co/functions/v1/chat-ia';
@@ -8,35 +8,7 @@
   const MAX_DELAY_MS = 1400;
   const LEAD_ASK_AFTER_MIN = 3;
   const LEAD_ASK_AFTER_MAX = 5;
-
-  function getJwtToken() {
-    try {
-      const keys = Object.keys(localStorage);
-      for (const k of keys) {
-        if (k.startsWith('sb-') && k.endsWith('-auth-token')) {
-          const raw = localStorage.getItem(k);
-          if (!raw) continue;
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.access_token) return parsed.access_token;
-        }
-      }
-    } catch(e) {}
-    return null;
-  }
-
-  function validarTelefoneBR(input) {
-    const limpo = String(input || '').replace(/\D/g, '');
-    let numero = limpo;
-    if (numero.startsWith('55') && (numero.length === 12 || numero.length === 13)) {
-      numero = numero.slice(2);
-    }
-    if (numero.length === 10 || numero.length === 11) {
-      return '+55' + numero;
-    }
-    return null;
-  }
-
-  const state = { isOpen: false, isTyping: false, messages: [], perfil: null, subPerfil: null, leadCaptured: false, leadId: null, lead: { nome: null, whatsapp: null }, qualificationDone: false, nameAsked: false, nameCollected: false, phoneTriggerCount: 0, assistantMsgCount: 0, phoneCaptureAsked: false, phoneCollectionMode: false, phoneRetryCount: 0 };
+  const state = { isOpen: false, isTyping: false, messages: [], perfil: null, subPerfil: null, leadCaptured: false, leadId: null, lead: { nome: null, whatsapp: null }, qualificationDone: false, nameAsked: false, nameCollected: false, phoneTriggerCount: 0, assistantMsgCount: 0, phoneCaptureAsked: false };
 
   // Restaurar mensagens da sessão anterior (navegação entre páginas)
   const _savedState = sessionStorage.getItem('n1ChatState');
@@ -253,27 +225,6 @@
     const input = document.getElementById('n1-chat-input');
     const text = input.value.trim();
     if (!text || state.isTyping) return;
-
-    // Modo de captura de telefone — valida antes de enviar ao backend
-    if (state.phoneCollectionMode && !state.lead.whatsapp) {
-      const tel = validarTelefoneBR(text);
-      if (!tel) {
-        input.value = '';
-        input.style.height = 'auto';
-        renderUserMessage(text);
-        state.phoneRetryCount++;
-        setTimeout(function() {
-          renderBotMessage(state.phoneRetryCount === 1
-            ? 'Hmm, não consegui ler esse número. Pode digitar com DDD? Tipo 11 99999-9999'
-            : 'Tente assim: 11 99999-9999 (só números, com DDD).');
-        }, 800);
-        return;
-      }
-      state.lead.whatsapp = tel;
-      state.phoneCollectionMode = false;
-      saveLead();
-    }
-
     input.value = '';
     input.style.height = 'auto';
     renderUserMessage(text);
@@ -292,12 +243,10 @@
 
   async function sendToBackend() {
     try {
-      const res = await fetch(API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY }, body: JSON.stringify({
+      const res = await fetch(API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY }, body: JSON.stringify({ 
           pagina_atual: window.location.href,
           tela_diagnostico: (typeof telaAtual !== 'undefined' ? telaAtual : null),
-          messages: state.messages,
-          jwt: getJwtToken(),
-          lead_id: state.leadId }) });
+          messages: state.messages }) });
       const data = await res.json();
       hideTyping();
       if (!res.ok || data.error) { renderBotMessage('Tive um probleminha pra responder agora. Tenta de novo em instantes.', [{ label: 'Abrir WhatsApp', action: openWhatsApp }]); return; }
@@ -317,7 +266,6 @@
   }
 
   function askForPhone() {
-    state.phoneCollectionMode = true;
     const pn = state.lead.nome ? state.lead.nome.split(' ')[0] : '';
     const cumpr = pn ? pn + ', ' : '';
     const wrap = document.createElement('div');
@@ -342,23 +290,7 @@
 
   async function saveLead() {
     try {
-      const res = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
-        body: JSON.stringify({
-          action: 'save_lead',
-          messages: state.messages,
-          pagina_origem: window.location.href,
-          lead_id: state.leadId,
-          jwt: getJwtToken(),
-          lead_data: {
-            nome: state.lead.nome,
-            whatsapp: state.lead.whatsapp,
-            perfil: state.perfil || 'curioso',
-            sub_perfil: state.subPerfil
-          }
-        })
-      });
+      const res = await fetch(API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY }, body: JSON.stringify({ action: 'save_lead', messages: state.messages, pagina_origem: window.location.href, lead_data: { nome: state.lead.nome, whatsapp: state.lead.whatsapp, perfil: state.perfil || 'curioso', sub_perfil: state.subPerfil } }) });
       const data = await res.json();
       if (data.success && data.lead_id) { state.leadCaptured = true; state.leadId = data.lead_id; }
       const pn = state.lead.nome ? state.lead.nome.split(' ')[0] : '';

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Admin · Conversas IA · 1Negócio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #10b981;
+    --green-soft: rgba(16,185,129,.12);
+    --bg: #0c0c0a;
+    --surf: #111110;
+    --surf-2: #161614;
+    --sep: rgba(255,255,255,.08);
+    --txt: #e8e8e6;
+    --txt-dim: #8a8a85;
+    --amber: #f59e0b;
+    --red: #f87171;
+    --blue: #60a5fa;
+  }
+  *,*::before,*::after { box-sizing: border-box; }
+  html, body { margin:0; padding:0; background:var(--bg); color:var(--txt); font-family:'DM Mono', monospace; font-size:14px; }
+  a { color: var(--green); text-decoration: none; }
+
+  .topbar { padding: 16px 20px; border-bottom: 1px solid var(--sep); display:flex; align-items:center; justify-content:space-between; }
+  .logo { font-family:'Syne',sans-serif; font-weight:800; font-size:18px; letter-spacing:-.04em; }
+  .logo em { color: var(--green); font-style: normal; }
+  .topbar-actions { display:flex; gap:12px; }
+  .btn { background: transparent; color: var(--txt); border: 1px solid var(--sep); padding: 8px 14px; cursor: pointer; font-family:'DM Mono', monospace; font-size:12px; text-transform: uppercase; letter-spacing:.05em; }
+  .btn:hover { border-color: var(--green); color: var(--green); }
+  .btn.primary { border-color: var(--green); color: var(--green); }
+
+  .container { padding: 20px; max-width: 1400px; margin: 0 auto; }
+
+  .stats { display:grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat { background: var(--surf-2); padding: 16px; border-left: 3px solid var(--sep); }
+  .stat.green { border-left-color: var(--green); }
+  .stat.amber { border-left-color: var(--amber); }
+  .stat.dim { border-left-color: var(--txt-dim); }
+  .stat-label { font-size: 11px; color: var(--txt-dim); text-transform: uppercase; letter-spacing:.1em; }
+  .stat-value { font-family:'Syne',sans-serif; font-weight:800; font-size: 28px; margin-top: 4px; }
+
+  .filters { display:flex; gap:8px; margin-bottom: 16px; flex-wrap: wrap; align-items:center; }
+  .filter-label { font-size:11px; color:var(--txt-dim); text-transform: uppercase; letter-spacing:.1em; margin-right:8px; }
+  .filter-btn { background:transparent; border:1px solid var(--sep); color:var(--txt-dim); padding:6px 12px; cursor:pointer; font-family:'DM Mono',monospace; font-size:12px; }
+  .filter-btn.active { border-color:var(--green); color:var(--green); background:var(--green-soft); }
+
+  .table-wrap { background: var(--surf); border: 1px solid var(--sep); }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; padding: 12px; font-size: 11px; font-weight:500; color: var(--txt-dim); text-transform: uppercase; letter-spacing:.1em; border-bottom: 1px solid var(--sep); background: var(--surf-2); }
+  td { padding: 14px 12px; border-bottom: 1px solid var(--sep); vertical-align: top; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  .badge { display:inline-flex; align-items:center; gap:6px; padding: 4px 10px; font-size:11px; text-transform: uppercase; letter-spacing:.05em; }
+  .badge-dot { width:8px; height:8px; border-radius:50%; }
+  .badge.iniciou { background: rgba(138,138,133,.1); color: var(--txt-dim); }
+  .badge.iniciou .badge-dot { background: var(--txt-dim); }
+  .badge.nome_capturado { background: rgba(96,165,250,.1); color: var(--blue); }
+  .badge.nome_capturado .badge-dot { background: var(--blue); }
+  .badge.lead_capturado { background: rgba(245,158,11,.12); color: var(--amber); }
+  .badge.lead_capturado .badge-dot { background: var(--amber); }
+  .badge.avaliacao_completa { background: var(--green-soft); color: var(--green); }
+  .badge.avaliacao_completa .badge-dot { background: var(--green); }
+
+  .cell-strong { font-weight: 500; color: var(--txt); }
+  .cell-dim { font-size: 12px; color: var(--txt-dim); }
+  .valuation { font-family:'Syne',sans-serif; font-weight:700; font-size: 14px; color: var(--green); }
+
+  .row-actions { display:flex; gap:8px; }
+  .row-action { font-size: 11px; padding: 4px 8px; border:1px solid var(--sep); cursor: pointer; background:transparent; color: var(--txt); }
+  .row-action:hover { border-color: var(--green); color: var(--green); }
+
+  .empty { padding: 60px 20px; text-align:center; color: var(--txt-dim); }
+
+  /* Modal */
+  .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); backdrop-filter: blur(4px); z-index: 100; align-items:flex-start; justify-content:center; padding: 40px 20px; overflow-y:auto; }
+  .modal-bg.open { display: flex; }
+  .modal { background: var(--surf); border: 1px solid var(--sep); max-width: 720px; width: 100%; padding: 24px; }
+  .modal-head { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom: 20px; }
+  .modal-title { font-family:'Syne',sans-serif; font-weight:800; font-size: 20px; }
+  .modal-close { background:transparent; border:none; color: var(--txt-dim); cursor:pointer; font-size: 24px; padding: 0; line-height: 1; }
+  .modal-meta { display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 12px; background: var(--surf-2); margin-bottom: 16px; }
+  .meta-item .meta-label { font-size: 10px; color: var(--txt-dim); text-transform: uppercase; letter-spacing:.1em; }
+  .meta-item .meta-value { font-size: 13px; margin-top: 2px; }
+
+  .messages { max-height: 50vh; overflow-y:auto; padding-right: 8px; }
+  .msg { padding: 10px 14px; margin-bottom: 8px; max-width: 80%; }
+  .msg.user { background: var(--surf-2); margin-left: auto; }
+  .msg.assistant { background: var(--green-soft); }
+  .msg-role { font-size: 10px; color: var(--txt-dim); text-transform: uppercase; letter-spacing:.1em; margin-bottom: 4px; }
+  .msg-content { white-space: pre-wrap; word-break: break-word; font-size: 13px; line-height: 1.5; }
+
+  .modal-actions { margin-top: 16px; display:flex; gap: 8px; flex-wrap: wrap; }
+
+  @media (max-width: 720px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    table thead { display: none; }
+    table, tbody, tr, td { display: block; width: 100%; }
+    tr { border-bottom: 1px solid var(--sep); padding: 12px 0; }
+    td { border-bottom: none; padding: 4px 12px; }
+    td::before { content: attr(data-label); font-size: 10px; color: var(--txt-dim); text-transform: uppercase; letter-spacing:.1em; display:block; margin-bottom: 2px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo"><em>1</em>NEGÓCIO · <span style="color:var(--txt-dim);font-weight:600">CONVERSAS IA</span></div>
+  <div class="topbar-actions">
+    <a href="/painel-admin.html" class="btn">← Painel</a>
+    <button class="btn primary" onclick="carregar()">Atualizar</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="stats" id="stats">
+    <div class="stat dim"><div class="stat-label">Total Conversas</div><div class="stat-value" id="stat-total">—</div></div>
+    <div class="stat dim"><div class="stat-label">Só Conversaram</div><div class="stat-value" id="stat-iniciou">—</div></div>
+    <div class="stat amber"><div class="stat-label">Leads Capturados</div><div class="stat-value" id="stat-leads">—</div></div>
+    <div class="stat green"><div class="stat-label">Avaliações Completas</div><div class="stat-value" id="stat-avals">—</div></div>
+  </div>
+
+  <div class="filters">
+    <span class="filter-label">Status:</span>
+    <button class="filter-btn active" data-filter="status" data-value="todos">Todos</button>
+    <button class="filter-btn" data-filter="status" data-value="iniciou">Iniciou</button>
+    <button class="filter-btn" data-filter="status" data-value="nome_capturado">Nome</button>
+    <button class="filter-btn" data-filter="status" data-value="lead_capturado">Lead</button>
+    <button class="filter-btn" data-filter="status" data-value="avaliacao_completa">Avaliação</button>
+    <span style="width:20px"></span>
+    <span class="filter-label">Período:</span>
+    <button class="filter-btn" data-filter="periodo" data-value="24h">24h</button>
+    <button class="filter-btn active" data-filter="periodo" data-value="7d">7d</button>
+    <button class="filter-btn" data-filter="periodo" data-value="30d">30d</button>
+    <button class="filter-btn" data-filter="periodo" data-value="tudo">Tudo</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Quem / Quando</th>
+          <th>Setor / Cidade</th>
+          <th>Avaliação</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="5" class="empty">Carregando…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal" onclick="if(event.target===this)fecharModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="modal-title">Conversa</div>
+      <button class="modal-close" onclick="fecharModal()">×</button>
+    </div>
+    <div class="modal-meta" id="modal-meta"></div>
+    <div class="messages" id="modal-messages"></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+
+let leads = [];
+let filtros = { status: 'todos', periodo: '7d' };
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const f = this.dataset.filter;
+    document.querySelectorAll(`.filter-btn[data-filter="${f}"]`).forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    filtros[f] = this.dataset.value;
+    renderTabela();
+  });
+});
+
+async function carregar() {
+  document.getElementById('tbody').innerHTML = '<tr><td colspan="5" class="empty">Carregando…</td></tr>';
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/chat_ia_leads?select=*&order=created_at.desc&limit=500`, {
+      headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}` }
+    });
+    leads = await res.json();
+    renderStats();
+    renderTabela();
+  } catch(e) {
+    document.getElementById('tbody').innerHTML = '<tr><td colspan="5" class="empty">Erro ao carregar.</td></tr>';
+  }
+}
+
+function renderStats() {
+  const total = leads.length;
+  const iniciou = leads.filter(l => l.status_coleta === 'iniciou' || (!l.status_coleta && !l.nome)).length;
+  const leadsCap = leads.filter(l => l.status_coleta === 'lead_capturado' || l.status_coleta === 'nome_capturado').length;
+  const avals = leads.filter(l => l.status_coleta === 'avaliacao_completa').length;
+
+  document.getElementById('stat-total').textContent = total;
+  document.getElementById('stat-iniciou').textContent = iniciou;
+  document.getElementById('stat-leads').textContent = leadsCap;
+  document.getElementById('stat-avals').textContent = avals;
+}
+
+function renderTabela() {
+  const filtrados = leads.filter(l => {
+    if (filtros.status !== 'todos' && l.status_coleta !== filtros.status) return false;
+    if (filtros.periodo !== 'tudo') {
+      const ms = { '24h': 86400000, '7d': 7*86400000, '30d': 30*86400000 }[filtros.periodo];
+      if (Date.now() - new Date(l.created_at).getTime() > ms) return false;
+    }
+    return true;
+  });
+
+  const tbody = document.getElementById('tbody');
+  if (filtrados.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Nenhuma conversa no filtro.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtrados.map(l => {
+    const status = l.status_coleta || 'iniciou';
+    const statusLabel = { iniciou: 'Iniciou', nome_capturado: 'Nome', lead_capturado: 'Lead', avaliacao_completa: 'Avaliação' }[status];
+    const data = new Date(l.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    const valuation = l.valuation_central
+      ? `<div class="valuation">R$ ${formatBR(l.valuation_min)} – R$ ${formatBR(l.valuation_max)}</div>`
+      : '<span class="cell-dim">—</span>';
+    const setor = l.setor_code || l.setor_mencionado || '—';
+    const cidade = l.cidade_estado || '';
+    const nome = l.nome || '<em style="color:var(--txt-dim)">anônimo</em>';
+
+    return `<tr>
+      <td data-label="Status"><span class="badge ${status}"><span class="badge-dot"></span>${statusLabel}</span></td>
+      <td data-label="Quem / Quando">
+        <div class="cell-strong">${nome}</div>
+        <div class="cell-dim">${data}</div>
+        ${l.whatsapp ? `<div class="cell-dim">${l.whatsapp}</div>` : ''}
+      </td>
+      <td data-label="Setor / Cidade">
+        <div class="cell-strong">${setor}</div>
+        ${cidade ? `<div class="cell-dim">${cidade}</div>` : ''}
+      </td>
+      <td data-label="Avaliação">${valuation}</td>
+      <td data-label="Ações">
+        <div class="row-actions">
+          <button class="row-action" onclick='verConversa(${JSON.stringify(l.id)})'>Ver</button>
+          ${l.whatsapp ? `<a class="row-action" href="https://wa.me/${l.whatsapp.replace(/\D/g,'')}" target="_blank">WPP</a>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function verConversa(id) {
+  const l = leads.find(x => x.id === id);
+  if (!l) return;
+
+  document.getElementById('modal-title').textContent = (l.nome || 'Anônimo') + ' · ' + new Date(l.created_at).toLocaleString('pt-BR');
+
+  const meta = document.getElementById('modal-meta');
+  meta.innerHTML = `
+    <div class="meta-item"><div class="meta-label">Status</div><div class="meta-value">${l.status_coleta || 'iniciou'}</div></div>
+    <div class="meta-item"><div class="meta-label">Setor</div><div class="meta-value">${l.setor_code || l.setor_mencionado || '—'}</div></div>
+    <div class="meta-item"><div class="meta-label">Avaliação</div><div class="meta-value">${l.valuation_central ? 'R$ ' + formatBR(l.valuation_central) : '—'}</div></div>
+    ${l.valuation_central ? `<div class="meta-item"><div class="meta-label">Min</div><div class="meta-value">R$ ${formatBR(l.valuation_min)}</div></div>` : ''}
+    ${l.valuation_central ? `<div class="meta-item"><div class="meta-label">Max</div><div class="meta-value">R$ ${formatBR(l.valuation_max)}</div></div>` : ''}
+    ${l.multiplo_aplicado ? `<div class="meta-item"><div class="meta-label">Múltiplo</div><div class="meta-value">${l.multiplo_aplicado}×</div></div>` : ''}
+    ${l.floor_aplicado ? `<div class="meta-item"><div class="meta-label">Floor</div><div class="meta-value" style="color:var(--amber)">aplicado</div></div>` : ''}
+    ${l.parametros_versao_id ? `<div class="meta-item"><div class="meta-label">Versão params</div><div class="meta-value">${l.parametros_versao_id}</div></div>` : ''}
+    ${l.pagina_origem ? `<div class="meta-item" style="grid-column: 1/-1"><div class="meta-label">Página origem</div><div class="meta-value" style="word-break:break-all">${l.pagina_origem}</div></div>` : ''}
+  `;
+
+  const msgs = (l.mensagens || []).map(m => {
+    const role = m.role === 'user' ? 'user' : 'assistant';
+    const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+    return `<div class="msg ${role}"><div class="msg-role">${role}</div><div class="msg-content">${escapeHtml(content)}</div></div>`;
+  }).join('');
+  document.getElementById('modal-messages').innerHTML = msgs || '<div class="cell-dim">Sem mensagens registradas.</div>';
+
+  const actions = [];
+  if (l.whatsapp) {
+    const resumoUrl = encodeURIComponent('Olá ' + (l.nome || '') + '! Vi nossa conversa pela 1Negócio. Posso te ajudar a continuar?');
+    actions.push(`<a class="btn primary" href="https://wa.me/${l.whatsapp.replace(/\D/g,'')}?text=${resumoUrl}" target="_blank">Atender no WhatsApp</a>`);
+  }
+  if (l.escalacao_pendente) {
+    actions.push('<span class="badge lead_capturado"><span class="badge-dot"></span>Escalação pendente</span>');
+  }
+  document.getElementById('modal-actions').innerHTML = actions.join('');
+
+  document.getElementById('modal').classList.add('open');
+}
+
+function fecharModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+function formatBR(n) {
+  if (n === null || n === undefined) return '—';
+  return Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+carregar();
+</script>
+
+</body>
+</html>
