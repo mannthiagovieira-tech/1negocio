@@ -377,8 +377,9 @@ html,body{background:var(--bg);color:var(--ink);font-family:'Cabinet Grotesk',sa
   <div class="state-sucesso" id="state-sucesso">
     <div class="state-icon">✓</div>
     <div class="state-title">Termo assinado!</div>
-    <div class="state-text">Seu termo foi registrado com sucesso. Nossa equipe está conferindo sua documentação e em até <strong>24 horas</strong> você recebe o material completo do negócio por WhatsApp.<br><br>Você também pode acompanhar na sua área de usuário.</div>
-    <a href="/portal-usuario.html" class="btn-p" style="text-decoration:none;display:inline-block;width:auto;padding:14px 32px">Acessar minha área →</a>
+    <div class="state-text" id="sucesso-text">Seu termo foi registrado com sucesso. O material completo do negócio já está liberado na sua área privada.<br><br>Você também recebeu o link por WhatsApp.</div>
+    <a id="sucesso-cta-anuncio" href="/portal-usuario.html" class="btn-p" style="text-decoration:none;display:inline-block;width:auto;padding:14px 32px">Ver anúncio (área privada) →</a>
+    <a href="/portal-usuario.html" class="btn-s" style="text-decoration:none;display:inline-block;width:auto;padding:12px 28px;margin-top:10px">Acessar minha área</a>
   </div>
 
 </div>
@@ -544,6 +545,16 @@ function fmtDateTime(d){
       });
       const negs = await rn.json();
       if(negs && negs[0]) ctx.negocio = negs[0];
+
+      // FIX 2 — busca anúncio público publicado pra montar link pós-NDA
+      try {
+        const ra = await fetch(SUPABASE_URL + '/rest/v1/anuncios_v2'
+          + '?negocio_id=eq.' + ctx.solicitacao.negocio_id
+          + '&status=eq.publicado&select=id,codigo&limit=1',
+          { headers: { 'apikey': SUPABASE_ANON, 'Authorization':'Bearer '+SUPABASE_ANON } });
+        const ans = await ra.json();
+        if(ans && ans[0] && ans[0].codigo) ctx.anuncioCodigo = ans[0].codigo;
+      } catch(e){ /* anúncio público não crítico aqui */ }
     }
 
     // 6) Buscar dados do usuário (se já tiver dados pessoais salvos)
@@ -1095,6 +1106,49 @@ Revise a documentação no painel admin e libere o material quando tudo estiver 
         body: JSON.stringify({ phone: '5548999279320', message: msgAdmin })
       });
     } catch(e){ /* notificação admin não crítica */ }
+
+    // 9) FIX 2 — Notifica comprador (Mariah/Thiago/etc) via WhatsApp com link da área privada
+    try {
+      const wppDestino = (ctx.usuario && ctx.usuario.whatsapp) ? String(ctx.usuario.whatsapp).replace(/\D/g,'') : null;
+      if (wppDestino && wppDestino.length >= 10){
+        const codigoAnuncio = ctx.anuncioCodigo || ((ctx.negocio && ctx.negocio.codigo_diagnostico) || '');
+        const linkPrivado = codigoAnuncio
+          ? ('https://1negocio.com.br/negocios/' + codigoAnuncio + '?aba=privado')
+          : 'https://1negocio.com.br/portal-usuario.html';
+        const codigoNeg2 = (ctx.negocio && (ctx.negocio.codigo_diagnostico || ctx.negocio.tag)) || '—';
+        const nomeUser = (ctx.usuario && ctx.usuario.nome) ? String(ctx.usuario.nome).split(' ')[0] : 'olá';
+        const msgComprador = `Oi ${nomeUser}! Termo de Confidencialidade do negócio ${codigoNeg2} assinado com sucesso ✓
+
+O material completo (área privada do anúncio) já está liberado pra você acessar:
+${linkPrivado}
+
+Qualquer dúvida, é só responder aqui.
+
+— 1Negócio`;
+        await fetch(SUPABASE_URL + '/functions/v1/zapi-relay', {
+          method:'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + SUPABASE_ANON,
+            'apikey': SUPABASE_ANON
+          },
+          body: JSON.stringify({ phone: wppDestino, message: msgComprador })
+        });
+      }
+    } catch(e){ /* notificação comprador não crítica */ }
+
+    // 10) FIX 2 — Configura CTA do estado sucesso pra apontar pra área privada
+    try {
+      const cta = $('sucesso-cta-anuncio');
+      const sucessoText = $('sucesso-text');
+      if (ctx.anuncioCodigo){
+        if (cta) cta.setAttribute('href', '/negocios/' + ctx.anuncioCodigo + '?aba=privado');
+      } else {
+        // sem anuncio público publicado — mantém fallback portal e ajusta texto
+        if (cta) cta.setAttribute('href', '/portal-usuario.html');
+        if (sucessoText) sucessoText.innerHTML = 'Seu termo foi registrado com sucesso. Nossa equipe está conferindo sua documentação e em até <strong>24 horas</strong> você recebe o material completo do negócio por WhatsApp.<br><br>Você também pode acompanhar na sua área de usuário.';
+      }
+    } catch(e){}
 
     // Sucesso!
     showState('state-sucesso');
