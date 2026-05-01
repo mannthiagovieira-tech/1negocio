@@ -1799,10 +1799,26 @@ function renderSolicitacoes() {
 
     switch ((s.status || '').toLowerCase()) {
       case 'aguardando':
+        // Fluxo legado (pré-fix P0). Mantido para registros antigos.
         badgeLabel = 'aguardando análise';
         badgeCls = 'aguardando';
         descricao = 'A equipe da 1Negócio está revisando sua solicitação.';
         break;
+      case 'nda_pendente': {
+        // Fluxo novo: solicitação criada já com NDA pronto pra assinar
+        const ndaP = ndaPorSolic[s.id];
+        if (ndaP && ndaP.token) {
+          badgeLabel = 'assine o NDA';
+          badgeCls = 'aprovado';
+          descricao = 'Pra acessar o material completo, assine o Termo de Confidencialidade.';
+          cta = `<a href="/termo-sigilo.html?token=${encodeURIComponent(ndaP.token)}" class="card-cta primary">Assinar NDA →</a>`;
+        } else {
+          badgeLabel = 'preparando termo';
+          badgeCls = 'aprovado';
+          descricao = 'Estamos gerando seu termo. Atualize em alguns segundos.';
+        }
+        break;
+      }
       case 'aprovada': {
         const ndaP = ndaPorSolic[s.id];
         if (ndaP && ndaP.token) {
@@ -1820,7 +1836,7 @@ function renderSolicitacoes() {
       case 'nda_assinado':
         badgeLabel = 'aguardando liberação';
         badgeCls = 'nda-assinado';
-        descricao = 'Termo assinado. A equipe está revisando antes de liberar o material.';
+        descricao = 'NDA assinado. Aguardando liberação do material.';
         break;
       case 'liberado': {
         const ate = s.liberado_ate ? new Date(s.liberado_ate) : null;

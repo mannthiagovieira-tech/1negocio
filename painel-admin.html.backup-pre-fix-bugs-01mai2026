@@ -1093,23 +1093,10 @@
         <h2>🔔 Solicitações de Informação</h2>
         <button class="btn btn-primary" onclick="loadSolicitacoes()">↻ Atualizar</button>
       </div>
-      <div class="card" style="padding:14px 18px;margin-bottom:12px;background:#1a1a1a;border:1px solid rgba(255,255,255,.1)">
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <strong style="font-size:13px;color:#bbb">Modo de liberação de dossiê:</strong>
-          <select id="modoLiberacaoDossie" style="padding:6px 10px;background:#0c0c0a;color:#e8e8e8;border:1px solid rgba(255,255,255,.15);font-family:'DM Mono',monospace;font-size:12px" onchange="salvarModoLiberacao()">
-            <option value="manual">Manual — eu libero após receber notificação</option>
-            <option value="automatico">Automático — libera direto após NDA assinado</option>
-          </select>
-          <span id="modoLiberacaoStatus" style="font-size:11px;color:#888"></span>
-        </div>
-      </div>
       <div class="card" style="padding:16px 24px;margin-bottom:12px">
         <div class="sol-tabs">
           <button class="sol-tab active" data-status="aguardando" onclick="filterSolicitacoes('aguardando')">
             Aguardando <span class="tab-count" id="cnt-aguardando">0</span>
-          </button>
-          <button class="sol-tab" data-status="nda_pendente" onclick="filterSolicitacoes('nda_pendente')">
-            NDA pendente <span class="tab-count" id="cnt-nda_pendente">0</span>
           </button>
           <button class="sol-tab" data-status="aprovada" onclick="filterSolicitacoes('aprovada')">
             Termo enviado <span class="tab-count" id="cnt-aprovada">0</span>
@@ -2036,50 +2023,8 @@ let __negMap = {};        // id_do_negocio -> {codigo, titulo, cidade, estado, f
 let __usuMap = {};        // id_do_usuario -> {nome, whatsapp, dados_pessoais}
 let __ndaMap = {};        // id_da_solicitacao_info -> {token, expira_em, doc_url, status}
 
-async function carregarModoLiberacao() {
-  try {
-    const r = await api('select','config_plataforma',{
-      query: "select=valor&chave=eq.modo_liberacao_dossie&limit=1"
-    });
-    const valor = (r.data && r.data[0] && r.data[0].valor) || 'manual';
-    const sel = document.getElementById('modoLiberacaoDossie');
-    if (sel) sel.value = valor;
-  } catch(e) { console.warn('carregarModoLiberacao:', e); }
-}
-
-async function salvarModoLiberacao() {
-  const valor = document.getElementById('modoLiberacaoDossie').value;
-  const status = document.getElementById('modoLiberacaoStatus');
-  if (status) status.textContent = 'salvando...';
-  try {
-    // UPSERT direto via PostgREST (Prefer: resolution=merge-duplicates)
-    const res = await fetch(SB + '/rest/v1/config_plataforma', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': AK,
-        'Authorization': 'Bearer ' + (__token || AK),
-        'Prefer': 'resolution=merge-duplicates,return=minimal'
-      },
-      body: JSON.stringify({
-        chave: 'modo_liberacao_dossie',
-        valor: valor,
-        updated_at: new Date().toISOString()
-      })
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    if (status) { status.textContent = '✓ salvo'; setTimeout(() => status.textContent = '', 2500); }
-  } catch(e) {
-    console.error('salvarModoLiberacao:', e);
-    if (status) status.textContent = 'erro: ' + e.message;
-  }
-}
-
 async function loadSolicitacoes() {
   document.getElementById('tbl-solicitacoes').innerHTML = '<div class="loading">Carregando...</div>';
-
-  // Carrega modo de liberação em paralelo (não bloqueia)
-  carregarModoLiberacao();
 
   try {
     // 1) Puxa todas as solicitações de informação
@@ -2891,19 +2836,19 @@ function renderEditor() {
   // Bloco LAUDO
   let blocoLaudo;
   if (calc) {
-    const fatA = parseFloat(calc.dre?.fat_anual) || 0;
-    const ro = parseFloat(calc.valuation?.ro_anual) || parseFloat(calc.dre?.ro_anual) || 0;
-    const margem = parseFloat(calc.dre?.margem_operacional_pct) || 0;
-    const ise = Math.round(parseFloat(calc.ise?.ise_total) || 0);
-    const valor1n = Math.round(parseFloat(calc.valuation?.valor_venda) || 0);
+    const fatA = (parseFloat(calc.fat_mensal)||0) * 12;
+    const ro = parseFloat(calc.ro_anual) || 0;
+    const margem = parseFloat(calc.margem_pct) || 0;
+    const ise = Math.round(parseFloat(calc.ise_total) || 0);
+    const valor1n = Math.round(parseFloat(calc.valor_venda) || 0);
     const iseColor = ise >= 65 ? 'green' : 'amber';
 
     blocoLaudo = `
       <div class="anu-block">
         <div class="anu-block-title">Laudo · dados imutáveis</div>
         <div class="anu-laudo-head">
-          <span class="anu-laudo-cod-badge">${escapeHtml(calc.identificacao?.codigo_diagnostico || neg.codigo_diagnostico || '—')}</span>
-          <span class="anu-laudo-context">${escapeHtml(calc.identificacao?.setor?.label || calc.identificacao?.setor?.code || '—')} · ${escapeHtml(calc.identificacao?.localizacao?.cidade || '—')}/${escapeHtml(calc.identificacao?.localizacao?.estado || '—')} · ${calc.identificacao?.tempo_operacao_anos || 0} anos</span>
+          <span class="anu-laudo-cod-badge">${escapeHtml(calc.codigo || neg.codigo_diagnostico || '—')}</span>
+          <span class="anu-laudo-context">${escapeHtml(calc.setor || '—')} · ${escapeHtml(calc.cidade || '—')}/${escapeHtml(calc.estado || '—')} · ${calc.anos || 0} anos</span>
         </div>
         <div class="anu-laudo-grid">
           <div><span class="l">Faturamento</span><span class="v">R$ ${fmtMoneyBR(fatA)}/ano</span></div>
@@ -2965,9 +2910,7 @@ function renderEditor() {
   const anuncio = __anuEdit.anuncio;
   const tituloAtual = (anuncio && anuncio.titulo) || neg.titulo_anuncio || gerarSugestaoTitulo(calc) || '';
   const descAtual = (anuncio && anuncio.descricao_card)
-    || calc?.textos_anuncio?.texto_resumo_executivo_anonimo?.conteudo
-    || calc?.textos_ia?.texto_contexto_negocio?.conteudo?.slice(0, 280)
-    || calc?.textos_ia?.texto_resumo_executivo_completo?.conteudo?.slice(0, 280)
+    || (calc && (calc.narrativa_negocio || calc.descricao || ''))
     || '';
   let precoAtual = (anuncio && Number(anuncio.valor_pedido)) || (neg.preco_pedido ? Number(neg.preco_pedido) : 0);
   if (!precoAtual && termo && termo.valor_pretendido) precoAtual = Number(termo.valor_pretendido);
@@ -3123,7 +3066,7 @@ function onPrecoEdit() {
   const tag = document.getElementById('anu-preco-tag');
   const meta = document.getElementById('anu-preco-meta');
   const calc = __anuEdit && __anuEdit.calc;
-  const aval = calc ? Math.round(parseFloat(calc.valuation?.valor_venda) || 0) : 0;
+  const aval = calc ? Math.round(parseFloat(calc.valor_venda) || 0) : 0;
 
   if (v <= 0) {
     tag.className = 'anu-preco-tag eq';
@@ -3343,10 +3286,10 @@ function abrirPreviewCard() {
   const titulo = (document.getElementById('anu-titulo-input')?.value || '').trim() || '(sem título)';
   const desc = (document.getElementById('anu-desc-input')?.value || '').trim() || '(sem descrição)';
   const preco = parseInt(String(document.getElementById('anu-preco-input')?.value || '').replace(/\D/g,''), 10) || 0;
-  const aval = Math.round(parseFloat(calc.valuation?.valor_venda) || 0);
-  const fat = parseFloat(calc.dre?.fat_anual) || 0;
-  const ro = parseFloat(calc.valuation?.ro_anual) || parseFloat(calc.dre?.ro_anual) || 0;
-  const ise = Math.round(parseFloat(calc.ise?.ise_total) || 0);
+  const aval = Math.round(parseFloat(calc.valor_venda) || 0);
+  const fat = (parseFloat(calc.fat_mensal)||0)*12;
+  const ro = parseFloat(calc.ro_anual)||0;
+  const ise = Math.round(parseFloat(calc.ise_total)||0);
 
   let tagHtml = '';
   if (preco > 0 && aval > 0) {
