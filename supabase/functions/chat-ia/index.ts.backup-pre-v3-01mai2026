@@ -146,149 +146,31 @@ Link laudo R$99: https://www.1negocio.com.br/laudo-completo.html?demo=true
 `;
 
 // Tool definition pro Claude Sonnet
-const TOOLS = [
-  {
-    name: 'calcular_valuation_rapido',
-    description: 'Calcula a estimativa rápida de valuation do negócio. SÓ chame quando tiver os 7 dados completos E o lead estiver validado (nome+telefone OU usuário logado).',
-    input_schema: {
-      type: 'object',
-      properties: {
-        nome_negocio: { type: 'string', description: 'Nome do negócio (não exibido publicamente)' },
-        cidade_uf: { type: 'string', description: 'Cidade e estado (ex: "Florianópolis/SC")' },
-        setor_code: {
-          type: 'string',
-          enum: ['alimentacao', 'varejo', 'saude', 'bem_estar', 'educacao',
-                 'servicos_locais', 'servicos_empresas', 'industria', 'logistica',
-                 'construcao', 'hospedagem', 'beleza_estetica'],
-          description: 'Código do setor (use os códigos da lista do system prompt)'
-        },
-        forma_atuacao: { type: 'string', description: 'Forma de atuação' },
-        faturamento_anual: { type: 'number', description: 'Faturamento anual em reais (já convertido se a pessoa deu mensal)' },
-        sobra_anual: { type: 'number', description: 'Sobra/lucro líquido anual em reais (já convertido se mensal)' },
-        ativos_relevantes: { type: 'number', description: 'Soma de equipamentos+veículos+máquinas. 0 se não tiver.' },
-        dividas_total: { type: 'number', description: 'Total de dívidas. 0 se não tiver.' }
+const TOOLS = [{
+  name: 'calcular_valuation_rapido',
+  description: 'Calcula a estimativa rápida de valuation do negócio. SÓ chame quando tiver os 7 dados completos E o lead estiver validado (nome+telefone OU usuário logado).',
+  input_schema: {
+    type: 'object',
+    properties: {
+      nome_negocio: { type: 'string', description: 'Nome do negócio (não exibido publicamente)' },
+      cidade_uf: { type: 'string', description: 'Cidade e estado (ex: "Florianópolis/SC")' },
+      setor_code: {
+        type: 'string',
+        enum: ['alimentacao', 'varejo', 'saude', 'bem_estar', 'educacao',
+               'servicos_locais', 'servicos_empresas', 'industria', 'logistica',
+               'construcao', 'hospedagem', 'beleza_estetica'],
+        description: 'Código do setor (use os códigos da lista do system prompt)'
       },
-      required: ['nome_negocio', 'cidade_uf', 'setor_code', 'forma_atuacao',
-                 'faturamento_anual', 'sobra_anual', 'ativos_relevantes', 'dividas_total']
-    }
-  },
-  {
-    name: 'buscar_negocios',
-    description: 'Busca negócios publicados no marketplace da 1Negócio. Use quando a pessoa mencionar interesse em algum negócio específico (por código, setor, cidade, faixa de preço, ou descrição).',
-    input_schema: {
-      type: 'object',
-      properties: {
-        codigo: {
-          type: 'string',
-          description: 'Código do anúncio se mencionado (ex: 1N-AN-71D0A). Pode ser parcial.'
-        },
-        setor: {
-          type: 'string',
-          enum: ['alimentacao', 'varejo', 'saude', 'bem_estar', 'educacao',
-                 'servicos_locais', 'servicos_empresas', 'industria', 'logistica',
-                 'construcao', 'hospedagem', 'beleza_estetica'],
-          description: 'Setor se mencionado'
-        },
-        cidade: { type: 'string', description: 'Cidade se mencionada' },
-        estado_uf: { type: 'string', description: 'UF se mencionada (ex: SP, RJ, SC)' },
-        valor_max: { type: 'number', description: 'Faixa máxima de preço pedido em R$' },
-        valor_min: { type: 'number', description: 'Faixa mínima de preço pedido em R$' },
-        limite: { type: 'number', description: 'Quantos resultados retornar (padrão 5, máx 10)' }
-      }
-    }
+      forma_atuacao: { type: 'string', description: 'Forma de atuação' },
+      faturamento_anual: { type: 'number', description: 'Faturamento anual em reais (já convertido se a pessoa deu mensal)' },
+      sobra_anual: { type: 'number', description: 'Sobra/lucro líquido anual em reais (já convertido se mensal)' },
+      ativos_relevantes: { type: 'number', description: 'Soma de equipamentos+veículos+máquinas. 0 se não tiver.' },
+      dividas_total: { type: 'number', description: 'Total de dívidas. 0 se não tiver.' }
+    },
+    required: ['nome_negocio', 'cidade_uf', 'setor_code', 'forma_atuacao',
+               'faturamento_anual', 'sobra_anual', 'ativos_relevantes', 'dividas_total']
   }
-];
-
-function getSaudacao() {
-  const agora = new Date();
-  const horaBR = (agora.getUTCHours() - 3 + 24) % 24;
-  if (horaBR >= 5 && horaBR < 12) return 'Bom dia';
-  if (horaBR >= 12 && horaBR < 18) return 'Boa tarde';
-  return 'Boa noite';
-}
-
-async function buscarNegocios(filtros: any) {
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-  const limite = Math.min(filtros.limite || 5, 10);
-
-  // anuncios_v2 tem só (codigo, titulo, descricao_card, valor_pedido, status).
-  // Demais campos (setor, cidade, estado, faturamento, valor_1n, score_saude,
-  // avaliacao_min/max) moram em negocios via FK negocio_id — usamos embed.
-  let query = supabase
-    .from('anuncios_v2')
-    .select(`
-      codigo,
-      titulo,
-      descricao_card,
-      valor_pedido,
-      status,
-      negocio:negocio_id (
-        setor,
-        categoria,
-        cidade,
-        estado,
-        faturamento_anual,
-        valor_1n,
-        avaliacao_min,
-        avaliacao_max,
-        score_saude
-      )
-    `)
-    .eq('status', 'publicado')
-    .limit(limite);
-
-  if (filtros.codigo) {
-    const codigoClean = String(filtros.codigo).toUpperCase().replace(/[^A-Z0-9-]/g, '');
-    query = query.ilike('codigo', `%${codigoClean}%`);
-  }
-  // Filtros que dependem de embed: PostgREST aceita "tabela.coluna" no .eq
-  if (filtros.setor) query = query.eq('negocio.setor', filtros.setor);
-  if (filtros.cidade) query = query.ilike('negocio.cidade', `%${filtros.cidade}%`);
-  if (filtros.estado_uf) query = query.eq('negocio.estado', String(filtros.estado_uf).toUpperCase());
-  if (filtros.valor_min) query = query.gte('valor_pedido', filtros.valor_min);
-  if (filtros.valor_max) query = query.lte('valor_pedido', filtros.valor_max);
-
-  const { data, error } = await query;
-  if (error) {
-    console.error('Erro buscarNegocios:', error);
-    return { erro: error.message, resultados: [] };
-  }
-
-  function faturamentoFaixa(v: number | null | undefined): string | null {
-    if (!v) return null;
-    if (v < 240000) return 'até R$ 240k/ano';
-    if (v < 600000) return 'R$ 240k a 600k/ano';
-    if (v < 1200000) return 'R$ 600k a 1,2M/ano';
-    if (v < 2400000) return 'R$ 1,2M a 2,4M/ano';
-    if (v < 4800000) return 'R$ 2,4M a 4,8M/ano';
-    return 'acima de R$ 4,8M/ano';
-  }
-
-  const resultados = (data || []).map((n: any) => {
-    const neg = n.negocio || {};
-    return {
-      codigo: n.codigo,
-      titulo: n.titulo,
-      descricao: n.descricao_card,
-      setor: neg.setor || neg.categoria || null,
-      cidade: neg.cidade || null,
-      uf: neg.estado || null,
-      faturamento_anual_faixa: faturamentoFaixa(neg.faturamento_anual),
-      valor_pedido: n.valor_pedido,
-      valor_avaliacao_1n: neg.valor_1n,
-      avaliacao_min: neg.avaliacao_min,
-      avaliacao_max: neg.avaliacao_max,
-      ise: neg.score_saude,
-      url: `https://www.1negocio.com.br/negocio.html?codigo=${n.codigo}`
-    };
-  });
-
-  return {
-    total_encontrado: resultados.length,
-    resultados,
-    nota_assistente: 'Lembre-se: NÃO revele nome real, dono, CNPJ, endereço exato, ou DRE detalhada. Apresente esses dados públicos e redirecione para "Solicitar mais informações" no botão do anúncio.'
-  };
-}
+}];
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -325,22 +207,14 @@ Deno.serve(async (req: Request) => {
       usuarioLogado = await detectarUsuarioLogado(jwt);
     }
 
-    // Adiciona contexto dinâmico (saudação + perfil de login) no system prompt
+    // Adiciona contexto de usuário logado no system prompt dinamicamente
     let systemFinal = SYSTEM_PROMPT;
-
-    const saudacao = getSaudacao();
-    systemFinal += `\n\n## CONTEXTO DESTA CONVERSA\n\n` +
-      `Horário atual: ${saudacao} (use na primeira saudação se for o início da conversa).\n`;
-
     if (usuarioLogado) {
-      systemFinal += `\n` +
-        `O usuário desta conversa JÁ ESTÁ CADASTRADO. Cumprimente pelo nome, conforme horário.\n` +
+      systemFinal += `\n\n## CONTEXTO DESTA CONVERSA — USUÁRIO LOGADO\n\n` +
+        `O usuário desta conversa JÁ ESTÁ CADASTRADO. Não pergunte nome nem WhatsApp.\n` +
         `Nome: ${usuarioLogado.nome}\n` +
-        `WhatsApp: ${usuarioLogado.telefone || usuarioLogado.whatsapp}\n` +
-        `Não pergunte nome nem WhatsApp. Pode chamar ferramentas assim que tiver o necessário.\n`;
-    } else {
-      systemFinal += `\n` +
-        `O usuário desta conversa NÃO ESTÁ CADASTRADO. Na primeira mensagem, cumprimente conforme horário e pergunte o nome dela. Só depois pergunte como pode ajudar.\n`;
+        `WhatsApp: ${usuarioLogado.telefone}\n` +
+        `Use o nome diretamente. Pode chamar a ferramenta calcular_valuation_rapido assim que tiver os 7 dados (não precisa pedir contato).`;
     }
 
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
@@ -372,24 +246,18 @@ Deno.serve(async (req: Request) => {
 
     const data = JSON.parse(rawText);
 
-    // Detecta se Claude chamou alguma ferramenta
-    const toolUseBlock = data.content?.find((c: any) => c.type === 'tool_use');
+    // Detecta se Claude chamou a ferramenta
+    const toolUseBlock = data.content?.find((c: any) => c.type === 'tool_use' && c.name === 'calcular_valuation_rapido');
 
     if (toolUseBlock) {
-      let toolResult: any;
-      let isValuation = false;
+      // Executa a ferramenta no servidor
+      const dadosColetados = toolUseBlock.input;
+      const valuation = await calcularValuationRapido(dadosColetados);
 
-      if (toolUseBlock.name === 'calcular_valuation_rapido') {
-        const dadosColetados = toolUseBlock.input;
-        toolResult = await calcularValuationRapido(dadosColetados);
-        isValuation = true;
-        await persistirAvaliacao(lead_id, dadosColetados, toolResult, messages, pagina_origem, usuarioLogado);
-      } else if (toolUseBlock.name === 'buscar_negocios') {
-        toolResult = await buscarNegocios(toolUseBlock.input);
-      } else {
-        toolResult = { erro: 'Tool desconhecida: ' + toolUseBlock.name };
-      }
+      // Salva no banco com avaliação completa
+      await persistirAvaliacao(lead_id, dadosColetados, valuation, messages, pagina_origem, usuarioLogado);
 
+      // Retorna ao Claude o resultado da ferramenta pra ele formular a resposta
       const messagesComTool = [
         ...messages,
         { role: 'assistant', content: data.content },
@@ -398,7 +266,7 @@ Deno.serve(async (req: Request) => {
           content: [{
             type: 'tool_result',
             tool_use_id: toolUseBlock.id,
-            content: JSON.stringify(toolResult)
+            content: JSON.stringify(valuation)
           }]
         }
       ];
@@ -425,9 +293,8 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({
         reply: finalReply,
         usage: segundoData.usage,
-        valuation: isValuation ? toolResult : null,
-        tool_called: true,
-        tool_name: toolUseBlock.name
+        valuation: valuation,
+        tool_called: true
       });
     }
 
@@ -488,8 +355,8 @@ async function calcularValuationRapido(d: any) {
   // Garantia adicional: nunca negativo
   if (valor_central < 0) valor_central = 0;
 
-  const valor_min = Math.round(valor_central * 0.85);
-  const valor_max = Math.round(valor_central * 1.15);
+  const valor_min = Math.round(valor_central * 0.7);
+  const valor_max = Math.round(valor_central * 1.3);
   valor_central = Math.round(valor_central);
 
   return {
