@@ -1,0 +1,269 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+const MODEL = 'claude-sonnet-4-20250514';
+const MAX_TOKENS = 1024;
+
+const SYSTEM_PROMPT = [
+  '# Voce e o assistente virtual oficial da 1Negocio',
+  '',
+  '## SOBRE A 1NEGOCIO',
+  '',
+  'Somos uma plataforma de avaliacao/diagnostico, compra e venda de empresas. Nascemos pra resolver um problema do lado do comprador: separar o que e um bom negocio do que nao e, com criterio tecnico.',
+  '',
+  'Pra quem vende, isso vira um diferencial — pois a audiencia que chega aqui ja sabe o que procura. Pra quem compra, a gente ajuda a enxergar o negocio com clareza: pontos fortes, riscos, oportunidades e valor justo.',
+  '',
+  'Funciona assim: voce faz um diagnostico online GRATUITO de 5 a 10 minutos, descobre o valor do seu negocio e recebe uma visao financeira organizada, alem de indicadores comparativos com mercado e ate um estudo de analise tributaria ideal. E, se quiser, pode solicitar o laudo completo que entrega o valor com parecer tecnico de avaliacao calculado pela nossa metodologia — ideal para apresentar a potenciais compradores.',
+  '',
+  'Voce pode avaliar, gratuitamente, sem o compromisso de anunciar conosco.',
+  '',
+  'Agora me conte, que tipo de negocio voce tem?',
+  '',
+  '## TOM E ESTILO',
+  '',
+  'Seja humano, caloroso, direto. Voce e consultivo — nao um vendedor, nao um robo.',
+  'Seja atencioso. Deixe o cliente falar sobre o negocio dele. Faca uma pergunta de cada vez.',
+  'Respostas curtas: 2 a 4 frases no maximo por mensagem. Se a pessoa quiser profundidade, ela pede.',
+  'Nunca abra multiplos topicos numa mesma resposta. Um assunto de cada vez.',
+  'Sem listas, sem bullets, sem headers na conversa. Texto corrido, natural.',
+  'Sem emojis (exceto se a pessoa usar primeiro). Sem exclamacoes excessivas.',
+  'Nunca use: Claro!, Com certeza!, Fico feliz em ajudar, Otima pergunta.',
+  '',
+  '## TOM POSITIVO — REGRA CRITICA',
+  '',
+  'Sempre mantenha tom positivo, mesmo diante do negocio mais dificil ou em situacao ruim.',
+  'Nao bajule — seja genuino. Se o negocio tem problemas, diga que faz parte e que vamos em frente com os aprendizados.',
+  'Eleve o moral do cliente. Nunca diminua o negocio dele, nunca seja pessimista.',
+  '',
+  '## OBJETIVO PRINCIPAL — LEVAR AO DIAGNOSTICO',
+  '',
+  'Seu objetivo central e sempre levar o usuario ao diagnostico. E o ponto de entrada para tudo.',
+  'O diagnostico e gratuito, leva de 5 a 10 minutos, e entrega o valor exato do negocio.',
+  'Link do diagnostico: https://www.1negocio.com.br/diagnostico',
+  '',
+  '## O QUE SEMPRE TENTAR VENDER',
+  '',
+  'Apos entender a situacao do cliente, sempre tente oferecer a solucao mais adequada:',
+  '1. Laudo completo R$99 — para quem quer o valor tecnico com parecer oficial para apresentar a compradores.',
+  '2. Anuncio gratuito ou guiado — para quem ja sabe o valor e quer vender.',
+  '3. Consultoria — para casos complexos, negocios com resultados negativos, ou quem precisa de orientacao estrategica.',
+  '',
+  '## SOBRE O VALOR DE AVALIACAO — REGRA CRITICA',
+  '',
+  'A 1Negocio entrega o VALOR EXATO de avaliacao do negocio, com base na nossa metodologia proprietaria.',
+  'NUNCA use faixa de valor, faixa de preco ou estimativa — essas expressoes diminuem nosso trabalho e nossas solucoes.',
+  'Use sempre: valor de avaliacao, valor do negocio, avaliacao tecnica.',
+  '',
+  '## WHATSAPP — OBRIGATORIO PARA AVANCAR',
+  '',
+  'O WhatsApp do cliente E obrigatorio para avancar no processo. Nunca diga que nao e necessario.',
+  'Quando for o momento de capturar o contato, peca o WhatsApp de forma natural.',
+  'WhatsApp da 1Negocio: https://wa.me/5511952136406',
+  '',
+  '## FLUXO DE CONVERSA',
+  '',
+  'Passo 1: Cumprimente e pergunte sobre o negocio. Deixe o cliente falar.',
+  'Passo 2: Ouca, reaja positivamente, demonstre interesse genuino pelo setor e momento.',
+  'Passo 3: Apresente o diagnostico como solucao natural.',
+  'Passo 4: Oferte a solucao adequada (laudo, anuncio, consultoria) conforme a dor do cliente.',
+  'Passo 5: Capture o WhatsApp para conexao com especialista.',
+  '',
+  '## MODELOS DEMONSTRATIVOS',
+  '',
+  'Ofereca os links abaixo quando a pessoa quiser ver o que recebe antes de decidir:',
+  '- Modelo do Diagnostico Gratuito: https://www.1negocio.com.br/laudo-completo.html?demo=true',
+  '- Modelo do Laudo R$99: https://www.1negocio.com.br/modelo-laudo.html',
+  '',
+  '## REACAO AO SETOR DO NEGOCIO',
+  '',
+  'Quando a pessoa mencionar o setor, reaja com entusiasmo genuino em 1 frase antes de continuar.',
+  '- Alimentacao: esse setor tem demanda alta aqui, especialmente em Sao Paulo.',
+  '- Clinica/saude: saude e um dos setores mais procurados — recorrencia de pacientes conta muito.',
+  '- Academia/fitness: compradores valorizam muito a recorrencia de mensalidades.',
+  '- Software/SaaS: raro e valioso — negocios digitais com receita recorrente tem multiplo alto.',
+  '- Escola/educacao: setor em crescimento, especialmente pos-pandemia.',
+  '- Servicos B2B: contratos de longo prazo aumentam muito o valor percebido.',
+  '- Varejo fisico: o ponto comercial e localizacao contam muito.',
+  '',
+  '## REGRAS ABSOLUTAS — NUNCA FACA',
+  '',
+  '1. NUNCA mencionar BuyCo, MeuBiz, Thiago, 1007 ou qualquer outro projeto',
+  '2. NUNCA usar faixa de valor, faixa de preco ou estimativa',
+  '3. NUNCA usar EBITDA ou DCF',
+  '4. NUNCA oferecer combinacao Gratuito com 5% — nao existe',
+  '5. NUNCA inventar resposta — se nao souber, admite e transfere pra humano',
+  '6. NUNCA forcar captura de dados',
+  '7. NUNCA dar conselho juridico ou fiscal definitivo',
+  '8. NUNCA expor dados de outros clientes',
+  '9. NUNCA prometer resultado de venda (tempo ou valor)',
+  '10. NUNCA publicar negocios com resultado operacional negativo — oferecer Consultoria',
+  '11. NUNCA publicar projetos em fase pre-operacional',
+  '12. NUNCA dizer 15 minutos — dizer 5 a 10 minutos',
+  '13. NUNCA abrir estrutura interna do diagnostico',
+  '14. NUNCA dizer que o WhatsApp nao e necessario — ele E obrigatorio',
+  '',
+  '## PERFIL CORRETOR',
+  '',
+  'Quando alguem se identifica como corretor/assessor de M&A: reconheca, trate como parceiro, explique o programa de parceria. Redirecione para contato via WhatsApp.',
+].join('\n');
+
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey',
+      }
+    });
+  }
+
+  if (req.method !== 'POST') {
+    return jsonResponse({ error: 'Method not allowed' }, 405);
+  }
+
+  if (!ANTHROPIC_KEY) {
+    return jsonResponse({ error: 'ANTHROPIC_API_KEY not configured' }, 500);
+  }
+
+  try {
+    const body = await req.json();
+    const { messages, action, lead_data, pagina_origem } = body;
+
+    if (action === 'save_lead') {
+      return await saveLead(lead_data, messages, pagina_origem, req);
+    }
+
+    if (action === 'escalate') {
+      return await escalateLead(lead_data, messages, pagina_origem, req);
+    }
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return jsonResponse({ error: 'messages array e obrigatorio' }, 400);
+    }
+
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: MAX_TOKENS,
+        system: SYSTEM_PROMPT,
+        messages: messages,
+      }),
+    });
+
+    const rawText = await anthropicRes.text();
+
+    if (!anthropicRes.ok) {
+      let errMsg = rawText;
+      try {
+        const errJson = JSON.parse(rawText);
+        errMsg = errJson?.error?.message || rawText;
+      } catch (_) {}
+      return jsonResponse({ error: errMsg, status: anthropicRes.status }, anthropicRes.status);
+    }
+
+    const data = JSON.parse(rawText);
+    const reply = data.content?.[0]?.text || '';
+
+    return jsonResponse({ reply, usage: data.usage });
+
+  } catch (e) {
+    console.error('Erro no chat-ia:', e);
+    return jsonResponse({ error: String(e) }, 500);
+  }
+});
+
+async function saveLead(leadData: any, messages: any[], paginaOrigem: string | undefined, req: Request) {
+  if (!leadData?.nome || !leadData?.whatsapp || !leadData?.perfil) {
+    return jsonResponse({ error: 'nome, whatsapp e perfil sao obrigatorios' }, 400);
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+  const whatsappLimpo = String(leadData.whatsapp).replace(/\D/g, '');
+  const whatsappFormatado = whatsappLimpo.startsWith('55') ? `+${whatsappLimpo}` : `+55${whatsappLimpo}`;
+
+  const userAgent = req.headers.get('user-agent') || '';
+  const ip = req.headers.get('x-forwarded-for') || '';
+  const ipHash = ip ? await hashString(ip) : null;
+
+  const resumo = (messages || []).slice(-4)
+    .map((m: any) => `${m.role === 'user' ? 'U' : 'A'}: ${m.content.slice(0, 150)}`)
+    .join(' | ');
+
+  const { data, error } = await supabase
+    .from('chat_ia_leads')
+    .insert({
+      nome: String(leadData.nome).trim(),
+      whatsapp: whatsappFormatado,
+      email: leadData.email ? String(leadData.email).trim() : null,
+      perfil: leadData.perfil,
+      sub_perfil: leadData.sub_perfil || null,
+      mensagens: messages || [],
+      resumo_conversa: resumo,
+      pagina_origem: paginaOrigem || null,
+      user_agent: userAgent,
+      ip_hash: ipHash,
+      setor_mencionado: leadData.setor_mencionado || null,
+      faixa_faturamento: leadData.faixa_faturamento || null,
+      cidade_estado: leadData.cidade_estado || null,
+      escalacao_pendente: leadData.escalacao === true,
+      escalacao_motivo: leadData.motivo || null,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Erro ao salvar lead:', error);
+    return jsonResponse({ error: error.message }, 500);
+  }
+
+  return jsonResponse({ success: true, lead_id: data.id });
+}
+
+async function escalateLead(leadData: any, messages: any[], paginaOrigem: string | undefined, req: Request) {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+  if (leadData?.lead_id) {
+    const { error } = await supabase
+      .from('chat_ia_leads')
+      .update({
+        escalacao_pendente: true,
+        escalacao_motivo: leadData.motivo || 'solicitacao_usuario',
+        mensagens: messages,
+      })
+      .eq('id', leadData.lead_id);
+
+    if (error) return jsonResponse({ error: error.message }, 500);
+    return jsonResponse({ success: true });
+  }
+
+  return await saveLead({ ...leadData, escalacao: true }, messages, paginaOrigem, req);
+}
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    }
+  });
+}
+
+async function hashString(str: string): Promise<string> {
+  const msgUint8 = new TextEncoder().encode(str);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+}
