@@ -18,7 +18,10 @@ const vm = require('vm');
 const SUPABASE_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
 
-const VENDEDOR_ID_THIAGO = '5a97b1c4-3ceb-4fe1-811e-36185131ba73';
+// User dedicado pros seeds da maquininha (seed@1negocio.com.br).
+// Substitui Thiago (5a97b1c4-3ceb-4fe1-811e-36185131ba73) pra separar
+// seeds de negócios reais nos painéis admin.
+const VENDEDOR_ID_THIAGO = 'aaaaaaaa-0000-0000-0000-000000000001';
 
 const TEXTOS = [
   'texto_resumo_executivo_completo',
@@ -261,35 +264,64 @@ function montarDescricaoCard(calc, perfil) {
   else if (anos >= 10)           diferencial = `${anos} anos de presença consolidada`;
   else                           diferencial = `operação enxuta e lucrativa`;
 
-  // Templates — cada um diz quais campos exige preenchidos pra ser válido
+  // Templates — requisitos REDUZIDOS: cidade + uf + anos é o mínimo.
+  // Frases adicionais são CONDICIONAIS aos campos disponíveis (campos opcionais
+  // somem em vez de fazer o template falhar). Mínimo 4 frases / 250 chars.
   const templates = [
     {
       key: 'performance',
-      requer: () => margem > 0 && recorrencia >= 0 && funcionarios > 0 && cidade && uf && anos > 0,
-      texto: () => `Operação de ${setorEsp} em ${cidade}/${uf} com ${anos} anos no mercado. ` +
-                   `Margem operacional de ${margem}% e ${recorrencia}% de receita recorrente garantem fluxo de caixa estável. ` +
-                   `Equipe de ${funcionarios} pessoas atende ${publico}. ` +
-                   `Estrutura consolidada com processos documentados. ` +
-                   `Negócio opera sem dependência diária do dono.`,
+      requer: () => margem > 0 && cidade && uf && anos > 0,
+      texto: () => {
+        const partes = [
+          `Operação de ${setorEsp} em ${cidade}/${uf} com ${anos} anos no mercado.`,
+          recorrencia >= 25
+            ? `Margem operacional de ${margem}% e ${recorrencia}% de receita recorrente garantem fluxo de caixa estável.`
+            : `Margem operacional de ${margem}% sustenta fluxo de caixa estável.`,
+          funcionarios > 0
+            ? `Equipe de ${funcionarios} pessoas atende ${publico}.`
+            : `Atende ${publico} com fidelização forte.`,
+          'Estrutura consolidada com processos documentados.',
+          operaSemDono ? 'Negócio opera sem dependência diária do dono.' : 'Operação preparada para transição com novo dono.',
+        ];
+        return partes.join(' ');
+      },
     },
     {
       key: 'equipe',
-      requer: () => funcionarios > 0 && margem > 0 && cidade && uf && anos > 0 && fatBRL,
-      texto: () => `${capitalize(setorEsp)} estabelecido em ${cidade}/${uf} há ${anos} anos. ` +
-                   `Time de ${funcionarios} colaboradores treinado e processos padronizados. ` +
-                   `Faturamento de R$ ${fatBRL}/ano com margem de ${margem}%. ` +
-                   `Atende ${publico} com fidelização forte. ` +
-                   `Carteira de clientes ativa e diversificada. ` +
-                   `Ponto comercial estratégico.`,
+      requer: () => funcionarios > 0 && cidade && uf && anos > 0,
+      texto: () => {
+        const partes = [
+          `${capitalize(setorEsp)} estabelecido em ${cidade}/${uf} há ${anos} anos.`,
+          `Time de ${funcionarios} colaboradores treinado e processos padronizados.`,
+          (margem > 0 && fatBRL)
+            ? `Faturamento de R$ ${fatBRL}/ano com margem de ${margem}%.`
+            : (margem > 0
+                ? `Operação com margem de ${margem}%.`
+                : (fatBRL ? `Faturamento de R$ ${fatBRL}/ano.` : 'Operação com fluxo de caixa consolidado.')),
+          `Atende ${publico} com fidelização forte.`,
+          'Carteira de clientes ativa e diversificada.',
+          'Ponto comercial estratégico.',
+        ];
+        return partes.join(' ');
+      },
     },
     {
       key: 'recorrencia',
-      requer: () => recorrencia >= 30 && clientes > 0 && ticketBRL && cidade && uf && anos > 0 && margem > 0,
-      texto: () => `${capitalize(setorEsp)} em ${cidade}/${uf} com ${recorrencia}% de receita recorrente. ` +
-                   `Operação madura há ${anos} anos com margem operacional de ${margem}%. ` +
-                   `Base de ${clientes} clientes ativos e ticket médio de R$ ${ticketBRL}. ` +
-                   `Estrutura física consolidada. ` +
-                   `Negócio com baixa dependência do dono e forte presença regional.`,
+      requer: () => recorrencia >= 25 && cidade && uf && anos > 0,
+      texto: () => {
+        const partes = [
+          `${capitalize(setorEsp)} em ${cidade}/${uf} com ${recorrencia}% de receita recorrente.`,
+          margem > 0
+            ? `Operação madura há ${anos} anos com margem operacional de ${margem}%.`
+            : `Operação madura há ${anos} anos.`,
+          (clientes > 0 && ticketBRL)
+            ? `Base de ${clientes} clientes ativos e ticket médio de R$ ${ticketBRL}.`
+            : (clientes > 0 ? `Base de ${clientes} clientes ativos.` : 'Base de clientes ativa e diversificada.'),
+          'Estrutura física consolidada.',
+          'Negócio com baixa dependência do dono e forte presença regional.',
+        ];
+        return partes.join(' ');
+      },
     },
     {
       key: 'diferencial',
@@ -516,7 +548,7 @@ async function main() {
   if (arg === '--batch') {
     const dir = path.join(__dirname, 'perfis-teste');
     perfis = fs.readdirSync(dir)
-      .filter(f => /^seed-\d{3}\.json$/.test(f))
+      .filter(f => /^seed-piloto-\d{2}\.json$/.test(f))
       .sort()
       .map(f => path.join(dir, f));
   } else {
