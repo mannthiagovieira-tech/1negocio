@@ -25,6 +25,7 @@ const ALLOWED_TABLES = [
   "anuncios_v2",
   "anuncio_eventos",
   "config_plataforma",
+  "dossie_acessos",
 ];
 
 const corsHeaders = {

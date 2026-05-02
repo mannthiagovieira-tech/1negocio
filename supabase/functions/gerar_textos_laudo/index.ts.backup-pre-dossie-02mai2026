@@ -170,36 +170,6 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Prompt 4 do dossiê: array JSON [{titulo, descricao}, ...]
-    if (texto_a_gerar === "texto_dossie_acoes_pos_compra") {
-      const limpo = resp.texto.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
-      try {
-        const parsed = JSON.parse(limpo);
-        if (Array.isArray(parsed) && parsed.every((it: any) => it && typeof it.titulo === "string" && typeof it.descricao === "string")) {
-          conteudo = parsed as any;
-        } else {
-          console.warn("[texto_dossie_acoes_pos_compra] formato inválido, salvando string crua");
-        }
-      } catch (e) {
-        console.warn("[texto_dossie_acoes_pos_compra] JSON.parse falhou, salvando string crua:", e);
-      }
-    }
-
-    // Prompt 5 do dossiê: objeto JSON {p1_financeiro: "...", ..., p8_marca: "..."}
-    if (texto_a_gerar === "texto_dossie_caracteristicas_pilares") {
-      const limpo = resp.texto.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
-      try {
-        const parsed = JSON.parse(limpo);
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          conteudo = parsed as any;
-        } else {
-          console.warn("[texto_dossie_caracteristicas_pilares] formato inválido, salvando string crua");
-        }
-      } catch (e) {
-        console.warn("[texto_dossie_caracteristicas_pilares] JSON.parse falhou, salvando string crua:", e);
-      }
-    }
-
     const valor = { modelo, conteudo };
     await salvarTexto(supabase, negocio_id, ramo, texto_a_gerar, valor, modelo);
 
@@ -285,74 +255,6 @@ function formatarDadosCalc(calc: any): Record<string, string | number> {
   const indBench = calc?.indicadores_vs_benchmark ?? {};
   const op = calc?.operacional ?? {};
   const trib = calc?.analise_tributaria ?? {};
-  const inputs = calc?.inputs_origem ?? {};
-  const pot12m = calc?.potencial_12m ?? {};
-  const recoms = Array.isArray(calc?.recomendacoes_pre_venda) ? calc.recomendacoes_pre_venda : [];
-
-  // Top 3 upsides ativos (pra prompt 2 dossiê)
-  const upsidesAtivos = Array.isArray(pot12m?.upsides_ativos) ? pot12m.upsides_ativos : [];
-  const upsidesTop3 = [...upsidesAtivos]
-    .sort((a, b) => (b?.contribuicao_brl ?? 0) - (a?.contribuicao_brl ?? 0))
-    .slice(0, 3);
-  const upsidesTop3Listagem = upsidesTop3.length > 0
-    ? upsidesTop3
-        .map((u: any) =>
-          `- ${u?.label ?? u?.id ?? "—"} (categoria: ${u?.categoria ?? "—"}, contribuição: R$ ${formatBRL(u?.contribuicao_brl ?? 0)})`,
-        )
-        .join("\n")
-    : "nenhum upside ativo identificado";
-
-  // Recomendações pré-venda em formato lista (pra prompt 4)
-  const recomLista = recoms.length > 0
-    ? recoms
-        .map((r: any) =>
-          `- ${r?.id ?? "rec_sem_id"}: ${r?.label ?? r?.titulo ?? "(sem título)"} — ${r?.mensagem ?? r?.descricao ?? "(sem descrição)"}`,
-        )
-        .join("\n")
-    : "nenhuma recomendação registrada";
-
-  // Pilares ISE em dump estruturado (pra prompt 5 — caracteristicas)
-  const pilaresArray = Array.isArray(ise?.pilares) ? ise.pilares : [];
-  const pilaresDump = pilaresArray.length > 0
-    ? pilaresArray
-        .map((p: any) => {
-          const subResumo = Array.isArray(p?.sub_metricas)
-            ? p.sub_metricas
-                .map((s: any) =>
-                  `${s?.label ?? s?.id ?? "—"}: score ${s?.score_0_10 ?? "?"}/10${s?.valor !== undefined && s?.valor !== null ? ` (valor: ${typeof s.valor === "object" ? JSON.stringify(s.valor) : s.valor})` : ""}`,
-                )
-                .join("; ")
-            : "(sem sub-métricas)";
-          return `${p?.id ?? "?"} (${p?.label ?? "?"}, peso ${p?.peso_pct ?? "?"}%, score ${p?.score_0_10 ?? "?"}/10): ${subResumo}`;
-        })
-        .join("\n")
-    : "(pilares ausentes)";
-
-  // Status de transferibilidade derivados de inputs_origem (com fallback)
-  const ynStatus = (v: any): string => {
-    if (v === "sim" || v === true) return "sim";
-    if (v === "nao" || v === false) return "não";
-    if (v === "parcial") return "parcial";
-    if (v === null || v === undefined || v === "") return "não informado";
-    return String(v);
-  };
-  const dep_socio_status = ynStatus(inputs?.opera_sem_dono ?? op?.dep_socio);
-  const processos_status = ynStatus(inputs?.processos);
-  const equipe_estavel_status = ynStatus(inputs?.gestor_autonomo ?? inputs?.tem_gestor);
-  const marca_dependente_dono_status = inputs?.marca_inpi === "registrada" || inputs?.marca_inpi === "sim"
-    ? "marca registrada — menor dependência do dono"
-    : "marca não registrada — provável vínculo informal com o dono";
-  const contratos_transferiveis_status = "não informado";
-
-  // Cenário de preço pro dossiê (±10%) — diverge da home (±3%) por decisão narrativa.
-  // Débito técnico: unificar quando skill v2 calcular calc.valuation.tag_preco.
-  const diferencaPctNumber = typeof val?.diferenca_pct === "number" ? val.diferenca_pct : null;
-  let cenario_preco_dossie = "alinhado";
-  if (typeof diferencaPctNumber === "number") {
-    if (diferencaPctNumber > 10) cenario_preco_dossie = "abaixo";
-    else if (diferencaPctNumber < -10) cenario_preco_dossie = "acima";
-    else cenario_preco_dossie = "alinhado";
-  }
 
   const pilares = ise?.pilares ?? {};
   const pilaresEntries = Object.entries(pilares) as [string, any][];
@@ -415,20 +317,6 @@ function formatarDadosCalc(calc: any): Record<string, string | number> {
     preco_pedido_fmt: formatBRL(val.preco_pedido),
     diferenca_pct: typeof val.diferenca_pct === "number" ? Math.abs(val.diferenca_pct).toFixed(0) : "",
     acima_ou_abaixo: typeof val.diferenca_pct === "number" ? (val.diferenca_pct >= 0 ? "acima" : "abaixo") : "—",
-
-    // Placeholders novos pros 5 prompts do dossiê do comprador (Parte 2)
-    upsides_top3_listagem: upsidesTop3Listagem,
-    valor_projetado_12m_fmt: formatBRL(pot12m?.potencial_final?.valor_projetado_brl ?? 0),
-    ganho_mensal_caixa_fmt: formatBRL(pot12m?.ganho_mensal_caixa_brl ?? 0),
-    ganho_anual_caixa_fmt: formatBRL(pot12m?.ganho_anual_caixa_brl ?? 0),
-    recomendacoes_lista: recomLista,
-    pilares_dump_para_caracteristicas: pilaresDump,
-    dep_socio: dep_socio_status,
-    processos_status,
-    equipe_estavel_status,
-    marca_dependente_dono_status,
-    contratos_transferiveis_status,
-    cenario_preco_dossie,
   };
 }
 

@@ -1,0 +1,23 @@
+-- Adiciona 5 prompts novos ao snapshot v2026.08 (ativo) para o
+-- dossiê do comprador pós-NDA. Padrão idêntico aos 7 prompts atuais
+-- em prompts_textos_ia.laudo.{...}. Edge function gerar_textos_laudo
+-- consome via promptsCfg.laudo[chave] já existente.
+--
+-- Chaves novas (em prompts_textos_ia.laudo):
+--   texto_dossie_estrategico_valor       (sonnet 4.5, 180-260 palavras)
+--   texto_dossie_upsides_breve           (sonnet 4.5, 80-140 palavras)
+--   texto_dossie_transferibilidade       (sonnet 4.5, 140-200 palavras, 2 parágrafos)
+--   texto_dossie_acoes_pos_compra        (sonnet 4.5, array JSON)
+--   texto_dossie_caracteristicas_pilares (haiku 4.5, objeto JSON 8 strings)
+--
+-- Aplicado in-place via UPDATE no snapshot ativo (não cria nova versão).
+-- Justificativa: 8 anúncios atuais são descartáveis (Thiago confirmou),
+-- não há risco de regressão arquitetural pra negócios pré-existentes.
+
+-- Conteúdo aplicado via MCP apply_migration em 2026-05-02. Gravado aqui
+-- pra rastreabilidade. Para reaplicar, usar o conteúdo dos UPDATEs
+-- abaixo (referência — versão final consolidada no snapshot ativo).
+
+-- (UPDATEs efetivos rodaram via apply_migration — ver gerar_textos_laudo
+-- + parametros_versoes.snapshot.prompts_textos_ia.laudo do snapshot ativo
+-- pra ver os 5 prompts gravados.)
