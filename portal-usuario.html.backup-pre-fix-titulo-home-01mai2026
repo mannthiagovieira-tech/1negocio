@@ -1426,10 +1426,9 @@ async function carregarTudo() {
     ).then(r => r.ok ? r.json() : []).catch(() => []),
 
     // FIX 5 — busca anuncios_v2 do vendedor pra calcular status efetivo
-    // Adicionado textos_negocio pro card de solicitação espelhar título da home
     fetch(SUPABASE_URL + '/rest/v1/anuncios_v2'
       + '?vendedor_id=eq.' + uid
-      + '&select=id,codigo,negocio_id,status,publicado_em,titulo,valor_pedido,textos_negocio'
+      + '&select=id,codigo,negocio_id,status,publicado_em,titulo,valor_pedido'
       + '&order=publicado_em.desc.nullslast',
       { headers: authHeaders() }
     ).then(r => r.ok ? r.json() : []).catch(() => [])
@@ -1441,28 +1440,6 @@ async function carregarTudo() {
     const existing = anunciosMap[a.negocio_id];
     if (!existing || a.status === 'publicado') anunciosMap[a.negocio_id] = a;
   });
-
-  // Fetch secundário: anuncios_v2 dos negócios solicitados pelo COMPRADOR.
-  // O fetch primário acima só cobre vendedor próprio. Este cobre os
-  // negócios que aparecem em solicitacoes_info do usuário (comprador),
-  // pra render do card de solicitação espelhar exatamente o título da home.
-  const negIdsSolicitados = (solInfos || [])
-    .map(s => s.negocio_id)
-    .filter(Boolean)
-    .filter(id => !anunciosMap[id]);
-  if (negIdsSolicitados.length) {
-    const anunciosCompradorRes = await fetch(
-      SUPABASE_URL + '/rest/v1/anuncios_v2'
-      + '?negocio_id=in.(' + negIdsSolicitados.join(',') + ')'
-      + '&select=id,codigo,negocio_id,status,publicado_em,titulo,valor_pedido,textos_negocio'
-      + '&order=publicado_em.desc.nullslast',
-      { headers: authHeaders() }
-    ).then(r => r.ok ? r.json() : []).catch(() => []);
-    (anunciosCompradorRes || []).forEach(a => {
-      const existing = anunciosMap[a.negocio_id];
-      if (!existing || a.status === 'publicado') anunciosMap[a.negocio_id] = a;
-    });
-  }
 
   // Sobrescreve status efetivo de cada negocio baseado no anúncio v2
   negocios.forEach(n => {
@@ -1819,17 +1796,17 @@ function renderSolicitacoes() {
     const codigo = (an && an.codigo) || getCodigo(neg);
     const local = getLocal(neg);
     const setor = getSetor(neg);
-    // Cascata de título idêntica à home (index.html linha 2016):
-    // textos_negocio.titulo_negocio.conteudo → anuncios_v2.titulo → 'Negócio à venda'
-    const tituloPolido = an && an.textos_negocio
-      && an.textos_negocio.titulo_negocio
-      && an.textos_negocio.titulo_negocio.conteudo;
-    const tituloAnonimo = tituloPolido
-      || (an && an.titulo)
-      || 'Negócio à venda';
+    // Fallback informativo (sem revelar sensível): setor + cidade
+    const fallbackAnonimo = (setor && local)
+      ? `Negócio de ${setor} em ${local}`
+      : (setor
+          ? `Negócio de ${setor}`
+          : (local
+              ? `Negócio em ${local}`
+              : 'Negócio confidencial'));
     const nome = liberado
-      ? (neg.nome || tituloAnonimo)
-      : tituloAnonimo;
+      ? (neg.nome || fallbackAnonimo)
+      : ((an && an.titulo) || fallbackAnonimo);
 
     let badgeLabel = s.status || '—';
     let badgeCls = 'rascunho';
