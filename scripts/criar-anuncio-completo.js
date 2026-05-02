@@ -548,7 +548,7 @@ async function main() {
   if (arg === '--batch') {
     const dir = path.join(__dirname, 'perfis-teste');
     perfis = fs.readdirSync(dir)
-      .filter(f => /^seed-piloto-\d{2}\.json$/.test(f))
+      .filter(f => /^seed-200-\d{3}\.json$/.test(f))
       .sort()
       .map(f => path.join(dir, f));
   } else {
