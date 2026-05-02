@@ -362,48 +362,6 @@ main{flex:1;max-width:780px;width:100%;margin:0 auto;padding:24px 20px;display:f
 .stage-footer-bar .cta-row{
   display:flex;gap:8px;max-width:560px;width:100%;margin:0 auto;
 }
-/* ─── ROUND 5: par de CTAs grandes (Tirar dúvidas + Iniciar negociação) ─── */
-.stage-footer-bar.with-cta-pair{gap:10px}
-.stage-footer-bar.with-cta-pair .cta-row{display:none}
-.footer-cta-pair{
-  display:grid;grid-template-columns:1fr 1fr;gap:8px;
-  max-width:560px;width:100%;margin:0 auto;
-}
-.footer-cta-btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  min-height:44px;padding:12px 14px;
-  border-radius:999px;
-  font-family:var(--mono);font-size:12px;font-weight:700;
-  letter-spacing:.04em;text-transform:uppercase;text-decoration:none;
-  transition:transform .12s,box-shadow .15s,background .15s,border-color .15s;
-  white-space:nowrap;line-height:1;
-}
-.footer-cta-btn.outline{
-  background:#ffffff;color:#0a1510;
-  border:0.5px solid rgba(10,15,12,.18);
-}
-.footer-cta-btn.outline:hover{background:#fafaf8;border-color:rgba(10,15,12,.28)}
-:root[data-theme="dark"] .footer-cta-btn.outline{background:var(--surface);color:var(--ink);border-color:var(--line-2)}
-.footer-cta-btn.primary{
-  background:#0aa85a;color:#ffffff;border:1px solid #0aa85a;
-  box-shadow:0 4px 14px rgba(10,168,90,.25);
-}
-.footer-cta-btn.primary:hover{transform:translateY(-1px);background:#069150;border-color:#069150}
-:root[data-theme="dark"] .footer-cta-btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-/* tabs compactas quando exibindo par de CTAs */
-.stage-footer-bar.with-cta-pair .tabs-sticky-inner{
-  background:rgba(10,15,12,.04);padding:2px;
-}
-:root[data-theme="dark"] .stage-footer-bar.with-cta-pair .tabs-sticky-inner{background:rgba(255,255,255,.04)}
-.stage-footer-bar.with-cta-pair .tab-btn{
-  padding:5px 9px;font-size:9px;letter-spacing:.05em;
-  color:rgba(10,21,16,.55);
-}
-:root[data-theme="dark"] .stage-footer-bar.with-cta-pair .tab-btn{color:rgba(244,247,244,.5)}
-@media(max-width:520px){
-  .stage-footer-bar.with-cta-pair .tab-btn{padding:5px 6px;font-size:9px}
-  .footer-cta-btn{font-size:11px;padding:10px 10px}
-}
 @media(max-width:520px){
   .tab-btn{padding:6px 6px;font-size:9px;letter-spacing:.04em}
   .stage-footer-bar{padding:6px 14px calc(10px + env(safe-area-inset-bottom)) 14px}
@@ -1447,6 +1405,25 @@ function _injetarCSSDossie(){
       background-repeat: repeat; background-size: 600px 300px; opacity: 1;
     }
     .dossie-aba > * { position: relative; z-index: 2; }
+    .dossie-cta-fixo {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+      background: #ffffff; border-top: 1px solid rgba(0,0,0,.08);
+      padding: 12px 16px; display: flex; gap: 12px; align-items: center;
+      justify-content: space-between; flex-wrap: wrap;
+      box-shadow: 0 -2px 16px rgba(0,0,0,.04);
+    }
+    .dossie-cta-fixo .audit-line {
+      font-family: 'DM Mono', monospace; font-size: 10px;
+      color: #64748b; letter-spacing: .04em; flex: 1; min-width: 0;
+    }
+    .dossie-cta-fixo .btn-cta-wpp {
+      background: #10b981; color: #fff; border: 0; padding: 10px 20px;
+      font-family: 'Cabinet Grotesk', sans-serif; font-weight: 700;
+      font-size: 14px; cursor: pointer; border-radius: 0;
+      text-decoration: none; display: inline-flex; align-items: center;
+      gap: 6px; white-space: nowrap;
+    }
+    .dossie-cta-fixo .btn-cta-wpp:hover { background: #059669; }
     .dossie-confidencial-badge {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 6px 12px; background: #10b98114; color: #047857;
@@ -1721,6 +1698,8 @@ function renderAbaPrivadoLiberada(acesso){
     const nomeComprador = (SESSION && SESSION.nome) || '';
     const wm = document.querySelector('.dossie-watermark');
     if (wm) wm.style.backgroundImage = 'url("' + _watermarkSVG(nomeComprador, emailComprador, ip) + '")';
+    const auditEl = document.querySelector('.dossie-cta-fixo .audit-line');
+    if (auditEl) auditEl.textContent = 'CONFIDENCIAL · ' + (emailComprador || '—') + ' · IP ' + (ip || '—') + ' · ' + new Date(tsAcessoIso).toLocaleString('pt-BR') + ' · válido até ' + validade;
 
     // Auditoria: grava 1 row em dossie_acessos por render desta tela.
     // Fire-and-forget: erros não bloqueiam visualização.
@@ -1746,6 +1725,9 @@ function renderAbaPrivadoLiberada(acesso){
       }
     } catch(e) { console.warn('[dossie-auditoria] falhou:', e); }
   }, 50);
+
+  const wppMsg = encodeURIComponent('Olá, sou ' + (SESSION && SESSION.nome ? SESSION.nome : 'um interessado') + ', tenho interesse no negócio ' + codigo + '. Solicito mais informações.');
+  const wppLink = 'https://wa.me/5548999279320?text=' + wppMsg;
 
   // Helper: formata valor monetário arredondado pra display amigável
   const fmtMi = (v) => v >= 1e6 ? (v/1e6).toFixed(1).replace('.0','') + ' mi' : (v >= 1e3 ? Math.round(v/1e3) + ' mil' : Math.round(v));
@@ -2203,6 +2185,12 @@ function renderAbaPrivadoLiberada(acesso){
         ICD ${icdPct}% · skill v${escapeHtml(skillVer)} · avaliado em ${dataAval} · validade até ${validade}
       </div>
 
+      <!-- CTA FIXO bottom -->
+      <div class="dossie-cta-fixo">
+        <div class="audit-line">CONFIDENCIAL · ${escapeHtml(emailComprador||'—')} · IP capturando... · ${new Date(tsAcessoIso).toLocaleString('pt-BR')} · válido até ${validade}</div>
+        <a class="btn-cta-wpp" href="${wppLink}" target="_blank" rel="noopener">💬 Falar com sócio responsável</a>
+      </div>
+
     </section>
   `;
 }
@@ -2235,25 +2223,13 @@ function inicializarTabs(){
   const tabs = document.querySelectorAll('.tab-btn');
   const abas = document.querySelectorAll('.aba');
 
-  // Destaque visual + injetar par de CTAs (Tirar dúvidas + Iniciar negociação)
-  // se comprador tem acesso liberado.
+  // Destaque visual + ocultar CTA "Solicitar informações" se acesso liberado
   const liberado = !!(ACESSO_C3 && ACESSO_C3.tipo === 'liberado');
   const tabPriv = document.querySelector('.tab-privado');
   if(tabPriv) tabPriv.classList.toggle('tab-destaque', liberado);
   if(liberado){
-    const footerBar = document.querySelector('.stage-footer-bar');
-    if(footerBar && !footerBar.querySelector('.footer-cta-pair')){
-      footerBar.classList.add('with-cta-pair');
-      const codigo = (ANUNCIO && ANUNCIO.codigo) || (NEG && NEG.codigo_diagnostico) || '';
-      const msgDuvidas = encodeURIComponent('Olá, vi o material do negócio ' + codigo + ' e tenho algumas dúvidas.');
-      const msgPropose = encodeURIComponent('Olá, vi o material do negócio ' + codigo + ' e quero fazer uma proposta.');
-      const pair = document.createElement('div');
-      pair.className = 'footer-cta-pair';
-      pair.innerHTML =
-        '<a class="footer-cta-btn outline" href="https://wa.me/5548999279320?text=' + msgDuvidas + '" target="_blank" rel="noopener">Tirar dúvidas</a>' +
-        '<a class="footer-cta-btn primary" href="https://wa.me/5548999279320?text=' + msgPropose + '" target="_blank" rel="noopener">Iniciar negociação <span aria-hidden="true">→</span></a>';
-      footerBar.insertBefore(pair, footerBar.firstChild);
-    }
+    const ctaRow = document.querySelector('.stage-footer-bar .cta-row');
+    if(ctaRow) ctaRow.style.display = 'none';
   }
 
   // Função de troca extraída pra ser reutilizável (click + query string)
