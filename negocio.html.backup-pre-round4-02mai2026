@@ -339,26 +339,6 @@ main{flex:1;max-width:780px;width:100%;margin:0 auto;padding:24px 20px;display:f
 .tab-btn.on .tab-brand em{color:var(--accent)}
 .tab-privado svg{flex-shrink:0;margin-right:1px}
 .tab-privado{gap:4px}
-/* destaque condicional quando comprador tem ACESSO_C3.tipo='liberado' */
-.tab-privado.tab-destaque{
-  background:rgba(10,168,90,.14);
-  color:var(--accent);
-  font-weight:700;
-  position:relative;
-}
-.tab-privado.tab-destaque:hover{background:rgba(10,168,90,.22);color:var(--accent)}
-.tab-privado.tab-destaque.on{background:var(--accent);color:var(--accent-ink)}
-.tab-privado.tab-destaque::after{
-  content:"";position:absolute;top:6px;right:8px;
-  width:6px;height:6px;border-radius:999px;background:var(--accent);
-  box-shadow:0 0 0 0 rgba(10,168,90,.6);
-  animation:tabPulseDot 1.6s ease-in-out infinite;
-}
-.tab-privado.tab-destaque.on::after{background:var(--accent-ink);box-shadow:0 0 0 0 rgba(255,255,255,.7)}
-@keyframes tabPulseDot{
-  0%,100%{box-shadow:0 0 0 0 rgba(10,168,90,.55)}
-  50%{box-shadow:0 0 0 5px rgba(10,168,90,0)}
-}
 .stage-footer-bar .cta-row{
   display:flex;gap:8px;max-width:560px;width:100%;margin:0 auto;
 }
@@ -2222,54 +2202,28 @@ function falarEspecialista(){
 function inicializarTabs(){
   const tabs = document.querySelectorAll('.tab-btn');
   const abas = document.querySelectorAll('.aba');
-
-  // Destaque visual + ocultar CTA "Solicitar informações" se acesso liberado
-  const liberado = !!(ACESSO_C3 && ACESSO_C3.tipo === 'liberado');
-  const tabPriv = document.querySelector('.tab-privado');
-  if(tabPriv) tabPriv.classList.toggle('tab-destaque', liberado);
-  if(liberado){
-    const ctaRow = document.querySelector('.stage-footer-bar .cta-row');
-    if(ctaRow) ctaRow.style.display = 'none';
-  }
-
-  // Função de troca extraída pra ser reutilizável (click + query string)
-  function ativarAba(target){
-    if(!target) return;
-    let achou = false;
-    tabs.forEach(t => {
-      const on = t.dataset.aba === target;
-      if(on) achou = true;
-      t.classList.toggle('on', on);
-      t.setAttribute('aria-selected', on?'true':'false');
-    });
-    if(!achou) return;
-    abas.forEach(a => a.dataset.active = (a.dataset.aba === target ? 'true' : 'false'));
-    if(window.track) window.track('click_aba_' + target);
-    if(target === 'privado' && window.track){
-      const liberada = ACESSO_C3 && ACESSO_C3.tipo === 'liberado' && MATERIAL_C3;
-      window.track(liberada ? 'view_aba_privado_liberada' : 'view_aba_privado_bloqueada');
-    }
-    const conteudo = document.getElementById('aba-conteudo');
-    if(conteudo){
-      const top = conteudo.getBoundingClientRect().top + window.scrollY - 80;
-      window.scrollTo({top:Math.max(0,top), behavior:'smooth'});
-    }
-  }
-
   tabs.forEach(tab => {
-    tab.addEventListener('click', () => ativarAba(tab.dataset.aba));
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.aba;
+      tabs.forEach(t => {
+        const on = t.dataset.aba === target;
+        t.classList.toggle('on', on);
+        t.setAttribute('aria-selected', on?'true':'false');
+      });
+      abas.forEach(a => a.dataset.active = (a.dataset.aba === target ? 'true' : 'false'));
+      if(window.track) window.track('click_aba_' + target);
+      if(target === 'privado' && window.track){
+        const liberada = ACESSO_C3 && ACESSO_C3.tipo === 'liberado' && MATERIAL_C3;
+        window.track(liberada ? 'view_aba_privado_liberada' : 'view_aba_privado_bloqueada');
+      }
+      // tabs estão fixed no rodapé; ao trocar de aba, scroll suave pro topo do conteúdo
+      const conteudo = document.getElementById('aba-conteudo');
+      if(conteudo){
+        const top = conteudo.getBoundingClientRect().top + window.scrollY - 80;
+        window.scrollTo({top:Math.max(0,top), behavior:'smooth'});
+      }
+    });
   });
-
-  // Suporte a ?aba=privado (vindo do "Ver material" do portal-usuario)
-  const abasValidas = new Set(['resumo','financeiro','indicadores','analise','privado']);
-  try{
-    const q = new URLSearchParams(window.location.search).get('aba');
-    if(q && abasValidas.has(q)){
-      // privado só faz sentido se o comprador tem acesso liberado
-      if(q === 'privado' && !liberado) return;
-      ativarAba(q);
-    }
-  } catch(_){}
 }
 
 function inicializarTracking(){
