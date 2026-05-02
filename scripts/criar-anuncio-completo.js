@@ -34,6 +34,53 @@ const TEXTOS = [
 
 const PALAVRAS_PROIBIDAS = ['vendo','vende-se','à venda','a venda','oportunidade','passo ponto','passa-se ponto','negócio em venda','empresa para venda'];
 
+// Labels acentuados pra setor (espelha SETOR_LABELS do skill — preenche
+// setor_label no payload pra evitar fallback feio "Saude" sem cedilha).
+const SETOR_LABELS = {
+  alimentacao: 'Alimentação',
+  saude: 'Saúde',
+  educacao: 'Educação',
+  beleza_estetica: 'Beleza e estética',
+  bem_estar: 'Bem-estar',
+  varejo: 'Varejo',
+  hospedagem: 'Hospedagem',
+  logistica: 'Logística',
+  industria: 'Indústria',
+  construcao: 'Construção',
+  servicos_empresas: 'Serviços para empresas',
+  servicos_locais: 'Serviços locais',
+};
+
+// Setor específico legível pra usar nos templates de descrição.
+// Vai além do SETOR_LABELS — tenta inferir tipo concreto do negócio.
+function setorEspecifico(perfil, dadosJson) {
+  const id = perfil.identificacao || {};
+  const sub = (id.subcategoria || '').toLowerCase();
+  if (sub) {
+    // Mapeia algumas subcategorias comuns pra forma legível
+    const subMap = {
+      odontologia: 'clínica odontológica', medicina: 'clínica médica',
+      fisioterapia: 'clínica de fisioterapia', estetica: 'clínica estética',
+      veterinaria: 'clínica veterinária', psicologia: 'consultório de psicologia',
+      padaria: 'padaria', restaurante: 'restaurante', pizzaria: 'pizzaria',
+      lanchonete: 'lanchonete', cafeteria: 'cafeteria', bar: 'bar',
+      pet: 'pet shop', pet_shop: 'pet shop',
+      academia: 'academia', crossfit: 'box de crossfit', pilates: 'studio de pilates',
+      salao: 'salão de beleza', barbearia: 'barbearia',
+      moda: 'boutique de moda', loja_roupas: 'loja de roupas', otica: 'ótica',
+      contabilidade: 'escritório de contabilidade', advocacia: 'escritório de advocacia',
+      consultoria: 'consultoria', tecnologia: 'empresa de tecnologia',
+      mecanica: 'oficina mecânica', oficina: 'oficina',
+      escola_infantil: 'escola infantil', curso: 'curso livre',
+      logistica: 'transportadora', limpeza: 'empresa de limpeza',
+    };
+    if (subMap[sub]) return subMap[sub];
+    // Se subcategoria existe mas não mapeada, usa ela mesma
+    return sub.replace(/_/g, ' ');
+  }
+  return SETOR_LABELS[dadosJson.setor_code] || dadosJson.setor_code || 'negócio';
+}
+
 function H() { return { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON, 'Content-Type': 'application/json' }; }
 
 // ─── MAPEAMENTO schema novo → dados_json flat (formato esperado pela skill v2) ───
@@ -76,6 +123,7 @@ function mapPerfilParaDadosJson(perfil) {
     anexo_simples: 'I',
     setor: setorMap,
     setor_code: setorMap,
+    setor_label: SETOR_LABELS[setorMap] || setorMap,
     modelo_atuacao_multi: ['produto_proprio'],
     modelo_code: 'produto_proprio',
     pct_produto: 100,
@@ -158,26 +206,120 @@ function trunc(s, max) {
   return s.substring(0, max - 1).replace(/\s+\S*$/, '') + '…';
 }
 
-// Sanitiza descrição: troca palavras proibidas por neutras + valida tamanho
+// Helpers pra formatar números brasileiros
+function fmtBRL(n) { return Math.round(n).toLocaleString('pt-BR'); }
+function fmtFatBRL(fatAnual) {
+  if (fatAnual >= 1000000) return (fatAnual / 1000000).toFixed(1).replace('.', ',') + 'M';
+  return Math.round(fatAnual / 1000) + 'k';
+}
+
+// Limpa palavras proibidas (safety net)
+function limparProibidas(s) {
+  let out = s;
+  const lower = s.toLowerCase();
+  for (const p of PALAVRAS_PROIBIDAS) {
+    if (lower.includes(p)) out = out.replace(new RegExp(p, 'gi'), '').replace(/\s+/g, ' ').trim();
+  }
+  return out;
+}
+
+// 4 templates rotativos com placeholders dinâmicos. Sorteia 1 por anúncio.
+// Garante todos placeholders preenchidos — se algum dado faltar pra um template,
+// pula pro próximo da fila.
 function montarDescricaoCard(calc, perfil) {
   const id = perfil.identificacao || {};
   const dre = perfil.dre || {};
-  const setorLabel = (calc.identificacao && calc.identificacao.setor && calc.identificacao.setor.label) || id.setor;
-  const cap = setorLabel ? setorLabel.charAt(0).toUpperCase() + setorLabel.slice(1) : 'Negócio';
-  const anos = id.tempo_operacao_anos || 0;
+  const com = perfil.comercial || {};
+  const ges = perfil.gestao || {};
+
+  const setorEsp = setorEspecifico(perfil, { setor_code: calc.identificacao && calc.identificacao.setor && calc.identificacao.setor.code });
   const cidade = id.cidade || '';
-  const estado = id.estado || '';
-  const fatTxt = dre.faturamento_anual >= 1000000
-    ? 'R$ ' + (dre.faturamento_anual / 1000000).toFixed(1).replace('.', ',') + 'M/ano'
-    : 'R$ ' + Math.round((dre.faturamento_anual || 0) / 1000) + 'k/ano';
-  const desc = `${cap} com ${anos} anos de operação em ${cidade}/${estado}. Faturamento ${fatTxt}.`;
-  // Validação proibidas (já não tem por construção, mas safety net)
-  const lower = desc.toLowerCase();
-  for (const p of PALAVRAS_PROIBIDAS) {
-    if (lower.includes(p)) return desc.replace(new RegExp(p, 'gi'), '');
+  const uf = id.estado || '';
+  const anos = id.tempo_operacao_anos || 0;
+  // Margem: fonte AUTORITATIVA é calc.dre.margem_operacional_pct (calculado pela
+  // skill v2 a partir do DRE detalhado). Bate com o título (que também lê do calc
+  // via edge function gerar_textos_laudo). Perfil só como fallback.
+  const margemCalc = (calc && calc.dre && (calc.dre.margem_operacional_pct ?? calc.dre.margem_op_pct));
+  const margem = Math.round((typeof margemCalc === 'number' ? margemCalc : null) ?? dre.margem_operacional_pct ?? 0);
+  // Recorrência: calc.comercial não é populado pela skill v2 atualmente — fica
+  // só no perfil. Single-source: perfil. (Débito técnico: skill propagar comercial
+  // pro calc_json pra unificar.)
+  const recorrencia = Math.round(com.recorrencia_pct || 0);
+  const funcionarios = (id.funcionarios_clt || 0) + (id.funcionarios_pj || 0);
+  const publico = id.modelo_negocio === 'b2b' ? 'clientes corporativos' : 'público local de classe média';
+  const clientes = com.num_clientes_ativos || 0;
+  const ticket = com.ticket_medio || 0;
+  const ticketBRL = ticket > 0 ? fmtBRL(ticket) : null;
+  const operaSemDono = ges.opera_sem_dono_15dias === true;
+  const fatBRL = fmtFatBRL(dre.faturamento_anual || 0);
+
+  // Diferencial principal (Template 4)
+  let diferencial;
+  if (recorrencia >= 30)         diferencial = `alta recorrência de receita (${recorrencia}%)`;
+  else if (margem >= 22)         diferencial = `margem operacional acima da média (${margem}%)`;
+  else if (operaSemDono)         diferencial = `operação independente do sócio`;
+  else if (anos >= 10)           diferencial = `${anos} anos de presença consolidada`;
+  else                           diferencial = `operação enxuta e lucrativa`;
+
+  // Templates — cada um diz quais campos exige preenchidos pra ser válido
+  const templates = [
+    {
+      key: 'performance',
+      requer: () => margem > 0 && recorrencia >= 0 && funcionarios > 0 && cidade && uf && anos > 0,
+      texto: () => `Operação de ${setorEsp} em ${cidade}/${uf} com ${anos} anos no mercado. ` +
+                   `Margem operacional de ${margem}% e ${recorrencia}% de receita recorrente garantem fluxo de caixa estável. ` +
+                   `Equipe de ${funcionarios} pessoas atende ${publico}. ` +
+                   `Estrutura consolidada com processos documentados. ` +
+                   `Negócio opera sem dependência diária do dono.`,
+    },
+    {
+      key: 'equipe',
+      requer: () => funcionarios > 0 && margem > 0 && cidade && uf && anos > 0 && fatBRL,
+      texto: () => `${capitalize(setorEsp)} estabelecido em ${cidade}/${uf} há ${anos} anos. ` +
+                   `Time de ${funcionarios} colaboradores treinado e processos padronizados. ` +
+                   `Faturamento de R$ ${fatBRL}/ano com margem de ${margem}%. ` +
+                   `Atende ${publico} com fidelização forte. ` +
+                   `Carteira de clientes ativa e diversificada. ` +
+                   `Ponto comercial estratégico.`,
+    },
+    {
+      key: 'recorrencia',
+      requer: () => recorrencia >= 30 && clientes > 0 && ticketBRL && cidade && uf && anos > 0 && margem > 0,
+      texto: () => `${capitalize(setorEsp)} em ${cidade}/${uf} com ${recorrencia}% de receita recorrente. ` +
+                   `Operação madura há ${anos} anos com margem operacional de ${margem}%. ` +
+                   `Base de ${clientes} clientes ativos e ticket médio de R$ ${ticketBRL}. ` +
+                   `Estrutura física consolidada. ` +
+                   `Negócio com baixa dependência do dono e forte presença regional.`,
+    },
+    {
+      key: 'diferencial',
+      requer: () => cidade && uf && anos > 0 && funcionarios > 0 && margem > 0,
+      texto: () => `Negócio de ${setorEsp} consolidado em ${cidade}/${uf}. ` +
+                   `${anos} anos de operação com ${funcionarios} colaboradores ativos. ` +
+                   `Diferencial: ${diferencial}. ` +
+                   `Faturamento estável com margem de ${margem}%. ` +
+                   `Operação preparada para transição com novo dono.`,
+    },
+  ];
+
+  // Sorteia ordem aleatória, pega o primeiro válido
+  const ordem = [...templates].sort(() => Math.random() - 0.5);
+  for (const t of ordem) {
+    if (t.requer()) {
+      const out = limparProibidas(t.texto());
+      // Sem trunc agressivo — templates já miram 280-450 chars
+      return out;
+    }
   }
-  return trunc(desc, 280);
+
+  // Fallback se nenhum template tem dados completos: template legado simplificado
+  return limparProibidas(
+    `${capitalize(setorEsp)} em ${cidade}/${uf}. ${anos} anos de operação. ` +
+    `Faturamento R$ ${fatBRL}/ano. Estrutura consolidada e operação organizada.`
+  );
 }
+
+function capitalize(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
 
 // Monta título: prioriza IA, fallback "Setor em Cidade"
 function montarTitulo(calc, perfil) {
@@ -250,6 +392,29 @@ async function processarPerfil(perfilPath) {
   const calcJson = await AVALIADORA_V2.avaliar(rowData, 'commit');
   console.log(`│  ✓ skill v2: RO=${Math.round(calcJson.dre.ro_mensal)}/mês, ISE=${calcJson.ise.ise_total}, valor=${Math.round(calcJson.valuation.valor_venda)}`);
 
+  // ── GUARD: regra de negócio — 1Negócio não publica RO anual negativo ──
+  // Se RO anual < 0, faz rollback dos artefatos criados (negocio + laudo) e
+  // PULA esse perfil. Próximo perfil do batch.
+  const roAnual = Number(calcJson.dre.ro_anual) || 0;
+  if (roAnual < 0) {
+    console.log(`│  ⊘ pulado · resultado anual negativo (R$ ${Math.round(roAnual).toLocaleString('pt-BR')})`);
+    // Rollback: deleta laudo + negocio criados (anon não tem permissão de DELETE,
+    // mas a service_role da edge function tem. Como o script roda com anon, o
+    // rollback pode falhar parcialmente. Ainda assim, marcamos para skip.)
+    try {
+      // Tenta DELETE laudo + negocio (best-effort, anon pode não ter permissão)
+      await fetch(`${SUPABASE_URL}/rest/v1/laudos_v2?negocio_id=eq.${negocioId}`, { method: 'DELETE', headers: H() });
+      await fetch(`${SUPABASE_URL}/rest/v1/negocios?id=eq.${negocioId}`, { method: 'DELETE', headers: H() });
+    } catch (_) { /* swallow */ }
+    return {
+      pulado: true,
+      motivo: 'ro_anual_negativo',
+      ro_anual: roAnual,
+      perfil: path.basename(perfilPath),
+      negocio_id: negocioId,
+    };
+  }
+
   // ── 3. Pega laudo_v2_id ──
   const lauResp = await fetch(`${SUPABASE_URL}/rest/v1/laudos_v2?negocio_id=eq.${negocioId}&ativo=eq.true&select=id`, { headers: H() });
   const laudoV2Id = (await lauResp.json())[0].id;
@@ -272,7 +437,11 @@ async function processarPerfil(perfilPath) {
   const calcAtualizado = (await lauResp2.json())[0].calc_json;
 
   // ── 6. INSERT termos_adesao ──
-  const valorPedido = Math.round(calcJson.valuation.valor_venda || 0);
+  // valor_pedido base = valuation calculada pela skill. Se o perfil tem
+  // _preco_modificador (ex: 1.15 = sobrepreco, 0.85 = oportunidade), aplica.
+  const valorBase = calcJson.valuation.valor_venda || 0;
+  const precoMod = (typeof perfil._preco_modificador === 'number') ? perfil._preco_modificador : 1.0;
+  const valorPedido = Math.round(valorBase * precoMod);
   const termoPayload = {
     negocio_id: negocioId,
     plano: 'gratuito',
@@ -309,28 +478,30 @@ async function processarPerfil(perfilPath) {
     valor_pedido: valorPedido,
     termo_adesao_id: termoId,
     termo_assinado_em: new Date().toISOString(),
-    status: 'publicado',
-    publicado_em: new Date().toISOString(),
+    status: 'rascunho',
     origem: 'maquininha_teste',
   };
+  // status='rascunho' → anon NÃO pode SELECT. Logo, return=minimal pra evitar
+  // que o pós-insert SELECT do PostgREST bata em RLS. Codigo é gerado por trigger;
+  // como não conseguimos lê-lo via anon (rascunho), reportamos só negocio_id e
+  // titulo no log — admin lê o codigo via SQL depois (ou após promover pra publicado).
   const anuResp = await fetch(`${SUPABASE_URL}/rest/v1/anuncios_v2`, {
-    method: 'POST', headers: { ...H(), 'Prefer': 'return=representation' },
+    method: 'POST', headers: { ...H(), 'Prefer': 'return=minimal' },
     body: JSON.stringify(anuncioPayload),
   });
   if (!anuResp.ok) throw new Error(`anuncios_v2 INSERT (${anuResp.status}): ${await anuResp.text()}`);
-  const anuncio = (await anuResp.json())[0];
-  console.log(`│  ✓ anúncio: ${anuncio.codigo} ('${titulo}')`);
-  console.log(`└─ publicado · valor R$ ${valorPedido.toLocaleString('pt-BR')}`);
+  console.log(`│  ✓ anúncio criado (rascunho) · titulo: '${titulo}'`);
+  console.log(`└─ rascunho · valor R$ ${valorPedido.toLocaleString('pt-BR')} · descrição ${descricao.length} chars`);
 
   return {
     nome: id.nome,
     codigo_diag: codigo,
-    codigo_anu: anuncio.codigo,
+    codigo_anu: '(rascunho — codigo via SQL admin)',
     valor: valorPedido,
     ise: calcJson.ise.ise_total,
     negocio_id: negocioId,
-    anuncio_id: anuncio.id,
     titulo,
+    descricao,
   };
 }
 
@@ -345,7 +516,7 @@ async function main() {
   if (arg === '--batch') {
     const dir = path.join(__dirname, 'perfis-teste');
     perfis = fs.readdirSync(dir)
-      .filter(f => /^(0[5-9]|10)-.*\.json$/.test(f))
+      .filter(f => /^seed-\d{3}\.json$/.test(f))
       .sort()
       .map(f => path.join(dir, f));
   } else {
@@ -371,9 +542,15 @@ async function main() {
   console.log('\n═══════════════════════════════════════════════');
   console.log('RESUMO FINAL');
   console.log('═══════════════════════════════════════════════');
+  const sucessos = resultados.filter(r => !r.erro && !r.pulado);
+  const pulados  = resultados.filter(r => r.pulado);
+  const falhas   = resultados.filter(r => r.erro);
+  console.log(`✓ ${sucessos.length} sucessos · ⊘ ${pulados.length} pulados (RO<0) · ❌ ${falhas.length} falhas`);
   resultados.forEach((r, i) => {
     if (r.erro) {
       console.log(`${i+1}. ❌ ${r.perfil}: ${r.erro}`);
+    } else if (r.pulado) {
+      console.log(`${i+1}. ⊘ ${r.perfil}: pulado · RO anual R$ ${Math.round(r.ro_anual).toLocaleString('pt-BR')}`);
     } else {
       console.log(`${i+1}. ${r.nome}`);
       console.log(`   Diag: ${r.codigo_diag}  |  Anúncio: ${r.codigo_anu}  |  Valor: R$ ${r.valor.toLocaleString('pt-BR')}  |  ISE: ${r.ise}`);
