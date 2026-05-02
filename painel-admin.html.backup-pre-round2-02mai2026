@@ -3263,47 +3263,10 @@ async function salvarAnuncio(publicar) {
 
     fecharEditor();
     loadAnuncios();
-
-    // Dossiê do comprador: dispara geração dos 5 textos pós-publicação/edição.
-    // Fire-and-forget: erros caem em console.warn e não bloqueiam o fluxo.
-    // Roda apenas quando publicar=true (cobre primeira publicação E edição
-    // de anúncio já publicado — alteração de valor pedido pode mudar texto
-    // estratégico).
-    if (publicar) {
-      gerarTextosDossie(neg.id);
-    }
   } catch(e) {
     alert('Erro ao salvar: ' + e.message);
     console.error(e);
   }
-}
-
-// Helper: dispara geração paralela dos 5 textos do dossiê do comprador.
-// Usa edge function gerar_textos_laudo que salva direto em
-// laudos_v2.calc_json.textos_ia.<chave> via RPC atualizar_texto_calc_json.
-async function gerarTextosDossie(negocioId) {
-  if (!negocioId) return;
-  const TEXTOS_DOSSIE = [
-    'texto_dossie_estrategico_valor',
-    'texto_dossie_upsides_breve',
-    'texto_dossie_transferibilidade',
-    'texto_dossie_acoes_pos_compra',
-    'texto_dossie_caracteristicas_pilares'
-  ];
-  console.log('[dossie] disparando ' + TEXTOS_DOSSIE.length + ' textos pra negocio ' + negocioId);
-  TEXTOS_DOSSIE.forEach(chave => {
-    fetch(SB + '/functions/v1/gerar_textos_laudo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AK },
-      body: JSON.stringify({ negocio_id: negocioId, texto_a_gerar: chave })
-    })
-    .then(r => r.json())
-    .then(d => {
-      if (d.ok) console.log('[dossie] ✓ ' + chave + ' (' + (d.duracao_ms||'?') + 'ms)');
-      else console.warn('[dossie] ✗ ' + chave + ':', d.erro);
-    })
-    .catch(err => console.warn('[dossie] ✗ ' + chave + ' (network):', err));
-  });
 }
 
 async function alterarStatus(novoStatus) {

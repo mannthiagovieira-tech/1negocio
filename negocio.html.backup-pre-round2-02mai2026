@@ -1369,9 +1369,9 @@ async function _capturarIPDossie(){
   _DOSSIE_IP_CACHE = '';
   return '';
 }
-function _watermarkSVG(nome, email, ip){
-  const txt = (nome || 'sob NDA') + ' · ' + (email || '—') + ' · ' + (ip || '0.0.0.0');
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" viewBox="0 0 600 300"><g transform="rotate(-30 300 150)" style="font-family:DM Mono,monospace;font-size:12px;fill:rgba(15,23,42,0.10);letter-spacing:.06em"><text x="0" y="80">' + txt + '</text><text x="320" y="220">' + txt + '</text></g></svg>';
+function _watermarkSVG(email, ip){
+  const txt = (email || 'sob nda') + ' · ' + (ip || '0.0.0.0');
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="300" viewBox="0 0 600 300"><g transform="rotate(-30 300 150)" style="font-family:DM Mono,monospace;font-size:13px;fill:rgba(15,23,42,0.06);letter-spacing:.06em"><text x="0" y="80">' + txt + '</text><text x="320" y="220">' + txt + '</text></g></svg>';
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 }
 function _injetarCSSDossie(){
@@ -1410,12 +1410,6 @@ function _injetarCSSDossie(){
       font-family: 'DM Mono', monospace; font-size: 11px;
       letter-spacing: .08em; text-transform: uppercase;
       border: 1px solid #10b98133; border-radius: 0;
-    }
-    .dossie-sticky-header {
-      position: sticky; top: 0; z-index: 40; background: #ffffff;
-      padding: 10px 16px; border-bottom: 1px solid rgba(0,0,0,.08);
-      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
-      box-shadow: 0 2px 6px rgba(0,0,0,.03);
     }
     .dossie-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .dossie-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
@@ -1630,9 +1624,8 @@ function renderAbaPrivadoLiberada(acesso){
   // Dispara captura de IP em background + auditoria de acesso (Parte 4)
   setTimeout(async () => {
     const ip = await _capturarIPDossie();
-    const nomeComprador = (SESSION && SESSION.nome) || '';
     const wm = document.querySelector('.dossie-watermark');
-    if (wm) wm.style.backgroundImage = 'url("' + _watermarkSVG(nomeComprador, emailComprador, ip) + '")';
+    if (wm) wm.style.backgroundImage = 'url("' + _watermarkSVG(emailComprador, ip) + '")';
     const auditEl = document.querySelector('.dossie-cta-fixo .audit-line');
     if (auditEl) auditEl.textContent = 'CONFIDENCIAL · ' + (emailComprador || '—') + ' · IP ' + (ip || '—') + ' · ' + new Date(tsAcessoIso).toLocaleString('pt-BR') + ' · válido até ' + validade;
 
@@ -1667,22 +1660,22 @@ function renderAbaPrivadoLiberada(acesso){
   // Helper: formata valor monetário arredondado pra display amigável
   const fmtMi = (v) => v >= 1e6 ? (v/1e6).toFixed(1).replace('.0','') + ' mi' : (v >= 1e3 ? Math.round(v/1e3) + ' mil' : Math.round(v));
 
-  // Helper local pra renderizar parágrafos a partir de string com \n\n.
-  // Em produção, texto SEMPRE existe (gerado quando admin publica anúncio).
-  // Se faltar, retorna string vazia (caller pode ocultar a seção).
+  // Helper local pra renderizar parágrafos a partir de string com \n\n
   const paragrafos = (txt) => txt
     ? String(txt).split('\n\n').filter(p => p.trim()).map(p => `<p style="margin:0 0 10px 0;line-height:1.6">${escapeHtml(p.trim())}</p>`).join('')
-    : '';
+    : '<div class="dossie-pendente">Texto sendo gerado pela IA. Atualize em alguns instantes.</div>';
 
   return `
     <section class="aba dossie-aba" data-aba="privado" data-active="false">
 
       <div class="dossie-watermark"></div>
 
-      <!-- HEADER sticky persistente durante scroll -->
-      <div class="dossie-sticky-header">
-        <span class="dossie-confidencial-badge">🔒 CONFIDENCIAL · sob NDA</span>
-        <span style="font-family:'DM Mono',monospace;font-size:11px;color:#64748b;letter-spacing:.04em">acesso registrado${dias!=null?' · '+dias+' dia'+(dias===1?'':'s')+' restante'+(dias===1?'':'s'):''}</span>
+      <!-- HEADER fixo -->
+      <div class="section">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+          <span class="dossie-confidencial-badge">🔒 CONFIDENCIAL · sob NDA</span>
+          <span style="font-family:'DM Mono',monospace;font-size:11px;color:#64748b;letter-spacing:.04em">acesso registrado${dias!=null?' · '+dias+' dia'+(dias===1?'':'s')+' restante'+(dias===1?'':'s'):''}</span>
+        </div>
       </div>
 
       <!-- 01 IDENTIFICAÇÃO -->
@@ -1749,94 +1742,18 @@ function renderAbaPrivadoLiberada(acesso){
         </div>
       </div>
 
-      <!-- 05 DRE COMPLETA — todas linhas + mensal/anual lado a lado -->
+      <!-- 05 DRE COMPLETA (colapsável) -->
       <details class="dossie-collapse" style="margin:24px 0" open>
-        <summary>04 · DRE COMPLETA</summary>
+        <summary>04 · DRE COMPLETA (mensal)</summary>
         <div>
-          <div class="dossie-dre-table">
-            ${(() => {
-              const b1 = (calc.dre && calc.dre.bloco_1_receita) || {};
-              const b2 = (calc.dre && calc.dre.bloco_2_lucro_bruto) || {};
-              const b3 = (calc.dre && calc.dre.bloco_3_operacional) || {};
-              const b4 = (calc.dre && calc.dre.bloco_4_lucro_liquido) || {};
-              const b5 = (calc.dre && calc.dre.bloco_5_caixa) || {};
-
-              const impostosM = n(b1.impostos && b1.impostos.mensal);
-              const comissoesM = n(b1.comissoes);
-              const taxasM = n(b1.taxas_recebimento);
-              const antecipM = n(b1.antecipacao_recebiveis);
-              const royaltyM = n(b1.royalty_pct_aplicado) ? n(b1.royalty_pct_aplicado) * fatM / 100 : 0;
-              const recLiqM = n(b1.rec_liquida);
-              const margemBrutaPct = n(b2.margem_bruta_pct);
-              const lucroBrutoM = n(b2.lucro_bruto);
-              const cltFolhaM = n(b3.pessoal && b3.pessoal.clt_folha_bruta);
-              const cltEncM = n(b3.pessoal && b3.pessoal.clt_encargos);
-              const folhaTotalM = n(b3.pessoal && b3.pessoal.folha_total_mensal) || folhaM;
-              const pjM = n(b3.pessoal && b3.pessoal.pj_custo);
-              const royaltyFixoM = n(b3.pessoal && b3.pessoal.royalty_fixo);
-              const mktFranquiaM = n(b3.pessoal && b3.pessoal.mkt_franquia_fixo);
-              const facilitiesM = n(b3.ocupacao && b3.ocupacao.facilities);
-              const ocupacaoTotalM = n(b3.ocupacao && b3.ocupacao.total_mensal);
-              const opOutTotalM = n(b3.operacional_outros && b3.operacional_outros.total_mensal) || opOutrosM;
-              const mktPagoM = n(b3.operacional_outros && b3.operacional_outros.mkt_pago);
-              const sistemasM = n(b3.operacional_outros && b3.operacional_outros.sistemas);
-              const outrosCfM = n(b3.operacional_outros && b3.operacional_outros.outros_cf);
-              const irCsllM = n(b4.impostos_sobre_lucro && b4.impostos_sobre_lucro.total);
-              const resFinanceiroM = n(b4.resultado_financeiro && b4.resultado_financeiro.saldo);
-              const lucroLiqM = n(b4.lucro_liquido_mensal);
-              const margemLiqPct = fatM > 0 ? (lucroLiqM / fatM * 100) : 0;
-              const investM = n(b5.investimentos);
-              const parcelasM = n(b5.parcelas_dividas);
-              const potCaixaM = n(b5.potencial_caixa_mensal);
-
-              const linha = (label, vM, opts) => {
-                const o = opts || {};
-                if (!vM && !o.always) return '';
-                const cls = o.total ? 'kv-row total' : (o.indent ? 'kv-row' : 'kv-row');
-                const indent = o.indent ? 'style="padding-left:18px;color:#475569"' : '';
-                return `<div class="${cls}" ${indent}><span>${label}</span><span class="kv-value">${brlR(vM)}/mês · ${brlR(vM*12)}/ano</span></div>`;
-              };
-              const linhaPct = (label, vM, pct) => {
-                return `<div class="kv-row total"><span>${label} (${pct.toFixed(1)}%)</span><span>${brlR(vM)}/mês · ${brlR(vM*12)}/ano</span></div>`;
-              };
-
-              let html = '';
-              html += linha('Receita bruta', fatM, {always:true});
-              html += linha('(–) Impostos sobre vendas' + (b1.impostos && b1.impostos.regime ? ' · ' + b1.impostos.regime + (b1.impostos.anexo ? ' Anexo ' + b1.impostos.anexo : '') : ''), impostosM);
-              html += linha('(–) Comissões', comissoesM, {indent:true});
-              html += linha('(–) Taxas de recebimento', taxasM, {indent:true});
-              html += linha('(–) Antecipação de recebíveis', antecipM, {indent:true});
-              html += linha('(–) Royalty (franquia)', royaltyM, {indent:true});
-              html += `<div class="kv-row" style="font-weight:600;border-top:1px solid rgba(0,0,0,.08)"><span>= Receita líquida</span><span class="kv-value">${brlR(recLiqM)}/mês · ${brlR(recLiqM*12)}/ano</span></div>`;
-              html += linha('(–) CMV / Custo direto', cmvM);
-              html += linhaPct('= Lucro bruto', lucroBrutoM, margemBrutaPct);
-              html += linha('(–) Pessoal CLT (folha)', cltFolhaM, {indent:true});
-              html += linha('(–) CLT encargos (FGTS, RAT, INSS)', cltEncM, {indent:true});
-              if (folhaTotalM && !cltFolhaM && !cltEncM) html += linha('(–) Folha total', folhaTotalM);
-              html += linha('(–) Pessoal PJ', pjM);
-              html += linha('(–) Royalty fixo', royaltyFixoM);
-              html += linha('(–) Mkt franquia fixo', mktFranquiaM);
-              html += linha('(–) Aluguel', aluguelM, {indent:true});
-              html += linha('(–) Facilities (água, luz, internet)', facilitiesM, {indent:true});
-              if (ocupacaoTotalM && !aluguelM && !facilitiesM) html += linha('(–) Ocupação total', ocupacaoTotalM);
-              html += linha('(–) Marketing', mktPagoM, {indent:true});
-              html += linha('(–) Sistemas / ERP', sistemasM, {indent:true});
-              html += linha('(–) Outros custos fixos', outrosCfM, {indent:true});
-              if (opOutTotalM && !mktPagoM && !sistemasM && !outrosCfM) html += linha('(–) Operacional outros', opOutTotalM);
-              html += linha('(–) Pró-labore', prolaboreM);
-              html += linhaPct('= Resultado operacional', roM, margemOp);
-              html += linha('(–) IR / CSLL sobre lucro', irCsllM);
-              if (resFinanceiroM) {
-                const sinal = resFinanceiroM >= 0 ? '+' : '−';
-                html += `<div class="kv-row"><span>(${sinal}) Resultado financeiro</span><span class="kv-value">${brlR(Math.abs(resFinanceiroM))}/mês · ${brlR(Math.abs(resFinanceiroM)*12)}/ano</span></div>`;
-              }
-              html += linhaPct('= Lucro líquido', lucroLiqM, margemLiqPct);
-              html += linha('(–) Investimentos', investM);
-              html += linha('(–) Parcelas de dívidas', parcelasM);
-              html += `<div class="kv-row total" style="background:#f0fdf4;border-color:#a7f3d0;color:#047857"><span>= Potencial caixa mensal</span><span>${brlR(potCaixaM)}/mês · ${brlR(potCaixaM*12)}/ano</span></div>`;
-              return html;
-            })()}
-          </div>
+          ${fatM?`<div class="kv-row"><span>Receita bruta</span><span class="kv-value">${brlR(fatM)}</span></div>`:''}
+          ${dedM?`<div class="kv-row"><span>(–) Impostos + deduções</span><span class="kv-value">${brlR(dedM)}</span></div>`:''}
+          ${cmvM?`<div class="kv-row"><span>(–) CMV</span><span class="kv-value">${brlR(cmvM)}</span></div>`:''}
+          ${folhaM?`<div class="kv-row"><span>(–) Folha + encargos</span><span class="kv-value">${brlR(folhaM)}</span></div>`:''}
+          ${prolaboreM?`<div class="kv-row"><span>(–) Pró-labore</span><span class="kv-value">${brlR(prolaboreM)}</span></div>`:''}
+          ${aluguelM?`<div class="kv-row"><span>(–) Aluguel</span><span class="kv-value">${brlR(aluguelM)}</span></div>`:''}
+          ${opOutrosM?`<div class="kv-row"><span>(–) Outros operacionais</span><span class="kv-value">${brlR(opOutrosM)}</span></div>`:''}
+          <div class="kv-row total"><span>Resultado operacional</span><span>${brlR(roM)}/mês · ${brlR(roA)}/ano (${margemOp.toFixed(1)}%)</span></div>
         </div>
       </details>
 
@@ -1858,81 +1775,27 @@ function renderAbaPrivadoLiberada(acesso){
           <div class="kv-row" style="font-weight:600"><span>Total passivos</span><span class="kv-value">${brlR(passivosTotal)}</span></div>
 
           <div class="kv-row total" style="margin-top:12px;${pl<0?'background:#fee2e2;color:#991b1b':''}"><span>Patrimônio líquido</span><span>${brlR(pl)}</span></div>
+
+          <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;color:#64748b;text-transform:uppercase;margin:14px 0 6px">Ciclo financeiro</div>
+          ${cf.pmr_dias!==undefined?`<div class="kv-row"><span>PMR · prazo médio recebimento</span><span class="kv-value">${cf.pmr_dias} dias</span></div>`:''}
+          ${cf.pmp_dias!==undefined?`<div class="kv-row"><span>PMP · prazo médio pagamento</span><span class="kv-value">${cf.pmp_dias} dias</span></div>`:''}
+          ${cf.ciclo_dias!==undefined?`<div class="kv-row"><span>Ciclo financeiro</span><span class="kv-value">${cf.ciclo_dias} dias</span></div>`:''}
+          ${ncgVal?`<div class="kv-row"><span>NCG · necessidade capital giro</span><span class="kv-value">${brlR(ncgVal)}</span></div>`:''}
         </div>
       </details>
 
-      <!-- 07 INDICADORES vs BENCHMARK SETORIAL — sigla + extenso, 2 colunas -->
+      <!-- 07 INDICADORES vs BENCHMARK (colapsável) -->
       <details class="dossie-collapse" style="margin:24px 0">
         <summary>06 · INDICADORES vs BENCHMARK SETORIAL</summary>
         <div>
-          <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px 16px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;color:#64748b;text-transform:uppercase;padding:0 0 8px 0;border-bottom:1px solid rgba(0,0,0,.08)">
-            <div>Indicador</div><div style="text-align:right">Negócio</div><div style="text-align:right">Mercado</div>
-          </div>
-          ${(() => {
-            // Mapa de nomenclatura: id → "SIGLA — Nome por extenso" ou só nome
-            const NOMES = {
-              margem_bruta: 'Margem bruta',
-              margem_operacional: 'Margem operacional',
-              margem_liquida: 'Margem líquida',
-              cmv_pct: 'CMV % da receita',
-              folha_pct: 'Folha % da receita',
-              aluguel_pct: 'Aluguel % da receita',
-              mkt_pct: 'Marketing % da receita',
-              outros_cf_pct: 'Outros custos fixos %',
-              deducoes_pct: 'Deduções % da receita',
-              recorrencia: 'Recorrência da receita',
-              num_clientes: 'Número de clientes ativos',
-              ticket_medio: 'Ticket médio',
-              concentracao: 'Concentração de clientes',
-              pmr_dias: 'PMR — Prazo Médio de Recebimento',
-              pmp_dias: 'PMP — Prazo Médio de Pagamento',
-              ciclo_financeiro_dias: 'Ciclo Financeiro (PMR − PMP)',
-              ncg_valor: 'NCG — Necessidade de Capital de Giro',
-              endividamento_vs_ro: 'Endividamento vs Resultado Operacional',
-              ro_por_funcionario_mensal: 'Resultado por funcionário (mês)'
-            };
-            // Helper de formatação de valor por sufixo do id
-            const fmt = (k, v) => {
-              if (v === null || v === undefined) return '—';
-              if (k.includes('_pct') || k.startsWith('margem_') || k === 'recorrencia' || k === 'concentracao') return (typeof v==='number' ? v.toFixed(1) : v) + '%';
-              if (k.includes('_dias')) return v + ' dias';
-              if (k === 'ticket_medio' || k === 'ncg_valor' || k === 'ro_por_funcionario_mensal') return brlR(typeof v==='number' ? v : 0);
-              if (k === 'num_clientes') return Math.round(v);
-              return typeof v==='number' ? v.toFixed(2) : v;
-            };
-            const fmtBench = (k, b) => {
-              if (b === null || b === undefined) return '—';
-              if (k.includes('_pct') || k.startsWith('margem_') || k === 'recorrencia' || k === 'concentracao') return (typeof b==='number' ? b.toFixed(0) : b) + '%';
-              if (k.includes('_dias')) return b + ' dias';
-              if (k === 'ticket_medio' || k === 'ncg_valor' || k === 'ro_por_funcionario_mensal') return brlR(typeof b==='number' ? b : 0);
-              return typeof b==='number' ? b.toFixed(2) : b;
-            };
-            // Ordem desejada das chaves (margens primeiro, custos, comerciais, ciclo, alavancagem)
-            const ORDEM = [
-              'margem_bruta','margem_operacional','margem_liquida',
-              'cmv_pct','folha_pct','aluguel_pct','mkt_pct','outros_cf_pct','deducoes_pct',
-              'recorrencia','num_clientes','ticket_medio','concentracao',
-              'pmr_dias','pmp_dias','ciclo_financeiro_dias','ncg_valor',
-              'endividamento_vs_ro','ro_por_funcionario_mensal'
-            ];
-
-            return ORDEM.map(k => {
-              const v = indBench[k];
-              if (!v) return '';
-              const valor = v.valor;
-              const bench = v.benchmark ?? v.benchmark_setor;
-              if (valor === null || valor === undefined) return '';
-              const acima = v.acima_media === true;
-              const abaixo = v.acima_media === false;
-              const cor = acima ? '#047857' : (abaixo ? '#b91c1c' : '#0f172a');
-              const nome = NOMES[k] || k.replace(/_/g, ' ');
-              return `<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px 16px;padding:8px 0;border-bottom:1px solid rgba(0,0,0,.04);align-items:baseline">
-                <div style="font-size:13px">${escapeHtml(nome)}</div>
-                <div style="text-align:right;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:${cor}">${fmt(k, valor)}</div>
-                <div style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:#64748b">${fmtBench(k, bench)}</div>
-              </div>`;
-            }).join('');
-          })()}
+          ${Object.entries(indBench).map(([k, v]) => {
+            const valor = v && v.valor !== undefined ? v.valor : null;
+            const bench = v && (v.benchmark !== undefined || v.benchmark_setor !== undefined) ? (v.benchmark ?? v.benchmark_setor) : null;
+            const acima = v && v.acima_media === true;
+            const abaixo = v && v.acima_media === false;
+            const cor = acima ? '#047857' : (abaixo ? '#b91c1c' : '#475569');
+            return valor !== null ? `<div class="kv-row"><span>${escapeHtml(k.replace(/_/g,' '))}</span><span class="kv-value" style="color:${cor}">${typeof valor==='number'?valor.toFixed(2):escapeHtml(String(valor))}${bench!==null?' (bench: '+bench+')':''}</span></div>` : '';
+          }).join('')}
         </div>
       </details>
 
@@ -1940,11 +1803,11 @@ function renderAbaPrivadoLiberada(acesso){
       <details class="dossie-collapse" style="margin:24px 0" open>
         <summary>07 · SAÚDE DO NEGÓCIO (ISE) — ${Math.round(n(ise.ise_total))}/100 · ${escapeHtml(ise.classe||'—')}</summary>
         <div>
-          ${pilares.length===0?'':pilares.map(p => {
+          ${pilares.length===0?'<div class="dossie-pendente">Pilares ISE indisponíveis no laudo.</div>':pilares.map(p => {
             const sc = n(p.score_0_10);
             const cls = sc>=6.5?'g':(sc>=4?'a':'r');
             const idP = p.id || '';
-            const carac = caracPilares && caracPilares[idP] ? caracPilares[idP] : '';
+            const carac = caracPilares && caracPilares[idP] ? caracPilares[idP] : '(característica em geração)';
             return `<div class="dossie-pilar-row">
               <div class="pilar-label">${escapeHtml(p.label||idP)}<div style="font-family:'DM Mono',monospace;font-size:10px;color:#64748b;font-weight:400">peso ${p.peso_pct||'?'}%</div></div>
               <div class="pilar-carac">${escapeHtml(carac)}</div>
@@ -1953,6 +1816,23 @@ function renderAbaPrivadoLiberada(acesso){
           }).join('')}
         </div>
       </details>
+
+      <!-- 09 ATRATIVIDADE -->
+      <div class="section">
+        <div class="section-head">
+          <div class="section-sub">08 · ATRATIVIDADE</div>
+          <h2 class="section-title">${Math.round(n(atratividade.total))}/100 · ${escapeHtml(atratividade.label||'—')}</h2>
+        </div>
+        <div class="dossie-grid-3">
+          ${(atratividade.componentes||[]).map(c => `
+            <div class="dossie-card">
+              <div class="label">${escapeHtml(c.label||c.id||'')}</div>
+              <div class="valor" style="font-size:16px">${n(c.score_0_10).toFixed(1)}/10</div>
+              <div class="sub">peso ${c.peso_pct||'?'}% · contribui ${n(c.contribuicao_no_total).toFixed(1)} pts</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
 
       <!-- 10 UPSIDES POSSÍVEIS -->
       <div class="section">
@@ -1981,54 +1861,39 @@ function renderAbaPrivadoLiberada(acesso){
       <details class="dossie-collapse" style="margin:24px 0">
         <summary>10 · ANÁLISE TRIBUTÁRIA — comparativo de regimes</summary>
         <div>
-          ${compRegimes.length===0?'':compRegimes.map(r => {
+          ${compRegimes.length===0?'<div class="dossie-pendente">Comparativo tributário indisponível.</div>':compRegimes.map(r => {
             const isAtual = r.regime === regimeAtual;
             const isRec = r.regime === regimeRec;
-            const coincidem = isAtual && isRec; // negócio já está no ideal
-            const cls = coincidem ? 'atual recomendado' : (isAtual ? 'atual' : (isRec ? 'recomendado' : ''));
-            const tags = coincidem
-              ? '<span class="dossie-trib-tag">ATUAL</span> <span class="dossie-trib-tag" style="background:#10b981">IDEAL</span>'
-              : (isAtual ? '<span class="dossie-trib-tag">ATUAL</span>'
-                          : (isRec ? '<span class="dossie-trib-tag" style="background:#10b981">IDEAL</span>' : ''));
+            const cls = isAtual ? 'atual' : (isRec ? 'recomendado' : '');
             return `<div class="dossie-trib-row ${cls}">
               <div>
                 <strong>${escapeHtml(r.regime||'?').toUpperCase()}${r.anexo?' · Anexo '+escapeHtml(r.anexo):''}</strong>
                 <div style="font-family:'DM Mono',monospace;font-size:11px;color:#64748b">${escapeHtml(r.detalhes||'')}</div>
               </div>
               <div style="font-family:'Syne',sans-serif;font-weight:700">${r.elegivel===false?'inviável':brlR(r.imposto_anual||0)+'/ano'}</div>
-              <div>${tags}</div>
+              <div>${isAtual?'<span class="dossie-trib-tag">ATUAL</span>':''}${isRec&&!isAtual?'<span class="dossie-trib-tag" style="background:#10b981">RECOMENDADO</span>':''}</div>
             </div>`;
           }).join('')}
-          ${(regimeAtual && regimeRec && regimeAtual === regimeRec)
-            ? '<div class="dossie-econ-block" style="background:#d1fae5"><div style="font-family:\'Syne\',sans-serif;font-weight:700;font-size:14px">Negócio já está no regime ideal.</div><div style="font-size:13px;color:#065f46">Sem economia potencial via migração de regime.</div></div>'
-            : (economiaPot && (n(economiaPot.economia_anual)>0)
-                ? `<div class="dossie-econ-block">
-                    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;margin-bottom:4px">Economia potencial: ${brlR(economiaPot.economia_anual)}/ano</div>
-                    <div style="font-size:13px;color:#065f46">Migrando do regime ${escapeHtml(economiaPot.comparado_a||regimeAtual)} pra ${escapeHtml(economiaPot.regime_recomendado||regimeRec)}.</div>
-                  </div>`
-                : '')}
+          ${economiaPot && (n(economiaPot.economia_anual)>0)?`
+            <div class="dossie-econ-block">
+              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;margin-bottom:4px">Economia potencial: ${brlR(economiaPot.economia_anual)}/ano</div>
+              <div style="font-size:13px;color:#065f46">Migrando do regime ${escapeHtml(economiaPot.comparado_a||regimeAtual)} pra ${escapeHtml(economiaPot.regime_recomendado||regimeRec)}.</div>
+            </div>
+          `:'<div style="margin-top:14px;font-family:\'DM Mono\',monospace;font-size:11px;color:#64748b">Negócio já está no regime ótimo.</div>'}
         </div>
       </details>
 
-      <!-- 12 POTENCIAL EM 12 MESES — texto narrativo unificado -->
-      <div class="section">
-        <div class="section-head">
-          <div class="section-sub">11 · POTENCIAL EM 12 MESES</div>
-          <h2 class="section-title">Projeção pós-upsides</h2>
+      <!-- 12 POTENCIAL EM 12 MESES (colapsável) -->
+      <details class="dossie-collapse" style="margin:24px 0">
+        <summary>11 · POTENCIAL EM 12 MESES</summary>
+        <div>
+          <div class="dossie-grid-3">
+            <div class="dossie-card green"><div class="label">Valor projetado</div><div class="valor">${brlR(safe(pot12m,'potencial_final.valor_projetado_brl',0))}</div><div class="sub">após upsides</div></div>
+            <div class="dossie-card"><div class="label">Ganho anual de caixa</div><div class="valor">${brlR(pot12m.ganho_anual_caixa_brl||0)}</div><div class="sub">somando RO + passivo</div></div>
+            <div class="dossie-card"><div class="label">Ganho mensal de caixa</div><div class="valor">${brlR(pot12m.ganho_mensal_caixa_brl||0)}</div><div class="sub">recorrente</div></div>
+          </div>
         </div>
-        ${(() => {
-          const valorProj = n(safe(pot12m, 'potencial_final.valor_projetado_brl', 0));
-          const ganhoMensal = n(pot12m.ganho_mensal_caixa_brl);
-          const ganhoAnual = n(pot12m.ganho_anual_caixa_brl);
-          if (!valorProj && !ganhoMensal && !ganhoAnual) return '';
-          const big = (txt) => `<strong style="font-family:'Syne',sans-serif;font-weight:800;color:#047857">${txt}</strong>`;
-          return `<div class="panel" style="background:#f0fdf4;border-color:#a7f3d0;font-size:15px;line-height:1.7;color:#0f172a">
-            Acreditamos que este negócio possa valer até ${big('R$ ' + brlR(valorProj))} em 12 meses.
-            Além de gerar mais ${big('R$ ' + brlR(ganhoMensal))} de caixa mensalmente
-            e ${big('R$ ' + brlR(ganhoAnual))} anualmente.
-          </div>`;
-        })()}
-      </div>
+      </details>
 
       <!-- 13 PONTOS FORTES + transferibilidade -->
       ${fortes.length?`
@@ -2081,7 +1946,7 @@ function renderAbaPrivadoLiberada(acesso){
             <div class="titulo">${escapeHtml(r.label||r.id||'—')}</div>
             <div class="desc">${escapeHtml(r.mensagem||'')}</div>
           </div>
-        `).join(''):'')}
+        `).join(''):'<div class="dossie-pendente">Lista de ações sendo gerada pela IA.</div>')}
       </div>
 
       <!-- RODAPÉ -->
