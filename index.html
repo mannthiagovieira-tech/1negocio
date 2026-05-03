@@ -1278,8 +1278,9 @@ body[data-theme="light"] .specialist-fab{background:rgba(255,255,255,.96)}
   box-shadow:0 4px 14px rgba(0,0,0,.15);
 }
 .stage-actions .action.primary svg{width:16px;height:16px}
-.stage-actions .action.ai-chat{justify-self:start}
-.stage-actions .action.share{justify-self:end}
+.stage-actions .action.ai-chat{justify-self:end;order:3}
+.stage-actions .action.primary{order:2}
+.stage-actions .action.share{justify-self:start;order:1}
 @media(max-width:520px){
   .stage-footer .detail-tab > span{display:none}
   .stage-footer .detail-tab svg{width:14px;height:14px}
@@ -2795,7 +2796,8 @@ function shareTopCard(e){
   if(!deal) return;
   const title = `${deal.sector || 'Negócio'} · ${deal.city || ''}/${deal.uf || ''} — 1N`;
   const text  = `${deal.title || ''} — ${deal.summary || ''}`.slice(0,180);
-  const url   = `${location.origin}${location.pathname}#card=${encodeURIComponent(deal.id||'')}`;
+  // URL canônica do anúncio individual (negocio.html aceita ?codigo=)
+  const url   = `${location.origin}/negocio.html?codigo=${encodeURIComponent(deal.id||'')}`;
   const btn = e && e.currentTarget;
   const flash = (msg)=>{
     if(!btn) return;
@@ -3053,12 +3055,10 @@ window.addEventListener('resize', ()=>{
       if (chatPanel && chatPanel.classList.contains('open')) return;
 
       var frasesBase = [
-        'Quanto vale o seu?',
-        'Procurando algo bom?',
-        'Pensando em vender?',
-        'Te ajudo aqui.',
-        'Vale a pena vender?',
-        'Compra, venda, avaliação.'
+        'Quanto vale o seu negócio?',
+        'Procurando por oportunidades?',
+        'Querendo vender seu negócio?',
+        'Compra, venda ou avaliação, conte comigo'
       ];
       // Sortear ordem aleatória a cada sessão (Fisher-Yates)
       for (var i = frasesBase.length - 1; i > 0; i--) {
@@ -3104,11 +3104,11 @@ window.addEventListener('resize', ()=>{
       // Estilos comuns + responsivo
       var commonCss = {
         position:'fixed',
-        background:'rgba(255,255,255,0.85)',
+        background:'rgba(255,255,255,0.95)',
         backdropFilter:'blur(10px)',
         WebkitBackdropFilter:'blur(10px)',
-        border:'1px solid rgba(0,0,0,0.06)',
-        boxShadow:'0 4px 16px rgba(0,0,0,0.08)',
+        border:'1px solid rgba(0,0,0,0.08)',
+        boxShadow:'0 4px 16px rgba(0,0,0,0.10)',
         color:'rgba(0,0,0,0.75)',
         cursor:'pointer',
         opacity:'0',
@@ -3137,34 +3137,40 @@ window.addEventListener('resize', ()=>{
       arrow.style.cssText = [
         'position:absolute',
         'bottom:-' + arrowSize + 'px',
-        'left:20px',
+        'right:20px',
         'width:0',
         'height:0',
         'border-left:' + arrowSize + 'px solid transparent',
         'border-right:' + arrowSize + 'px solid transparent',
-        'border-top:' + arrowSize + 'px solid rgba(255,255,255,0.85)',
+        'border-top:' + arrowSize + 'px solid rgba(255,255,255,0.95)',
         'filter:drop-shadow(0 1px 1px rgba(0,0,0,0.05))',
         'pointer-events:none'
       ].join(';');
       bubble.appendChild(arrow);
 
       // Posicionamento dinâmico ancorado ao botão real do chat (.action.ai-chat
-      // dentro de .stage-actions). Fallback: se não achar, usa coordenadas fixas.
+      // dentro de .stage-actions, agora no canto inferior DIREITO).
+      // Fallback: se não achar, usa coordenadas fixas à direita.
       function posicionarAncorado() {
         var anchor = document.querySelector('.action.ai-chat');
         if (anchor) {
           var rect = anchor.getBoundingClientRect();
-          // Bubble fica 12px acima do botão; alinha a SETA com centro do botão
-          var bubbleH = bubble.offsetHeight || 50;
+          // Bubble fica 12px acima do botão; alinha a SETA (right:20px no bubble)
+          // com centro do botão
           bubble.style.bottom = (window.innerHeight - rect.top + 12) + 'px';
-          // Posicionar bubble: borda esquerda alinhada com botão menos um deslocamento
-          // pra que a seta (left:20px relativa ao bubble) caia no centro do botão
           var btnCenterX = rect.left + (rect.width / 2);
-          bubble.style.left = (btnCenterX - 20 - arrowSize) + 'px';
+          // bubble.right = distancia da borda direita da viewport até a borda
+          // direita do bubble. Pra seta (que fica em right:20px do bubble)
+          // cair no centro do botão:
+          //   bubble.right_edge_x = btnCenterX + 20 + arrowSize
+          //   bubble.right (CSS) = window.innerWidth - bubble.right_edge_x
+          bubble.style.left = '';
+          bubble.style.right = (window.innerWidth - btnCenterX - 20 - arrowSize) + 'px';
         } else {
-          // Fallback (botão escondido / não renderizado ainda)
+          // Fallback
           bubble.style.bottom = isMobile ? '80px' : '90px';
-          bubble.style.left = isMobile ? '16px' : '24px';
+          bubble.style.left = '';
+          bubble.style.right = isMobile ? '16px' : '24px';
         }
       }
       posicionarAncorado();
@@ -3214,8 +3220,8 @@ window.addEventListener('resize', ()=>{
 
       document.body.appendChild(bubble);
 
-      // Fade in inicial — chega só em 0.85 (etéreo)
-      setTimeout(function(){ bubble.style.opacity = '0.85'; }, 50);
+      // Fade in inicial — chega em 0.95 (sólido mas translúcido)
+      setTimeout(function(){ bubble.style.opacity = '0.95'; }, 50);
 
       // Carrossel: troca frase a cada 3.5s, fade out 600ms → troca → fade in 600ms
       var idx = 1;
@@ -3231,7 +3237,7 @@ window.addEventListener('resize', ()=>{
           textSpan.style.opacity = '1';
         }, 600);
         idx++;
-      }, 4500);
+      }, 7000);
     }, 3000);
   });
 })();
