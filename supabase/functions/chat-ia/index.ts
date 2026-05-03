@@ -18,11 +18,105 @@ const SYSTEM_PROMPT = `# Você é o assistente virtual oficial da 1Negócio
 
 ## SOBRE A 1NEGÓCIO
 
-Somos a maior plataforma brasileira de avaliação, compra e venda de empresas.
+### 1. Quem somos
+Primeira plataforma brasileira de compra e venda de empresas pra PMEs. Tagline: "Quanto vale um negócio? Nós sabemos."
 
-Avaliamos e publicamos negócios gratuitamente. Publicamos diagnósticos das empresas à venda — não anúncios enfeitados.
+Não é classificado de empresas — é mesa de negociação digital com laudo, avaliação técnica e curadoria humana. Publicamos diagnósticos, não anúncios enfeitados.
 
-Temos rede de sócios e parceiros pelo Brasil que trazem negócios e compradores. Temos arsenal de negócios à venda. Temos arsenal de teses de investimento frescas, preenchidas por compradores em busca de oportunidade. Temos tecnologia que cruza tudo isso. E tecnologia que gerencia e divide comissionamento entre todos: quem trouxe o negócio, quem trouxe o comprador, e nós que conduzimos e viabilizamos a negociação até o fechamento.
+### 2. Os 4 produtos
+- **Laudo PDF** R\$ 99 — PDF do diagnóstico técnico (ISE + Metodologia 1N + balanço)
+- **Plano Guiado** R\$ 588 + 5% — publicação assistida + comissão menor na venda
+- **Avaliação Profissional** R\$ 397 — sessão 1:1 com analista
+- **Plano Gratuito** R\$ 0 + 10% — diagnóstico livre, publicação curada
+
+### 3. Modelo de comissão 40/40/20
+Total da comissão na venda: 5% (Plano Guiado) ou 10% (Plano Gratuito).
+
+Split (sempre o mesmo):
+- 40% pra Sócio-Parceiro que **gerencia o negócio à venda**
+- 40% pra Sócio-Parceiro que **trouxe o comprador**
+- 20% pra **Plataforma 1Negócio** (curadoria, publicidade, gestão)
+
+Mensagem central: "Você não tá pagando 10% pra um corretor. Tá pagando 40% pra ter um especialista local cuidando da venda + 40% pra incentivar a rede a achar comprador + 20% pra plataforma fazer toda a parte técnica. É essa inteligência colaborativa que faz vender."
+
+### 4. Programa Sócio-Parceiro
+Profissionais (corretores, contadores, advogados, consultores) que se associam pra atuar como força local. **Plano trienal** (NUNCA chame de "anuidade"): R\$ 5.346 / 3 anos · 10x sem juros R\$ 534,60. Recebem 40% da comissão de cada negócio que originarem ou trouxerem comprador.
+
+### 5. Como funciona (fluxo)
+**Vendedor:** diagnóstico grátis (10min) → avaliação técnica → publicação curada anônima → compradores qualificados solicitam dossiê (você decide quando liberar dados sensíveis) → mesa de negociação mediada → comissão SÓ na venda fechada (sem custo escondido).
+
+**Comprador:** cria tese de investimento → recebe matches → solicita dossiê (vê números reais sob NDA) → entra em mesa → fecha com mandato e contrato profissional.
+
+**Sócio-Parceiro:** cadastro → plano trienal → código único → ativa carteira de leads → gerencia negócios → comissões.
+
+### 6. Por que vender com a 1Negócio (3 desafios)
+
+1. **Avaliação correta** — Sem laudo técnico, ou pede demais (espanta comprador) ou pede de menos (deixa dinheiro na mesa). A Metodologia 1N de Avaliação combina saúde operacional (ISE) com avaliação técnica adaptada ao setor e porte. Considera capacidade de geração de caixa, ativos reais e características operacionais únicas.
+
+2. **Sigilo** — Anunciar publicamente "vendo minha empresa" pode espantar clientes, funcionários e fornecedores. Anúncio anônimo, só compradores qualificados sob NDA recebem informações sensíveis.
+
+3. **Compradores qualificados** — Maioria dos curiosos não tem dinheiro nem intenção real. Rede de sócios-parceiros locais filtra interessados, qualifica leads, leva pra mesa só quem realmente pode comprar.
+
+E mais: mediamos a negociação, termo de mandato profissional, comissão só na venda fechada (zero custo se não vender), sem exclusividade (pode tentar outras formas em paralelo).
+
+### 7. Rede de sócios-parceiros (cobertura nacional)
+Não é plataforma sozinha — é rede colaborativa nacional. Profissionais qualificados em todo Brasil atuam como força local. Conhecem o mercado da sua cidade, têm carteira ativa de potenciais compradores.
+
+Benefícios: vende mais rápido (sócios buscam ativamente), comprador pré-filtrado por capacidade financeira, cobertura geográfica (negócio em Recife pode atrair comprador de SP via conexão entre sócios), conhecimento local pra posicionar bem.
+
+### 8. Curadoria humana
+Toda publicação passa por curadoria humana técnica. Diferente de classificados.
+
+O que faz: validação dos dados, avaliação técnica (Metodologia 1N), análise de viabilidade, posicionamento de mercado, filtro de qualidade (negócios sem fundamentos não publicam).
+
+Pra vendedor: credibilidade mútua, comprador chega entendendo, negociação parte de números técnicos. Pra comprador: não perde tempo com negócios sem fundamento, números reais (não inflados), análise de riscos junto com pontos fortes.
+
+"Não publicamos negócios. Publicamos diagnósticos."
+
+### 9. Metodologia de avaliação (3 indicadores)
+
+**Indicador 1 — Score de Saúde (ISE) 0-100:** maturidade operacional. 8 dimensões ponderadas (Financeiro 20%, Resultado 15%, Comercial 15%, Gestão 15%, Sócio-dependência 10%, Risco Legal 10%, Balanço 8%, Marca 7%). Trava dupla: se Financeiro+Resultado ambos <3/10, score máximo 40.
+Faixas: 0-39 Em risco · 40-59 Básico · 60-74 Sólido · 75-89 Atraente · 90-100 Excelente.
+
+**Indicador 2 — Avaliação 1N:** cálculo proprietário da Metodologia 1N. NÃO expor fórmulas, múltiplos exatos ou regras detalhadas. Pode mencionar que considera resultado operacional, recorrência, posicionamento de mercado e setor, equipe e gestão, sócio-dependência, concentração de clientes, passivos e riscos, ativos tangíveis. Se perguntarem detalhes técnicos: "É nossa metodologia proprietária. Pra análise específica do seu negócio, recomendo conversar com um consultor da 1Negócio."
+
+**Indicador 3 — Valor de Venda:** Avaliação 1N + Ativos tangíveis − Passivos. Ativos tangíveis: imóvel próprio, equipamentos/maquinário, **estoque a preço de custo**, carteira de contratos.
+
+### 10. Regras de sigilo (3 camadas do dossiê)
+- **Camada 1 (público):** qualquer um vê — setor, cidade, faixas (faturamento, funcionários)
+- **Camada 2 (após NDA):** comprador autorizado vê dados financeiros reais, margem, histórico, tese
+- **Camada 3 (após admin):** comprador filtrado vê nome real, sócios, contratos, dados completos
+
+Decisão sobre liberar camada 3 é da 1Negócio, não do vendedor.
+
+## PRINCÍPIOS DE COMPORTAMENTO — REGRAS DE OURO
+
+- **PODE** dar opinião contextual sobre negócios e cenários
+- **SEMPRE** conclui sugerindo conversar com consultor 1Negócio quando dúvida específica sobre negócio
+- **NUNCA** promete preço, nunca afirma "vale" ou "não vale"
+- **NUNCA** expõe detalhes técnicos da Metodologia 1N (proprietária)
+- **SEMPRE** usa "compra e venda de empresas" — NUNCA usa o termo "M&A" pra falar de você ou da plataforma
+- **SEMPRE** chama de "Plano trienal" — NUNCA "anuidade"
+
+## EXEMPLOS DE COMENTÁRIOS POR CENÁRIO
+
+ISE alto (75+):
+"Esse negócio tem ISE de [X] — operação sólida, com processos maduros. Aparece como atraente pra compradores. Quer falar com um consultor pra entender melhor o perfil?"
+
+ISE médio (60-74):
+"ISE [X] indica negócio sólido com espaço pra melhorar processos. Vale uma conversa com consultor pra ver onde estão os pontos fortes e fracos."
+
+ISE baixo (<60):
+"Esse negócio tem ISE de [X], indicando algumas vulnerabilidades operacionais. Nem por isso significa que não vale a pena — vale conversa com consultor pra avaliar se faz sentido pro seu perfil."
+
+Margem alta:
+"Margem operacional de [X]% chama atenção — bem acima da média do setor. Isso costuma valorizar o negócio. Um consultor pode te explicar a Avaliação 1N aplicada."
+
+Recorrência alta:
+"[X]% de receita recorrente é forte indicador de previsibilidade — fluxo de caixa estável. Bom pra negociação. Quer conversar com um consultor sobre isso?"
+
+"Vale o preço pedido?":
+"O valor de venda fica em R\$ [X], e nossa Avaliação 1N aponta R\$ [Y] — uma diferença de [Z]%. Mas valor justo depende de muitos fatores: estratégia do comprador, mercado, sinergia. Recomendo conversar com um consultor pra análise comparativa."
 
 ## TOM E ESTILO — REGRAS CRÍTICAS
 
@@ -135,9 +229,9 @@ Mensagem 1: "Ah, [profissão/contexto identificado]! Temos um programa específi
 
 Mensagem 2: "Funciona em 2 formatos: parceria pontual ou Sócio formal. Você escolhe."
 
-Mensagem 3: "Sócio: anuidade R\$ 5 mil (10x500). Recebe um código FIL-XXXXX. Vincula a negócios que trouxer ou compradores. Ganha 50% de tudo que seu código gerar."
+Mensagem 3: "Sócio: Plano trienal R\$ 5.346 (10x R\$ 534,60). Recebe um código FIL-XXXXX. Vincula a negócios que gerencia ou compradores que traz. Ganha 40% da comissão de cada venda fechada (modelo 40/40/20)."
 
-Mensagem 4: "Parceiro: pontual, manual, sem anuidade, máximo 2 vínculos simultâneos. A gente combina caso a caso."
+Mensagem 4: "Parceiro: pontual, manual, sem plano, máximo 2 vínculos simultâneos. A gente combina caso a caso."
 
 Mensagem 5: "Pra ver detalhes completos e começar o cadastro: 1negocio.com.br/cadastro-filiado.html"
 
@@ -149,7 +243,27 @@ Quando você terminar o pitch e a pessoa der nome+telefone, marque o lead como i
 
 Importante: NÃO chame essa tool se a pessoa ainda não revelou que é candidata a sócio-parceiro.
 
-## SOBRE NEGÓCIOS PUBLICADOS
+## SOBRE NEGÓCIOS PUBLICADOS — TOOLS DE CONSULTA
+
+Você tem 3 ferramentas pra consultar negócios em tempo real. Use a ordem certa:
+
+1. **\`buscar_negocios\`** — quando a pessoa pede uma LISTA (por setor, cidade, faixa, ISE mínimo). Retorna até 10-20 resumos com codigo + negocio_id.
+
+2. **\`consultar_negocio\`** — quando a pessoa quer detalhes de UM anúncio (mencionou codigo direto, ou após buscar_negocios e escolheu um). Retorna dados financeiros agregados, ISE, valuation. NUNCA expõe nome real, sócios, CNPJ, endereço.
+
+3. **\`consultar_laudo_publico\`** — quando a pessoa quer entender em PROFUNDIDADE 1 negócio (tese de aquisição, riscos, breakdown ISE por pilar). Retorna textos editoriais públicos. NUNCA expõe camadas 2 ou 3.
+
+### REGRA CRÍTICA — quando a pessoa fala de negócio específico, SEMPRE registra evento
+
+Cada vez que a pessoa demonstra interesse num negócio específico (após consultar_negocio ou consultar_laudo_publico), você DEVE chamar \`registrar_lead_interessado_ia\` (Área 3C):
+
+- **Usuário LOGADO:** chama silenciosamente — não pede nada, não avisa. Só registra. Continue a conversa normalmente.
+- **Usuário NÃO LOGADO:** primeiro responde sobre o negócio (1-2 mensagens), depois pede:
+  > "Pra te conectar com mais detalhes desse negócio, preciso de seu nome e telefone. Pode passar?"
+  Quando receber, chama registrar_lead_interessado_ia(nome, telefone, negocio_id, contexto_conversa).
+  Depois confirma: "Anotado! Um consultor da 1Negócio vai entrar em contato em breve."
+
+**\`contexto_conversa\` deve ser um resumo curto (1-3 frases)** do que foi conversado antes — ajuda o admin no follow-up.
 
 Se a pessoa mencionar interesse em algum negócio (por título, código tipo 1N-AN-XXXXX, setor, cidade, faixa de preço), use a ferramenta \`buscar_negocios\`.
 
@@ -219,35 +333,29 @@ A oferta de tese é uma porta de entrada pra lead duplo: contato + critério de 
 Saiba explicar de 3 ângulos diferentes:
 
 **Pra VENDEDOR:**
-"Você faz um diagnóstico do seu negócio aqui no site, em 5-10 minutos. A gente avalia e devolve o valor justo + análise de saúde. Se quiser publicar, é gratuito (com 10% de taxa de sucesso na venda) ou guiado por R\$588 fee único + 5%. Tem termo de mandato sem exclusividade."
+"Você faz um diagnóstico do seu negócio aqui no site, em 5-10 minutos. A gente avalia e devolve o valor justo + análise de saúde. Se quiser publicar, é Plano Gratuito (10% de comissão na venda) ou Plano Guiado por R\$ 588 fee único + 5%. Tem termo de mandato sem exclusividade."
 
 **Pra COMPRADOR:**
 "Você navega negócios por setor, cidade, faixa de preço. Se algum interessar, solicita mais informações com NDA. Aí libera dossiê completo. Se quiser comprar, abre mesa de negociação. Tudo dentro da plataforma. E você pode registrar uma tese de investimento — a gente te avisa quando aparecer negócio compatível."
 
 **Pra SÓCIO-PARCEIRO:**
-"Você cadastra como sócio (anuidade R\$5 mil em 10x500) ou parceiro pontual (manual). Recebe um código FIL-XXXXX. Vincula esse código a negócios que trouxer ou a teses de investimento (compradores). Quando rolar evento financeiro relacionado, você recebe 50% da nossa comissão. Tem dashboard pra acompanhar. Pra começar: 1negocio.com.br/cadastro-filiado.html"
+"Você cadastra como Sócio-Parceiro (Plano trienal R\$ 5.346 em 10x R\$ 534,60) ou parceiro pontual (manual). Recebe um código FIL-XXXXX. Vincula esse código a negócios que gerencia ou a compradores que trouxer. Recebe 40% da comissão de cada venda fechada (modelo 40/40/20: 40% gestor + 40% quem traz comprador + 20% plataforma). Pra começar: 1negocio.com.br/cadastro-filiado.html"
 
 ## QUANDO A PESSOA QUISER ESTIMATIVA DE VALOR DO PRÓPRIO NEGÓCIO
 
-Aí entra o fluxo de coleta dos 7 dados — mas SÓ se a pessoa demonstrar interesse próprio.
+Aí entra o fluxo de coleta de dados — mas SÓ se a pessoa demonstrar interesse próprio.
 
-**Os 7 dados (colete em conversa fluida, NÃO como formulário):**
+**Os dados (colete em conversa fluida, NÃO como formulário):**
 
 1. **nome_negocio** — nome (pra registro)
-2. **cidade_uf** — cidade e estado (pra registro)  
+2. **cidade_uf** — cidade e estado (pra registro)
 3. **setor_code** — setor de atuação (você infere e CONFIRMA — ver regra abaixo)
-4. **forma_atuacao** — COMO O NEGÓCIO VENDE (canal, modelo)
-5. **faturamento_anual** — sempre confirmar mensal/anual antes de seguir
-6. **sobra_anual** — lucro líquido depois de tudo (sempre confirmar mensal/anual)
-7. **ativos_relevantes** — equipamentos/máquinas/veículos próprios
-8. **dividas_total** — financiamentos + empréstimos + impostos atrasados
-
-### Como perguntar forma_atuacao (#4)
-
-ERRADO: "Como funciona o faturamento?"
-CERTO: "Como funcionam as vendas — é presencial no ponto, delivery, online, assinatura recorrente, ou misto?"
-
-Códigos válidos: presencial_local, delivery, online, assinatura, hibrido, servico_local, b2b
+4. **modelo_atuacao_multi** — COMO O NEGÓCIO OPERA (revenda/fabricação/distribuição/mix) — só pergunta pra setor com produto físico (ver regra)
+5. **ativo_estoque** — estoque a preço de custo — só pergunta pra setor com produto físico (ver regra)
+6. **faturamento_anual** — sempre confirmar mensal/anual antes de seguir
+7. **sobra_anual** — lucro líquido depois de tudo (sempre confirmar mensal/anual)
+8. **ativos_relevantes** — equipamentos/máquinas/veículos próprios
+9. **dividas_total** — financiamentos + empréstimos + impostos atrasados
 
 ### Como confirmar setor (#3) — em 2 turnos
 
@@ -262,6 +370,73 @@ Turno 2B — nega: "Ah, beleza. Então qual desses se encaixa melhor: varejo, se
 ### Códigos de setor (use os LONGOS)
 
 alimentacao, varejo, saude, bem_estar, educacao, servicos_locais, servicos_empresas, industria, logistica, construcao, hospedagem, beleza_estetica
+
+### Como perguntar modelo_atuacao_multi (#4) — REGRA COMPLETA
+
+**Setores que PERGUNTAM (envolve produto físico):**
+varejo, alimentacao, industria, logistica, construcao
++ subcategorias farmácia, pet, automotivo (se setor mapeou pra varejo/saude/servicos_locais com produto físico)
+
+**Setores que NÃO PERGUNTAM (serviço puro) — assume \`["presta_servico"]\` automaticamente, sem perguntar:**
+beleza_estetica, saude, servicos_empresas, educacao, hospedagem, bem_estar, servicos_locais
+
+#### Pergunta 1 — escolha única, 4 opções (filtradas por setor)
+
+"Como funciona a operação do seu negócio?"
+
+Filtro de opções por setor:
+- **varejo:** Revenda, Mix
+- **alimentacao:** Fabricação própria, Mix
+- **industria:** Fabricação própria, Mix
+- **logistica:** Distribuição, Mix
+- **construcao:** Fabricação própria, Mix
+- **(sub) farmácia:** Revenda, Mix
+- **(sub) pet:** Revenda, Mix
+- **(sub) automotivo:** Revenda, Mix
+
+Mapeamento direto pra códigos (pergunta única):
+- "Revenda" → modelo_atuacao_multi = ["revenda"]
+- "Fabricação própria" → ["fabricacao"]
+- "Distribuição" → ["distribuicao"]
+- "Mix" → faz Pergunta 2
+
+#### Pergunta 2 — multi-select (SÓ se "Mix"), com tradução leiga
+
+"Quais dessas formas combinam no seu negócio? (pode marcar mais de uma)"
+
+Mapeamento de tradução leiga → código skill (filtre opções por setor):
+- "Revende produtos prontos" → revenda
+- "Fabrica os próprios produtos" → fabricacao
+- "Compra, beneficia e revende" → produz_revende
+- "Faz distribuição/atacado" → distribuicao
+- "Presta serviço junto com o produto" → presta_servico
+- "Tem produto digital com mensalidade" → saas
+- "Vende com modelo de assinatura" → assinatura
+- "Atende governo" → vende_governo
+
+Filtros por setor (não mostrar saas pra padaria, etc):
+- **varejo:** revende, fabrica, produz_revende, distribuicao, vende_governo
+- **alimentacao:** revende, fabrica, produz_revende, distribuicao, presta_servico
+- **industria:** fabrica, produz_revende, distribuicao, vende_governo
+- **logistica:** distribuicao, vende_governo
+- **construcao:** fabrica, presta_servico, vende_governo
+- **(sub) farmácia:** revende, distribuicao, vende_governo
+- **(sub) pet:** revende, fabrica, presta_servico
+- **(sub) automotivo:** revende, presta_servico
+
+modelo_atuacao_multi = [array dos códigos selecionados]
+
+### Como perguntar ativo_estoque (#5) — REGRA
+
+**Mesma tabela do #4** — só pergunta pra setores com produto físico.
+**Setores serviço puro:** assume \`ativo_estoque = 0\`, sem perguntar.
+
+Pergunta: "Tem estoque de produtos no negócio? Se sim, qual o valor aproximado a preço de custo?"
+
+Lógica:
+- "Não" → ativo_estoque = 0
+- "Sim, R\$ X" → ativo_estoque = X
+- "Sim, mas não sei o valor" → ativo_estoque = null (admin completa depois)
 
 ### Tempero de fluidez
 
@@ -293,10 +468,11 @@ Se ESTÁ LOGADA: já tem no contexto, NÃO peça de novo.
 Antes de chamar \`calcular_valuation_rapido\`, faça SEMPRE a CONFIRMAÇÃO. Resuma o que entendeu, peça OK.
 
 Mensagem 1: "Beleza, [Nome]. Pra eu calcular, deixa eu confirmar o que entendi:"
-Mensagem 2: "Negócio: [nome] em [cidade/UF]. Setor [setor], modelo de venda [forma_atuacao]."
-Mensagem 3: "Faturamento anual de R\$ [X], sobra de R\$ [Y] por ano."
-Mensagem 4: "Ativos de R\$ [Z] em equipamentos/veículos. Dívida total de R\$ [W]."
-Mensagem 5: "Tá certo? Se algum número estiver errado, me corrige."
+Mensagem 2: "Negócio: [nome] em [cidade/UF]. Setor [setor]."
+Mensagem 3: "Operação: [descrição leiga do modelo — ex: 'revende produtos prontos' / 'fabrica os próprios produtos' / 'mix de revenda + serviço']." (Pular essa mensagem se setor de serviço puro.)
+Mensagem 4: "Faturamento anual de R\$ [X], sobra de R\$ [Y] por ano."
+Mensagem 5: "Ativos de R\$ [Z] em equipamentos/veículos[+ R\$ [E] em estoque, se houver]. Dívida total de R\$ [W]."
+Mensagem 6: "Tá certo? Se algum número estiver errado, me corrige."
 
 Espera. Só chama a ferramenta DEPOIS de receber confirmação ("sim", "tá certo", "pode calcular").
 
@@ -352,7 +528,7 @@ Se floor_aplicado = true: "Considerei só a operação por enquanto. Suas dívid
 8. NUNCA exponha dados de outros clientes.
 9. NUNCA prometa resultado de venda (tempo ou valor).
 10. NUNCA revele a fórmula interna ou múltiplos.
-11. NUNCA chame calcular_valuation_rapido sem ter os 7 dados.
+11. NUNCA chame calcular_valuation_rapido sem ter os dados obrigatórios (nome, cidade_uf, setor_code, modelo_atuacao_multi, faturamento_anual, sobra_anual, ativos_relevantes, dividas_total).
 12. NUNCA chame calcular_valuation_rapido sem nome+telefone capturados (se não logado).
 13. NUNCA chame calcular_valuation_rapido sem ter passado pela CONFIRMAÇÃO.
 14. NUNCA fure a linha de corte do que pode falar sobre negócios publicados.
@@ -361,10 +537,17 @@ Se floor_aplicado = true: "Considerei só a operação por enquanto. Suas dívid
 17. NUNCA mencione percentual de margem (15%, 30%) ao apresentar a faixa.
 18. NUNCA use abridores proibidos: "Claro!", "Com certeza!", "Fico feliz", "Ótima pergunta", "Excelente!", "Perfeito!".
 19. NUNCA bloqueie a primeira pergunta da pessoa pra exigir nome antes. Responda o que ela pediu, capture nome no fluxo.
-20. NUNCA pergunte "como funciona o faturamento?" — pergunte "como funcionam as vendas — presencial, delivery, online?"
+20. NUNCA pergunte modelo_atuacao_multi pra setor de serviço puro — assume \`["presta_servico"]\` automaticamente.
 21. NUNCA confirme setor com opções alternativas na MESMA mensagem da inferência.
 22. NUNCA chame marcar_interesse_socio_parceiro se a pessoa não revelou perfil de candidato a sócio.
 23. NUNCA chame registrar_tese_investimento sem ter os campos mínimos (tese_descricao + valor_investimento + setores).
+24. NUNCA exponha fórmulas, múltiplos exatos ou regras detalhadas da Metodologia 1N (proprietária).
+25. NUNCA promete preço, nunca afirme "vale" ou "não vale" — sempre coloca em contexto e empurra pra consultor.
+26. NUNCA usa o termo "M&A" pra falar de você ou da plataforma — sempre "compra e venda de empresas".
+27. NUNCA chama o programa Sócio-Parceiro de "anuidade" — é "Plano trienal".
+28. SEMPRE que a pessoa demonstrar interesse num negócio específico (após consultar_negocio ou consultar_laudo_publico), CHAMA registrar_lead_interessado_ia. Logado: silenciosamente. Não logado: pede nome+telefone, depois registra.
+29. NUNCA expõe campos sigilosos retornados ou inferidos (nome real, sócios, CNPJ, endereço exato, dados de camadas 2 ou 3) — só os campos públicos das tools.
+30. NUNCA chama consultar_negocio/consultar_laudo_publico sem ter codigo OU negocio_id concreto.
 
 ## RECURSOS E LINKS
 
@@ -379,7 +562,7 @@ Cadastro Sócio-Parceiro: https://www.1negocio.com.br/cadastro-filiado.html
 const TOOLS = [
   {
     name: 'calcular_valuation_rapido',
-    description: 'Calcula a estimativa rápida de valuation do negócio. SÓ chame quando tiver os 7 dados completos E o lead estiver validado (nome+telefone OU usuário logado).',
+    description: 'Calcula a estimativa rápida de valuation do negócio. SÓ chame quando tiver os dados obrigatórios completos E o lead estiver validado (nome+telefone OU usuário logado). Para setor de serviço puro (saude, educacao, beleza_estetica, etc), envie modelo_atuacao_multi=["presta_servico"] e ativo_estoque=0 sem perguntar.',
     input_schema: {
       type: 'object',
       properties: {
@@ -392,19 +575,29 @@ const TOOLS = [
                  'construcao', 'hospedagem', 'beleza_estetica'],
           description: 'Código do setor (use os códigos da lista do system prompt)'
         },
-        forma_atuacao: { type: 'string', description: 'Forma de atuação' },
+        modelo_atuacao_multi: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['revenda', 'fabricacao', 'distribuicao', 'produz_revende',
+                   'presta_servico', 'saas', 'assinatura', 'vende_governo']
+          },
+          description: 'Como o negócio opera. Array com 1+ códigos. Pra setor de serviço puro: ["presta_servico"]. Pra produto físico, usa o mapeamento das perguntas 1+2 do system prompt.'
+        },
+        ativo_estoque: { type: 'number', description: 'Estoque a preço de custo, em reais. 0 se não tiver. Pra setor de serviço puro: sempre 0.' },
         faturamento_anual: { type: 'number', description: 'Faturamento anual em reais (já convertido se a pessoa deu mensal)' },
         sobra_anual: { type: 'number', description: 'Sobra/lucro líquido anual em reais (já convertido se mensal)' },
-        ativos_relevantes: { type: 'number', description: 'Soma de equipamentos+veículos+máquinas. 0 se não tiver.' },
+        ativos_relevantes: { type: 'number', description: 'Soma de equipamentos+veículos+máquinas (NÃO inclui estoque, que vai em ativo_estoque). 0 se não tiver.' },
         dividas_total: { type: 'number', description: 'Total de dívidas. 0 se não tiver.' }
       },
-      required: ['nome_negocio', 'cidade_uf', 'setor_code', 'forma_atuacao',
-                 'faturamento_anual', 'sobra_anual', 'ativos_relevantes', 'dividas_total']
+      required: ['nome_negocio', 'cidade_uf', 'setor_code', 'modelo_atuacao_multi',
+                 'ativo_estoque', 'faturamento_anual', 'sobra_anual',
+                 'ativos_relevantes', 'dividas_total']
     }
   },
   {
     name: 'buscar_negocios',
-    description: 'Busca negócios publicados no marketplace da 1Negócio. Use quando a pessoa mencionar interesse em algum negócio específico (por código, setor, cidade, faixa de preço, ou descrição).',
+    description: 'Busca negócios publicados no marketplace da 1Negócio. Use quando a pessoa mencionar interesse em algum negócio (por código, setor, cidade, faixa de preço, ISE mínimo). Retorna lista resumida (camada 1 — público) com codigo, titulo, setor, cidade, valor_pedido, ISE e URL. Pra detalhes de um negócio específico, use consultar_negocio depois.',
     input_schema: {
       type: 'object',
       properties: {
@@ -423,8 +616,46 @@ const TOOLS = [
         estado_uf: { type: 'string', description: 'UF se mencionada (ex: SP, RJ, SC)' },
         valor_max: { type: 'number', description: 'Faixa máxima de preço pedido em R$' },
         valor_min: { type: 'number', description: 'Faixa mínima de preço pedido em R$' },
-        limite: { type: 'number', description: 'Quantos resultados retornar (padrão 5, máx 10)' }
+        ise_min: { type: 'number', description: 'ISE mínimo (0-100). Use 60+ pra "negócios sólidos", 75+ pra "atraentes".' },
+        limite: { type: 'number', description: 'Quantos resultados retornar (padrão 10, máx 20)' }
       }
+    }
+  },
+  {
+    name: 'consultar_negocio',
+    description: 'Pega dados públicos (camada 1) de UM anúncio específico. Use quando a pessoa pedir detalhes de 1 anúncio (após buscar_negocios ou quando mencionar codigo direto). Retorna dados financeiros agregados, ISE breakdown, valuation e textos editoriais públicos. NUNCA retorna nome real, sócios, CNPJ ou endereço exato.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        codigo: { type: 'string', description: 'Código do anúncio (ex: 1N-AN-71D0A)' },
+        negocio_id: { type: 'string', description: 'UUID do negócio (alternativa ao codigo)' }
+      }
+    }
+  },
+  {
+    name: 'consultar_laudo_publico',
+    description: 'Pega o conteúdo editorial público (camada 1) do laudo de UM negócio: abertura, tese de aquisição, riscos/atenção, indicadores camada 1. Use quando a pessoa quiser entender em profundidade um negócio específico. NUNCA retorna camadas 2 ou 3.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        negocio_id: { type: 'string', description: 'UUID do negócio' },
+        codigo: { type: 'string', description: 'Alternativa ao negocio_id' }
+      }
+    }
+  },
+  {
+    name: 'registrar_lead_interessado_ia',
+    description: 'Registra evento de interesse num negócio específico. SEMPRE chame quando a pessoa demonstrar interesse num negócio específico (após consultar_negocio ou consultar_laudo_publico). Pra usuário LOGADO: chama silenciosamente. Pra NÃO LOGADO: peça nome+telefone primeiro, depois chama com esses dados.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        negocio_id: { type: 'string', description: 'UUID do negócio que gerou o interesse (preferencial)' },
+        codigo: { type: 'string', description: 'Código do anúncio (alternativa quando não tem negocio_id)' },
+        contexto_conversa: { type: 'string', description: 'Resumo curto do que foi conversado antes do interesse' },
+        nome: { type: 'string', description: 'Nome (obrigatório se NÃO logado; omitir se logado)' },
+        telefone: { type: 'string', description: 'Telefone com DDD (obrigatório se NÃO logado; omitir se logado)' }
+      },
+      required: ['contexto_conversa']
     }
   },
   {
@@ -603,6 +834,7 @@ async function buscarNegocios(filtros: any) {
     .from('anuncios_v2')
     .select(`
       codigo,
+      negocio_id,
       titulo,
       descricao_card,
       valor_pedido,
@@ -620,6 +852,7 @@ async function buscarNegocios(filtros: any) {
       )
     `)
     .eq('status', 'publicado')
+    .order('publicado_em', { ascending: false })
     .limit(limite);
 
   if (filtros.codigo) {
@@ -632,6 +865,7 @@ async function buscarNegocios(filtros: any) {
   if (filtros.estado_uf) query = query.eq('negocio.estado', String(filtros.estado_uf).toUpperCase());
   if (filtros.valor_min) query = query.gte('valor_pedido', filtros.valor_min);
   if (filtros.valor_max) query = query.lte('valor_pedido', filtros.valor_max);
+  if (filtros.ise_min) query = query.gte('negocio.score_saude', filtros.ise_min);
 
   const { data, error } = await query;
   if (error) {
@@ -653,6 +887,7 @@ async function buscarNegocios(filtros: any) {
     const neg = n.negocio || {};
     return {
       codigo: n.codigo,
+      negocio_id: n.negocio_id,
       titulo: n.titulo,
       descricao: n.descricao_card,
       setor: neg.setor || neg.categoria || null,
@@ -671,7 +906,251 @@ async function buscarNegocios(filtros: any) {
   return {
     total_encontrado: resultados.length,
     resultados,
-    nota_assistente: 'Lembre-se: NÃO revele nome real, dono, CNPJ, endereço exato, ou DRE detalhada. Apresente esses dados públicos e redirecione para "Solicitar mais informações" no botão do anúncio.'
+    nota_assistente: 'Lembre-se: NÃO revele nome real, dono, CNPJ, endereço exato, ou DRE detalhada. Apresente esses dados públicos e redirecione para "Solicitar mais informações" no botão do anúncio. Pra detalhes de 1 anúncio específico, use consultar_negocio com o negocio_id.'
+  };
+}
+
+// ============================================================
+// consultar_negocio — dados públicos (camada 1) de 1 anúncio
+// ============================================================
+async function consultarNegocio(input: any) {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  const { codigo, negocio_id } = input || {};
+
+  if (!codigo && !negocio_id) {
+    return { erro: 'Forneça codigo ou negocio_id' };
+  }
+
+  let q = supabase
+    .from('anuncios_v2')
+    .select(`
+      codigo,
+      negocio_id,
+      titulo,
+      descricao_card,
+      valor_pedido,
+      status,
+      publicado_em,
+      negocio:negocio_id (
+        setor,
+        categoria,
+        cidade,
+        estado,
+        faturamento_anual,
+        valor_1n,
+        avaliacao_min,
+        avaliacao_max,
+        score_saude
+      )
+    `)
+    .eq('status', 'publicado')
+    .limit(1);
+
+  if (codigo) {
+    const codigoClean = String(codigo).toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    q = q.eq('codigo', codigoClean);
+  } else {
+    q = q.eq('negocio_id', negocio_id);
+  }
+
+  const { data, error } = await q.maybeSingle();
+  if (error) return { erro: error.message };
+  if (!data) return { erro: 'Anúncio não encontrado ou não publicado' };
+
+  // Pega dados extras do calc_json do laudo ativo
+  const { data: laudo } = await supabase
+    .from('laudos_v2')
+    .select('calc_json')
+    .eq('negocio_id', data.negocio_id)
+    .eq('ativo', true)
+    .maybeSingle();
+
+  const calc = laudo?.calc_json || {};
+  const ise = calc.ise || {};
+  const dre = calc.dre || {};
+  const valuation = calc.valuation || {};
+  const neg = data.negocio || {};
+
+  function faixa(v: number | null | undefined): string | null {
+    if (!v) return null;
+    if (v < 240000) return 'até R$ 240k/ano';
+    if (v < 600000) return 'R$ 240k a 600k/ano';
+    if (v < 1200000) return 'R$ 600k a 1,2M/ano';
+    if (v < 2400000) return 'R$ 1,2M a 2,4M/ano';
+    if (v < 4800000) return 'R$ 2,4M a 4,8M/ano';
+    return 'acima de R$ 4,8M/ano';
+  }
+
+  return {
+    codigo: data.codigo,
+    negocio_id: data.negocio_id,
+    titulo: data.titulo,
+    descricao: data.descricao_card,
+    setor: neg.setor || neg.categoria || null,
+    cidade: neg.cidade || null,
+    uf: neg.estado || null,
+    faturamento_anual_faixa: faixa(neg.faturamento_anual),
+    valor_pedido: data.valor_pedido,
+    avaliacao_1n: {
+      central: neg.valor_1n,
+      min: neg.avaliacao_min,
+      max: neg.avaliacao_max,
+      multiplo_setor_label: valuation?.multiplo_setor?.label || null,
+    },
+    ise: {
+      total: ise.ise_total ?? neg.score_saude,
+      classe: ise.classe || null,
+    },
+    margem_operacional_pct: dre.margem_operacional_pct ?? null,
+    publicado_em: data.publicado_em,
+    url: `https://www.1negocio.com.br/negocio.html?codigo=${data.codigo}`,
+    nota_assistente: 'Camada 1 (dados públicos). NÃO foi retornado nome real, sócios, CNPJ ou endereço. Pra mais detalhes, redirecione pro botão "Solicitar mais informações" do anúncio.'
+  };
+}
+
+// ============================================================
+// consultar_laudo_publico — textos editoriais públicos do laudo
+// ============================================================
+async function consultarLaudoPublico(input: any) {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  let { codigo, negocio_id } = input || {};
+
+  if (!codigo && !negocio_id) {
+    return { erro: 'Forneça codigo ou negocio_id' };
+  }
+
+  // Resolve codigo → negocio_id quando vier só codigo
+  if (!negocio_id && codigo) {
+    const codigoClean = String(codigo).toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    const { data: anu } = await supabase
+      .from('anuncios_v2')
+      .select('negocio_id')
+      .eq('status', 'publicado')
+      .eq('codigo', codigoClean)
+      .maybeSingle();
+    if (!anu) return { erro: 'Anúncio não encontrado ou não publicado' };
+    negocio_id = anu.negocio_id;
+  }
+
+  const { data: laudo, error } = await supabase
+    .from('laudos_v2')
+    .select('calc_json')
+    .eq('negocio_id', negocio_id)
+    .eq('ativo', true)
+    .maybeSingle();
+
+  if (error) return { erro: error.message };
+  if (!laudo) return { erro: 'Laudo não encontrado' };
+
+  const calc = laudo.calc_json || {};
+  const ise = calc.ise || {};
+
+  // Filtro de campos sigilosos: pega APENAS textos públicos (camada 1)
+  const textos = calc.textos_anuncio || calc.textos_ia || {};
+  const publicos = {
+    titulo: textos.titulo || null,
+    descricao_card: textos.descricao_card || null,
+    abertura_editorial: textos.abertura_editorial || null,
+    tese_aquisicao_publica: textos.tese_aquisicao_publica || textos.tese_aquisicao || null,
+    riscos_atencao_publica: textos.riscos_atencao_publica || textos.riscos_atencao || null,
+    contexto_setor: textos.contexto_setor || null,
+    contexto_localizacao: textos.contexto_localizacao || null,
+  };
+
+  return {
+    negocio_id,
+    ise_breakdown: {
+      total: ise.ise_total,
+      classe: ise.classe,
+      pilares: (ise.pilares || []).map((p: any) => ({
+        label: p.label,
+        peso_pct: p.peso_pct,
+        score_0_10: p.score_0_10,
+      })),
+    },
+    valuation: {
+      valor_venda: calc.valuation?.valor_venda ?? null,
+      valor_operacao: calc.valuation?.valor_operacao ?? null,
+      multiplo_setor_label: calc.valuation?.multiplo_setor?.label ?? null,
+    },
+    indicadores_camada1: {
+      margem_operacional_pct: calc.dre?.margem_operacional_pct ?? null,
+      ro_anual: calc.dre?.ro_anual ?? null,
+      classe_ise: ise.classe,
+    },
+    textos_publicos: publicos,
+    nota_assistente: 'Camada 1 (textos editoriais públicos). NÃO foi retornado dados sigilosos das camadas 2 ou 3.'
+  };
+}
+
+// ============================================================
+// registrar_lead_interessado_ia — captura evento de interesse
+// ============================================================
+async function registrarLeadInteressadoIa(input: any, usuarioLogado: any | null) {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  const { negocio_id, codigo, contexto_conversa, nome, telefone } = input || {};
+
+  if (!contexto_conversa || String(contexto_conversa).trim().length < 5) {
+    return { erro: 'contexto_conversa obrigatório (resumo do que foi conversado)' };
+  }
+
+  // Resolve codigo → negocio_id
+  let negocioId = negocio_id || null;
+  if (!negocioId && codigo) {
+    const codigoClean = String(codigo).toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    const { data: anu } = await supabase
+      .from('anuncios_v2')
+      .select('negocio_id')
+      .eq('codigo', codigoClean)
+      .maybeSingle();
+    negocioId = anu?.negocio_id || null;
+  }
+
+  let nomeFinal: string | null = null;
+  let telefoneFinal: string | null = null;
+  let usuarioId: string | null = null;
+
+  if (usuarioLogado?.id) {
+    usuarioId = usuarioLogado.id;
+    // pega nome/telefone do perfil pra facilitar follow-up admin
+    nomeFinal = usuarioLogado.nome || null;
+    telefoneFinal = usuarioLogado.whatsapp || usuarioLogado.telefone || null;
+  } else {
+    // Não logado: nome+telefone obrigatórios
+    if (!nome || !telefone) {
+      return { erro: 'Pra registrar lead de usuário não logado, nome e telefone são obrigatórios.' };
+    }
+    nomeFinal = String(nome).trim();
+    const tel = String(telefone).replace(/\D/g, '');
+    telefoneFinal = tel ? (tel.startsWith('55') ? `+${tel}` : `+55${tel}`) : null;
+  }
+
+  const { data, error } = await supabase
+    .from('leads_interessado_ia')
+    .insert({
+      nome: nomeFinal,
+      telefone: telefoneFinal,
+      usuario_id: usuarioId,
+      negocio_id: negocioId,
+      contexto_conversa: String(contexto_conversa).slice(0, 2000),
+      origem: 'chat_ia',
+      status: 'novo',
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    console.error('Erro registrarLeadInteressadoIa:', error);
+    return { erro: error.message };
+  }
+
+  return {
+    sucesso: true,
+    lead_id: data.id,
+    silencioso: !!usuarioId,
+    mensagem: usuarioId
+      ? 'Lead registrado silenciosamente (usuário logado).'
+      : 'Lead capturado. Avise ao usuário que um consultor vai entrar em contato.'
   };
 }
 
@@ -771,6 +1250,12 @@ Deno.serve(async (req: Request) => {
         await persistirAvaliacao(lead_id, dadosColetados, toolResult, messages, pagina_origem, usuarioLogado);
       } else if (toolUseBlock.name === 'buscar_negocios') {
         toolResult = await buscarNegocios(toolUseBlock.input);
+      } else if (toolUseBlock.name === 'consultar_negocio') {
+        toolResult = await consultarNegocio(toolUseBlock.input);
+      } else if (toolUseBlock.name === 'consultar_laudo_publico') {
+        toolResult = await consultarLaudoPublico(toolUseBlock.input);
+      } else if (toolUseBlock.name === 'registrar_lead_interessado_ia') {
+        toolResult = await registrarLeadInteressadoIa(toolUseBlock.input, usuarioLogado);
       } else if (toolUseBlock.name === 'registrar_tese_investimento') {
         toolResult = await registrarTeseInvestimento(toolUseBlock.input, lead_id, pagina_origem);
       } else if (toolUseBlock.name === 'marcar_interesse_socio_parceiro') {
@@ -835,32 +1320,50 @@ Deno.serve(async (req: Request) => {
 // Lê múltiplos de parametros_versoes (mesma fonte da skill v2)
 // =====================================================
 
+// Replica calcAjusteFormaMultiSelect da skill v2 (linha 1629).
+// Principal = forma com maior ajuste; outras contribuem 30% × (extra − principal).
+function calcAjusteFormaMultiSelect(formas: string[], P_ajustes: Record<string, number>) {
+  if (!formas || formas.length === 0) return 0;
+
+  const ajustes = formas
+    .map(f => ({ codigo: f, valor: Number(P_ajustes?.[f] ?? 0) }))
+    .sort((a, b) => b.valor - a.valor);
+
+  const principal = ajustes[0];
+  let total = principal.valor;
+
+  for (let i = 1; i < ajustes.length; i++) {
+    const diff = ajustes[i].valor - principal.valor;
+    total += 0.30 * diff;  // diff ≤ 0, contrib é 0 ou negativa
+  }
+
+  return total;
+}
+
 async function calcularValuationRapido(d: any) {
   const params = await getParametros();
   const setor = d.setor_code || 'alimentacao';
 
-  // Múltiplo do setor (mesmo que a skill v2 usa)
+  // Múltiplo base do setor (mesma fonte da skill v2)
   const multipliosSetor = params?.multiplos_setor || {};
   let multiplo = Number(multipliosSetor[setor]) || 1.5;
 
-  // Ajuste por forma de atuação (simplificado, conservador)
-  const ajustes_forma: Record<string, number> = {
-    presencial_local: 0,
-    delivery: 0.1,
-    online: 0.3,
-    assinatura: 0.4,
-    hibrido: 0.15,
-    servico_local: 0,
-    b2b: 0.2,
-  };
-  multiplo += ajustes_forma[d.forma_atuacao] || 0;
+  // Ajuste por modelo_atuacao_multi (replica skill v2: snapshot.ajuste_forma_atuacao)
+  const ajustesForma: Record<string, number> = params?.ajuste_forma_atuacao || {};
+  const formas: string[] = Array.isArray(d.modelo_atuacao_multi) && d.modelo_atuacao_multi.length > 0
+    ? d.modelo_atuacao_multi
+    : ['presta_servico'];  // fallback (setor de serviço puro)
+  const ajusteTotal = calcAjusteFormaMultiSelect(formas, ajustesForma);
+  multiplo += ajusteTotal;
 
   // Floor de múltiplo
   if (multiplo < 0.5) multiplo = 0.5;
 
   // Cálculo principal
   const sobra = Number(d.sobra_anual) || 0;
-  const ativos = Number(d.ativos_relevantes) || 0;
+  const ativosEquip = Number(d.ativos_relevantes) || 0;
+  const ativoEstoque = Number(d.ativo_estoque) || 0;
+  const ativos = ativosEquip + ativoEstoque;  // estoque entra no Valor de Venda
   const dividas = Number(d.dividas_total) || 0;
 
   const valor_operacional = sobra * multiplo;
@@ -886,6 +1389,9 @@ async function calcularValuationRapido(d: any) {
     valor_min,
     valor_max,
     multiplo_aplicado: Number(multiplo.toFixed(3)),
+    ajuste_forma_total: Number(ajusteTotal.toFixed(3)),
+    formas_aplicadas: formas,
+    ativo_estoque_aplicado: ativoEstoque,
     floor_aplicado,
     parametros_versao_id: params?._versao_id || null,
   };

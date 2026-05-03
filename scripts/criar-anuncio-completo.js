@@ -353,19 +353,30 @@ function montarDescricaoCard(calc, perfil) {
 
 function capitalize(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
 
-// Monta título: prioriza IA, fallback "Setor em Cidade"
+// Monta título: SORTEIO ALEATÓRIO entre as 3 sugestões IA pra distribuir
+// uniformemente as categorias do pool (cat 9 genérica costuma cair em [2]).
+// Fallback "Setor em Cidade" se IA falhou.
 function montarTitulo(calc, perfil) {
   const sugIA = calc.textos_anuncio
     && calc.textos_anuncio.sugestoes_titulo_anuncio
     && calc.textos_anuncio.sugestoes_titulo_anuncio.conteudo;
   if (Array.isArray(sugIA) && sugIA.length > 0) {
-    let t = String(sugIA[0]).trim();
-    // Filtra proibidas
-    const lower = t.toLowerCase();
-    for (const p of PALAVRAS_PROIBIDAS) {
-      if (lower.includes(p)) { t = t.replace(new RegExp(p, 'gi'), '').replace(/\s+/g, ' ').trim(); }
+    // Filtra candidatas que passam no filtro de palavras proibidas
+    const candidatas = sugIA
+      .map(s => String(s || '').trim())
+      .map(t => {
+        const lower = t.toLowerCase();
+        let clean = t;
+        for (const p of PALAVRAS_PROIBIDAS) {
+          if (lower.includes(p)) clean = clean.replace(new RegExp(p, 'gi'), '').replace(/\s+/g, ' ').trim();
+        }
+        return clean;
+      })
+      .filter(t => t.length >= 5);
+    if (candidatas.length > 0) {
+      const escolhida = candidatas[Math.floor(Math.random() * candidatas.length)];
+      return trunc(escolhida, 60);
     }
-    if (t.length >= 5) return trunc(t, 60);
   }
   const id = perfil.identificacao || {};
   const setorLabel = (calc.identificacao && calc.identificacao.setor && calc.identificacao.setor.label) || id.setor;
@@ -510,25 +521,25 @@ async function processarPerfil(perfilPath) {
     valor_pedido: valorPedido,
     termo_adesao_id: termoId,
     termo_assinado_em: new Date().toISOString(),
-    status: 'rascunho',
+    status: 'publicado',
+    publicado_em: new Date().toISOString(),
     origem: 'maquininha_teste',
   };
-  // status='rascunho' → anon NÃO pode SELECT. Logo, return=minimal pra evitar
-  // que o pós-insert SELECT do PostgREST bata em RLS. Codigo é gerado por trigger;
-  // como não conseguimos lê-lo via anon (rascunho), reportamos só negocio_id e
-  // titulo no log — admin lê o codigo via SQL depois (ou após promover pra publicado).
+  // status='publicado' direto (lote 500): anon pode SELECT publicados. Mas
+  // mantemos return=minimal pra simplificar e ser idempotente — o codigo é
+  // gerado por trigger e pode ser puxado depois via SQL admin.
   const anuResp = await fetch(`${SUPABASE_URL}/rest/v1/anuncios_v2`, {
     method: 'POST', headers: { ...H(), 'Prefer': 'return=minimal' },
     body: JSON.stringify(anuncioPayload),
   });
   if (!anuResp.ok) throw new Error(`anuncios_v2 INSERT (${anuResp.status}): ${await anuResp.text()}`);
-  console.log(`│  ✓ anúncio criado (rascunho) · titulo: '${titulo}'`);
-  console.log(`└─ rascunho · valor R$ ${valorPedido.toLocaleString('pt-BR')} · descrição ${descricao.length} chars`);
+  console.log(`│  ✓ anúncio publicado · titulo: '${titulo}'`);
+  console.log(`└─ publicado · valor R$ ${valorPedido.toLocaleString('pt-BR')} · descrição ${descricao.length} chars`);
 
   return {
     nome: id.nome,
     codigo_diag: codigo,
-    codigo_anu: '(rascunho — codigo via SQL admin)',
+    codigo_anu: '(publicado — codigo via SQL admin)',
     valor: valorPedido,
     ise: calcJson.ise.ise_total,
     negocio_id: negocioId,
@@ -548,7 +559,7 @@ async function main() {
   if (arg === '--batch') {
     const dir = path.join(__dirname, 'perfis-teste');
     perfis = fs.readdirSync(dir)
-      .filter(f => /^seed-200-\d{3}\.json$/.test(f))
+      .filter(f => /^seed-500-\d{3}\.json$/.test(f))
       .sort()
       .map(f => path.join(dir, f));
   } else {

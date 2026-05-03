@@ -101,6 +101,23 @@
   // MAPEAMENTO DE SETOR / MODELO / ANEXO
   // ============================================================
 
+  // Labels acentuados pra exibição. Usado como fallback quando
+  // o input não trouxe setor_label preenchido.
+  const SETOR_LABELS = {
+    alimentacao: 'Alimentação',
+    saude: 'Saúde',
+    educacao: 'Educação',
+    beleza_estetica: 'Beleza e estética',
+    bem_estar: 'Bem-estar',
+    varejo: 'Varejo',
+    hospedagem: 'Hospedagem',
+    logistica: 'Logística',
+    industria: 'Indústria',
+    construcao: 'Construção',
+    servicos_empresas: 'Serviços para empresas',
+    servicos_locais: 'Serviços locais',
+  };
+
   function mapSetor(setor) {
     if (!setor) return 'servicos_locais';
     const s = String(setor).toLowerCase().normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '');
@@ -1654,7 +1671,7 @@
 
     const multiplo_setor = {
       codigo: setor_code,
-      label: D.setor_label || D.setor_raw || setor_code,
+      label: D.setor_label || SETOR_LABELS[setor_code] || D.setor_raw || setor_code,
       valor: n((P.multiplos_setor || {})[setor_code]),
     };
 
@@ -2735,7 +2752,7 @@
         nome: D.nome || null,
         nome_responsavel: D.nome_responsavel || null,
         tipo_negocio_breve: D.tipo_negocio_breve || null,
-        setor: { code: D.setor_code, label: D.setor_label || D.setor_raw || D.setor_code },
+        setor: { code: D.setor_code, label: D.setor_label || SETOR_LABELS[D.setor_code] || D.setor_raw || D.setor_code },
         subcategoria: D.subcategoria || null,
         modelo_atuacao: {
           selecionados: D.modelo_atuacao_multi || D.modelo_multi || [],

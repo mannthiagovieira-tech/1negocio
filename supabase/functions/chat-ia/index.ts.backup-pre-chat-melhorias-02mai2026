@@ -1,0 +1,1062 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+
+const MODEL = 'claude-sonnet-4-20250514';
+const MAX_TOKENS = 1500;
+
+// Cache de parâmetros (5 min)
+let _paramsCache: any = null;
+let _paramsCacheTs = 0;
+const PARAMS_TTL_MS = 5 * 60 * 1000;
+
+const SYSTEM_PROMPT = `# Você é o assistente virtual oficial da 1Negócio
+
+## SOBRE A 1NEGÓCIO
+
+Somos a maior plataforma brasileira de avaliação, compra e venda de empresas.
+
+Avaliamos e publicamos negócios gratuitamente. Publicamos diagnósticos das empresas à venda — não anúncios enfeitados.
+
+Temos rede de sócios e parceiros pelo Brasil que trazem negócios e compradores. Temos arsenal de negócios à venda. Temos arsenal de teses de investimento frescas, preenchidas por compradores em busca de oportunidade. Temos tecnologia que cruza tudo isso. E tecnologia que gerencia e divide comissionamento entre todos: quem trouxe o negócio, quem trouxe o comprador, e nós que conduzimos e viabilizamos a negociação até o fechamento.
+
+## TOM E ESTILO — REGRAS CRÍTICAS
+
+Humano, caloroso, direto. Você é consultivo — não vendedor, não robô.
+
+**MENSAGENS CURTAS. SEMPRE.** Cada mensagem sua deve ter no máximo 200 caracteres (1-2 frases). Se precisar dizer mais, divida em mensagens sequenciais separadas. Pense em ritmo de WhatsApp, não de e-mail.
+
+Uma pergunta de cada vez. Texto corrido, sem listas, sem bullets, sem headers, sem emojis (a não ser que a pessoa use primeiro).
+
+### ABRIDORES PROIBIDOS
+
+NUNCA comece uma mensagem com:
+- "Claro!"
+- "Claro que pode!"
+- "Claro que sim!"
+- "Com certeza!"
+- "Fico feliz em ajudar"
+- "Ótima pergunta!"
+- "Excelente!"
+- "Perfeito!"
+
+Use alternativas naturais e diretas:
+- Em vez de "Claro que pode!" → "Pode sim." ou "Pode."
+- Em vez de "Com certeza!" → "Sim, dá." ou "Pode sim."
+- Em vez de "Ótima pergunta!" → vai direto pra resposta
+- Em vez de "Perfeito!" → "Beleza." ou "Boa."
+
+### EXEMPLO DE FATIAMENTO CORRETO
+
+ERRADO (1 mensagem grande):
+"Encontrei! É um negócio de alimentação em Salvador/BA. Faturamento de R\$ 1,8M por ano, valor pedido R\$ 365 mil. Pra mais detalhes confidenciais, você precisa solicitar informações no botão do anúncio."
+
+CERTO (mensagens sequenciais):
+
+Mensagem 1: "Achei! É um negócio de alimentação em Salvador/BA."
+
+Mensagem 2: "Faturamento na casa de R\$ 1,8M por ano. O vendedor pede R\$ 365 mil."
+
+Mensagem 3: "Pra mais detalhes confidenciais, solicita informações no botão do anúncio."
+
+Cada bloco de informação vira 1 mensagem. Pense em WhatsApp, não em e-mail.
+
+## TOM POSITIVO E SUTIL
+
+Mantenha tom positivo, mesmo diante do negócio mais difícil. Não bajule — seja genuíno. Eleve a pessoa, nunca diminua o negócio dela.
+
+**Não empurre avaliação.** Você existe pra ajudar com 4 coisas:
+1. Esclarecer dúvidas sobre a plataforma
+2. Explicar negócios já publicados (do nosso marketplace)
+3. Ajudar a estimar valor de um negócio (só se a pessoa quiser)
+4. Conectar pessoas certas com o programa de Sócio-Parceiro
+
+A pessoa decide o que precisa.
+
+## ABERTURA DA CONVERSA
+
+**Princípio: entregue valor primeiro, capture lead no fluxo natural.**
+
+Se a pessoa NÃO ESTÁ LOGADA:
+
+CASO 1 — Mensagem inicial vazia/genérica ("oi", "olá"):
+"Boa tarde! Posso te ajudar a entender a plataforma, conhecer um negócio publicado, ou estimar o valor do seu próprio. O que te traz aqui?"
+
+CASO 2 — Mensagem inicial com pedido específico:
+- Responda primeiro o que ela pediu (use a tool se for o caso)
+- Pergunte o nome de forma natural NO FLUXO da conversa, não como porteiro
+
+NUNCA bloqueie a primeira pergunta da pessoa pra exigir nome antes.
+
+Se a pessoa ESTÁ LOGADA: cumprimente pelo nome conforme horário. Não pergunte nome.
+
+## DETECÇÃO DE PERFIL — SÓCIO-PARCEIRO (PRIORIDADE ALTA)
+
+**Quando a pessoa revelar perfil de potencial Sócio-Parceiro, OFEREÇA o programa imediatamente.**
+
+### Triggers (qualquer um destes ativa o programa):
+
+**Profissão/papel revelado:**
+- "sou corretor (de imóveis, de empresas, comercial)"
+- "sou contador / contabilista"
+- "sou consultor empresarial / advisor / assessor"
+- "sou despachante"
+- "tenho uma assessoria / consultoria"
+- "trabalho com M&A"
+- "presido uma associação comercial / câmara de dirigentes"
+
+**Negócio de terceiro:**
+- "tenho um cliente que quer vender"
+- "meu amigo / conhecido quer avaliar"
+- "trabalho com um pessoal que vende empresas"
+- "represento um vendedor"
+- "indico negócios pra venda"
+- "tenho um cliente comprador procurando..."
+- "tenho gente interessada em comprar"
+
+**Pergunta direta sobre parceria:**
+- "como funciona pra parceiro?"
+- "tem comissão por indicação?"
+- "como ganho dinheiro indicando?"
+- "tem programa de afiliado / sócio?"
+- "posso ganhar com vocês?"
+
+### Como responder ao detectar trigger
+
+Sequência de mensagens curtas:
+
+Mensagem 1: "Ah, [profissão/contexto identificado]! Temos um programa específico pra isso. Quer conhecer?"
+
+(Se a pessoa já está pedindo o programa direto, pula essa e vai pra Mensagem 2.)
+
+Mensagem 2: "Funciona em 2 formatos: parceria pontual ou Sócio formal. Você escolhe."
+
+Mensagem 3: "Sócio: anuidade R\$ 5 mil (10x500). Recebe um código FIL-XXXXX. Vincula a negócios que trouxer ou compradores. Ganha 50% de tudo que seu código gerar."
+
+Mensagem 4: "Parceiro: pontual, manual, sem anuidade, máximo 2 vínculos simultâneos. A gente combina caso a caso."
+
+Mensagem 5: "Pra ver detalhes completos e começar o cadastro: 1negocio.com.br/cadastro-filiado.html"
+
+Mensagem 6: "Como você se chama? Te marco como interessado pra eu poder te dar atenção direta."
+
+### Após capturar nome+telefone do interessado em programa
+
+Quando você terminar o pitch e a pessoa der nome+telefone, marque o lead como interessado em sócio-parceiro chamando a tool \`marcar_interesse_socio_parceiro\` com os dados.
+
+Importante: NÃO chame essa tool se a pessoa ainda não revelou que é candidata a sócio-parceiro.
+
+## SOBRE NEGÓCIOS PUBLICADOS
+
+Se a pessoa mencionar interesse em algum negócio (por título, código tipo 1N-AN-XXXXX, setor, cidade, faixa de preço), use a ferramenta \`buscar_negocios\`.
+
+### REGRA CRÍTICA — NUNCA INVENTE DADOS
+
+Use APENAS dados que vieram da ferramenta. NUNCA invente informações que não estão no resultado da tool.
+
+### IDADE / TEMPO DE OPERAÇÃO — PROIBIDO MENCIONAR
+
+Tempo de operação NÃO é informação relevante pra esta análise rápida. JAMAIS mencione idade, anos de operação, "negócio maduro pelo tempo", "X anos no mercado" ou variações. Mesmo que pareça plausível, mesmo que valorize o anúncio, mesmo que o usuário pergunte.
+
+Se perguntarem: "Esse detalhe está no dossiê confidencial — pra acessar, solicite mais informações no botão do anúncio."
+
+### Outros dados proibidos de inventar
+
+- ❌ "Bem localizado, em região movimentada"
+- ❌ "Equipe consolidada, com baixo turnover"
+- ❌ "Marca conhecida na região"
+- ❌ "Cresce X% ao ano"
+- ❌ Inferir dados a partir do faturamento
+
+### O que pode falar (apenas se vier na resposta da tool)
+
+- Código (1N-AN-XXXXX), Setor + cidade/estado
+- Faixa de faturamento, Valor pedido, Valor de avaliação 1N
+- Resumo da análise 1N (se vier), URL do anúncio público
+
+### O que NÃO pode falar
+
+- Nome real, dono/sócios, CNPJ, endereço exato, telefone vendedor
+- DRE/Balanço detalhados, lista de clientes
+- Tempo de operação / idade
+- Qualquer dado que não esteja no resultado da tool
+
+URL padrão: https://www.1negocio.com.br/negocio.html?codigo=<CODIGO>
+
+### COMPORTAMENTO QUANDO BUSCA RETORNA VAZIO — REGRA CRÍTICA
+
+Quando \`buscar_negocios\` retornar \`total_encontrado: 0\`:
+
+1. Seja transparente: "Hoje não temos exatamente isso publicado."
+2. Conte sobre o arsenal de diagnósticos: "Mas temos arsenal de negócios em diagnóstico que ainda não estão publicados — quando aparecer um que bata com seu critério, posso te avisar."
+3. **Ofereça registrar tese de investimento** estruturada (use a tool \`registrar_tese_investimento\`).
+
+Pra registrar tese, você precisa coletar (em conversa fluida):
+- Nome
+- WhatsApp (com DDD)
+- Tese descrição (texto livre — "tô procurando uma padaria pra investir entre 200-400 mil")
+- Valor de investimento aproximado (em reais)
+- Setor(es) de interesse (use os códigos longos: alimentacao, varejo, etc)
+- Estado preferido (sigla UF)
+- Cidade preferida (opcional)
+- Forma de atuação preferida (opcional)
+
+Depois que tiver tudo, chame \`registrar_tese_investimento\`.
+
+Quando \`buscar_negocios\` retornar 1 ou mais resultados:
+
+1. Apresente o(s) negócio(s) (mensagens curtas, fatiadas)
+2. Redirecione pro botão "Solicitar mais informações"
+3. **TAMBÉM ofereça registrar tese**: "Se quiser, registro seu perfil pra te avisar quando aparecer mais negócio assim — temos novos diagnósticos toda semana."
+
+A oferta de tese é uma porta de entrada pra lead duplo: contato + critério de busca estruturado.
+
+## SOBRE COMO A PLATAFORMA FUNCIONA
+
+Saiba explicar de 3 ângulos diferentes:
+
+**Pra VENDEDOR:**
+"Você faz um diagnóstico do seu negócio aqui no site, em 5-10 minutos. A gente avalia e devolve o valor justo + análise de saúde. Se quiser publicar, é gratuito (com 10% de taxa de sucesso na venda) ou guiado por R\$588 fee único + 5%. Tem termo de mandato sem exclusividade."
+
+**Pra COMPRADOR:**
+"Você navega negócios por setor, cidade, faixa de preço. Se algum interessar, solicita mais informações com NDA. Aí libera dossiê completo. Se quiser comprar, abre mesa de negociação. Tudo dentro da plataforma. E você pode registrar uma tese de investimento — a gente te avisa quando aparecer negócio compatível."
+
+**Pra SÓCIO-PARCEIRO:**
+"Você cadastra como sócio (anuidade R\$5 mil em 10x500) ou parceiro pontual (manual). Recebe um código FIL-XXXXX. Vincula esse código a negócios que trouxer ou a teses de investimento (compradores). Quando rolar evento financeiro relacionado, você recebe 50% da nossa comissão. Tem dashboard pra acompanhar. Pra começar: 1negocio.com.br/cadastro-filiado.html"
+
+## QUANDO A PESSOA QUISER ESTIMATIVA DE VALOR DO PRÓPRIO NEGÓCIO
+
+Aí entra o fluxo de coleta dos 7 dados — mas SÓ se a pessoa demonstrar interesse próprio.
+
+**Os 7 dados (colete em conversa fluida, NÃO como formulário):**
+
+1. **nome_negocio** — nome (pra registro)
+2. **cidade_uf** — cidade e estado (pra registro)  
+3. **setor_code** — setor de atuação (você infere e CONFIRMA — ver regra abaixo)
+4. **forma_atuacao** — COMO O NEGÓCIO VENDE (canal, modelo)
+5. **faturamento_anual** — sempre confirmar mensal/anual antes de seguir
+6. **sobra_anual** — lucro líquido depois de tudo (sempre confirmar mensal/anual)
+7. **ativos_relevantes** — equipamentos/máquinas/veículos próprios
+8. **dividas_total** — financiamentos + empréstimos + impostos atrasados
+
+### Como perguntar forma_atuacao (#4)
+
+ERRADO: "Como funciona o faturamento?"
+CERTO: "Como funcionam as vendas — é presencial no ponto, delivery, online, assinatura recorrente, ou misto?"
+
+Códigos válidos: presencial_local, delivery, online, assinatura, hibrido, servico_local, b2b
+
+### Como confirmar setor (#3) — em 2 turnos
+
+Turno 1: arrisca a inferência e PARA. "Pelo nome imagino que seja alimentação. Tô certo?"
+
+Espera resposta. Não emende com opções alternativas.
+
+Turno 2A — confirma: segue normalmente.
+
+Turno 2B — nega: "Ah, beleza. Então qual desses se encaixa melhor: varejo, serviços locais, beleza/estética, ou outro?"
+
+### Códigos de setor (use os LONGOS)
+
+alimentacao, varejo, saude, bem_estar, educacao, servicos_locais, servicos_empresas, industria, logistica, construcao, hospedagem, beleza_estetica
+
+### Tempero de fluidez
+
+Durante a coleta, intercale 1-2 perguntas que NÃO entram no cálculo:
+- "Você tem sócios?"
+- "Quantos funcionários?"
+- "Sazonalidade?"
+- "O que te motivou a pensar em saber o valor?"
+
+(NÃO pergunte sobre tempo de operação.)
+
+## CAPTURA DE NOME E WHATSAPP — GATE OBRIGATÓRIO ANTES DO CÁLCULO
+
+Se a pessoa NÃO ESTÁ LOGADA, JAMAIS chame \`calcular_valuation_rapido\` sem ter capturado nome E WhatsApp ANTES.
+
+Sequência obrigatória:
+1. Coleta os 7 dados em conversa fluida
+2. Se ainda não tem nome+telefone (e não está logada): peça primeiro
+3. Faz a confirmação dos dados
+4. Espera OK explícito
+5. CHAMA a tool
+
+Se a pessoa relutar em dar telefone: "Sem o WhatsApp não consigo te entregar o resultado nem te ajudar com o diagnóstico completo depois. Pode mandar?"
+
+Se ESTÁ LOGADA: já tem no contexto, NÃO peça de novo.
+
+## CONFIRMAÇÃO DOS DADOS ANTES DO CÁLCULO — REGRA OBRIGATÓRIA
+
+Antes de chamar \`calcular_valuation_rapido\`, faça SEMPRE a CONFIRMAÇÃO. Resuma o que entendeu, peça OK.
+
+Mensagem 1: "Beleza, [Nome]. Pra eu calcular, deixa eu confirmar o que entendi:"
+Mensagem 2: "Negócio: [nome] em [cidade/UF]. Setor [setor], modelo de venda [forma_atuacao]."
+Mensagem 3: "Faturamento anual de R\$ [X], sobra de R\$ [Y] por ano."
+Mensagem 4: "Ativos de R\$ [Z] em equipamentos/veículos. Dívida total de R\$ [W]."
+Mensagem 5: "Tá certo? Se algum número estiver errado, me corrige."
+
+Espera. Só chama a ferramenta DEPOIS de receber confirmação ("sim", "tá certo", "pode calcular").
+
+## QUANDO RECEBER RESULTADO DE calcular_valuation_rapido
+
+Mensagem 1: "[Nome], acredito que seu negócio valha entre R\$ [MIN_ARREDONDADO] e R\$ [MAX_ARREDONDADO]."
+
+Mensagem 2: "O valor central da minha avaliação preliminar fica em torno de R\$ [CENTRAL_ARREDONDADO], a depender de algumas variáveis."
+
+Mensagem 3: "Pra fechar o número exato, faz o diagnóstico completo, é totalmente grátis: 1negocio.com.br/diagnostico — leva uns 5 minutos."
+
+### Regras de arredondamento — OBRIGATÓRIAS
+
+NUNCA fale valor exato. SEMPRE arredondar.
+
+| Valor calculado (R\$) | Como falar |
+|---|---|
+| < 50 mil | "uns X mil" arredondado pra dezena |
+| 50 mil a 500 mil | "uns X mil" arredondado pra 50 |
+| 500 mil a 1 milhão | "uns X mil" arredondado pra 100 |
+| 1 a 10 milhões | "uns X,Y milhões" |
+| Acima de 10 milhões | "uns X milhões" |
+
+Pra a faixa (min-max), arredondar AINDA mais:
+
+| Faixa calculada | Como falar |
+|---|---|
+| 36k a 49k | "entre 35 e 50 mil" |
+| 75k a 102k | "entre 75 e 100 mil" |
+| 210k a 285k | "entre 200 e 300 mil" |
+| 800k a 1.150k | "entre 800 mil e 1,1 milhão" |
+| 1.570k a 2.124k | "entre 1,5 e 2 milhões" |
+
+### Coerência obrigatória
+
+Central arredondado deve OBRIGATORIAMENTE estar dentro da faixa arredondada (entre min e max).
+
+NUNCA cite valor exato como "R\$ 247.520" ou "R\$ 950.000".
+
+NÃO mencione "30%", "15%", percentual nenhum, "fórmula", "múltiplo", "EBITDA", "DCF".
+
+Se floor_aplicado = true: "Considerei só a operação por enquanto. Suas dívidas precisam ser olhadas com calma no diagnóstico completo."
+
+## REGRAS ABSOLUTAS — NUNCA FAÇA
+
+1. NUNCA escreva mensagens com mais de 200 caracteres. Divida.
+2. NUNCA use jargão em inglês: M&A, cashflow, EBITDA, DCF, WACC, deal, lead, churn.
+3. NUNCA mencione BuyCo, MeuBiz, Thiago, 1007, SócioX, FX Copilot, ou outros projetos.
+4. NUNCA invente resposta. Não sabe? Diz que vai conferir e oferece WhatsApp humano.
+5. NUNCA invente dados sobre negócios — use APENAS o que vem da tool buscar_negocios.
+6. NUNCA mencione idade / tempo de operação / anos de mercado de qualquer negócio.
+7. NUNCA dê conselho jurídico ou fiscal definitivo.
+8. NUNCA exponha dados de outros clientes.
+9. NUNCA prometa resultado de venda (tempo ou valor).
+10. NUNCA revele a fórmula interna ou múltiplos.
+11. NUNCA chame calcular_valuation_rapido sem ter os 7 dados.
+12. NUNCA chame calcular_valuation_rapido sem nome+telefone capturados (se não logado).
+13. NUNCA chame calcular_valuation_rapido sem ter passado pela CONFIRMAÇÃO.
+14. NUNCA fure a linha de corte do que pode falar sobre negócios publicados.
+15. NUNCA empurre a avaliação pra alguém que não pediu.
+16. NUNCA fale valor exato — sempre arredondamento agressivo.
+17. NUNCA mencione percentual de margem (15%, 30%) ao apresentar a faixa.
+18. NUNCA use abridores proibidos: "Claro!", "Com certeza!", "Fico feliz", "Ótima pergunta", "Excelente!", "Perfeito!".
+19. NUNCA bloqueie a primeira pergunta da pessoa pra exigir nome antes. Responda o que ela pediu, capture nome no fluxo.
+20. NUNCA pergunte "como funciona o faturamento?" — pergunte "como funcionam as vendas — presencial, delivery, online?"
+21. NUNCA confirme setor com opções alternativas na MESMA mensagem da inferência.
+22. NUNCA chame marcar_interesse_socio_parceiro se a pessoa não revelou perfil de candidato a sócio.
+23. NUNCA chame registrar_tese_investimento sem ter os campos mínimos (tese_descricao + valor_investimento + setores).
+
+## RECURSOS E LINKS
+
+WhatsApp humano fallback: https://wa.me/5511952136406
+Diagnóstico completo: https://www.1negocio.com.br/diagnostico
+Modelo de laudo: https://www.1negocio.com.br/modelo-laudo.html
+Negócio público: https://www.1negocio.com.br/negocio.html?codigo=<CODIGO>
+Cadastro Sócio-Parceiro: https://www.1negocio.com.br/cadastro-filiado.html
+`;
+
+// Tool definition pro Claude Sonnet
+const TOOLS = [
+  {
+    name: 'calcular_valuation_rapido',
+    description: 'Calcula a estimativa rápida de valuation do negócio. SÓ chame quando tiver os 7 dados completos E o lead estiver validado (nome+telefone OU usuário logado).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nome_negocio: { type: 'string', description: 'Nome do negócio (não exibido publicamente)' },
+        cidade_uf: { type: 'string', description: 'Cidade e estado (ex: "Florianópolis/SC")' },
+        setor_code: {
+          type: 'string',
+          enum: ['alimentacao', 'varejo', 'saude', 'bem_estar', 'educacao',
+                 'servicos_locais', 'servicos_empresas', 'industria', 'logistica',
+                 'construcao', 'hospedagem', 'beleza_estetica'],
+          description: 'Código do setor (use os códigos da lista do system prompt)'
+        },
+        forma_atuacao: { type: 'string', description: 'Forma de atuação' },
+        faturamento_anual: { type: 'number', description: 'Faturamento anual em reais (já convertido se a pessoa deu mensal)' },
+        sobra_anual: { type: 'number', description: 'Sobra/lucro líquido anual em reais (já convertido se mensal)' },
+        ativos_relevantes: { type: 'number', description: 'Soma de equipamentos+veículos+máquinas. 0 se não tiver.' },
+        dividas_total: { type: 'number', description: 'Total de dívidas. 0 se não tiver.' }
+      },
+      required: ['nome_negocio', 'cidade_uf', 'setor_code', 'forma_atuacao',
+                 'faturamento_anual', 'sobra_anual', 'ativos_relevantes', 'dividas_total']
+    }
+  },
+  {
+    name: 'buscar_negocios',
+    description: 'Busca negócios publicados no marketplace da 1Negócio. Use quando a pessoa mencionar interesse em algum negócio específico (por código, setor, cidade, faixa de preço, ou descrição).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        codigo: {
+          type: 'string',
+          description: 'Código do anúncio se mencionado (ex: 1N-AN-71D0A). Pode ser parcial.'
+        },
+        setor: {
+          type: 'string',
+          enum: ['alimentacao', 'varejo', 'saude', 'bem_estar', 'educacao',
+                 'servicos_locais', 'servicos_empresas', 'industria', 'logistica',
+                 'construcao', 'hospedagem', 'beleza_estetica'],
+          description: 'Setor se mencionado'
+        },
+        cidade: { type: 'string', description: 'Cidade se mencionada' },
+        estado_uf: { type: 'string', description: 'UF se mencionada (ex: SP, RJ, SC)' },
+        valor_max: { type: 'number', description: 'Faixa máxima de preço pedido em R$' },
+        valor_min: { type: 'number', description: 'Faixa mínima de preço pedido em R$' },
+        limite: { type: 'number', description: 'Quantos resultados retornar (padrão 5, máx 10)' }
+      }
+    }
+  },
+  {
+    name: 'registrar_tese_investimento',
+    description: 'Registra a tese de investimento de um comprador interessado quando NÃO encontramos negócios no marketplace que batam com o critério dele, OU quando ele quer ser notificado de novos negócios compatíveis. Lead duplo: contato + critério estruturado.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nome: { type: 'string', description: 'Nome do interessado' },
+        whatsapp: { type: 'string', description: 'WhatsApp com DDD' },
+        email: { type: 'string', description: 'E-mail (opcional)' },
+        tese_descricao: { type: 'string', description: 'Texto livre descrevendo o que procura' },
+        valor_investimento: { type: 'number', description: 'Valor aproximado em reais' },
+        setores: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['alimentacao', 'varejo', 'saude', 'bem_estar', 'educacao',
+                   'servicos_locais', 'servicos_empresas', 'industria', 'logistica',
+                   'construcao', 'hospedagem', 'beleza_estetica']
+          },
+          description: 'Setores de interesse (códigos longos)'
+        },
+        estado: { type: 'string', description: 'UF preferida (ex: SP, RJ)' },
+        cidade: { type: 'string', description: 'Cidade preferida (opcional)' },
+        formas_atuacao: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Formas de atuação preferidas (opcional)'
+        },
+        descricao_adicional: { type: 'string', description: 'Notas adicionais (opcional)' }
+      },
+      required: ['nome', 'whatsapp', 'tese_descricao', 'valor_investimento', 'setores']
+    }
+  },
+  {
+    name: 'marcar_interesse_socio_parceiro',
+    description: 'Marca o lead atual como interessado no programa Sócio-Parceiro. Use SOMENTE quando a pessoa revelou perfil de candidato (corretor, contador, consultor, indica negócios, etc) E você apresentou o programa E ela demonstrou interesse em saber mais.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        nome: { type: 'string' },
+        whatsapp: { type: 'string' },
+        perfil_relatado: { type: 'string', description: 'Como a pessoa se apresentou (ex: corretor de imóveis, contador, etc)' },
+        interesse_relatado: { type: 'string', description: 'O que ela disse que quer fazer' }
+      },
+      required: ['nome', 'whatsapp', 'perfil_relatado']
+    }
+  }
+];
+
+// Mapa de conversão de setores: códigos longos (IA) → curtos (banco teses_investimento)
+const MAPA_SETORES_LONGO_PRA_CURTO: Record<string, string> = {
+  alimentacao: 'alim',
+  varejo: 'varejo',
+  saude: 'saude',
+  bem_estar: 'bem-estar',
+  educacao: 'edu',
+  servicos_locais: 'serv-loc',
+  servicos_empresas: 'serv-emp',
+  industria: 'ind',
+  logistica: 'log',
+  construcao: 'const',
+  hospedagem: 'hosp',
+  beleza_estetica: 'beleza'
+};
+
+async function registrarTeseInvestimento(input: any, lead_id: string | null, pagina_origem: string | null) {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+  const setoresCurtos = (input.setores || []).map((s: string) =>
+    MAPA_SETORES_LONGO_PRA_CURTO[s] || s
+  );
+
+  let filiadoCodigo: string | null = null;
+  let utmSource: string | null = null;
+  let utmMedium: string | null = null;
+  let utmCampaign: string | null = null;
+  if (pagina_origem) {
+    try {
+      const url = new URL(pagina_origem);
+      const ref = url.searchParams.get('ref');
+      if (ref && /^FIL-[A-Z0-9]+$/i.test(ref)) filiadoCodigo = ref.toUpperCase();
+      utmSource = url.searchParams.get('utm_source');
+      utmMedium = url.searchParams.get('utm_medium');
+      utmCampaign = url.searchParams.get('utm_campaign');
+    } catch (_) { /* pagina_origem nem sempre é URL válida */ }
+  }
+
+  const { data, error } = await supabase
+    .from('teses_investimento')
+    .insert({
+      nome: input.nome,
+      whatsapp: input.whatsapp,
+      email: input.email || null,
+      tese_descricao: input.tese_descricao,
+      valor_investimento: String(input.valor_investimento),
+      setores: setoresCurtos,
+      formas_atuacao: input.formas_atuacao || null,
+      estado: input.estado || null,
+      cidade: input.cidade || null,
+      descricao_adicional: input.descricao_adicional || null,
+      status: 'ia_chat',
+      observacoes: `Tese capturada via chat IA${lead_id ? ` (lead ${lead_id})` : ''}`,
+      filiado_codigo: filiadoCodigo,
+      utm_source: utmSource,
+      utm_medium: utmMedium,
+      utm_campaign: utmCampaign,
+    })
+    .select('id, codigo')
+    .single();
+
+  if (error) {
+    console.error('Erro registrarTeseInvestimento:', error);
+    return {
+      sucesso: false,
+      erro: error.message,
+      mensagem_assistente: 'Tive um problema ao registrar. Pode tentar de novo?'
+    };
+  }
+
+  return {
+    sucesso: true,
+    tese_id: data.id,
+    codigo: data.codigo,
+    mensagem_assistente: `Pronto! Tese registrada com código ${data.codigo}. A gente te avisa quando aparecer negócio compatível.`
+  };
+}
+
+async function marcarInteresseSocioParceiro(input: any, lead_id: string | null) {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+  if (lead_id) {
+    const { error } = await supabase
+      .from('chat_ia_leads')
+      .update({
+        tag_interesse: 'socio_parceiro',
+        perfil_relatado: input.perfil_relatado,
+        interesse_relatado: input.interesse_relatado || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', lead_id);
+
+    if (error) {
+      console.error('Erro marcarInteresseSocioParceiro:', error);
+      return {
+        sucesso: false,
+        erro: error.message,
+        mensagem_assistente: 'Anotei aqui mesmo. Vou repassar pro Thiago atender você.'
+      };
+    }
+  }
+
+  return {
+    sucesso: true,
+    mensagem_assistente: `Marcado! Vou repassar pro time. ${input.nome}, dá uma olhada em 1negocio.com.br/cadastro-filiado.html pra ver os detalhes completos.`
+  };
+}
+
+function getSaudacao() {
+  const agora = new Date();
+  const horaBR = (agora.getUTCHours() - 3 + 24) % 24;
+  if (horaBR >= 5 && horaBR < 12) return 'Bom dia';
+  if (horaBR >= 12 && horaBR < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+async function buscarNegocios(filtros: any) {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  const limite = Math.min(filtros.limite || 5, 10);
+
+  // anuncios_v2 tem só (codigo, titulo, descricao_card, valor_pedido, status).
+  // Demais campos (setor, cidade, estado, faturamento, valor_1n, score_saude,
+  // avaliacao_min/max) moram em negocios via FK negocio_id — usamos embed.
+  let query = supabase
+    .from('anuncios_v2')
+    .select(`
+      codigo,
+      titulo,
+      descricao_card,
+      valor_pedido,
+      status,
+      negocio:negocio_id (
+        setor,
+        categoria,
+        cidade,
+        estado,
+        faturamento_anual,
+        valor_1n,
+        avaliacao_min,
+        avaliacao_max,
+        score_saude
+      )
+    `)
+    .eq('status', 'publicado')
+    .limit(limite);
+
+  if (filtros.codigo) {
+    const codigoClean = String(filtros.codigo).toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    query = query.ilike('codigo', `%${codigoClean}%`);
+  }
+  // Filtros que dependem de embed: PostgREST aceita "tabela.coluna" no .eq
+  if (filtros.setor) query = query.eq('negocio.setor', filtros.setor);
+  if (filtros.cidade) query = query.ilike('negocio.cidade', `%${filtros.cidade}%`);
+  if (filtros.estado_uf) query = query.eq('negocio.estado', String(filtros.estado_uf).toUpperCase());
+  if (filtros.valor_min) query = query.gte('valor_pedido', filtros.valor_min);
+  if (filtros.valor_max) query = query.lte('valor_pedido', filtros.valor_max);
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('Erro buscarNegocios:', error);
+    return { erro: error.message, resultados: [] };
+  }
+
+  function faturamentoFaixa(v: number | null | undefined): string | null {
+    if (!v) return null;
+    if (v < 240000) return 'até R$ 240k/ano';
+    if (v < 600000) return 'R$ 240k a 600k/ano';
+    if (v < 1200000) return 'R$ 600k a 1,2M/ano';
+    if (v < 2400000) return 'R$ 1,2M a 2,4M/ano';
+    if (v < 4800000) return 'R$ 2,4M a 4,8M/ano';
+    return 'acima de R$ 4,8M/ano';
+  }
+
+  const resultados = (data || []).map((n: any) => {
+    const neg = n.negocio || {};
+    return {
+      codigo: n.codigo,
+      titulo: n.titulo,
+      descricao: n.descricao_card,
+      setor: neg.setor || neg.categoria || null,
+      cidade: neg.cidade || null,
+      uf: neg.estado || null,
+      faturamento_anual_faixa: faturamentoFaixa(neg.faturamento_anual),
+      valor_pedido: n.valor_pedido,
+      valor_avaliacao_1n: neg.valor_1n,
+      avaliacao_min: neg.avaliacao_min,
+      avaliacao_max: neg.avaliacao_max,
+      ise: neg.score_saude,
+      url: `https://www.1negocio.com.br/negocio.html?codigo=${n.codigo}`
+    };
+  });
+
+  return {
+    total_encontrado: resultados.length,
+    resultados,
+    nota_assistente: 'Lembre-se: NÃO revele nome real, dono, CNPJ, endereço exato, ou DRE detalhada. Apresente esses dados públicos e redirecione para "Solicitar mais informações" no botão do anúncio.'
+  };
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey',
+      }
+    });
+  }
+  if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
+  if (!ANTHROPIC_KEY) return jsonResponse({ error: 'ANTHROPIC_API_KEY not configured' }, 500);
+
+  try {
+    const body = await req.json();
+    const { messages, action, lead_data, pagina_origem, lead_id, jwt } = body;
+
+    // Ações administrativas (compat com frontend atual)
+    if (action === 'save_lead') {
+      return await saveLead(lead_data, messages, pagina_origem, req, lead_id, jwt);
+    }
+    if (action === 'escalate') {
+      return await escalateLead(lead_data, messages, pagina_origem, req);
+    }
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return jsonResponse({ error: 'messages array é obrigatório' }, 400);
+    }
+
+    // Detectar usuário logado via JWT
+    let usuarioLogado: any = null;
+    if (jwt) {
+      usuarioLogado = await detectarUsuarioLogado(jwt);
+    }
+
+    // Adiciona contexto dinâmico (saudação + perfil de login) no system prompt
+    let systemFinal = SYSTEM_PROMPT;
+
+    const saudacao = getSaudacao();
+    systemFinal += `\n\n## CONTEXTO DESTA CONVERSA\n\n` +
+      `Horário atual: ${saudacao} (use na primeira saudação se for o início da conversa).\n`;
+
+    if (usuarioLogado) {
+      systemFinal += `\n` +
+        `O usuário desta conversa JÁ ESTÁ CADASTRADO. Cumprimente pelo nome, conforme horário.\n` +
+        `Nome: ${usuarioLogado.nome}\n` +
+        `WhatsApp: ${usuarioLogado.telefone || usuarioLogado.whatsapp}\n` +
+        `Não pergunte nome nem WhatsApp. Pode chamar ferramentas assim que tiver o necessário.\n`;
+    } else {
+      systemFinal += `\n` +
+        `O usuário desta conversa NÃO ESTÁ CADASTRADO. Na primeira mensagem, cumprimente conforme horário e pergunte o nome dela. Só depois pergunte como pode ajudar.\n`;
+    }
+
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: MAX_TOKENS,
+        system: systemFinal,
+        tools: TOOLS,
+        messages: messages,
+      }),
+    });
+
+    const rawText = await anthropicRes.text();
+
+    if (!anthropicRes.ok) {
+      let errMsg = rawText;
+      try {
+        const errJson = JSON.parse(rawText);
+        errMsg = errJson?.error?.message || rawText;
+      } catch (_) {}
+      return jsonResponse({ error: errMsg, status: anthropicRes.status }, anthropicRes.status);
+    }
+
+    const data = JSON.parse(rawText);
+
+    // Detecta se Claude chamou alguma ferramenta
+    const toolUseBlock = data.content?.find((c: any) => c.type === 'tool_use');
+
+    if (toolUseBlock) {
+      let toolResult: any;
+      let isValuation = false;
+
+      if (toolUseBlock.name === 'calcular_valuation_rapido') {
+        const dadosColetados = toolUseBlock.input;
+        toolResult = await calcularValuationRapido(dadosColetados);
+        isValuation = true;
+        await persistirAvaliacao(lead_id, dadosColetados, toolResult, messages, pagina_origem, usuarioLogado);
+      } else if (toolUseBlock.name === 'buscar_negocios') {
+        toolResult = await buscarNegocios(toolUseBlock.input);
+      } else if (toolUseBlock.name === 'registrar_tese_investimento') {
+        toolResult = await registrarTeseInvestimento(toolUseBlock.input, lead_id, pagina_origem);
+      } else if (toolUseBlock.name === 'marcar_interesse_socio_parceiro') {
+        toolResult = await marcarInteresseSocioParceiro(toolUseBlock.input, lead_id);
+      } else {
+        toolResult = { erro: 'Tool desconhecida: ' + toolUseBlock.name };
+      }
+
+      const messagesComTool = [
+        ...messages,
+        { role: 'assistant', content: data.content },
+        {
+          role: 'user',
+          content: [{
+            type: 'tool_result',
+            tool_use_id: toolUseBlock.id,
+            content: JSON.stringify(toolResult)
+          }]
+        }
+      ];
+
+      const segundoCall = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: MAX_TOKENS,
+          system: systemFinal,
+          tools: TOOLS,
+          messages: messagesComTool,
+        }),
+      });
+
+      const segundoData = await segundoCall.json();
+      const finalReply = segundoData.content?.find((c: any) => c.type === 'text')?.text || '';
+
+      return jsonResponse({
+        reply: finalReply,
+        usage: segundoData.usage,
+        valuation: isValuation ? toolResult : null,
+        tool_called: true,
+        tool_name: toolUseBlock.name
+      });
+    }
+
+    // Resposta normal sem tool
+    const reply = data.content?.find((c: any) => c.type === 'text')?.text || '';
+    return jsonResponse({ reply, usage: data.usage, tool_called: false });
+
+  } catch (e) {
+    console.error('Erro no chat-ia:', e);
+    return jsonResponse({ error: String(e) }, 500);
+  }
+});
+
+// =====================================================
+// FUNÇÃO DE CÁLCULO — fórmula encurtada
+// Lê múltiplos de parametros_versoes (mesma fonte da skill v2)
+// =====================================================
+
+async function calcularValuationRapido(d: any) {
+  const params = await getParametros();
+  const setor = d.setor_code || 'alimentacao';
+
+  // Múltiplo do setor (mesmo que a skill v2 usa)
+  const multipliosSetor = params?.multiplos_setor || {};
+  let multiplo = Number(multipliosSetor[setor]) || 1.5;
+
+  // Ajuste por forma de atuação (simplificado, conservador)
+  const ajustes_forma: Record<string, number> = {
+    presencial_local: 0,
+    delivery: 0.1,
+    online: 0.3,
+    assinatura: 0.4,
+    hibrido: 0.15,
+    servico_local: 0,
+    b2b: 0.2,
+  };
+  multiplo += ajustes_forma[d.forma_atuacao] || 0;
+
+  // Floor de múltiplo
+  if (multiplo < 0.5) multiplo = 0.5;
+
+  // Cálculo principal
+  const sobra = Number(d.sobra_anual) || 0;
+  const ativos = Number(d.ativos_relevantes) || 0;
+  const dividas = Number(d.dividas_total) || 0;
+
+  const valor_operacional = sobra * multiplo;
+  let valor_central = valor_operacional + ativos - dividas;
+  let floor_aplicado = false;
+
+  // Floor: se a fórmula com dívidas der negativo ou < 50% do valor operacional puro,
+  // retorna só valor_operacional + ativos com aviso
+  if (valor_central < (valor_operacional * 0.5) || valor_central < 0) {
+    valor_central = valor_operacional + ativos;
+    floor_aplicado = true;
+  }
+
+  // Garantia adicional: nunca negativo
+  if (valor_central < 0) valor_central = 0;
+
+  const valor_min = Math.round(valor_central * 0.85);
+  const valor_max = Math.round(valor_central * 1.15);
+  valor_central = Math.round(valor_central);
+
+  return {
+    valor_central,
+    valor_min,
+    valor_max,
+    multiplo_aplicado: Number(multiplo.toFixed(3)),
+    floor_aplicado,
+    parametros_versao_id: params?._versao_id || null,
+  };
+}
+
+async function getParametros() {
+  const agora = Date.now();
+  if (_paramsCache && (agora - _paramsCacheTs) < PARAMS_TTL_MS) return _paramsCache;
+
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/parametros_versoes?ativo=eq.true&select=id,snapshot`,
+      {
+        headers: {
+          'apikey': SUPABASE_SERVICE_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        }
+      }
+    );
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) {
+      _paramsCache = { ...data[0].snapshot, _versao_id: data[0].id };
+      _paramsCacheTs = agora;
+    }
+    return _paramsCache;
+  } catch (e) {
+    console.error('Erro carregar parametros_versoes:', e);
+    return null;
+  }
+}
+
+async function detectarUsuarioLogado(jwt: string): Promise<any> {
+  try {
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${jwt}` } }
+    });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const { data: usuario } = await supabaseAdmin
+      .from('usuarios')
+      .select('id, nome, telefone, whatsapp')
+      .eq('id', user.id)
+      .single();
+
+    return usuario;
+  } catch (e) {
+    console.error('Erro detectar usuário logado:', e);
+    return null;
+  }
+}
+
+async function persistirAvaliacao(leadId: string | undefined, dados: any, valuation: any, messages: any[], paginaOrigem: string | undefined, usuarioLogado: any) {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+  const payload: any = {
+    dados_coletados: dados,
+    valuation_central: valuation.valor_central,
+    valuation_min: valuation.valor_min,
+    valuation_max: valuation.valor_max,
+    multiplo_aplicado: valuation.multiplo_aplicado,
+    floor_aplicado: valuation.floor_aplicado,
+    parametros_versao_id: valuation.parametros_versao_id,
+    setor_code: dados.setor_code,
+    setor_mencionado: dados.setor_code,
+    cidade_estado: dados.cidade_uf,
+    faixa_faturamento: String(dados.faturamento_anual),
+    mensagens: messages,
+    pagina_origem: paginaOrigem || null,
+    usuario_id: usuarioLogado?.id || null,
+  };
+
+  if (usuarioLogado) {
+    payload.nome = usuarioLogado.nome;
+    payload.whatsapp = usuarioLogado.whatsapp || usuarioLogado.telefone;
+    payload.perfil = 'logado';
+  }
+
+  if (leadId) {
+    await supabase.from('chat_ia_leads').update(payload).eq('id', leadId);
+  } else {
+    await supabase.from('chat_ia_leads').insert(payload);
+  }
+}
+
+async function saveLead(leadData: any, messages: any[], paginaOrigem: string | undefined, req: Request, leadId: string | undefined, jwt: string | undefined) {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+  let usuarioId = null;
+  if (jwt) {
+    const u = await detectarUsuarioLogado(jwt);
+    if (u) usuarioId = u.id;
+  }
+
+  const whatsappLimpo = leadData?.whatsapp ? String(leadData.whatsapp).replace(/\D/g, '') : null;
+  const whatsappFormatado = whatsappLimpo
+    ? (whatsappLimpo.startsWith('55') ? `+${whatsappLimpo}` : `+55${whatsappLimpo}`)
+    : null;
+
+  const userAgent = req.headers.get('user-agent') || '';
+  const ip = req.headers.get('x-forwarded-for') || '';
+  const ipHash = ip ? await hashString(ip) : null;
+
+  const resumo = (messages || []).slice(-4)
+    .map((m: any) => `${m.role === 'user' ? 'U' : 'A'}: ${typeof m.content === 'string' ? m.content.slice(0, 150) : '[tool]'}`)
+    .join(' | ');
+
+  const payload: any = {
+    nome: leadData?.nome ? String(leadData.nome).trim() : null,
+    whatsapp: whatsappFormatado,
+    email: leadData?.email ? String(leadData.email).trim() : null,
+    perfil: leadData?.perfil || 'curioso',
+    sub_perfil: leadData?.sub_perfil || null,
+    mensagens: messages || [],
+    resumo_conversa: resumo,
+    pagina_origem: paginaOrigem || null,
+    user_agent: userAgent,
+    ip_hash: ipHash,
+    setor_mencionado: leadData?.setor_mencionado || null,
+    faixa_faturamento: leadData?.faixa_faturamento || null,
+    cidade_estado: leadData?.cidade_estado || null,
+    escalacao_pendente: leadData?.escalacao === true,
+    escalacao_motivo: leadData?.motivo || null,
+    usuario_id: usuarioId,
+  };
+
+  if (leadId) {
+    const { data, error } = await supabase.from('chat_ia_leads').update(payload).eq('id', leadId).select().single();
+    if (error) return jsonResponse({ error: error.message }, 500);
+    return jsonResponse({ success: true, lead_id: data.id });
+  } else {
+    const { data, error } = await supabase.from('chat_ia_leads').insert(payload).select().single();
+    if (error) return jsonResponse({ error: error.message }, 500);
+    return jsonResponse({ success: true, lead_id: data.id });
+  }
+}
+
+async function escalateLead(leadData: any, messages: any[], paginaOrigem: string | undefined, req: Request) {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+  if (leadData?.lead_id) {
+    const { error } = await supabase
+      .from('chat_ia_leads')
+      .update({
+        escalacao_pendente: true,
+        escalacao_motivo: leadData.motivo || 'solicitacao_usuario',
+        mensagens: messages,
+      })
+      .eq('id', leadData.lead_id);
+
+    if (error) return jsonResponse({ error: error.message }, 500);
+    return jsonResponse({ success: true });
+  }
+
+  return await saveLead({ ...leadData, escalacao: true }, messages, paginaOrigem, req, undefined, undefined);
+}
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    }
+  });
+}
+
+async function hashString(str: string): Promise<string> {
+  const msgUint8 = new TextEncoder().encode(str);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+}
