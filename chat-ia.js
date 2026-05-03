@@ -223,7 +223,7 @@
       const _container = document.getElementById('n1-chat-messages');
       if (_container.children.length === 0) {
         state.messages.forEach(function(msg) {
-          if (msg.role === 'user') renderUserMessage(msg.content);
+          if (msg.role === 'user' && !msg.content.startsWith('Inicie a conversa')) renderUserMessage(msg.content);
           else if (msg.role === 'assistant') renderBotMessage(msg.content);
         });
       }
