@@ -24,16 +24,47 @@
     return null;
   }
 
+  // Valida via Z-API se o número tem WhatsApp ativo.
+  // Retorna: true (tem) | false (não tem) | null (erro/timeout — não bloqueia)
+  async function validarWhatsApp(telefone) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(function(){ controller.abort(); }, 3000);
+      const ZAPI_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co/functions/v1/zapi-relay';
+      const res = await fetch(ZAPI_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': ANON_KEY, 'Authorization': 'Bearer ' + ANON_KEY },
+        body: JSON.stringify({ action: 'phone-exists', phone: telefone }),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (typeof data.exists === 'boolean') return data.exists;
+      return null;
+    } catch (e) {
+      console.error('[validarWhatsApp] erro:', e && e.message);
+      return null;
+    }
+  }
+
   function validarTelefoneBR(input) {
+    // Validação rígida: BR celular com DDD obrigatório
+    // - 11 dígitos exatos (DDD 2 + número 9)
+    // - DDD válido 11-99
+    // - 9º dígito após DDD deve ser '9' (celular)
     const limpo = String(input || '').replace(/\D/g, '');
     let numero = limpo;
-    if (numero.startsWith('55') && (numero.length === 12 || numero.length === 13)) {
+    // Remove DDI 55 se vier
+    if (numero.startsWith('55') && numero.length === 13) {
       numero = numero.slice(2);
     }
-    if (numero.length === 10 || numero.length === 11) {
-      return '+55' + numero;
-    }
-    return null;
+    if (numero.length !== 11) return null;
+    const ddd = parseInt(numero.slice(0, 2), 10);
+    if (isNaN(ddd) || ddd < 11 || ddd > 99) return null;
+    // 9º dígito: 3º caractere (índice 2) — celular começa com 9
+    if (numero.charAt(2) !== '9') return null;
+    return '+55' + numero;
   }
 
   const state = { isOpen: false, isTyping: false, messages: [], perfil: null, subPerfil: null, leadCaptured: false, leadId: null, lead: { nome: null, whatsapp: null }, qualificationDone: false, nameAsked: false, nameCollected: false, phoneTriggerCount: 0, assistantMsgCount: 0, phoneCaptureAsked: false, phoneCollectionMode: false, phoneRetryCount: 0 };
@@ -266,14 +297,41 @@
         state.phoneRetryCount++;
         setTimeout(function() {
           renderBotMessage(state.phoneRetryCount === 1
-            ? 'Hmm, não consegui ler esse número. Pode digitar com DDD? Tipo 11 99999-9999'
-            : 'Tente assim: 11 99999-9999 (só números, com DDD).');
+            ? 'Faltou o DDD. Tenta no formato 11 99999-9999 (DDD + 9 + número, só celular).'
+            : 'Preciso do número completo: DDD (2 dígitos) + 9 + 8 dígitos. Ex: 11 99999-9999');
         }, 800);
         return;
       }
-      state.lead.whatsapp = tel;
-      state.phoneCollectionMode = false;
-      saveLead();
+      // Formato validado — agora valida via Z-API se número tem WhatsApp ativo
+      input.value = '';
+      input.style.height = 'auto';
+      renderUserMessage(text);
+      showTyping();
+      validarWhatsApp(tel).then(function(exists) {
+        hideTyping();
+        if (exists === false && state.phoneRetryCount < 2) {
+          // número formato OK mas sem WhatsApp ativo — pede outro
+          state.phoneRetryCount++;
+          setTimeout(function() {
+            renderBotMessage('Hmm, esse número não parece ter WhatsApp ativo. Pode confirmar ou me passar outro?');
+          }, 600);
+          return;
+        }
+        // exists=true OU exists=null (Z-API offline) OU já tentou 2x → segue
+        state.lead.whatsapp = tel;
+        state.phoneCollectionMode = false;
+        saveLead();
+        setTimeout(function() {
+          renderBotMessage('Anotado! Um consultor da 1Negócio vai entrar em contato em breve.');
+        }, 600);
+      }).catch(function(){
+        // erro inesperado — não bloqueia
+        hideTyping();
+        state.lead.whatsapp = tel;
+        state.phoneCollectionMode = false;
+        saveLead();
+      });
+      return;
     }
 
     input.value = '';

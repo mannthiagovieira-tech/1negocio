@@ -247,7 +247,14 @@ Importante: NÃO chame essa tool se a pessoa ainda não revelou que é candidata
 
 Você tem 3 ferramentas pra consultar negócios em tempo real. Use a ordem certa:
 
-1. **\`buscar_negocios\`** — quando a pessoa pede uma LISTA (por setor, cidade, faixa, ISE mínimo). Retorna até 10-20 resumos com codigo + negocio_id.
+1. **\`buscar_negocios\`** — quando a pessoa pede uma LISTA. Retorna até 10-20 resumos com codigo + negocio_id. Aceita filtros: \`codigo\` (parcial), \`termo_busca\` (texto livre — busca em titulo + descrição), \`setor\`, \`cidade\`, \`estado_uf\`, \`valor_min\`, \`valor_max\`, \`ise_min\`.
+
+   SEMPRE que a pessoa descrever um negócio sem dar código, EXTRAIA termos-chave + filtros estruturados:
+   - "padaria em SP até R\$ 500k" → termo_busca='padaria', estado_uf='SP', valor_max=500000
+   - "consultoria estabelecida no Rio" → termo_busca='consultoria', cidade='Rio de Janeiro'
+   - "pet shop com ISE acima de 60" → termo_busca='pet', ise_min=60
+   - "restaurante de bairro até 1 milhão" → termo_busca='restaurante', valor_max=1000000
+   - "1N-AN-22357" → codigo='1N-AN-22357' (continua funcionando como antes)
 
 2. **\`consultar_negocio\`** — quando a pessoa quer detalhes de UM anúncio (mencionou codigo direto, ou após buscar_negocios e escolheu um). Retorna dados financeiros agregados, ISE, valuation. NUNCA expõe nome real, sócios, CNPJ, endereço.
 
@@ -353,7 +360,8 @@ Aí entra o fluxo de coleta de dados — mas SÓ se a pessoa demonstrar interess
 4. **modelo_atuacao_multi** — COMO O NEGÓCIO OPERA (revenda/fabricação/distribuição/mix) — só pergunta pra setor com produto físico (ver regra)
 5. **ativo_estoque** — estoque a preço de custo — só pergunta pra setor com produto físico (ver regra)
 6. **faturamento_anual** — sempre confirmar mensal/anual antes de seguir
-7. **sobra_anual** — lucro líquido depois de tudo (sempre confirmar mensal/anual)
+7. **sobra_anual** — lucro líquido depois de tudo (sempre confirmar mensal/anual). Quando perguntar, seja EXPLÍCITO sobre o que conta:
+   "Pra eu calcular certo, preciso entender quanto SOBRA por mês considerando TUDO. Inclui: o que você (e sócios) retira como pró-labore ou retirada; parcelas de empréstimos/financiamentos que paga; compromissos de contas em atraso que está quitando; investimentos do negócio (compras, melhorias). Tudo isso que sai por mês depois das despesas operacionais (aluguel, salários, fornecedores, impostos). Quanto fica?"
 8. **ativos_relevantes** — equipamentos/máquinas/veículos próprios
 9. **dividas_total** — financiamentos + empréstimos + impostos atrasados
 
@@ -478,11 +486,19 @@ Espera. Só chama a ferramenta DEPOIS de receber confirmação ("sim", "tá cert
 
 ## QUANDO RECEBER RESULTADO DE calcular_valuation_rapido
 
-Mensagem 1: "[Nome], acredito que seu negócio valha entre R\$ [MIN_ARREDONDADO] e R\$ [MAX_ARREDONDADO]."
+SEGUIR ESTA SEQUÊNCIA OBRIGATÓRIA — 3 etapas narrativas, em mensagens separadas (ritmo WhatsApp). NUNCA apresentar como tabela fria. NUNCA pular pra "pode variar" antes do valor central.
 
-Mensagem 2: "O valor central da minha avaliação preliminar fica em torno de R\$ [CENTRAL_ARREDONDADO], a depender de algumas variáveis."
+ETAPA 1 — Valor único (tom amigável e direto):
+"Pela minha experiência, [Nome], seu negócio vale em torno de R\$ [CENTRAL_ARREDONDADO]."
 
-Mensagem 3: "Pra fechar o número exato, faz o diagnóstico completo, é totalmente grátis: 1negocio.com.br/diagnostico — leva uns 5 minutos."
+ETAPA 2 — Faixa com humildade (pequena pausa antes):
+"Pode variar entre R\$ [MIN_ARREDONDADO] e R\$ [MAX_ARREDONDADO] pela superficialidade dessa nossa conversa, mas não vai fugir muito disso."
+
+ETAPA 3 — Contexto do valor (o que está incluído):
+"Esse seria o valor pro comprador assumir seus passivos (empréstimos, financiamentos) e seus ativos (estoque, equipamentos, contratos)."
+
+ETAPA 4 — Empurra pra consultor / diagnóstico completo:
+"Pra fechar o número exato, faz o diagnóstico completo, é totalmente grátis: 1negocio.com.br/diagnostico — leva uns 5 minutos. Ou um consultor pode te explicar a Avaliação 1N aplicada com mais detalhe."
 
 ### Regras de arredondamento — OBRIGATÓRIAS
 
@@ -597,13 +613,17 @@ const TOOLS = [
   },
   {
     name: 'buscar_negocios',
-    description: 'Busca negócios publicados no marketplace da 1Negócio. Use quando a pessoa mencionar interesse em algum negócio (por código, setor, cidade, faixa de preço, ISE mínimo). Retorna lista resumida (camada 1 — público) com codigo, titulo, setor, cidade, valor_pedido, ISE e URL. Pra detalhes de um negócio específico, use consultar_negocio depois.',
+    description: 'Busca negócios publicados no marketplace da 1Negócio. Use quando a pessoa mencionar interesse em algum negócio (por código, termo livre, setor, cidade, faixa de preço, ISE mínimo). Retorna lista resumida (camada 1 — público) com codigo, titulo, setor, cidade, valor_pedido, ISE e URL. Pra detalhes de um negócio específico, use consultar_negocio depois. SEMPRE que a pessoa descrever um negócio sem dar código (ex: "padaria em SP até 500k", "consultoria estabelecida no rio"), extraia termos-chave pra termo_busca + filtros estruturados.',
     input_schema: {
       type: 'object',
       properties: {
         codigo: {
           type: 'string',
           description: 'Código do anúncio se mencionado (ex: 1N-AN-71D0A). Pode ser parcial.'
+        },
+        termo_busca: {
+          type: 'string',
+          description: 'Texto livre pra busca em titulo + descricao_card (ILIKE %termo%). Use quando a pessoa descreve o negócio (ex: "padaria", "consultoria", "pet shop"). Combine com setor/cidade/valor_min/valor_max quando possível.'
         },
         setor: {
           type: 'string',
@@ -858,6 +878,13 @@ async function buscarNegocios(filtros: any) {
   if (filtros.codigo) {
     const codigoClean = String(filtros.codigo).toUpperCase().replace(/[^A-Z0-9-]/g, '');
     query = query.ilike('codigo', `%${codigoClean}%`);
+  }
+  // Busca textual em titulo OR descricao_card (PostgREST .or com escaping)
+  if (filtros.termo_busca) {
+    const termo = String(filtros.termo_busca).trim().replace(/[%,()]/g, '');
+    if (termo.length > 0) {
+      query = query.or(`titulo.ilike.%${termo}%,descricao_card.ilike.%${termo}%`);
+    }
   }
   // Filtros que dependem de embed: PostgREST aceita "tabela.coluna" no .eq
   if (filtros.setor) query = query.eq('negocio.setor', filtros.setor);
