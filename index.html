@@ -3118,19 +3118,57 @@ window.addEventListener('resize', ()=>{
         fontWeight:'400'
       };
       var responsiveCss = isMobile ? {
-        bottom:'80px', left:'16px',
         padding:'11px 32px 11px 14px',
         fontSize:'13px',
         maxWidth:'220px',
         borderRadius:'14px'
       } : {
-        bottom:'90px', left:'24px',
         padding:'14px 40px 14px 18px',
         fontSize:'15px',
         maxWidth:'280px',
         borderRadius:'18px'
       };
       Object.assign(bubble.style, commonCss, responsiveCss);
+
+      // Seta apontando pro botão (saindo da borda inferior do bubble)
+      var arrow = document.createElement('span');
+      arrow.id = 'n1-bubble-arrow';
+      var arrowSize = isMobile ? 7 : 8;
+      arrow.style.cssText = [
+        'position:absolute',
+        'bottom:-' + arrowSize + 'px',
+        'left:20px',
+        'width:0',
+        'height:0',
+        'border-left:' + arrowSize + 'px solid transparent',
+        'border-right:' + arrowSize + 'px solid transparent',
+        'border-top:' + arrowSize + 'px solid rgba(255,255,255,0.85)',
+        'filter:drop-shadow(0 1px 1px rgba(0,0,0,0.05))',
+        'pointer-events:none'
+      ].join(';');
+      bubble.appendChild(arrow);
+
+      // Posicionamento dinâmico ancorado ao botão real do chat (.action.ai-chat
+      // dentro de .stage-actions). Fallback: se não achar, usa coordenadas fixas.
+      function posicionarAncorado() {
+        var anchor = document.querySelector('.action.ai-chat');
+        if (anchor) {
+          var rect = anchor.getBoundingClientRect();
+          // Bubble fica 12px acima do botão; alinha a SETA com centro do botão
+          var bubbleH = bubble.offsetHeight || 50;
+          bubble.style.bottom = (window.innerHeight - rect.top + 12) + 'px';
+          // Posicionar bubble: borda esquerda alinhada com botão menos um deslocamento
+          // pra que a seta (left:20px relativa ao bubble) caia no centro do botão
+          var btnCenterX = rect.left + (rect.width / 2);
+          bubble.style.left = (btnCenterX - 20 - arrowSize) + 'px';
+        } else {
+          // Fallback (botão escondido / não renderizado ainda)
+          bubble.style.bottom = isMobile ? '80px' : '90px';
+          bubble.style.left = isMobile ? '16px' : '24px';
+        }
+      }
+      posicionarAncorado();
+      window.addEventListener('resize', posicionarAncorado);
 
       function fadeOutFinal(persistFlag){
         clearInterval(rotationInterval);
@@ -3154,10 +3192,15 @@ window.addEventListener('resize', ()=>{
 
       // Click no bubble principal: abre o chat
       bubble.addEventListener('click', function(e){
-        if (e.target === closeBtn) return;
-        // Dispara click no botão do chat (mesmo escondido por CSS, dispara o handler)
-        var chatBtn = document.getElementById('n1-chat-btn');
-        if (chatBtn) chatBtn.click();
+        if (e.target === closeBtn || e.target === arrow) return;
+        // Tenta o handler real da home (.action.ai-chat → openAIChat); fallback
+        // pro click no FAB (#n1-chat-btn) que dispara togglePanel do chat-ia.js
+        if (typeof openAIChat === 'function') {
+          openAIChat();
+        } else {
+          var chatBtn = document.getElementById('n1-chat-btn');
+          if (chatBtn) chatBtn.click();
+        }
         clearInterval(rotationInterval);
         if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
         sessionStorage.setItem('n1BubbleShown','true');
