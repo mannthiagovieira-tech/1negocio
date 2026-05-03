@@ -3038,6 +3038,162 @@ window.addEventListener('resize', ()=>{
 <style>#n1-chat-btn,#n1-welcome-bubble{display:none!important}</style>
 <script src="chat-ia.js" defer></script>
 
+<!-- Bubble welcome carrossel (home only — 6 frases rotativas, opacity 0.85, sutil) -->
+<script>
+(function(){
+  // Validações: só na home, só 1x por sessão
+  var pathname = window.location.pathname;
+  if (pathname !== '/' && pathname !== '/index.html') return;
+  if (sessionStorage.getItem('n1BubbleShown')) return;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(function(){
+      // Não aparece se chat já tá aberto
+      var chatPanel = document.getElementById('n1-chat-panel');
+      if (chatPanel && chatPanel.classList.contains('open')) return;
+
+      var frasesBase = [
+        'Quanto vale o seu?',
+        'Procurando algo bom?',
+        'Pensando em vender?',
+        'Te ajudo aqui.',
+        'Vale a pena vender?',
+        'Compra, venda, avaliação.'
+      ];
+      // Sortear ordem aleatória a cada sessão (Fisher-Yates)
+      for (var i = frasesBase.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = frasesBase[i]; frasesBase[i] = frasesBase[j]; frasesBase[j] = tmp;
+      }
+      var ordem = frasesBase;
+
+      var isMobile = window.innerWidth < 768;
+
+      var bubble = document.createElement('div');
+      bubble.id = 'n1-welcome-carrossel';
+
+      var textSpan = document.createElement('span');
+      textSpan.id = 'n1-bubble-text';
+      textSpan.textContent = ordem[0];
+      textSpan.style.cssText = 'transition:opacity 600ms cubic-bezier(.4,0,.2,1);display:inline-block;line-height:1.4';
+
+      var closeBtn = document.createElement('span');
+      closeBtn.id = 'n1-bubble-close';
+      closeBtn.textContent = '×';
+      closeBtn.style.cssText = [
+        'position:absolute',
+        'top:50%',
+        'transform:translateY(-50%)',
+        'right:12px',
+        'font-size:' + (isMobile ? '16px' : '18px'),
+        'line-height:1',
+        'color:rgba(0,0,0,0.4)',
+        'cursor:pointer',
+        'padding:4px 6px',
+        'border-radius:50%',
+        'transition:color 200ms ease, background 200ms ease',
+        'user-select:none',
+        'font-family:Arial,sans-serif'
+      ].join(';');
+      closeBtn.addEventListener('mouseenter', function(){ closeBtn.style.color = 'rgba(0,0,0,0.7)'; closeBtn.style.background = 'rgba(0,0,0,0.05)'; });
+      closeBtn.addEventListener('mouseleave', function(){ closeBtn.style.color = 'rgba(0,0,0,0.4)'; closeBtn.style.background = 'transparent'; });
+
+      bubble.appendChild(textSpan);
+      bubble.appendChild(closeBtn);
+
+      // Estilos comuns + responsivo
+      var commonCss = {
+        position:'fixed',
+        background:'rgba(255,255,255,0.85)',
+        backdropFilter:'blur(10px)',
+        WebkitBackdropFilter:'blur(10px)',
+        border:'1px solid rgba(0,0,0,0.06)',
+        boxShadow:'0 4px 16px rgba(0,0,0,0.08)',
+        color:'rgba(0,0,0,0.75)',
+        cursor:'pointer',
+        opacity:'0',
+        transition:'opacity 800ms cubic-bezier(.4,0,.2,1)',
+        zIndex:'9998',
+        fontFamily:"'Cabinet Grotesk',sans-serif",
+        fontWeight:'400'
+      };
+      var responsiveCss = isMobile ? {
+        bottom:'80px', right:'16px',
+        padding:'11px 32px 11px 14px',
+        fontSize:'13px',
+        maxWidth:'220px',
+        borderRadius:'14px'
+      } : {
+        bottom:'90px', right:'24px',
+        padding:'14px 40px 14px 18px',
+        fontSize:'15px',
+        maxWidth:'280px',
+        borderRadius:'18px'
+      };
+      Object.assign(bubble.style, commonCss, responsiveCss);
+
+      function fadeOutFinal(persistFlag){
+        clearInterval(rotationInterval);
+        bubble.style.transition = 'opacity 1000ms cubic-bezier(.4,0,.2,1)';
+        bubble.style.opacity = '0';
+        setTimeout(function(){
+          if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
+          if (persistFlag) sessionStorage.setItem('n1BubbleShown','true');
+        }, 1000);
+      }
+
+      function fadeOutQuick(persistFlag){
+        clearInterval(rotationInterval);
+        bubble.style.transition = 'opacity 600ms cubic-bezier(.4,0,.2,1)';
+        bubble.style.opacity = '0';
+        setTimeout(function(){
+          if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
+          if (persistFlag) sessionStorage.setItem('n1BubbleShown','true');
+        }, 600);
+      }
+
+      // Click no bubble principal: abre o chat
+      bubble.addEventListener('click', function(e){
+        if (e.target === closeBtn) return;
+        // Dispara click no botão do chat (mesmo escondido por CSS, dispara o handler)
+        var chatBtn = document.getElementById('n1-chat-btn');
+        if (chatBtn) chatBtn.click();
+        clearInterval(rotationInterval);
+        if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
+        sessionStorage.setItem('n1BubbleShown','true');
+      });
+
+      // Click no X: fecha sem abrir
+      closeBtn.addEventListener('click', function(e){
+        e.stopPropagation();
+        fadeOutQuick(true);
+      });
+
+      document.body.appendChild(bubble);
+
+      // Fade in inicial — chega só em 0.85 (etéreo)
+      setTimeout(function(){ bubble.style.opacity = '0.85'; }, 50);
+
+      // Carrossel: troca frase a cada 3.5s, fade out 600ms → troca → fade in 600ms
+      var idx = 1;
+      var rotationInterval = setInterval(function(){
+        if (idx >= ordem.length) {
+          fadeOutFinal(true);
+          return;
+        }
+        textSpan.style.opacity = '0';
+        var capturedIdx = idx;
+        setTimeout(function(){
+          textSpan.textContent = ordem[capturedIdx];
+          textSpan.style.opacity = '1';
+        }, 600);
+        idx++;
+      }, 3500);
+    }, 3000);
+  });
+})();
+</script>
+
 <script>
 /* [C1-b] ?view=analise -- ativa aba Analise 1N quando URL tem ?view=analise */
 /* Usa window load + timeout para rodar APOS o carrossel abrir o primeiro card */
