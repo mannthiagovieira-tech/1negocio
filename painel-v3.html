@@ -1736,6 +1736,7 @@ table.t .acoes { white-space: nowrap; }
               <div class="pa-tab active" data-mp-tab="posts" onclick="mpTab('posts')">📋 Posts monitorados <span id="mp-cnt-posts" class="pa-muted" style="margin-left:6px">—</span></div>
               <div class="pa-tab" data-mp-tab="cadastrar" onclick="mpTab('cadastrar')">➕ Cadastrar post</div>
               <div class="pa-tab" data-mp-tab="alvos" onclick="mpTab('alvos')">🎯 Likers alvos <span id="mp-cnt-alvos" class="pa-muted" style="margin-left:6px">—</span></div>
+              <div class="pa-tab" data-mp-tab="ads" onclick="mpTab('ads')">📢 Ads concorrentes <span id="mp-cnt-ads" class="pa-muted" style="margin-left:6px">—</span></div>
             </div>
 
             <!-- TAB POSTS -->
@@ -1785,6 +1786,20 @@ table.t .acoes { white-space: nowrap; }
                   </div>
                   <div id="mp-form-status" style="margin-top:10px;font-size:13px"></div>
                 </div>
+              </div>
+            </div>
+
+            <!-- TAB ADS · F9 monitoramento -->
+            <div id="mp-tab-ads" class="mp-tab" style="display:none">
+              <div class="bloco">
+                <div class="bloco-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+                  <div><div class="bloco-titulo">📢 Ads dos concorrentes · Meta Ad Library</div><div class="bloco-sub">cron domingo 03:30 BRT (não ativo · admin valida) · análise IA Sonnet inferencial</div></div>
+                  <div style="display:flex;gap:6px">
+                    <button class="btn btn-mini btn-ghost" onclick="adRecarregar()">↻</button>
+                    <button class="btn btn-mini" onclick="adRodarAgora()" title="Roda agora · ~R$ 50">▶ Rodar agora</button>
+                  </div>
+                </div>
+                <div id="ad-conteudo"><div class="pa-loading">Carregando...</div></div>
               </div>
             </div>
 
@@ -5554,6 +5569,105 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
 });
 
 /* ========================================================================
+   AD-* · Item 6 / F9 · Monitoramento Ads dos concorrentes
+   ======================================================================== */
+let _adConcorrentes = [];
+let _adSnapshots = [];
+
+async function adCarregar() {
+  try {
+    const [conc, snaps] = await Promise.all([
+      sbFetch('/rest/v1/ads_concorrentes_monitorados?ativo=eq.true&order=nome_pagina.asc&select=*'),
+      sbFetch('/rest/v1/ads_snapshots?order=capturado_em.desc&limit=200&select=id,concorrente_id,capturado_em,total_ativos,novos_desde_ultimo,pararam_desde_ultimo,analise_ia'),
+    ]);
+    _adConcorrentes = conc || [];
+    _adSnapshots = snaps || [];
+  } catch(e) { console.warn('[adCarregar]', e); _adConcorrentes = []; _adSnapshots = []; }
+  const cnt = document.getElementById('mp-cnt-ads');
+  if (cnt) cnt.textContent = `(${_adConcorrentes.length})`;
+  adRender();
+}
+
+function adRecarregar() { adCarregar(); }
+
+function adRender() {
+  const cont = document.getElementById('ad-conteudo');
+  if (!cont) return;
+  if (!_adConcorrentes.length) {
+    cont.innerHTML = '<div class="pa-empty">Nenhum concorrente ativo em ads_concorrentes_monitorados.</div>';
+    return;
+  }
+  // mais recente snapshot por concorrente
+  const ultPorConc = new Map();
+  for (const s of _adSnapshots) {
+    if (!ultPorConc.has(s.concorrente_id)) ultPorConc.set(s.concorrente_id, s);
+  }
+  cont.innerHTML = _adConcorrentes.map(c => {
+    const ult = ultPorConc.get(c.id);
+    const ultData = ult ? new Date(ult.capturado_em).toLocaleString('pt-BR') : 'nunca';
+    const total = ult?.total_ativos ?? '—';
+    const novos = ult?.novos_desde_ultimo ?? 0;
+    const pararam = ult?.pararam_desde_ultimo ?? 0;
+    const delta = novos > 0 ? `<span style="color:var(--ok)">📈 +${novos}</span>` : (pararam > 0 ? `<span style="color:#ff9b8f">📉 -${pararam}</span>` : '');
+    let analise = null;
+    if (ult?.analise_ia) {
+      try { analise = JSON.parse(ult.analise_ia); } catch { analise = null; }
+    }
+    return `<div style="border:1px solid var(--accent-line);border-radius:var(--r2);padding:14px;background:var(--surface);margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">
+        <div>
+          <div style="font-weight:600;font-size:14px">${escapeHtml(c.nome_pagina)} ${c.pagina_id_meta ? '' : '<span class="pa-muted" style="font-size:11px">[sem id Meta · busca por nome]</span>'}</div>
+          <div class="pa-muted" style="font-size:12px;margin-top:4px">${total} ativos · ${delta} · capturado ${ultData}</div>
+        </div>
+        <button class="btn btn-mini" onclick="adRodarUm('${c.id}')">▶ Rodar 1</button>
+      </div>
+      ${analise ? `<div style="margin-top:10px;padding:10px;background:var(--surface-2);border-radius:var(--r1);font-size:12px;line-height:1.5">
+        <div style="font-weight:600;margin-bottom:4px">📊 ${escapeHtml(analise.resumo_executivo || '—')}</div>
+        ${analise.investimento_inferido ? `<div><strong>Investimento:</strong> ${escapeHtml(analise.investimento_inferido)}</div>` : ''}
+        ${analise.publico_inferido ? `<div><strong>Público:</strong> ${escapeHtml(analise.publico_inferido)}</div>` : ''}
+        ${analise.padroes_de_copy?.length ? `<div style="margin-top:4px"><strong>Padrões copy:</strong> ${analise.padroes_de_copy.map(p=>escapeHtml(p)).join(' · ')}</div>` : ''}
+        ${analise.gaps_de_mercado?.length ? `<div style="margin-top:4px"><strong>Gaps:</strong> ${analise.gaps_de_mercado.map(g=>escapeHtml(g)).join(' · ')}</div>` : ''}
+        ${analise.sugestao_copy_proprio?.length ? `<div style="margin-top:6px;padding:8px;background:var(--bg);border-left:3px solid var(--accent);border-radius:var(--r1)"><strong>💡 Sugestão pro seu copy:</strong><br>${analise.sugestao_copy_proprio.map(s=>'· '+escapeHtml(s)).join('<br>')}</div>` : ''}
+        ${analise.alerta ? `<div style="margin-top:6px;color:var(--alert)">⚠ ${escapeHtml(analise.alerta)}</div>` : ''}
+      </div>` : '<div class="pa-muted" style="font-size:12px;margin-top:8px">Sem análise · roda este concorrente pra gerar</div>'}
+    </div>`;
+  }).join('');
+}
+
+async function adRodarAgora() {
+  if (!confirm('Rodar TODOS os concorrentes ativos agora? ~R$ 50 · 5-10min')) return;
+  const cont = document.getElementById('ad-conteudo');
+  if (cont) cont.innerHTML = '<div class="pa-loading">Rodando captura + análise Sonnet · pode levar 5-10min...</div>';
+  try {
+    const res = await fetch(SB + '/functions/v1/monitorar-ads-concorrente', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ com_analise_ia: true, notificar_admin: false }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.erro || res.status);
+    alert(`✓ ${data.concorrentes_processados} processados\nTotal ads: ${data.total_ads}\nNovos: ${data.total_novos} · Pararam: ${data.total_pararam}`);
+    await adCarregar();
+  } catch(e) { alert('Erro: ' + e.message); adRender(); }
+}
+
+async function adRodarUm(concorrenteId) {
+  if (!confirm('Rodar este concorrente agora? ~R$ 2-5')) return;
+  try {
+    const res = await fetch(SB + '/functions/v1/monitorar-ads-concorrente', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ only_concorrente_id: concorrenteId, com_analise_ia: true }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.erro || res.status);
+    const det = data.detalhe?.[0];
+    alert(`✓ ${det?.nome}: ${det?.total} ads · ${det?.novos} novos · ${det?.pararam} pararam`);
+    await adCarregar();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
+/* ========================================================================
    FLORIPA · Item 5 · captura B2B Grande Floripa
    ======================================================================== */
 async function floripaSmoke() {
@@ -5712,7 +5826,7 @@ let _mpAlvos = [];
 
 async function mpInit() {
   mpTab(_mpTab);
-  await Promise.all([mpCarregarPosts(), mpCarregarAlvos()]);
+  await Promise.all([mpCarregarPosts(), mpCarregarAlvos(), adCarregar()]);
 }
 
 function mpTab(name) {
@@ -5723,6 +5837,7 @@ function mpTab(name) {
   document.querySelectorAll('[data-mp-tab]').forEach(el => el.classList.toggle('active', el.dataset.mpTab === name));
   if (name === 'posts') mpRenderPosts();
   if (name === 'alvos') mpRenderAlvos();
+  if (name === 'ads') adRender();
 }
 
 function mpExtractShortcode(s) {
