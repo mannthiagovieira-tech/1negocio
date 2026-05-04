@@ -119,19 +119,20 @@ Deno.serve(async (req: Request) => {
     const ontemISO = new Date(hoje.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
     const [olxR, corretR, igR, anuRascR, leadsHojeR, anuPubR] = await Promise.allSettled([
-      // leads OLX classificados como negócio em funcionamento · não abordados (enviado_em IS NULL) · cidade preenchida
+      // leads OLX classificados como negócio em funcionamento · não abordados (abordado_em IS NULL) · não pulados (revisar_depois=false)
       supabase.from("leads_google")
-        .select("id,nome,telefone,cidade,categoria,classificacao_ia,notas,bio,created_at")
+        .select("id,nome,telefone,cidade,categoria,setor,classificacao_ia,notas,bio,url_anuncio,valor_anuncio,data_publicacao,created_at")
         .eq("origem", "olx")
         .eq("classificacao_ia", "negocio_funcionamento")
-        .is("enviado_em", null)
+        .is("abordado_em", null)
+        .or("revisar_depois.is.null,revisar_depois.eq.false")
         .order("created_at", { ascending: false })
         .limit(LIMITE_LEADS_OLX),
       // corretores · gmaps_corretores · últimos 7 dias · não abordados
       supabase.from("leads_google")
-        .select("id,nome,telefone,cidade,categoria,classificacao_ia,notas,created_at")
+        .select("id,nome,telefone,cidade,categoria,classificacao_ia,notas,url_anuncio,created_at")
         .eq("origem", "gmaps_corretores")
-        .is("enviado_em", null)
+        .is("abordado_em", null)
         .gte("created_at", seteDiasAtras)
         .order("created_at", { ascending: false })
         .limit(LIMITE_CORRETORES),
@@ -166,7 +167,7 @@ Deno.serve(async (req: Request) => {
       .eq("origem", "olx").not("classificacao_ia", "is", null);
     const { count: olxQuentesPend } = await supabase
       .from("leads_google").select("id", { count: "exact", head: true })
-      .eq("origem", "olx").eq("classificacao_ia", "negocio_funcionamento").is("enviado_em", null);
+      .eq("origem", "olx").eq("classificacao_ia", "negocio_funcionamento").is("abordado_em", null);
 
     // ──────────────────────────────────────────────────────────
     // 2. Monta listas com mensagens template
@@ -179,8 +180,11 @@ Deno.serve(async (req: Request) => {
         categoria: l.classificacao_ia,
         nome_anuncio: (l.nome || "").trim(),
         cidade: l.cidade || "",
+        setor: l.setor || l.categoria || "",
         telefone: l.telefone || "",
-        valor_anuncio: null, // OLX scraper hoje não captura valor estruturado
+        valor_anuncio: l.valor_anuncio ?? null,
+        url_anuncio: l.url_anuncio || null,
+        data_publicacao: l.data_publicacao || l.created_at || null,
         motivo_classificacao: (l.notas || "").replace(/^\[IA\]\s*/, "").slice(0, 200),
         mensagem_template: msg,
         link_whatsapp: l.telefone ? buildWaLink(l.telefone, msg) : null,

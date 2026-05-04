@@ -1711,6 +1711,31 @@ table.t .acoes { white-space: nowrap; }
   </div>
 </div>
 
+<!-- ──────────── MODAL · Cowork "Marquei contato" (Como foi?) ──────────── -->
+<div class="modal-overlay" id="modal-cw-abordei">
+  <div class="modal" style="max-width:520px">
+    <h3>Como foi o contato?</h3>
+    <div class="modal-sub">Marca o status · alimenta histórico no CRM</div>
+    <div class="pa-form-group" style="margin-top:14px">
+      <label>Status do contato</label>
+      <select id="cw-modal-status">
+        <option value="mandei_whatsapp">📤 Mandei WhatsApp</option>
+        <option value="liguei">📞 Liguei</option>
+        <option value="nao_falou">🔇 Não falou comigo</option>
+        <option value="falou_comigo">💬 Falou comigo</option>
+      </select>
+    </div>
+    <div class="pa-form-group">
+      <label>Observação (opcional)</label>
+      <textarea id="cw-modal-obs" rows="3" placeholder="ex: 'pediu pra ligar de noite' / 'mostrou interesse · vou mandar laudo'"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="cwSalvarAbordei()">Salvar</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('modal-cw-abordei').classList.remove('show')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ──────────── EDITOR PROFUNDO DE ANÚNCIOS (Etapa 1.C) ──────────── -->
 <div class="pa-edt-overlay" id="pa-edt-overlay">
   <div class="pa-edt-panel">
@@ -4197,36 +4222,93 @@ async function cwFetchPlanoHoje() {
 
 // helpers de render exec
 let _cwAbaAtual = 'olx';
+let _cwFiltroLista = 'sem_telefone';
+let _cwExpandidos = {}; // id → bool
+
+function _cwFmtBRL(v) {
+  if (!v) return '';
+  const n = Number(v);
+  if (!isFinite(n)) return '';
+  if (n >= 1e6) return 'R$ ' + (n/1e6).toFixed(1).replace('.', ',') + 'M';
+  if (n >= 1e3) return 'R$ ' + Math.round(n/1e3) + 'k';
+  return 'R$ ' + n.toLocaleString('pt-BR');
+}
+function _cwFmtData(iso) {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  const dias = Math.floor(ms / 86400000);
+  if (dias < 1) return 'hoje';
+  if (dias === 1) return 'ontem';
+  if (dias < 30) return `há ${dias}d`;
+  return new Date(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' });
+}
+
 function cwRenderCardLead(item, tipo) {
-  const escMsg = (item.mensagem_template || '').replace(/"/g, '&quot;');
-  const link = item.link_whatsapp || (item.telefone ? `https://wa.me/${(item.telefone||'').replace(/\D/g,'')}?text=${encodeURIComponent(item.mensagem_template||'')}` : '');
-  const titulo = tipo === 'olx'  ? (item.nome_anuncio || '(sem título)')
-              : tipo === 'corretor' ? (item.nome || '(sem nome)')
+  const expandido = !!_cwExpandidos[item.id];
+  const titulo = tipo === 'olx' ? (item.nome_anuncio || '(sem título)').slice(0, 80)
+              : tipo === 'corretor' ? (item.nome || '(sem nome)').slice(0, 80)
               : '@' + (item.username || '');
-  const sub = tipo === 'ig' ? (item.bio || '') : (item.cidade || '');
-  const valor = tipo === 'olx' && item.valor_anuncio ? `R$ ${Number(item.valor_anuncio).toLocaleString('pt-BR')}` : '';
-  const motivoExtra = tipo === 'olx' ? (item.motivo_classificacao || '') : (tipo === 'ig' ? (item.motivo || '') : '');
-
+  const cidade = tipo === 'ig' ? '' : (item.cidade || '');
+  const valor = tipo === 'olx' ? _cwFmtBRL(item.valor_anuncio) : '';
+  const dataAnuncio = tipo === 'olx' ? _cwFmtData(item.data_publicacao) : '';
   const dot = tipo === 'olx' ? '🟢' : tipo === 'corretor' ? '🤝' : '📷';
-  const linkPerfil = tipo === 'ig' && item.link_perfil ? ` · <a href="${escapeHtml(item.link_perfil)}" target="_blank" style="color:var(--accent)">↗ ver perfil</a>` : '';
-  const btnWa = link
-    ? `<a class="btn" href="${escapeHtml(link)}" target="_blank" style="font-size:12px;padding:6px 12px">📱 Abrir WhatsApp</a>`
-    : `<button class="btn btn-ghost" disabled style="font-size:12px;padding:6px 12px">— sem telefone —</button>`;
-  const btnPular = `<button class="btn btn-ghost btn-mini" onclick="cwMarcarAbordado('${item.id}', '${tipo}', 'pulado')" title="Marca como pulado · não volta amanhã">⏭ Pular</button>`;
-  const btnAbordou = link ? `<button class="btn btn-ghost btn-mini" onclick="cwMarcarAbordado('${item.id}', '${tipo}', 'abordado')" title="Já abordei · marca como contatado">✓ Abordei</button>` : '';
+  const temTel = !!(item.telefone && String(item.telefone).replace(/\D/g, '').length >= 10);
 
-  return `<div style="border:1px solid var(--line);border-radius:var(--r2);padding:14px;background:var(--surface);display:flex;flex-direction:column;gap:8px">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">
-      <div style="flex:1;min-width:200px">
-        <div style="font-size:13px;font-weight:600">${dot} ${escapeHtml(titulo)}</div>
-        <div style="font-size:11px;color:var(--ink-3);margin-top:2px">${escapeHtml(sub)}${valor ? ' · ' + escapeHtml(valor) : ''}${linkPerfil}</div>
-        ${motivoExtra ? `<div style="font-size:10px;color:var(--ink-3);margin-top:3px;font-style:italic">${escapeHtml(motivoExtra)}</div>` : ''}
+  // Linha colapsada · 1 linha resumida
+  const partesResumo = [titulo, cidade, valor, item.setor, dataAnuncio].filter(Boolean);
+  const resumo = partesResumo.join(' · ');
+
+  if (!expandido) {
+    return `<div class="cw-card-lead" data-id="${item.id}" onclick="cwToggleExpand('${item.id}')" style="border:1px solid var(--line);border-radius:var(--r1);padding:10px 12px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px">
+        <span style="font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${dot} ${escapeHtml(resumo)}</span>
+        ${temTel ? '<span class="pa-badge pa-badge-green" style="font-size:9px">📱 tel ok</span>' : '<span class="pa-badge pa-badge-gray" style="font-size:9px">sem tel</span>'}
       </div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--ink-3)">${escapeHtml((item.telefone||item.username||'').toString().slice(0,20))}</div>
+      <span style="color:var(--ink-3);font-family:var(--mono);font-size:11px">▼</span>
+    </div>`;
+  }
+
+  // Card expandido · com mensagem + botões
+  const motivo = tipo === 'olx' ? (item.motivo_classificacao || '') : '';
+  const linkOlx = item.url_anuncio || '';
+  const link = item.link_whatsapp || (item.telefone ? `https://wa.me/${String(item.telefone).replace(/\D/g, '')}?text=${encodeURIComponent(item.mensagem_template||'')}` : '');
+
+  const btnVerOlx = linkOlx
+    ? `<a class="btn btn-ghost btn-mini" href="${escapeHtml(linkOlx)}" target="_blank" rel="noopener">🔗 Abrir anúncio</a>`
+    : '';
+  const btnBuscarTel = !temTel
+    ? `<button class="btn btn-ghost btn-mini" onclick="cwBuscarTelefone('${item.id}')" id="btn-buscar-${item.id}">📱 Buscar telefone</button>`
+    : '';
+  const btnWa = temTel
+    ? `<a class="btn" href="${escapeHtml(link)}" target="_blank" rel="noopener" onclick="cwMarcarTentou('${item.id}','${tipo}')" style="font-size:12px;padding:6px 12px">💬 WhatsApp</a>`
+    : '';
+  const btnAbordei = `<button class="btn btn-ghost btn-mini" onclick="cwAbrirModalAbordei('${item.id}','${tipo}')">✓ Marquei contato</button>`;
+  const btnPular = `<button class="btn btn-ghost btn-mini" onclick="cwMarcarAbordado('${item.id}','${tipo}','pular')" title="Pular · não volta amanhã">⏭ Pular</button>`;
+
+  const linkPerfil = tipo === 'ig' && item.link_perfil
+    ? `<a class="btn btn-ghost btn-mini" href="${escapeHtml(item.link_perfil)}" target="_blank">↗ Instagram</a>`
+    : '';
+
+  return `<div class="cw-card-lead expandido" data-id="${item.id}" style="border:1px solid var(--accent-line);border-radius:var(--r2);padding:14px;background:var(--surface);display:flex;flex-direction:column;gap:10px">
+    <div onclick="cwToggleExpand('${item.id}')" style="cursor:pointer;display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:600">${dot} ${escapeHtml(titulo)}</div>
+        <div style="font-size:11px;color:var(--ink-3);margin-top:2px">${escapeHtml([cidade, valor, item.setor, dataAnuncio].filter(Boolean).join(' · '))}</div>
+        ${motivo ? `<div style="font-size:11px;color:var(--ink-3);margin-top:3px;font-style:italic">${escapeHtml(motivo)}</div>` : ''}
+        ${item.bio ? `<div style="font-size:11px;color:var(--ink-3);margin-top:3px">${escapeHtml(item.bio.slice(0,200))}</div>` : ''}
+      </div>
+      <span style="color:var(--ink-3);font-family:var(--mono);font-size:11px">▲</span>
     </div>
-    <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);padding:10px 12px;font-size:12px;color:var(--ink-2);white-space:pre-line">${escapeHtml(item.mensagem_template || '(sem mensagem)')}</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">${btnWa}${btnAbordou}${btnPular}</div>
+    ${item.mensagem_template ? `<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);padding:10px 12px;font-size:12px;color:var(--ink-2);white-space:pre-line">${escapeHtml(item.mensagem_template)}</div>` : ''}
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${btnVerOlx}${linkPerfil}${btnBuscarTel}${btnWa}${btnAbordei}${btnPular}
+    </div>
   </div>`;
+}
+
+function cwToggleExpand(id) {
+  _cwExpandidos[id] = !_cwExpandidos[id];
+  cwAbaSubtab(_cwAbaAtual);
 }
 
 function cwAbaSubtab(aba) {
@@ -4234,36 +4316,139 @@ function cwAbaSubtab(aba) {
   const c = _cwPlanoCache && _cwPlanoCache._exec;
   if (!c) return;
   document.querySelectorAll('[data-cw-aba]').forEach(b => b.classList.toggle('active', b.dataset.cwAba === aba));
-  const lista = aba === 'olx' ? c.leads_pra_abordar : aba === 'corretor' ? c.corretores_pra_abordar : c.perfis_ig_seguir;
-  const listaTipo = aba;
+  let lista = aba === 'olx' ? (c.leads_pra_abordar || []) : aba === 'corretor' ? (c.corretores_pra_abordar || []) : (c.perfis_ig_seguir || []);
+  // Filtros client-side
+  if (_cwFiltroLista === 'sem_telefone') lista = lista.filter(it => !(it.telefone && String(it.telefone).replace(/\D/g,'').length >= 10));
+  else if (_cwFiltroLista === 'com_telefone') lista = lista.filter(it => (it.telefone && String(it.telefone).replace(/\D/g,'').length >= 10));
+  // 'todos' · sem filtro
   const wrap = document.getElementById('cw-exec-lista');
   if (!wrap) return;
-  if (!lista || !lista.length) {
+  if (!lista.length) {
     const mensagens = {
-      olx: 'Nenhum lead OLX pendente · classifica leads em Scrapers → OLX',
+      olx: 'Nenhum lead OLX nesse filtro',
       corretor: 'Nenhum corretor capturado · ative Frente C (Google Maps Sul)',
       ig: 'Nenhum perfil IG distribuído hoje · ative Frente C (Instagram followers)'
     };
     wrap.innerHTML = `<div class="pa-empty">${mensagens[aba]}</div>`;
     return;
   }
-  wrap.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px">' + lista.map(it => cwRenderCardLead(it, listaTipo)).join('') + '</div>';
+  wrap.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px">' + lista.map(it => cwRenderCardLead(it, aba)).join('') + '</div>';
 }
 
-async function cwMarcarAbordado(id, tipo, status) {
-  if (!confirm(status === 'abordado' ? 'Marcar como abordado? (vai pra enviado_em hoje)' : 'Pular? (não vai aparecer amanhã)')) return;
+function cwSetFiltroLista(f) {
+  _cwFiltroLista = f;
+  document.querySelectorAll('[data-cw-filtro]').forEach(b => b.classList.toggle('active', b.dataset.cwFiltro === f));
+  cwAbaSubtab(_cwAbaAtual);
+}
+
+async function cwBuscarTelefone(id) {
+  const btn = document.getElementById('btn-buscar-' + id);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ buscando...'; }
+  try {
+    const apify = localStorage.getItem('1n_apify') || '';
+    const res = await fetch(SB + '/functions/v1/buscar-telefone-olx', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(__token||AK),'apikey':AK},
+      body: JSON.stringify({ lead_id: id, apify_token: apify })
+    });
+    const j = await res.json();
+    if (!res.ok || !j.ok) {
+      if (btn) { btn.disabled = false; btn.textContent = '📱 Buscar telefone'; }
+      alert('Falhou: ' + (j.erro || res.status));
+      return;
+    }
+    if (j.telefone) {
+      // Atualiza cache local
+      const c = _cwPlanoCache && _cwPlanoCache._exec;
+      if (c) {
+        const lista = [...(c.leads_pra_abordar||[]), ...(c.corretores_pra_abordar||[])];
+        const it = lista.find(x => x.id === id);
+        if (it) {
+          it.telefone = j.telefone;
+          it.link_whatsapp = `https://wa.me/${j.telefone.replace(/\D/g,'')}?text=${encodeURIComponent(it.mensagem_template||'')}`;
+        }
+      }
+      cwAbaSubtab(_cwAbaAtual);
+      return;
+    }
+    // Manual required · admin abre URL e cola telefone
+    if (j.url_anuncio) window.open(j.url_anuncio, '_blank');
+    const tel = prompt(`Apify não capturou telefone automático.\n\n${j.motivo || ''}\n\nAbri o anúncio em outra aba.\nCola aqui o telefone (DDI+DDD+número, só dígitos · ou cancela):`);
+    if (tel && tel.replace(/\D/g,'').length >= 10) {
+      const limpo = tel.replace(/\D/g,'');
+      const fmt = limpo.startsWith('55') ? limpo : '55'+limpo;
+      // PATCH manual
+      await fetch(SB + `/rest/v1/leads_google?id=eq.${encodeURIComponent(id)}`, {
+        method:'PATCH',
+        headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+        body: JSON.stringify({ telefone: fmt, telefone_buscado_em: new Date().toISOString() })
+      });
+      const c = _cwPlanoCache && _cwPlanoCache._exec;
+      if (c) {
+        const lista = [...(c.leads_pra_abordar||[]), ...(c.corretores_pra_abordar||[])];
+        const it = lista.find(x => x.id === id);
+        if (it) { it.telefone = fmt; it.link_whatsapp = `https://wa.me/${fmt}?text=${encodeURIComponent(it.mensagem_template||'')}`; }
+      }
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '📱 Buscar telefone'; }
+    cwAbaSubtab(_cwAbaAtual);
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '📱 Buscar telefone'; }
+    alert('Erro: ' + e.message);
+  }
+}
+
+async function cwMarcarTentou(id, tipo) {
+  // Fire-and-forget · marca tentativa quando admin clica WhatsApp
+  if (tipo === 'ig') return;
+  try {
+    await fetch(SB + `/rest/v1/leads_google?id=eq.${encodeURIComponent(id)}`, {
+      method:'PATCH',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ tentou_contato_em: new Date().toISOString() })
+    });
+  } catch(e) { console.warn('[cwMarcarTentou]', e); }
+}
+
+let _cwModalLead = null;
+function cwAbrirModalAbordei(id, tipo) {
+  _cwModalLead = { id, tipo };
+  document.getElementById('cw-modal-status').value = 'mandei_whatsapp';
+  document.getElementById('cw-modal-obs').value = '';
+  document.getElementById('modal-cw-abordei').classList.add('show');
+}
+async function cwSalvarAbordei() {
+  if (!_cwModalLead) return;
+  const status = document.getElementById('cw-modal-status').value;
+  const obs = document.getElementById('cw-modal-obs').value.trim();
+  await cwMarcarAbordado(_cwModalLead.id, _cwModalLead.tipo, 'abordado', status, obs);
+  document.getElementById('modal-cw-abordei').classList.remove('show');
+  _cwModalLead = null;
+}
+
+async function cwMarcarAbordado(id, tipo, acao, statusContato, observacoes) {
+  // acao = 'abordado' | 'pular'
   try {
     const tabela = tipo === 'ig' ? 'ig_seguidores_raw' : 'leads_google';
-    const payload = tipo === 'ig'
-      ? { distribuido_em: null }   // tira da lista de hoje
-      : { enviado_em: new Date().toISOString(), status: status === 'abordado' ? 'contatado' : 'pulado' };
+    let payload;
+    if (tipo === 'ig') {
+      payload = { distribuido_em: null };
+    } else if (acao === 'pular') {
+      payload = { revisar_depois: true, abordado_em: new Date().toISOString() };
+    } else {
+      payload = {
+        abordado_em: new Date().toISOString(),
+        status_contato: statusContato || null,
+        observacoes_contato: observacoes || null,
+      };
+    }
     const res = await fetch(SB + `/rest/v1/${tabela}?id=eq.${encodeURIComponent(id)}`, {
       method:'PATCH',
       headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
       body: JSON.stringify(payload)
     });
     if (!res.ok) throw new Error('PATCH ' + res.status);
-    // Remove do cache local sem refetch
+    // Remove do cache local
     const c = _cwPlanoCache && _cwPlanoCache._exec;
     if (c) {
       if (tipo === 'olx') c.leads_pra_abordar = c.leads_pra_abordar.filter(x => x.id !== id);
@@ -4319,6 +4504,11 @@ async function cwLoadPlanoBloco() {
       <div class="pa-tab ${_cwAbaAtual==='olx'?'active':''}" data-cw-aba="olx" onclick="cwAbaSubtab('olx')">OLX <span class="pa-tab-count">${(exec.leads_pra_abordar||[]).length}</span></div>
       <div class="pa-tab ${_cwAbaAtual==='corretor'?'active':''}" data-cw-aba="corretor" onclick="cwAbaSubtab('corretor')">Corretores <span class="pa-tab-count">${(exec.corretores_pra_abordar||[]).length}</span></div>
       <div class="pa-tab ${_cwAbaAtual==='ig'?'active':''}" data-cw-aba="ig" onclick="cwAbaSubtab('ig')">IG <span class="pa-tab-count">${(exec.perfis_ig_seguir||[]).length}</span></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      <button class="chip ${_cwFiltroLista==='todos'?'active':''}" data-cw-filtro="todos" onclick="cwSetFiltroLista('todos')">Todos</button>
+      <button class="chip ${_cwFiltroLista==='sem_telefone'?'active':''}" data-cw-filtro="sem_telefone" onclick="cwSetFiltroLista('sem_telefone')">Sem telefone</button>
+      <button class="chip ${_cwFiltroLista==='com_telefone'?'active':''}" data-cw-filtro="com_telefone" onclick="cwSetFiltroLista('com_telefone')">Com telefone</button>
     </div>
     <div id="cw-exec-lista"></div>`;
 
