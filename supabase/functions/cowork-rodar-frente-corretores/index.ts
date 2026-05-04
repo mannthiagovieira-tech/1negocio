@@ -21,6 +21,7 @@
 //   Default · usa GOOGLE_API_KEY do secret · pega próxima cidade da rotação
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { upsertLeadGoogle, normalizarTelefone, ehCelular } from "../_shared/dedup.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -170,20 +171,21 @@ Deno.serve(async (req: Request) => {
       return { ...p, _phone: det.phone, _website: det.website };
     });
 
-    const placeIds = places_com_tel.map(p => p.place_id);
-    let existentesSet = new Set<string>();
-    if (placeIds.length) {
-      const { data: existentes } = await supabase
-        .from("leads_google").select("place_id").in("place_id", placeIds);
-      existentesSet = new Set((existentes || []).map((e: any) => e.place_id));
-    }
-
-    const novos = places_com_tel.filter(p => !existentesSet.has(p.place_id));
+    // Item 3 · dedup global por telefone + Item 4 · filtro celular
     let inseridos: any[] = [];
-    if (novos.length) {
-      const payload = novos.map(p => ({
+    let pulados_fixo = 0;
+    let pulados_invalido = 0;
+    let merged = 0;
+    for (const p of places_com_tel) {
+      const telBruto = fmtTelBR(p._phone || "");
+      // Item 4 · filtro celular global · corretores fixos pulam
+      if (telBruto && !ehCelular(telBruto)) { pulados_fixo++; continue; }
+      const telNorm = normalizarTelefone(telBruto);
+      if (!telNorm) { pulados_invalido++; continue; }
+
+      const r = await upsertLeadGoogle(supabase, {
         nome: p.name,
-        telefone: fmtTelBR(p._phone || ""),
+        telefone: telNorm,
         endereco: p.formatted_address || null,
         cidade: cidade!.cidade,
         estado: cidade!.uf,
@@ -194,10 +196,21 @@ Deno.serve(async (req: Request) => {
         status: "novo",
         url_anuncio: p._website || null,
         campanha: `gmaps-corretores-${cidade!.cidade.toLowerCase().replace(/\s+/g, "-")}`,
-      }));
-      const { data: ins } = await supabase
-        .from("leads_google").insert(payload).select("id,nome,telefone,cidade,estado,endereco,categoria,place_id");
-      inseridos = ins || [];
+      });
+      if (r.created && r.lead_id) {
+        inseridos.push({
+          id: r.lead_id,
+          nome: p.name,
+          telefone: telNorm,
+          cidade: cidade!.cidade,
+          estado: cidade!.uf,
+          endereco: p.formatted_address,
+          categoria: (p.types || [])[0] || "corretor",
+          place_id: p.place_id,
+        });
+      } else if (r.lead_id) {
+        merged++;
+      }
     }
 
     const classRes = await processarLotes(inseridos, 5, async (l: Lead) => {
@@ -222,8 +235,10 @@ Deno.serve(async (req: Request) => {
       ok: true,
       cidade: `${cidade.cidade}/${cidade.uf}`,
       total_capturados: places.length,
-      ja_existiam: places.length - novos.length,
-      novos_inseridos: novos.length,
+      novos_inseridos: inseridos.length,
+      merged_dedup: merged,
+      pulados_fixo: pulados_fixo,
+      pulados_telefone_invalido: pulados_invalido,
       classificados: classRes.length,
       por_categoria: porCategoria,
     });
