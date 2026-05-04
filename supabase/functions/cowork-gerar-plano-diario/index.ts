@@ -185,9 +185,39 @@ Devolva APENAS o JSON especificado no system prompt.`;
     let zapiSent = false;
     if (ADMIN_WHATSAPP && ZAPI_INSTANCE && ZAPI_TOKEN) {
       try {
+        // Coleta sinais extras pra enriquecer a mensagem
+        const [hot, anuW, anuPub] = await Promise.allSettled([
+          supabase.from("leads_google").select("id", { count: "exact", head: true }).eq("classificacao_ia", "negocio_funcionamento").gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+          supabase.from("anuncios_v2").select("id", { count: "exact", head: true }).in("status", ["aguardando_aprovacao", "rascunho"]),
+          supabase.from("anuncios_v2").select("valor_pedido").eq("status", "publicado"),
+        ]);
+        const cQuentes = (hot as any).value?.count ?? 0;
+        const cAprov = (anuW as any).value?.count ?? 0;
+        const pubData = (anuPub as any).value?.data || [];
+        const pipelinePot = pubData.reduce((s: number, a: any) => s + (Number(a.valor_pedido) || 0), 0);
+        const fmtBRL = (v: number) => v >= 1e6 ? (v / 1e6).toFixed(1).replace(".", ",") + "M" : v >= 1e3 ? Math.round(v / 1e3) + "k" : String(Math.round(v));
+
         const ctx = parsed.contexto || {};
-        const totalPrior = (parsed.prioridades || []).length;
-        const msg = `🌅 Plano de hoje · ${dataISO}\n\n${ctx.resumo || ""}\n\n${totalPrior} prioridades · ${(parsed.alertas || []).length} alertas\n\nAbra: https://1negocio.com.br/painel-v3.html#cockpit`;
+        const prior = (parsed.prioridades || []).slice(0, 3);
+        const dataPt = new Date(dataISO + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+
+        const linhasPrior = prior.map((p: any, i: number) => `${i + 1}. ${(p.titulo || "").slice(0, 80)}`).join("\n");
+
+        const msg = [
+          `🌅 Plano de hoje · ${dataPt}`,
+          ``,
+          ctx.resumo ? ctx.resumo.slice(0, 200) : "",
+          ``,
+          prior.length ? `🎯 PRIORIDADES (top ${prior.length} de ${(parsed.prioridades || []).length}):` : "🎯 sem prioridades hoje",
+          linhasPrior,
+          ``,
+          `⚡ ${cQuentes} leads OLX quentes (7d)`,
+          `📅 ${cAprov} anúncios pra aprovar`,
+          `💰 Pipeline publicado: R$ ${fmtBRL(pipelinePot)}`,
+          ``,
+          `Abra o plano: https://1negocio.com.br/painel-v3.html#cockpit`,
+        ].filter(Boolean).join("\n");
+
         const zapiUrl = `https://api.z-api.io/instances/${ZAPI_INSTANCE}/token/${ZAPI_TOKEN}/send-text`;
         const zapiHeaders: Record<string, string> = { "Content-Type": "application/json" };
         if (ZAPI_CLIENT_TOKEN) zapiHeaders["Client-Token"] = ZAPI_CLIENT_TOKEN;
@@ -198,6 +228,7 @@ Devolva APENAS o JSON especificado no system prompt.`;
         });
         zapiSent = zapiRes.ok;
         if (zapiSent) await supabase.from("cowork_planos_diarios").update({ enviado_whatsapp: true }).eq("id", planoId);
+        else console.warn("[zapi] não-ok:", zapiRes.status, await zapiRes.text().catch(() => ""));
       } catch (e) { console.warn("[zapi] falha silenciosa:", e); }
     }
 
