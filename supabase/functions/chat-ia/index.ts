@@ -388,29 +388,14 @@ Aí entra o fluxo de coleta de dados — mas SÓ se a pessoa demonstrar interess
 4. **modelo_atuacao_multi** — COMO O NEGÓCIO OPERA (revenda/fabricação/distribuição/mix) — só pergunta pra setor com produto físico (ver regra)
 5. **ativo_estoque** — estoque a preço de custo — só pergunta pra setor com produto físico (ver regra)
 6. **faturamento_anual** — sempre confirmar mensal/anual antes de seguir
-7. **sobra_anual** — sobra OPERACIONAL real (sempre confirmar mensal/anual antes de seguir). Pergunte com EXEMPLO CONCRETO e regra clara:
-   "Pra eu te dar uma avaliação inicial · preciso entender quanto sobra do seu faturamento.
+7. **sobra_anual** — sobra OPERACIONAL (mensal/anual · sempre confirmar). Pergunta CURTA:
 
-   Pensa assim: você fatura R$ 100k no mês · gasta R$ 70k em despesas operacionais (aluguel · folha · fornecedores · luz) · sobram R$ 30k.
+   "E quanto desse faturamento sobra no final do mês · antes de pagar suas parcelas · contas em atraso · investimentos novos · ou sua retirada?"
 
-   Esse 'quanto sobra' NÃO inclui:
-   · Sua retirada pessoal (o que você tira pra você todo mês)
-   · Parcelas de empréstimos
-   · Contas em atraso
-   · Investimentos novos no negócio
-
-   É a sobra REAL · só do dia-a-dia operacional.
-
-   No seu caso · quanto sobra por mês depois das despesas operacionais?"
-
-   ### Como interpretar a resposta da sobra:
-
-   - **Sobra MUITO BAIXA** (< 5% do faturamento) → pergunta gentil: "Esse valor já desconta sua retirada pessoal? Se sim, me diz qual sua retirada que eu somo de volta na sobra real."
-     · Se sim · soma a retirada de volta antes de mandar pro cálculo (sobra_real = sobra_informada + retirada_mensal)
-
-   - **Sobra ZERO** → "Você considerou retirada pessoal · parcelas de empréstimo · contas atrasadas? Esses não contam. Vamos refazer só com despesas operacionais (aluguel · folha · fornecedores · impostos do mês)."
-
-   - **NÃO SEI** → dá outro exemplo concreto · pergunta de novo reformulado. Se ainda não souber depois de 2 tentativas · marca como margem_estimada e segue (a calculadora aceita estimativa).
+   ### Como interpretar a resposta:
+   - **Sobra <5% do faturamento** → "Esse valor já desconta sua retirada pessoal? Se sim, me diz quanto e eu somo de volta."
+   - **Sobra zero** → "Você considerou retirada · parcelas · atrasados? Esses não contam. Refaz só com despesas operacionais (aluguel · folha · fornecedores · impostos)."
+   - **Não sabe** → 2 tentativas com exemplo curto. Se persistir · marca margem_estimada e segue.
 8. **ativos_relevantes** — equipamentos/máquinas/veículos próprios
 9. **dividas_total** — financiamentos + empréstimos + impostos atrasados
 
@@ -508,6 +493,26 @@ Durante a coleta, intercale 1-2 perguntas que NÃO entram no cálculo:
 ## CAPTURA DE NOME E WHATSAPP — GATE OBRIGATÓRIO ANTES DO CÁLCULO
 
 Se a pessoa NÃO ESTÁ LOGADA, JAMAIS chame \`calcular_valuation_rapido\` sem ter capturado nome E WhatsApp ANTES.
+
+## VALIDAÇÃO DE TELEFONE BR · OBRIGATÓRIA (B73)
+
+WhatsApp brasileiro tem 11 dígitos: **DDD (2) + 9 + 8 dígitos**. Ex: 48 999279320.
+
+Se o usuário mandar SÓ 9 dígitos (ex: "999279320") · ESTÁ INCOMPLETO. Faça assim:
+1. Confirma que faltou o DDD: "Faltou o código de área."
+2. Se a pessoa JÁ MENCIONOU CIDADE/UF · INFERA o DDD e CONFIRMA. Ex: "Você falou que está em Florianópolis · seu DDD é 48?"
+3. Se NÃO sabe a cidade ainda · pergunta direto: "Qual o DDD?"
+4. Quando confirmado · UNE: "Perfeito · vou te contatar no 48 999279320"
+
+DDDs principais por estado (use pra inferir):
+- SP · 11-19  · RJ · 21-22-24  · ES · 27-28
+- MG · 31-38  · BA · 71-77  · SE · 79  · AL · 82  · PE · 81-87  · PB · 83
+- CE · 85-88  · PI · 86-89  · MA · 98-99  · PA · 91-94  · AP · 96
+- AM · 92-97  · RR · 95  · TO · 63  · RO · 69  · AC · 68
+- DF · 61  · GO · 62-64  · MT · 65-66  · MS · 67
+- PR · 41-46  · SC · 47-49  · RS · 51-55  · RN · 84
+
+NUNCA aceite lead com telefone < 11 dígitos. Sem WhatsApp completo · NÃO chama \`calcular_valuation_rapido\`.
 
 Sequência obrigatória:
 1. Coleta os 7 dados em conversa fluida
@@ -1592,12 +1597,18 @@ Saída JSON estrito: {"nome":"...","whatsapp":"...","email":"..."}`;
     const data = await res.json();
     const raw = (data.content?.[0]?.text || '').replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(raw);
+    // B73 · só aceita celular BR completo (11 dig DDD+9+8 ou 13 com DDI 55)
     let whats: string | null = null;
     if (parsed.whatsapp) {
       const dig = String(parsed.whatsapp).replace(/\D/g, '');
-      if (dig.length >= 10 && dig.length <= 13) {
-        whats = dig.startsWith('55') ? dig : (dig.length === 10 || dig.length === 11 ? '55' + dig : dig);
+      // 13 dig com 55 prefix · OK
+      if (dig.length === 13 && dig.startsWith('55') && dig[4] === '9') {
+        whats = dig;
+      // 11 dig (DDD+9+8) · adiciona 55
+      } else if (dig.length === 11 && dig[2] === '9') {
+        whats = '55' + dig;
       }
+      // tudo o resto é incompleto · descarta
     }
     return {
       nome: parsed.nome ? String(parsed.nome).trim().slice(0, 120) : null,

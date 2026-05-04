@@ -1883,6 +1883,26 @@ table.t .acoes { white-space: nowrap; }
   </div>
 </div>
 
+<!-- B75 · Drawer ver conversa completa chat-ia -->
+<div id="cv-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9000" onclick="if(event.target===this)cvFechar()">
+  <div id="cv-panel" style="position:fixed;top:0;right:0;height:100vh;width:600px;max-width:100vw;background:var(--bg);border-left:1px solid var(--accent-line);box-shadow:-8px 0 32px rgba(0,0,0,0.4);overflow-y:auto;display:flex;flex-direction:column">
+    <div id="cv-header" style="position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);padding:14px 16px;z-index:1">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div id="cv-titulo" style="font-weight:600;font-size:15px">—</div>
+          <div id="cv-sub" class="pa-muted" style="font-size:12px;margin-top:2px">—</div>
+        </div>
+        <button class="btn btn-ghost btn-mini" onclick="cvFechar()">×</button>
+      </div>
+    </div>
+    <div id="cv-body" style="flex:1;overflow-y:auto;padding:14px 12px"><div class="pa-loading">Carregando...</div></div>
+    <div style="position:sticky;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:10px 14px;display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-mini" onclick="cvCopiarResumo()">📋 Copiar resumo</button>
+      <button class="btn btn-mini btn-ghost" onclick="cvFechar()">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ──────────── MODAL · Cowork "Marquei contato" (Como foi?) ──────────── -->
 <div class="modal-overlay" id="modal-cw-abordei">
   <div class="modal" style="max-width:520px">
@@ -3435,7 +3455,10 @@ function plCrmRender() {
     {key:'origem',   label:'Origem'},
     {key:'status',   label:'Status', type:'badge'},
     {key:'created_at',label:'Capturado', type:'date'},
-    {key:'id', label:'', type:'actions', render: r => `<div style="display:flex;gap:6px">${r.telefone ? `<button class="pa-btn-act" onclick="plCrmEnviar('${escapeHtml(r.telefone||'')}','${escapeHtml(r.nome||'')}')" title="disparo">📤</button>` : ''}<button class="pa-btn-act success" onclick="plCrmMarcar('${r.id}','contatado')" title="marcar contatado">✓</button><button class="pa-btn-act danger" onclick="plCrmMarcar('${r.id}','descartado')" title="descartar">🗑</button></div>` }
+    {key:'id', label:'', type:'actions', render: r => {
+      const isIA = r.origem === 'ia_atendente_home' || r.origem === 'ia_atendente_home_prelead';
+      return `<div style="display:flex;gap:6px">${r.telefone ? `<button class="pa-btn-act" onclick="plCrmEnviar('${escapeHtml(r.telefone||'')}','${escapeHtml(r.nome||'')}')" title="disparo">📤</button>` : ''}${isIA ? `<button class="pa-btn-act" onclick="cvAbrir(null,'${r.id}')" title="ver conversa">💬</button>` : ''}<button class="pa-btn-act success" onclick="plCrmMarcar('${r.id}','contatado')" title="marcar contatado">✓</button><button class="pa-btn-act danger" onclick="plCrmMarcar('${r.id}','descartado')" title="descartar">🗑</button></div>`;
+    }}
   ], lista, 'Sem resultados');
 }
 async function plCrmMarcar(id, status) {
@@ -5607,6 +5630,103 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
 });
 
 /* ========================================================================
+   CV-* · B75 · Conversa completa chat-ia (drawer)
+   ======================================================================== */
+let _cvAtual = null;
+
+async function cvAbrir(chatIaLeadId, fallbackLeadGoogleId) {
+  const overlay = document.getElementById('cv-overlay');
+  const titulo = document.getElementById('cv-titulo');
+  const sub = document.getElementById('cv-sub');
+  const body = document.getElementById('cv-body');
+  if (!overlay) return;
+  overlay.style.display = 'block';
+  titulo.textContent = 'Carregando conversa...';
+  sub.textContent = '';
+  body.innerHTML = '<div class="pa-loading">Buscando mensagens...</div>';
+
+  try {
+    let lead = null;
+    if (chatIaLeadId) {
+      const r = await sbFetch(`/rest/v1/chat_ia_leads?id=eq.${encodeURIComponent(chatIaLeadId)}&select=id,nome,whatsapp,cidade_estado,setor_code,faixa_faturamento,mensagens,dados_coletados,valuation_central,valuation_min,valuation_max,created_at,resumo_conversa`);
+      lead = (Array.isArray(r) ? r[0] : null);
+    }
+    // fallback · lead veio do leads_google · busca chat_ia_lead_id no notas
+    if (!lead && fallbackLeadGoogleId) {
+      const r2 = await sbFetch(`/rest/v1/leads_google?id=eq.${encodeURIComponent(fallbackLeadGoogleId)}&select=chat_ia_lead_id,nome,telefone,cidade,notas`);
+      const lg = Array.isArray(r2) ? r2[0] : null;
+      if (lg?.chat_ia_lead_id) return cvAbrir(lg.chat_ia_lead_id);
+    }
+    if (!lead) {
+      titulo.textContent = '— sem conversa —';
+      body.innerHTML = '<div class="pa-empty">Lead sem registro em chat_ia_leads.</div>';
+      return;
+    }
+    _cvAtual = lead;
+    const tel = (lead.whatsapp || '').replace(/\D/g,'');
+    const wa = tel.length >= 10 ? (tel.startsWith('55') ? tel : '55'+tel) : '';
+    titulo.textContent = `${lead.nome || '(sem nome)'}${wa ? ' · ' : ''}${wa ? formatarTelefone(wa) : ''}`;
+    const dados = lead.dados_coletados || {};
+    const fatPart = lead.faixa_faturamento ? ` · Fat ${lead.faixa_faturamento}` : '';
+    const valPart = lead.valuation_central ? ` · Val R$ ${Math.round(lead.valuation_central).toLocaleString('pt-BR')}` : '';
+    sub.textContent = `${dados.cidade_uf || lead.cidade_estado || ''}${fatPart}${valPart} · ${lead.created_at ? new Date(lead.created_at).toLocaleString('pt-BR') : ''}`;
+
+    const msgs = (lead.mensagens || []).filter(m => m && m.role && (typeof m.content === 'string' || Array.isArray(m.content)));
+    if (!msgs.length) {
+      body.innerHTML = '<div class="pa-empty">Nenhuma mensagem armazenada.</div>';
+      return;
+    }
+    body.innerHTML = msgs.map(m => {
+      const isUser = m.role === 'user';
+      let txt;
+      if (typeof m.content === 'string') txt = m.content;
+      else if (Array.isArray(m.content)) {
+        txt = m.content.map(c => c.type === 'text' ? c.text : (c.type === 'tool_use' ? `🔧 ${c.name}` : (c.type === 'tool_result' ? '⤴ resultado' : ''))).filter(Boolean).join(' ');
+      }
+      else return '';
+      if (!txt) return '';
+      const bg = isUser ? '#25d366' : 'var(--surface-2)';
+      const color = isUser ? '#000' : 'var(--ink)';
+      const align = isUser ? 'flex-end' : 'flex-start';
+      return `<div style="display:flex;justify-content:${align};margin-bottom:8px">
+        <div style="max-width:80%;background:${bg};color:${color};padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.45;white-space:pre-wrap;word-break:break-word">${escapeHtml(txt)}</div>
+      </div>`;
+    }).filter(Boolean).join('');
+  } catch(e) {
+    body.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function cvFechar() {
+  const o = document.getElementById('cv-overlay');
+  if (o) o.style.display = 'none';
+  _cvAtual = null;
+}
+
+function cvCopiarResumo() {
+  if (!_cvAtual) return;
+  const l = _cvAtual;
+  const dados = l.dados_coletados || {};
+  const linhas = [
+    `Nome · ${l.nome || '?'}`,
+    `WhatsApp · ${l.whatsapp || '?'}`,
+    `Cidade/UF · ${dados.cidade_uf || l.cidade_estado || '?'}`,
+    `Setor · ${dados.setor_code || l.setor_code || '?'}`,
+    `Faturamento anual · R$ ${dados.faturamento_anual?.toLocaleString('pt-BR') || '?'}`,
+    `Sobra anual · R$ ${dados.sobra_anual?.toLocaleString('pt-BR') || '?'}`,
+    `Valuation · R$ ${l.valuation_central ? Math.round(l.valuation_central).toLocaleString('pt-BR') : '?'} (${l.valuation_min?.toLocaleString('pt-BR') || '?'} – ${l.valuation_max?.toLocaleString('pt-BR') || '?'})`,
+    `Resumo · ${(l.resumo_conversa || '').slice(0, 200)}`,
+  ].join('\n');
+  navigator.clipboard?.writeText(linhas);
+  const btn = event?.target;
+  if (btn) {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copiado';
+    setTimeout(() => btn.textContent = orig, 1500);
+  }
+}
+
+/* ========================================================================
    AD-* · Item 6 / F9 · Monitoramento Ads dos concorrentes
    ======================================================================== */
 let _adConcorrentes = [];
@@ -5804,7 +5924,7 @@ function lqRender(leads) {
       ${trecho ? `<div style="font-size:12px;line-height:1.4;color:var(--ink-2);font-style:italic;border-left:2px solid rgba(255,90,79,0.4);padding-left:8px">"${escapeHtml(trecho.slice(0, 200))}"</div>` : ''}
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${wa ? `<a class="btn btn-mini" style="background:#25d366;color:#000" href="https://wa.me/${wa}" target="_blank">📱 Ligar agora</a>` : ''}
-        <button class="btn btn-mini btn-ghost" onclick="lqVerNotas('${l.id}')">💬 Notas</button>
+        <button class="btn btn-mini btn-ghost" onclick="cvAbrir(null,'${l.id}')">💬 Ver conversa</button>
         <button class="btn btn-mini btn-ghost" onclick="lqMarcar('${l.id}')">✓ Já contatei</button>
       </div>
     </div>`;
