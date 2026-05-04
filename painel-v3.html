@@ -1495,6 +1495,17 @@ table.t .acoes { white-space: nowrap; }
             <p class="secao-subtitulo">Pool consolidado · filtros + busca + ações de status e disparo</p>
           </header>
           <div class="secao-conteudo">
+            <!-- Item 5 · Floripa 500 captura -->
+            <div class="bloco" style="border:1px dashed var(--accent)">
+              <div class="bloco-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+                <div><div class="bloco-titulo">📍 Captura Floripa 500 · B2B Grande Floripa</div><div class="bloco-sub">18 categorias · radius 35km · só celular · dedup global · classificador Haiku</div></div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button class="btn btn-mini" onclick="floripaSmoke()" title="Smoke 1 categoria · ~R$ 10">🧪 Smoke padaria</button>
+                  <button class="btn" onclick="floripaCompleto()" title="Roda 18 categorias · ~R$ 100-180 · 5min">🚀 Rodar captura completa</button>
+                </div>
+              </div>
+              <div id="floripa-status" style="font-size:13px;color:var(--ink-3);margin-top:8px"></div>
+            </div>
             <div class="bloco">
               <div class="bloco-head"><div><div class="bloco-titulo">Filtros</div><div class="bloco-sub">aplicados client-side</div></div></div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
@@ -5541,6 +5552,40 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
     if (e.target === o) o.classList.remove('show');
   });
 });
+
+/* ========================================================================
+   FLORIPA · Item 5 · captura B2B Grande Floripa
+   ======================================================================== */
+async function floripaSmoke() {
+  if (!confirm('Smoke 1 categoria (padaria) · ~R$ 10 · 20s. Continuar?')) return;
+  await _floripaRodar({ categoria_only: 'padaria', max_per_categoria: 60 }, 'smoke');
+}
+async function floripaCompleto() {
+  if (!confirm('Rodar 18 categorias completas? Custo ~R$ 100-180 · ~5min · vai capturar 500-1000 leads.')) return;
+  if (!confirm('CONFIRMA · captura completa Floripa? Não pode interromper depois de iniciar.')) return;
+  await _floripaRodar({ max_per_categoria: 60 }, 'completo');
+}
+async function _floripaRodar(body, modo) {
+  const status = document.getElementById('floripa-status');
+  if (status) { status.textContent = `⏳ Rodando ${modo}... pode levar até ${modo === 'completo' ? '10' : '1'}min`; status.style.color = 'var(--ink-3)'; }
+  try {
+    const res = await fetch(SB + '/functions/v1/capturar-negocios-floripa', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.erro || res.status);
+    const dist = JSON.stringify(data.distribuicao_classificacao || {});
+    if (status) {
+      status.textContent = `✓ ${data.categorias_processadas} cat · ${data.total_capturados_google} capturados · ${data.total_novos_inseridos} novos · ${data.total_merged_dedup} merged · ${data.total_pulados_fixo} fixos pulados · classificação ${dist}`;
+      status.style.color = 'var(--ok)';
+    }
+    if (typeof plCrmInit === 'function') plCrmInit();
+  } catch(e) {
+    if (status) { status.textContent = '✕ ' + e.message; status.style.color = 'var(--alert)'; }
+  }
+}
 
 /* ========================================================================
    LQ-* · Item 2 · Leads Quentíssimos (IA atendente · Cockpit)
