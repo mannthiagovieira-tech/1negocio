@@ -31,7 +31,34 @@ const corsHeaders = {
 };
 
 const ACTOR = "data-slayer~instagram-likes";
+const ACTOR_PROFILE = "apify~instagram-profile-scraper";
 const TIMEOUT_MS = 240_000;
+
+// busca último post de um username via apify/instagram-profile-scraper (latestPosts)
+async function buscarUltimoPostUsername(username: string): Promise<{ shortcode: string | null; debug: any }> {
+  if (!APIFY_TOKEN) return { shortcode: null, debug: { erro: "no token" } };
+  const url = `https://api.apify.com/v2/acts/${ACTOR_PROFILE}/run-sync-get-dataset-items?token=${encodeURIComponent(APIFY_TOKEN)}`;
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usernames: [username], resultsLimit: 1 }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    const txt = await r.text();
+    let parsed: any = null;
+    try { parsed = JSON.parse(txt); } catch { /* */ }
+    if (!r.ok || !Array.isArray(parsed) || !parsed[0]) {
+      return { shortcode: null, debug: { status: r.status, body: txt.slice(0, 300) } };
+    }
+    const profile = parsed[0];
+    const post = profile.latestPosts?.[0] || profile.posts?.[0] || null;
+    const sc = post?.shortCode || post?.shortcode || (post?.url ? post.url.match(/\/(?:p|reel|reels)\/([A-Za-z0-9_-]+)/)?.[1] : null);
+    return { shortcode: sc || null, debug: { username, total_posts: profile.latestPosts?.length || 0, post_url: post?.url } };
+  } catch (e) {
+    return { shortcode: null, debug: { erro: (e as Error).message } };
+  }
+}
 
 function shortcodeFromUrl(s: string): string {
   if (!s) return "";
@@ -104,14 +131,23 @@ Deno.serve(async (req: Request) => {
 
     // 3 modos: force_postcode (smoke ad-hoc), only_post_id (1 cadastrado), default (rotação)
     let posts: any[] = [];
-    if (body?.force_postcode) {
+    let descobertaDebug: any = null;
+    if (body?.from_username) {
+      // descobre último post via profile-scraper · usado no smoke
+      const username = String(body.from_username).replace(/^@/, '').trim();
+      const r = await buscarUltimoPostUsername(username);
+      descobertaDebug = r.debug;
+      if (!r.shortcode) return jsonErr(`não achou post recente de @${username} · debug: ${JSON.stringify(r.debug).slice(0, 300)}`);
+      posts = [{ id: null, shortcode: r.shortcode, url: `https://instagram.com/p/${r.shortcode}/`, concorrente: username, categoria: "smoke", _smoke: true, frequencia_dias: 1 }];
+    } else if (body?.force_postcode) {
       const sc = shortcodeFromUrl(body.force_postcode);
       if (!sc) return jsonErr("postcode inválido (cole URL ou shortcode)");
       posts = [{ id: null, shortcode: sc, url: `https://instagram.com/p/${sc}/`, concorrente: "smoke", categoria: "smoke", _smoke: true, frequencia_dias: 1 }];
     } else if (body?.only_post_id) {
-      const { data } = await supabase.from("ig_posts_monitorados")
-        .select("id,url,shortcode,concorrente,categoria,frequencia_dias,total_likers_capturados,apelido,nome_pagina")
+      const { data, error: errSel } = await supabase.from("ig_posts_monitorados")
+        .select("id,url,shortcode,concorrente,categoria,frequencia_dias,total_likers_capturados,apelido")
         .eq("id", body.only_post_id).maybeSingle();
+      if (errSel) return jsonErr(`select erro: ${errSel.message}`, 500);
       if (!data) return jsonErr("post não encontrado", 404);
       posts = [data];
     } else {
