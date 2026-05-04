@@ -1140,21 +1140,22 @@ async function carregarBloco1() {
   if (_b1Filtro === 'reais') filtroOrigem = '&or=(origem.is.null,origem.neq.maquininha_teste)';
   if (_b1Filtro === 'maquininha') filtroOrigem = '&origem=eq.maquininha_teste';
   try {
-    const data = await sbFetch(`/rest/v1/negocios?status=in.(em_avaliacao,publicado)&order=created_at.desc&limit=15${filtroOrigem}&select=id,codigo_diagnostico,setor,categoria,cidade,estado,faturamento_anual,status,created_at,origem`);
+    const data = await sbFetch(`/rest/v1/anuncios_v2?order=criado_em.desc&limit=15${filtroOrigem}&select=id,status,origem,criado_em,negocio:negocios!negocio_id(codigo_diagnostico,setor,categoria,cidade,estado,faturamento_anual)`);
     document.getElementById('b1-loading').style.display = 'none';
     if (!data.length) {
       document.getElementById('b1-tabela').innerHTML = '<div class="lista-vazia">— sem negócios novos —</div>';
       return;
     }
     let html = '<table class="t"><thead><tr><th>Identificador</th><th>Setor · cidade</th><th class="num">Fat. anual</th><th>Status</th><th>Criado</th><th class="acoes">Ações</th></tr></thead><tbody>';
-    data.forEach(n => {
+    data.forEach(a => {
+      const n = a.negocio || {};
       const ident = n.codigo_diagnostico || `${n.categoria || n.setor || 'neg'}_${(n.cidade||'br').toLowerCase().replace(/\s+/g,'-')}`;
       html += `<tr>
         <td><span class="codigo">${escapeHtml(ident)}</span></td>
         <td>${escapeHtml((n.categoria || n.setor || '—') + ' · ' + (n.cidade || '—') + (n.estado ? '/'+n.estado : ''))}</td>
         <td class="num">${fmtFat(n.faturamento_anual)}</td>
-        <td><span class="bloco-tag muted">${escapeHtml(n.status || '—')}</span></td>
-        <td style="color:var(--ink-3);font-size:12px">${relativeTime(n.created_at)}</td>
+        <td><span class="bloco-tag muted">${escapeHtml(a.status || '—')}</span></td>
+        <td style="color:var(--ink-3);font-size:12px">${relativeTime(a.criado_em)}</td>
         <td class="acoes">
           <button class="btn btn-ghost btn-mini" onclick="alert('Ver ficha em construção')">Ficha</button>
           <button class="btn btn-ghost btn-mini" onclick="alert('Ligar em construção')">📞</button>
@@ -1177,14 +1178,14 @@ async function carregarBloco9() {
   document.getElementById('b9-loading').style.display = 'block';
   document.getElementById('b9-lista').innerHTML = '';
   try {
-    const negocios = await sbFetch(`/rest/v1/negocios?status=eq.publicado&or=(origem.is.null,origem.neq.maquininha_teste)&order=publicado_em.asc&limit=10&select=id,codigo_diagnostico,setor,cidade,estado,vendedor_id,publicado_em`);
+    const anuncios = await sbFetch(`/rest/v1/anuncios_v2?status=eq.publicado&or=(origem.is.null,origem.neq.maquininha_teste)&publicado_em=not.is.null&order=publicado_em.asc&limit=10&select=id,vendedor_id,publicado_em,negocio:negocios!negocio_id(codigo_diagnostico,setor,cidade,estado)`);
     document.getElementById('b9-loading').style.display = 'none';
-    if (!negocios.length) {
+    if (!anuncios.length) {
       document.getElementById('b9-lista').innerHTML = '<div class="lista-vazia">— sem anunciantes pra contatar —</div>';
       return;
     }
     // Resolve vendedores em paralelo
-    const vendedorIds = [...new Set(negocios.map(n => n.vendedor_id).filter(Boolean))];
+    const vendedorIds = [...new Set(anuncios.map(a => a.vendedor_id).filter(Boolean))];
     let usuarios = [];
     if (vendedorIds.length) {
       try {
@@ -1193,13 +1194,14 @@ async function carregarBloco9() {
     }
     const userMap = Object.fromEntries(usuarios.map(u => [u.id, u]));
     let html = '<div style="display:grid;gap:10px">';
-    negocios.forEach(n => {
-      const u = userMap[n.vendedor_id] || {nome:'Vendedor', whatsapp:''};
+    anuncios.forEach(a => {
+      const n = a.negocio || {};
+      const u = userMap[a.vendedor_id] || {nome:'Vendedor', whatsapp:''};
       html += `<div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px">
         <div>
           <div style="font-family:var(--mono);font-size:11px;color:var(--accent);margin-bottom:4px">${escapeHtml(n.codigo_diagnostico || '—')}</div>
           <div style="font-size:13px">${escapeHtml(n.setor || '—')} · ${escapeHtml(n.cidade || '—')}/${escapeHtml(n.estado || '—')}</div>
-          <div style="font-size:11px;color:var(--ink-3);margin-top:2px">publicado ${relativeTime(n.publicado_em)}</div>
+          <div style="font-size:11px;color:var(--ink-3);margin-top:2px">publicado ${relativeTime(a.publicado_em)}</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px;align-items:end">
           ${renderMiniCard(u)}
@@ -1249,8 +1251,8 @@ function gcOrigem(o) {
 async function gcInit() {
   // Carrega setores distintos do banco e popula chips
   try {
-    const data = await sbFetch(`/rest/v1/negocios?status=eq.publicado&select=setor&limit=1000`);
-    const setores = [...new Set(data.map(d => d.setor).filter(Boolean))].sort();
+    const data = await sbFetch(`/rest/v1/anuncios_v2?status=eq.publicado&select=negocio:negocios!negocio_id(setor)&limit=1000`);
+    const setores = [...new Set(data.map(d => d.negocio?.setor).filter(Boolean))].sort();
     const wrap = document.getElementById('gc-setor');
     wrap.innerHTML = '<button class="chip active" onclick="gcSetor(\'todos\')">Todos</button>';
     setores.forEach(s => {
@@ -1268,11 +1270,12 @@ async function gcCarregar() {
   try {
     let url, items;
     if (_gcFonte === 'publicados') {
-      let filtros = `status=eq.publicado&order=publicado_em.desc&limit=${_gcLimite}&offset=${_gcOffset}&select=id,codigo_diagnostico,setor,categoria,cidade,estado,faturamento_anual,score_saude,publicado_em,origem`;
-      if (_gcSetor !== 'todos') filtros += `&setor=eq.${encodeURIComponent(_gcSetor)}`;
+      const embedSuffix = (_gcSetor !== 'todos') ? '!inner' : '';
+      let filtros = `status=eq.publicado&order=criado_em.desc&limit=${_gcLimite}&offset=${_gcOffset}&select=id,publicado_em,origem,negocio:negocios!negocio_id${embedSuffix}(id,codigo_diagnostico,setor,categoria,cidade,estado,faturamento_anual,score_saude)`;
+      if (_gcSetor !== 'todos') filtros += `&negocio.setor=eq.${encodeURIComponent(_gcSetor)}`;
       if (_gcOrigem === 'reais') filtros += `&or=(origem.is.null,origem.neq.maquininha_teste)`;
       if (_gcOrigem === 'maquininha') filtros += `&origem=eq.maquininha_teste`;
-      items = await sbFetch(`/rest/v1/negocios?${filtros}`);
+      items = await sbFetch(`/rest/v1/anuncios_v2?${filtros}`);
     } else {
       // leads_google · placeholder simples
       try {
@@ -1285,8 +1288,9 @@ async function gcCarregar() {
       return;
     }
     const lista = document.getElementById('gc-lista');
-    items.forEach(n => {
-      const id = n.id || n.codigo_diagnostico;
+    items.forEach(a => {
+      const n = (a && a.negocio) || a || {};
+      const id = n.id || a.id;
       const ident = n.codigo_diagnostico || (n.setor + '_' + (n.cidade||'br'));
       const card = document.createElement('div');
       card.className = 'card-neg';
