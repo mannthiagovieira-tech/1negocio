@@ -1549,6 +1549,11 @@ table.t .acoes { white-space: nowrap; }
                     <option value="">Todas</option>
                   </select>
                 </label>
+                <label style="display:flex;flex-direction:column;gap:4px;min-width:160px"><span class="modal-grupo-label" style="margin:0">Categoria</span>
+                  <select id="pl-crm-categoria" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="">Todas</option>
+                  </select>
+                </label>
               </div>
               <div id="pl-crm-status-line" style="margin-top:10px;font-size:11px;color:var(--ink-3);font-family:var(--mono)"></div>
             </div>
@@ -3355,13 +3360,21 @@ async function plCrmInit() {
   const tbl = document.getElementById('pl-tbl-crm');
   tbl.innerHTML = '<div class="pa-loading">Carregando pool...</div>';
   try {
-    const data = await sbFetch('/rest/v1/leads_google?order=created_at.desc&limit=500&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,tema_conversa,created_at,abordado_em');
+    const data = await sbFetch('/rest/v1/leads_google?order=created_at.desc&limit=500&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,tema_conversa,setor,created_at,abordado_em');
     _plCrmData = data || [];
     // Popula dropdown cidades com top valores únicos
     const sel = document.getElementById('pl-crm-cidade');
     if (sel) {
       const cidades = [...new Set(_plCrmData.map(l => l.cidade).filter(Boolean))].sort();
       sel.innerHTML = '<option value="">Todas</option>' + cidades.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    }
+    // B70 · popula dropdown categorias com valores únicos
+    const selCat = document.getElementById('pl-crm-categoria');
+    if (selCat) {
+      const cats = [...new Set(_plCrmData.map(l => l.categoria).filter(Boolean))]
+        .filter(c => !['establishment','negocio'].includes(c)) // descarta categorias inúteis Google/OLX
+        .sort();
+      selCat.innerHTML = '<option value="">Todas</option>' + cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
     }
     plCrmRender();
   } catch(e) { tbl.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`; }
@@ -3402,6 +3415,8 @@ function plCrmRender() {
   else if (fTel === 'sem') lista = lista.filter(l => (l.telefone||'').replace(/\D/g,'').length < 10);
   if (fCidade) lista = lista.filter(l => l.cidade === fCidade);
   if (fTema) lista = lista.filter(l => l.tema_conversa === fTema);
+  const fCategoria = document.getElementById('pl-crm-categoria')?.value || '';
+  if (fCategoria) lista = lista.filter(l => l.categoria === fCategoria);
 
   document.getElementById('pl-crm-status-line').textContent =
     `${lista.length} de ${_plCrmData.length} leads visíveis`;
@@ -3409,6 +3424,11 @@ function plCrmRender() {
   if (!lista.length) { tbl.innerHTML = '<div class="pa-empty">Nenhum lead com esses filtros.</div>'; return; }
   tbl.innerHTML = paRenderTable([
     {key:'nome',     label:'Nome'},
+    {key:'categoria',label:'Categoria', type:'actions', render: r => {
+      const c = r.categoria || '';
+      if (!c || c === 'establishment' || c === 'negocio') return '<span class="pa-muted" style="font-size:11px">—</span>';
+      return `<span class="pa-badge pa-badge-gray" style="font-size:11px">${escapeHtml(c)}</span>`;
+    }},
     {key:'telefone', label:'Telefone', type:'tel'},
     {key:'cidade',   label:'Cidade'},
     {key:'classificacao_ia', label:'Classificação IA', type:'actions', render: r => _plCrmChipClass(r.classificacao_ia)},
@@ -3420,15 +3440,33 @@ function plCrmRender() {
 }
 async function plCrmMarcar(id, status) {
   try {
+    // B71 · também seta abordado_em pra remover do plano diário (backlog corretores)
+    const agora = new Date().toISOString();
+    const payload = { status, updated_at: agora };
+    if (status === 'contatado') payload.abordado_em = agora;
+    else if (status === 'descartado') payload.abordado_em = agora; // descarta = saiu do funil
     const res = await fetch(SB + `/rest/v1/leads_google?id=eq.${encodeURIComponent(id)}`, {
       method:'PATCH',
       headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
-      body: JSON.stringify({ status, updated_at: new Date().toISOString() })
+      body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error('PATCH ' + res.status);
+    if (!res.ok) {
+      const txt = await res.text().catch(()=>'');
+      throw new Error('PATCH ' + res.status + ': ' + txt.slice(0,150));
+    }
     const i = _plCrmData.findIndex(l => l.id === id);
-    if (i >= 0) _plCrmData[i] = { ..._plCrmData[i], status };
+    if (i >= 0) _plCrmData[i] = { ..._plCrmData[i], status, abordado_em: agora };
     plCrmRender();
+    // feedback visual mínimo · não bloqueia
+    const sl = document.getElementById('pl-crm-status-line');
+    if (sl) {
+      const prev = sl.textContent;
+      sl.textContent = `✓ ${status === 'contatado' ? 'Marcado contatado' : 'Descartado'} · ${new Date().toLocaleTimeString('pt-BR')}`;
+      sl.style.color = 'var(--ok)';
+      setTimeout(() => { sl.textContent = prev; sl.style.color = ''; }, 2500);
+    }
+    // se Cockpit estiver visível · refresh dos leads quentes
+    if (typeof lqCarregar === 'function' && document.getElementById('secao-cockpit')?.style.display !== 'none') lqCarregar();
   } catch(e) { alert('Erro ao marcar: ' + e.message); }
 }
 function plCrmEnviar(tel, nome) {
