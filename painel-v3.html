@@ -698,6 +698,11 @@ table.t .acoes { white-space: nowrap; }
           <div class="sidebar-grupo-titulo">LEADS MIGRADO</div>
           <div class="nav-item" data-secao="pl-olx" onclick="mostrarSecao('pl-olx')"><span class="nav-icon">🛒</span><span class="nav-label">OLX scraper</span><span class="star">⭐</span></div>
           <div class="nav-item" data-secao="pl-crm-google" onclick="mostrarSecao('pl-crm-google')"><span class="nav-icon">📇</span><span class="nav-label">CRM leads_google</span></div>
+          <div class="nav-item" data-secao="pl-gmaps" onclick="mostrarSecao('pl-gmaps')"><span class="nav-icon">🗺️</span><span class="nav-label">Google Maps</span></div>
+          <div class="nav-item" data-secao="pl-fb" onclick="mostrarSecao('pl-fb')"><span class="nav-icon">📘</span><span class="nav-label">Facebook · oportunidades</span></div>
+          <div class="nav-item" data-secao="pl-templates" onclick="mostrarSecao('pl-templates')"><span class="nav-icon">📝</span><span class="nav-label">Templates msg</span></div>
+          <div class="nav-item" data-secao="pl-leads-manuais" onclick="mostrarSecao('pl-leads-manuais')"><span class="nav-icon">➕</span><span class="nav-label">Leads manuais</span></div>
+          <div class="nav-item" data-secao="pl-config" onclick="mostrarSecao('pl-config')"><span class="nav-icon">🔑</span><span class="nav-label">API Keys</span></div>
         </div>
 
         <!-- LEGADOS -->
@@ -1126,6 +1131,126 @@ table.t .acoes { white-space: nowrap; }
           </div>
         </section>
 
+        <section id="secao-pl-gmaps" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">🗺️ Google Maps · busca</h1>
+            <p class="secao-subtitulo">Busca empresas via Google Places · salva em leads_google</p>
+          </header>
+          <div class="secao-conteudo">
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Configuração</div><div class="bloco-sub">precisa do Google API Key em localStorage 1n_gkey · Places API ativa</div></div></div>
+              <div class="pa-form-group"><label>Google API Key</label><input id="pl-gm-key" placeholder="AIza..." onchange="localStorage.setItem('1n_gkey', this.value.trim())"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="pa-form-group"><label>Categoria</label><input id="pl-gm-cat" placeholder="ex: padaria, oficina mecânica"></div>
+                <div class="pa-form-group"><label>Cidade, UF</label><input id="pl-gm-city" placeholder="ex: Florianópolis, SC"></div>
+              </div>
+              <div class="pa-form-group"><label>Tag de campanha</label><input id="pl-gm-camp" placeholder="ex: gm-padaria-floripa"></div>
+              <div class="modal-actions" style="margin-top:6px"><button class="btn" onclick="plGmapsRun()">🔍 Buscar</button></div>
+              <div id="pl-gm-status" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
+            </div>
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Resultados (preview · selecione pra salvar)</div></div></div>
+              <div id="pl-gm-results"><div class="pa-empty">Rode uma busca pra ver os resultados.</div></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="secao-pl-fb" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">📘 Facebook · oportunidades</h1>
+            <p class="secao-subtitulo">Posts de intenção de venda capturados via Apify · tabela oportunidades_fb</p>
+          </header>
+          <div class="secao-conteudo">
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Filtro</div></div></div>
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <label style="display:flex;flex-direction:column;gap:4px;min-width:180px"><span class="modal-grupo-label" style="margin:0">Status</span>
+                  <select id="pl-fb-status" onchange="plFbLoad()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="">Todos</option><option value="novo">novo</option><option value="oportunidade">oportunidade</option><option value="descartado">descartado</option>
+                  </select>
+                </label>
+                <button class="btn btn-ghost" onclick="plFbLoad()">🔄 Atualizar</button>
+                <span id="pl-fb-count" style="margin-left:auto;font-size:11px;color:var(--ink-3);font-family:var(--mono)"></span>
+              </div>
+            </div>
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Oportunidades capturadas</div><div class="bloco-sub">limite 200 · ordenado por created_at desc</div></div></div>
+              <div id="pl-tbl-fb"><div class="pa-loading">Aguardando seleção…</div></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="secao-pl-templates" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">📝 Templates de mensagem</h1>
+            <p class="secao-subtitulo">CRUD básico · tabela templates_mensagem</p>
+          </header>
+          <div class="secao-conteudo">
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Novo template</div></div></div>
+              <div class="pa-form-group"><label>Nome</label><input id="pl-tpl-nome" placeholder="ex: padaria-frio"></div>
+              <div class="pa-form-group"><label>Categoria</label><input id="pl-tpl-cat" placeholder="ex: alimentacao"></div>
+              <div class="pa-form-group"><label>Mensagem (use {{nome}}, {{cidade}}, {{categoria}})</label><textarea id="pl-tpl-msg" rows="4" placeholder="Olá {{nome}}, tudo bem? Aqui é da 1Negócio. Vi que você tem um negócio em {{cidade}}..."></textarea></div>
+              <div class="modal-actions" style="margin-top:6px"><button class="btn" onclick="plTemplateSalvar()">💾 Salvar template</button></div>
+              <div id="pl-tpl-status" style="margin-top:8px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
+            </div>
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Templates salvos</div></div></div>
+              <div id="pl-tbl-templates"><div class="pa-loading">Aguardando seleção…</div></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="secao-pl-leads-manuais" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">➕ Leads manuais</h1>
+            <p class="secao-subtitulo">Adicionar lead individual · insert direto em leads_google</p>
+          </header>
+          <div class="secao-conteudo">
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Novo lead</div></div></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="pa-form-group"><label>Nome *</label><input id="pl-lm-nome"></div>
+                <div class="pa-form-group"><label>Telefone</label><input id="pl-lm-tel" placeholder="DDD + número"></div>
+                <div class="pa-form-group"><label>Cidade</label><input id="pl-lm-cidade"></div>
+                <div class="pa-form-group"><label>Categoria</label><input id="pl-lm-cat"></div>
+                <div class="pa-form-group"><label>Tag</label><input id="pl-lm-tag"></div>
+                <div class="pa-form-group"><label>Notas / bio</label><textarea id="pl-lm-bio" rows="2"></textarea></div>
+              </div>
+              <div class="modal-actions" style="margin-top:6px"><button class="btn" onclick="plLmSalvar()">💾 Salvar lead</button></div>
+              <div id="pl-lm-status" style="margin-top:8px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
+            </div>
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Importar CSV em massa</div><div class="bloco-sub">colunas: nome, telefone, cidade, categoria, tag, notas</div></div></div>
+              <input type="file" id="pl-lm-csv" accept=".csv" onchange="plLmCsv(event)">
+              <div id="pl-lm-csv-status" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="secao-pl-config" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">🔑 API Keys · scrapers</h1>
+            <p class="secao-subtitulo">Tokens dos serviços usados pelos scrapers · salvos em localStorage do browser</p>
+          </header>
+          <div class="secao-conteudo">
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Google Places API</div><div class="bloco-sub">localStorage 1n_gkey · usada por Google Maps + busca de contato em FB oportunidades</div></div></div>
+              <div class="pa-form-group"><label>API Key</label><input id="pl-cfg-gkey" placeholder="AIza..." onchange="localStorage.setItem('1n_gkey', this.value.trim()); document.getElementById('pl-cfg-status').textContent='✓ Google API Key salva';"></div>
+            </div>
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Apify Token</div><div class="bloco-sub">localStorage 1n_apify · usado por OLX, Facebook, Instagram scrapers</div></div></div>
+              <div class="pa-form-group"><label>Token</label><input id="pl-cfg-apify" placeholder="apify_api_..." onchange="localStorage.setItem('1n_apify', this.value.trim()); document.getElementById('pl-cfg-status').textContent='✓ Apify Token salvo';"></div>
+            </div>
+            <div id="pl-cfg-status" style="font-size:12px;font-family:var(--mono);color:var(--accent)"></div>
+            <div class="pa-alert" style="margin-top:12px">
+              <strong>Outros tokens (já configurados como secrets do Supabase · não precisam aqui):</strong><br>
+              ANTHROPIC_API_KEY, OPENAI_API_KEY, ZAPI_TOKEN/INSTANCE, STRIPE_SECRET_KEY, RESEND_API_KEY, TWILIO_*, CAL_API_KEY.<br>
+              Pra editar esses, vá em <a href="https://supabase.com/dashboard/project/dbijmgqlcrgjlcfrastg/settings/functions" target="_blank" style="color:var(--accent)">Supabase Dashboard → Edge Functions → Secrets</a>.
+            </div>
+          </div>
+        </section>
+
         <section id="secao-pl-crm-google" class="secao">
           <header class="secao-header">
             <h1 class="secao-titulo">📇 CRM leads_google</h1>
@@ -1516,8 +1641,14 @@ const SECAO_TITULOS = {
   'pa-conversas':  {grupo:'ADMIN MIGRADO', titulo:'Conversas admin',   icone:'💬'},
   'pa-teses':      {grupo:'ADMIN MIGRADO', titulo:'Teses (admin)',     icone:'📋'},
   // Etapa 2.A · port painel-leads (prefixo pl-*)
-  'pl-olx':        {grupo:'LEADS MIGRADO', titulo:'OLX scraper',       icone:'🛒'},
-  'pl-crm-google': {grupo:'LEADS MIGRADO', titulo:'CRM leads_google',  icone:'📇'},
+  'pl-olx':            {grupo:'LEADS MIGRADO', titulo:'OLX scraper',          icone:'🛒'},
+  'pl-crm-google':     {grupo:'LEADS MIGRADO', titulo:'CRM leads_google',     icone:'📇'},
+  // Etapa 2.B
+  'pl-gmaps':          {grupo:'LEADS MIGRADO', titulo:'Google Maps',          icone:'🗺️'},
+  'pl-fb':             {grupo:'LEADS MIGRADO', titulo:'Facebook · oportunidades', icone:'📘'},
+  'pl-templates':      {grupo:'LEADS MIGRADO', titulo:'Templates msg',        icone:'📝'},
+  'pl-leads-manuais':  {grupo:'LEADS MIGRADO', titulo:'Leads manuais',        icone:'➕'},
+  'pl-config':         {grupo:'LEADS MIGRADO', titulo:'API Keys',             icone:'🔑'},
 };
 
 function mostrarSecao(id) {
@@ -1552,6 +1683,12 @@ function mostrarSecao(id) {
     // Etapa 2.A · port painel-leads
     if (id === 'pl-olx')          plOlxInit();
     if (id === 'pl-crm-google')   plCrmInit();
+    // Etapa 2.B
+    if (id === 'pl-gmaps')          plGmapsInit();
+    if (id === 'pl-fb')             plFbInit();
+    if (id === 'pl-templates')      plTemplatesInit();
+    if (id === 'pl-leads-manuais')  plLeadsManuaisInit();
+    if (id === 'pl-config')         plConfigInit();
     // Mobile: fecha drawer
     if (window.innerWidth <= 768) toggleSidebar(false);
     // Scroll top
@@ -2568,6 +2705,269 @@ function plCrmEnviar(tel, nome) {
     if (t) t.value = (tel || '').replace(/\D/g,'');
     if (m && nome && !m.value) m.value = `Olá ${nome.split(' ')[0]}, tudo bem? Aqui é da 1Negócio. Vi seu anúncio e queria conversar...`;
   }, 100);
+}
+
+/* ========================================================================
+   PL-* · ETAPA 2.B · Google Maps + Facebook + Templates + Manuais + Config
+   ======================================================================== */
+
+// ---- Helper · formatar telefone BR pra E164 ----
+function _plFormatTel(tel) {
+  if (!tel) return '';
+  let n = String(tel).replace(/\D/g, '');
+  if (n.startsWith('55') && n.length >= 12) return n;
+  if (n.length === 11 || n.length === 10) return '55' + n;
+  return n;
+}
+
+// ---- pl-gmaps · Google Maps Places ----
+let _plGmResults = [];
+
+function plGmapsInit() {
+  const k = localStorage.getItem('1n_gkey') || '';
+  const inp = document.getElementById('pl-gm-key');
+  if (inp && !inp.value) inp.value = k;
+}
+async function plGmapsRun() {
+  const apiKey = (document.getElementById('pl-gm-key').value || '').trim();
+  if (!apiKey) { alert('Configure a Google API Key'); return; }
+  localStorage.setItem('1n_gkey', apiKey);
+  const cat = document.getElementById('pl-gm-cat').value.trim();
+  const cidadeRaw = document.getElementById('pl-gm-city').value.trim();
+  const camp = document.getElementById('pl-gm-camp').value.trim();
+  if (!cat || !cidadeRaw) { alert('Categoria e cidade são obrigatórios'); return; }
+  const cidade = cidadeRaw.split(',')[0].trim();
+  const estado = (cidadeRaw.split(',')[1] || '').trim();
+  const query = `${cat} em ${cidade} ${estado} Brasil`;
+  const status = document.getElementById('pl-gm-status');
+  status.textContent = 'Buscando...'; status.style.color = 'var(--ink-3)';
+  _plGmResults = [];
+  try {
+    let pageToken = null, page = 0;
+    do {
+      page++;
+      let url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}&language=pt-BR`;
+      if (pageToken) url += `&pagetoken=${pageToken}`;
+      const proxy = SB + '/functions/v1/google-places-proxy?url=' + encodeURIComponent(url);
+      const res = await fetch(proxy);
+      const data = await res.json();
+      if (data.status === 'REQUEST_DENIED') throw new Error('API Key inválida ou Places API não ativada');
+      for (const p of (data.results || [])) {
+        let phone = '', website = '';
+        try {
+          const detUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${p.place_id}&fields=formatted_phone_number,international_phone_number,website&key=${apiKey}&language=pt-BR`;
+          const detProxy = SB + '/functions/v1/google-places-proxy?url=' + encodeURIComponent(detUrl);
+          const det = await (await fetch(detProxy)).json();
+          phone = det.result?.international_phone_number || det.result?.formatted_phone_number || '';
+          website = det.result?.website || '';
+        } catch(e) {}
+        _plGmResults.push({
+          nome: p.name, telefone: _plFormatTel(phone), endereco: p.formatted_address || '',
+          cidade, estado, categoria: cat, website, place_id: p.place_id, campanha: camp,
+          origem: 'google', status: 'novo'
+        });
+      }
+      status.textContent = `${_plGmResults.length} resultados (página ${page})...`;
+      pageToken = data.next_page_token || null;
+      if (pageToken) await new Promise(r => setTimeout(r, 2000));
+    } while (pageToken && page < 3);
+    status.textContent = `✅ ${_plGmResults.length} negócios encontrados.`;
+    status.style.color = 'var(--accent)';
+    plGmRender();
+  } catch(e) {
+    status.textContent = '✕ Erro: ' + e.message;
+    status.style.color = 'var(--alert)';
+  }
+}
+function plGmRender() {
+  const wrap = document.getElementById('pl-gm-results');
+  if (!_plGmResults.length) { wrap.innerHTML = '<div class="pa-empty">Sem resultados.</div>'; return; }
+  const rows = _plGmResults.map((r, i) => `<tr>
+    <td><input type="checkbox" class="pl-gm-chk" data-idx="${i}" checked></td>
+    <td>${escapeHtml(r.nome)}</td>
+    <td>${escapeHtml(r.telefone || '—')}</td>
+    <td>${escapeHtml(r.cidade)}</td>
+    <td>${escapeHtml(r.categoria)}</td>
+    <td>${r.website ? `<a href="${escapeHtml(r.website)}" target="_blank" style="color:var(--accent)">↗</a>` : '—'}</td>
+  </tr>`).join('');
+  wrap.innerHTML = `<div class="pa-table-wrap"><table class="pa-table"><thead><tr><th><input type="checkbox" onchange="document.querySelectorAll('.pl-gm-chk').forEach(c=>c.checked=this.checked)" checked></th><th>Nome</th><th>Telefone</th><th>Cidade</th><th>Categoria</th><th>Site</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="modal-actions" style="margin-top:12px"><button class="btn" onclick="plGmSalvar()">💾 Salvar selecionados em leads_google</button></div>`;
+}
+async function plGmSalvar() {
+  const checks = document.querySelectorAll('.pl-gm-chk:checked');
+  if (!checks.length) { alert('Selecione pelo menos 1 lead'); return; }
+  const sel = Array.from(checks).map(c => _plGmResults[parseInt(c.dataset.idx)]).filter(Boolean);
+  try {
+    const res = await fetch(SB + '/rest/v1/leads_google', {
+      method:'POST',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'resolution=ignore-duplicates,return=minimal'},
+      body: JSON.stringify(sel)
+    });
+    if (!res.ok && res.status !== 201) throw new Error(await res.text());
+    document.getElementById('pl-gm-status').textContent = `✓ ${sel.length} salvos no pool.`;
+    document.getElementById('pl-gm-status').style.color = 'var(--accent)';
+  } catch(e) {
+    document.getElementById('pl-gm-status').textContent = '✕ Erro ao salvar: ' + e.message;
+    document.getElementById('pl-gm-status').style.color = 'var(--alert)';
+  }
+}
+
+// ---- pl-fb · Facebook oportunidades_fb ----
+function plFbInit() { plFbLoad(); }
+async function plFbLoad() {
+  const tbl = document.getElementById('pl-tbl-fb');
+  tbl.innerHTML = '<div class="pa-loading">Carregando...</div>';
+  const status = document.getElementById('pl-fb-status').value;
+  let path = '/rest/v1/oportunidades_fb?select=id,autor_nome,post_texto,frase_matched,cidade,whatsapp,status,post_url,post_data,likes,comments,origem&order=created_at.desc&limit=200';
+  if (status) path += `&status=eq.${encodeURIComponent(status)}`;
+  try {
+    const data = await sbFetch(path);
+    document.getElementById('pl-fb-count').textContent = (data || []).length + ' oportunidades';
+    if (!data.length) { tbl.innerHTML = '<div class="pa-empty">Nenhuma oportunidade capturada.</div>'; return; }
+    tbl.innerHTML = paRenderTable([
+      {key:'autor_nome', label:'Autor'},
+      {key:'post_texto', label:'Post', type:'actions', render: r => `<div style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.post_texto||'')}">${escapeHtml((r.post_texto||'').slice(0,80))}${(r.post_texto||'').length>80?'…':''}</div>`},
+      {key:'frase_matched', label:'Match'},
+      {key:'cidade', label:'Cidade'},
+      {key:'whatsapp', label:'Telefone', type:'actions', render: r => r.whatsapp && r.whatsapp.length > 10 ? `<a href="https://wa.me/${escapeHtml(r.whatsapp)}" target="_blank" style="color:var(--accent)">${escapeHtml(r.whatsapp)}</a>` : '<span class="pa-muted">—</span>'},
+      {key:'status', label:'Status', type:'badge'},
+      {key:'post_data', label:'Postado', type:'date'},
+      {key:'id', label:'', type:'actions', render: r => `<div style="display:flex;gap:6px"><a href="${escapeHtml(r.post_url||'#')}" target="_blank" class="pa-btn-act">Ver</a>${r.status==='novo'?`<button class="pa-btn-act success" onclick="plFbMarcar('${r.id}','oportunidade')">✓</button>`:''}${r.status!=='descartado'?`<button class="pa-btn-act danger" onclick="plFbMarcar('${r.id}','descartado')">✕</button>`:''}</div>`}
+    ], data, 'Sem oportunidades.');
+  } catch(e) { tbl.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`; }
+}
+async function plFbMarcar(id, status) {
+  try {
+    const res = await fetch(SB + `/rest/v1/oportunidades_fb?id=eq.${encodeURIComponent(id)}`, {
+      method:'PATCH',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ status, updated_at: new Date().toISOString() })
+    });
+    if (!res.ok) throw new Error('PATCH ' + res.status);
+    plFbLoad();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
+// ---- pl-templates · CRUD básico templates_mensagem ----
+async function plTemplatesInit() {
+  const tbl = document.getElementById('pl-tbl-templates');
+  tbl.innerHTML = '<div class="pa-loading">Carregando...</div>';
+  try {
+    const data = await sbFetch('/rest/v1/templates_mensagem?select=id,nome,categoria,mensagem,criado_em&order=criado_em.desc&limit=200');
+    if (!data.length) { tbl.innerHTML = '<div class="pa-empty">Nenhum template salvo ainda.</div>'; return; }
+    tbl.innerHTML = paRenderTable([
+      {key:'nome',     label:'Nome'},
+      {key:'categoria',label:'Categoria'},
+      {key:'mensagem', label:'Mensagem', type:'actions', render: r => `<div style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.mensagem||'')}">${escapeHtml((r.mensagem||'').slice(0,100))}${(r.mensagem||'').length>100?'…':''}</div>`},
+      {key:'criado_em',label:'Criado', type:'date'},
+      {key:'id', label:'', type:'actions', render: r => `<button class="pa-btn-act danger" onclick="plTemplateExcluir('${r.id}')">Excluir</button>`}
+    ], data, 'Sem templates.');
+  } catch(e) { tbl.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`; }
+}
+async function plTemplateSalvar() {
+  const nome = document.getElementById('pl-tpl-nome').value.trim();
+  const cat = document.getElementById('pl-tpl-cat').value.trim();
+  const msg = document.getElementById('pl-tpl-msg').value.trim();
+  const status = document.getElementById('pl-tpl-status');
+  if (!nome || !msg) { status.textContent = '⚠ Nome e mensagem são obrigatórios'; status.style.color = 'var(--alert)'; return; }
+  try {
+    const res = await fetch(SB + '/rest/v1/templates_mensagem', {
+      method:'POST',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ nome, categoria: cat || null, mensagem: msg })
+    });
+    if (!res.ok && res.status !== 201) throw new Error(await res.text());
+    status.textContent = '✓ Template salvo'; status.style.color = 'var(--accent)';
+    document.getElementById('pl-tpl-nome').value = '';
+    document.getElementById('pl-tpl-cat').value = '';
+    document.getElementById('pl-tpl-msg').value = '';
+    plTemplatesInit();
+  } catch(e) { status.textContent = '✕ Erro: ' + e.message; status.style.color = 'var(--alert)'; }
+}
+async function plTemplateExcluir(id) {
+  if (!confirm('Excluir este template?')) return;
+  try {
+    const res = await fetch(SB + `/rest/v1/templates_mensagem?id=eq.${encodeURIComponent(id)}`, {
+      method:'DELETE',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK)}
+    });
+    if (!res.ok) throw new Error('DELETE ' + res.status);
+    plTemplatesInit();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
+// ---- pl-leads-manuais · individual + CSV ----
+function plLeadsManuaisInit() { /* nada · só formulário */ }
+async function plLmSalvar() {
+  const nome = document.getElementById('pl-lm-nome').value.trim();
+  const tel = _plFormatTel(document.getElementById('pl-lm-tel').value);
+  const cidade = document.getElementById('pl-lm-cidade').value.trim();
+  const cat = document.getElementById('pl-lm-cat').value.trim();
+  const tag = document.getElementById('pl-lm-tag').value.trim();
+  const bio = document.getElementById('pl-lm-bio').value.trim();
+  const status = document.getElementById('pl-lm-status');
+  if (!nome) { status.textContent = '⚠ Nome obrigatório'; status.style.color = 'var(--alert)'; return; }
+  try {
+    const res = await fetch(SB + '/rest/v1/leads_google', {
+      method:'POST',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ nome, telefone: tel||null, cidade: cidade||null, categoria: cat||null, origem:'manual', status:'novo', bio: bio||null, tags: tag ? [tag] : [] })
+    });
+    if (!res.ok && res.status !== 201) throw new Error(await res.text());
+    status.textContent = '✓ Lead salvo'; status.style.color = 'var(--accent)';
+    ['pl-lm-nome','pl-lm-tel','pl-lm-cidade','pl-lm-cat','pl-lm-tag','pl-lm-bio'].forEach(id => document.getElementById(id).value = '');
+  } catch(e) { status.textContent = '✕ Erro: ' + e.message; status.style.color = 'var(--alert)'; }
+}
+function plLmCsv(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const status = document.getElementById('pl-lm-csv-status');
+  status.textContent = 'Lendo CSV...'; status.style.color = 'var(--ink-3)';
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const text = e.target.result;
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    if (lines.length < 2) { status.textContent = '⚠ CSV vazio'; status.style.color = 'var(--alert)'; return; }
+    const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const rows = lines.slice(1).map(line => {
+      const cols = line.split(',').map(c => c.trim());
+      const o = { origem:'manual', status:'novo' };
+      header.forEach((h, i) => {
+        if (['nome','telefone','cidade','categoria','bio'].includes(h)) o[h] = cols[i] || null;
+        if (h === 'tag' && cols[i]) o.tags = [cols[i]];
+      });
+      if (o.telefone) o.telefone = _plFormatTel(o.telefone);
+      return o;
+    }).filter(r => r.nome);
+    if (!rows.length) { status.textContent = '⚠ Nenhuma linha válida (precisa coluna "nome")'; status.style.color = 'var(--alert)'; return; }
+    status.textContent = `Salvando ${rows.length} leads...`;
+    let salvos = 0;
+    for (let i = 0; i < rows.length; i += 50) {
+      const lote = rows.slice(i, i+50);
+      try {
+        const res = await fetch(SB + '/rest/v1/leads_google', {
+          method:'POST',
+          headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'resolution=ignore-duplicates,return=minimal'},
+          body: JSON.stringify(lote)
+        });
+        if (res.ok || res.status === 201) salvos += lote.length;
+      } catch(e) {}
+    }
+    status.textContent = `✓ ${salvos} de ${rows.length} salvos no pool.`;
+    status.style.color = 'var(--accent)';
+    ev.target.value = '';
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+// ---- pl-config · API Keys ----
+function plConfigInit() {
+  const k1 = localStorage.getItem('1n_gkey') || '';
+  const k2 = localStorage.getItem('1n_apify') || '';
+  const a = document.getElementById('pl-cfg-gkey');
+  const b = document.getElementById('pl-cfg-apify');
+  if (a && !a.value) a.value = k1;
+  if (b && !b.value) b.value = k2;
 }
 
 /* ========================================================================
