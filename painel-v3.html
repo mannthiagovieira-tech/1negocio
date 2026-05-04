@@ -799,6 +799,7 @@ table.t .acoes { white-space: nowrap; }
           <div class="nav-item" data-secao="scrapers" onclick="mostrarSecao('scrapers')"><span class="nav-icon">🕷️</span><span class="nav-label">Scrapers</span></div>
           <div class="nav-item" data-secao="ads" onclick="mostrarSecao('ads')"><span class="nav-icon">📣</span><span class="nav-label">Ads</span></div>
           <div class="nav-item" data-secao="disparos" onclick="mostrarSecao('disparos')"><span class="nav-icon">📤</span><span class="nav-label">Disparos WhatsApp</span></div>
+          <div class="nav-item" data-secao="triagem-olx" onclick="mostrarSecao('triagem-olx')"><span class="nav-icon">🟡</span><span class="nav-label">Triagem ambíguos OLX</span><span class="star">⭐</span></div>
           <div class="nav-item" data-secao="brand-repo" onclick="mostrarSecao('brand-repo')"><span class="nav-icon">🎨</span><span class="nav-label">Brand Repository</span></div>
           <div class="nav-item" data-secao="radar" onclick="mostrarSecao('radar')"><span class="nav-icon">🛰️</span><span class="nav-label">Radar de Mercado</span></div>
           <div class="nav-item" data-secao="midia-ger" onclick="mostrarSecao('midia-ger')"><span class="nav-icon">💰</span><span class="nav-label">Mídia Gerenciada</span></div>
@@ -1676,6 +1677,19 @@ table.t .acoes { white-space: nowrap; }
           </div>
         </section>
 
+        <section id="secao-triagem-olx" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">🟡 Triagem ambíguos OLX</h1>
+            <p class="secao-subtitulo">Revisar leads classificados como "ambíguo" pela IA · 1 lead por vez · 4 botões</p>
+          </header>
+          <div class="secao-conteudo">
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Progresso</div><div class="bloco-sub" id="tr-progresso">carregando...</div></div></div>
+              <div id="tr-card"><div class="pa-loading">Aguardando seleção…</div></div>
+            </div>
+          </div>
+        </section>
+
         <section id="secao-roteiros" class="secao">
           <header class="secao-header">
             <h1 class="secao-titulo">🎙️ Roteiros (Stories · YouTube)</h1>
@@ -1973,6 +1987,7 @@ const SECAO_TITULOS = {
   'cowork-admin': {grupo:'SISTEMA', titulo:'Cowork (admin)', icone:'🤖'},
   'monitoramento-conteudo': {grupo:'MARKETING', titulo:'Monitoramento de Conteúdo', icone:'📡'},
   'roteiros': {grupo:'MARKETING', titulo:'Roteiros (Stories · YouTube)', icone:'🎙️'},
+  'triagem-olx': {grupo:'MARKETING', titulo:'Triagem ambíguos OLX', icone:'🟡'},
   'planejado': {grupo:'FINANCEIRO', titulo:'Planejado vs Executado', icone:'📊'},
   'contas': {grupo:'FINANCEIRO', titulo:'Contas a pagar/receber', icone:'💸'},
   'custos': {grupo:'FINANCEIRO', titulo:'Custos', icone:'🏷️'},
@@ -2045,6 +2060,7 @@ function mostrarSecao(id) {
     if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); }
     if (id === 'plano-dia') { cwLoadPlanoFull(); cwLoadPlanoHistorico(); }
     if (id === 'cowork-admin') cwAdmInit();
+    if (id === 'triagem-olx') trInit();
     if (id === 'gerador-conteudo') { gcInit(); }
     // Etapa 1.A · loaders das seções portadas do painel-admin
     if (id === 'pa-usuarios')   paLoadUsuarios();
@@ -4342,10 +4358,17 @@ function cwSetFiltroLista(f) {
 }
 
 async function cwBuscarTelefone(id) {
+  const apify = localStorage.getItem('1n_apify') || '';
+  if (!apify) {
+    if (confirm('Apify Token não configurado.\n\nIr pra Sistema → API Keys configurar agora?\n(Cancelar pra continuar manualmente · busca via URL OLX + paste)')) {
+      mostrarSecao('pl-config');
+      return;
+    }
+    // continua sem token · edge function vai retornar manual_required:true e cair no fluxo de paste manual
+  }
   const btn = document.getElementById('btn-buscar-' + id);
   if (btn) { btn.disabled = true; btn.textContent = '⏳ buscando...'; }
   try {
-    const apify = localStorage.getItem('1n_apify') || '';
     const res = await fetch(SB + '/functions/v1/buscar-telefone-olx', {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+(__token||AK),'apikey':AK},
@@ -4770,6 +4793,115 @@ async function cwAdmDelete(tabela, id, onDone) {
     });
     if (!res.ok) throw new Error('DELETE ' + res.status);
     if (onDone) onDone();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
+/* ========================================================================
+   TR-* · TRIAGEM AMBÍGUOS OLX (B47)
+   ======================================================================== */
+let _trBuffer = [];
+let _trIdx = 0;
+let _trTotalAmbiguos = 0;
+let _trTriadosHoje = 0;
+
+async function trInit() {
+  _trIdx = 0;
+  _trBuffer = [];
+  await trCarregarStats();
+  await trCarregarBuffer();
+  trRender();
+}
+
+async function trCarregarStats() {
+  try {
+    const total = await fetch(SB + '/rest/v1/leads_google?origem=eq.olx&classificacao_ia=eq.ambiguo&revisar_depois=is.null&select=id&limit=1', {
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token||AK), 'Prefer': 'count=exact' }
+    });
+    const range = total.headers.get('content-range') || '';
+    const m = range.match(/\/(\d+)$/);
+    _trTotalAmbiguos = m ? parseInt(m[1], 10) : 0;
+  } catch(e) { _trTotalAmbiguos = 0; }
+}
+
+async function trCarregarBuffer() {
+  try {
+    const data = await sbFetch('/rest/v1/leads_google?origem=eq.olx&classificacao_ia=eq.ambiguo&revisar_depois=is.null&order=created_at.desc&limit=50&select=id,nome,bio,cidade,categoria,tags,notas,url_anuncio,valor_anuncio,created_at');
+    _trBuffer = data || [];
+    _trIdx = 0;
+  } catch(e) { console.warn('[trCarregarBuffer]', e); _trBuffer = []; }
+}
+
+function trRender() {
+  const card = document.getElementById('tr-card');
+  const prog = document.getElementById('tr-progresso');
+  if (!card) return;
+  if (prog) prog.textContent = `${_trTotalAmbiguos} ambíguos restantes · ${_trTriadosHoje} triados nesta sessão`;
+  if (!_trBuffer.length || _trIdx >= _trBuffer.length) {
+    if (_trTotalAmbiguos > 0) {
+      // buffer acabou mas ainda tem · re-fetch
+      trCarregarBuffer().then(() => trRender());
+      card.innerHTML = '<div class="pa-loading">Carregando próximo lote de 50...</div>';
+      return;
+    }
+    card.innerHTML = '<div class="pa-empty">🎉 Todos os ambíguos foram triados! Volta amanhã ou rode o classificador OLX em Scrapers → OLX se houver leads novos.</div>';
+    return;
+  }
+  const lead = _trBuffer[_trIdx];
+  const motivo = (lead.notas || '').replace(/^\[IA\]\s*/, '');
+  const valor = lead.valor_anuncio ? `R$ ${Number(lead.valor_anuncio).toLocaleString('pt-BR')}` : '';
+  const dataAnuncio = lead.created_at ? new Date(lead.created_at).toLocaleDateString('pt-BR') : '';
+  card.innerHTML = `<div style="border:1px solid var(--accent-line);border-radius:var(--r2);padding:18px;background:var(--surface);display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-3)">Lead ${_trIdx+1} de ${_trBuffer.length} no lote · ${_trTotalAmbiguos} totais</div>
+      ${lead.url_anuncio ? `<a class="btn btn-ghost btn-mini" href="${escapeHtml(lead.url_anuncio)}" target="_blank">🔗 Ver no OLX</a>` : '<span class="pa-muted" style="font-size:11px">sem URL · próximo scrap traz</span>'}
+    </div>
+    <div style="font-size:18px;font-weight:600;line-height:1.3">${escapeHtml(lead.nome || '(sem título)')}</div>
+    <div style="font-size:13px;color:var(--ink-2);display:flex;gap:14px;flex-wrap:wrap">
+      ${lead.cidade ? `<span>📍 ${escapeHtml(lead.cidade)}</span>` : ''}
+      ${valor ? `<span>💰 ${escapeHtml(valor)}</span>` : ''}
+      ${lead.categoria ? `<span>📂 ${escapeHtml(lead.categoria)}</span>` : ''}
+      ${dataAnuncio ? `<span>📅 ${dataAnuncio}</span>` : ''}
+    </div>
+    ${lead.bio ? `<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);padding:12px;font-size:13px;color:var(--ink-2);max-height:200px;overflow-y:auto;white-space:pre-wrap">${escapeHtml(lead.bio)}</div>` : ''}
+    ${motivo ? `<div style="font-size:11px;color:var(--ink-3);font-style:italic">IA disse · ${escapeHtml(motivo)}</div>` : ''}
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:6px">
+      <button class="btn" onclick="trClassificar('${lead.id}','negocio_funcionamento')">✅ É negócio em operação</button>
+      <button class="btn btn-ghost" onclick="trClassificar('${lead.id}','ponto_vazio')">⚪ Ponto vazio</button>
+      <button class="btn btn-ghost" onclick="trClassificar('${lead.id}','imovel_residencial')">⚪ Imóvel residencial</button>
+      <button class="btn btn-ghost" onclick="trPular('${lead.id}')">⏭ Pular · revisar depois</button>
+    </div>
+  </div>`;
+}
+
+async function trClassificar(id, categoria) {
+  try {
+    await fetch(SB + `/rest/v1/leads_google?id=eq.${encodeURIComponent(id)}`, {
+      method:'PATCH',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({
+        classificacao_ia: categoria,
+        classificado_em: new Date().toISOString(),
+        notas: '[triado_manualmente] reclassificado pra ' + categoria,
+      })
+    });
+    _trTriadosHoje++;
+    _trTotalAmbiguos = Math.max(0, _trTotalAmbiguos - 1);
+    _trIdx++;
+    trRender();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
+async function trPular(id) {
+  try {
+    await fetch(SB + `/rest/v1/leads_google?id=eq.${encodeURIComponent(id)}`, {
+      method:'PATCH',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ revisar_depois: true })
+    });
+    _trTriadosHoje++;
+    _trTotalAmbiguos = Math.max(0, _trTotalAmbiguos - 1);
+    _trIdx++;
+    trRender();
   } catch(e) { alert('Erro: ' + e.message); }
 }
 
