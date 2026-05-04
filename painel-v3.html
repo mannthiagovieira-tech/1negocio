@@ -1129,9 +1129,17 @@ table.t .acoes { white-space: nowrap; }
               <!-- ───────── PANEL OLX ───────── -->
               <div class="pl-scrap-panel" data-scrap-panel="olx" style="display:none">
                 <div class="pa-form-group"><label>Apify Token (localStorage 1n_apify)</label><input id="pl-olx-apify" placeholder="apify_api_..." onchange="localStorage.setItem('1n_apify', this.value.trim())"></div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                  <div class="pa-form-group"><label>Palavras-chave (vírgula)</label><input id="pl-olx-kw" value="vendo restaurante, passo ponto comercial"></div>
-                  <div class="pa-form-group"><label>Cidades (vírgula · "brasil"=sem cidade)</label><input id="pl-olx-city" value="brasil"></div>
+                <div class="pa-form-group">
+                  <label>Palavras-chave · ativas <span style="float:right;font-family:var(--mono);font-size:11px;color:var(--ink-3)">do banco · scrap_configs</span></label>
+                  <div id="pl-olx-kw-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"><span class="pa-muted" style="font-size:12px">carregando…</span></div>
+                  <div style="display:flex;gap:6px"><input id="pl-olx-kw-new" placeholder="+ adicionar keyword (ex: vendo açaí)" style="flex:1;padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:12px"><button class="pa-btn-act" onclick="plOlxAddCfg('keyword')">+</button></div>
+                </div>
+                <div class="pa-form-group">
+                  <label>Cidades · ativas <span style="float:right;font-family:var(--mono);font-size:11px;color:var(--ink-3)">"brasil" = sem cidade</span></label>
+                  <div id="pl-olx-city-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"><span class="pa-muted" style="font-size:12px">carregando…</span></div>
+                  <div style="display:flex;gap:6px"><input id="pl-olx-city-new" placeholder="+ adicionar cidade (ex: campinas · auto-slug)" style="flex:1;padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:12px"><button class="pa-btn-act" onclick="plOlxAddCfg('cidade')">+</button></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
                   <div class="pa-form-group"><label>Páginas por query (1-10)</label><input id="pl-olx-pages" type="number" value="3" min="1" max="10"></div>
                   <div class="pa-form-group"><label>Ordenação</label><select id="pl-olx-sort"><option value="newest">Mais novos</option><option value="price_asc">Menor preço</option><option value="price_desc">Maior preço</option></select></div>
                   <div class="pa-form-group"><label>Tag de campanha</label><input id="pl-olx-camp" value="olx-negocios"></div>
@@ -1442,7 +1450,7 @@ table.t .acoes { white-space: nowrap; }
               <div id="pl-crm-status-line" style="margin-top:10px;font-size:11px;color:var(--ink-3);font-family:var(--mono)"></div>
             </div>
             <div class="bloco">
-              <div class="bloco-head"><div><div class="bloco-titulo">Pool (limite 500)</div><div class="bloco-sub">tabela leads_google · ordenado por criado_em desc</div></div></div>
+              <div class="bloco-head"><div><div class="bloco-titulo">Pool (limite 500)</div><div class="bloco-sub">tabela leads_google · ordenado por created_at desc</div></div></div>
               <div id="pl-tbl-crm"><div class="pa-loading">Aguardando seleção…</div></div>
             </div>
           </div>
@@ -2105,16 +2113,16 @@ async function paLoadLeads() {
   if (tg) tg.innerHTML = '<div class="pa-loading">Carregando...</div>';
   try {
     const [lsR, lgR] = await Promise.allSettled([
-      paApi('select','leads_site',  {select:'id,nome,email,telefone,interesse,criado_em', order:'criado_em', ascending:false, limit:200}),
-      paApi('select','leads_google',{select:'id,nome,email,telefone,origem,criado_em',    order:'criado_em', ascending:false, limit:200})
+      paApi('select','leads_site',  {select:'id,nome,email,telefone,interesse,created_at', order:'created_at', ascending:false, limit:200}),
+      paApi('select','leads_google',{select:'id,nome,email,telefone,origem,created_at',    order:'created_at', ascending:false, limit:200})
     ]);
     const lsCols = [
       {key:'nome',label:'Nome'},{key:'email',label:'E-mail'},{key:'telefone',label:'Telefone'},
-      {key:'interesse',label:'Interesse'},{key:'criado_em',label:'Data',type:'date'}
+      {key:'interesse',label:'Interesse'},{key:'created_at',label:'Data',type:'date'}
     ];
     const lgCols = [
       {key:'nome',label:'Nome'},{key:'email',label:'E-mail'},{key:'telefone',label:'Telefone'},
-      {key:'origem',label:'Origem'},{key:'criado_em',label:'Data',type:'date'}
+      {key:'origem',label:'Origem'},{key:'created_at',label:'Data',type:'date'}
     ];
     if (ts) ts.innerHTML = (lsR.status==='fulfilled') ? paRenderTable(lsCols, lsR.value.data||[], 'Nenhum lead do site.')   : `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(lsR.reason?.message||'?')}</div>`;
     if (tg) tg.innerHTML = (lgR.status==='fulfilled') ? paRenderTable(lgCols, lgR.value.data||[], 'Nenhum lead do Google.') : `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(lgR.reason?.message||'?')}</div>`;
@@ -2772,18 +2780,80 @@ async function plDisparar() {
   }
 }
 
-// ---- pl-olx · OLX Scraper ----
-function plOlxInit() {
+// ---- pl-olx · OLX Scraper (configs em scrap_configs) ----
+let _plOlxCfgs = { keyword: [], cidade: [] };
+
+async function plOlxInit() {
   const apify = localStorage.getItem('1n_apify') || '';
   const inp = document.getElementById('pl-olx-apify');
   if (inp && !inp.value) inp.value = apify;
+  await plOlxCarregarCfgs();
   plOlxLoadResultados();
+}
+
+async function plOlxCarregarCfgs() {
+  try {
+    const data = await sbFetch('/rest/v1/scrap_configs?scraper=eq.olx&ativo=eq.true&select=id,tipo,valor&order=valor.asc&limit=500');
+    _plOlxCfgs.keyword = (data || []).filter(d => d.tipo === 'keyword');
+    _plOlxCfgs.cidade  = (data || []).filter(d => d.tipo === 'cidade');
+    // Fallback retrocompat · se banco vazio, usa hardcoded antigo
+    if (!_plOlxCfgs.keyword.length) _plOlxCfgs.keyword = [{id:null,tipo:'keyword',valor:'vendo restaurante'},{id:null,tipo:'keyword',valor:'passo ponto comercial'}];
+    if (!_plOlxCfgs.cidade.length)  _plOlxCfgs.cidade  = [{id:null,tipo:'cidade',valor:'brasil'}];
+  } catch(e) {
+    console.warn('[plOlx] erro ao carregar configs · usando fallback localStorage:', e.message);
+    _plOlxCfgs.keyword = [{id:null,tipo:'keyword',valor:'vendo restaurante'},{id:null,tipo:'keyword',valor:'passo ponto comercial'}];
+    _plOlxCfgs.cidade  = [{id:null,tipo:'cidade',valor:'brasil'}];
+  }
+  plOlxRenderChips();
+}
+
+function plOlxRenderChips() {
+  const fmt = (item) => `<span style="display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--line);border-radius:99px;padding:4px 10px;font-size:12px">${escapeHtml(item.valor)}${item.id ? `<button onclick="plOlxDelCfg('${item.id}','${item.tipo}')" style="background:none;border:none;color:var(--ink-3);cursor:pointer;font-size:14px;line-height:1;padding:0" title="remover">×</button>` : '<span style="color:var(--ink-3);font-size:9px">fallback</span>'}</span>`;
+  const kwWrap = document.getElementById('pl-olx-kw-chips');
+  const ctWrap = document.getElementById('pl-olx-city-chips');
+  if (kwWrap) kwWrap.innerHTML = _plOlxCfgs.keyword.length ? _plOlxCfgs.keyword.map(fmt).join('') : '<span class="pa-muted" style="font-size:12px">— vazio —</span>';
+  if (ctWrap) ctWrap.innerHTML = _plOlxCfgs.cidade.length  ? _plOlxCfgs.cidade.map(fmt).join('')  : '<span class="pa-muted" style="font-size:12px">— vazio —</span>';
+}
+
+async function plOlxAddCfg(tipo) {
+  const inputId = tipo === 'keyword' ? 'pl-olx-kw-new' : 'pl-olx-city-new';
+  const inp = document.getElementById(inputId);
+  let v = (inp.value || '').trim();
+  if (!v) return;
+  if (tipo === 'cidade') v = v.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+  try {
+    const res = await fetch(SB + '/rest/v1/scrap_configs', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=representation,resolution=merge-duplicates' },
+      body: JSON.stringify({ scraper: 'olx', tipo, valor: v, ativo: true })
+    });
+    if (!res.ok && res.status !== 201 && res.status !== 200) {
+      const txt = await res.text();
+      throw new Error('POST ' + res.status + ': ' + txt.slice(0, 100));
+    }
+    inp.value = '';
+    await plOlxCarregarCfgs();
+  } catch(e) { alert('Erro ao adicionar: ' + e.message); }
+}
+
+async function plOlxDelCfg(id, tipo) {
+  if (!id) return;
+  if (!confirm('Remover este item das configs ativas? (soft-delete · histórico preservado)')) return;
+  try {
+    const res = await fetch(SB + `/rest/v1/scrap_configs?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ ativo: false })
+    });
+    if (!res.ok) throw new Error('PATCH ' + res.status);
+    await plOlxCarregarCfgs();
+  } catch(e) { alert('Erro ao remover: ' + e.message); }
 }
 async function plOlxLoadResultados() {
   const wrap = document.getElementById('pl-olx-resultados');
   wrap.innerHTML = '<div class="pa-loading">Carregando resultados anteriores...</div>';
   try {
-    const data = await sbFetch('/rest/v1/leads_google?origem=eq.olx&order=criado_em.desc&limit=100&select=id,nome,telefone,cidade,categoria,status,bio,tags,criado_em');
+    const data = await sbFetch('/rest/v1/leads_google?origem=eq.olx&order=created_at.desc&limit=100&select=id,nome,telefone,cidade,categoria,status,bio,tags,created_at');
     if (!data.length) { wrap.innerHTML = '<div class="pa-empty">Nenhum lead OLX salvo ainda · rode a busca acima.</div>'; return; }
     wrap.innerHTML = paRenderTable([
       {key:'nome',     label:'Anúncio'},
@@ -2791,7 +2861,7 @@ async function plOlxLoadResultados() {
       {key:'cidade',   label:'Cidade'},
       {key:'categoria',label:'Categoria'},
       {key:'status',   label:'Status', type:'badge'},
-      {key:'criado_em',label:'Capturado', type:'date'}
+      {key:'created_at',label:'Capturado', type:'date'}
     ], data, 'Sem resultados');
   } catch(e) { wrap.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`; }
 }
@@ -2799,13 +2869,13 @@ async function plOlxRun() {
   const apify = (document.getElementById('pl-olx-apify').value || '').trim();
   if (!apify) { alert('Configure o Apify Token (input acima)'); return; }
   localStorage.setItem('1n_apify', apify);
-  const kws = document.getElementById('pl-olx-kw').value.split(',').map(s => s.trim()).filter(Boolean);
-  const cidades = document.getElementById('pl-olx-city').value.split(',').map(s => s.trim().toLowerCase().replace(/\s+/g,'-')).filter(Boolean);
+  const kws = (_plOlxCfgs.keyword || []).map(c => c.valor).filter(Boolean);
+  let cidades = (_plOlxCfgs.cidade || []).map(c => c.valor).filter(Boolean);
   const maxPages = parseInt(document.getElementById('pl-olx-pages').value) || 3;
   const sortBy = document.getElementById('pl-olx-sort').value || 'newest';
   const campanha = document.getElementById('pl-olx-camp').value || 'olx-negocios';
-  if (!kws.length) { alert('Adicione pelo menos uma palavra-chave'); return; }
-  if (!cidades.length) cidades.push('brasil');
+  if (!kws.length) { alert('Adicione pelo menos uma palavra-chave nas configs'); return; }
+  if (!cidades.length) cidades = ['brasil'];
   const queries = kws.map(kw => cidades.map(city => city === 'brasil' ? kw : kw + ' ' + city)).flat();
   const status = document.getElementById('pl-olx-status');
   let totalNovos = 0, totalAnalisados = 0;
@@ -2839,7 +2909,7 @@ async function plCrmInit() {
   const tbl = document.getElementById('pl-tbl-crm');
   tbl.innerHTML = '<div class="pa-loading">Carregando pool...</div>';
   try {
-    const data = await sbFetch('/rest/v1/leads_google?order=criado_em.desc&limit=500&select=id,nome,telefone,cidade,categoria,origem,status,bio,tags,criado_em');
+    const data = await sbFetch('/rest/v1/leads_google?order=created_at.desc&limit=500&select=id,nome,telefone,cidade,categoria,origem,status,bio,tags,created_at');
     _plCrmData = data || [];
     plCrmRender();
   } catch(e) { tbl.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`; }
@@ -2868,7 +2938,7 @@ function plCrmRender() {
     {key:'categoria',label:'Categoria'},
     {key:'origem',   label:'Origem'},
     {key:'status',   label:'Status', type:'badge'},
-    {key:'criado_em',label:'Capturado', type:'date'},
+    {key:'created_at',label:'Capturado', type:'date'},
     {key:'id',       label:'', type:'actions', render: r => `<div style="display:flex;gap:6px"><button class="pa-btn-act success" onclick="plCrmMarcar('${r.id}','contatado')" title="marcar contatado">✓</button><button class="pa-btn-act" onclick="plCrmEnviar('${escapeHtml(r.telefone||'')}','${escapeHtml(r.nome||'')}')" title="abrir form de disparo com este número">📤</button></div>` }
   ], lista, 'Sem resultados');
 }
@@ -2877,7 +2947,7 @@ async function plCrmMarcar(id, status) {
     const res = await fetch(SB + `/rest/v1/leads_google?id=eq.${encodeURIComponent(id)}`, {
       method:'PATCH',
       headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
-      body: JSON.stringify({ status, atualizado_em: new Date().toISOString() })
+      body: JSON.stringify({ status, updated_at: new Date().toISOString() })
     });
     if (!res.ok) throw new Error('PATCH ' + res.status);
     const i = _plCrmData.findIndex(l => l.id === id);
