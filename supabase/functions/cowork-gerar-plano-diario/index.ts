@@ -106,11 +106,17 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({}));
     const forceRegenerate = body?.force === true;
+    const forceWhatsapp = body?.force_whatsapp === true;
     const { data: existente } = await supabase
-      .from("cowork_planos_diarios").select("id, gerado_em").eq("data", dataISO).maybeSingle();
+      .from("cowork_planos_diarios").select("id, gerado_em, enviado_whatsapp").eq("data", dataISO).maybeSingle();
     if (existente && !forceRegenerate) {
       return jsonOk({ ok: true, ja_existia: true, plano_id: existente.id });
     }
+    // WhatsApp · só dispara em 2 casos:
+    //   1. PRIMEIRA geração do dia (existente=null · cron padrão 5h)
+    //   2. force_whatsapp=true explicito (admin quer re-disparar manualmente)
+    // Re-gerações com {force:true} normais NÃO disparam (evita spam)
+    const deveEnviarWhatsapp = !existente || forceWhatsapp;
 
     // ──────────────────────────────────────────────────────────
     // 1. Coleta candidatos · queries paralelas
@@ -307,7 +313,7 @@ Deno.serve(async (req: Request) => {
     // 5. WhatsApp resumo pro admin (operacional · não estratégico)
     // ──────────────────────────────────────────────────────────
     let zapiSent = false;
-    if (ADMIN_WHATSAPP && ZAPI_INSTANCE && ZAPI_TOKEN) {
+    if (deveEnviarWhatsapp && ADMIN_WHATSAPP && ZAPI_INSTANCE && ZAPI_TOKEN) {
       try {
         const dataPt = new Date(dataISO + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
         const totalLeads = leads_pra_abordar.length + corretores_pra_abordar.length + perfis_ig_seguir.length;
@@ -349,6 +355,7 @@ Deno.serve(async (req: Request) => {
       ja_existia: !!existente,
       tokens_usados: tokensUsados,
       zapi_enviado: zapiSent,
+      whatsapp_skipped: !deveEnviarWhatsapp ? "regeneracao · WhatsApp não disparou (use force_whatsapp:true se quiser)" : null,
       counts: {
         leads_olx: leads_pra_abordar.length,
         corretores: corretores_pra_abordar.length,
