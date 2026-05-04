@@ -388,8 +388,29 @@ Aí entra o fluxo de coleta de dados — mas SÓ se a pessoa demonstrar interess
 4. **modelo_atuacao_multi** — COMO O NEGÓCIO OPERA (revenda/fabricação/distribuição/mix) — só pergunta pra setor com produto físico (ver regra)
 5. **ativo_estoque** — estoque a preço de custo — só pergunta pra setor com produto físico (ver regra)
 6. **faturamento_anual** — sempre confirmar mensal/anual antes de seguir
-7. **sobra_anual** — lucro líquido depois de tudo (sempre confirmar mensal/anual). Quando perguntar, seja EXPLÍCITO sobre o que conta:
-   "Pra eu calcular certo, preciso entender quanto SOBRA por mês considerando TUDO. Inclui: o que você (e sócios) retira como pró-labore ou retirada; parcelas de empréstimos/financiamentos que paga; compromissos de contas em atraso que está quitando; investimentos do negócio (compras, melhorias). Tudo isso que sai por mês depois das despesas operacionais (aluguel, salários, fornecedores, impostos). Quanto fica?"
+7. **sobra_anual** — sobra OPERACIONAL real (sempre confirmar mensal/anual antes de seguir). Pergunte com EXEMPLO CONCRETO e regra clara:
+   "Pra eu te dar uma avaliação inicial · preciso entender quanto sobra do seu faturamento.
+
+   Pensa assim: você fatura R$ 100k no mês · gasta R$ 70k em despesas operacionais (aluguel · folha · fornecedores · luz) · sobram R$ 30k.
+
+   Esse 'quanto sobra' NÃO inclui:
+   · Sua retirada pessoal (o que você tira pra você todo mês)
+   · Parcelas de empréstimos
+   · Contas em atraso
+   · Investimentos novos no negócio
+
+   É a sobra REAL · só do dia-a-dia operacional.
+
+   No seu caso · quanto sobra por mês depois das despesas operacionais?"
+
+   ### Como interpretar a resposta da sobra:
+
+   - **Sobra MUITO BAIXA** (< 5% do faturamento) → pergunta gentil: "Esse valor já desconta sua retirada pessoal? Se sim, me diz qual sua retirada que eu somo de volta na sobra real."
+     · Se sim · soma a retirada de volta antes de mandar pro cálculo (sobra_real = sobra_informada + retirada_mensal)
+
+   - **Sobra ZERO** → "Você considerou retirada pessoal · parcelas de empréstimo · contas atrasadas? Esses não contam. Vamos refazer só com despesas operacionais (aluguel · folha · fornecedores · impostos do mês)."
+
+   - **NÃO SEI** → dá outro exemplo concreto · pergunta de novo reformulado. Se ainda não souber depois de 2 tentativas · marca como margem_estimada e segue (a calculadora aceita estimativa).
 8. **ativos_relevantes** — equipamentos/máquinas/veículos próprios
 9. **dividas_total** — financiamentos + empréstimos + impostos atrasados
 
@@ -1618,9 +1639,11 @@ async function saveLead(leadData: any, messages: any[], paginaOrigem: string | u
     isNew = true;
   }
 
-  // Item 2 · sincroniza em leads_google + WhatsApp pra admin (só primeira vez)
+  // B66 · sincroniza em leads_google · prelead (só nome) ou completo (nome+wa)
   let crmSync: any = null;
-  if (whatsappFormatado && (leadData?.nome || leadData?.whatsapp)) {
+  const temNome = !!payload.nome;
+  const temWa = !!whatsappFormatado;
+  if (temNome || temWa) {
     try {
       crmSync = await sincronizarComLeadsGoogle(supabase, {
         nome: payload.nome,
@@ -1632,8 +1655,9 @@ async function saveLead(leadData: any, messages: any[], paginaOrigem: string | u
         messages: messages || [],
         chat_ia_lead_id: savedId,
       });
-      if (crmSync?.created && ADMIN_WHATSAPP && ZAPI_INSTANCE && ZAPI_TOKEN) {
-        // disparo fire-and-forget · não bloqueia response
+      // dispara WhatsApp APENAS quando o lead UPGRADEAR pra completo (created OU upgraded_de_prelead)
+      const deveNotificar = (crmSync?.created || crmSync?.upgraded_de_prelead) && temWa;
+      if (deveNotificar && ADMIN_WHATSAPP && ZAPI_INSTANCE && ZAPI_TOKEN) {
         notificarAdminLeadQuente({
           nome: payload.nome,
           whatsapp: whatsappFormatado,
@@ -1686,23 +1710,19 @@ Saída JSON estrito: {"tema":"...", "descricao":"frase curta de 8-15 palavras de
   }
 }
 
-// Item 2 · UPSERT leads_google por telefone (dedup) · marca como lead_quente
+// B66 · UPSERT leads_google · suporta prelead (só nome) e upgrade pra completo
 async function sincronizarComLeadsGoogle(supabase: any, dados: {
   nome: string | null;
-  whatsapp_formatado: string;
+  whatsapp_formatado: string | null;
   setor?: string | null;
   cidade_estado?: string | null;
   faixa_faturamento?: string | null;
   resumo_conversa: string;
   messages: any[];
   chat_ia_lead_id: string;
-}): Promise<{ created: boolean; lead_id: string; tema_conversa: string }> {
-  const tel = dados.whatsapp_formatado.replace(/\D/g, '');
-  // checa duplicado por telefone
-  const { data: existente } = await supabase.from('leads_google')
-    .select('id, tags, fontes, tema_conversa')
-    .eq('telefone', tel)
-    .maybeSingle();
+}): Promise<{ created: boolean; upgraded_de_prelead: boolean; lead_id: string; tema_conversa: string; modo: string }> {
+  const tel = dados.whatsapp_formatado ? dados.whatsapp_formatado.replace(/\D/g, '') : null;
+  const temTel = !!tel && tel.length >= 10;
 
   // classifica tema_conversa (1 chamada Haiku · ~R$ 0.003)
   const { tema, descricao } = await classificarTemaConversa(dados.messages);
@@ -1711,8 +1731,10 @@ async function sincronizarComLeadsGoogle(supabase: any, dados: {
   const cidade = cidadeUF[0]?.trim() || null;
   const estado = cidadeUF[1]?.trim() || null;
 
-  const baseTags = ['lead_quente_avaliacao', 'ia_atendente'];
-  const baseFontes = ['ia_atendente_home'];
+  const tagsCompleto = ['lead_quente_avaliacao', 'ia_atendente'];
+  const tagsPrelead = ['lead_em_qualificacao', 'ia_atendente'];
+  const fontesCompleto = ['ia_atendente_home'];
+  const fontesPrelead = ['ia_atendente_home_prelead'];
 
   const notas = [
     `[IA atendente] tema: ${tema}${descricao ? ' · ' + descricao : ''}`,
@@ -1720,49 +1742,115 @@ async function sincronizarComLeadsGoogle(supabase: any, dados: {
     `resumo: ${dados.resumo_conversa}`,
   ].join('\n');
 
-  if (existente) {
-    // UPDATE · adiciona origem ao array fontes se não tiver
-    const novosFontes = Array.from(new Set([...(existente.fontes || []), ...baseFontes]));
-    const novosTags = Array.from(new Set([...(existente.tags || []), ...baseTags]));
+  // 1) busca por chat_ia_lead_id (prelead anterior dessa mesma conversa)
+  const { data: porChatId } = await supabase.from('leads_google')
+    .select('id, telefone, tags, fontes, origem')
+    .eq('chat_ia_lead_id', dados.chat_ia_lead_id)
+    .maybeSingle();
+
+  // 2) se tem telefone · tb busca por telefone (dedup global)
+  let porTelefone: any = null;
+  if (temTel) {
+    const r = await supabase.from('leads_google')
+      .select('id, chat_ia_lead_id, tags, fontes, origem, classificacao_ia')
+      .eq('telefone', tel!)
+      .maybeSingle();
+    porTelefone = r.data;
+  }
+
+  // PATH A · existe prelead anterior (mesma conversa)
+  if (porChatId) {
+    const eraPrelead = porChatId.origem === 'ia_atendente_home_prelead';
+    if (temTel && eraPrelead) {
+      // UPGRADE prelead → completo (telefone chegou)
+      const novosFontes = Array.from(new Set([...(porChatId.fontes || []), ...fontesCompleto]));
+      const novosTags = Array.from(new Set([...(porChatId.tags || []), ...tagsCompleto]));
+      await supabase.from('leads_google').update({
+        nome: dados.nome,
+        telefone: tel,
+        telefone_formatado: dados.whatsapp_formatado,
+        cidade: cidade || undefined,
+        estado: estado || undefined,
+        setor: dados.setor || undefined,
+        origem: 'ia_atendente_home',
+        fontes: novosFontes,
+        tags: novosTags,
+        classificacao_ia: 'empresario_alvo',
+        classificado_em: new Date().toISOString(),
+        tema_conversa: tema,
+        notas,
+        updated_at: new Date().toISOString(),
+      }).eq('id', porChatId.id);
+      return { created: false, upgraded_de_prelead: true, lead_id: porChatId.id, tema_conversa: tema, modo: 'upgrade' };
+    }
+    // sem telefone (ainda prelead) · só atualiza nome/tema
     await supabase.from('leads_google').update({
       nome: dados.nome,
       tema_conversa: tema,
-      fontes: novosFontes,
-      tags: novosTags,
-      classificacao_ia: 'empresario_alvo',
-      classificado_em: new Date().toISOString(),
-      setor: dados.setor || undefined,
-      cidade: cidade || undefined,
-      estado: estado || undefined,
       notas,
       updated_at: new Date().toISOString(),
-    }).eq('id', existente.id);
-    return { created: false, lead_id: existente.id, tema_conversa: tema };
+    }).eq('id', porChatId.id);
+    return { created: false, upgraded_de_prelead: false, lead_id: porChatId.id, tema_conversa: tema, modo: 'update_prelead' };
   }
 
-  // INSERT novo
-  const { data: novo, error } = await supabase.from('leads_google').insert({
+  // PATH B · não tem prelead nessa conversa · mas telefone bate em outro lead
+  if (porTelefone) {
+    const novosFontes = Array.from(new Set([...(porTelefone.fontes || []), ...fontesCompleto]));
+    const novosTags = Array.from(new Set([...(porTelefone.tags || []), ...tagsCompleto]));
+    const update: any = {
+      tema_conversa: tema,
+      fontes: novosFontes,
+      tags: novosTags,
+      notas,
+      updated_at: new Date().toISOString(),
+      duplicado_em: new Date().toISOString(),
+    };
+    if (dados.nome) update.nome = dados.nome;
+    if (cidade) update.cidade = cidade;
+    if (estado) update.estado = estado;
+    if (dados.setor) update.setor = dados.setor;
+    if (!porTelefone.classificacao_ia || porTelefone.classificacao_ia === 'ambiguo') {
+      update.classificacao_ia = 'empresario_alvo';
+      update.classificado_em = new Date().toISOString();
+    }
+    if (!porTelefone.chat_ia_lead_id) update.chat_ia_lead_id = dados.chat_ia_lead_id;
+    await supabase.from('leads_google').update(update).eq('id', porTelefone.id);
+    return { created: false, upgraded_de_prelead: false, lead_id: porTelefone.id, tema_conversa: tema, modo: 'merge_dedup_telefone' };
+  }
+
+  // PATH C · INSERT novo · prelead OU completo
+  const insertPayload: any = {
     nome: dados.nome,
-    telefone: tel,
-    telefone_formatado: dados.whatsapp_formatado,
     cidade,
     estado,
     setor: dados.setor || null,
-    origem: 'ia_atendente_home',
-    fontes: baseFontes,
-    tags: baseTags,
-    classificacao_ia: 'empresario_alvo',
-    classificado_em: new Date().toISOString(),
+    chat_ia_lead_id: dados.chat_ia_lead_id,
     tema_conversa: tema,
     notas,
     status: 'novo',
     campanha: 'ia_atendente_home_2026',
-  }).select('id').single();
+  };
+  if (temTel) {
+    insertPayload.telefone = tel;
+    insertPayload.telefone_formatado = dados.whatsapp_formatado;
+    insertPayload.origem = 'ia_atendente_home';
+    insertPayload.fontes = fontesCompleto;
+    insertPayload.tags = tagsCompleto;
+    insertPayload.classificacao_ia = 'empresario_alvo';
+    insertPayload.classificado_em = new Date().toISOString();
+  } else {
+    insertPayload.origem = 'ia_atendente_home_prelead';
+    insertPayload.fontes = fontesPrelead;
+    insertPayload.tags = tagsPrelead;
+    insertPayload.classificacao_ia = 'lead_em_qualificacao';
+  }
+
+  const { data: novo, error } = await supabase.from('leads_google').insert(insertPayload).select('id').single();
   if (error) {
     console.warn('[sync leads_google insert]', error);
-    return { created: false, lead_id: '', tema_conversa: tema };
+    return { created: false, upgraded_de_prelead: false, lead_id: '', tema_conversa: tema, modo: 'erro_insert' };
   }
-  return { created: true, lead_id: novo.id, tema_conversa: tema };
+  return { created: true, upgraded_de_prelead: false, lead_id: novo.id, tema_conversa: tema, modo: temTel ? 'insert_completo' : 'insert_prelead' };
 }
 
 // Item 2 · WhatsApp pro admin (fire-and-forget · não bloqueia response)

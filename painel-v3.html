@@ -5603,7 +5603,8 @@ function lqInit() {
 
 async function lqCarregar() {
   try {
-    const data = await sbFetch("/rest/v1/leads_google?origem=eq.ia_atendente_home&order=created_at.desc&limit=20&select=id,nome,telefone,telefone_formatado,tema_conversa,classificacao_ia,status,notas,created_at,abordado_em,tentou_contato_em");
+    // B66 · pega completos (origem=ia_atendente_home) E preleads (ia_atendente_home_prelead)
+    const data = await sbFetch("/rest/v1/leads_google?origem=in.(ia_atendente_home,ia_atendente_home_prelead)&order=created_at.desc&limit=30&select=id,nome,telefone,telefone_formatado,tema_conversa,classificacao_ia,origem,status,notas,created_at,abordado_em,tentou_contato_em");
     lqRender(data || []);
   } catch(e) {
     document.getElementById('lq-conteudo').innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`;
@@ -5611,16 +5612,19 @@ async function lqCarregar() {
 }
 
 function lqRender(leads) {
+  window.__lqLast = leads;
   const cnt = document.getElementById('lq-count');
   const cont = document.getElementById('lq-conteudo');
   if (!cont) return;
-  // não-contatados primeiro · ordem por mais recente
+  // separa completos (telefone) vs preleads (só nome)
   const naoContatados = leads.filter(l => !l.abordado_em && !l.tentou_contato_em);
-  if (cnt) cnt.textContent = naoContatados.length;
+  const completos = naoContatados.filter(l => l.origem === 'ia_atendente_home');
+  const preleads = naoContatados.filter(l => l.origem === 'ia_atendente_home_prelead');
+  if (cnt) cnt.textContent = `${completos.length} completos · ${preleads.length} em qualificação`;
   if (!naoContatados.length) {
     cont.innerHTML = leads.length
       ? `<div class="pa-empty">✓ Todos os ${leads.length} leads quentes já contatados. Bom trabalho!</div>`
-      : '<div class="pa-empty">Sem leads quentes capturados pela IA atendente ainda.</div>';
+      : '<div class="pa-empty">Sem leads capturados pela IA atendente ainda.</div>';
     return;
   }
   const TEMAS = {
@@ -5630,7 +5634,7 @@ function lqRender(leads) {
     duvida_sobre_portal: '❓ Dúvida sobre portal',
     outros: '— outros',
   };
-  cont.innerHTML = naoContatados.slice(0, 10).map(l => {
+  const cardCompleto = (l) => {
     const tel = (l.telefone||'').replace(/\D/g,'');
     const wa = tel.length >= 10 ? (tel.startsWith('55') ? tel : '55' + tel) : '';
     const horas = l.created_at ? Math.round((Date.now() - new Date(l.created_at).getTime()) / 3600000) : 0;
@@ -5640,7 +5644,7 @@ function lqRender(leads) {
     return `<div style="background:rgba(255,90,79,0.08);border:1px solid rgba(255,90,79,0.3);border-radius:var(--r2);padding:14px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px">
       <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:600;font-size:15px">${escapeHtml(l.nome || '(sem nome)')}</div>
+          <div style="font-weight:600;font-size:15px">🔥 ${escapeHtml(l.nome || '(sem nome)')}</div>
           <div style="font-size:13px;color:#ff9b8f;margin-top:2px">${escapeHtml(temaLabel)}</div>
         </div>
         <div class="pa-muted" style="font-size:11px;flex-shrink:0">${tempoStr}</div>
@@ -5652,7 +5656,35 @@ function lqRender(leads) {
         <button class="btn btn-mini btn-ghost" onclick="lqMarcar('${l.id}')">✓ Já contatei</button>
       </div>
     </div>`;
-  }).join('') + (naoContatados.length > 10 ? `<div class="pa-muted" style="text-align:center;padding:6px;font-size:12px">+${naoContatados.length - 10} leads não contatados · vai em CRM Leads filtra IA Atendente</div>` : '');
+  };
+  const cardPrelead = (l) => {
+    const horas = l.created_at ? Math.round((Date.now() - new Date(l.created_at).getTime()) / 3600000) : 0;
+    const tempoStr = horas < 1 ? 'agora' : horas < 24 ? `há ${horas}h` : `há ${Math.round(horas/24)}d`;
+    const trecho = (l.notas || '').split('\n').find(s => s.startsWith('resumo:'))?.replace('resumo:', '').trim() || '';
+    const temaLabel = TEMAS[l.tema_conversa] || l.tema_conversa || '';
+    return `<div style="background:rgba(255,196,0,0.06);border:1px solid rgba(255,196,0,0.3);border-radius:var(--r2);padding:12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:14px">🟡 ${escapeHtml(l.nome || '(em qualificação)')}</div>
+          <div style="font-size:12px;color:#ffc400;margin-top:2px">em qualificação · ${escapeHtml(temaLabel)}</div>
+        </div>
+        <div class="pa-muted" style="font-size:11px;flex-shrink:0">${tempoStr}</div>
+      </div>
+      ${trecho ? `<div style="font-size:11px;line-height:1.4;color:var(--ink-2);margin-top:6px">"${escapeHtml(trecho.slice(0, 150))}"</div>` : ''}
+    </div>`;
+  };
+  const html = [];
+  if (completos.length) {
+    html.push(`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🔥 Quentes · com telefone (${completos.length})</div>`);
+    html.push(...completos.slice(0, 10).map(cardCompleto));
+    if (completos.length > 10) html.push(`<div class="pa-muted" style="text-align:center;padding:6px;font-size:12px">+${completos.length - 10} completos · vai no CRM</div>`);
+  }
+  if (preleads.length) {
+    html.push(`<div style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:1px;margin:14px 0 8px">🟡 Em qualificação · só nome ainda (${preleads.length})</div>`);
+    html.push(...preleads.slice(0, 5).map(cardPrelead));
+    if (preleads.length > 5) html.push(`<div class="pa-muted" style="text-align:center;padding:6px;font-size:12px">+${preleads.length - 5} preleads</div>`);
+  }
+  cont.innerHTML = html.join('');
 }
 
 function lqVerNotas(id) {
