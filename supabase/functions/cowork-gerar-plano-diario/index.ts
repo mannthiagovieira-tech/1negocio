@@ -134,13 +134,14 @@ Deno.serve(async (req: Request) => {
         .or("revisar_depois.is.null,revisar_depois.eq.false")
         .order("created_at", { ascending: false })
         .limit(LIMITE_LEADS_OLX),
-      // corretores · gmaps_corretores · últimos 7 dias · não abordados
+      // Parte 4 · BACKLOG corretores · TODOS consultor_empresarial não abordados (mais antigos primeiro)
+      // Acumula até admin marcar abordado · não some do plano
       supabase.from("leads_google")
         .select("id,nome,telefone,cidade,categoria,classificacao_ia,notas,url_anuncio,created_at")
         .eq("origem", "gmaps_corretores")
+        .eq("classificacao_ia", "consultor_empresarial")
         .is("abordado_em", null)
-        .gte("created_at", seteDiasAtras)
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: true, nullsFirst: false })
         .limit(LIMITE_CORRETORES),
       // perfis IG distribuídos hoje (já filtrados como empreendedor)
       supabase.from("ig_seguidores_raw")
@@ -321,6 +322,14 @@ Deno.serve(async (req: Request) => {
           .filter((a: any) => a.tipo === "critico")
           .map((a: any) => `🚨 ${a.mensagem}`).join("\n");
 
+        // Parte 4 · bloco backlog corretores (top 5 mais antigos)
+        const linhasCorretoresBacklog = corretores_pra_abordar.slice(0, 5).map((c: any) => {
+          const dt = corretores.find((x: any) => x.id === c.id)?.created_at;
+          const dias = dt ? Math.floor((Date.now() - new Date(dt).getTime()) / 86400000) : 0;
+          const ageStr = dias === 0 ? "hoje" : dias === 1 ? "1 dia" : `${dias} dias`;
+          return `- ${c.nome} · ${c.cidade || "?"} · há ${ageStr}`;
+        }).join("\n");
+
         const msg = [
           `🌅 ${parsed.saudacao || "Bom dia, Thiago"} · ${dataPt}`,
           ``,
@@ -328,6 +337,9 @@ Deno.serve(async (req: Request) => {
           `· ${leads_pra_abordar.length} empresários OLX`,
           `· ${corretores_pra_abordar.length} corretores`,
           `· ${perfis_ig_seguir.length} perfis IG`,
+          ``,
+          corretores_pra_abordar.length ? `📦 Corretores pendentes (${corretores_pra_abordar.length})` : "",
+          linhasCorretoresBacklog,
           ``,
           `Stats: ${anuRasc} rascunhos · ${leadsHoje} leads site 24h${leadsHoje === 0 ? " ⚠️" : ""} · R$ ${fmtBRL(pipelinePot)} pipeline`,
           linhasAlertas ? `\n${linhasAlertas}` : "",

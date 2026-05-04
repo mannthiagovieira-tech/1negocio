@@ -1,17 +1,31 @@
-name: Cowork · cron diário (plano de hoje)
+name: Cowork · cron diário (plano de hoje + F2 corretores)
 
-# Roda todo dia 8h UTC = 5h BRT
-# Single edge function ativa nesta etapa A · cowork-gerar-plano-diario.
-# Outras crons (B-G) ficam comentadas até admin ativar.
+# 04:30 BRT (07:30 UTC) · F2 corretores · 1 cidade rotativa por dia
+# 05:00 BRT (08:00 UTC) · plano diário Cowork
 
 on:
   schedule:
+    - cron: '30 7 * * *'  # F2 corretores · 04:30 BRT
     - cron: '0 8 * * *'   # plano diário · 5h BRT
   workflow_dispatch:       # permite trigger manual via GitHub UI
 
 jobs:
+  rodar-frente-corretores:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '30 7 * * *' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: F2 · POST /functions/v1/cowork-rodar-frente-corretores
+        run: |
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            'https://dbijmgqlcrgjlcfrastg.supabase.co/functions/v1/cowork-rodar-frente-corretores'
+          echo ""
+
   gerar-plano-diario:
     runs-on: ubuntu-latest
+    if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
     steps:
       - name: POST /functions/v1/cowork-gerar-plano-diario
         run: |

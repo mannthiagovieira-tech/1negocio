@@ -17,6 +17,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const APIFY_TOKEN_ENV = Deno.env.get("APIFY_TOKEN_OLX")
+  ?? Deno.env.get("APIFY_TOKEN")
+  ?? Deno.env.get("APIFY_API_TOKEN")
+  ?? "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,7 +37,8 @@ Deno.serve(async (req: Request) => {
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const body = await req.json().catch(() => ({}));
-    const { lead_id, apify_token } = body || {};
+    const { lead_id } = body || {};
+    const apify_token = body?.apify_token || APIFY_TOKEN_ENV;
     if (!lead_id) return jsonErr("lead_id obrigatório");
 
     // 1. Carrega lead

@@ -170,9 +170,17 @@ Deno.serve(async (req: Request) => {
     const categoriaOnly = body?.categoria_only;
     const maxPerCat = Math.min(Math.max(parseInt(body?.max_per_categoria) || 60, 1), 60);
 
-    const cats = categoriaOnly
+    let cats = categoriaOnly
       ? CATEGORIAS.filter(c => c.keyword === categoriaOnly)
       : CATEGORIAS;
+    // Suporte a categorias customizadas via body.categorias=[{setor,keyword}|"keyword"]
+    if (Array.isArray(body?.categorias) && body.categorias.length) {
+      cats = body.categorias.map((c: any) =>
+        typeof c === 'string'
+          ? { setor: 'custom', keyword: c }
+          : { setor: c.setor || 'custom', keyword: String(c.keyword || c) }
+      );
+    }
 
     if (!cats.length) return jsonErr("categoria_only não encontrada nas 18 cadastradas");
 
