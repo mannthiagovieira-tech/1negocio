@@ -1,0 +1,1442 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>1Negócio · Painel v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ========================================================================
+   DESIGN SYSTEM v3 · tokens
+   ======================================================================== */
+:root {
+  --bg: #0a0f0c; --bg-2: #0e1612; --surface: #121a15; --surface-2: #19241d;
+  --line: rgba(255,255,255,.07); --line-2: rgba(255,255,255,.12);
+  --ink: #f4f7f4; --ink-2: rgba(244,247,244,.72); --ink-3: rgba(244,247,244,.48); --ink-4: rgba(244,247,244,.28);
+  --ink-inv: #0a0f0c;
+  --accent: #3dff95; --accent-ink: #0a0f0c; --accent-soft: rgba(61,255,149,.12); --accent-line: rgba(61,255,149,.26);
+  --warn: #f5c842; --alert: #ff6b5c; --cowork: #ff8c28;
+  --shadow-card: 0 30px 80px -20px rgba(0,0,0,.6);
+  --serif: 'Syne', ui-serif, serif;
+  --sans: 'Geist', 'Inter', -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --r1: 8px; --r2: 12px; --r3: 18px;
+}
+[data-theme="light"] {
+  --bg: #f6f7f5; --bg-2: #ffffff; --surface: #ffffff; --surface-2: #f1f3ef;
+  --line: rgba(10,15,12,.1); --line-2: rgba(10,15,12,.18);
+  --ink: #0a1510; --ink-2: rgba(10,21,16,.78); --ink-3: rgba(10,21,16,.58); --ink-4: rgba(10,21,16,.38);
+  --ink-inv: #ffffff;
+  --accent: #0aa85a; --accent-ink: #ffffff; --accent-soft: rgba(10,168,90,.12); --accent-line: rgba(10,168,90,.3);
+  --shadow-card: 0 24px 60px -18px rgba(10,20,12,.18);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+body { min-height: 100vh; overflow-x: hidden; }
+
+/* ========================================================================
+   LOGIN SCREEN (OTP via WhatsApp · copiado do padrão painel-admin)
+   ======================================================================== */
+#login-screen {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 9999;
+}
+.login-box {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r3); padding: 40px 32px; max-width: 400px; width: 100%;
+  box-shadow: var(--shadow-card);
+}
+.login-logo {
+  font-family: var(--serif); font-size: 26px; font-weight: 800; letter-spacing: -1px;
+  color: var(--ink); margin-bottom: 4px; display: flex; align-items: center; gap: 8px;
+}
+.login-logo-mark { color: var(--accent); }
+.login-sub { color: var(--ink-3); font-size: 12px; margin-bottom: 24px; font-family: var(--mono); letter-spacing: 1.5px; text-transform: uppercase; }
+.login-box label { display: block; font-size: 11px; color: var(--ink-3); font-family: var(--mono); letter-spacing: 1px; text-transform: uppercase; margin: 14px 0 6px; }
+.login-box input {
+  width: 100%; background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--r2);
+  padding: 12px 14px; color: var(--ink); font-size: 15px; font-family: var(--sans);
+}
+.login-box input:focus { outline: none; border-color: var(--accent); }
+.btn-login {
+  width: 100%; margin-top: 16px; padding: 13px;
+  background: var(--accent); color: var(--accent-ink); border: 0;
+  border-radius: var(--r2); font-weight: 700; font-size: 14px; cursor: pointer;
+  font-family: var(--sans); letter-spacing: .02em; transition: filter .15s;
+}
+.btn-login:hover { filter: brightness(1.08); }
+.btn-back { background: transparent; color: var(--ink-3); margin-top: 8px; font-weight: 500; }
+.login-msg { margin-top: 12px; font-size: 13px; color: var(--ink-3); min-height: 18px; }
+#login-step-code { display: none; }
+
+/* ========================================================================
+   APP LAYOUT
+   ======================================================================== */
+#main-app { display: none; }
+.app-grid {
+  display: grid; grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+@media (max-width: 768px) {
+  .app-grid { grid-template-columns: 1fr; }
+}
+
+/* ========================================================================
+   SIDEBAR
+   ======================================================================== */
+.sidebar {
+  position: sticky; top: 0; height: 100vh;
+  background: var(--bg-2); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; width: 280px; z-index: 200;
+    transform: translateX(-100%); transition: transform .25s ease;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 199; }
+  .sidebar-overlay.show { display: block; }
+}
+
+.sidebar-head {
+  padding: 18px 20px 14px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.sidebar-logo {
+  font-family: var(--serif); font-weight: 800; font-size: 18px; letter-spacing: -.5px;
+  display: flex; align-items: center; gap: 6px;
+}
+.sidebar-logo .mark { color: var(--accent); }
+
+.theme-toggle {
+  display: flex; gap: 4px; padding: 12px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.theme-toggle button {
+  flex: 1; padding: 8px 6px; border: 1px solid var(--line);
+  background: transparent; color: var(--ink-3); border-radius: var(--r1); cursor: pointer;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .5px; transition: all .15s;
+}
+.theme-toggle button.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+.theme-toggle button:hover { color: var(--ink); }
+
+.nav-scroll { flex: 1; overflow-y: auto; padding: 8px 0; }
+.nav-scroll::-webkit-scrollbar { width: 6px; }
+.nav-scroll::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
+
+.nav-group { margin-bottom: 2px; }
+.nav-group-label {
+  padding: 14px 20px 6px;
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--ink-4);
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 20px; cursor: pointer; color: var(--ink-2);
+  font-size: 13px; font-weight: 500; transition: all .12s;
+  border-left: 2px solid transparent;
+  user-select: none;
+}
+.nav-item:hover { background: var(--surface); color: var(--ink); }
+.nav-item.active {
+  color: var(--accent); background: var(--accent-soft); border-left-color: var(--accent);
+}
+.nav-item .nav-icon { font-size: 14px; flex-shrink: 0; opacity: .8; }
+.nav-item .nav-label { flex: 1; }
+.nav-item .star { color: var(--accent); font-size: 11px; }
+
+.legacy-divider {
+  margin: 14px 20px 8px; padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 9px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--ink-4);
+}
+.legacy-link {
+  display: flex; align-items: center; gap: 8px; padding: 6px 20px;
+  color: var(--ink-3); font-size: 12px; text-decoration: none; transition: color .12s;
+}
+.legacy-link:hover { color: var(--ink); }
+.legacy-link::after { content: '↗'; margin-left: auto; opacity: .6; }
+
+.sidebar-foot {
+  padding: 14px 20px; border-top: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.user-info {
+  font-size: 12px; color: var(--ink-3); display: flex; align-items: center; gap: 8px;
+}
+.user-info .dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; }
+.btn-logout {
+  background: transparent; color: var(--ink-3); border: 1px solid var(--line);
+  padding: 7px 12px; border-radius: var(--r1); cursor: pointer; font-size: 12px;
+  font-family: var(--mono); letter-spacing: .5px;
+}
+.btn-logout:hover { color: var(--alert); border-color: var(--alert); }
+
+/* ========================================================================
+   MAIN
+   ======================================================================== */
+.main {
+  display: flex; flex-direction: column; min-height: 100vh; min-width: 0;
+}
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(10,15,12,.85); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 28px;
+  display: flex; align-items: center; gap: 14px;
+}
+[data-theme="light"] .topbar { background: rgba(246,247,245,.85); }
+.btn-burger {
+  display: none; background: transparent; color: var(--ink); border: 1px solid var(--line);
+  width: 40px; height: 40px; border-radius: var(--r2); cursor: pointer; font-size: 18px;
+}
+@media (max-width: 768px) { .btn-burger { display: inline-flex; align-items: center; justify-content: center; } }
+
+.breadcrumb {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--ink-4);
+}
+.topbar-title {
+  font-family: var(--serif); font-weight: 700; font-size: 20px; letter-spacing: -.5px; color: var(--ink);
+}
+.topbar-spacer { flex: 1; }
+.kbd-hint {
+  font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+  border: 1px solid var(--line); padding: 4px 8px; border-radius: 6px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.kbd-hint kbd { background: var(--surface-2); padding: 2px 6px; border-radius: 4px; font-family: inherit; }
+@media (max-width: 768px) { .kbd-hint { display: none; } }
+
+.main-scroll {
+  padding: 28px; flex: 1; overflow-y: auto;
+}
+@media (max-width: 768px) { .main-scroll { padding: 20px 16px; } }
+
+/* ========================================================================
+   SEÇÕES
+   ======================================================================== */
+.secao { display: none; max-width: 1280px; margin: 0 auto; }
+.secao-header {
+  margin-bottom: 14px;
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px 16px;
+}
+.secao-titulo {
+  font-family: var(--serif); font-weight: 800; font-size: 32px; letter-spacing: -1px; line-height: 1.1;
+}
+@media (max-width: 768px) { .secao-titulo { font-size: 26px; } }
+.secao-subtitulo { color: var(--ink-3); font-size: 14px; }
+.secao-explicacao {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r2);
+  padding: 14px 18px; color: var(--ink-2); font-size: 13px; margin-bottom: 24px;
+}
+.secao-conteudo { display: flex; flex-direction: column; gap: 18px; }
+
+.bloco {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r3);
+  padding: 22px; display: flex; flex-direction: column; gap: 14px;
+}
+.bloco-head {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 14px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--line);
+}
+.bloco-titulo { font-family: var(--serif); font-weight: 700; font-size: 18px; letter-spacing: -.3px; }
+.bloco-sub { color: var(--ink-3); font-size: 12px; font-family: var(--mono); letter-spacing: .5px; text-transform: uppercase; }
+.bloco-tag {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 10px; padding: 3px 8px; border-radius: 6px;
+  letter-spacing: 1px; text-transform: uppercase;
+  background: var(--accent-soft); color: var(--accent);
+}
+.bloco-tag.warn { background: rgba(245,200,66,.12); color: var(--warn); }
+.bloco-tag.muted { background: var(--surface-2); color: var(--ink-3); }
+
+/* placeholder */
+.placeholder {
+  background: var(--surface-2); border: 1px dashed var(--line-2); border-radius: var(--r2);
+  padding: 28px; text-align: center;
+}
+.placeholder .ph-icone { font-size: 36px; margin-bottom: 10px; opacity: .8; }
+.placeholder h2 { font-family: var(--serif); font-size: 18px; margin-bottom: 4px; }
+.placeholder p { color: var(--ink-3); font-size: 13px; max-width: 540px; margin: 0 auto 14px; }
+.placeholder ul { display: inline-block; text-align: left; color: var(--ink-2); font-size: 13px; }
+.placeholder ul li { padding: 3px 0; }
+.placeholder ul li::marker { color: var(--accent); }
+.placeholder .legacy-cta {
+  display: inline-flex; gap: 8px; align-items: center; margin-top: 14px;
+  background: transparent; color: var(--accent); border: 1px solid var(--accent-line);
+  padding: 9px 14px; border-radius: var(--r1); font-size: 12px; font-family: var(--mono);
+  letter-spacing: 1px; text-transform: uppercase; text-decoration: none; cursor: pointer;
+}
+.placeholder .legacy-cta:hover { background: var(--accent-soft); }
+
+/* ========================================================================
+   COMPONENTES — chips · botão · table · grid de cards
+   ======================================================================== */
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  background: transparent; border: 1px solid var(--line); padding: 6px 12px;
+  border-radius: 100px; font-size: 12px; color: var(--ink-2); cursor: pointer;
+  font-family: var(--mono); letter-spacing: .3px; transition: all .12s;
+}
+.chip:hover { border-color: var(--line-2); color: var(--ink); }
+.chip.active { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+
+.btn {
+  background: var(--accent); color: var(--accent-ink); border: 0;
+  padding: 9px 14px; border-radius: var(--r1); cursor: pointer;
+  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 6px; transition: filter .15s;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn-ghost {
+  background: transparent; border: 1px solid var(--line); color: var(--ink-2);
+}
+.btn-ghost:hover { border-color: var(--line-2); color: var(--ink); }
+.btn-mini { padding: 5px 9px; font-size: 11px; }
+
+.lista-vazia { padding: 30px; text-align: center; color: var(--ink-3); font-size: 13px; }
+.spinner {
+  width: 24px; height: 24px; border: 2px solid var(--line);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .9s linear infinite; margin: 20px auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+table.t {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+table.t th, table.t td {
+  padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line);
+}
+table.t th {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--ink-4); font-weight: 600;
+}
+table.t tbody tr:hover td { background: var(--surface-2); }
+table.t .codigo { font-family: var(--mono); color: var(--accent); }
+table.t .num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+table.t .acoes { white-space: nowrap; }
+
+.cards-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;
+}
+.card-neg {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r2);
+  padding: 16px; display: flex; flex-direction: column; gap: 8px;
+}
+.card-neg-header { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.card-neg-id { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: .5px; }
+.card-neg-meta { color: var(--ink-3); font-size: 12px; }
+.card-neg-titulo { font-family: var(--serif); font-size: 16px; font-weight: 700; line-height: 1.25; }
+.card-neg-stats { display: flex; gap: 14px; font-size: 12px; color: var(--ink-3); flex-wrap: wrap; }
+.card-neg-stats span strong { color: var(--ink); font-family: var(--mono); }
+.card-neg-acoes { margin-top: 6px; }
+
+/* mini card */
+.mini-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r2);
+}
+.mini-card-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px; flex-shrink: 0;
+}
+.mini-card-info { flex: 1; min-width: 0; }
+.mini-card-nome { font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-card-fone { font-size: 12px; color: var(--ink-3); font-family: var(--mono); }
+.mini-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.mini-card-btn-wpp, .mini-card-btn-att {
+  width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line);
+  background: transparent; color: var(--ink-2); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px; text-decoration: none; transition: all .12s;
+}
+.mini-card-btn-wpp:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+.mini-card-btn-att:hover { background: var(--surface); color: var(--ink); border-color: var(--line-2); }
+
+/* FAB atendimento */
+.fab {
+  position: fixed; bottom: 24px; right: 24px; z-index: 80;
+  width: 56px; height: 56px; border-radius: 50%; border: 0;
+  background: var(--accent); color: var(--accent-ink); font-size: 22px;
+  cursor: pointer; box-shadow: 0 8px 28px rgba(61,255,149,.35);
+  transition: transform .15s;
+}
+.fab:hover { transform: scale(1.08); }
+
+/* modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 300;
+  display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r3);
+  padding: 28px; max-width: 580px; width: 100%; max-height: 90vh; overflow-y: auto;
+}
+.modal h3 { font-family: var(--serif); font-size: 22px; margin-bottom: 6px; letter-spacing: -.5px; }
+.modal-sub { color: var(--ink-3); font-size: 13px; margin-bottom: 18px; }
+.modal-grupo { margin-bottom: 16px; }
+.modal-grupo-label { font-family: var(--mono); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink-3); margin-bottom: 8px; }
+.modal-radios { display: flex; flex-direction: column; gap: 6px; }
+.modal-radios label {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r1); cursor: pointer; font-size: 13px;
+}
+.modal-radios label:has(input:checked) { border-color: var(--accent-line); background: var(--accent-soft); }
+.modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+.modal-actions .btn { flex: 1; justify-content: center; }
+
+/* preview da peça gerada */
+.preview-peca {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+}
+@media (max-width: 768px) { .preview-peca { grid-template-columns: 1fr; } }
+.preview-imagem {
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r2);
+  padding: 12px; display: flex; align-items: center; justify-content: center;
+  min-height: 240px;
+}
+.preview-imagem svg, .preview-imagem img { max-width: 100%; max-height: 320px; height: auto; border-radius: var(--r1); }
+.preview-texto {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r2);
+  padding: 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.preview-texto-block { white-space: pre-wrap; font-size: 14px; color: var(--ink); line-height: 1.5; }
+.preview-hashtags { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+
+/* histórico de peças */
+.peca-historica {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r2);
+  padding: 12px; display: flex; gap: 12px; align-items: center;
+}
+.peca-historica-thumb {
+  width: 60px; height: 60px; flex-shrink: 0; border-radius: 8px; overflow: hidden;
+  background: var(--bg-2); display: flex; align-items: center; justify-content: center;
+}
+.peca-historica-thumb svg, .peca-historica-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.peca-historica-meta { flex: 1; min-width: 0; }
+.peca-historica-tit { font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.peca-historica-info { font-size: 11px; color: var(--ink-3); font-family: var(--mono); }
+</style>
+</head>
+
+<body>
+
+<!-- ========================================================================
+     LOGIN SCREEN (OTP via WhatsApp · padrão painel-admin)
+     ======================================================================== -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo"><span class="login-logo-mark">1</span>Negócio</div>
+    <div class="login-sub">PAINEL ADMIN · v3</div>
+
+    <div id="login-step-phone">
+      <label>WhatsApp do admin</label>
+      <input type="tel" id="inp-phone" placeholder="DDD + número (só dígitos)" autocomplete="tel">
+      <button class="btn-login" onclick="loginSendOtp()">Enviar código</button>
+    </div>
+
+    <div id="login-step-code">
+      <label>Código recebido</label>
+      <input type="text" id="inp-code" placeholder="6 dígitos" inputmode="numeric" autocomplete="one-time-code">
+      <button class="btn-login" onclick="loginVerify()">Entrar</button>
+      <button class="btn-login btn-back" onclick="loginBack()">‹ Voltar</button>
+    </div>
+
+    <div class="login-msg" id="login-msg"></div>
+  </div>
+</div>
+
+<!-- ========================================================================
+     APP
+     ======================================================================== -->
+<div id="main-app">
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar(false)"></div>
+  <div class="app-grid">
+
+    <!-- ──────────── SIDEBAR ──────────── -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head">
+        <div class="sidebar-logo"><span class="mark">1</span>Negócio</div>
+      </div>
+
+      <div class="theme-toggle">
+        <button onclick="setTheme('dark')" id="btn-dark" class="active">🌙 dark</button>
+        <button onclick="setTheme('light')" id="btn-light">☀️ light</button>
+      </div>
+
+      <nav class="nav-scroll" id="nav-scroll">
+        <!-- CEO -->
+        <div class="nav-group">
+          <div class="nav-group-label">CEO</div>
+          <div class="nav-item" data-secao="cockpit" onclick="mostrarSecao('cockpit')"><span class="nav-icon">🎯</span><span class="nav-label">Cockpit</span></div>
+        </div>
+
+        <!-- FINANCEIRO -->
+        <div class="nav-group">
+          <div class="nav-group-label">Financeiro</div>
+          <div class="nav-item" data-secao="planejado" onclick="mostrarSecao('planejado')"><span class="nav-icon">📊</span><span class="nav-label">Planejado vs Executado</span></div>
+          <div class="nav-item" data-secao="contas" onclick="mostrarSecao('contas')"><span class="nav-icon">💸</span><span class="nav-label">Contas a pagar/receber</span></div>
+          <div class="nav-item" data-secao="custos" onclick="mostrarSecao('custos')"><span class="nav-icon">🏷️</span><span class="nav-label">Custos</span></div>
+          <div class="nav-item" data-secao="vgv" onclick="mostrarSecao('vgv')"><span class="nav-icon">💎</span><span class="nav-label">VGV de Comissões</span></div>
+        </div>
+
+        <!-- OPERAÇÕES -->
+        <div class="nav-group">
+          <div class="nav-group-label">Operações</div>
+          <div class="nav-item" data-secao="atendimento" onclick="mostrarSecao('atendimento')"><span class="nav-icon">📞</span><span class="nav-label">Atendimento</span></div>
+          <div class="nav-item" data-secao="pipeline" onclick="mostrarSecao('pipeline')"><span class="nav-icon">🌱</span><span class="nav-label">Pipeline</span></div>
+          <div class="nav-item" data-secao="aprovacoes" onclick="mostrarSecao('aprovacoes')"><span class="nav-icon">✅</span><span class="nav-label">Aprovações</span></div>
+          <div class="nav-item" data-secao="mesas" onclick="mostrarSecao('mesas')"><span class="nav-icon">🤝</span><span class="nav-label">Mesas</span></div>
+          <div class="nav-item" data-secao="registrar-venda" onclick="mostrarSecao('registrar-venda')"><span class="nav-icon">💰</span><span class="nav-label">Registrar Venda</span></div>
+        </div>
+
+        <!-- MARKETING -->
+        <div class="nav-group">
+          <div class="nav-group-label">Marketing</div>
+          <div class="nav-item" data-secao="crm-leads" onclick="mostrarSecao('crm-leads')"><span class="nav-icon">👥</span><span class="nav-label">CRM Leads</span></div>
+          <div class="nav-item" data-secao="projetos-venda" onclick="mostrarSecao('projetos-venda')"><span class="nav-icon">🏢</span><span class="nav-label">Projetos Venda</span></div>
+          <div class="nav-item" data-secao="projetos-compra" onclick="mostrarSecao('projetos-compra')"><span class="nav-icon">💡</span><span class="nav-label">Projetos Compra (teses)</span></div>
+          <div class="nav-item" data-secao="socios" onclick="mostrarSecao('socios')"><span class="nav-icon">🎖️</span><span class="nav-label">Sócios</span></div>
+          <div class="nav-item" data-secao="parceiros" onclick="mostrarSecao('parceiros')"><span class="nav-icon">🔗</span><span class="nav-label">Parceiros</span></div>
+          <div class="nav-item" data-secao="funis" onclick="mostrarSecao('funis')"><span class="nav-icon">🎯</span><span class="nav-label">Funis</span></div>
+          <div class="nav-item" data-secao="calendario" onclick="mostrarSecao('calendario')"><span class="nav-icon">📅</span><span class="nav-label">Calendário</span></div>
+          <div class="nav-item" data-secao="gerador-conteudo" onclick="mostrarSecao('gerador-conteudo')"><span class="nav-icon">✍️</span><span class="nav-label">Gerador de Conteúdo</span><span class="star">⭐</span></div>
+          <div class="nav-item" data-secao="scrapers" onclick="mostrarSecao('scrapers')"><span class="nav-icon">🕷️</span><span class="nav-label">Scrapers</span></div>
+          <div class="nav-item" data-secao="ads" onclick="mostrarSecao('ads')"><span class="nav-icon">📣</span><span class="nav-label">Ads</span></div>
+          <div class="nav-item" data-secao="disparos" onclick="mostrarSecao('disparos')"><span class="nav-icon">📤</span><span class="nav-label">Disparos WhatsApp</span></div>
+          <div class="nav-item" data-secao="brand-repo" onclick="mostrarSecao('brand-repo')"><span class="nav-icon">🎨</span><span class="nav-label">Brand Repository</span></div>
+          <div class="nav-item" data-secao="radar" onclick="mostrarSecao('radar')"><span class="nav-icon">🛰️</span><span class="nav-label">Radar de Mercado</span></div>
+          <div class="nav-item" data-secao="midia-ger" onclick="mostrarSecao('midia-ger')"><span class="nav-icon">💰</span><span class="nav-label">Mídia Gerenciada</span></div>
+          <div class="nav-item" data-secao="analytics" onclick="mostrarSecao('analytics')"><span class="nav-icon">📈</span><span class="nav-label">Analytics</span></div>
+          <div class="nav-item" data-secao="campanhas" onclick="mostrarSecao('campanhas')"><span class="nav-icon">📌</span><span class="nav-label">Campanhas</span></div>
+          <div class="nav-item" data-secao="fluxos" onclick="mostrarSecao('fluxos')"><span class="nav-icon">🔄</span><span class="nav-label">Fluxos Automáticos</span></div>
+          <div class="nav-item" data-secao="atendimento-ia" onclick="mostrarSecao('atendimento-ia')"><span class="nav-icon">🤖</span><span class="nav-label">Atendimento IA</span></div>
+          <div class="nav-item" data-secao="maquinaria" onclick="mostrarSecao('maquinaria')"><span class="nav-icon">🏭</span><span class="nav-label">Máquina de Anúncios</span></div>
+        </div>
+
+        <!-- SISTEMA -->
+        <div class="nav-group">
+          <div class="nav-group-label">Sistema</div>
+          <div class="nav-item" data-secao="parametros" onclick="mostrarSecao('parametros')"><span class="nav-icon">⚙️</span><span class="nav-label">Parâmetros</span></div>
+          <div class="nav-item" data-secao="skill-v2" onclick="mostrarSecao('skill-v2')"><span class="nav-icon">🔍</span><span class="nav-label">Skill v2</span></div>
+          <div class="nav-item" data-secao="glossario" onclick="mostrarSecao('glossario')"><span class="nav-icon">📚</span><span class="nav-label">Glossário Editorial</span></div>
+          <div class="nav-item" data-secao="apis" onclick="mostrarSecao('apis')"><span class="nav-icon">🔌</span><span class="nav-label">APIs/Sistemas</span></div>
+          <div class="nav-item" data-secao="cofre" onclick="mostrarSecao('cofre')"><span class="nav-icon">🔐</span><span class="nav-label">Cofre de Termos</span></div>
+          <div class="nav-item" data-secao="brand-docs" onclick="mostrarSecao('brand-docs')"><span class="nav-icon">📄</span><span class="nav-label">Brand Documents</span></div>
+          <div class="nav-item" data-secao="backlog" onclick="mostrarSecao('backlog')"><span class="nav-icon">📋</span><span class="nav-label">Backlog</span></div>
+          <div class="nav-item" data-secao="docs" onclick="mostrarSecao('docs')"><span class="nav-icon">📖</span><span class="nav-label">Documentação</span></div>
+        </div>
+
+        <!-- LEGADOS -->
+        <div class="legacy-divider">Painéis legados</div>
+        <a class="legacy-link" href="/painel-admin.html" target="_blank">↗ Painel Admin</a>
+        <a class="legacy-link" href="/painel-leads.html" target="_blank">↗ Painel Leads</a>
+        <a class="legacy-link" href="/admin-chat-ia.html" target="_blank">↗ Chat IA Admin</a>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="user-info"><span class="dot"></span><span id="user-nome">Admin</span></div>
+        <button class="btn-logout" onclick="logout()">Sair</button>
+      </div>
+    </aside>
+
+    <!-- ──────────── MAIN ──────────── -->
+    <main class="main">
+      <div class="topbar">
+        <button class="btn-burger" onclick="toggleSidebar(true)">☰</button>
+        <div>
+          <div class="breadcrumb" id="bc-trail">CEO · COCKPIT</div>
+          <div class="topbar-title" id="bc-titulo">Cockpit</div>
+        </div>
+        <div class="topbar-spacer"></div>
+        <div class="kbd-hint"><kbd>⌘</kbd>+<kbd>K</kbd> busca</div>
+      </div>
+
+      <div class="main-scroll" id="main-scroll">
+        <!-- ──────────── COCKPIT (FUNCIONAL) ──────────── -->
+        <section id="secao-cockpit" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">🎯 Cockpit</h1>
+            <p class="secao-subtitulo">Sua entrada padrão · pré-renderizado às 5h</p>
+          </header>
+          <div class="secao-explicacao"><p>Estado atual do negócio em uma rolagem só. Negócios novos · resultados · decisões pendentes · 11 blocos sequenciais.</p></div>
+          <div class="secao-conteudo">
+
+            <!-- Bloco 1 · Negócios novos (FUNCIONAL) -->
+            <div class="bloco">
+              <div class="bloco-head">
+                <div>
+                  <div class="bloco-titulo">Bloco 1 · Negócios novos</div>
+                  <div class="bloco-sub">últimas 24h e 7 dias</div>
+                </div>
+                <span class="bloco-tag">funcional</span>
+              </div>
+              <div class="chips" id="b1-chips">
+                <button class="chip active" onclick="b1Filtro('reais')">Reais</button>
+                <button class="chip" onclick="b1Filtro('maquininha')">Maquininha</button>
+                <button class="chip" onclick="b1Filtro('todos')">Todos</button>
+              </div>
+              <div id="b1-loading"><div class="spinner"></div></div>
+              <div id="b1-tabela"></div>
+            </div>
+
+            <!-- Blocos placeholder 2-8 -->
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Bloco 2 · Resultados</div><div class="bloco-sub">vendas · comissão · comparativo</div></div><span class="bloco-tag warn">em construção</span></div>
+              <div class="placeholder"><div class="ph-icone">🚧</div><h2>Pré-renderizado às 5h</h2><ul><li>Vendas fechadas no mês (split 40/40/20)</li><li>Comissões geradas (a receber + recebido)</li><li>Comparativo vs mês anterior · vs ano anterior</li></ul></div>
+            </div>
+
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Bloco 3 · Levantadas de mão</div><div class="bloco-sub">dossiês pendentes · mesas novas</div></div><span class="bloco-tag warn">em construção</span></div>
+              <div class="placeholder"><div class="ph-icone">🚧</div><h2>Pré-renderizado às 5h</h2><ul><li>Solicitações de dossiê aguardando aprovação</li><li>Mesas de negociação iniciadas nas últimas 24h</li><li>Compradores qualificados em aproximação</li></ul></div>
+            </div>
+
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Bloco 4 · Execução do plano</div><div class="bloco-sub">meta do mês · KPIs</div></div><span class="bloco-tag warn">em construção</span></div>
+              <div class="placeholder"><div class="ph-icone">🚧</div><h2>Pré-renderizado às 5h</h2><ul><li>Meta de receita do mês vs realizado</li><li>KPIs principais (CAC, LTV, NPS)</li><li>Status das frentes ativas</li></ul></div>
+            </div>
+
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Bloco 5 · Demanda de conteúdo HOJE</div><div class="bloco-sub">roteiros · posts a aprovar</div></div><span class="bloco-tag warn">em construção</span></div>
+              <div class="placeholder"><div class="ph-icone">🚧</div><h2>Pré-renderizado às 5h</h2><ul><li>Posts agendados pra hoje (aguardando aprovação)</li><li>Roteiros sugeridos pelo Gerador de Conteúdo</li><li>Pauta editorial da semana</li></ul></div>
+            </div>
+
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Bloco 6 · Calendário próximos 7 dias</div><div class="bloco-sub">eventos agendados</div></div><span class="bloco-tag warn">em construção</span></div>
+              <div class="placeholder"><div class="ph-icone">🚧</div><h2>Pré-renderizado às 5h</h2><ul><li>Mesas marcadas</li><li>Posts agendados (Instagram · LinkedIn · WhatsApp)</li><li>Reuniões com Sócios-Parceiros</li></ul></div>
+            </div>
+
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Bloco 7 · Performance orgânica</div><div class="bloco-sub">top/bottom posts</div></div><span class="bloco-tag warn">em construção</span></div>
+              <div class="placeholder"><div class="ph-icone">🚧</div><h2>Pré-renderizado às 5h</h2><ul><li>Top 3 posts da semana (engajamento)</li><li>Bottom 3 (precisa investigar)</li><li>Crescimento de seguidores por canal</li></ul></div>
+            </div>
+
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Bloco 8 · Performance paga</div><div class="bloco-sub">CPL · conversões</div></div><span class="bloco-tag warn">em construção</span></div>
+              <div class="placeholder"><div class="ph-icone">🚧</div><h2>Pré-renderizado às 5h</h2><ul><li>CPL por canal (Meta · Google)</li><li>Conversões pra leads qualificados</li><li>ROI da campanha ativa</li></ul></div>
+            </div>
+
+            <!-- Bloco 9 · Frequência de Relacionamento (FUNCIONAL) -->
+            <div class="bloco">
+              <div class="bloco-head">
+                <div>
+                  <div class="bloco-titulo">Bloco 9 · Frequência de Relacionamento</div>
+                  <div class="bloco-sub">anunciantes pra contatar essa semana</div>
+                </div>
+                <span class="bloco-tag">funcional</span>
+              </div>
+              <div id="b9-loading"><div class="spinner"></div></div>
+              <div id="b9-lista"></div>
+            </div>
+
+            <!-- Blocos placeholder 10-11 -->
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Bloco 10 · Radar de Mercado</div><div class="bloco-sub">scrappers OLX · FB · etc</div></div><span class="bloco-tag warn">em construção</span></div>
+              <div class="placeholder"><div class="ph-icone">🚧</div><h2>Pré-renderizado às 5h</h2><ul><li>Novos anúncios coletados em OLX (compatíveis com nossas teses)</li><li>Posts FB/IG de empresas anunciando venda</li><li>Sinais de interesse externos</li></ul></div>
+            </div>
+
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Bloco 11 · VGV de Comissões</div><div class="bloco-sub">big number</div></div><span class="bloco-tag warn">em construção</span></div>
+              <div class="placeholder"><div class="ph-icone">🚧</div><h2>Pré-renderizado às 5h</h2><ul><li>VGV (valor geral de vendas) · pipeline total</li><li>Comissões esperadas se tudo der certo</li><li>Distribuição por estágio</li></ul></div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ──────────── GERADOR DE CONTEÚDO (FUNCIONAL ⭐) ──────────── -->
+        <section id="secao-gerador-conteudo" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">✍️ Gerador de Conteúdo</h1>
+            <p class="secao-subtitulo">Gere posts pra Instagram · LinkedIn · WhatsApp em 1 minuto</p>
+          </header>
+          <div class="secao-explicacao"><p>Pega 1 negócio publicado · gera texto + imagem + hashtags com IA · respeita sigilo (sem nome real) · usa glossário editorial da plataforma. Stack: Anthropic Sonnet 4 (texto) + opcional OpenAI DALL-E 3 (imagem).</p></div>
+
+          <div class="secao-conteudo">
+
+            <!-- Filtros -->
+            <div class="bloco">
+              <div class="bloco-head">
+                <div><div class="bloco-titulo">Filtros</div><div class="bloco-sub">selecione fonte e setor</div></div>
+              </div>
+              <div>
+                <div class="modal-grupo-label">Fonte de conteúdo</div>
+                <div class="chips" id="gc-fonte">
+                  <button class="chip active" onclick="gcFonte('publicados')">🟢 Negócios publicados</button>
+                  <button class="chip" onclick="gcFonte('leads')">🟡 Leads quentes</button>
+                </div>
+              </div>
+              <div>
+                <div class="modal-grupo-label">Setor</div>
+                <div class="chips" id="gc-setor"><button class="chip active" onclick="gcSetor('todos')">Todos</button></div>
+              </div>
+              <div id="gc-origem-wrap">
+                <div class="modal-grupo-label">Origem</div>
+                <div class="chips" id="gc-origem">
+                  <button class="chip active" onclick="gcOrigem('reais')">Reais</button>
+                  <button class="chip" onclick="gcOrigem('maquininha')">Maquininha</button>
+                  <button class="chip" onclick="gcOrigem('todos')">Todos</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Histórico -->
+            <div class="bloco">
+              <div class="bloco-head">
+                <div><div class="bloco-titulo">Peças geradas hoje</div><div class="bloco-sub">histórico recente</div></div>
+              </div>
+              <div id="gc-historico"><div class="lista-vazia">— sem peças geradas hoje —</div></div>
+            </div>
+
+            <!-- Lista negócios -->
+            <div class="bloco">
+              <div class="bloco-head">
+                <div><div class="bloco-titulo">Selecione um negócio pra gerar peça</div><div class="bloco-sub">limite 30 · botão "carregar mais" no fim</div></div>
+              </div>
+              <div id="gc-loading"><div class="spinner"></div></div>
+              <div id="gc-lista" class="cards-grid"></div>
+              <div style="text-align:center;margin-top:14px"><button class="btn btn-ghost" id="gc-carregar-mais" onclick="gcCarregarMais()" style="display:none">Carregar mais</button></div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             SEÇÕES PLACEHOLDER (todas as outras)
+             ════════════════════════════════════════════════════════════════ -->
+        <section id="secao-planejado" class="secao"><header class="secao-header"><h1 class="secao-titulo">📊 Planejado vs Executado</h1><p class="secao-subtitulo">Receita planejada vs executada do mês · por categoria</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Vai mostrar a meta financeira do mês comparada com o realizado, segmentado por categoria de produto/serviço.</p><ul><li>Receita planejada vs executada (R$ + %)</li><li>Por categoria (Plano Guiado · Laudo · Sócio · Mídia)</li><li>Gráfico de evolução semanal</li><li>Alertas quando categoria fica abaixo de X% da meta</li></ul></div></section>
+
+        <section id="secao-contas" class="secao"><header class="secao-header"><h1 class="secao-titulo">💸 Contas a pagar / receber</h1><p class="secao-subtitulo">A receber via Stripe · a pagar configurado manualmente</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Visão de fluxo de caixa próximos 30/60/90 dias.</p><ul><li>A receber: Stripe (planos guiado · laudo · sócio trienal)</li><li>A pagar: contas fixas configuradas manualmente</li><li>Saldo projetado por semana</li><li>Alertas de inadimplência</li></ul></div></section>
+
+        <section id="secao-custos" class="secao"><header class="secao-header"><h1 class="secao-titulo">🏷️ Custos</h1><p class="secao-subtitulo">Custos fixos e variáveis · alertas quando passa de X%</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Controle de despesas operacionais.</p><ul><li>Custos fixos (Vercel · Supabase · Anthropic · OpenAI · Stripe)</li><li>Custos variáveis (Z-API · Ads · ferramentas pontuais)</li><li>% do faturamento por categoria</li><li>Alertas quando passa do limite</li></ul></div></section>
+
+        <section id="secao-vgv" class="secao"><header class="secao-header"><h1 class="secao-titulo">💎 VGV de Comissões</h1><p class="secao-subtitulo">Pipeline total esperado se tudo der certo</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Big number do potencial total de comissão se TODOS os negócios em pipeline fecharem.</p><ul><li>VGV total (valor de venda × comissão)</li><li>Por estágio (avaliação · publicado · em mesa · em proposta)</li><li>Probabilidade ponderada (×% de fechamento típico do estágio)</li><li>Top 10 deals em valor</li></ul></div></section>
+
+        <section id="secao-atendimento" class="secao"><header class="secao-header"><h1 class="secao-titulo">📞 Atendimento</h1><p class="secao-subtitulo">Chamados · novos contatos · conversas em curso</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Hub de atendimento em tempo real. Por enquanto · acesse o painel atual.</p><ul><li>Solicitações de dossiê pendentes</li><li>Conversas escalonadas do Chat IA</li><li>Mensagens WhatsApp aguardando resposta</li><li>Triagem rápida com mini-cards</li></ul><a class="legacy-cta" href="/painel-admin.html" target="_blank">↗ Acessar Painel Admin atual</a><div style="font-size:11px;color:var(--ink-3);margin-top:6px;font-family:var(--mono)">No painel atual · clique em "Solicitações" no menu lateral</div></div></section>
+
+        <section id="secao-pipeline" class="secao"><header class="secao-header"><h1 class="secao-titulo">🌱 Pipeline</h1><p class="secao-subtitulo">Novos leads · diagnósticos · anúncios · teses · candidatos a Sócio</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Funil completo da plataforma em 1 visão.</p><ul><li>Leads no topo (entrada)</li><li>Diagnósticos em curso</li><li>Anúncios publicados</li><li>Teses ativas</li><li>Candidatos a Sócio em qualificação</li><li>Conversão de cada estágio (%)</li></ul></div></section>
+
+        <section id="secao-aprovacoes" class="secao"><header class="secao-header"><h1 class="secao-titulo">✅ Aprovações</h1><p class="secao-subtitulo">Anúncios · NDAs · dossiês · vínculos de Sócio · vínculos de Parceiro</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Fila de aprovações pendentes em 1 lugar só.</p><ul><li>Anúncios aguardando publicação (curadoria)</li><li>NDAs aguardando admin liberar dossiê</li><li>Vínculos de Sócio-Parceiro a aprovar</li><li>Termos de adesão revisados</li></ul><a class="legacy-cta" href="/painel-admin.html" target="_blank">↗ Acessar Painel Admin atual</a><div style="font-size:11px;color:var(--ink-3);margin-top:6px;font-family:var(--mono)">No painel atual · clique em "Anúncios" no menu lateral</div></div></section>
+
+        <section id="secao-mesas" class="secao"><header class="secao-header"><h1 class="secao-titulo">🤝 Mesas</h1><p class="secao-subtitulo">Mesas de negociação · futuro</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção · futuro</h2><p>Mesa de negociação digital · core do produto.</p><ul><li>Lista de mesas ativas com status</li><li>Comprador · vendedor · sócios envolvidos</li><li>Histórico de propostas e contrapropostas</li><li>Alerta quando uma mesa fica parada > 3 dias</li></ul></div></section>
+
+        <section id="secao-registrar-venda" class="secao"><header class="secao-header"><h1 class="secao-titulo">💰 Registrar Venda</h1><p class="secao-subtitulo">Tela manual · admin registra venda fechada</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Quando uma venda fecha (manual no início), admin registra aqui pra disparar comissionamento.</p><ul><li>Selecionar negócio + comprador</li><li>Valor de venda fechado</li><li>Calcular split 40/40/20 automaticamente</li><li>Identificar Sócio gestor + Sócio que trouxe comprador</li><li>Disparar evento financeiro · gerar transações</li></ul></div></section>
+
+        <section id="secao-crm-leads" class="secao"><header class="secao-header"><h1 class="secao-titulo">👥 CRM Leads</h1><p class="secao-subtitulo">2 camadas: leads qualificados + repositório de contatos sujos</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>CRM unificado com qualificação automática.</p><ul><li>Camada 1: leads qualificados (preencheram diagnóstico ou interagiram com Chat IA)</li><li>Camada 2: contatos sujos (scrappers · listas importadas)</li><li>Tags + segmentação</li><li>Histórico de interações</li><li>Próxima ação sugerida pela IA</li></ul><a class="legacy-cta" href="/painel-leads.html" target="_blank">↗ Acessar Painel Leads atual</a></div></section>
+
+        <section id="secao-projetos-venda" class="secao"><header class="secao-header"><h1 class="secao-titulo">🏢 Projetos Venda</h1><p class="secao-subtitulo">Lista geral de empresas anunciadas à venda</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Visão consolidada de todos os negócios anunciados.</p><ul><li>Filtros por setor · cidade · valor · ISE</li><li>Tags de status (publicado · pausado · em mesa · vendido)</li><li>Sócio responsável (gestor)</li><li>Tempo desde a publicação</li></ul></div></section>
+
+        <section id="secao-projetos-compra" class="secao"><header class="secao-header"><h1 class="secao-titulo">💡 Projetos Compra (teses)</h1><p class="secao-subtitulo">Lista geral de teses de investimento</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Compradores que registraram tese de investimento.</p><ul><li>Setores · regiões · valor de interesse</li><li>Match com negócios disponíveis</li><li>Sócio responsável (quem trouxe)</li><li>Status de aproximação</li></ul></div></section>
+
+        <section id="secao-socios" class="secao"><header class="secao-header"><h1 class="secao-titulo">🎖️ Sócios</h1><p class="secao-subtitulo">Sócios institucionais · plano trienal R$ 5.346</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Lista de Sócios formais (auto-serviço · portal próprio).</p><ul><li>Cadastro completo + termos assinados</li><li>Negócios e teses vinculados</li><li>Comissões geradas (recebido + a receber)</li><li>Renovação do plano trienal</li></ul></div></section>
+
+        <section id="secao-parceiros" class="secao"><header class="secao-header"><h1 class="secao-titulo">🔗 Parceiros</h1><p class="secao-subtitulo">Parceiros pontuais · sem plano · gerenciados manualmente</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Parceiros pontuais (vinculação manual · contato via WhatsApp).</p><ul><li>Lista com limite de vínculos simultâneos</li><li>Vínculos ativos (negócios · teses)</li><li>Comissões geradas</li><li>Histórico de WhatsApp da 1Negócio com cada um</li></ul></div></section>
+
+        <section id="secao-funis" class="secao"><header class="secao-header"><h1 class="secao-titulo">🎯 Funis</h1><p class="secao-subtitulo">Vendedores · Sócios · Compradores</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>3 funis de conversão monitorados.</p><ul><li>Vendedor: acesso → diagnóstico → publicação → vendido</li><li>Sócio: cadastro → plano trienal pago → 1ª comissão</li><li>Comprador: home → tese → dossiê → mesa → fechamento</li><li>Conversão de cada etapa + drop-off</li></ul></div></section>
+
+        <section id="secao-calendario" class="secao"><header class="secao-header"><h1 class="secao-titulo">📅 Calendário</h1><p class="secao-subtitulo">Editorial · publicações · tarefas</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Visão consolidada do que vai sair de conteúdo e quando.</p><ul><li>Posts agendados (Instagram · LinkedIn · WhatsApp)</li><li>Newsletters / e-mails</li><li>Webinars · lives · eventos</li><li>Sincronização com Cal.com (admin) e Google Calendar</li></ul></div></section>
+
+        <section id="secao-scrapers" class="secao"><header class="secao-header"><h1 class="secao-titulo">🕷️ Scrapers</h1><p class="secao-subtitulo">Google Maps · LinkedIn · OLX · Facebook · Instagram</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Scrappers já rodando hoje no painel-leads. Vão migrar pra cá.</p><ul><li>Google Maps (negócios por setor + cidade)</li><li>LinkedIn (perfis de empresários · executivos)</li><li>OLX (anúncios de empresas à venda)</li><li>Facebook + Instagram (sinais de venda)</li><li>Histórico de runs e exportações</li></ul><a class="legacy-cta" href="/painel-leads.html" target="_blank">↗ Acessar Painel Leads atual</a></div></section>
+
+        <section id="secao-ads" class="secao"><header class="secao-header"><h1 class="secao-titulo">📣 Ads</h1><p class="secao-subtitulo">Meta Ads · Google Ads · operados via API oficial</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Gestão de campanhas pagas direto da plataforma.</p><ul><li>Criar campanhas via API</li><li>Acompanhar CPM · CPC · CPL · CTR</li><li>A/B test de criativos</li><li>Atribuição de conversão</li><li>Importação automática de leads</li></ul></div></section>
+
+        <section id="secao-disparos" class="secao"><header class="secao-header"><h1 class="secao-titulo">📤 Disparos WhatsApp</h1><p class="secao-subtitulo">Templates · disparo individual ou lote · histórico no CRM</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Disparos via Z-API (já integrada).</p><ul><li>Templates editáveis (saudação · diagnóstico · venda · evento)</li><li>Disparo individual ou em lote</li><li>Lote: filtra leads do CRM por critério</li><li>Histórico salvo no contato</li></ul><a class="legacy-cta" href="/painel-leads.html" target="_blank">↗ Acessar Painel Leads atual</a></div></section>
+
+        <section id="secao-brand-repo" class="secao"><header class="secao-header"><h1 class="secao-titulo">🎨 Brand Repository</h1><p class="secao-subtitulo">Design System vivo · templates · diretrizes editoriais</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Repositório vivo da marca · acessível pelo time.</p><ul><li>Tokens do Design System (cores · fontes · espaçamentos)</li><li>Templates de Instagram · LinkedIn · Apresentação</li><li>Glossário editorial integrado</li><li>Logos · pictogramas · ícones</li></ul></div></section>
+
+        <section id="secao-radar" class="secao"><header class="secao-header"><h1 class="secao-titulo">🛰️ Radar de Mercado</h1><p class="secao-subtitulo">Alertas diários de oportunidade externa</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Sinais externos de oportunidade · diário.</p><ul><li>Anúncios de venda em OLX/FB compatíveis com nossas teses</li><li>Empresas no LinkedIn sinalizando reestruturação</li><li>Variações de mercado por setor</li><li>Alertas customizados</li></ul></div></section>
+
+        <section id="secao-midia-ger" class="secao"><header class="secao-header"><h1 class="secao-titulo">💰 Mídia Gerenciada</h1><p class="secao-subtitulo">Cliente compra pacote · escolhe valor + duração + plataformas (futuro)</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção · futuro</h2><p>Linha de produto pra clientes que querem mídia paga gerenciada.</p><ul><li>Pacotes de R$ 1k · R$ 3k · R$ 10k</li><li>Duração: 30 · 60 · 90 dias</li><li>Plataformas: Meta · Google · LinkedIn</li><li>Relatório semanal automático</li></ul></div></section>
+
+        <section id="secao-analytics" class="secao"><header class="secao-header"><h1 class="secao-titulo">📈 Analytics</h1><p class="secao-subtitulo">Crescimento · conversão · ROI</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Visão de performance da plataforma como um todo.</p><ul><li>Crescimento de usuários (vendedores · compradores · sócios)</li><li>Conversão por funil</li><li>ROI de cada canal de aquisição</li><li>NPS · churn · LTV</li></ul></div></section>
+
+        <section id="secao-campanhas" class="secao"><header class="secao-header"><h1 class="secao-titulo">📌 Campanhas</h1><p class="secao-subtitulo">Cards de campanhas ativas com métricas</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Painel de campanhas ativas em curso (orgânicas + pagas).</p><ul><li>1 card por campanha</li><li>Status · objetivo · KPIs</li><li>Postagens vinculadas</li><li>Resultados em tempo real</li></ul></div></section>
+
+        <section id="secao-fluxos" class="secao"><header class="secao-header"><h1 class="secao-titulo">🔄 Fluxos Automáticos</h1><p class="secao-subtitulo">Painel de todas as automações da plataforma</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Painel administrativo das automações que rodam.</p><ul><li>Diagnóstico → Email → WhatsApp follow-up</li><li>Lead criado → Notifica admin</li><li>NDA assinado → Libera dossiê</li><li>Sócio cadastrado → Email de boas-vindas + onboarding</li><li>Status, sucesso/falha, histórico</li></ul></div></section>
+
+        <section id="secao-atendimento-ia" class="secao"><header class="secao-header"><h1 class="secao-titulo">🤖 Atendimento IA</h1><p class="secao-subtitulo">Gestão do Chat IA da home pública (chat-ia v29)</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Painel de monitoramento e configuração do Chat IA.</p><ul><li>Versão atual (chat-ia v29)</li><li>System prompt editável (com versionamento)</li><li>Conversas em tempo real</li><li>Triggers de escalação</li><li>Métricas (volume · conversão pra lead · tokens consumidos)</li></ul><a class="legacy-cta" href="/admin-chat-ia.html" target="_blank">↗ Acessar Chat IA Admin atual</a></div></section>
+
+        <section id="secao-maquinaria" class="secao"><header class="secao-header"><h1 class="secao-titulo">🏭 Máquina de Anúncios</h1><p class="secao-subtitulo">Geração procedural de anúncios pra demonstração e testes</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Hoje rodando via CLI Node. Status: 558 anúncios já gerados em produção. Migração pra UI prevista.</p><ul><li>Upload de perfil JSON ou geração procedural</li><li>Configuração de quantidade + distribuição</li><li>Streaming de progresso</li><li>Resumo final (sucessos · pulados RO&lt;0 · falhas)</li><li>Histórico de batches</li></ul><button class="legacy-cta" onclick="document.getElementById('modal-maquininha-cli').classList.add('show')">📋 Ver instruções CLI atual</button></div></section>
+
+        <section id="secao-parametros" class="secao"><header class="secao-header"><h1 class="secao-titulo">⚙️ Parâmetros</h1><p class="secao-subtitulo">Snapshot ativo: v2026.11-pool-9-categorias</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Tabela `parametros_versoes` controla múltiplos · pesos ISE · benchmarks · upsides.</p><ul><li>Snapshot ativo (atual: v2026.11-pool-9-categorias)</li><li>Histórico de versões</li><li>Editor visual (múltiplos · pesos · benchmarks)</li><li>Diff entre versões</li><li>Rollback rápido</li></ul></div></section>
+
+        <section id="secao-skill-v2" class="secao"><header class="secao-header"><h1 class="secao-titulo">🔍 Skill v2</h1><p class="secao-subtitulo">Visão e histórico da skill-avaliadora-v2.js · raiz da verdade</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>3.002 linhas · 47 funções · 8 pilares ISE · 12 setores · 8 modelos de atuação.</p><ul><li>Versão atual: 2.0.0-etapa2.9</li><li>Pipeline: mapDadosV2 → calcDREv2 → calcBalancoV2 → calcISEv2 → calcValuationV2 → ...</li><li>Histórico de mudanças</li><li>Testar perfil contra a skill (preview vs commit)</li></ul></div></section>
+
+        <section id="secao-glossario" class="secao"><header class="secao-header"><h1 class="secao-titulo">📚 Glossário Editorial</h1><p class="secao-subtitulo">Termos vetados e substituições oficiais</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Mesmo glossário do system prompt do Chat IA · centralizado.</p><ul><li>Vetados: M&amp;A · DCF · WACC · Valuation · Benchmark · ROI · Earnout · Cashflow · Deal · Churn</li><li>Substituições: "compra e venda de empresas" · "avaliação financeira" · "lucro real da operação" · "comparativo com mercado"</li><li>Aplicado em: Chat IA · Gerador de Conteúdo · textos editoriais</li></ul></div></section>
+
+        <section id="secao-apis" class="secao"><header class="secao-header"><h1 class="secao-titulo">🔌 APIs / Sistemas</h1><p class="secao-subtitulo">Vercel · Supabase · Stripe · Z-API · Anthropic · OpenAI · GoDaddy · Cal.com</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Status de cada integração ativa.</p><ul><li>Vercel (hospedagem) · status + último deploy</li><li>Supabase (banco + edge functions) · uso + custo</li><li>Stripe (pagamentos) · transações 30d</li><li>Z-API (WhatsApp) · status da instância</li><li>Anthropic (Claude) · tokens consumidos</li><li>OpenAI (DALL-E 3) · uso</li><li>GoDaddy (DNS · domínios)</li><li>Cal.com (agendamentos)</li></ul></div></section>
+
+        <section id="secao-cofre" class="secao"><header class="secao-header"><h1 class="secao-titulo">🔐 Cofre de Termos</h1><p class="secao-subtitulo">Termos de adesão · NDAs · termos de Sócio assinados</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Repositório de documentos legais.</p><ul><li>Termos de adesão (vendedores · compradores · sócios)</li><li>NDAs assinados (compradores acessando dossiê)</li><li>Termos de Sócio (plano trienal R$ 5.346)</li><li>Histórico de versões dos templates</li></ul></div></section>
+
+        <section id="secao-brand-docs" class="secao"><header class="secao-header"><h1 class="secao-titulo">📄 Brand Documents</h1><p class="secao-subtitulo">Brandbook · manual de tom · modelos</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Documentos institucionais.</p><ul><li>Brandbook (1negocio-brandbook.html já existe)</li><li>Manual de tom de voz</li><li>Modelo de laudo</li><li>Apresentações comerciais</li></ul></div></section>
+
+        <section id="secao-backlog" class="secao"><header class="secao-header"><h1 class="secao-titulo">📋 Backlog</h1><p class="secao-subtitulo">Itens organizados por categoria · drag-and-drop · sincroniza com documento-mestre</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Backlog vivo do produto.</p><ul><li>Categorias: CEO · Financeiro · Operações · Marketing · Sistema</li><li>Drag-and-drop entre status (ideia · pra fazer · em curso · entregue)</li><li>Sincroniza com documento-mestre da plataforma</li><li>Comentários · prioridades · estimativas</li></ul></div></section>
+
+        <section id="secao-docs" class="secao"><header class="secao-header"><h1 class="secao-titulo">📖 Documentação</h1><p class="secao-subtitulo">Versão compactada do documento-mestre · navegável</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Doc técnica navegável.</p><ul><li>Architecture overview</li><li>ESPEC-AVALIACAO-ATUAL.md (já existe na raiz)</li><li>ESPEC-CHAT-IA-ATUAL.md (já existe)</li><li>ESPEC-MAQUININHA-ANUNCIOS.md (já existe)</li><li>Migrations + edge functions documentadas</li></ul></div></section>
+
+      </div>
+    </main>
+
+  </div>
+</div>
+
+<!-- ──────────── FAB atendimento ──────────── -->
+<button class="fab" id="fab" onclick="fabClick()" title="Atendimento rápido">📞</button>
+
+<!-- ──────────── MODAL · gerador de peça ──────────── -->
+<div class="modal-overlay" id="modal-gerar">
+  <div class="modal">
+    <h3 id="modal-gerar-titulo">Gerar peça</h3>
+    <div class="modal-sub" id="modal-gerar-sub">—</div>
+
+    <div class="modal-grupo">
+      <div class="modal-grupo-label">Formato</div>
+      <div class="modal-radios">
+        <label><input type="radio" name="mg-formato" value="feed-insta" checked> Feed Instagram (1080×1080)</label>
+        <label><input type="radio" name="mg-formato" value="story-insta"> Story Instagram (1080×1920)</label>
+        <label><input type="radio" name="mg-formato" value="post-linkedin"> Post LinkedIn (1200×627)</label>
+      </div>
+    </div>
+
+    <div class="modal-grupo">
+      <div class="modal-grupo-label">Tipo de imagem</div>
+      <div class="modal-radios">
+        <label><input type="radio" name="mg-imagem" value="html-svg" checked> HTML/SVG renderizado (Bloomberg-editorial)</label>
+        <label><input type="radio" name="mg-imagem" value="dalle-3"> DALL-E 3 (descritivo · custo extra)</label>
+      </div>
+    </div>
+
+    <div class="modal-grupo">
+      <div class="modal-grupo-label">Tom</div>
+      <div class="modal-radios">
+        <label><input type="radio" name="mg-tom" value="direto" checked> Direto · sem floreio</label>
+        <label><input type="radio" name="mg-tom" value="editorial"> Editorial · contextual</label>
+        <label><input type="radio" name="mg-tom" value="convidativo"> Convidativo · pergunta no fim</label>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="gerarPeca()">✨ Gerar</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('modal-gerar').classList.remove('show')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────── MODAL · preview da peça gerada ──────────── -->
+<div class="modal-overlay" id="modal-preview">
+  <div class="modal" style="max-width:780px">
+    <h3>Peça gerada</h3>
+    <div class="modal-sub" id="modal-preview-sub">—</div>
+    <div class="preview-peca">
+      <div class="preview-imagem" id="preview-imagem">—</div>
+      <div class="preview-texto">
+        <div class="preview-texto-block" id="preview-texto-block">—</div>
+        <div class="preview-hashtags" id="preview-hashtags">—</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="baixarImagem()">📥 Baixar imagem</button>
+      <button class="btn btn-ghost" onclick="copiarTexto()">📋 Copiar texto</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('modal-preview').classList.remove('show')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────── MODAL · CLI da maquininha ──────────── -->
+<div class="modal-overlay" id="modal-maquininha-cli">
+  <div class="modal">
+    <h3>Máquina de Anúncios · CLI atual</h3>
+    <div class="modal-sub">Hoje a geração roda via Node CLI · 558 anúncios em produção</div>
+    <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:14px;font-family:var(--mono);font-size:12px;color:var(--ink-2);overflow-x:auto">
+      <div style="color:var(--ink-3);margin-bottom:8px"># Rodar 1 perfil:</div>
+      <div style="color:var(--accent)">node scripts/criar-anuncio-completo.js scripts/perfis-teste/01-padaria-saudavel.json</div>
+      <br>
+      <div style="color:var(--ink-3);margin-bottom:8px"># Rodar batch (regex em criar-anuncio-completo.js:551):</div>
+      <div style="color:var(--accent)">node scripts/criar-anuncio-completo.js --batch</div>
+      <br>
+      <div style="color:var(--ink-3);margin-bottom:8px"># Background (lote longo · ~3h pra 500):</div>
+      <div style="color:var(--accent)">node scripts/criar-anuncio-completo.js --batch &gt; /tmp/lote.log 2&gt;&amp;1 &amp;</div>
+    </div>
+    <div style="font-size:11px;color:var(--ink-3);margin-top:10px">Doc completa: <code style="background:var(--surface-2);padding:2px 6px;border-radius:4px;font-family:var(--mono)">ESPEC-MAQUININHA-ANUNCIOS.md</code></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('modal-maquininha-cli').classList.remove('show')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========================================================================
+   CONSTANTES + AUTH
+   ======================================================================== */
+const SB = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+const AK = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYzNTQ3MDksImV4cCI6MjA1MTkzMDcwOX0.ePNVMtSSb9SvBlJeYs1OJfJwjFiVPBjJJeEEPcU0nyk';
+let __token = null;
+
+function loginMsg(m, color) {
+  const el = document.getElementById('login-msg');
+  el.textContent = m || '';
+  el.style.color = color || 'var(--ink-3)';
+}
+async function loginSendOtp() {
+  const phone = document.getElementById('inp-phone').value.trim().replace(/\D/g,'');
+  if (phone.length < 11) { loginMsg('Informe DDD + número (11 dígitos)'); return; }
+  loginMsg('Enviando...');
+  try {
+    const res = await fetch(SB + '/functions/v1/otp-send', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+AK},
+      body: JSON.stringify({whatsapp: phone})
+    });
+    const j = await res.json();
+    if (!j.ok) { loginMsg(j.error || 'Erro ao enviar'); return; }
+    loginMsg('Código enviado! Verifique o WhatsApp.', '#3dff95');
+    document.getElementById('login-step-phone').style.display = 'none';
+    document.getElementById('login-step-code').style.display  = 'block';
+    document.getElementById('inp-code').focus();
+  } catch(e) { loginMsg('Erro de rede: ' + e.message); }
+}
+async function loginVerify() {
+  const phone = document.getElementById('inp-phone').value.trim().replace(/\D/g,'');
+  const code  = document.getElementById('inp-code').value.trim();
+  if (!code || code.length < 4) { loginMsg('Informe o código'); return; }
+  loginMsg('Verificando...');
+  try {
+    const res = await fetch(SB + '/functions/v1/otp-verify', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+AK},
+      body: JSON.stringify({whatsapp: phone, codigo: code})
+    });
+    const j = await res.json();
+    if (!j.ok) { loginMsg(j.error || 'Código inválido'); return; }
+    if (!j.is_admin) { loginMsg('Acesso negado: usuário não é admin.'); return; }
+    __token = j.access_token;
+    try {
+      localStorage.setItem('1n_admin_session', JSON.stringify({
+        token: j.access_token,
+        admin_nome: j.admin_nome || 'Admin',
+        salvo_em: Date.now()
+      }));
+    } catch(e) {}
+    document.getElementById('user-nome').textContent = j.admin_nome || 'Admin';
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('main-app').style.display = 'block';
+    initAfterLogin();
+  } catch(e) { loginMsg('Erro de rede: ' + e.message); }
+}
+function loginBack() {
+  document.getElementById('login-step-code').style.display = 'none';
+  document.getElementById('login-step-phone').style.display = 'block';
+  loginMsg('');
+}
+function logout() {
+  localStorage.removeItem('1n_admin_session');
+  location.reload();
+}
+
+// Restaura sessão
+function restaurarSessao() {
+  try {
+    const raw = localStorage.getItem('1n_admin_session');
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    if (!s?.token) return false;
+    // Considera sessão válida por 7 dias
+    const idade = Date.now() - (s.salvo_em || 0);
+    if (idade > 7 * 24 * 60 * 60 * 1000) return false;
+    __token = s.token;
+    document.getElementById('user-nome').textContent = s.admin_nome || 'Admin';
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('main-app').style.display = 'block';
+    return true;
+  } catch(e) { return false; }
+}
+
+/* ========================================================================
+   NAVEGAÇÃO + TEMA
+   ======================================================================== */
+function setTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('painel-v3-theme', t);
+  document.getElementById('btn-dark').classList.toggle('active', t === 'dark');
+  document.getElementById('btn-light').classList.toggle('active', t === 'light');
+}
+
+const SECAO_TITULOS = {
+  'cockpit': {grupo:'CEO', titulo:'Cockpit', icone:'🎯'},
+  'planejado': {grupo:'FINANCEIRO', titulo:'Planejado vs Executado', icone:'📊'},
+  'contas': {grupo:'FINANCEIRO', titulo:'Contas a pagar/receber', icone:'💸'},
+  'custos': {grupo:'FINANCEIRO', titulo:'Custos', icone:'🏷️'},
+  'vgv': {grupo:'FINANCEIRO', titulo:'VGV de Comissões', icone:'💎'},
+  'atendimento': {grupo:'OPERAÇÕES', titulo:'Atendimento', icone:'📞'},
+  'pipeline': {grupo:'OPERAÇÕES', titulo:'Pipeline', icone:'🌱'},
+  'aprovacoes': {grupo:'OPERAÇÕES', titulo:'Aprovações', icone:'✅'},
+  'mesas': {grupo:'OPERAÇÕES', titulo:'Mesas', icone:'🤝'},
+  'registrar-venda': {grupo:'OPERAÇÕES', titulo:'Registrar Venda', icone:'💰'},
+  'crm-leads': {grupo:'MARKETING', titulo:'CRM Leads', icone:'👥'},
+  'projetos-venda': {grupo:'MARKETING', titulo:'Projetos Venda', icone:'🏢'},
+  'projetos-compra': {grupo:'MARKETING', titulo:'Projetos Compra', icone:'💡'},
+  'socios': {grupo:'MARKETING', titulo:'Sócios', icone:'🎖️'},
+  'parceiros': {grupo:'MARKETING', titulo:'Parceiros', icone:'🔗'},
+  'funis': {grupo:'MARKETING', titulo:'Funis', icone:'🎯'},
+  'calendario': {grupo:'MARKETING', titulo:'Calendário', icone:'📅'},
+  'gerador-conteudo': {grupo:'MARKETING', titulo:'Gerador de Conteúdo', icone:'✍️'},
+  'scrapers': {grupo:'MARKETING', titulo:'Scrapers', icone:'🕷️'},
+  'ads': {grupo:'MARKETING', titulo:'Ads', icone:'📣'},
+  'disparos': {grupo:'MARKETING', titulo:'Disparos WhatsApp', icone:'📤'},
+  'brand-repo': {grupo:'MARKETING', titulo:'Brand Repository', icone:'🎨'},
+  'radar': {grupo:'MARKETING', titulo:'Radar de Mercado', icone:'🛰️'},
+  'midia-ger': {grupo:'MARKETING', titulo:'Mídia Gerenciada', icone:'💰'},
+  'analytics': {grupo:'MARKETING', titulo:'Analytics', icone:'📈'},
+  'campanhas': {grupo:'MARKETING', titulo:'Campanhas', icone:'📌'},
+  'fluxos': {grupo:'MARKETING', titulo:'Fluxos Automáticos', icone:'🔄'},
+  'atendimento-ia': {grupo:'MARKETING', titulo:'Atendimento IA', icone:'🤖'},
+  'maquinaria': {grupo:'MARKETING', titulo:'Máquina de Anúncios', icone:'🏭'},
+  'parametros': {grupo:'SISTEMA', titulo:'Parâmetros', icone:'⚙️'},
+  'skill-v2': {grupo:'SISTEMA', titulo:'Skill v2', icone:'🔍'},
+  'glossario': {grupo:'SISTEMA', titulo:'Glossário Editorial', icone:'📚'},
+  'apis': {grupo:'SISTEMA', titulo:'APIs/Sistemas', icone:'🔌'},
+  'cofre': {grupo:'SISTEMA', titulo:'Cofre de Termos', icone:'🔐'},
+  'brand-docs': {grupo:'SISTEMA', titulo:'Brand Documents', icone:'📄'},
+  'backlog': {grupo:'SISTEMA', titulo:'Backlog', icone:'📋'},
+  'docs': {grupo:'SISTEMA', titulo:'Documentação', icone:'📖'},
+};
+
+function mostrarSecao(id) {
+  document.querySelectorAll('.secao').forEach(s => s.style.display = 'none');
+  const alvo = document.getElementById('secao-' + id);
+  if (alvo) {
+    alvo.style.display = 'block';
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelector(`[data-secao="${id}"]`)?.classList.add('active');
+    window.location.hash = '#' + id;
+    const meta = SECAO_TITULOS[id];
+    if (meta) {
+      document.getElementById('bc-trail').textContent = `${meta.grupo} · ${meta.titulo.toUpperCase()}`;
+      document.getElementById('bc-titulo').textContent = `${meta.icone} ${meta.titulo}`;
+    }
+    // Lazy-load por seção
+    if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); }
+    if (id === 'gerador-conteudo') { gcInit(); }
+    // Mobile: fecha drawer
+    if (window.innerWidth <= 768) toggleSidebar(false);
+    // Scroll top
+    document.getElementById('main-scroll').scrollTo(0, 0);
+  }
+}
+
+function toggleSidebar(open) {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebar-overlay');
+  if (open === undefined) open = !sb.classList.contains('open');
+  sb.classList.toggle('open', open);
+  ov.classList.toggle('show', open);
+}
+
+/* ========================================================================
+   FAB + Cmd+K
+   ======================================================================== */
+function fabClick() {
+  alert('Atendimento rápido em construção · use Cmd+K na próxima sprint');
+}
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    alert('Busca rápida em construção');
+  }
+});
+
+/* ========================================================================
+   UTILS
+   ======================================================================== */
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fmtBRL(v) { if (!v && v !== 0) return '—'; return 'R$ ' + Math.round(v).toLocaleString('pt-BR'); }
+function fmtFat(v) {
+  if (!v) return '—';
+  if (v >= 1e6) return 'R$ ' + (v/1e6).toFixed(1).replace('.',',') + 'M';
+  if (v >= 1e3) return 'R$ ' + Math.round(v/1e3) + 'k';
+  return fmtBRL(v);
+}
+function formatarTelefone(p) {
+  const s = String(p || '').replace(/\D/g,'');
+  if (s.length === 11) return `(${s.slice(0,2)}) ${s.slice(2,7)}-${s.slice(7)}`;
+  if (s.length === 10) return `(${s.slice(0,2)}) ${s.slice(2,6)}-${s.slice(6)}`;
+  if (s.length === 13 && s.startsWith('55')) return `+55 (${s.slice(2,4)}) ${s.slice(4,9)}-${s.slice(9)}`;
+  return s;
+}
+function relativeTime(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  const diffMs = Date.now() - d.getTime();
+  const min = Math.floor(diffMs / 60000);
+  if (min < 60) return `há ${min}min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `há ${h}h`;
+  const dias = Math.floor(h / 24);
+  if (dias < 30) return `há ${dias}d`;
+  const meses = Math.floor(dias / 30);
+  return `há ${meses}m`;
+}
+function renderMiniCard(u) {
+  if (!u) return '';
+  const wppNum = (u.whatsapp || '').toString().replace(/\D/g,'');
+  const wppNumDDI = wppNum.length === 11 ? '55' + wppNum : wppNum;
+  const wppFmt = formatarTelefone(wppNum);
+  const inicial = (u.nome || '?').trim()[0].toUpperCase();
+  return `
+    <div class="mini-card">
+      <div class="mini-card-avatar">${escapeHtml(inicial)}</div>
+      <div class="mini-card-info">
+        <div class="mini-card-nome">${escapeHtml(u.nome || '—')}</div>
+        <div class="mini-card-fone">${escapeHtml(wppFmt || '—')}</div>
+      </div>
+      <div class="mini-card-actions">
+        ${wppNumDDI ? `<a href="https://wa.me/${wppNumDDI}" target="_blank" class="mini-card-btn-wpp" title="Abrir WhatsApp">💬</a>` : ''}
+        <button onclick="registrarAtendimento('${u.id || ''}')" class="mini-card-btn-att" title="Registrar atendimento">📞</button>
+      </div>
+    </div>`;
+}
+function registrarAtendimento(userId) {
+  alert('Em construção · vai gravar no CRM (user: ' + (userId || 'sem id') + ')');
+}
+
+async function sbFetch(path, opts = {}) {
+  const headers = {
+    'apikey': AK,
+    'Authorization': 'Bearer ' + (__token || AK),
+    'Content-Type': 'application/json',
+    ...(opts.headers || {})
+  };
+  const res = await fetch(SB + path, { ...opts, headers });
+  if (!res.ok) throw new Error(`${path} ${res.status}: ${await res.text().catch(()=>'')}`);
+  return res.json();
+}
+
+/* ========================================================================
+   BLOCO 1 · Negócios novos
+   ======================================================================== */
+let _b1Filtro = 'reais';
+function b1Filtro(f) {
+  _b1Filtro = f;
+  document.querySelectorAll('#b1-chips .chip').forEach(c => c.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  carregarBloco1();
+}
+async function carregarBloco1() {
+  document.getElementById('b1-loading').style.display = 'block';
+  document.getElementById('b1-tabela').innerHTML = '';
+  let filtroOrigem = '';
+  if (_b1Filtro === 'reais') filtroOrigem = '&or=(origem.is.null,origem.neq.maquininha_teste)';
+  if (_b1Filtro === 'maquininha') filtroOrigem = '&origem=eq.maquininha_teste';
+  try {
+    const data = await sbFetch(`/rest/v1/negocios?status=in.(em_avaliacao,publicado)&order=created_at.desc&limit=15${filtroOrigem}&select=id,codigo_diagnostico,setor,categoria,cidade,estado,faturamento_anual,status,created_at,origem`);
+    document.getElementById('b1-loading').style.display = 'none';
+    if (!data.length) {
+      document.getElementById('b1-tabela').innerHTML = '<div class="lista-vazia">— sem negócios novos —</div>';
+      return;
+    }
+    let html = '<table class="t"><thead><tr><th>Identificador</th><th>Setor · cidade</th><th class="num">Fat. anual</th><th>Status</th><th>Criado</th><th class="acoes">Ações</th></tr></thead><tbody>';
+    data.forEach(n => {
+      const ident = n.codigo_diagnostico || `${n.categoria || n.setor || 'neg'}_${(n.cidade||'br').toLowerCase().replace(/\s+/g,'-')}`;
+      html += `<tr>
+        <td><span class="codigo">${escapeHtml(ident)}</span></td>
+        <td>${escapeHtml((n.categoria || n.setor || '—') + ' · ' + (n.cidade || '—') + (n.estado ? '/'+n.estado : ''))}</td>
+        <td class="num">${fmtFat(n.faturamento_anual)}</td>
+        <td><span class="bloco-tag muted">${escapeHtml(n.status || '—')}</span></td>
+        <td style="color:var(--ink-3);font-size:12px">${relativeTime(n.created_at)}</td>
+        <td class="acoes">
+          <button class="btn btn-ghost btn-mini" onclick="alert('Ver ficha em construção')">Ficha</button>
+          <button class="btn btn-ghost btn-mini" onclick="alert('Ligar em construção')">📞</button>
+          <button class="btn btn-ghost btn-mini" onclick="alert('Tag em construção')">🏷️</button>
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('b1-tabela').innerHTML = html;
+  } catch(e) {
+    document.getElementById('b1-loading').style.display = 'none';
+    document.getElementById('b1-tabela').innerHTML = `<div class="lista-vazia">erro: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+/* ========================================================================
+   BLOCO 9 · Frequência de Relacionamento
+   ======================================================================== */
+async function carregarBloco9() {
+  document.getElementById('b9-loading').style.display = 'block';
+  document.getElementById('b9-lista').innerHTML = '';
+  try {
+    const negocios = await sbFetch(`/rest/v1/negocios?status=eq.publicado&or=(origem.is.null,origem.neq.maquininha_teste)&order=publicado_em.asc&limit=10&select=id,codigo_diagnostico,setor,cidade,estado,vendedor_id,publicado_em`);
+    document.getElementById('b9-loading').style.display = 'none';
+    if (!negocios.length) {
+      document.getElementById('b9-lista').innerHTML = '<div class="lista-vazia">— sem anunciantes pra contatar —</div>';
+      return;
+    }
+    // Resolve vendedores em paralelo
+    const vendedorIds = [...new Set(negocios.map(n => n.vendedor_id).filter(Boolean))];
+    let usuarios = [];
+    if (vendedorIds.length) {
+      try {
+        usuarios = await sbFetch(`/rest/v1/usuarios?id=in.(${vendedorIds.join(',')})&select=id,nome,whatsapp`);
+      } catch(_) { usuarios = []; }
+    }
+    const userMap = Object.fromEntries(usuarios.map(u => [u.id, u]));
+    let html = '<div style="display:grid;gap:10px">';
+    negocios.forEach(n => {
+      const u = userMap[n.vendedor_id] || {nome:'Vendedor', whatsapp:''};
+      html += `<div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px">
+        <div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--accent);margin-bottom:4px">${escapeHtml(n.codigo_diagnostico || '—')}</div>
+          <div style="font-size:13px">${escapeHtml(n.setor || '—')} · ${escapeHtml(n.cidade || '—')}/${escapeHtml(n.estado || '—')}</div>
+          <div style="font-size:11px;color:var(--ink-3);margin-top:2px">publicado ${relativeTime(n.publicado_em)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:end">
+          ${renderMiniCard(u)}
+          <button class="btn btn-ghost btn-mini" onclick="alert('Registrar contato em construção')">Registrar contato</button>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+    document.getElementById('b9-lista').innerHTML = html;
+  } catch(e) {
+    document.getElementById('b9-loading').style.display = 'none';
+    document.getElementById('b9-lista').innerHTML = `<div class="lista-vazia">erro: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+/* ========================================================================
+   GERADOR DE CONTEÚDO
+   ======================================================================== */
+let _gcFonte = 'publicados';
+let _gcSetor = 'todos';
+let _gcOrigem = 'reais';
+let _gcOffset = 0;
+const _gcLimite = 30;
+let _gcSelecionado = null;
+let _gcUltimaPeca = null;
+
+function gcFonte(f) {
+  _gcFonte = f; _gcOffset = 0;
+  document.querySelectorAll('#gc-fonte .chip').forEach(c => c.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('gc-origem-wrap').style.display = (f === 'publicados' ? 'block' : 'none');
+  gcCarregar();
+}
+function gcSetor(s) {
+  _gcSetor = s; _gcOffset = 0;
+  document.querySelectorAll('#gc-setor .chip').forEach(c => c.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  gcCarregar();
+}
+function gcOrigem(o) {
+  _gcOrigem = o; _gcOffset = 0;
+  document.querySelectorAll('#gc-origem .chip').forEach(c => c.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  gcCarregar();
+}
+
+async function gcInit() {
+  // Carrega setores distintos do banco e popula chips
+  try {
+    const data = await sbFetch(`/rest/v1/negocios?status=eq.publicado&select=setor&limit=1000`);
+    const setores = [...new Set(data.map(d => d.setor).filter(Boolean))].sort();
+    const wrap = document.getElementById('gc-setor');
+    wrap.innerHTML = '<button class="chip active" onclick="gcSetor(\'todos\')">Todos</button>';
+    setores.forEach(s => {
+      wrap.innerHTML += `<button class="chip" onclick="gcSetor('${escapeHtml(s)}')">${escapeHtml(s)}</button>`;
+    });
+  } catch(e) { /* silencia · usa só "Todos" */ }
+  gcCarregar();
+  gcCarregarHistorico();
+}
+
+async function gcCarregar() {
+  document.getElementById('gc-loading').style.display = 'block';
+  if (_gcOffset === 0) document.getElementById('gc-lista').innerHTML = '';
+  document.getElementById('gc-carregar-mais').style.display = 'none';
+  try {
+    let url, items;
+    if (_gcFonte === 'publicados') {
+      let filtros = `status=eq.publicado&order=publicado_em.desc&limit=${_gcLimite}&offset=${_gcOffset}&select=id,codigo_diagnostico,setor,categoria,cidade,estado,faturamento_anual,score_saude,publicado_em,origem`;
+      if (_gcSetor !== 'todos') filtros += `&setor=eq.${encodeURIComponent(_gcSetor)}`;
+      if (_gcOrigem === 'reais') filtros += `&or=(origem.is.null,origem.neq.maquininha_teste)`;
+      if (_gcOrigem === 'maquininha') filtros += `&origem=eq.maquininha_teste`;
+      items = await sbFetch(`/rest/v1/negocios?${filtros}`);
+    } else {
+      // leads_google · placeholder simples
+      try {
+        items = await sbFetch(`/rest/v1/leads_google?order=created_at.desc&limit=${_gcLimite}&offset=${_gcOffset}`);
+      } catch(_) { items = []; }
+    }
+    document.getElementById('gc-loading').style.display = 'none';
+    if (!items.length && _gcOffset === 0) {
+      document.getElementById('gc-lista').innerHTML = '<div class="lista-vazia">— sem negócios pra esses filtros —</div>';
+      return;
+    }
+    const lista = document.getElementById('gc-lista');
+    items.forEach(n => {
+      const id = n.id || n.codigo_diagnostico;
+      const ident = n.codigo_diagnostico || (n.setor + '_' + (n.cidade||'br'));
+      const card = document.createElement('div');
+      card.className = 'card-neg';
+      card.innerHTML = `
+        <div class="card-neg-header">
+          <span class="card-neg-id">${escapeHtml(ident)}</span>
+        </div>
+        <div class="card-neg-titulo">${escapeHtml((n.categoria || n.setor || 'Negócio') + ' · ' + (n.cidade || '—'))}</div>
+        <div class="card-neg-meta">${escapeHtml(n.estado || '')}</div>
+        <div class="card-neg-stats">
+          <span><strong>${fmtFat(n.faturamento_anual)}</strong> fat/ano</span>
+          ${n.score_saude !== null && n.score_saude !== undefined ? `<span>ISE <strong>${n.score_saude}</strong></span>` : ''}
+        </div>
+        <div class="card-neg-acoes"><button class="btn" onclick='gcAbrirModal(${JSON.stringify({id, ident}).replace(/'/g,"&#39;")})'>✨ Gerar peça</button></div>
+      `;
+      lista.appendChild(card);
+    });
+    if (items.length >= _gcLimite) {
+      document.getElementById('gc-carregar-mais').style.display = 'inline-flex';
+    }
+  } catch(e) {
+    document.getElementById('gc-loading').style.display = 'none';
+    document.getElementById('gc-lista').innerHTML += `<div class="lista-vazia">erro: ${escapeHtml(e.message)}</div>`;
+  }
+}
+function gcCarregarMais() {
+  _gcOffset += _gcLimite;
+  gcCarregar();
+}
+function gcAbrirModal(meta) {
+  _gcSelecionado = meta;
+  document.getElementById('modal-gerar-titulo').textContent = `Gerar peça pra ${meta.ident}`;
+  document.getElementById('modal-gerar-sub').textContent = 'Texto + imagem + hashtags · 10-30s';
+  document.getElementById('modal-gerar').classList.add('show');
+}
+async function gerarPeca() {
+  if (!_gcSelecionado) return;
+  const formato = document.querySelector('input[name="mg-formato"]:checked').value;
+  const tipo_imagem = document.querySelector('input[name="mg-imagem"]:checked').value;
+  const tom = document.querySelector('input[name="mg-tom"]:checked').value;
+  document.getElementById('modal-gerar').classList.remove('show');
+  document.getElementById('modal-preview').classList.add('show');
+  document.getElementById('modal-preview-sub').textContent = 'Gerando peça...';
+  document.getElementById('preview-imagem').innerHTML = '<div class="spinner"></div>';
+  document.getElementById('preview-texto-block').textContent = 'Aguarde...';
+  document.getElementById('preview-hashtags').textContent = '';
+  try {
+    const res = await fetch(SB + '/functions/v1/gerar-conteudo-post', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':AK,'Authorization':'Bearer '+(__token||AK)},
+      body: JSON.stringify({negocio_id: _gcSelecionado.id, formato, tipo_imagem, tom})
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.erro || 'Erro desconhecido');
+    _gcUltimaPeca = j;
+    document.getElementById('modal-preview-sub').textContent = `${formato} · ${tipo_imagem} · ${tom} · ${j.tokens_usados || 0} tokens`;
+    if (j.imagem.tipo === 'svg') {
+      document.getElementById('preview-imagem').innerHTML = j.imagem.conteudo;
+    } else {
+      document.getElementById('preview-imagem').innerHTML = `<img src="${escapeHtml(j.imagem.conteudo)}" alt="peça gerada">`;
+    }
+    document.getElementById('preview-texto-block').textContent = j.texto_principal || '';
+    document.getElementById('preview-hashtags').textContent = (j.hashtags || []).join(' ');
+    gcCarregarHistorico();
+  } catch(e) {
+    document.getElementById('modal-preview-sub').textContent = 'Erro';
+    document.getElementById('preview-imagem').innerHTML = `<div style="padding:30px;color:var(--alert);text-align:center">${escapeHtml(e.message)}</div>`;
+    document.getElementById('preview-texto-block').textContent = '';
+  }
+}
+function copiarTexto() {
+  if (!_gcUltimaPeca) return;
+  const t = (_gcUltimaPeca.texto_principal || '') + '\n\n' + (_gcUltimaPeca.hashtags || []).join(' ');
+  navigator.clipboard?.writeText(t).then(
+    () => alert('Texto copiado pra área de transferência'),
+    () => alert('Falha ao copiar')
+  );
+}
+function baixarImagem() {
+  if (!_gcUltimaPeca) return;
+  const img = _gcUltimaPeca.imagem;
+  if (img.tipo === 'svg') {
+    const blob = new Blob([img.conteudo], {type:'image/svg+xml'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `peca-1negocio-${Date.now()}.svg`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } else {
+    window.open(img.conteudo, '_blank');
+  }
+}
+
+async function gcCarregarHistorico() {
+  try {
+    const hoje = new Date();
+    hoje.setHours(0,0,0,0);
+    const data = await sbFetch(`/rest/v1/pecas_geradas?criada_em=gte.${hoje.toISOString()}&order=criada_em.desc&limit=10&select=id,formato,tipo_imagem,tom,texto_principal,imagem_dados,criada_em`);
+    if (!data.length) {
+      document.getElementById('gc-historico').innerHTML = '<div class="lista-vazia">— sem peças geradas hoje —</div>';
+      return;
+    }
+    let html = '<div style="display:grid;gap:8px">';
+    data.forEach(p => {
+      const thumb = (p.imagem_dados || '').startsWith('<svg') ? p.imagem_dados : `<img src="${escapeHtml(p.imagem_dados)}">`;
+      html += `<div class="peca-historica">
+        <div class="peca-historica-thumb">${thumb}</div>
+        <div class="peca-historica-meta">
+          <div class="peca-historica-tit">${escapeHtml((p.texto_principal || '').slice(0,80))}${(p.texto_principal||'').length > 80 ? '…' : ''}</div>
+          <div class="peca-historica-info">${escapeHtml(p.formato)} · ${escapeHtml(p.tom)} · ${relativeTime(p.criada_em)}</div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+    document.getElementById('gc-historico').innerHTML = html;
+  } catch(e) {
+    document.getElementById('gc-historico').innerHTML = `<div class="lista-vazia">— sem peças hoje —</div>`;
+  }
+}
+
+/* ========================================================================
+   INIT
+   ======================================================================== */
+function initAfterLogin() {
+  // Roteamento por hash
+  const hash = window.location.hash.replace('#','') || 'cockpit';
+  mostrarSecao(hash);
+}
+
+window.addEventListener('hashchange', () => {
+  const hash = window.location.hash.replace('#','') || 'cockpit';
+  if (document.getElementById('main-app').style.display !== 'none') mostrarSecao(hash);
+});
+
+window.addEventListener('load', () => {
+  // Tema salvo
+  const savedTheme = localStorage.getItem('painel-v3-theme') || 'dark';
+  setTheme(savedTheme);
+  // Tenta restaurar sessão
+  if (restaurarSessao()) {
+    initAfterLogin();
+  }
+});
+
+// Modal close on overlay click
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', (e) => {
+    if (e.target === o) o.classList.remove('show');
+  });
+});
+</script>
+</body>
+</html>
