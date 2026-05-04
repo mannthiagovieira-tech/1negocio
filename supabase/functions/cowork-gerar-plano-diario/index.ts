@@ -1,7 +1,14 @@
 // Edge Function: cowork-gerar-plano-diario
-// Roda todo dia 5h BRT (8h UTC) via Vercel Cron.
-// Coleta sinais do dia (leads quentes · solicitações pendentes · anúncios prontos)
-// e gera plano estruturado via Claude Sonnet 4. Salva em cowork_planos_diarios + cowork_tarefas.
+// v2 · ORIENTADO A EXECUÇÃO (não estratégia)
+//
+// Roda todo dia 5h BRT (8h UTC) via GitHub Actions cron.
+// Coleta leads classificados · pré-monta mensagens template · salva plano.
+// Estrutura nova: leads_pra_abordar · corretores_pra_abordar · perfis_ig_seguir
+// + alertas_operacionais + stats_rapido + saudacao + contexto_curto.
+//
+// Anthropic é chamado APENAS pra: saudacao + contexto_curto + alertas_operacionais.
+// Listas de leads/corretores/perfis vêm de queries SQL diretas (sem IA).
+// Mensagens template são geradas determinísticamente por categoria/setor.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -11,7 +18,7 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const ZAPI_INSTANCE = Deno.env.get("ZAPI_INSTANCE") ?? "";
 const ZAPI_TOKEN = Deno.env.get("ZAPI_TOKEN") ?? "";
 const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN") ?? "";
-const ADMIN_WHATSAPP = Deno.env.get("ADMIN_WHATSAPP") ?? ""; // ex: 5548999999999 · opcional
+const ADMIN_WHATSAPP = Deno.env.get("ADMIN_WHATSAPP") ?? "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,37 +26,75 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const SYSTEM_PROMPT = `Você é o Cowork da 1Negócio · plataforma colaborativa de compra e venda de empresas.
+const LIMITE_LEADS_OLX = 30;
+const LIMITE_CORRETORES = 10;
+const LIMITE_PERFIS_IG = 5;
 
-Sua missão é gerar o PLANO DIÁRIO do CEO/admin todos os dias às 5h. O plano organiza
-o dia em uma rolagem só · prioriza o que importa · sem M&A · sem jargão.
-
-GLOSSÁRIO VETADO (use linguagem do povo):
-- M&A → "compra e venda de empresas"
-- Valuation → "avaliação financeira"
-- EBITDA → "lucro real da operação"
-- Benchmark → "comparativo com mercado"
-- ROI → "retorno do investimento"
-- Deal → "negócio"
-
-DISTINÇÃO CRÍTICA · Sócio vs Parceiro:
-- SÓCIO institucional · plano trienal R$ 5.346 · auto-serviço portal · comissão 40%
-- PARCEIRO pontual · vinculação manual via WhatsApp · sem plano
-
-OUTPUT: APENAS JSON válido (sem markdown, sem backticks):
-{
-  "contexto": { "data_iso": "YYYY-MM-DD", "dia_semana": "string", "resumo": "1-2 frases sobre o dia" },
-  "prioridades": [
-    { "categoria": "atendimento|vendas|operacao|conteudo|estrutural", "titulo": "...", "descricao": "...", "link_acao": "/painel-v3.html#..." }
-  ],
-  "performance_negocio": { "fluxo_caixa_resumo": "...", "alertas_financeiros": ["..."] },
-  "estrutural": [ "tarefa estrutural 1", "tarefa estrutural 2" ],
-  "alertas": [ "alerta crítico" ],
-  "proximos_dias": { "amanha": "foco de amanhã", "depois_amanha": "..." }
+// ── helpers ──
+function fmtBRL(v: number): string {
+  v = Math.round(v || 0);
+  if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(1).replace(".", ",") + "M";
+  if (Math.abs(v) >= 1e3) return Math.round(v / 1e3) + "k";
+  return v.toLocaleString("pt-BR");
 }
 
-PRIORIDADES · 5-8 itens · ordenados por importância · cada uma com link_acao apontando pra
-seção do painel-v3 (ex: /painel-v3.html#pa-solicitacoes).`;
+function tplMsgOlx(lead: any): string {
+  const cidade = lead.cidade || "sua cidade";
+  const setor = (lead.categoria || "").replace(/_/g, " ");
+  const apelido = lead.nome ? lead.nome.split(/[·\n]/)[0].trim().slice(0, 40) : "seu negócio";
+  const linhas = [
+    `Olá! Vi seu anúncio "${apelido}" no OLX em ${cidade}.`,
+    ``,
+    `Sou da 1Negócio, plataforma de compra e venda de empresas. Você sabe quanto seu negócio realmente vale no mercado? Posso te mostrar uma avaliação técnica gratuita em 5 min.`,
+    ``,
+    `Quer ver?`,
+  ];
+  return linhas.join("\n");
+}
+function tplMsgCorretor(c: any): string {
+  const cidade = c.cidade || "sua cidade";
+  const linhas = [
+    `Oi! Vi que você atua com pontos comerciais em ${cidade}.`,
+    ``,
+    `Sou da 1Negócio · plataforma de compra e venda de empresas inteiras (não só ponto). Tenho rede de empresários querendo vender, e parceiros como você ganham 40% da comissão (R$ 30k a 100k por venda fechada).`,
+    ``,
+    `Topa entender em 10 min como funciona?`,
+  ];
+  return linhas.join("\n");
+}
+function tplMsgPerfilIg(p: any): string {
+  const nome = (p.nome || "").trim().split(/\s+/)[0] || "tudo bem";
+  return `Olá ${nome}! Te encontrei no Instagram · vi sua bio. Sou da 1Negócio, plataforma de compra e venda de empresas. Tem 1 minuto pra eu te mostrar como avaliamos negócios?`;
+}
+
+function buildWaLink(phone: string, msg: string): string {
+  const d = String(phone || "").replace(/\D/g, "");
+  if (!d || d.length < 10) return "";
+  const ddi = d.startsWith("55") ? d : "55" + d;
+  return `https://wa.me/${ddi}?text=${encodeURIComponent(msg)}`;
+}
+
+// System prompt enxuto · só pra contexto + alertas (não pra listas)
+const SYSTEM_PROMPT = `Você é o Cowork da 1Negócio · plataforma colaborativa de compra e venda de empresas.
+
+Sua missão é gerar 3 elementos do plano diário do admin (Thiago) · ORIENTADO A EXECUÇÃO:
+1. saudacao · "Bom dia, Thiago" + variação leve por dia da semana (1 frase)
+2. contexto_curto · 1 LINHA dura com números reais (ex: "1.035 leads OLX classificados · 285 quentes pendentes de abordagem")
+3. alertas_operacionais · 0-3 alertas CRÍTICOS (não estratégicos) que afetam execução do dia
+
+REGRAS:
+- Sem M&A, valuation, EBITDA, benchmark, ROI, deal, churn (linguagem leiga)
+- Sem distinção Sócio/Parceiro confundida (Sócio R$5.346 trienal · Parceiro pontual)
+- Foco em EXECUÇÃO (não estratégia) · Thiago já tem leads na mão na lista principal
+- Alertas só pra coisas críticas: "0 leads novos site 24h" / "anúncios em rascunho > 7 dias"
+- NÃO sugira tarefas vagas tipo "investigar" ou "otimizar"
+
+OUTPUT · APENAS JSON (sem markdown):
+{
+  "saudacao": "string",
+  "contexto_curto": "1 linha · ex: '1.035 leads OLX classificados · 285 quentes pendentes'",
+  "alertas_operacionais": [{ "tipo": "critico|atencao|info", "mensagem": "..." }]
+}`;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -59,90 +104,184 @@ Deno.serve(async (req: Request) => {
     const hoje = new Date();
     const dataISO = hoje.toISOString().slice(0, 10);
 
-    // Verifica se já existe plano pra hoje · respeita idempotência (re-run sobrescreve só se forçado)
     const body = await req.json().catch(() => ({}));
     const forceRegenerate = body?.force === true;
     const { data: existente } = await supabase
-      .from("cowork_planos_diarios")
-      .select("id, gerado_em")
-      .eq("data", dataISO)
-      .maybeSingle();
+      .from("cowork_planos_diarios").select("id, gerado_em").eq("data", dataISO).maybeSingle();
     if (existente && !forceRegenerate) {
       return jsonOk({ ok: true, ja_existia: true, plano_id: existente.id });
     }
 
-    // 1. Coleta sinais do dia (queries paralelas)
+    // ──────────────────────────────────────────────────────────
+    // 1. Coleta candidatos · queries paralelas
+    // ──────────────────────────────────────────────────────────
+    const seteDiasAtras = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const ontemISO = new Date(hoje.getTime() - 24 * 60 * 60 * 1000).toISOString();
-    const [solR, anuR, leadsR, prazosR] = await Promise.allSettled([
-      supabase.from("solicitacoes_info").select("id,status,created_at,negocio_id,comprador_id").eq("status", "aguardando").limit(50),
-      supabase.from("anuncios_v2").select("id,negocio_id,status,titulo,publicado_em,criado_em").in("status", ["rascunho", "aguardando_aprovacao"]).limit(50),
-      supabase.from("leads_google").select("id,nome,origem,classificacao_ia,created_at").gte("created_at", ontemISO).limit(100),
-      supabase.from("nda_solicitacoes").select("id,solicitacao_info_id,expira_em,status").eq("status", "pendente").limit(50),
-    ]);
-    const v = (r: PromiseSettledResult<any>) => (r.status === "fulfilled" ? r.value.data || [] : []);
-    const solicitacoes = v(solR);
-    const anuncios = v(anuR);
-    const leadsRecentes = v(leadsR);
-    const ndaPendentes = v(prazosR);
 
-    // 2. Monta contexto de input pro Claude
+    const [olxR, corretR, igR, anuRascR, leadsHojeR, anuPubR] = await Promise.allSettled([
+      // leads OLX classificados como negócio em funcionamento · não abordados (enviado_em IS NULL) · cidade preenchida
+      supabase.from("leads_google")
+        .select("id,nome,telefone,cidade,categoria,classificacao_ia,notas,bio,created_at")
+        .eq("origem", "olx")
+        .eq("classificacao_ia", "negocio_funcionamento")
+        .is("enviado_em", null)
+        .order("created_at", { ascending: false })
+        .limit(LIMITE_LEADS_OLX),
+      // corretores · gmaps_corretores · últimos 7 dias · não abordados
+      supabase.from("leads_google")
+        .select("id,nome,telefone,cidade,categoria,classificacao_ia,notas,created_at")
+        .eq("origem", "gmaps_corretores")
+        .is("enviado_em", null)
+        .gte("created_at", seteDiasAtras)
+        .order("created_at", { ascending: false })
+        .limit(LIMITE_CORRETORES),
+      // perfis IG distribuídos hoje (já filtrados como empreendedor)
+      supabase.from("ig_seguidores_raw")
+        .select("id,username,nome,bio,external_url,classificacao_ia,distribuido_em,criado_em")
+        .eq("distribuido_em", dataISO)
+        .order("criado_em", { ascending: false })
+        .limit(LIMITE_PERFIS_IG),
+      // anúncios em rascunho/aguardando_aprovacao · pra alerta
+      supabase.from("anuncios_v2").select("id", { count: "exact", head: true })
+        .in("status", ["rascunho", "aguardando_aprovacao"]),
+      // leads novos no site últimas 24h
+      supabase.from("leads_site").select("id", { count: "exact", head: true })
+        .gte("created_at", ontemISO),
+      // pipeline publicado
+      supabase.from("anuncios_v2").select("valor_pedido").eq("status", "publicado"),
+    ]);
+
+    const v = (r: PromiseSettledResult<any>) => (r.status === "fulfilled" ? r.value : null);
+    const leadsOlx = (v(olxR)?.data || []) as any[];
+    const corretores = (v(corretR)?.data || []) as any[];
+    const perfisIg = (v(igR)?.data || []) as any[];
+    const anuRasc = v(anuRascR)?.count ?? 0;
+    const leadsHoje = v(leadsHojeR)?.count ?? 0;
+    const pubData = v(anuPubR)?.data || [];
+    const pipelinePot = pubData.reduce((s: number, a: any) => s + (Number(a.valor_pedido) || 0), 0);
+
+    // Stats rápido pra preencher contexto + ui
+    const { count: totalOlxClass } = await supabase
+      .from("leads_google").select("id", { count: "exact", head: true })
+      .eq("origem", "olx").not("classificacao_ia", "is", null);
+    const { count: olxQuentesPend } = await supabase
+      .from("leads_google").select("id", { count: "exact", head: true })
+      .eq("origem", "olx").eq("classificacao_ia", "negocio_funcionamento").is("enviado_em", null);
+
+    // ──────────────────────────────────────────────────────────
+    // 2. Monta listas com mensagens template
+    // ──────────────────────────────────────────────────────────
+    const leads_pra_abordar = leadsOlx.map(l => {
+      const msg = tplMsgOlx(l);
+      return {
+        id: l.id,
+        origem: "olx",
+        categoria: l.classificacao_ia,
+        nome_anuncio: (l.nome || "").trim(),
+        cidade: l.cidade || "",
+        telefone: l.telefone || "",
+        valor_anuncio: null, // OLX scraper hoje não captura valor estruturado
+        motivo_classificacao: (l.notas || "").replace(/^\[IA\]\s*/, "").slice(0, 200),
+        mensagem_template: msg,
+        link_whatsapp: l.telefone ? buildWaLink(l.telefone, msg) : null,
+        ultima_abordagem: null,
+      };
+    });
+
+    const corretores_pra_abordar = corretores.map(c => {
+      const msg = tplMsgCorretor(c);
+      return {
+        id: c.id,
+        origem: "gmaps_corretores",
+        nome: c.nome || "",
+        cidade: c.cidade || "",
+        telefone: c.telefone || "",
+        mensagem_template: msg,
+        link_whatsapp: c.telefone ? buildWaLink(c.telefone, msg) : null,
+      };
+    });
+
+    const perfis_ig_seguir = perfisIg.map(p => {
+      const msg = tplMsgPerfilIg(p);
+      return {
+        id: p.id,
+        username: p.username || "",
+        nome: p.nome || "",
+        bio: (p.bio || "").slice(0, 200),
+        motivo: p.classificacao_ia || "distribuido",
+        link_perfil: p.username ? `https://instagram.com/${p.username}` : null,
+        mensagem_template: msg,
+      };
+    });
+
+    // ──────────────────────────────────────────────────────────
+    // 3. Anthropic · só pra saudação + contexto + alertas
+    // ──────────────────────────────────────────────────────────
     const inputContext = {
       data: dataISO,
       dia_semana: hoje.toLocaleDateString("pt-BR", { weekday: "long" }),
-      sinais: {
-        solicitacoes_aguardando: solicitacoes.length,
-        anuncios_em_rascunho: anuncios.length,
-        leads_capturados_24h: leadsRecentes.length,
-        leads_classificados_quentes: leadsRecentes.filter((l: any) => ["negocio_funcionamento", "ambiguo", "concorrente"].includes(l.classificacao_ia || "")).length,
-        nda_pendentes: ndaPendentes.length,
-      },
-      amostras: {
-        solicitacoes_recentes: solicitacoes.slice(0, 5),
-        anuncios_em_rascunho: anuncios.slice(0, 5),
+      stats: {
+        olx_total_classificados: totalOlxClass || 0,
+        olx_quentes_pendentes: olxQuentesPend || 0,
+        leads_pra_abordar_hoje: leads_pra_abordar.length,
+        corretores_pra_abordar: corretores_pra_abordar.length,
+        perfis_ig_pra_seguir: perfis_ig_seguir.length,
+        anuncios_em_rascunho: anuRasc,
+        leads_site_24h: leadsHoje,
+        pipeline_publicado: pipelinePot,
       },
     };
 
-    // 3. Chama Claude
-    const userPrompt = `Gere o plano diário pra hoje (${dataISO}) com base nesses sinais:
-
-${JSON.stringify(inputContext, null, 2)}
-
-Devolva APENAS o JSON especificado no system prompt.`;
-
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 2000,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userPrompt }],
-      }),
-    });
-    if (!claudeRes.ok) throw new Error(`Anthropic ${claudeRes.status}: ${await claudeRes.text()}`);
-    const claudeData = await claudeRes.json();
-    const rawText = claudeData.content?.[0]?.text || "";
-    const tokensUsados = (claudeData.usage?.input_tokens || 0) + (claudeData.usage?.output_tokens || 0);
-
-    // 4. Parse JSON
-    let parsed: any;
+    let parsed: any = { saudacao: "Bom dia, Thiago", contexto_curto: "", alertas_operacionais: [] };
+    let tokensUsados = 0;
     try {
-      const clean = rawText.replace(/```json|```/g, "").trim();
-      parsed = JSON.parse(clean);
-    } catch {
-      throw new Error(`Anthropic retornou JSON inválido: ${rawText.slice(0, 300)}`);
-    }
+      const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 600,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: `Stats do dia:\n\n${JSON.stringify(inputContext, null, 2)}\n\nDevolva APENAS o JSON.` }],
+        }),
+      });
+      if (claudeRes.ok) {
+        const data = await claudeRes.json();
+        const raw = (data.content?.[0]?.text || "").replace(/```json|```/g, "").trim();
+        try { parsed = JSON.parse(raw); } catch { /* keep default */ }
+        tokensUsados = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0);
+      }
+    } catch (e) { console.warn("[anthropic] falha · usando defaults:", e); }
 
-    // 5. Salva ou atualiza plano + tarefas
+    // ──────────────────────────────────────────────────────────
+    // 4. Monta payload final do plano
+    // ──────────────────────────────────────────────────────────
+    const stats_rapido = {
+      anuncios_rascunho: anuRasc,
+      leads_24h_site: leadsHoje,
+      leads_olx_quentes_pendentes: olxQuentesPend || 0,
+      pipeline_potencial: pipelinePot,
+    };
+
     const planoPayload = {
       data: dataISO,
-      contexto: parsed.contexto || null,
-      prioridades: parsed.prioridades || [],
-      performance_negocio: parsed.performance_negocio || null,
-      estrutural: parsed.estrutural || [],
-      alertas: parsed.alertas || [],
-      proximos_dias: parsed.proximos_dias || null,
-      texto_completo: rawText,
+      // schema antigo · mantém pra compatibilidade
+      contexto: { data_iso: dataISO, dia_semana: inputContext.dia_semana, resumo: parsed.contexto_curto || "" },
+      prioridades: [], // deprecado · agora vive em leads_pra_abordar (estrutura nova)
+      performance_negocio: { fluxo_caixa_resumo: "", alertas_financeiros: [] },
+      estrutural: [],
+      alertas: (parsed.alertas_operacionais || []).map((a: any) => a.mensagem || String(a)),
+      proximos_dias: null,
+      texto_completo: JSON.stringify({
+        // schema NOVO · v2 orientado a execução
+        saudacao: parsed.saudacao || "Bom dia, Thiago",
+        contexto_curto: parsed.contexto_curto || "",
+        leads_pra_abordar,
+        corretores_pra_abordar,
+        perfis_ig_seguir,
+        alertas_operacionais: parsed.alertas_operacionais || [],
+        stats_rapido,
+      }, null, 0),
       gerado_em: new Date().toISOString(),
       tokens_usados: tokensUsados,
     };
@@ -150,72 +289,40 @@ Devolva APENAS o JSON especificado no system prompt.`;
     let planoId: string | null = null;
     if (existente) {
       const { data: upd } = await supabase
-        .from("cowork_planos_diarios")
-        .update(planoPayload)
-        .eq("id", existente.id)
-        .select("id")
-        .single();
+        .from("cowork_planos_diarios").update(planoPayload).eq("id", existente.id).select("id").single();
       planoId = upd?.id || existente.id;
-      // Limpa tarefas antigas pra reescrever
       await supabase.from("cowork_tarefas").delete().eq("plano_id", planoId);
     } else {
       const { data: ins, error: insErr } = await supabase
-        .from("cowork_planos_diarios")
-        .insert(planoPayload)
-        .select("id")
-        .single();
+        .from("cowork_planos_diarios").insert(planoPayload).select("id").single();
       if (insErr) throw new Error("INSERT falhou: " + insErr.message);
       planoId = ins?.id;
     }
 
-    // 6. Insere tarefas (uma por prioridade)
-    if (planoId && Array.isArray(parsed.prioridades)) {
-      const tarefas = parsed.prioridades.map((p: any, idx: number) => ({
-        plano_id: planoId,
-        categoria: p.categoria || "geral",
-        titulo: p.titulo || "(sem título)",
-        descricao: p.descricao || "",
-        link_acao: p.link_acao || null,
-        ordem: idx,
-      }));
-      if (tarefas.length) await supabase.from("cowork_tarefas").insert(tarefas);
-    }
-
-    // 7. Notifica admin via WhatsApp (opcional · só se ADMIN_WHATSAPP estiver setado)
+    // ──────────────────────────────────────────────────────────
+    // 5. WhatsApp resumo pro admin (operacional · não estratégico)
+    // ──────────────────────────────────────────────────────────
     let zapiSent = false;
     if (ADMIN_WHATSAPP && ZAPI_INSTANCE && ZAPI_TOKEN) {
       try {
-        // Coleta sinais extras pra enriquecer a mensagem
-        const [hot, anuW, anuPub] = await Promise.allSettled([
-          supabase.from("leads_google").select("id", { count: "exact", head: true }).eq("classificacao_ia", "negocio_funcionamento").gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
-          supabase.from("anuncios_v2").select("id", { count: "exact", head: true }).in("status", ["aguardando_aprovacao", "rascunho"]),
-          supabase.from("anuncios_v2").select("valor_pedido").eq("status", "publicado"),
-        ]);
-        const cQuentes = (hot as any).value?.count ?? 0;
-        const cAprov = (anuW as any).value?.count ?? 0;
-        const pubData = (anuPub as any).value?.data || [];
-        const pipelinePot = pubData.reduce((s: number, a: any) => s + (Number(a.valor_pedido) || 0), 0);
-        const fmtBRL = (v: number) => v >= 1e6 ? (v / 1e6).toFixed(1).replace(".", ",") + "M" : v >= 1e3 ? Math.round(v / 1e3) + "k" : String(Math.round(v));
-
-        const ctx = parsed.contexto || {};
-        const prior = (parsed.prioridades || []).slice(0, 3);
         const dataPt = new Date(dataISO + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-
-        const linhasPrior = prior.map((p: any, i: number) => `${i + 1}. ${(p.titulo || "").slice(0, 80)}`).join("\n");
+        const totalLeads = leads_pra_abordar.length + corretores_pra_abordar.length + perfis_ig_seguir.length;
+        const linhasAlertas = (parsed.alertas_operacionais || []).slice(0, 2)
+          .filter((a: any) => a.tipo === "critico")
+          .map((a: any) => `🚨 ${a.mensagem}`).join("\n");
 
         const msg = [
-          `🌅 Plano de hoje · ${dataPt}`,
+          `🌅 ${parsed.saudacao || "Bom dia, Thiago"} · ${dataPt}`,
           ``,
-          ctx.resumo ? ctx.resumo.slice(0, 200) : "",
+          `${totalLeads} leads prontos pra você abordar hoje:`,
+          `· ${leads_pra_abordar.length} empresários OLX`,
+          `· ${corretores_pra_abordar.length} corretores`,
+          `· ${perfis_ig_seguir.length} perfis IG`,
           ``,
-          prior.length ? `🎯 PRIORIDADES (top ${prior.length} de ${(parsed.prioridades || []).length}):` : "🎯 sem prioridades hoje",
-          linhasPrior,
+          `Stats: ${anuRasc} rascunhos · ${leadsHoje} leads site 24h${leadsHoje === 0 ? " ⚠️" : ""} · R$ ${fmtBRL(pipelinePot)} pipeline`,
+          linhasAlertas ? `\n${linhasAlertas}` : "",
           ``,
-          `⚡ ${cQuentes} leads OLX quentes (7d)`,
-          `📅 ${cAprov} anúncios pra aprovar`,
-          `💰 Pipeline publicado: R$ ${fmtBRL(pipelinePot)}`,
-          ``,
-          `Abra o plano: https://1negocio.com.br/painel-v3.html#cockpit`,
+          `Abrir: https://1negocio.com.br/painel-v3.html#cockpit`,
         ].filter(Boolean).join("\n");
 
         const zapiUrl = `https://api.z-api.io/instances/${ZAPI_INSTANCE}/token/${ZAPI_TOKEN}/send-text`;
@@ -229,12 +336,24 @@ Devolva APENAS o JSON especificado no system prompt.`;
         zapiSent = zapiRes.ok;
         if (zapiSent) await supabase.from("cowork_planos_diarios").update({ enviado_whatsapp: true }).eq("id", planoId);
         else console.warn("[zapi] não-ok:", zapiRes.status, await zapiRes.text().catch(() => ""));
-      } catch (e) { console.warn("[zapi] falha silenciosa:", e); }
+      } catch (e) { console.warn("[zapi] falha:", e); }
     }
 
-    return jsonOk({ ok: true, plano_id: planoId, ja_existia: !!existente, tokens_usados: tokensUsados, zapi_enviado: zapiSent });
+    return jsonOk({
+      ok: true,
+      plano_id: planoId,
+      ja_existia: !!existente,
+      tokens_usados: tokensUsados,
+      zapi_enviado: zapiSent,
+      counts: {
+        leads_olx: leads_pra_abordar.length,
+        corretores: corretores_pra_abordar.length,
+        perfis_ig: perfis_ig_seguir.length,
+      },
+      stats: stats_rapido,
+    });
   } catch (e) {
-    console.error("[cowork-gerar-plano-diario] erro:", e);
+    console.error("[cowork-gerar-plano-diario]", e);
     return jsonErr(String((e as Error)?.message || e), 500);
   }
 });

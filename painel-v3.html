@@ -4184,14 +4184,94 @@ let _cwPlanoCache = null;
 async function cwFetchPlanoHoje() {
   const hojeISO = new Date().toISOString().slice(0,10);
   try {
-    const planos = await sbFetch(`/rest/v1/cowork_planos_diarios?data=eq.${hojeISO}&limit=1&select=id,data,contexto,prioridades,performance_negocio,estrutural,alertas,proximos_dias,gerado_em,enviado_whatsapp,tokens_usados`);
+    const planos = await sbFetch(`/rest/v1/cowork_planos_diarios?data=eq.${hojeISO}&limit=1&select=id,data,contexto,prioridades,alertas,gerado_em,enviado_whatsapp,tokens_usados,texto_completo`);
     if (!planos.length) return null;
     const plano = planos[0];
-    const tarefas = await sbFetch(`/rest/v1/cowork_tarefas?plano_id=eq.${encodeURIComponent(plano.id)}&order=ordem.asc&select=id,categoria,titulo,descricao,link_acao,feita,feita_em,ordem`);
-    plano.tarefas = tarefas || [];
+    // Parse estrutura v2 (orientada a execução) do texto_completo
+    try { plano._exec = JSON.parse(plano.texto_completo || '{}'); }
+    catch(e) { plano._exec = null; }
     _cwPlanoCache = plano;
     return plano;
   } catch(e) { console.warn('[cwFetchPlanoHoje]', e); return null; }
+}
+
+// helpers de render exec
+let _cwAbaAtual = 'olx';
+function cwRenderCardLead(item, tipo) {
+  const escMsg = (item.mensagem_template || '').replace(/"/g, '&quot;');
+  const link = item.link_whatsapp || (item.telefone ? `https://wa.me/${(item.telefone||'').replace(/\D/g,'')}?text=${encodeURIComponent(item.mensagem_template||'')}` : '');
+  const titulo = tipo === 'olx'  ? (item.nome_anuncio || '(sem título)')
+              : tipo === 'corretor' ? (item.nome || '(sem nome)')
+              : '@' + (item.username || '');
+  const sub = tipo === 'ig' ? (item.bio || '') : (item.cidade || '');
+  const valor = tipo === 'olx' && item.valor_anuncio ? `R$ ${Number(item.valor_anuncio).toLocaleString('pt-BR')}` : '';
+  const motivoExtra = tipo === 'olx' ? (item.motivo_classificacao || '') : (tipo === 'ig' ? (item.motivo || '') : '');
+
+  const dot = tipo === 'olx' ? '🟢' : tipo === 'corretor' ? '🤝' : '📷';
+  const linkPerfil = tipo === 'ig' && item.link_perfil ? ` · <a href="${escapeHtml(item.link_perfil)}" target="_blank" style="color:var(--accent)">↗ ver perfil</a>` : '';
+  const btnWa = link
+    ? `<a class="btn" href="${escapeHtml(link)}" target="_blank" style="font-size:12px;padding:6px 12px">📱 Abrir WhatsApp</a>`
+    : `<button class="btn btn-ghost" disabled style="font-size:12px;padding:6px 12px">— sem telefone —</button>`;
+  const btnPular = `<button class="btn btn-ghost btn-mini" onclick="cwMarcarAbordado('${item.id}', '${tipo}', 'pulado')" title="Marca como pulado · não volta amanhã">⏭ Pular</button>`;
+  const btnAbordou = link ? `<button class="btn btn-ghost btn-mini" onclick="cwMarcarAbordado('${item.id}', '${tipo}', 'abordado')" title="Já abordei · marca como contatado">✓ Abordei</button>` : '';
+
+  return `<div style="border:1px solid var(--line);border-radius:var(--r2);padding:14px;background:var(--surface);display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:13px;font-weight:600">${dot} ${escapeHtml(titulo)}</div>
+        <div style="font-size:11px;color:var(--ink-3);margin-top:2px">${escapeHtml(sub)}${valor ? ' · ' + escapeHtml(valor) : ''}${linkPerfil}</div>
+        ${motivoExtra ? `<div style="font-size:10px;color:var(--ink-3);margin-top:3px;font-style:italic">${escapeHtml(motivoExtra)}</div>` : ''}
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--ink-3)">${escapeHtml((item.telefone||item.username||'').toString().slice(0,20))}</div>
+    </div>
+    <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);padding:10px 12px;font-size:12px;color:var(--ink-2);white-space:pre-line">${escapeHtml(item.mensagem_template || '(sem mensagem)')}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${btnWa}${btnAbordou}${btnPular}</div>
+  </div>`;
+}
+
+function cwAbaSubtab(aba) {
+  _cwAbaAtual = aba;
+  const c = _cwPlanoCache && _cwPlanoCache._exec;
+  if (!c) return;
+  document.querySelectorAll('[data-cw-aba]').forEach(b => b.classList.toggle('active', b.dataset.cwAba === aba));
+  const lista = aba === 'olx' ? c.leads_pra_abordar : aba === 'corretor' ? c.corretores_pra_abordar : c.perfis_ig_seguir;
+  const listaTipo = aba;
+  const wrap = document.getElementById('cw-exec-lista');
+  if (!wrap) return;
+  if (!lista || !lista.length) {
+    const mensagens = {
+      olx: 'Nenhum lead OLX pendente · classifica leads em Scrapers → OLX',
+      corretor: 'Nenhum corretor capturado · ative Frente C (Google Maps Sul)',
+      ig: 'Nenhum perfil IG distribuído hoje · ative Frente C (Instagram followers)'
+    };
+    wrap.innerHTML = `<div class="pa-empty">${mensagens[aba]}</div>`;
+    return;
+  }
+  wrap.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px">' + lista.map(it => cwRenderCardLead(it, listaTipo)).join('') + '</div>';
+}
+
+async function cwMarcarAbordado(id, tipo, status) {
+  if (!confirm(status === 'abordado' ? 'Marcar como abordado? (vai pra enviado_em hoje)' : 'Pular? (não vai aparecer amanhã)')) return;
+  try {
+    const tabela = tipo === 'ig' ? 'ig_seguidores_raw' : 'leads_google';
+    const payload = tipo === 'ig'
+      ? { distribuido_em: null }   // tira da lista de hoje
+      : { enviado_em: new Date().toISOString(), status: status === 'abordado' ? 'contatado' : 'pulado' };
+    const res = await fetch(SB + `/rest/v1/${tabela}?id=eq.${encodeURIComponent(id)}`, {
+      method:'PATCH',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error('PATCH ' + res.status);
+    // Remove do cache local sem refetch
+    const c = _cwPlanoCache && _cwPlanoCache._exec;
+    if (c) {
+      if (tipo === 'olx') c.leads_pra_abordar = c.leads_pra_abordar.filter(x => x.id !== id);
+      else if (tipo === 'corretor') c.corretores_pra_abordar = c.corretores_pra_abordar.filter(x => x.id !== id);
+      else c.perfis_ig_seguir = c.perfis_ig_seguir.filter(x => x.id !== id);
+    }
+    cwAbaSubtab(_cwAbaAtual);
+  } catch(e) { alert('Erro: ' + e.message); }
 }
 
 function cwRenderPrioridades(tarefas, compact) {
@@ -4221,21 +4301,45 @@ async function cwLoadPlanoBloco() {
     if (sub) sub.textContent = 'aguardando primeira execução do cron 5h BRT';
     return;
   }
-  if (sub) {
-    const ger = plano.gerado_em ? new Date(plano.gerado_em).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}) : '';
-    sub.textContent = `gerado em ${ger} · ${(plano.tarefas||[]).length} prioridades · ${(plano.alertas||[]).length} alertas`;
+  const exec = plano._exec || {};
+  const ger = plano.gerado_em ? new Date(plano.gerado_em).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}) : '';
+  const totalLeads = (exec.leads_pra_abordar||[]).length + (exec.corretores_pra_abordar||[]).length + (exec.perfis_ig_seguir||[]).length;
+  if (sub) sub.textContent = `gerado em ${ger} · ${totalLeads} leads pra abordar`;
+
+  const stats = exec.stats_rapido || {};
+  const alertas = exec.alertas_operacionais || [];
+  const saudacao = exec.saudacao || 'Bom dia, Thiago';
+  const ctxCurto = exec.contexto_curto || (plano.contexto && plano.contexto.resumo) || '';
+
+  let html = `
+    <div style="font-family:var(--serif);font-size:22px;font-weight:800;color:var(--ink);letter-spacing:-0.5px">${escapeHtml(saudacao)}</div>
+    ${ctxCurto ? `<div style="font-size:13px;color:var(--ink-2);margin-top:4px;margin-bottom:14px">${escapeHtml(ctxCurto)}</div>` : '<div style="margin-bottom:14px"></div>'}
+    <div class="pa-h2-mini" style="margin-top:0">📞 Leads pra abordar hoje · ${totalLeads}</div>
+    <div class="pa-tabs" style="margin-top:0">
+      <div class="pa-tab ${_cwAbaAtual==='olx'?'active':''}" data-cw-aba="olx" onclick="cwAbaSubtab('olx')">OLX <span class="pa-tab-count">${(exec.leads_pra_abordar||[]).length}</span></div>
+      <div class="pa-tab ${_cwAbaAtual==='corretor'?'active':''}" data-cw-aba="corretor" onclick="cwAbaSubtab('corretor')">Corretores <span class="pa-tab-count">${(exec.corretores_pra_abordar||[]).length}</span></div>
+      <div class="pa-tab ${_cwAbaAtual==='ig'?'active':''}" data-cw-aba="ig" onclick="cwAbaSubtab('ig')">IG <span class="pa-tab-count">${(exec.perfis_ig_seguir||[]).length}</span></div>
+    </div>
+    <div id="cw-exec-lista"></div>`;
+
+  if (alertas.length) {
+    html += `<div style="margin-top:18px"><div class="pa-h2-mini" style="margin:0 0 8px">🚨 Alertas operacionais</div>${alertas.map(a => `<div class="pa-alert ${a.tipo==='critico'?'pa-alert-danger':''}" style="margin:4px 0">${escapeHtml(a.mensagem||String(a))}</div>`).join('')}</div>`;
   }
-  const ctx = plano.contexto || {};
-  let html = '';
-  if (ctx.resumo) html += `<div style="font-size:14px;color:var(--ink);margin-bottom:14px;line-height:1.5">${escapeHtml(ctx.resumo)}</div>`;
-  // Top 5 prioridades · compactas
-  const tarefas = (plano.tarefas || []).slice(0, 5);
-  html += cwRenderPrioridades(tarefas, true);
-  if ((plano.tarefas || []).length > 5) html += `<div style="margin-top:10px;text-align:right"><a href="#plano-dia" onclick="mostrarSecao('plano-dia')" style="font-size:11px;color:var(--accent)">+ ${plano.tarefas.length - 5} prioridades · ver tudo</a></div>`;
-  if ((plano.alertas || []).length) {
-    html += `<div style="margin-top:14px"><div class="pa-h2-mini" style="margin:0 0 8px">Alertas</div>${plano.alertas.map(a => `<div class="pa-alert pa-alert-danger" style="margin:4px 0">${escapeHtml(a)}</div>`).join('')}</div>`;
+
+  // Stats compactos (1 linha · não rouba foco dos leads)
+  if (Object.keys(stats).length) {
+    const fmtStats = (v) => Number(v||0) >= 1000 ? Math.round(v/1000)+'k' : (v||0);
+    html += `<div style="margin-top:18px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);font-family:var(--mono);font-size:11px;color:var(--ink-3);display:flex;gap:14px;flex-wrap:wrap">
+      <span>${stats.anuncios_rascunho||0} rascunhos</span>
+      <span>${stats.leads_24h_site||0} leads site 24h${(stats.leads_24h_site||0)===0?' ⚠️':''}</span>
+      <span>${stats.leads_olx_quentes_pendentes||0} OLX quentes pendentes</span>
+      <span>R$ ${fmtStats(stats.pipeline_potencial)} pipeline</span>
+    </div>`;
   }
+  html += `<div style="margin-top:10px;text-align:right"><a href="#plano-dia" onclick="mostrarSecao('plano-dia')" style="font-size:11px;color:var(--accent)">↗ ver plano completo</a></div>`;
+
   wrap.innerHTML = html;
+  cwAbaSubtab(_cwAbaAtual);
 }
 
 async function cwLoadPlanoFull() {
@@ -4249,28 +4353,47 @@ async function cwLoadPlanoFull() {
     if (sub) sub.textContent = 'aguardando geração';
     return;
   }
-  if (sub) sub.textContent = `${plano.data} · ${plano.tokens_usados || 0} tokens · ${plano.enviado_whatsapp ? 'WhatsApp enviado' : 'sem WhatsApp'}`;
-  const ctx = plano.contexto || {};
-  const perf = plano.performance_negocio || {};
+  if (sub) sub.textContent = `${plano.data} · ${plano.tokens_usados || 0} tokens · ${plano.enviado_whatsapp ? 'WhatsApp enviado ✓' : 'WhatsApp não enviado'}`;
+
+  const exec = plano._exec || {};
+  const stats = exec.stats_rapido || {};
+  const totalLeads = (exec.leads_pra_abordar||[]).length + (exec.corretores_pra_abordar||[]).length + (exec.perfis_ig_seguir||[]).length;
+
   let html = '';
-  if (ctx.resumo) html += `<div class="pa-h2-mini">Contexto</div><div style="font-size:14px;color:var(--ink);margin-bottom:14px;line-height:1.5">${escapeHtml(ctx.resumo)}</div>`;
-  html += `<div class="pa-h2-mini">Prioridades · ${plano.tarefas.length}</div>${cwRenderPrioridades(plano.tarefas, false)}`;
-  if (perf.fluxo_caixa_resumo || (perf.alertas_financeiros||[]).length) {
-    html += `<div class="pa-h2-mini" style="margin-top:18px">Performance</div>`;
-    if (perf.fluxo_caixa_resumo) html += `<div style="font-size:13px;margin-bottom:6px">${escapeHtml(perf.fluxo_caixa_resumo)}</div>`;
-    if ((perf.alertas_financeiros||[]).length) html += '<ul style="margin:0;padding-left:18px">' + perf.alertas_financeiros.map(a => `<li style="font-size:12px;color:var(--ink-2)">${escapeHtml(a)}</li>`).join('') + '</ul>';
+  html += `<div style="font-family:var(--serif);font-size:24px;font-weight:800;letter-spacing:-0.5px">${escapeHtml(exec.saudacao||'Bom dia, Thiago')}</div>`;
+  if (exec.contexto_curto) html += `<div style="font-size:13px;color:var(--ink-2);margin:4px 0 18px">${escapeHtml(exec.contexto_curto)}</div>`;
+
+  // Lista expandida com TODOS os leads (não compact)
+  if ((exec.leads_pra_abordar||[]).length) {
+    html += `<div class="pa-h2-mini">📞 Leads OLX · ${exec.leads_pra_abordar.length}</div>`;
+    html += '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">' + exec.leads_pra_abordar.map(it => cwRenderCardLead(it, 'olx')).join('') + '</div>';
   }
-  if ((plano.estrutural||[]).length) {
-    html += `<div class="pa-h2-mini" style="margin-top:18px">Estrutural · médio prazo</div><ul style="margin:0;padding-left:18px">${plano.estrutural.map(s => `<li style="font-size:12px;color:var(--ink-2);margin:4px 0">${escapeHtml(s)}</li>`).join('')}</ul>`;
+  if ((exec.corretores_pra_abordar||[]).length) {
+    html += `<div class="pa-h2-mini">🤝 Corretores · ${exec.corretores_pra_abordar.length}</div>`;
+    html += '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">' + exec.corretores_pra_abordar.map(it => cwRenderCardLead(it, 'corretor')).join('') + '</div>';
   }
-  if ((plano.alertas||[]).length) {
-    html += `<div class="pa-h2-mini" style="margin-top:18px">Alertas</div>${plano.alertas.map(a => `<div class="pa-alert pa-alert-danger" style="margin:4px 0">${escapeHtml(a)}</div>`).join('')}`;
+  if ((exec.perfis_ig_seguir||[]).length) {
+    html += `<div class="pa-h2-mini">📷 Perfis Instagram · ${exec.perfis_ig_seguir.length}</div>`;
+    html += '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">' + exec.perfis_ig_seguir.map(it => cwRenderCardLead(it, 'ig')).join('') + '</div>';
   }
-  const px = plano.proximos_dias || {};
-  if (px.amanha || px.depois_amanha) {
-    html += `<div class="pa-h2-mini" style="margin-top:18px">Próximos dias</div>`;
-    if (px.amanha) html += `<div style="font-size:12px;color:var(--ink-2);margin:4px 0"><strong>Amanhã:</strong> ${escapeHtml(px.amanha)}</div>`;
-    if (px.depois_amanha) html += `<div style="font-size:12px;color:var(--ink-2);margin:4px 0"><strong>Depois:</strong> ${escapeHtml(px.depois_amanha)}</div>`;
+  if (!totalLeads) html += '<div class="pa-empty" style="margin-bottom:18px">Sem leads pra abordar hoje. Classifica leads em Scrapers → OLX pra alimentar amanhã.</div>';
+
+  // Alertas
+  const alertas = exec.alertas_operacionais || [];
+  if (alertas.length) {
+    html += `<div class="pa-h2-mini">🚨 Alertas operacionais</div>${alertas.map(a => `<div class="pa-alert ${a.tipo==='critico'?'pa-alert-danger':''}" style="margin:4px 0">${escapeHtml(a.mensagem||String(a))}</div>`).join('')}`;
+  }
+
+  // Stats
+  if (Object.keys(stats).length) {
+    const fmtStats = (v) => Number(v||0) >= 1000 ? Math.round(v/1000)+'k' : (v||0);
+    html += `<div class="pa-h2-mini" style="margin-top:18px">Stats rápido</div>`;
+    html += `<div class="pa-stats-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="pa-stat-card"><div class="pa-stat-label">Rascunhos</div><div class="pa-stat-num">${stats.anuncios_rascunho||0}</div></div>
+      <div class="pa-stat-card"><div class="pa-stat-label">Leads site 24h</div><div class="pa-stat-num">${stats.leads_24h_site||0}</div></div>
+      <div class="pa-stat-card"><div class="pa-stat-label">OLX quentes pendentes</div><div class="pa-stat-num">${stats.leads_olx_quentes_pendentes||0}</div></div>
+      <div class="pa-stat-card"><div class="pa-stat-label">Pipeline (R$)</div><div class="pa-stat-num">${fmtStats(stats.pipeline_potencial)}</div></div>
+    </div>`;
   }
   wrap.innerHTML = html;
 }
