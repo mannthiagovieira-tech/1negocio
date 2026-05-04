@@ -6,7 +6,14 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
+// Item 2 · WhatsApp trigger pra admin quando lead quente entra
+const ADMIN_WHATSAPP = Deno.env.get('ADMIN_WHATSAPP') ?? '';
+const ZAPI_INSTANCE = Deno.env.get('ZAPI_INSTANCE') ?? '';
+const ZAPI_TOKEN = Deno.env.get('ZAPI_TOKEN') ?? '';
+const ZAPI_CLIENT_TOKEN = Deno.env.get('ZAPI_CLIENT_TOKEN') ?? '';
+
 const MODEL = 'claude-sonnet-4-20250514';
+const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
 const MAX_TOKENS = 1500;
 
 // Cache de parâmetros (5 min)
@@ -19,15 +26,15 @@ const SYSTEM_PROMPT = `# Você é o assistente virtual oficial da 1Negócio
 ## SOBRE A 1NEGÓCIO
 
 ### 1. Quem somos
-Primeira plataforma brasileira de compra e venda de empresas pra PMEs. Tagline: "Quanto vale um negócio? Nós sabemos."
+Plataforma colaborativa de compra e venda de empresas. Tagline: "Quanto vale um negócio? Nós sabemos."
 
 Não é classificado de empresas — é mesa de negociação digital com laudo, avaliação técnica e curadoria humana. Publicamos diagnósticos, não anúncios enfeitados.
 
 ### 2. Os 4 produtos
 - **Laudo PDF** R\$ 99 — PDF do diagnóstico técnico (ISE + Metodologia 1N + balanço)
 - **Plano Guiado** R\$ 588 + 5% — publicação assistida + comissão menor na venda
-- **Avaliação Profissional** R\$ 397 — sessão 1:1 com analista
 - **Plano Gratuito** R\$ 0 + 10% — diagnóstico livre, publicação curada
+- **Plano Sócio-Parceiro (trienal)** R\$ 5.346 (10x R\$ 534,60) — para profissionais que atuam como força local da plataforma (ver §4)
 
 ### 3. Modelo de comissão 40/40/20
 Total da comissão na venda: 5% (Plano Guiado) ou 10% (Plano Gratuito).
@@ -40,7 +47,26 @@ Split (sempre o mesmo):
 Mensagem central: "Você não tá pagando 10% pra um corretor. Tá pagando 40% pra ter um especialista local cuidando da venda + 40% pra incentivar a rede a achar comprador + 20% pra plataforma fazer toda a parte técnica. É essa inteligência colaborativa que faz vender."
 
 ### 4. Programa Sócio-Parceiro
-Profissionais (corretores, contadores, advogados, consultores) que se associam pra atuar como força local. **Plano trienal** (NUNCA chame de "anuidade"): R\$ 5.346 / 3 anos · 10x sem juros R\$ 534,60. Recebem 40% da comissão de cada negócio que originarem ou trouxerem comprador.
+Profissionais (corretores, contadores, advogados, consultores) que atuam como força local da plataforma. Recebem 40% da comissão de cada negócio que originarem ou trouxerem comprador.
+
+O programa tem **2 formatos**:
+
+**FORMATO 1 — SÓCIO (institucional)**
+- **Plano trienal R\$ 5.346** (10x R\$ 534,60) — NUNCA chame de "anuidade"
+- Auto-serviço completo via portal próprio
+- Acesso a todos os negócios e teses
+- Gerador de conteúdo próprio com IA
+- Sem limite de vínculos
+- Comissão 40% por operação
+
+**FORMATO 2 — PARCEIRO (pontual)**
+- Sem plano · sem mensalidade
+- Vinculação manual via 1Negócio (contato direto WhatsApp)
+- Limite de vínculos simultâneos
+- Sem painel próprio · recebe atualizações via WhatsApp
+- Comissão 40% por operação onde está vinculado
+
+Quando candidato perguntar como funciona, apresente as 2 opções. Quando ele escolher Parceiro, oriente que o contato será via WhatsApp direto com a 1Negócio (não via auto-serviço no portal).
 
 ### 5. Como funciona (fluxo)
 **Vendedor:** diagnóstico grátis (10min) → avaliação técnica → publicação curada anônima → compradores qualificados solicitam dossiê (você decide quando liberar dados sensíveis) → mesa de negociação mediada → comissão SÓ na venda fechada (sem custo escondido).
@@ -229,13 +255,15 @@ Mensagem 1: "Ah, [profissão/contexto identificado]! Temos um programa específi
 
 Mensagem 2: "Funciona em 2 formatos: parceria pontual ou Sócio formal. Você escolhe."
 
-Mensagem 3: "Sócio: Plano trienal R\$ 5.346 (10x R\$ 534,60). Recebe um código FIL-XXXXX. Vincula a negócios que gerencia ou compradores que traz. Ganha 40% da comissão de cada venda fechada (modelo 40/40/20)."
+Mensagem 3: "**Sócio (institucional):** Plano trienal R\$ 5.346 (10x R\$ 534,60). Auto-serviço completo via portal próprio — você gerencia tudo. Acesso a todos os negócios e teses, gerador de conteúdo com IA, sem limite de vínculos. Comissão 40% por operação."
 
-Mensagem 4: "Parceiro: pontual, manual, sem plano, máximo 2 vínculos simultâneos. A gente combina caso a caso."
+Mensagem 4: "**Parceiro (pontual):** sem plano, sem mensalidade. A vinculação é feita manualmente pela 1Negócio (contato direto via WhatsApp). Tem limite de vínculos simultâneos e não tem painel próprio — você recebe atualizações via WhatsApp. Comissão também 40% por operação."
 
-Mensagem 5: "Pra ver detalhes completos e começar o cadastro: 1negocio.com.br/cadastro-filiado.html"
+Mensagem 5: "Sócio é pra quem quer auto-serviço e escalar. Parceiro é pra quem quer começar pontual sem investir. Qual faz mais sentido pra você?"
 
-Mensagem 6: "Como você se chama? Te marco como interessado pra eu poder te dar atenção direta."
+Mensagem 6: "Pra ver detalhes do Sócio e começar cadastro: 1negocio.com.br/cadastro-filiado.html (auto-serviço). Pra Parceiro, me dá nome+WhatsApp que a 1Negócio entra em contato direto."
+
+Mensagem 7: "Como você se chama? Te marco como interessado pra eu poder te dar atenção direta."
 
 ### Após capturar nome+telefone do interessado em programa
 
@@ -535,7 +563,37 @@ Se floor_aplicado = true: "Considerei só a operação por enquanto. Suas dívid
 ## REGRAS ABSOLUTAS — NUNCA FAÇA
 
 1. NUNCA escreva mensagens com mais de 200 caracteres. Divida.
-2. NUNCA use jargão em inglês: M&A, cashflow, EBITDA, DCF, WACC, deal, lead, churn.
+2. NUNCA use jargão técnico em comunicação com cliente.
+
+   TERMOS VETADOS:
+     - M&A
+     - DCF
+     - WACC
+     - Valuation (em conversa com cliente; pode em contexto interno)
+     - EBITDA isolado (sem contexto/explicação ao lado)
+     - Benchmark (use "comparativo com mercado")
+     - ROI / TIR / VPL (sem tradução)
+     - Equity / Stake / Cap Table
+     - Earnout (sem explicar)
+     - Due Diligence (sem traduzir)
+     - Cashflow / deal / churn
+
+   SUBSTITUIÇÕES OFICIAIS:
+     - M&A → "compra e venda de empresas"
+     - DCF / Valuation → "avaliação financeira"
+     - Margem → "quanto sobra de cada R\$ 100"
+     - Benchmark → "comparativo com mercado"
+     - ROI → "retorno do investimento"
+     - Due diligence → "análise de risco"
+     - Earnout → "acordo de valor variável"
+     - EBITDA → "lucro real da operação"
+     - Cashflow → "fluxo de caixa"
+     - Deal → "negócio" / "operação"
+     - Churn → "cancelamento de clientes"
+
+   QUANDO O TERMO TÉCNICO FOR INEVITÁVEL:
+   Sempre vem com explicação curta entre parênteses ou frase ao lado.
+   Ex: "O EBITDA — o lucro real da operação, antes de impostos e dívidas — é..."
 3. NUNCA mencione BuyCo, MeuBiz, Thiago, 1007, SócioX, FX Copilot, ou outros projetos.
 4. NUNCA invente resposta. Não sabe? Diz que vai conferir e oferece WhatsApp humano.
 5. NUNCA invente dados sobre negócios — use APENAS o que vem da tool buscar_negocios.
@@ -1546,15 +1604,194 @@ async function saveLead(leadData: any, messages: any[], paginaOrigem: string | u
     usuario_id: usuarioId,
   };
 
+  let savedId: string;
+  let isNew: boolean;
   if (leadId) {
     const { data, error } = await supabase.from('chat_ia_leads').update(payload).eq('id', leadId).select().single();
     if (error) return jsonResponse({ error: error.message }, 500);
-    return jsonResponse({ success: true, lead_id: data.id });
+    savedId = data.id;
+    isNew = false;
   } else {
     const { data, error } = await supabase.from('chat_ia_leads').insert(payload).select().single();
     if (error) return jsonResponse({ error: error.message }, 500);
-    return jsonResponse({ success: true, lead_id: data.id });
+    savedId = data.id;
+    isNew = true;
   }
+
+  // Item 2 · sincroniza em leads_google + WhatsApp pra admin (só primeira vez)
+  let crmSync: any = null;
+  if (whatsappFormatado && (leadData?.nome || leadData?.whatsapp)) {
+    try {
+      crmSync = await sincronizarComLeadsGoogle(supabase, {
+        nome: payload.nome,
+        whatsapp_formatado: whatsappFormatado,
+        setor: leadData?.setor_mencionado,
+        cidade_estado: leadData?.cidade_estado,
+        faixa_faturamento: leadData?.faixa_faturamento,
+        resumo_conversa: resumo,
+        messages: messages || [],
+        chat_ia_lead_id: savedId,
+      });
+      if (crmSync?.created && ADMIN_WHATSAPP && ZAPI_INSTANCE && ZAPI_TOKEN) {
+        // disparo fire-and-forget · não bloqueia response
+        notificarAdminLeadQuente({
+          nome: payload.nome,
+          whatsapp: whatsappFormatado,
+          tema: crmSync.tema_conversa,
+          snippet: ((messages || []).slice(-1)[0]?.content || '').toString().slice(0, 80),
+        }).catch(e => console.warn('[notif admin]', e));
+      }
+    } catch (e) { console.warn('[sync leads_google]', e); }
+  }
+
+  return jsonResponse({ success: true, lead_id: savedId, crm_sync: crmSync });
+}
+
+// Item 2 · classifica tema_conversa em 5 categorias usando Haiku
+async function classificarTemaConversa(messages: any[]): Promise<{ tema: string; descricao: string }> {
+  if (!ANTHROPIC_KEY) return { tema: 'outros', descricao: '' };
+  try {
+    const ultimas = (messages || []).slice(-6).map((m: any) =>
+      `${m.role === 'user' ? 'CLIENTE' : 'IA'}: ${typeof m.content === 'string' ? m.content.slice(0, 200) : '[tool]'}`
+    ).join('\n');
+    const sys = `Você é classificador do tema da conversa entre cliente e a IA da 1Negócio.
+
+Categorias:
+1. procura_negocio_a_venda · cliente quer COMPRAR uma empresa
+2. venda_de_negocio · cliente quer VENDER a empresa dele
+3. avaliacao_de_negocio · cliente quer saber QUANTO VALE a empresa dele
+4. duvida_sobre_portal · pergunta sobre como funciona, planos, comissão, sócio-parceiro
+5. outros · qualquer outro tema
+
+Saída JSON estrito: {"tema":"...", "descricao":"frase curta de 8-15 palavras descrevendo o tema"}`;
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: HAIKU_MODEL,
+        max_tokens: 200,
+        system: sys,
+        messages: [{ role: 'user', content: ultimas }],
+      }),
+    });
+    if (!res.ok) return { tema: 'outros', descricao: '' };
+    const data = await res.json();
+    const raw = (data.content?.[0]?.text || '').replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(raw);
+    const validas = ['procura_negocio_a_venda', 'venda_de_negocio', 'avaliacao_de_negocio', 'duvida_sobre_portal', 'outros'];
+    const tema = validas.includes(parsed.tema) ? parsed.tema : 'outros';
+    return { tema, descricao: String(parsed.descricao || '').slice(0, 200) };
+  } catch (e) {
+    return { tema: 'outros', descricao: '' };
+  }
+}
+
+// Item 2 · UPSERT leads_google por telefone (dedup) · marca como lead_quente
+async function sincronizarComLeadsGoogle(supabase: any, dados: {
+  nome: string | null;
+  whatsapp_formatado: string;
+  setor?: string | null;
+  cidade_estado?: string | null;
+  faixa_faturamento?: string | null;
+  resumo_conversa: string;
+  messages: any[];
+  chat_ia_lead_id: string;
+}): Promise<{ created: boolean; lead_id: string; tema_conversa: string }> {
+  const tel = dados.whatsapp_formatado.replace(/\D/g, '');
+  // checa duplicado por telefone
+  const { data: existente } = await supabase.from('leads_google')
+    .select('id, tags, fontes, tema_conversa')
+    .eq('telefone', tel)
+    .maybeSingle();
+
+  // classifica tema_conversa (1 chamada Haiku · ~R$ 0.003)
+  const { tema, descricao } = await classificarTemaConversa(dados.messages);
+
+  const cidadeUF = dados.cidade_estado ? String(dados.cidade_estado).split('/') : [];
+  const cidade = cidadeUF[0]?.trim() || null;
+  const estado = cidadeUF[1]?.trim() || null;
+
+  const baseTags = ['lead_quente_avaliacao', 'ia_atendente'];
+  const baseFontes = ['ia_atendente_home'];
+
+  const notas = [
+    `[IA atendente] tema: ${tema}${descricao ? ' · ' + descricao : ''}`,
+    `chat_ia_leads.id: ${dados.chat_ia_lead_id}`,
+    `resumo: ${dados.resumo_conversa}`,
+  ].join('\n');
+
+  if (existente) {
+    // UPDATE · adiciona origem ao array fontes se não tiver
+    const novosFontes = Array.from(new Set([...(existente.fontes || []), ...baseFontes]));
+    const novosTags = Array.from(new Set([...(existente.tags || []), ...baseTags]));
+    await supabase.from('leads_google').update({
+      nome: dados.nome,
+      tema_conversa: tema,
+      fontes: novosFontes,
+      tags: novosTags,
+      classificacao_ia: 'empresario_alvo',
+      classificado_em: new Date().toISOString(),
+      setor: dados.setor || undefined,
+      cidade: cidade || undefined,
+      estado: estado || undefined,
+      notas,
+      updated_at: new Date().toISOString(),
+    }).eq('id', existente.id);
+    return { created: false, lead_id: existente.id, tema_conversa: tema };
+  }
+
+  // INSERT novo
+  const { data: novo, error } = await supabase.from('leads_google').insert({
+    nome: dados.nome,
+    telefone: tel,
+    telefone_formatado: dados.whatsapp_formatado,
+    cidade,
+    estado,
+    setor: dados.setor || null,
+    origem: 'ia_atendente_home',
+    fontes: baseFontes,
+    tags: baseTags,
+    classificacao_ia: 'empresario_alvo',
+    classificado_em: new Date().toISOString(),
+    tema_conversa: tema,
+    notas,
+    status: 'novo',
+    campanha: 'ia_atendente_home_2026',
+  }).select('id').single();
+  if (error) {
+    console.warn('[sync leads_google insert]', error);
+    return { created: false, lead_id: '', tema_conversa: tema };
+  }
+  return { created: true, lead_id: novo.id, tema_conversa: tema };
+}
+
+// Item 2 · WhatsApp pro admin (fire-and-forget · não bloqueia response)
+async function notificarAdminLeadQuente(p: { nome: string | null; whatsapp: string; tema: string; snippet: string }): Promise<void> {
+  if (!ADMIN_WHATSAPP || !ZAPI_INSTANCE || !ZAPI_TOKEN) return;
+  const telSemMais = p.whatsapp.replace(/\D/g, '');
+  const temasLabel: Record<string, string> = {
+    procura_negocio_a_venda: 'quer COMPRAR empresa',
+    venda_de_negocio: 'quer VENDER empresa',
+    avaliacao_de_negocio: 'quer AVALIAÇÃO da empresa',
+    duvida_sobre_portal: 'dúvida sobre o portal',
+    outros: p.tema || 'outros',
+  };
+  const msg = [
+    '🔥 LEAD QUENTÍSSIMO · ' + (p.nome || 'sem nome'),
+    '📱 https://wa.me/' + telSemMais,
+    '🎯 Tema: ' + (temasLabel[p.tema] || p.tema),
+    p.snippet ? "💬 Última: '" + p.snippet.replace(/[\n\r]+/g, ' ') + "'" : '',
+    '',
+    'Cockpit: https://1negocio.com.br/painel-v3.html#cockpit',
+  ].filter(Boolean).join('\n');
+  const zapiUrl = `https://api.z-api.io/instances/${ZAPI_INSTANCE}/token/${ZAPI_TOKEN}/send-text`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (ZAPI_CLIENT_TOKEN) headers['Client-Token'] = ZAPI_CLIENT_TOKEN;
+  await fetch(zapiUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ phone: ADMIN_WHATSAPP, message: msg }),
+  });
 }
 
 async function escalateLead(leadData: any, messages: any[], paginaOrigem: string | undefined, req: Request) {

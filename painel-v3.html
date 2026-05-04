@@ -890,6 +890,21 @@ table.t .acoes { white-space: nowrap; }
           <div class="secao-explicacao"><p>Estado atual do negócio em uma rolagem só. Negócios novos · resultados · decisões pendentes · 11 blocos sequenciais.</p></div>
           <div class="secao-conteudo">
 
+            <!-- Item 2 · LEADS QUENTÍSSIMOS · IA atendente -->
+            <div class="bloco" id="lq-bloco" style="border:2px solid #ff5a4f;background:linear-gradient(180deg, rgba(255,90,79,0.08), transparent 60%)">
+              <div class="bloco-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+                <div>
+                  <div class="bloco-titulo" style="color:#ff5a4f">🔥 LEADS QUENTÍSSIMOS · <span id="lq-count">0</span></div>
+                  <div class="bloco-sub">capturados pela IA atendente · auto-refresh 30s · clique pra ligar AGORA</div>
+                </div>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn-ghost btn-mini" onclick="lqCarregar()" title="Atualizar agora">↻</button>
+                  <a class="btn btn-ghost btn-mini" href="#crm-leads" onclick="mostrarSecao('crm-leads')">↗ Todos no CRM</a>
+                </div>
+              </div>
+              <div id="lq-conteudo"><div class="pa-loading">Carregando leads quentes...</div></div>
+            </div>
+
             <!-- Plano de hoje · Cowork (Etapa A) -->
             <div class="bloco" id="cw-plano-bloco">
               <div class="bloco-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
@@ -1491,7 +1506,17 @@ table.t .acoes { white-space: nowrap; }
                 </label>
                 <label style="display:flex;flex-direction:column;gap:4px;min-width:140px"><span class="modal-grupo-label" style="margin:0">Origem</span>
                   <select id="pl-crm-origem" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
-                    <option value="">Todas</option><option value="manual">manual</option><option value="olx">olx</option><option value="gmaps_corretores">gmaps_corretores</option><option value="instagram">instagram</option><option value="facebook">facebook</option><option value="google">google</option>
+                    <option value="">Todas</option><option value="ia_atendente_home">🔥 IA Atendente</option><option value="manual">manual</option><option value="olx">olx</option><option value="gmaps_corretores">gmaps_corretores</option><option value="gmaps_floripa">gmaps_floripa</option><option value="instagram">instagram</option><option value="facebook">facebook</option><option value="google">google</option>
+                  </select>
+                </label>
+                <label style="display:flex;flex-direction:column;gap:4px;min-width:160px"><span class="modal-grupo-label" style="margin:0">Tema (IA)</span>
+                  <select id="pl-crm-tema" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="">Todos</option>
+                    <option value="venda_de_negocio">🏢 Quer vender</option>
+                    <option value="avaliacao_de_negocio">💎 Quer avaliação</option>
+                    <option value="procura_negocio_a_venda">🛒 Quer comprar</option>
+                    <option value="duvida_sobre_portal">❓ Dúvida portal</option>
+                    <option value="outros">— Outros</option>
                   </select>
                 </label>
                 <label style="display:flex;flex-direction:column;gap:4px;min-width:160px"><span class="modal-grupo-label" style="margin:0">Classificação IA</span>
@@ -2159,7 +2184,7 @@ function mostrarSecao(id) {
       document.getElementById('bc-titulo').textContent = `${meta.icone} ${meta.titulo}`;
     }
     // Lazy-load por seção
-    if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); }
+    if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); lqInit(); }
     if (id === 'plano-dia') { cwLoadPlanoFull(); cwLoadPlanoHistorico(); }
     if (id === 'cowork-admin') cwAdmInit();
     if (id === 'triagem-olx') trInit();
@@ -3304,7 +3329,7 @@ async function plCrmInit() {
   const tbl = document.getElementById('pl-tbl-crm');
   tbl.innerHTML = '<div class="pa-loading">Carregando pool...</div>';
   try {
-    const data = await sbFetch('/rest/v1/leads_google?order=created_at.desc&limit=500&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,created_at,abordado_em');
+    const data = await sbFetch('/rest/v1/leads_google?order=created_at.desc&limit=500&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,tema_conversa,created_at,abordado_em');
     _plCrmData = data || [];
     // Popula dropdown cidades com top valores únicos
     const sel = document.getElementById('pl-crm-cidade');
@@ -3330,6 +3355,7 @@ function plCrmRender() {
   const fClass = document.getElementById('pl-crm-classificacao')?.value || '';
   const fTel   = document.getElementById('pl-crm-tem-tel')?.value || '';
   const fCidade = document.getElementById('pl-crm-cidade')?.value || '';
+  const fTema = document.getElementById('pl-crm-tema')?.value || '';
   let lista = _plCrmData.slice();
   if (q) lista = lista.filter(l =>
     (l.nome||'').toLowerCase().includes(q) ||
@@ -3349,6 +3375,7 @@ function plCrmRender() {
   if (fTel === 'com') lista = lista.filter(l => (l.telefone||'').replace(/\D/g,'').length >= 10);
   else if (fTel === 'sem') lista = lista.filter(l => (l.telefone||'').replace(/\D/g,'').length < 10);
   if (fCidade) lista = lista.filter(l => l.cidade === fCidade);
+  if (fTema) lista = lista.filter(l => l.tema_conversa === fTema);
 
   document.getElementById('pl-crm-status-line').textContent =
     `${lista.length} de ${_plCrmData.length} leads visíveis`;
@@ -5514,6 +5541,90 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
     if (e.target === o) o.classList.remove('show');
   });
 });
+
+/* ========================================================================
+   LQ-* · Item 2 · Leads Quentíssimos (IA atendente · Cockpit)
+   ======================================================================== */
+let _lqRefreshTimer = null;
+let _lqLastTotal = 0;
+
+function lqInit() {
+  lqCarregar();
+  if (_lqRefreshTimer) clearInterval(_lqRefreshTimer);
+  _lqRefreshTimer = setInterval(() => {
+    if (document.getElementById('secao-cockpit')?.style.display !== 'none') lqCarregar();
+  }, 30000);
+}
+
+async function lqCarregar() {
+  try {
+    const data = await sbFetch("/rest/v1/leads_google?origem=eq.ia_atendente_home&order=created_at.desc&limit=20&select=id,nome,telefone,telefone_formatado,tema_conversa,classificacao_ia,status,notas,created_at,abordado_em,tentou_contato_em");
+    lqRender(data || []);
+  } catch(e) {
+    document.getElementById('lq-conteudo').innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function lqRender(leads) {
+  const cnt = document.getElementById('lq-count');
+  const cont = document.getElementById('lq-conteudo');
+  if (!cont) return;
+  // não-contatados primeiro · ordem por mais recente
+  const naoContatados = leads.filter(l => !l.abordado_em && !l.tentou_contato_em);
+  if (cnt) cnt.textContent = naoContatados.length;
+  if (!naoContatados.length) {
+    cont.innerHTML = leads.length
+      ? `<div class="pa-empty">✓ Todos os ${leads.length} leads quentes já contatados. Bom trabalho!</div>`
+      : '<div class="pa-empty">Sem leads quentes capturados pela IA atendente ainda.</div>';
+    return;
+  }
+  const TEMAS = {
+    procura_negocio_a_venda: '🛒 Quer COMPRAR empresa',
+    venda_de_negocio: '🏢 Quer VENDER empresa',
+    avaliacao_de_negocio: '💎 Quer AVALIAÇÃO',
+    duvida_sobre_portal: '❓ Dúvida sobre portal',
+    outros: '— outros',
+  };
+  cont.innerHTML = naoContatados.slice(0, 10).map(l => {
+    const tel = (l.telefone||'').replace(/\D/g,'');
+    const wa = tel.length >= 10 ? (tel.startsWith('55') ? tel : '55' + tel) : '';
+    const horas = l.created_at ? Math.round((Date.now() - new Date(l.created_at).getTime()) / 3600000) : 0;
+    const tempoStr = horas < 1 ? 'agora' : horas < 24 ? `há ${horas}h` : `há ${Math.round(horas/24)}d`;
+    const trecho = (l.notas || '').split('\n').find(s => s.startsWith('resumo:'))?.replace('resumo:', '').trim() || '';
+    const temaLabel = TEMAS[l.tema_conversa] || l.tema_conversa || '';
+    return `<div style="background:rgba(255,90,79,0.08);border:1px solid rgba(255,90,79,0.3);border-radius:var(--r2);padding:14px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:15px">${escapeHtml(l.nome || '(sem nome)')}</div>
+          <div style="font-size:13px;color:#ff9b8f;margin-top:2px">${escapeHtml(temaLabel)}</div>
+        </div>
+        <div class="pa-muted" style="font-size:11px;flex-shrink:0">${tempoStr}</div>
+      </div>
+      ${trecho ? `<div style="font-size:12px;line-height:1.4;color:var(--ink-2);font-style:italic;border-left:2px solid rgba(255,90,79,0.4);padding-left:8px">"${escapeHtml(trecho.slice(0, 200))}"</div>` : ''}
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${wa ? `<a class="btn btn-mini" style="background:#25d366;color:#000" href="https://wa.me/${wa}" target="_blank">📱 Ligar agora</a>` : ''}
+        <button class="btn btn-mini btn-ghost" onclick="lqVerNotas('${l.id}')">💬 Notas</button>
+        <button class="btn btn-mini btn-ghost" onclick="lqMarcar('${l.id}')">✓ Já contatei</button>
+      </div>
+    </div>`;
+  }).join('') + (naoContatados.length > 10 ? `<div class="pa-muted" style="text-align:center;padding:6px;font-size:12px">+${naoContatados.length - 10} leads não contatados · vai em CRM Leads filtra IA Atendente</div>` : '');
+}
+
+function lqVerNotas(id) {
+  const lead = (window.__lqLast || []).find(l => l.id === id);
+  alert((lead && lead.notas) || 'Sem notas. Recarregando dados...');
+}
+
+async function lqMarcar(id) {
+  try {
+    await sbFetch(`/rest/v1/leads_google?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ abordado_em: new Date().toISOString(), status: 'contatado' }),
+    });
+    await lqCarregar();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
 
 /* ========================================================================
    MP-* · F8 PIVOTE · Monitoramento de Posts (likers de concorrentes)
