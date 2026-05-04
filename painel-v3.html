@@ -393,6 +393,13 @@ table.t .acoes { white-space: nowrap; }
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r1); cursor: pointer; font-size: 13px;
 }
 .modal-radios label:has(input:checked) { border-color: var(--accent-line); background: var(--accent-soft); }
+.modal-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.modal-checks label {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r1); cursor: pointer; font-size: 12px;
+}
+.modal-checks label:has(input:checked) { border-color: var(--accent-line); background: var(--accent-soft); }
+@media (max-width: 600px) { .modal-checks { grid-template-columns: 1fr; } }
 .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
 .modal-actions .btn { flex: 1; justify-content: center; }
 
@@ -698,6 +705,41 @@ table.t .acoes { white-space: nowrap; }
               <div id="gc-historico"><div class="lista-vazia">— sem peças geradas hoje —</div></div>
             </div>
 
+            <!-- Busca + filtros · ordenação -->
+            <div class="bloco">
+              <div class="bloco-head">
+                <div><div class="bloco-titulo">Busca + filtros</div><div class="bloco-sub">refine o universo antes de gerar</div></div>
+              </div>
+              <input type="text" id="gc-busca" placeholder="🔍 Buscar por código, setor, cidade ou faturamento..."
+                     style="width:100%;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px;outline:none"
+                     oninput="gcBuscaInput(event)">
+              <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;align-items:flex-end">
+                <label style="flex:1;min-width:140px;display:flex;flex-direction:column;gap:4px">
+                  <span class="modal-grupo-label" style="margin:0">Estado</span>
+                  <select id="gc-estado" onchange="gcEstadoChange()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="todos">Todos</option>
+                  </select>
+                </label>
+                <label style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:4px">
+                  <span class="modal-grupo-label" style="margin:0">Cidade</span>
+                  <select id="gc-cidade" onchange="gcCidadeChange()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="todos">Todas</option>
+                  </select>
+                </label>
+                <label style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:4px">
+                  <span class="modal-grupo-label" style="margin:0">Ordenar por</span>
+                  <select id="gc-ordem" onchange="gcOrdemChange()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="recentes">Mais recentes</option>
+                    <option value="fat_desc">Maior faturamento</option>
+                    <option value="fat_asc">Menor faturamento</option>
+                    <option value="ise_desc">Maior ISE</option>
+                    <option value="ise_asc">Menor ISE</option>
+                  </select>
+                </label>
+              </div>
+              <div id="gc-busca-status" style="margin-top:8px;font-size:11px;color:var(--ink-3);font-family:var(--mono)"></div>
+            </div>
+
             <!-- Lista negócios -->
             <div class="bloco">
               <div class="bloco-head">
@@ -800,6 +842,31 @@ table.t .acoes { white-space: nowrap; }
     <div class="modal-sub" id="modal-gerar-sub">—</div>
 
     <div class="modal-grupo">
+      <div class="modal-grupo-label">Ângulo do post</div>
+      <div class="modal-radios">
+        <label><input type="radio" name="mg-angulo" value="oportunidade"> 🎯 <strong>Oportunidade de aquisição</strong> · foco no comprador · valor + retorno + segurança</label>
+        <label><input type="radio" name="mg-angulo" value="momento_venda"> 💼 <strong>Momento de venda</strong> · foco no vendedor · valida decisão · mostra preparo</label>
+        <label><input type="radio" name="mg-angulo" value="setor_alta"> 📈 <strong>Setor em alta</strong> · contexto de mercado · tendência</label>
+        <label><input type="radio" name="mg-angulo" value="localizacao"> 📍 <strong>Localização estratégica</strong> · vantagem geográfica</label>
+        <label><input type="radio" name="mg-angulo" value="diferencial"> ⚙️ <strong>Diferencial operacional</strong> · recorrência · margem · gestão</label>
+        <label><input type="radio" name="mg-angulo" value="historia"> 📜 <strong>História do negócio</strong> · tempo de mercado · marca consolidada</label>
+        <label><input type="radio" name="mg-angulo" value="provocacao"> ❓ <strong>Provocação</strong> · pergunta que gera engajamento</label>
+        <label><input type="radio" name="mg-angulo" value="curadoria"> 🏛️ <strong>Curadoria 1Negócio</strong> · sigilo · avaliação técnica · método</label>
+        <label><input type="radio" name="mg-angulo" value="surpresa" checked> 🎲 <strong>Surpresa (default)</strong> · IA escolhe o melhor ângulo</label>
+      </div>
+    </div>
+
+    <div class="modal-grupo">
+      <div class="modal-grupo-label">Restrições · o que a IA pode mencionar</div>
+      <div class="modal-checks">
+        <label><input type="checkbox" name="mg-restr" value="pode_ise" checked> Pode mencionar ISE / score de saúde</label>
+        <label><input type="checkbox" name="mg-restr" value="pode_faturamento" checked> Pode mencionar faixa de faturamento</label>
+        <label><input type="checkbox" name="mg-restr" value="pode_localizacao" checked> Pode mencionar cidade/estado</label>
+        <label><input type="checkbox" name="mg-restr" value="pode_setor" checked> Pode mencionar setor</label>
+      </div>
+    </div>
+
+    <div class="modal-grupo">
       <div class="modal-grupo-label">Formato</div>
       <div class="modal-radios">
         <label><input type="radio" name="mg-formato" value="feed-insta" checked> Feed Instagram (1080×1080)</label>
@@ -819,9 +886,11 @@ table.t .acoes { white-space: nowrap; }
     <div class="modal-grupo">
       <div class="modal-grupo-label">Tom</div>
       <div class="modal-radios">
-        <label><input type="radio" name="mg-tom" value="direto" checked> Direto · sem floreio</label>
+        <label><input type="radio" name="mg-tom" value="direto" checked> Direto · números primeiro</label>
         <label><input type="radio" name="mg-tom" value="editorial"> Editorial · contextual</label>
         <label><input type="radio" name="mg-tom" value="convidativo"> Convidativo · pergunta no fim</label>
+        <label><input type="radio" name="mg-tom" value="provocativo"> Provocativo · contraintuitivo</label>
+        <label><input type="radio" name="mg-tom" value="pessoal"> Pessoal · 1ª pessoa do plural</label>
       </div>
     </div>
 
@@ -1223,10 +1292,43 @@ async function carregarBloco9() {
 let _gcFonte = 'publicados';
 let _gcSetor = 'todos';
 let _gcOrigem = 'reais';
+let _gcEstado = 'todos';
+let _gcCidade = 'todos';
+let _gcOrdem = 'recentes';
+let _gcBusca = '';
+let _gcBuscaTimer = null;
+let _gcCidadesPorEstado = {};
 let _gcOffset = 0;
 const _gcLimite = 30;
 let _gcSelecionado = null;
 let _gcUltimaPeca = null;
+
+function gcBuscaInput(e) {
+  const v = (e.target.value || '').trim().toLowerCase();
+  clearTimeout(_gcBuscaTimer);
+  _gcBuscaTimer = setTimeout(() => { _gcBusca = v; _gcOffset = 0; gcCarregar(); }, 300);
+}
+function gcEstadoChange() {
+  _gcEstado = document.getElementById('gc-estado').value;
+  _gcCidade = 'todos';
+  gcPopularCidades();
+  _gcOffset = 0; gcCarregar();
+}
+function gcCidadeChange() {
+  _gcCidade = document.getElementById('gc-cidade').value;
+  _gcOffset = 0; gcCarregar();
+}
+function gcOrdemChange() {
+  _gcOrdem = document.getElementById('gc-ordem').value;
+  _gcOffset = 0; gcCarregar();
+}
+function gcPopularCidades() {
+  const sel = document.getElementById('gc-cidade');
+  const cidades = _gcEstado === 'todos'
+    ? [...new Set(Object.values(_gcCidadesPorEstado).flat())].sort()
+    : (_gcCidadesPorEstado[_gcEstado] || []).slice().sort();
+  sel.innerHTML = '<option value="todos">Todas</option>' + cidades.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+}
 
 function gcFonte(f) {
   _gcFonte = f; _gcOffset = 0;
@@ -1249,16 +1351,31 @@ function gcOrigem(o) {
 }
 
 async function gcInit() {
-  // Carrega setores distintos do banco e popula chips
+  // Carrega setores + estados + cidades distintos numa só query
   try {
-    const data = await sbFetch(`/rest/v1/anuncios_v2?status=eq.publicado&select=negocio:negocios!negocio_id(setor)&limit=1000`);
+    const data = await sbFetch(`/rest/v1/anuncios_v2?status=eq.publicado&select=negocio:negocios!negocio_id(setor,estado,cidade)&limit=1000`);
+    // Setores
     const setores = [...new Set(data.map(d => d.negocio?.setor).filter(Boolean))].sort();
     const wrap = document.getElementById('gc-setor');
     wrap.innerHTML = '<button class="chip active" onclick="gcSetor(\'todos\')">Todos</button>';
     setores.forEach(s => {
       wrap.innerHTML += `<button class="chip" onclick="gcSetor('${escapeHtml(s)}')">${escapeHtml(s)}</button>`;
     });
-  } catch(e) { /* silencia · usa só "Todos" */ }
+    // Estados + cidades por estado
+    _gcCidadesPorEstado = {};
+    data.forEach(d => {
+      const e = d.negocio?.estado;
+      const c = d.negocio?.cidade;
+      if (!e) return;
+      if (!_gcCidadesPorEstado[e]) _gcCidadesPorEstado[e] = new Set();
+      if (c) _gcCidadesPorEstado[e].add(c);
+    });
+    Object.keys(_gcCidadesPorEstado).forEach(k => { _gcCidadesPorEstado[k] = [..._gcCidadesPorEstado[k]]; });
+    const estados = Object.keys(_gcCidadesPorEstado).sort();
+    const selE = document.getElementById('gc-estado');
+    selE.innerHTML = '<option value="todos">Todos</option>' + estados.map(e => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('');
+    gcPopularCidades();
+  } catch(e) { /* silencia · usa "Todos" */ }
   gcCarregar();
   gcCarregarHistorico();
 }
@@ -1270,9 +1387,12 @@ async function gcCarregar() {
   try {
     let url, items;
     if (_gcFonte === 'publicados') {
-      const embedSuffix = (_gcSetor !== 'todos') ? '!inner' : '';
+      const useInner = (_gcSetor !== 'todos' || _gcEstado !== 'todos' || _gcCidade !== 'todos');
+      const embedSuffix = useInner ? '!inner' : '';
       let filtros = `status=eq.publicado&order=criado_em.desc&limit=${_gcLimite}&offset=${_gcOffset}&select=id,publicado_em,origem,negocio:negocios!negocio_id${embedSuffix}(id,codigo_diagnostico,setor,categoria,cidade,estado,faturamento_anual,score_saude)`;
       if (_gcSetor !== 'todos') filtros += `&negocio.setor=eq.${encodeURIComponent(_gcSetor)}`;
+      if (_gcEstado !== 'todos') filtros += `&negocio.estado=eq.${encodeURIComponent(_gcEstado)}`;
+      if (_gcCidade !== 'todos') filtros += `&negocio.cidade=eq.${encodeURIComponent(_gcCidade)}`;
       if (_gcOrigem === 'reais') filtros += `&or=(origem.is.null,origem.neq.maquininha_teste)`;
       if (_gcOrigem === 'maquininha') filtros += `&origem=eq.maquininha_teste`;
       items = await sbFetch(`/rest/v1/anuncios_v2?${filtros}`);
@@ -1283,12 +1403,42 @@ async function gcCarregar() {
       } catch(_) { items = []; }
     }
     document.getElementById('gc-loading').style.display = 'none';
-    if (!items.length && _gcOffset === 0) {
+
+    // Busca client-side · filtra dentro da página carregada
+    let processados = items;
+    if (_gcBusca) {
+      processados = items.filter(a => {
+        const n = (a && a.negocio) || a || {};
+        const haystack = [n.codigo_diagnostico, n.setor, n.categoria, n.cidade, n.estado, n.faturamento_anual, n.score_saude]
+          .map(x => String(x || '').toLowerCase()).join(' ');
+        return haystack.includes(_gcBusca);
+      });
+    }
+    // Ordenação client-side · server entrega criado_em.desc · re-sort se necessário
+    if (_gcOrdem !== 'recentes') {
+      const dir = _gcOrdem.endsWith('desc') ? -1 : 1;
+      const campo = _gcOrdem.startsWith('fat') ? 'faturamento_anual' : 'score_saude';
+      processados = processados.slice().sort((a, b) => {
+        const va = (a.negocio && a.negocio[campo]) ?? -Infinity;
+        const vb = (b.negocio && b.negocio[campo]) ?? -Infinity;
+        return (Number(va) - Number(vb)) * dir;
+      });
+    }
+    // Status
+    const statusEl = document.getElementById('gc-busca-status');
+    if (statusEl) {
+      const ordemNota = _gcOrdem !== 'recentes' ? ` · ordenando por ${_gcOrdem.replace('_', ' ')} (dentro desta página)` : '';
+      statusEl.textContent = _gcBusca
+        ? `${processados.length} de ${items.length} resultados nesta página · busca: "${_gcBusca}"${ordemNota}`
+        : `${items.length} resultados${items.length >= _gcLimite ? ' (limitado · clique "Carregar mais")' : ''}${ordemNota}`;
+    }
+
+    if (!processados.length && _gcOffset === 0) {
       document.getElementById('gc-lista').innerHTML = '<div class="lista-vazia">— sem negócios pra esses filtros —</div>';
       return;
     }
     const lista = document.getElementById('gc-lista');
-    items.forEach(a => {
+    processados.forEach(a => {
       const n = (a && a.negocio) || a || {};
       const id = n.id || a.id;
       const ident = n.codigo_diagnostico || (n.setor + '_' + (n.cidade||'br'));
@@ -1331,6 +1481,13 @@ async function gerarPeca() {
   const formato = document.querySelector('input[name="mg-formato"]:checked').value;
   const tipo_imagem = document.querySelector('input[name="mg-imagem"]:checked').value;
   const tom = document.querySelector('input[name="mg-tom"]:checked').value;
+  const angulo = (document.querySelector('input[name="mg-angulo"]:checked') || {}).value || 'surpresa';
+  const restricoes = {
+    pode_ise: document.querySelector('input[name="mg-restr"][value="pode_ise"]').checked,
+    pode_faturamento: document.querySelector('input[name="mg-restr"][value="pode_faturamento"]').checked,
+    pode_localizacao: document.querySelector('input[name="mg-restr"][value="pode_localizacao"]').checked,
+    pode_setor: document.querySelector('input[name="mg-restr"][value="pode_setor"]').checked,
+  };
   document.getElementById('modal-gerar').classList.remove('show');
   document.getElementById('modal-preview').classList.add('show');
   document.getElementById('modal-preview-sub').textContent = 'Gerando peça...';
@@ -1341,12 +1498,14 @@ async function gerarPeca() {
     const res = await fetch(SB + '/functions/v1/gerar-conteudo-post', {
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':AK,'Authorization':'Bearer '+(__token||AK)},
-      body: JSON.stringify({negocio_id: _gcSelecionado.id, formato, tipo_imagem, tom})
+      body: JSON.stringify({negocio_id: _gcSelecionado.id, formato, tipo_imagem, tom, angulo, restricoes})
     });
     const j = await res.json();
     if (!j.ok) throw new Error(j.erro || 'Erro desconhecido');
     _gcUltimaPeca = j;
-    document.getElementById('modal-preview-sub').textContent = `${formato} · ${tipo_imagem} · ${tom} · ${j.tokens_usados || 0} tokens`;
+    const anguloLbl = j.angulo_usado || angulo;
+    const avisoLbl = j.aviso ? ` · ⚠ ${j.aviso}` : '';
+    document.getElementById('modal-preview-sub').textContent = `${formato} · ${tipo_imagem} · ${tom} · ${anguloLbl} · ${j.tokens_usados || 0} tokens${avisoLbl}`;
     if (j.imagem.tipo === 'svg') {
       document.getElementById('preview-imagem').innerHTML = j.imagem.conteudo;
     } else {
