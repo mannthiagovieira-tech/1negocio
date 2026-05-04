@@ -679,6 +679,12 @@ table.t .acoes { white-space: nowrap; }
 }
 .pa-edt-btn-warn:hover { opacity:0.85; }
 
+/* B59 · telefone clicável global */
+.tel-whatsapp { color:var(--accent); text-decoration:none; font-family:var(--mono); font-size:13px; cursor:pointer; }
+.tel-whatsapp:hover { text-decoration:underline; }
+.tel-vazio { color:var(--ink-3); font-style:italic; font-size:12px; }
+.tel-invalido { color:var(--alert); font-family:var(--mono); font-size:12px; }
+
 /* preview da peça gerada */
 .preview-peca {
   display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
@@ -1485,7 +1491,26 @@ table.t .acoes { white-space: nowrap; }
                 </label>
                 <label style="display:flex;flex-direction:column;gap:4px;min-width:140px"><span class="modal-grupo-label" style="margin:0">Origem</span>
                   <select id="pl-crm-origem" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
-                    <option value="">Todas</option><option value="manual">manual</option><option value="olx">olx</option><option value="instagram">instagram</option><option value="facebook">facebook</option><option value="google">google</option>
+                    <option value="">Todas</option><option value="manual">manual</option><option value="olx">olx</option><option value="gmaps_corretores">gmaps_corretores</option><option value="instagram">instagram</option><option value="facebook">facebook</option><option value="google">google</option>
+                  </select>
+                </label>
+                <label style="display:flex;flex-direction:column;gap:4px;min-width:160px"><span class="modal-grupo-label" style="margin:0">Classificação IA</span>
+                  <select id="pl-crm-classificacao" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="">Todas</option>
+                    <option value="quentes">🟢 Quentes (corretor/consultor/negócio)</option>
+                    <option value="ambiguos">🟡 Ambíguos</option>
+                    <option value="descartes">⚪ Descartes (imóvel/ponto vazio)</option>
+                    <option value="sem">🟡 Não classificado</option>
+                  </select>
+                </label>
+                <label style="display:flex;flex-direction:column;gap:4px;min-width:140px"><span class="modal-grupo-label" style="margin:0">Telefone</span>
+                  <select id="pl-crm-tem-tel" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="">Todos</option><option value="com">📱 Com telefone</option><option value="sem">— Sem telefone</option>
+                  </select>
+                </label>
+                <label style="display:flex;flex-direction:column;gap:4px;min-width:140px"><span class="modal-grupo-label" style="margin:0">Cidade</span>
+                  <select id="pl-crm-cidade" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="">Todas</option>
                   </select>
                 </label>
               </div>
@@ -2131,6 +2156,18 @@ function formatarTelefone(p) {
   if (s.length === 13 && s.startsWith('55')) return `+55 (${s.slice(2,4)}) ${s.slice(4,9)}-${s.slice(9)}`;
   return s;
 }
+// B59 · helper global · telefone vira link wa.me clicável
+function renderTelefoneWhats(telefone, mensagemOpcional) {
+  if (!telefone) return '<span class="tel-vazio">— sem telefone —</span>';
+  const digitos = String(telefone).replace(/\D/g, '');
+  if (digitos.length < 10 || digitos.length > 13) {
+    return `<span class="tel-invalido">${escapeHtml(String(telefone))}</span>`;
+  }
+  const numCompleto = digitos.startsWith('55') ? digitos : '55' + digitos;
+  const formatado = formatarTelefone(numCompleto);
+  const msg = mensagemOpcional || 'Olá! Sou da 1Negócio · plataforma de compra e venda de empresas.';
+  return `<a href="https://wa.me/${numCompleto}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener" class="tel-whatsapp">📱 ${escapeHtml(formatado)}</a>`;
+}
 function relativeTime(dateStr) {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
@@ -2255,6 +2292,7 @@ function paRenderTable(cols, rows, emptyMsg) {
       if (c.type==='date')  return `<td>${paFmtDate(v)}</td>`;
       if (c.type==='money') return `<td class="num">${paFmtMoney(v)}</td>`;
       if (c.type==='badge') return `<td>${paStatusBadge(v)}</td>`;
+      if (c.type==='tel')   return `<td>${renderTelefoneWhats(v)}</td>`;
       if (c.type==='actions' && c.render) return `<td>${c.render(r)}</td>`;
       return `<td>${paFmt(v)}</td>`;
     }).join('');
@@ -2296,7 +2334,7 @@ function paRenderUsuarios(data) {
   document.getElementById('pa-tbl-usuarios').innerHTML = paRenderTable([
     {key:'nome',     label:'Nome'},
     {key:'email',    label:'E-mail'},
-    {key:'telefone', label:'Telefone'},
+    {key:'telefone', label:'Telefone', type:'tel'},
     {key:'tipo',     label:'Tipo'},
     {key:'status',   label:'Status', type:'badge'},
     {key:'criado_em',label:'Cadastro', type:'date'}
@@ -2314,11 +2352,11 @@ async function paLoadLeads() {
       paApi('select','leads_google',{select:'id,nome,email,telefone,origem,created_at',    order:'created_at', ascending:false, limit:200})
     ]);
     const lsCols = [
-      {key:'nome',label:'Nome'},{key:'email',label:'E-mail'},{key:'telefone',label:'Telefone'},
+      {key:'nome',label:'Nome'},{key:'email',label:'E-mail'},{key:'telefone',label:'Telefone',type:'tel'},
       {key:'interesse',label:'Interesse'},{key:'created_at',label:'Data',type:'date'}
     ];
     const lgCols = [
-      {key:'nome',label:'Nome'},{key:'email',label:'E-mail'},{key:'telefone',label:'Telefone'},
+      {key:'nome',label:'Nome'},{key:'email',label:'E-mail'},{key:'telefone',label:'Telefone',type:'tel'},
       {key:'origem',label:'Origem'},{key:'created_at',label:'Data',type:'date'}
     ];
     if (ts) ts.innerHTML = (lsR.status==='fulfilled') ? paRenderTable(lsCols, lsR.value.data||[], 'Nenhum lead do site.')   : `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(lsR.reason?.message||'?')}</div>`;
@@ -2361,7 +2399,7 @@ async function paLoadFiliados() {
     tbl.innerHTML = paRenderTable([
       {key:'nome',     label:'Nome'},
       {key:'email',    label:'E-mail'},
-      {key:'telefone', label:'Telefone'},
+      {key:'telefone', label:'Telefone', type:'tel'},
       {key:'empresa',  label:'Empresa'},
       {key:'status',   label:'Status', type:'badge'},
       {key:'criado_em',label:'Data',   type:'date'}
@@ -3138,7 +3176,7 @@ async function plOlxLoadResultados() {
       {key:'nome',     label:'Anúncio'},
       {key:'cidade',   label:'Cidade'},
       {key:'classificacao_ia', label:'IA', type:'actions', render: r => `<span title="${escapeHtml((r.notas||'').replace('[IA] ',''))}">${badgeCls(r.classificacao_ia)}</span>`},
-      {key:'telefone', label:'Telefone'},
+      {key:'telefone', label:'Telefone', type:'tel'},
       {key:'status',   label:'Status', type:'badge'},
       {key:'created_at',label:'Capturado', type:'date'}
     ], data, 'Sem resultados');
@@ -3188,37 +3226,65 @@ async function plCrmInit() {
   const tbl = document.getElementById('pl-tbl-crm');
   tbl.innerHTML = '<div class="pa-loading">Carregando pool...</div>';
   try {
-    const data = await sbFetch('/rest/v1/leads_google?order=created_at.desc&limit=500&select=id,nome,telefone,cidade,categoria,origem,status,bio,tags,created_at');
+    const data = await sbFetch('/rest/v1/leads_google?order=created_at.desc&limit=500&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,created_at,abordado_em');
     _plCrmData = data || [];
+    // Popula dropdown cidades com top valores únicos
+    const sel = document.getElementById('pl-crm-cidade');
+    if (sel) {
+      const cidades = [...new Set(_plCrmData.map(l => l.cidade).filter(Boolean))].sort();
+      sel.innerHTML = '<option value="">Todas</option>' + cidades.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    }
     plCrmRender();
   } catch(e) { tbl.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`; }
+}
+function _plCrmChipClass(c) {
+  const verde = ['corretor_qualificado','consultor_empresarial','negocio_funcionamento'];
+  const amarelo = ['ambiguo'];
+  const cinza = ['imobiliaria_residencial','ponto_vazio','imovel_residencial'];
+  const cls = !c ? 'pa-badge-yellow' : verde.includes(c) ? 'pa-badge-green' : amarelo.includes(c) ? 'pa-badge-yellow' : cinza.includes(c) ? 'pa-badge-gray' : 'pa-badge-gray';
+  const icon = !c ? '🟡' : verde.includes(c) ? '🟢' : amarelo.includes(c) ? '🟡' : '⚪';
+  return `<span class="pa-badge ${cls}">${icon} ${escapeHtml(c || 'não classificado')}</span>`;
 }
 function plCrmRender() {
   const q = (document.getElementById('pl-crm-search').value || '').toLowerCase();
   const fStatus = document.getElementById('pl-crm-status').value;
   const fOrigem = document.getElementById('pl-crm-origem').value;
+  const fClass = document.getElementById('pl-crm-classificacao')?.value || '';
+  const fTel   = document.getElementById('pl-crm-tem-tel')?.value || '';
+  const fCidade = document.getElementById('pl-crm-cidade')?.value || '';
   let lista = _plCrmData.slice();
   if (q) lista = lista.filter(l =>
     (l.nome||'').toLowerCase().includes(q) ||
     (l.telefone||'').toLowerCase().includes(q) ||
     (l.cidade||'').toLowerCase().includes(q) ||
-    (l.categoria||'').toLowerCase().includes(q)
+    (l.categoria||'').toLowerCase().includes(q) ||
+    (l.classificacao_ia||'').toLowerCase().includes(q)
   );
   if (fStatus) lista = lista.filter(l => l.status === fStatus);
   if (fOrigem) lista = lista.filter(l => l.origem === fOrigem);
+  if (fClass) {
+    if (fClass === 'quentes') lista = lista.filter(l => ['corretor_qualificado','consultor_empresarial','negocio_funcionamento'].includes(l.classificacao_ia));
+    else if (fClass === 'ambiguos') lista = lista.filter(l => l.classificacao_ia === 'ambiguo');
+    else if (fClass === 'descartes') lista = lista.filter(l => ['imobiliaria_residencial','ponto_vazio','imovel_residencial'].includes(l.classificacao_ia));
+    else if (fClass === 'sem') lista = lista.filter(l => !l.classificacao_ia);
+  }
+  if (fTel === 'com') lista = lista.filter(l => (l.telefone||'').replace(/\D/g,'').length >= 10);
+  else if (fTel === 'sem') lista = lista.filter(l => (l.telefone||'').replace(/\D/g,'').length < 10);
+  if (fCidade) lista = lista.filter(l => l.cidade === fCidade);
+
   document.getElementById('pl-crm-status-line').textContent =
-    `${lista.length} de ${_plCrmData.length} leads visíveis · filtros: status=${fStatus||'todos'} · origem=${fOrigem||'todas'}${q?' · busca: "'+q+'"':''}`;
+    `${lista.length} de ${_plCrmData.length} leads visíveis`;
   const tbl = document.getElementById('pl-tbl-crm');
   if (!lista.length) { tbl.innerHTML = '<div class="pa-empty">Nenhum lead com esses filtros.</div>'; return; }
   tbl.innerHTML = paRenderTable([
     {key:'nome',     label:'Nome'},
-    {key:'telefone', label:'Telefone'},
+    {key:'telefone', label:'Telefone', type:'tel'},
     {key:'cidade',   label:'Cidade'},
-    {key:'categoria',label:'Categoria'},
+    {key:'classificacao_ia', label:'Classificação IA', type:'actions', render: r => _plCrmChipClass(r.classificacao_ia)},
     {key:'origem',   label:'Origem'},
     {key:'status',   label:'Status', type:'badge'},
     {key:'created_at',label:'Capturado', type:'date'},
-    {key:'id',       label:'', type:'actions', render: r => `<div style="display:flex;gap:6px"><button class="pa-btn-act success" onclick="plCrmMarcar('${r.id}','contatado')" title="marcar contatado">✓</button><button class="pa-btn-act" onclick="plCrmEnviar('${escapeHtml(r.telefone||'')}','${escapeHtml(r.nome||'')}')" title="abrir form de disparo com este número">📤</button></div>` }
+    {key:'id', label:'', type:'actions', render: r => `<div style="display:flex;gap:6px">${r.telefone ? `<button class="pa-btn-act" onclick="plCrmEnviar('${escapeHtml(r.telefone||'')}','${escapeHtml(r.nome||'')}')" title="disparo">📤</button>` : ''}<button class="pa-btn-act success" onclick="plCrmMarcar('${r.id}','contatado')" title="marcar contatado">✓</button><button class="pa-btn-act danger" onclick="plCrmMarcar('${r.id}','descartado')" title="descartar">🗑</button></div>` }
   ], lista, 'Sem resultados');
 }
 async function plCrmMarcar(id, status) {
@@ -4239,6 +4305,8 @@ async function cwFetchPlanoHoje() {
 // helpers de render exec
 let _cwAbaAtual = 'olx';
 let _cwFiltroLista = 'sem_telefone';
+let _cwFiltroValor = (function(){ try { return localStorage.getItem('cw-filtro-valor') || 'todos'; } catch(e) { return 'todos'; } })();
+let _cwTodosExpandidos = (function(){ try { return localStorage.getItem('cw-todos-expandidos') === 'true'; } catch(e) { return false; } })();
 let _cwExpandidos = {}; // id → bool
 
 function _cwFmtBRL(v) {
@@ -4265,7 +4333,7 @@ function cwRenderCardLead(item, tipo) {
               : tipo === 'corretor' ? (item.nome || '(sem nome)').slice(0, 80)
               : '@' + (item.username || '');
   const cidade = tipo === 'ig' ? '' : (item.cidade || '');
-  const valor = tipo === 'olx' ? _cwFmtBRL(item.valor_anuncio) : '';
+  const valor = tipo === 'olx' ? (item.valor_anuncio ? _cwFmtBRL(item.valor_anuncio) : 'R$ s/ inf') : '';
   const dataAnuncio = tipo === 'olx' ? _cwFmtData(item.data_publicacao) : '';
   const dot = tipo === 'olx' ? '🟢' : tipo === 'corretor' ? '🤝' : '📷';
   const temTel = !!(item.telefone && String(item.telefone).replace(/\D/g, '').length >= 10);
@@ -4336,6 +4404,12 @@ function cwAbaSubtab(aba) {
   // Filtros client-side
   if (_cwFiltroLista === 'sem_telefone') lista = lista.filter(it => !(it.telefone && String(it.telefone).replace(/\D/g,'').length >= 10));
   else if (_cwFiltroLista === 'com_telefone') lista = lista.filter(it => (it.telefone && String(it.telefone).replace(/\D/g,'').length >= 10));
+  // Filtro de valor (só aplica em OLX · cards com valor_anuncio)
+  if (_cwFiltroValor !== 'todos' && aba === 'olx') {
+    const minMap = { '300k': 300000, '500k': 500000, '1m': 1000000 };
+    const min = minMap[_cwFiltroValor] || 0;
+    lista = lista.filter(it => Number(it.valor_anuncio || 0) >= min);
+  }
   // 'todos' · sem filtro
   const wrap = document.getElementById('cw-exec-lista');
   if (!wrap) return;
@@ -4354,6 +4428,23 @@ function cwAbaSubtab(aba) {
 function cwSetFiltroLista(f) {
   _cwFiltroLista = f;
   document.querySelectorAll('[data-cw-filtro]').forEach(b => b.classList.toggle('active', b.dataset.cwFiltro === f));
+  cwAbaSubtab(_cwAbaAtual);
+}
+function cwSetFiltroValor(v) {
+  _cwFiltroValor = v;
+  try { localStorage.setItem('cw-filtro-valor', v); } catch(e) {}
+  document.querySelectorAll('[data-cw-fvalor]').forEach(b => b.classList.toggle('active', b.dataset.cwFvalor === v));
+  cwAbaSubtab(_cwAbaAtual);
+}
+function cwToggleTodos(expandir) {
+  _cwTodosExpandidos = !!expandir;
+  try { localStorage.setItem('cw-todos-expandidos', String(expandir)); } catch(e) {}
+  // Aplica em TODOS os ids do cache atual (todas as 3 abas)
+  const c = _cwPlanoCache && _cwPlanoCache._exec;
+  if (!c) return;
+  [...(c.leads_pra_abordar||[]), ...(c.corretores_pra_abordar||[]), ...(c.perfis_ig_seguir||[])].forEach(it => {
+    _cwExpandidos[it.id] = expandir;
+  });
   cwAbaSubtab(_cwAbaAtual);
 }
 
@@ -4528,10 +4619,20 @@ async function cwLoadPlanoBloco() {
       <div class="pa-tab ${_cwAbaAtual==='corretor'?'active':''}" data-cw-aba="corretor" onclick="cwAbaSubtab('corretor')">Corretores <span class="pa-tab-count">${(exec.corretores_pra_abordar||[]).length}</span></div>
       <div class="pa-tab ${_cwAbaAtual==='ig'?'active':''}" data-cw-aba="ig" onclick="cwAbaSubtab('ig')">IG <span class="pa-tab-count">${(exec.perfis_ig_seguir||[]).length}</span></div>
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+      <span class="modal-grupo-label" style="margin:0;font-size:10px">tel</span>
       <button class="chip ${_cwFiltroLista==='todos'?'active':''}" data-cw-filtro="todos" onclick="cwSetFiltroLista('todos')">Todos</button>
-      <button class="chip ${_cwFiltroLista==='sem_telefone'?'active':''}" data-cw-filtro="sem_telefone" onclick="cwSetFiltroLista('sem_telefone')">Sem telefone</button>
-      <button class="chip ${_cwFiltroLista==='com_telefone'?'active':''}" data-cw-filtro="com_telefone" onclick="cwSetFiltroLista('com_telefone')">Com telefone</button>
+      <button class="chip ${_cwFiltroLista==='sem_telefone'?'active':''}" data-cw-filtro="sem_telefone" onclick="cwSetFiltroLista('sem_telefone')">Sem tel</button>
+      <button class="chip ${_cwFiltroLista==='com_telefone'?'active':''}" data-cw-filtro="com_telefone" onclick="cwSetFiltroLista('com_telefone')">Com tel</button>
+      <span class="modal-grupo-label" style="margin:0 0 0 12px;font-size:10px">valor</span>
+      <button class="chip ${_cwFiltroValor==='todos'?'active':''}" data-cw-fvalor="todos" onclick="cwSetFiltroValor('todos')">Todos</button>
+      <button class="chip ${_cwFiltroValor==='300k'?'active':''}" data-cw-fvalor="300k" onclick="cwSetFiltroValor('300k')">≥ 300k</button>
+      <button class="chip ${_cwFiltroValor==='500k'?'active':''}" data-cw-fvalor="500k" onclick="cwSetFiltroValor('500k')">≥ 500k</button>
+      <button class="chip ${_cwFiltroValor==='1m'?'active':''}" data-cw-fvalor="1m" onclick="cwSetFiltroValor('1m')">≥ 1M</button>
+      <span style="margin-left:auto;display:flex;gap:4px">
+        <button class="btn btn-ghost btn-mini" onclick="cwToggleTodos(true)">▼ Expandir todos</button>
+        <button class="btn btn-ghost btn-mini" onclick="cwToggleTodos(false)">▲ Encolher todos</button>
+      </span>
     </div>
     <div id="cw-exec-lista"></div>`;
 
@@ -4814,7 +4915,7 @@ async function trInit() {
 
 async function trCarregarStats() {
   try {
-    const total = await fetch(SB + '/rest/v1/leads_google?origem=eq.olx&classificacao_ia=eq.ambiguo&revisar_depois=is.null&select=id&limit=1', {
+    const total = await fetch(SB + '/rest/v1/leads_google?origem=eq.olx&classificacao_ia=eq.ambiguo&or=(revisar_depois.is.null,revisar_depois.eq.false)&select=id&limit=1', {
       headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token||AK), 'Prefer': 'count=exact' }
     });
     const range = total.headers.get('content-range') || '';
@@ -4825,7 +4926,7 @@ async function trCarregarStats() {
 
 async function trCarregarBuffer() {
   try {
-    const data = await sbFetch('/rest/v1/leads_google?origem=eq.olx&classificacao_ia=eq.ambiguo&revisar_depois=is.null&order=created_at.desc&limit=50&select=id,nome,bio,cidade,categoria,tags,notas,url_anuncio,valor_anuncio,created_at');
+    const data = await sbFetch('/rest/v1/leads_google?origem=eq.olx&classificacao_ia=eq.ambiguo&or=(revisar_depois.is.null,revisar_depois.eq.false)&order=created_at.desc&limit=50&select=id,nome,bio,cidade,categoria,tags,notas,url_anuncio,valor_anuncio,created_at');
     _trBuffer = data || [];
     _trIdx = 0;
   } catch(e) { console.warn('[trCarregarBuffer]', e); _trBuffer = []; }
