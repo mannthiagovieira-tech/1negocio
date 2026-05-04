@@ -1161,7 +1161,33 @@ table.t .acoes { white-space: nowrap; }
                 </div>
                 <div class="modal-actions" style="margin-top:6px"><button class="btn" onclick="plOlxRun()">🔍 Buscar no OLX</button></div>
                 <div id="pl-olx-status" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
-                <div class="pa-h2-mini" style="margin-top:18px">Últimos resultados (leads_google · origem=olx)</div>
+
+                <!-- Etapa B · Classificador IA -->
+                <div class="pa-h2-mini" style="margin-top:18px">🤖 Classificador IA (Etapa B)</div>
+                <div class="pa-stats-grid" id="pl-olx-cls-stats" style="grid-template-columns:repeat(5,1fr);margin-bottom:12px">
+                  <div class="pa-stat-card"><div class="pa-stat-label">Total OLX</div><div class="pa-stat-num" id="pl-olx-cls-total">—</div></div>
+                  <div class="pa-stat-card"><div class="pa-stat-label" style="color:var(--accent)">🟢 Negócio op.</div><div class="pa-stat-num" id="pl-olx-cls-neg">—</div></div>
+                  <div class="pa-stat-card"><div class="pa-stat-label" style="color:var(--warn)">🟡 Ambíguo</div><div class="pa-stat-num" id="pl-olx-cls-amb">—</div></div>
+                  <div class="pa-stat-card"><div class="pa-stat-label" style="color:var(--ink-3)">⚪ Descartes</div><div class="pa-stat-num" id="pl-olx-cls-desc">—</div></div>
+                  <div class="pa-stat-card"><div class="pa-stat-label" style="color:#ff9b3d">🟠 Pendentes</div><div class="pa-stat-num" id="pl-olx-cls-pend">—</div></div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+                  <button class="btn" onclick="plOlxClassificar(50)">🤖 Classificar 50 pendentes</button>
+                  <button class="btn btn-ghost" onclick="plOlxClassificar(200)">Classificar 200 pendentes</button>
+                  <button class="btn btn-ghost btn-mini" onclick="plOlxLoadStats()" title="Re-carrega contagens">↻</button>
+                  <span style="margin-left:auto;font-size:11px;color:var(--ink-3);font-family:var(--mono)">Modelo · Haiku 4.5 · ~R$ 0,003 / lead</span>
+                </div>
+                <div id="pl-olx-cls-status" style="font-size:12px;font-family:var(--mono);color:var(--ink-3);margin-bottom:14px"></div>
+
+                <div class="pa-h2-mini" style="margin-top:18px">Filtro · resultados</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+                  <button class="chip active" data-olx-filtro="todos"                onclick="plOlxFiltro('todos')">Todos</button>
+                  <button class="chip"        data-olx-filtro="negocio_funcionamento" onclick="plOlxFiltro('negocio_funcionamento')">🟢 Negócio op.</button>
+                  <button class="chip"        data-olx-filtro="ambiguo"               onclick="plOlxFiltro('ambiguo')">🟡 Ambíguo</button>
+                  <button class="chip"        data-olx-filtro="ponto_vazio"           onclick="plOlxFiltro('ponto_vazio')">⚪ Ponto vazio</button>
+                  <button class="chip"        data-olx-filtro="imovel_residencial"    onclick="plOlxFiltro('imovel_residencial')">⚪ Imóvel</button>
+                  <button class="chip"        data-olx-filtro="pendente"              onclick="plOlxFiltro('pendente')">🟠 Pendente</button>
+                </div>
                 <div id="pl-olx-resultados"><div class="pa-loading">Aguardando seleção…</div></div>
               </div>
 
@@ -2913,11 +2939,82 @@ async function plDisparar() {
 // ---- pl-olx · OLX Scraper (configs em scrap_configs) ----
 let _plOlxCfgs = { keyword: [], cidade: [] };
 
+let _plOlxFiltro = 'todos';
+
 async function plOlxInit() {
   const apify = localStorage.getItem('1n_apify') || '';
   const inp = document.getElementById('pl-olx-apify');
   if (inp && !inp.value) inp.value = apify;
   await plOlxCarregarCfgs();
+  plOlxLoadStats();
+  plOlxLoadResultados();
+}
+
+// ── Etapa B · classificador IA ──
+async function plOlxLoadStats() {
+  try {
+    // Faz 1 query agregada (usa header Prefer:count+select com classificacao_ia not null)
+    // Como PostgREST não tem GROUP BY direto via REST, vamos puxar uma série de count via 5 fetches
+    const base = '/rest/v1/leads_google?origem=eq.olx&select=id';
+    const headers = { 'Prefer': 'count=exact' };
+    async function countX(extra) {
+      const res = await fetch(SB + base + extra + '&limit=1', {
+        headers: { 'apikey': AK, 'Authorization': 'Bearer '+(__token||AK), 'Prefer':'count=exact' }
+      });
+      const c = res.headers.get('content-range') || '';
+      const m = c.match(/\/(\d+)$/);
+      return m ? parseInt(m[1], 10) : 0;
+    }
+    const [total, neg, amb, pv, ir, pend] = await Promise.all([
+      countX(''),
+      countX('&classificacao_ia=eq.negocio_funcionamento'),
+      countX('&classificacao_ia=eq.ambiguo'),
+      countX('&classificacao_ia=eq.ponto_vazio'),
+      countX('&classificacao_ia=eq.imovel_residencial'),
+      countX('&classificacao_ia=is.null')
+    ]);
+    document.getElementById('pl-olx-cls-total').textContent = total;
+    document.getElementById('pl-olx-cls-neg').textContent = neg;
+    document.getElementById('pl-olx-cls-amb').textContent = amb;
+    document.getElementById('pl-olx-cls-desc').textContent = (pv + ir);
+    document.getElementById('pl-olx-cls-pend').textContent = pend;
+  } catch(e) { console.warn('[plOlxLoadStats]', e); }
+}
+
+async function plOlxClassificar(qtd) {
+  const status = document.getElementById('pl-olx-cls-status');
+  const custoEstim = (qtd * 0.003).toFixed(2);
+  if (!confirm(`Classificar ${qtd} leads pendentes via Claude Haiku 4.5?\n\nCusto estimado · ~R$ ${custoEstim} (~$0.0007/lead)\nDuração estimada · ~${Math.ceil(qtd/10*3)}s (10 paralelos · 3s/lote)\n\nContinuar?`)) return;
+  status.textContent = `🤖 Classificando ${qtd} leads...`; status.style.color = 'var(--ink-3)';
+  try {
+    const res = await fetch(SB + '/functions/v1/classificar-lead-olx', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+(__token||AK),'apikey':AK},
+      body: JSON.stringify({ all_pending: true, limit: qtd })
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      status.textContent = `✕ Erro ${res.status}: ${t.slice(0,160)}`;
+      status.style.color = 'var(--alert)';
+      return;
+    }
+    const j = await res.json();
+    if (!j.ok) { status.textContent = '✕ Falha: ' + (j.erro||'?'); status.style.color = 'var(--alert)'; return; }
+    const cats = j.por_categoria || {};
+    const breakdown = Object.entries(cats).map(([k,v]) => `${k}: ${v}`).join(' · ') || 'sem resultados';
+    status.textContent = `✓ ${j.classificados}/${j.total_processados} classificados · ${breakdown} · custo R$ ${j.custo_estimado_brl}`;
+    status.style.color = 'var(--accent)';
+    plOlxLoadStats();
+    plOlxLoadResultados();
+  } catch(e) {
+    status.textContent = '✕ Erro de rede: ' + e.message;
+    status.style.color = 'var(--alert)';
+  }
+}
+
+function plOlxFiltro(f) {
+  _plOlxFiltro = f;
+  document.querySelectorAll('[data-olx-filtro]').forEach(b => b.classList.toggle('active', b.dataset.olxFiltro === f));
   plOlxLoadResultados();
 }
 
@@ -2983,13 +3080,24 @@ async function plOlxLoadResultados() {
   const wrap = document.getElementById('pl-olx-resultados');
   wrap.innerHTML = '<div class="pa-loading">Carregando resultados anteriores...</div>';
   try {
-    const data = await sbFetch('/rest/v1/leads_google?origem=eq.olx&order=created_at.desc&limit=100&select=id,nome,telefone,cidade,categoria,status,bio,tags,created_at');
-    if (!data.length) { wrap.innerHTML = '<div class="pa-empty">Nenhum lead OLX salvo ainda · rode a busca acima.</div>'; return; }
+    let filtroExtra = '';
+    if (_plOlxFiltro === 'pendente')         filtroExtra = '&classificacao_ia=is.null';
+    else if (_plOlxFiltro && _plOlxFiltro !== 'todos') filtroExtra = `&classificacao_ia=eq.${encodeURIComponent(_plOlxFiltro)}`;
+    const data = await sbFetch(`/rest/v1/leads_google?origem=eq.olx${filtroExtra}&order=created_at.desc&limit=100&select=id,nome,telefone,cidade,categoria,status,bio,tags,classificacao_ia,classificado_em,notas,created_at`);
+    if (!data.length) { wrap.innerHTML = `<div class="pa-empty">Nenhum lead com filtro "${_plOlxFiltro}".</div>`; return; }
+    const badgeCls = (c) => {
+      if (!c) return '<span class="pa-badge pa-badge-gray" title="não classificado">— pendente —</span>';
+      if (c === 'negocio_funcionamento') return '<span class="pa-badge pa-badge-green">🟢 negócio op.</span>';
+      if (c === 'ambiguo')                return '<span class="pa-badge pa-badge-yellow">🟡 ambíguo</span>';
+      if (c === 'ponto_vazio')            return '<span class="pa-badge pa-badge-gray">⚪ ponto vazio</span>';
+      if (c === 'imovel_residencial')     return '<span class="pa-badge pa-badge-gray">⚪ imóvel</span>';
+      return `<span class="pa-badge pa-badge-gray">${escapeHtml(c)}</span>`;
+    };
     wrap.innerHTML = paRenderTable([
       {key:'nome',     label:'Anúncio'},
-      {key:'telefone', label:'Telefone'},
       {key:'cidade',   label:'Cidade'},
-      {key:'categoria',label:'Categoria'},
+      {key:'classificacao_ia', label:'IA', type:'actions', render: r => `<span title="${escapeHtml((r.notas||'').replace('[IA] ',''))}">${badgeCls(r.classificacao_ia)}</span>`},
+      {key:'telefone', label:'Telefone'},
       {key:'status',   label:'Status', type:'badge'},
       {key:'created_at',label:'Capturado', type:'date'}
     ], data, 'Sem resultados');
