@@ -1284,6 +1284,10 @@ Deno.serve(async (req: Request) => {
     if (action === 'escalate') {
       return await escalateLead(lead_data, messages, pagina_origem, req);
     }
+    // B67 · backfill 16 leads existentes (nome=null) · extrai via Haiku + sincroniza leads_google
+    if (action === 'backfill_leads') {
+      return await backfillLeadsExistentes();
+    }
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return jsonResponse({ error: 'messages array é obrigatório' }, 400);
@@ -1551,6 +1555,120 @@ async function detectarUsuarioLogado(jwt: string): Promise<any> {
   }
 }
 
+// B67 · extrai nome+whatsapp+email das mensagens via Haiku
+// Usado em persistirAvaliacao quando não há usuarioLogado
+async function extrairNomeWhatsappEmail(messages: any[]): Promise<{ nome: string | null; whatsapp: string | null; email: string | null }> {
+  if (!ANTHROPIC_KEY || !messages?.length) return { nome: null, whatsapp: null, email: null };
+  try {
+    const userMsgs = messages
+      .filter((m: any) => m.role === 'user')
+      .map((m: any) => typeof m.content === 'string' ? m.content : '')
+      .filter(Boolean)
+      .slice(0, 30) // até 30 user messages é suficiente
+      .join('\n---\n');
+    if (!userMsgs.trim()) return { nome: null, whatsapp: null, email: null };
+
+    const sys = `Você extrai nome próprio + WhatsApp + email das mensagens do USUÁRIO numa conversa com IA atendente.
+
+Regras:
+- "nome": primeiro nome próprio que o usuário usou pra se apresentar (ex: "Sou o Pedro", "Mariah aqui", "meu nome é João"). Pode incluir sobrenome se mencionado. NÃO confunda com nome do negócio (Adega, Clínica, etc).
+- "whatsapp": número de telefone brasileiro · só dígitos · com DDI 55+DDD+9XXXXXXXX (13 dígitos). Se vier com formatação tipo (48) 99999-9999 · normaliza pra 5548999999999.
+- "email": email se mencionado.
+- Se não achar · retorna null pra esse campo.
+
+Saída JSON estrito: {"nome":"...","whatsapp":"...","email":"..."}`;
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: HAIKU_MODEL,
+        max_tokens: 200,
+        system: sys,
+        messages: [{ role: 'user', content: userMsgs }],
+      }),
+    });
+    if (!res.ok) return { nome: null, whatsapp: null, email: null };
+    const data = await res.json();
+    const raw = (data.content?.[0]?.text || '').replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(raw);
+    let whats: string | null = null;
+    if (parsed.whatsapp) {
+      const dig = String(parsed.whatsapp).replace(/\D/g, '');
+      if (dig.length >= 10 && dig.length <= 13) {
+        whats = dig.startsWith('55') ? dig : (dig.length === 10 || dig.length === 11 ? '55' + dig : dig);
+      }
+    }
+    return {
+      nome: parsed.nome ? String(parsed.nome).trim().slice(0, 120) : null,
+      whatsapp: whats,
+      email: parsed.email && /@/.test(String(parsed.email)) ? String(parsed.email).trim().slice(0, 200) : null,
+    };
+  } catch (e) {
+    console.warn('[extrairNomeWhatsappEmail]', (e as Error).message);
+    return { nome: null, whatsapp: null, email: null };
+  }
+}
+
+// B67 · backfill chat_ia_leads existentes (nome=null) extraindo de mensagens
+async function backfillLeadsExistentes(): Promise<Response> {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  const { data: pendentes, error } = await supabase
+    .from('chat_ia_leads')
+    .select('id, mensagens, dados_coletados, setor_code, cidade_estado, faixa_faturamento')
+    .is('nome', null)
+    .not('mensagens', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) return jsonResponse({ error: error.message }, 500);
+
+  const resultados: any[] = [];
+  for (const row of (pendentes || [])) {
+    const msgs = (row.mensagens as any[]) || [];
+    if (!msgs.length) { resultados.push({ id: row.id, skip: 'sem mensagens' }); continue; }
+    const extr = await extrairNomeWhatsappEmail(msgs);
+    if (!extr.nome && !extr.whatsapp) {
+      resultados.push({ id: row.id, skip: 'sem nome/whatsapp identificado' });
+      continue;
+    }
+    const update: any = {};
+    if (extr.nome) update.nome = extr.nome;
+    if (extr.whatsapp) update.whatsapp = '+' + extr.whatsapp;
+    if (extr.email) update.email = extr.email;
+    if (Object.keys(update).length) {
+      await supabase.from('chat_ia_leads').update(update).eq('id', row.id);
+    }
+    let crmSync: any = null;
+    if (extr.whatsapp || extr.nome) {
+      try {
+        const resumo = msgs.slice(-4)
+          .map((m: any) => `${m.role === 'user' ? 'U' : 'A'}: ${typeof m.content === 'string' ? m.content.slice(0, 150) : '[tool]'}`)
+          .join(' | ');
+        const dados = (row.dados_coletados as any) || {};
+        crmSync = await sincronizarComLeadsGoogle(supabase, {
+          nome: extr.nome,
+          whatsapp_formatado: extr.whatsapp ? '+' + extr.whatsapp : null,
+          setor: row.setor_code || dados.setor_code,
+          cidade_estado: row.cidade_estado || dados.cidade_uf,
+          faixa_faturamento: row.faixa_faturamento ? String(row.faixa_faturamento) : null,
+          resumo_conversa: resumo,
+          messages: msgs,
+          chat_ia_lead_id: row.id,
+        });
+      } catch (e) { console.warn('[backfill sync]', e); }
+    }
+    resultados.push({ id: row.id, nome: extr.nome, whatsapp: extr.whatsapp, crm_modo: crmSync?.modo || null });
+  }
+
+  return jsonResponse({
+    ok: true,
+    total_processados: resultados.length,
+    com_dados_extraidos: resultados.filter(r => r.nome || r.whatsapp).length,
+    sem_dados: resultados.filter(r => r.skip).length,
+    detalhe: resultados,
+  });
+}
+
 async function persistirAvaliacao(leadId: string | undefined, dados: any, valuation: any, messages: any[], paginaOrigem: string | undefined, usuarioLogado: any) {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -1575,12 +1693,41 @@ async function persistirAvaliacao(leadId: string | undefined, dados: any, valuat
     payload.nome = usuarioLogado.nome;
     payload.whatsapp = usuarioLogado.whatsapp || usuarioLogado.telefone;
     payload.perfil = 'logado';
+  } else {
+    // B67 · usuario anônimo · extrai nome/whatsapp das mensagens via Haiku
+    const extr = await extrairNomeWhatsappEmail(messages);
+    if (extr.nome) payload.nome = extr.nome;
+    if (extr.whatsapp) payload.whatsapp = '+' + extr.whatsapp;
+    if (extr.email) payload.email = extr.email;
   }
 
+  // INSERT/UPDATE chat_ia_leads
+  let chatLeadId: string | null = null;
   if (leadId) {
     await supabase.from('chat_ia_leads').update(payload).eq('id', leadId);
+    chatLeadId = leadId;
   } else {
-    await supabase.from('chat_ia_leads').insert(payload);
+    const { data: novo } = await supabase.from('chat_ia_leads').insert(payload).select('id').single();
+    chatLeadId = novo?.id || null;
+  }
+
+  // B66/B67 · sincroniza com leads_google (mesmo path que saveLead) se temos nome/wa
+  if (chatLeadId && (payload.nome || payload.whatsapp)) {
+    try {
+      const resumo = (messages || []).slice(-4)
+        .map((m: any) => `${m.role === 'user' ? 'U' : 'A'}: ${typeof m.content === 'string' ? m.content.slice(0, 150) : '[tool]'}`)
+        .join(' | ');
+      await sincronizarComLeadsGoogle(supabase, {
+        nome: payload.nome || null,
+        whatsapp_formatado: payload.whatsapp || null,
+        setor: dados.setor_code,
+        cidade_estado: dados.cidade_uf,
+        faixa_faturamento: String(dados.faturamento_anual),
+        resumo_conversa: resumo,
+        messages: messages || [],
+        chat_ia_lead_id: chatLeadId,
+      });
+    } catch (e) { console.warn('[persistirAvaliacao sync leads_google]', e); }
   }
 }
 
