@@ -696,10 +696,7 @@ table.t .acoes { white-space: nowrap; }
         <!-- LEADS MIGRADO (Etapa 2.A) -->
         <div class="sidebar-grupo">
           <div class="sidebar-grupo-titulo">LEADS MIGRADO</div>
-          <div class="nav-item" data-secao="pl-olx" onclick="mostrarSecao('pl-olx')"><span class="nav-icon">🛒</span><span class="nav-label">OLX scraper</span><span class="star">⭐</span></div>
           <div class="nav-item" data-secao="pl-crm-google" onclick="mostrarSecao('pl-crm-google')"><span class="nav-icon">📇</span><span class="nav-label">CRM leads_google</span></div>
-          <div class="nav-item" data-secao="pl-gmaps" onclick="mostrarSecao('pl-gmaps')"><span class="nav-icon">🗺️</span><span class="nav-label">Google Maps</span></div>
-          <div class="nav-item" data-secao="pl-fb" onclick="mostrarSecao('pl-fb')"><span class="nav-icon">📘</span><span class="nav-label">Facebook · oportunidades</span></div>
           <div class="nav-item" data-secao="pl-templates" onclick="mostrarSecao('pl-templates')"><span class="nav-icon">📝</span><span class="nav-label">Templates msg</span></div>
           <div class="nav-item" data-secao="pl-leads-manuais" onclick="mostrarSecao('pl-leads-manuais')"><span class="nav-icon">➕</span><span class="nav-label">Leads manuais</span></div>
           <div class="nav-item" data-secao="pl-config" onclick="mostrarSecao('pl-config')"><span class="nav-icon">🔑</span><span class="nav-label">API Keys</span></div>
@@ -957,7 +954,109 @@ table.t .acoes { white-space: nowrap; }
 
         <section id="secao-calendario" class="secao"><header class="secao-header"><h1 class="secao-titulo">📅 Calendário</h1><p class="secao-subtitulo">Editorial · publicações · tarefas</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Visão consolidada do que vai sair de conteúdo e quando.</p><ul><li>Posts agendados (Instagram · LinkedIn · WhatsApp)</li><li>Newsletters / e-mails</li><li>Webinars · lives · eventos</li><li>Sincronização com Cal.com (admin) e Google Calendar</li></ul></div></section>
 
-        <section id="secao-scrapers" class="secao"><header class="secao-header"><h1 class="secao-titulo">🕷️ Scrapers</h1><p class="secao-subtitulo">Google Maps · LinkedIn · OLX · Facebook · Instagram</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Scrappers já rodando hoje no painel-leads. Vão migrar pra cá.</p><ul><li>Google Maps (negócios por setor + cidade)</li><li>LinkedIn (perfis de empresários · executivos)</li><li>OLX (anúncios de empresas à venda)</li><li>Facebook + Instagram (sinais de venda)</li><li>Histórico de runs e exportações</li></ul><a class="legacy-cta" href="/painel-leads.html" target="_blank">↗ Acessar Painel Leads atual</a></div></section>
+        <section id="secao-scrapers" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">🕷️ Scrapers</h1>
+            <p class="secao-subtitulo">Captura de leads de fontes externas · Google Maps · OLX · Facebook · Instagram · Monitoramento</p>
+          </header>
+          <div class="secao-conteudo">
+            <div class="bloco">
+              <div class="pa-tabs" id="pl-scrap-tabs">
+                <div class="pa-tab active" data-scrap-tab="gmaps"   onclick="plScrapTab('gmaps')">📍 Google Maps</div>
+                <div class="pa-tab"        data-scrap-tab="olx"     onclick="plScrapTab('olx')">🛒 OLX</div>
+                <div class="pa-tab"        data-scrap-tab="fb"      onclick="plScrapTab('fb')">📘 Facebook</div>
+                <div class="pa-tab"        data-scrap-tab="ig"      onclick="plScrapTab('ig')">📷 Instagram</div>
+                <div class="pa-tab"        data-scrap-tab="monitor" onclick="plScrapTab('monitor')">🎯 Monitoramento</div>
+              </div>
+
+              <!-- ───────── PANEL GMAPS ───────── -->
+              <div class="pl-scrap-panel" data-scrap-panel="gmaps" style="display:block">
+                <div class="pa-form-group"><label>Google API Key (localStorage 1n_gkey · Places API ativa)</label><input id="pl-gm-key" placeholder="AIza..." onchange="localStorage.setItem('1n_gkey', this.value.trim())"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div class="pa-form-group"><label>Categoria</label><input id="pl-gm-cat" placeholder="ex: padaria, oficina mecânica"></div>
+                  <div class="pa-form-group"><label>Cidade, UF</label><input id="pl-gm-city" placeholder="ex: Florianópolis, SC"></div>
+                </div>
+                <div class="pa-form-group"><label>Tag de campanha</label><input id="pl-gm-camp" placeholder="ex: gm-padaria-floripa"></div>
+                <div class="modal-actions" style="margin-top:6px"><button class="btn" onclick="plGmapsRun()">🔍 Buscar no Google Maps</button></div>
+                <div id="pl-gm-status" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
+                <div class="pa-h2-mini" style="margin-top:18px">Resultados (selecione pra salvar)</div>
+                <div id="pl-gm-results"><div class="pa-empty">Rode uma busca pra ver os resultados.</div></div>
+              </div>
+
+              <!-- ───────── PANEL OLX ───────── -->
+              <div class="pl-scrap-panel" data-scrap-panel="olx" style="display:none">
+                <div class="pa-form-group"><label>Apify Token (localStorage 1n_apify)</label><input id="pl-olx-apify" placeholder="apify_api_..." onchange="localStorage.setItem('1n_apify', this.value.trim())"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div class="pa-form-group"><label>Palavras-chave (vírgula)</label><input id="pl-olx-kw" value="vendo restaurante, passo ponto comercial"></div>
+                  <div class="pa-form-group"><label>Cidades (vírgula · "brasil"=sem cidade)</label><input id="pl-olx-city" value="brasil"></div>
+                  <div class="pa-form-group"><label>Páginas por query (1-10)</label><input id="pl-olx-pages" type="number" value="3" min="1" max="10"></div>
+                  <div class="pa-form-group"><label>Ordenação</label><select id="pl-olx-sort"><option value="newest">Mais novos</option><option value="price_asc">Menor preço</option><option value="price_desc">Maior preço</option></select></div>
+                  <div class="pa-form-group"><label>Tag de campanha</label><input id="pl-olx-camp" value="olx-negocios"></div>
+                </div>
+                <div class="modal-actions" style="margin-top:6px"><button class="btn" onclick="plOlxRun()">🔍 Buscar no OLX</button></div>
+                <div id="pl-olx-status" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
+                <div class="pa-h2-mini" style="margin-top:18px">Últimos resultados (leads_google · origem=olx)</div>
+                <div id="pl-olx-resultados"><div class="pa-loading">Aguardando seleção…</div></div>
+              </div>
+
+              <!-- ───────── PANEL FACEBOOK ───────── -->
+              <div class="pl-scrap-panel" data-scrap-panel="fb" style="display:none">
+                <div class="pa-tabs" style="border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:14px">
+                  <div class="pa-tab active" data-scrap-fbtab="search" onclick="plScrapFbTab('search')">📝 Posts (search)</div>
+                  <div class="pa-tab"        data-scrap-fbtab="pages"  onclick="plScrapFbTab('pages')">🏢 Páginas (pages)</div>
+                </div>
+
+                <!-- FB SEARCH (posts de intenção) -->
+                <div class="pl-scrap-fbpanel" data-scrap-fbpanel="search" style="display:block">
+                  <div class="pa-alert" style="margin-bottom:14px">Lê itens ATIVOS de fb_monitoramento (frase · cidade · grupo) · monta queries (frase × cidade) · roda apify-facebook-search · max 10 buscas / 30 posts cada · salva em oportunidades_fb.</div>
+                  <div class="modal-actions"><button class="btn" onclick="plFbSearchRun()">🔍 Buscar posts no Facebook</button></div>
+                  <div id="pl-fbs-status" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
+                  <div class="pa-h2-mini" style="margin-top:18px">Oportunidades capturadas (oportunidades_fb)</div>
+                  <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+                    <select id="pl-fb-status" onchange="plFbLoad()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                      <option value="">Todos status</option><option value="novo">novo</option><option value="oportunidade">oportunidade</option><option value="descartado">descartado</option>
+                    </select>
+                    <button class="btn btn-ghost" onclick="plFbLoad()">🔄 Atualizar</button>
+                    <span id="pl-fb-count" style="margin-left:auto;font-size:11px;color:var(--ink-3);font-family:var(--mono)"></span>
+                  </div>
+                  <div id="pl-tbl-fb"><div class="pa-loading">Aguardando seleção…</div></div>
+                </div>
+
+                <!-- FB PAGES -->
+                <div class="pl-scrap-fbpanel" data-scrap-fbpanel="pages" style="display:none">
+                  <div class="pa-alert" style="margin-bottom:14px">Lê itens ATIVOS de fb_monitoramento (categoria · cidade) · monta queries (categoria × cidade) · roda apify-facebook-pages · só salva páginas com telefone público em leads_google (origem=facebook).</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div class="pa-form-group"><label>Tag de campanha</label><input id="pl-fbp-camp" value="facebook"></div>
+                    <div class="pa-form-group"><label>Max resultados por query</label><input id="pl-fbp-max" type="number" value="30" min="10" max="100"></div>
+                  </div>
+                  <div class="modal-actions"><button class="btn" onclick="plFbPagesRun()">🔍 Buscar páginas FB</button></div>
+                  <div id="pl-fbp-status" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
+                </div>
+              </div>
+
+              <!-- ───────── PANEL INSTAGRAM ───────── -->
+              <div class="pl-scrap-panel" data-scrap-panel="ig" style="display:none">
+                <div class="pa-alert" style="margin-bottom:14px"><strong>Modo MVP</strong> · captura seguidores de 1 perfil base via apify-instagram-followers. Não inclui o pipeline completo de enrichment + extração de bio/linktree/WhatsApp (esse fica no painel-leads original ou Etapa 2.D futura).</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div class="pa-form-group"><label>Username (sem @)</label><input id="pl-ig-user" placeholder="ex: restaurantes_floripa"></div>
+                  <div class="pa-form-group"><label>Limite de seguidores</label><input id="pl-ig-limit" type="number" value="200" min="50" max="2000"></div>
+                </div>
+                <div class="modal-actions"><button class="btn" onclick="plIgRun()">🔍 Capturar seguidores</button></div>
+                <div id="pl-ig-status" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
+                <div class="pa-h2-mini" style="margin-top:18px">Últimos seguidores raw capturados (ig_seguidores_raw)</div>
+                <div id="pl-tbl-ig"><div class="pa-loading">Aguardando seleção…</div></div>
+              </div>
+
+              <!-- ───────── PANEL MONITOR (CRUD fb_monitoramento) ───────── -->
+              <div class="pl-scrap-panel" data-scrap-panel="monitor" style="display:none">
+                <div class="pa-alert" style="margin-bottom:14px">CRUD de fb_monitoramento · linhas ATIVAS são lidas pelos scrapers Facebook (Search e Pages). Tipos: <strong>frase</strong> + <strong>cidade</strong> + <strong>grupo</strong> (Search) · <strong>categoria</strong> + <strong>cidade</strong> (Pages) · <strong>ig_perfil</strong> (Instagram).</div>
+                <div id="pl-mon-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">
+                  <!-- 5 cards renderizados via JS -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <section id="secao-ads" class="secao"><header class="secao-header"><h1 class="secao-titulo">📣 Ads</h1><p class="secao-subtitulo">Meta Ads · Google Ads · operados via API oficial</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Gestão de campanhas pagas direto da plataforma.</p><ul><li>Criar campanhas via API</li><li>Acompanhar CPM · CPC · CPL · CTR</li><li>A/B test de criativos</li><li>Atribuição de conversão</li><li>Importação automática de leads</li></ul></div></section>
 
@@ -1104,81 +1203,6 @@ table.t .acoes { white-space: nowrap; }
         <!-- ════════════════════════════════════════════════════════════════
              LEADS MIGRADO · Etapa 2.A · port painel-leads
              ════════════════════════════════════════════════════════════════ -->
-
-        <section id="secao-pl-olx" class="secao">
-          <header class="secao-header">
-            <h1 class="secao-titulo">🛒 OLX scraper</h1>
-            <p class="secao-subtitulo">Captura anúncios do OLX via Apify · salva em leads_google com origem='olx'</p>
-          </header>
-          <div class="secao-conteudo">
-            <div class="bloco">
-              <div class="bloco-head"><div><div class="bloco-titulo">Configuração da busca</div><div class="bloco-sub">precisa do Apify Token configurado em localStorage 1n_apify</div></div></div>
-              <div class="pa-form-group"><label>Apify Token (salvo em localStorage)</label><input id="pl-olx-apify" placeholder="apify_api_..." onchange="localStorage.setItem('1n_apify', this.value.trim())"></div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                <div class="pa-form-group"><label>Palavras-chave (separadas por vírgula)</label><input id="pl-olx-kw" value="vendo restaurante, passo ponto comercial"></div>
-                <div class="pa-form-group"><label>Cidades (separadas por vírgula · "brasil" = sem cidade)</label><input id="pl-olx-city" value="brasil"></div>
-                <div class="pa-form-group"><label>Páginas por query (1-10)</label><input id="pl-olx-pages" type="number" value="3" min="1" max="10"></div>
-                <div class="pa-form-group"><label>Ordenação</label><select id="pl-olx-sort"><option value="newest">Mais novos</option><option value="price_asc">Menor preço</option><option value="price_desc">Maior preço</option></select></div>
-                <div class="pa-form-group"><label>Tag de campanha</label><input id="pl-olx-camp" value="olx-negocios"></div>
-              </div>
-              <div class="modal-actions" style="margin-top:6px"><button class="btn" onclick="plOlxRun()">🔍 Buscar no OLX</button></div>
-              <div id="pl-olx-status" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
-            </div>
-            <div class="bloco">
-              <div class="bloco-head"><div><div class="bloco-titulo">Últimos resultados (leads_google · origem=olx)</div><div class="bloco-sub">limite 100 · ordenado por criado_em desc</div></div></div>
-              <div id="pl-olx-resultados"><div class="pa-loading">Aguardando seleção…</div></div>
-            </div>
-          </div>
-        </section>
-
-        <section id="secao-pl-gmaps" class="secao">
-          <header class="secao-header">
-            <h1 class="secao-titulo">🗺️ Google Maps · busca</h1>
-            <p class="secao-subtitulo">Busca empresas via Google Places · salva em leads_google</p>
-          </header>
-          <div class="secao-conteudo">
-            <div class="bloco">
-              <div class="bloco-head"><div><div class="bloco-titulo">Configuração</div><div class="bloco-sub">precisa do Google API Key em localStorage 1n_gkey · Places API ativa</div></div></div>
-              <div class="pa-form-group"><label>Google API Key</label><input id="pl-gm-key" placeholder="AIza..." onchange="localStorage.setItem('1n_gkey', this.value.trim())"></div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                <div class="pa-form-group"><label>Categoria</label><input id="pl-gm-cat" placeholder="ex: padaria, oficina mecânica"></div>
-                <div class="pa-form-group"><label>Cidade, UF</label><input id="pl-gm-city" placeholder="ex: Florianópolis, SC"></div>
-              </div>
-              <div class="pa-form-group"><label>Tag de campanha</label><input id="pl-gm-camp" placeholder="ex: gm-padaria-floripa"></div>
-              <div class="modal-actions" style="margin-top:6px"><button class="btn" onclick="plGmapsRun()">🔍 Buscar</button></div>
-              <div id="pl-gm-status" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
-            </div>
-            <div class="bloco">
-              <div class="bloco-head"><div><div class="bloco-titulo">Resultados (preview · selecione pra salvar)</div></div></div>
-              <div id="pl-gm-results"><div class="pa-empty">Rode uma busca pra ver os resultados.</div></div>
-            </div>
-          </div>
-        </section>
-
-        <section id="secao-pl-fb" class="secao">
-          <header class="secao-header">
-            <h1 class="secao-titulo">📘 Facebook · oportunidades</h1>
-            <p class="secao-subtitulo">Posts de intenção de venda capturados via Apify · tabela oportunidades_fb</p>
-          </header>
-          <div class="secao-conteudo">
-            <div class="bloco">
-              <div class="bloco-head"><div><div class="bloco-titulo">Filtro</div></div></div>
-              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-                <label style="display:flex;flex-direction:column;gap:4px;min-width:180px"><span class="modal-grupo-label" style="margin:0">Status</span>
-                  <select id="pl-fb-status" onchange="plFbLoad()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
-                    <option value="">Todos</option><option value="novo">novo</option><option value="oportunidade">oportunidade</option><option value="descartado">descartado</option>
-                  </select>
-                </label>
-                <button class="btn btn-ghost" onclick="plFbLoad()">🔄 Atualizar</button>
-                <span id="pl-fb-count" style="margin-left:auto;font-size:11px;color:var(--ink-3);font-family:var(--mono)"></span>
-              </div>
-            </div>
-            <div class="bloco">
-              <div class="bloco-head"><div><div class="bloco-titulo">Oportunidades capturadas</div><div class="bloco-sub">limite 200 · ordenado por created_at desc</div></div></div>
-              <div id="pl-tbl-fb"><div class="pa-loading">Aguardando seleção…</div></div>
-            </div>
-          </div>
-        </section>
 
         <section id="secao-pl-templates" class="secao">
           <header class="secao-header">
@@ -1641,11 +1665,8 @@ const SECAO_TITULOS = {
   'pa-conversas':  {grupo:'ADMIN MIGRADO', titulo:'Conversas admin',   icone:'💬'},
   'pa-teses':      {grupo:'ADMIN MIGRADO', titulo:'Teses (admin)',     icone:'📋'},
   // Etapa 2.A · port painel-leads (prefixo pl-*)
-  'pl-olx':            {grupo:'LEADS MIGRADO', titulo:'OLX scraper',          icone:'🛒'},
   'pl-crm-google':     {grupo:'LEADS MIGRADO', titulo:'CRM leads_google',     icone:'📇'},
   // Etapa 2.B
-  'pl-gmaps':          {grupo:'LEADS MIGRADO', titulo:'Google Maps',          icone:'🗺️'},
-  'pl-fb':             {grupo:'LEADS MIGRADO', titulo:'Facebook · oportunidades', icone:'📘'},
   'pl-templates':      {grupo:'LEADS MIGRADO', titulo:'Templates msg',        icone:'📝'},
   'pl-leads-manuais':  {grupo:'LEADS MIGRADO', titulo:'Leads manuais',        icone:'➕'},
   'pl-config':         {grupo:'LEADS MIGRADO', titulo:'API Keys',             icone:'🔑'},
@@ -1681,14 +1702,13 @@ function mostrarSecao(id) {
     if (id === 'pa-solicitacoes') paLoadSolicitacoes();
     if (id === 'pa-anuncios')     paLoadAnuncios();
     // Etapa 2.A · port painel-leads
-    if (id === 'pl-olx')          plOlxInit();
     if (id === 'pl-crm-google')   plCrmInit();
     // Etapa 2.B
-    if (id === 'pl-gmaps')          plGmapsInit();
-    if (id === 'pl-fb')             plFbInit();
     if (id === 'pl-templates')      plTemplatesInit();
     if (id === 'pl-leads-manuais')  plLeadsManuaisInit();
     if (id === 'pl-config')         plConfigInit();
+    // Etapa 2.C · hub Scrapers (sub-tabs internas)
+    if (id === 'scrapers')          plScrapInit();
     // Mobile: fecha drawer
     if (window.innerWidth <= 768) toggleSidebar(false);
     // Scroll top
@@ -2968,6 +2988,212 @@ function plConfigInit() {
   const b = document.getElementById('pl-cfg-apify');
   if (a && !a.value) a.value = k1;
   if (b && !b.value) b.value = k2;
+}
+
+/* ========================================================================
+   PL-SCRAP-* · ETAPA 2.C · Hub Scrapers (sub-tabs unificadas)
+   Sub-tabs: gmaps · olx · fb (search/pages) · ig · monitor
+   ======================================================================== */
+let _plScrapTabAtual = 'gmaps';
+let _plScrapFbTabAtual = 'search';
+
+function plScrapInit() {
+  // Carrega tab default · gmaps
+  plScrapTab(_plScrapTabAtual);
+  plGmapsInit();
+}
+function plScrapTab(tab) {
+  _plScrapTabAtual = tab;
+  document.querySelectorAll('[data-scrap-tab]').forEach(b => b.classList.toggle('active', b.dataset.scrapTab === tab));
+  document.querySelectorAll('[data-scrap-panel]').forEach(p => { p.style.display = (p.dataset.scrapPanel === tab ? 'block' : 'none'); });
+  // Lazy-load por sub-tab
+  if (tab === 'gmaps')   plGmapsInit();
+  if (tab === 'olx')     plOlxInit();
+  if (tab === 'fb')      plScrapFbTab(_plScrapFbTabAtual);
+  if (tab === 'ig')      plIgLoadResultados();
+  if (tab === 'monitor') plMonRender();
+}
+function plScrapFbTab(t) {
+  _plScrapFbTabAtual = t;
+  document.querySelectorAll('[data-scrap-fbtab]').forEach(b => b.classList.toggle('active', b.dataset.scrapFbtab === t));
+  document.querySelectorAll('[data-scrap-fbpanel]').forEach(p => { p.style.display = (p.dataset.scrapFbpanel === t ? 'block' : 'none'); });
+  if (t === 'search') plFbLoad();
+}
+
+// ---- FB Search (apify-facebook-search) ----
+async function plFbSearchRun() {
+  const token = localStorage.getItem('1n_apify');
+  if (!token) { alert('Configure o Apify Token na aba Config (sidebar)'); mostrarSecao('pl-config'); return; }
+  const status = document.getElementById('pl-fbs-status');
+  status.textContent = 'Lendo fb_monitoramento...'; status.style.color = 'var(--ink-3)';
+  try {
+    const mon = await sbFetch('/rest/v1/fb_monitoramento?ativo=eq.true&select=*&limit=200');
+    if (!mon || !mon.length) { status.textContent = '⚠ Adicione frases e cidades em Monitoramento'; status.style.color = 'var(--alert)'; return; }
+    const frases = mon.filter(m => m.tipo === 'frase').map(m => m.valor);
+    const cidades = mon.filter(m => m.tipo === 'cidade').map(m => m.valor);
+    const grupos = mon.filter(m => m.tipo === 'grupo').map(m => m.valor);
+    if (!frases.length) { status.textContent = '⚠ Pelo menos 1 frase em Monitoramento'; status.style.color = 'var(--alert)'; return; }
+    let queries = [];
+    for (const f of frases) {
+      if (cidades.length) for (const c of cidades) queries.push({ query: `${f} ${c}`, frase: f, cidade: c });
+      else queries.push({ query: f, frase: f, cidade: null });
+    }
+    if (queries.length > 10) { queries = queries.slice(0, 10); status.textContent = '⚠ Limitado a 10 buscas (reduza frases × cidades). Rodando...'; }
+    else status.textContent = `Rodando ${queries.length} buscas + ${grupos.length} grupos...`;
+    const res = await fetch(SB + '/functions/v1/apify-facebook-search', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':AK,'Authorization':'Bearer '+AK},
+      body: JSON.stringify({ apify_token: token, queries, group_urls: grupos, max_posts: 30 })
+    });
+    const r = await res.json();
+    if (r.error || r.code) { status.textContent = '✕ ' + (r.error || r.message || r.code); status.style.color = 'var(--alert)'; return; }
+    status.textContent = `✓ ${r.total_inserted || 0} novas oportunidades · ${r.total_scraped || 0} analisadas`;
+    status.style.color = 'var(--accent)';
+    plFbLoad();
+  } catch(e) { status.textContent = '✕ ' + e.message; status.style.color = 'var(--alert)'; }
+}
+
+// ---- FB Pages (apify-facebook-pages) ----
+async function plFbPagesRun() {
+  const token = localStorage.getItem('1n_apify');
+  if (!token) { alert('Configure o Apify Token na aba Config (sidebar)'); mostrarSecao('pl-config'); return; }
+  const status = document.getElementById('pl-fbp-status');
+  status.textContent = 'Lendo fb_monitoramento...'; status.style.color = 'var(--ink-3)';
+  try {
+    const mon = await sbFetch('/rest/v1/fb_monitoramento?ativo=eq.true&select=*&limit=300');
+    const categorias = (mon||[]).filter(m => m.tipo === 'categoria').map(m => m.valor);
+    const cidades = (mon||[]).filter(m => m.tipo === 'cidade').map(m => m.valor);
+    if (!categorias.length) { status.textContent = '⚠ Adicione categorias em Monitoramento'; status.style.color = 'var(--alert)'; return; }
+    if (!cidades.length) { status.textContent = '⚠ Adicione cidades em Monitoramento'; status.style.color = 'var(--alert)'; return; }
+    const queries = [];
+    for (const cat of categorias) for (const cid of cidades) queries.push({ categoria: cat, cidade: cid });
+    const campanha = document.getElementById('pl-fbp-camp').value.trim() || 'facebook';
+    const max = parseInt(document.getElementById('pl-fbp-max').value) || 30;
+    status.textContent = `Rodando ${queries.length} buscas (${categorias.length} cats × ${cidades.length} cidades)...`;
+    const res = await fetch(SB + '/functions/v1/apify-facebook-pages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ apify_token: token, queries, max_results: max, campanha })
+    });
+    const r = await res.json();
+    if (r.error) { status.textContent = '✕ ' + r.error; status.style.color = 'var(--alert)'; return; }
+    status.textContent = `✓ ${r.total_inserted || 0} páginas novas com telefone (${r.total_scraped || 0} analisadas)`;
+    status.style.color = 'var(--accent)';
+  } catch(e) { status.textContent = '✕ ' + e.message; status.style.color = 'var(--alert)'; }
+}
+
+// ---- Instagram (apify-instagram-followers · MVP) ----
+async function plIgRun() {
+  const token = localStorage.getItem('1n_apify');
+  if (!token) { alert('Configure o Apify Token na aba Config (sidebar)'); mostrarSecao('pl-config'); return; }
+  const user = (document.getElementById('pl-ig-user').value || '').trim().replace(/^@/,'');
+  const limit = parseInt(document.getElementById('pl-ig-limit').value) || 200;
+  if (!user) { alert('Informe um username (sem @)'); return; }
+  const status = document.getElementById('pl-ig-status');
+  status.textContent = `Capturando seguidores de @${user}... (pode levar 1-2 min)`;
+  status.style.color = 'var(--ink-3)';
+  try {
+    const res = await fetch(SB + '/functions/v1/apify-instagram-followers', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ apify_token: token, target_username: user, max_followers: limit })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const r = await res.json();
+    status.textContent = `✓ ${r.total_inserted || r.total || 0} seguidores raw salvos · refrescando lista...`;
+    status.style.color = 'var(--accent)';
+    plIgLoadResultados();
+  } catch(e) { status.textContent = '✕ ' + e.message; status.style.color = 'var(--alert)'; }
+}
+async function plIgLoadResultados() {
+  const tbl = document.getElementById('pl-tbl-ig');
+  if (!tbl) return;
+  tbl.innerHTML = '<div class="pa-loading">Carregando...</div>';
+  try {
+    const data = await sbFetch('/rest/v1/ig_seguidores_raw?order=criado_em.desc&limit=200&select=id,username,nome,bio,external_url,followers_count,perfil_origem,criado_em');
+    if (!data.length) { tbl.innerHTML = '<div class="pa-empty">Nenhum seguidor capturado ainda.</div>'; return; }
+    tbl.innerHTML = paRenderTable([
+      {key:'username',  label:'@username', type:'actions', render: r => r.username ? `<a href="https://instagram.com/${escapeHtml(r.username)}" target="_blank" style="color:var(--accent)">@${escapeHtml(r.username)}</a>` : '—'},
+      {key:'nome',      label:'Nome'},
+      {key:'bio',       label:'Bio', type:'actions', render: r => r.bio ? `<div style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(r.bio)}">${escapeHtml((r.bio||'').slice(0,80))}${(r.bio||'').length>80?'…':''}</div>` : '<span class="pa-muted">—</span>'},
+      {key:'external_url', label:'Link', type:'actions', render: r => r.external_url ? `<a href="${escapeHtml(r.external_url)}" target="_blank" style="color:var(--accent)">↗</a>` : '<span class="pa-muted">—</span>'},
+      {key:'followers_count', label:'Followers', type:'actions', render: r => r.followers_count ? `${(r.followers_count).toLocaleString('pt-BR')}` : '<span class="pa-muted">—</span>'},
+      {key:'perfil_origem', label:'Origem'},
+      {key:'criado_em', label:'Capturado', type:'date'}
+    ], data, 'Sem resultados');
+  } catch(e) { tbl.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`; }
+}
+
+// ---- Monitor CRUD (fb_monitoramento) ----
+async function plMonRender() {
+  const grid = document.getElementById('pl-mon-grid');
+  if (!grid) return;
+  grid.innerHTML = '<div class="pa-loading">Carregando...</div>';
+  try {
+    const data = await sbFetch('/rest/v1/fb_monitoramento?select=*&order=tipo.asc,valor.asc&limit=300');
+    const tipos = [
+      { key:'frase',     label:'📝 Frases (FB Search)',     hint:'frases que indicam intenção · ex: "vendo restaurante"' },
+      { key:'cidade',    label:'📍 Cidades (FB)',           hint:'usado por Search e Pages · ex: "Florianópolis"' },
+      { key:'grupo',     label:'👥 Grupos (FB Search)',     hint:'URLs de grupos do Facebook · ex: https://facebook.com/groups/...' },
+      { key:'categoria', label:'🏢 Categorias (FB Pages)',  hint:'tipo de negócio pra busca de páginas · ex: "padaria"' },
+      { key:'ig_perfil', label:'📷 Perfis Instagram base',  hint:'perfis cujos seguidores serão capturados · ex: "restaurantes_floripa"' }
+    ];
+    grid.innerHTML = tipos.map(t => {
+      const items = (data || []).filter(d => d.tipo === t.key);
+      const lista = items.length
+        ? items.map(i => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line);font-size:12px">
+            <span style="${i.ativo ? '' : 'opacity:.4;text-decoration:line-through'}">${escapeHtml(i.valor)}</span>
+            <div style="display:flex;gap:4px">
+              <button class="pa-btn-act" onclick="plMonToggle('${i.id}', ${!i.ativo})">${i.ativo ? 'pausar' : 'ativar'}</button>
+              <button class="pa-btn-act danger" onclick="plMonDel('${i.id}')">×</button>
+            </div>
+          </div>`).join('')
+        : '<div class="pa-muted" style="font-size:11px;padding:8px">— sem itens —</div>';
+      return `<div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r2);padding:12px">
+        <div style="font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px">${t.label}</div>
+        <div style="font-size:11px;color:var(--ink-3);margin-bottom:10px">${t.hint}</div>
+        <div style="margin-bottom:10px">${lista}</div>
+        <div style="display:flex;gap:6px"><input id="pl-mon-new-${t.key}" placeholder="+ adicionar" style="flex:1;padding:6px 8px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:12px"><button class="pa-btn-act" onclick="plMonAdd('${t.key}')">+</button></div>
+      </div>`;
+    }).join('');
+  } catch(e) { grid.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`; }
+}
+async function plMonAdd(tipo) {
+  const inp = document.getElementById('pl-mon-new-' + tipo);
+  const valor = inp.value.trim();
+  if (!valor) return;
+  try {
+    const res = await fetch(SB + '/rest/v1/fb_monitoramento', {
+      method:'POST',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ tipo, valor, ativo: true })
+    });
+    if (!res.ok && res.status !== 201) throw new Error(await res.text());
+    inp.value = '';
+    plMonRender();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+async function plMonToggle(id, ativo) {
+  try {
+    const res = await fetch(SB + `/rest/v1/fb_monitoramento?id=eq.${encodeURIComponent(id)}`, {
+      method:'PATCH',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ ativo })
+    });
+    if (!res.ok) throw new Error('PATCH ' + res.status);
+    plMonRender();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+async function plMonDel(id) {
+  if (!confirm('Remover este item do monitoramento?')) return;
+  try {
+    const res = await fetch(SB + `/rest/v1/fb_monitoramento?id=eq.${encodeURIComponent(id)}`, {
+      method:'DELETE',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Prefer':'return=minimal'}
+    });
+    if (!res.ok) throw new Error('DELETE ' + res.status);
+    plMonRender();
+  } catch(e) { alert('Erro: ' + e.message); }
 }
 
 /* ========================================================================
