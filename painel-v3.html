@@ -1692,12 +1692,89 @@ table.t .acoes { white-space: nowrap; }
         <section id="secao-monitoramento-conteudo" class="secao">
           <header class="secao-header">
             <h1 class="secao-titulo">📡 Monitoramento de Conteúdo</h1>
-            <p class="secao-subtitulo">Posts · Perfis · Ads de concorrentes</p>
+            <p class="secao-subtitulo">F8 PIVOTE · captura likers de posts de concorrentes · classifica IA pipeline 4-stage</p>
           </header>
           <div class="secao-conteudo">
-            <div class="bloco">
-              <div class="bloco-head"><div><div class="bloco-titulo">🚧 Esqueleto · Etapa F + G</div><div class="bloco-sub">migrations + edge stubs no commit 3 · UI funcional aos poucos</div></div></div>
-              <div class="pa-alert">Tabelas (ig_posts_monitorados · ig_perfis_monitorados · ads_concorrentes_monitorados) + edge stubs entram no commit 3. UI completa ativa quando admin cadastrar inputs.</div>
+            <!-- sub-tabs -->
+            <div class="pa-tabs" style="margin-bottom:16px">
+              <div class="pa-tab active" data-mp-tab="posts" onclick="mpTab('posts')">📋 Posts monitorados <span id="mp-cnt-posts" class="pa-muted" style="margin-left:6px">—</span></div>
+              <div class="pa-tab" data-mp-tab="cadastrar" onclick="mpTab('cadastrar')">➕ Cadastrar post</div>
+              <div class="pa-tab" data-mp-tab="alvos" onclick="mpTab('alvos')">🎯 Likers alvos <span id="mp-cnt-alvos" class="pa-muted" style="margin-left:6px">—</span></div>
+            </div>
+
+            <!-- TAB POSTS -->
+            <div id="mp-tab-posts" class="mp-tab">
+              <div class="bloco">
+                <div class="bloco-head" style="display:flex;justify-content:space-between;align-items:center">
+                  <div><div class="bloco-titulo">Posts ativos</div><div class="bloco-sub">cron diário 05h30 BRT (não ativo · admin valida primeiro)</div></div>
+                  <button class="btn btn-mini" onclick="mpForcarTodos()">▶ Rodar todos agora</button>
+                </div>
+                <div id="mp-posts-list"><div class="pa-loading">Carregando...</div></div>
+              </div>
+            </div>
+
+            <!-- TAB CADASTRAR -->
+            <div id="mp-tab-cadastrar" class="mp-tab" style="display:none">
+              <div class="bloco">
+                <div class="bloco-head"><div><div class="bloco-titulo">Cadastrar post</div><div class="bloco-sub">Cole URL do post · sistema extrai shortcode automaticamente</div></div></div>
+                <div class="pa-form">
+                  <div class="pa-form-group">
+                    <label>URL do post Instagram</label>
+                    <input id="mp-form-url" type="text" placeholder="https://www.instagram.com/p/DVEGQskiMcy/" />
+                    <small class="pa-muted">Aceita /p/ /reel/ ou só shortcode</small>
+                  </div>
+                  <div class="pa-form-group">
+                    <label>Concorrente</label>
+                    <input id="mp-form-concorrente" type="text" placeholder="ex: BuyCo · MeuBiz · Sucessor.io" />
+                  </div>
+                  <div class="pa-form-group">
+                    <label>Categoria do post</label>
+                    <select id="mp-form-categoria">
+                      <option value="venda_empresa">venda_empresa</option>
+                      <option value="valuation">valuation</option>
+                      <option value="sucessao">sucessao</option>
+                      <option value="investimento">investimento</option>
+                      <option value="gestao">gestao</option>
+                      <option value="outros">outros</option>
+                    </select>
+                  </div>
+                  <div class="pa-form-group">
+                    <label>Frequência (dias entre captures)</label>
+                    <input id="mp-form-frequencia" type="number" min="1" max="30" value="1" />
+                    <small class="pa-muted">1 = diário · 7 = semanal</small>
+                  </div>
+                  <div style="display:flex;gap:8px;margin-top:8px">
+                    <button class="btn" onclick="mpAdicionar()">Cadastrar</button>
+                    <button class="btn btn-ghost" onclick="document.getElementById('mp-form-url').value=''">Limpar</button>
+                  </div>
+                  <div id="mp-form-status" style="margin-top:10px;font-size:13px"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB ALVOS -->
+            <div id="mp-tab-alvos" class="mp-tab" style="display:none">
+              <div class="bloco">
+                <div class="bloco-head"><div><div class="bloco-titulo">Likers classificados como alvo</div><div class="bloco-sub">Curtiram posts dos concorrentes · IA classificou em 4 categorias</div></div></div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+                  <select id="mp-alvos-cat" onchange="mpRenderAlvos()">
+                    <option value="empresario_alvo">🎯 Empresário-alvo</option>
+                    <option value="investidor">💰 Investidor</option>
+                    <option value="profissional">👤 Profissional</option>
+                    <option value="">Todas categorias</option>
+                  </select>
+                  <select id="mp-alvos-post" onchange="mpRenderAlvos()">
+                    <option value="">Todos os posts</option>
+                  </select>
+                  <select id="mp-alvos-status" onchange="mpRenderAlvos()">
+                    <option value="">Todos status</option>
+                    <option value="naoseguinaodm">não segui · não dm</option>
+                    <option value="ja_segui">só já segui</option>
+                    <option value="ja_dmei">só já dmei</option>
+                  </select>
+                </div>
+                <div id="mp-alvos-list"><div class="pa-loading">Carregando...</div></div>
+              </div>
             </div>
           </div>
         </section>
@@ -2086,6 +2163,7 @@ function mostrarSecao(id) {
     if (id === 'plano-dia') { cwLoadPlanoFull(); cwLoadPlanoHistorico(); }
     if (id === 'cowork-admin') cwAdmInit();
     if (id === 'triagem-olx') trInit();
+    if (id === 'monitoramento-conteudo') mpInit();
     if (id === 'gerador-conteudo') { gcInit(); }
     // Etapa 1.A · loaders das seções portadas do painel-admin
     if (id === 'pa-usuarios')   paLoadUsuarios();
@@ -5436,6 +5514,266 @@ document.querySelectorAll('.modal-overlay').forEach(o => {
     if (e.target === o) o.classList.remove('show');
   });
 });
+
+/* ========================================================================
+   MP-* · F8 PIVOTE · Monitoramento de Posts (likers de concorrentes)
+   ======================================================================== */
+let _mpTab = 'posts';
+let _mpPosts = [];
+let _mpAlvos = [];
+
+async function mpInit() {
+  mpTab(_mpTab);
+  await Promise.all([mpCarregarPosts(), mpCarregarAlvos()]);
+}
+
+function mpTab(name) {
+  _mpTab = name;
+  document.querySelectorAll('.mp-tab').forEach(el => el.style.display = 'none');
+  const tab = document.getElementById('mp-tab-' + name);
+  if (tab) tab.style.display = 'block';
+  document.querySelectorAll('[data-mp-tab]').forEach(el => el.classList.toggle('active', el.dataset.mpTab === name));
+  if (name === 'posts') mpRenderPosts();
+  if (name === 'alvos') mpRenderAlvos();
+}
+
+function mpExtractShortcode(s) {
+  if (!s) return '';
+  const m = String(s).match(/instagram\.com\/(?:p|reel|reels)\/([A-Za-z0-9_-]+)/);
+  if (m) return m[1];
+  if (/^[A-Za-z0-9_-]+$/.test(String(s).trim())) return String(s).trim();
+  return '';
+}
+
+async function mpCarregarPosts() {
+  try {
+    _mpPosts = await sbFetch('/rest/v1/ig_posts_monitorados?select=*&order=criado_em.desc&limit=200');
+  } catch(e) { console.warn('[mpCarregarPosts]', e); _mpPosts = []; }
+  const cnt = document.getElementById('mp-cnt-posts');
+  if (cnt) cnt.textContent = `(${_mpPosts.length})`;
+  mpRenderPosts();
+  // popula filtro de posts no tab Alvos
+  const sel = document.getElementById('mp-alvos-post');
+  if (sel) {
+    const v = sel.value;
+    sel.innerHTML = '<option value="">Todos os posts</option>' + _mpPosts.map(p => `<option value="${p.id}">${escapeHtml((p.concorrente||'?') + ' · ' + (p.shortcode||p.url||p.id).slice(0,16))}</option>`).join('');
+    sel.value = v;
+  }
+}
+
+async function mpCarregarAlvos() {
+  try {
+    _mpAlvos = await sbFetch("/rest/v1/ig_likers?select=id,username,full_name,bio,profile_pic_url,is_verified,is_business,followers_count,external_url,categoria_ig,categoria_post,classificacao_ia,classificacao_etapa,ja_segui,seguido_em,ja_dmei,dm_enviada_em,post_id,importado_em&classificacao_ia=in.(empresario_alvo,investidor,profissional)&order=importado_em.desc&limit=500");
+  } catch(e) { console.warn('[mpCarregarAlvos]', e); _mpAlvos = []; }
+  const cnt = document.getElementById('mp-cnt-alvos');
+  if (cnt) {
+    const empr = _mpAlvos.filter(a => a.classificacao_ia === 'empresario_alvo').length;
+    cnt.textContent = `(${empr} alvos · ${_mpAlvos.length} total)`;
+  }
+  mpRenderAlvos();
+}
+
+function mpRenderPosts() {
+  const list = document.getElementById('mp-posts-list');
+  if (!list) return;
+  if (!_mpPosts.length) {
+    list.innerHTML = '<div class="pa-empty">Nenhum post cadastrado · vai em ➕ Cadastrar post pra começar.</div>';
+    return;
+  }
+  list.innerHTML = _mpPosts.map(p => {
+    const url = p.url_post || p.url || (p.shortcode ? `https://instagram.com/p/${p.shortcode}/` : '');
+    const ult = p.ultima_captura ? new Date(p.ultima_captura).toLocaleString('pt-BR') : 'nunca';
+    const prox = p.proxima_captura ? new Date(p.proxima_captura).toLocaleString('pt-BR') : '—';
+    return `<div style="border:1px solid var(--accent-line);border-radius:var(--r2);padding:14px;background:var(--surface);margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:14px">
+            ${p.ativo ? '🟢' : '⏸'} ${escapeHtml(p.concorrente || p.apelido || '(sem apelido)')}
+            <span class="pa-muted" style="font-weight:400;margin-left:6px">${escapeHtml(p.categoria || '')}</span>
+          </div>
+          ${url ? `<a href="${escapeHtml(url)}" target="_blank" class="pa-muted" style="font-size:12px;word-break:break-all">${escapeHtml(url)}</a>` : ''}
+          <div class="pa-muted" style="font-size:12px;margin-top:6px">
+            ${p.total_likers_capturados || 0} likers capturados · última: ${ult} · próxima: ${prox} · freq ${p.frequencia_dias || p.frequencia_horas || '?'}d
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-mini" onclick="mpForcar('${p.id}')" title="Captura agora">▶ Rodar</button>
+          <button class="btn btn-mini btn-ghost" onclick="mpToggleAtivo('${p.id}', ${!p.ativo})">${p.ativo ? '⏸ Pausar' : '▶ Ativar'}</button>
+          <button class="btn btn-mini btn-ghost" onclick="mpDeletar('${p.id}')" title="Remover">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function mpAdicionar() {
+  const status = document.getElementById('mp-form-status');
+  const url = document.getElementById('mp-form-url').value.trim();
+  const concorrente = document.getElementById('mp-form-concorrente').value.trim();
+  const categoria = document.getElementById('mp-form-categoria').value;
+  const freq = parseInt(document.getElementById('mp-form-frequencia').value) || 1;
+  const sc = mpExtractShortcode(url);
+  if (!sc) { status.textContent = '⚠ URL inválido'; status.style.color = 'var(--alert)'; return; }
+  if (!concorrente) { status.textContent = '⚠ Concorrente obrigatório'; status.style.color = 'var(--alert)'; return; }
+  status.textContent = 'Cadastrando...'; status.style.color = 'var(--ink-3)';
+  try {
+    await sbFetch('/rest/v1/ig_posts_monitorados', {
+      method: 'POST',
+      headers: { 'Prefer': 'return=minimal,resolution=merge-duplicates' },
+      body: JSON.stringify({
+        url: `https://instagram.com/p/${sc}/`,
+        shortcode: sc,
+        concorrente,
+        apelido: concorrente,
+        categoria,
+        frequencia_dias: freq,
+        frequencia_horas: freq * 24,
+        ativo: true,
+        capturar_likers: true,
+        capturar_commenters: false,
+        proxima_captura: new Date().toISOString(),
+      }),
+    });
+    status.textContent = '✓ Cadastrado · vai pra aba Posts pra rodar captura'; status.style.color = 'var(--ok)';
+    document.getElementById('mp-form-url').value = '';
+    document.getElementById('mp-form-concorrente').value = '';
+    await mpCarregarPosts();
+  } catch(e) {
+    status.textContent = '⚠ ' + e.message; status.style.color = 'var(--alert)';
+  }
+}
+
+async function mpForcar(postId) {
+  if (!confirm('Captura agora? Custo ~$0.002 + classificação ~R$1-3 (depende do volume).')) return;
+  try {
+    const res = await fetch(SB + '/functions/v1/monitorar-post-likers', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ only_post_id: postId, limit: 500 }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.erro || res.status);
+    const det = data.detalhe?.[0];
+    alert(`✓ Capturados: ${det?.capturados || 0} likers\nSalvos: ${det?.salvos_no_banco || 0}\n\nAgora rode classificar-likers (próximo botão).`);
+    if (confirm('Rodar classificação 4-stage agora?')) {
+      const r2 = await fetch(SB + '/functions/v1/classificar-likers', {
+        method: 'POST',
+        headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId, limit: 1000 }),
+      });
+      const d2 = await r2.json();
+      alert(`Classificação:\nPrivate skipados: ${d2.private_skipados || 0}\nCandidatos: ${d2.candidatos_aprovados || 0}\nClassificados finais: ${d2.classificados_finais || 0}\n\nDistribuição: ${JSON.stringify(d2.stages?.d_rich?.por_categoria || {})}`);
+      await mpCarregarAlvos();
+    }
+    await mpCarregarPosts();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
+async function mpForcarTodos() {
+  if (!confirm('Rodar TODOS os posts ativos agora? Pode levar minutos · custo R$ 0,01-1,00 por post.')) return;
+  try {
+    const res = await fetch(SB + '/functions/v1/monitorar-post-likers', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ max_posts: 50, limit: 500 }),
+    });
+    const data = await res.json();
+    alert(`Posts processados: ${data.posts_processados}\nTotal capturados: ${data.total_capturados}\nTotal salvos: ${data.total_salvos}`);
+    await mpCarregarPosts();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
+async function mpToggleAtivo(postId, novoValor) {
+  try {
+    await sbFetch(`/rest/v1/ig_posts_monitorados?id=eq.${encodeURIComponent(postId)}`, {
+      method: 'PATCH',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ ativo: novoValor }),
+    });
+    await mpCarregarPosts();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
+async function mpDeletar(postId) {
+  if (!confirm('Remover post? Likers capturados ficam (sem post_id).')) return;
+  try {
+    await sbFetch(`/rest/v1/ig_posts_monitorados?id=eq.${encodeURIComponent(postId)}`, { method: 'DELETE' });
+    await mpCarregarPosts();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
+function mpRenderAlvos() {
+  const list = document.getElementById('mp-alvos-list');
+  if (!list) return;
+  const fcat = document.getElementById('mp-alvos-cat')?.value || '';
+  const fpost = document.getElementById('mp-alvos-post')?.value || '';
+  const fstatus = document.getElementById('mp-alvos-status')?.value || '';
+  let lst = _mpAlvos.slice();
+  if (fcat) lst = lst.filter(a => a.classificacao_ia === fcat);
+  if (fpost) lst = lst.filter(a => a.post_id === fpost);
+  if (fstatus === 'naoseguinaodm') lst = lst.filter(a => !a.ja_segui && !a.ja_dmei);
+  if (fstatus === 'ja_segui') lst = lst.filter(a => a.ja_segui);
+  if (fstatus === 'ja_dmei') lst = lst.filter(a => a.ja_dmei);
+  if (!lst.length) {
+    list.innerHTML = '<div class="pa-empty">Nenhum liker classificado ainda · cadastre + rode posts pra ter alvos.</div>';
+    return;
+  }
+  list.innerHTML = lst.slice(0, 100).map(a => {
+    const post = _mpPosts.find(p => p.id === a.post_id);
+    const postLabel = post ? `${escapeHtml(post.concorrente || post.apelido || '?')} · ${escapeHtml(post.categoria || '')}` : '';
+    const tag = a.classificacao_ia === 'empresario_alvo' ? '🎯 Empresário'
+              : a.classificacao_ia === 'investidor' ? '💰 Investidor'
+              : a.classificacao_ia === 'profissional' ? '👤 Profissional' : a.classificacao_ia;
+    return `<div style="border:1px solid var(--accent-line);border-radius:var(--r2);padding:14px;background:var(--surface);margin-bottom:10px;display:flex;gap:12px;align-items:flex-start">
+      ${a.profile_pic_url ? `<img src="${escapeHtml(a.profile_pic_url)}" style="width:56px;height:56px;border-radius:50%;flex-shrink:0;object-fit:cover" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600">@${escapeHtml(a.username)} ${a.is_verified ? '✓' : ''} ${a.is_business ? '<span style="color:var(--accent);font-size:11px">[BUSINESS]</span>' : ''}</div>
+            <div class="pa-muted" style="font-size:13px">${escapeHtml(a.full_name || '')}</div>
+          </div>
+          <div style="font-size:11px;background:var(--accent);color:var(--bg);padding:2px 8px;border-radius:8px">${tag}</div>
+        </div>
+        ${a.bio ? `<div style="margin-top:6px;font-size:13px;line-height:1.4">${escapeHtml(a.bio)}</div>` : ''}
+        <div class="pa-muted" style="font-size:11px;margin-top:6px">
+          ${a.followers_count ? `${a.followers_count.toLocaleString('pt-BR')} seguidores` : ''} ${a.categoria_ig ? '· ' + escapeHtml(a.categoria_ig) : ''} ${a.external_url ? `· <a href="${escapeHtml(a.external_url)}" target="_blank" style="color:var(--accent)">${escapeHtml(a.external_url.slice(0, 30))}</a>` : ''}
+        </div>
+        ${postLabel ? `<div class="pa-muted" style="font-size:11px;margin-top:4px">curtiu post · ${postLabel}</div>` : ''}
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <a class="btn btn-mini btn-ghost" href="https://instagram.com/${escapeHtml(a.username)}" target="_blank">📷 Abrir IG</a>
+          <button class="btn btn-mini ${a.ja_segui ? 'btn-ghost' : ''}" onclick="mpToggleSegui('${a.id}', ${!a.ja_segui})">${a.ja_segui ? '✓ Já segui' : 'Marcar segui'}</button>
+          <button class="btn btn-mini ${a.ja_dmei ? 'btn-ghost' : ''}" onclick="mpToggleDmei('${a.id}', ${!a.ja_dmei})">${a.ja_dmei ? '✓ Já dmei' : 'Marcar dmei'}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('') + (lst.length > 100 ? `<div class="pa-muted" style="text-align:center;padding:8px">${lst.length - 100} alvos a mais · refine os filtros</div>` : '');
+}
+
+async function mpToggleSegui(id, valor) {
+  try {
+    await sbFetch(`/rest/v1/ig_likers?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ ja_segui: valor, seguido_em: valor ? new Date().toISOString() : null }),
+    });
+    const idx = _mpAlvos.findIndex(a => a.id === id);
+    if (idx >= 0) { _mpAlvos[idx].ja_segui = valor; _mpAlvos[idx].seguido_em = valor ? new Date().toISOString() : null; }
+    mpRenderAlvos();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
+async function mpToggleDmei(id, valor) {
+  try {
+    await sbFetch(`/rest/v1/ig_likers?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ ja_dmei: valor, dm_enviada_em: valor ? new Date().toISOString() : null }),
+    });
+    const idx = _mpAlvos.findIndex(a => a.id === id);
+    if (idx >= 0) { _mpAlvos[idx].ja_dmei = valor; _mpAlvos[idx].dm_enviada_em = valor ? new Date().toISOString() : null; }
+    mpRenderAlvos();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
 </script>
 </body>
 </html>
