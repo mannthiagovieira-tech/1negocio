@@ -693,6 +693,13 @@ table.t .acoes { white-space: nowrap; }
           <div class="nav-item" data-secao="pa-teses" onclick="mostrarSecao('pa-teses')"><span class="nav-icon">📋</span><span class="nav-label">Teses (admin)</span></div>
         </div>
 
+        <!-- LEADS MIGRADO (Etapa 2.A) -->
+        <div class="sidebar-grupo">
+          <div class="sidebar-grupo-titulo">LEADS MIGRADO</div>
+          <div class="nav-item" data-secao="pl-olx" onclick="mostrarSecao('pl-olx')"><span class="nav-icon">🛒</span><span class="nav-label">OLX scraper</span><span class="star">⭐</span></div>
+          <div class="nav-item" data-secao="pl-crm-google" onclick="mostrarSecao('pl-crm-google')"><span class="nav-icon">📇</span><span class="nav-label">CRM leads_google</span></div>
+        </div>
+
         <!-- LEGADOS -->
         <div class="legacy-divider">Painéis legados</div>
         <a class="legacy-link" href="/painel-admin.html" target="_blank">↗ Painel Admin</a>
@@ -952,9 +959,17 @@ table.t .acoes { white-space: nowrap; }
         <section id="secao-disparos" class="secao">
           <header class="secao-header">
             <h1 class="secao-titulo">📤 Disparos WhatsApp</h1>
-            <p class="secao-subtitulo">Histórico de mensagens disparadas via Z-API</p>
+            <p class="secao-subtitulo">Envio individual via Z-API + histórico de disparos</p>
           </header>
           <div class="secao-conteudo">
+            <!-- Etapa 2.A · form de envio individual (merge com disparos sem duplicar tabela) -->
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Disparar mensagem individual</div><div class="bloco-sub">via /functions/v1/zapi-relay · falha silenciosa · não bloqueia se número inválido</div></div></div>
+              <div class="pa-form-group"><label>Telefone (com DDD · só dígitos)</label><input id="pl-disp-tel" placeholder="ex: 11912345678"></div>
+              <div class="pa-form-group"><label>Mensagem</label><textarea id="pl-disp-msg" rows="4" placeholder="Olá! ..."></textarea></div>
+              <div class="modal-actions" style="margin-top:6px"><button class="btn" onclick="plDisparar()">📤 Enviar via Z-API</button></div>
+              <div id="pl-disp-status" style="margin-top:8px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
+            </div>
             <div class="bloco">
               <div class="bloco-head"><div><div class="bloco-titulo">Últimos 300 disparos</div><div class="bloco-sub">tabela disparos_whatsapp · ordenado por criado_em desc</div></div></div>
               <div id="pa-tbl-disparos"><div class="pa-loading">Aguardando seleção…</div></div>
@@ -1077,6 +1092,66 @@ table.t .acoes { white-space: nowrap; }
             <div class="bloco">
               <div class="bloco-head"><div><div class="bloco-titulo">Conversas recentes</div><div class="bloco-sub">tabela admin_conversas · ordenado por atualizado_em desc</div></div></div>
               <div id="pa-tbl-conversas"><div class="pa-loading">Aguardando seleção…</div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             LEADS MIGRADO · Etapa 2.A · port painel-leads
+             ════════════════════════════════════════════════════════════════ -->
+
+        <section id="secao-pl-olx" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">🛒 OLX scraper</h1>
+            <p class="secao-subtitulo">Captura anúncios do OLX via Apify · salva em leads_google com origem='olx'</p>
+          </header>
+          <div class="secao-conteudo">
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Configuração da busca</div><div class="bloco-sub">precisa do Apify Token configurado em localStorage 1n_apify</div></div></div>
+              <div class="pa-form-group"><label>Apify Token (salvo em localStorage)</label><input id="pl-olx-apify" placeholder="apify_api_..." onchange="localStorage.setItem('1n_apify', this.value.trim())"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="pa-form-group"><label>Palavras-chave (separadas por vírgula)</label><input id="pl-olx-kw" value="vendo restaurante, passo ponto comercial"></div>
+                <div class="pa-form-group"><label>Cidades (separadas por vírgula · "brasil" = sem cidade)</label><input id="pl-olx-city" value="brasil"></div>
+                <div class="pa-form-group"><label>Páginas por query (1-10)</label><input id="pl-olx-pages" type="number" value="3" min="1" max="10"></div>
+                <div class="pa-form-group"><label>Ordenação</label><select id="pl-olx-sort"><option value="newest">Mais novos</option><option value="price_asc">Menor preço</option><option value="price_desc">Maior preço</option></select></div>
+                <div class="pa-form-group"><label>Tag de campanha</label><input id="pl-olx-camp" value="olx-negocios"></div>
+              </div>
+              <div class="modal-actions" style="margin-top:6px"><button class="btn" onclick="plOlxRun()">🔍 Buscar no OLX</button></div>
+              <div id="pl-olx-status" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
+            </div>
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Últimos resultados (leads_google · origem=olx)</div><div class="bloco-sub">limite 100 · ordenado por criado_em desc</div></div></div>
+              <div id="pl-olx-resultados"><div class="pa-loading">Aguardando seleção…</div></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="secao-pl-crm-google" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">📇 CRM leads_google</h1>
+            <p class="secao-subtitulo">Pool consolidado · filtros + busca + ações de status e disparo</p>
+          </header>
+          <div class="secao-conteudo">
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Filtros</div><div class="bloco-sub">aplicados client-side</div></div></div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                <input type="text" id="pl-crm-search" class="pa-search-bar" style="margin-bottom:0;flex:1;min-width:240px" placeholder="🔍 Buscar por nome, telefone, cidade ou categoria..." oninput="plCrmRender()">
+                <label style="display:flex;flex-direction:column;gap:4px;min-width:140px"><span class="modal-grupo-label" style="margin:0">Status</span>
+                  <select id="pl-crm-status" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="">Todos</option><option value="novo">novo</option><option value="contatado">contatado</option><option value="interessado">interessado</option><option value="descartado">descartado</option>
+                  </select>
+                </label>
+                <label style="display:flex;flex-direction:column;gap:4px;min-width:140px"><span class="modal-grupo-label" style="margin:0">Origem</span>
+                  <select id="pl-crm-origem" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="">Todas</option><option value="manual">manual</option><option value="olx">olx</option><option value="instagram">instagram</option><option value="facebook">facebook</option><option value="google">google</option>
+                  </select>
+                </label>
+              </div>
+              <div id="pl-crm-status-line" style="margin-top:10px;font-size:11px;color:var(--ink-3);font-family:var(--mono)"></div>
+            </div>
+            <div class="bloco">
+              <div class="bloco-head"><div><div class="bloco-titulo">Pool (limite 500)</div><div class="bloco-sub">tabela leads_google · ordenado por criado_em desc</div></div></div>
+              <div id="pl-tbl-crm"><div class="pa-loading">Aguardando seleção…</div></div>
             </div>
           </div>
         </section>
@@ -1440,6 +1515,9 @@ const SECAO_TITULOS = {
   'pa-agenda':     {grupo:'ADMIN MIGRADO', titulo:'Agenda admin',      icone:'📅'},
   'pa-conversas':  {grupo:'ADMIN MIGRADO', titulo:'Conversas admin',   icone:'💬'},
   'pa-teses':      {grupo:'ADMIN MIGRADO', titulo:'Teses (admin)',     icone:'📋'},
+  // Etapa 2.A · port painel-leads (prefixo pl-*)
+  'pl-olx':        {grupo:'LEADS MIGRADO', titulo:'OLX scraper',       icone:'🛒'},
+  'pl-crm-google': {grupo:'LEADS MIGRADO', titulo:'CRM leads_google',  icone:'📇'},
 };
 
 function mostrarSecao(id) {
@@ -1471,6 +1549,9 @@ function mostrarSecao(id) {
     if (id === 'pa-negocios')     paLoadNegocios();
     if (id === 'pa-solicitacoes') paLoadSolicitacoes();
     if (id === 'pa-anuncios')     paLoadAnuncios();
+    // Etapa 2.A · port painel-leads
+    if (id === 'pl-olx')          plOlxInit();
+    if (id === 'pl-crm-google')   plCrmInit();
     // Mobile: fecha drawer
     if (window.innerWidth <= 768) toggleSidebar(false);
     // Scroll top
@@ -2329,6 +2410,164 @@ function paRenderListaAnuncios(lista) {
     </div>`;
   }).join('');
   tbl.innerHTML = `<div class="pa-anu-row header"><span>Código · Status</span><span>Título · Dono</span><span>Cidade</span><span style="text-align:right">Valor</span><span>Criado</span><span></span></div>${rows}`;
+}
+
+/* ========================================================================
+   PL-* · ETAPA 2.A · port painel-leads (OLX + Disparar + CRM Google)
+   ======================================================================== */
+
+// ---- Disparar WhatsApp individual (form merge na seção 'disparos') ----
+async function plDisparar() {
+  const tel = (document.getElementById('pl-disp-tel').value || '').replace(/\D/g,'');
+  const msg = document.getElementById('pl-disp-msg').value.trim();
+  const status = document.getElementById('pl-disp-status');
+  if (!tel || tel.length < 10) { status.textContent = '⚠ Telefone inválido (precisa DDD + número, mínimo 10 dígitos)'; status.style.color = 'var(--alert)'; return; }
+  if (!msg) { status.textContent = '⚠ Digite a mensagem'; status.style.color = 'var(--alert)'; return; }
+  status.textContent = 'Enviando...'; status.style.color = 'var(--ink-3)';
+  try {
+    const res = await fetch(SB + '/functions/v1/zapi-relay', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+AK,'apikey':AK},
+      body: JSON.stringify({ phone: tel, message: msg })
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      status.textContent = '✕ Falha (' + res.status + '): ' + t.slice(0,140);
+      status.style.color = 'var(--alert)';
+      return;
+    }
+    status.textContent = '✓ Enviado! Refrescando histórico...';
+    status.style.color = 'var(--accent)';
+    document.getElementById('pl-disp-msg').value = '';
+    setTimeout(paLoadDisparos, 1200);
+  } catch(e) {
+    status.textContent = '✕ Erro de rede: ' + e.message;
+    status.style.color = 'var(--alert)';
+  }
+}
+
+// ---- pl-olx · OLX Scraper ----
+function plOlxInit() {
+  const apify = localStorage.getItem('1n_apify') || '';
+  const inp = document.getElementById('pl-olx-apify');
+  if (inp && !inp.value) inp.value = apify;
+  plOlxLoadResultados();
+}
+async function plOlxLoadResultados() {
+  const wrap = document.getElementById('pl-olx-resultados');
+  wrap.innerHTML = '<div class="pa-loading">Carregando resultados anteriores...</div>';
+  try {
+    const data = await sbFetch('/rest/v1/leads_google?origem=eq.olx&order=criado_em.desc&limit=100&select=id,nome,telefone,cidade,categoria,status,bio,tags,criado_em');
+    if (!data.length) { wrap.innerHTML = '<div class="pa-empty">Nenhum lead OLX salvo ainda · rode a busca acima.</div>'; return; }
+    wrap.innerHTML = paRenderTable([
+      {key:'nome',     label:'Anúncio'},
+      {key:'telefone', label:'Telefone'},
+      {key:'cidade',   label:'Cidade'},
+      {key:'categoria',label:'Categoria'},
+      {key:'status',   label:'Status', type:'badge'},
+      {key:'criado_em',label:'Capturado', type:'date'}
+    ], data, 'Sem resultados');
+  } catch(e) { wrap.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`; }
+}
+async function plOlxRun() {
+  const apify = (document.getElementById('pl-olx-apify').value || '').trim();
+  if (!apify) { alert('Configure o Apify Token (input acima)'); return; }
+  localStorage.setItem('1n_apify', apify);
+  const kws = document.getElementById('pl-olx-kw').value.split(',').map(s => s.trim()).filter(Boolean);
+  const cidades = document.getElementById('pl-olx-city').value.split(',').map(s => s.trim().toLowerCase().replace(/\s+/g,'-')).filter(Boolean);
+  const maxPages = parseInt(document.getElementById('pl-olx-pages').value) || 3;
+  const sortBy = document.getElementById('pl-olx-sort').value || 'newest';
+  const campanha = document.getElementById('pl-olx-camp').value || 'olx-negocios';
+  if (!kws.length) { alert('Adicione pelo menos uma palavra-chave'); return; }
+  if (!cidades.length) cidades.push('brasil');
+  const queries = kws.map(kw => cidades.map(city => city === 'brasil' ? kw : kw + ' ' + city)).flat();
+  const status = document.getElementById('pl-olx-status');
+  let totalNovos = 0, totalAnalisados = 0;
+  for (let i = 0; i < queries.length; i++) {
+    status.textContent = `Query ${i+1}/${queries.length}: "${queries[i]}"...`;
+    try {
+      const r = await fetch(SB + '/functions/v1/apify-olx-scraper', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ apify_token: apify, queries:[queries[i]], max_pages: maxPages, sort_by: sortBy, campanha })
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json();
+      totalNovos += data.novos || 0;
+      totalAnalisados += data.analisados || 0;
+    } catch(e) {
+      status.textContent = '✕ Erro na query "' + queries[i] + '": ' + e.message;
+      status.style.color = 'var(--alert)';
+      return;
+    }
+  }
+  status.textContent = `✅ ${totalNovos} novos · ${totalAnalisados} analisados em ${queries.length} queries.`;
+  status.style.color = 'var(--accent)';
+  plOlxLoadResultados();
+}
+
+// ---- pl-crm-google · CRM consolidado de leads_google ----
+let _plCrmData = [];
+
+async function plCrmInit() {
+  const tbl = document.getElementById('pl-tbl-crm');
+  tbl.innerHTML = '<div class="pa-loading">Carregando pool...</div>';
+  try {
+    const data = await sbFetch('/rest/v1/leads_google?order=criado_em.desc&limit=500&select=id,nome,telefone,cidade,categoria,origem,status,bio,tags,criado_em');
+    _plCrmData = data || [];
+    plCrmRender();
+  } catch(e) { tbl.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`; }
+}
+function plCrmRender() {
+  const q = (document.getElementById('pl-crm-search').value || '').toLowerCase();
+  const fStatus = document.getElementById('pl-crm-status').value;
+  const fOrigem = document.getElementById('pl-crm-origem').value;
+  let lista = _plCrmData.slice();
+  if (q) lista = lista.filter(l =>
+    (l.nome||'').toLowerCase().includes(q) ||
+    (l.telefone||'').toLowerCase().includes(q) ||
+    (l.cidade||'').toLowerCase().includes(q) ||
+    (l.categoria||'').toLowerCase().includes(q)
+  );
+  if (fStatus) lista = lista.filter(l => l.status === fStatus);
+  if (fOrigem) lista = lista.filter(l => l.origem === fOrigem);
+  document.getElementById('pl-crm-status-line').textContent =
+    `${lista.length} de ${_plCrmData.length} leads visíveis · filtros: status=${fStatus||'todos'} · origem=${fOrigem||'todas'}${q?' · busca: "'+q+'"':''}`;
+  const tbl = document.getElementById('pl-tbl-crm');
+  if (!lista.length) { tbl.innerHTML = '<div class="pa-empty">Nenhum lead com esses filtros.</div>'; return; }
+  tbl.innerHTML = paRenderTable([
+    {key:'nome',     label:'Nome'},
+    {key:'telefone', label:'Telefone'},
+    {key:'cidade',   label:'Cidade'},
+    {key:'categoria',label:'Categoria'},
+    {key:'origem',   label:'Origem'},
+    {key:'status',   label:'Status', type:'badge'},
+    {key:'criado_em',label:'Capturado', type:'date'},
+    {key:'id',       label:'', type:'actions', render: r => `<div style="display:flex;gap:6px"><button class="pa-btn-act success" onclick="plCrmMarcar('${r.id}','contatado')" title="marcar contatado">✓</button><button class="pa-btn-act" onclick="plCrmEnviar('${escapeHtml(r.telefone||'')}','${escapeHtml(r.nome||'')}')" title="abrir form de disparo com este número">📤</button></div>` }
+  ], lista, 'Sem resultados');
+}
+async function plCrmMarcar(id, status) {
+  try {
+    const res = await fetch(SB + `/rest/v1/leads_google?id=eq.${encodeURIComponent(id)}`, {
+      method:'PATCH',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ status, atualizado_em: new Date().toISOString() })
+    });
+    if (!res.ok) throw new Error('PATCH ' + res.status);
+    const i = _plCrmData.findIndex(l => l.id === id);
+    if (i >= 0) _plCrmData[i] = { ..._plCrmData[i], status };
+    plCrmRender();
+  } catch(e) { alert('Erro ao marcar: ' + e.message); }
+}
+function plCrmEnviar(tel, nome) {
+  // Deeplink pra seção disparos · pré-preenche o form
+  mostrarSecao('disparos');
+  setTimeout(() => {
+    const t = document.getElementById('pl-disp-tel');
+    const m = document.getElementById('pl-disp-msg');
+    if (t) t.value = (tel || '').replace(/\D/g,'');
+    if (m && nome && !m.value) m.value = `Olá ${nome.split(' ')[0]}, tudo bem? Aqui é da 1Negócio. Vi seu anúncio e queria conversar...`;
+  }, 100);
 }
 
 /* ========================================================================
