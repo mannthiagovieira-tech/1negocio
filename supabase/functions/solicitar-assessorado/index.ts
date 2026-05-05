@@ -27,7 +27,7 @@ async function notificarAdmin(p: { nome: string; telefone: string; negocio: stri
   if (!ADMIN_WHATSAPP || !ZAPI_INSTANCE || !ZAPI_TOKEN) return;
   const tel = p.telefone.replace(/\D/g, "");
   const msg = [
-    "🔥🔥 LEAD ASSESSORADO · " + (p.nome || "sem nome"),
+    "🔥🔥 LEAD VENDA ASSESSORADA · " + (p.nome || "sem nome"),
     "📱 https://wa.me/" + tel,
     "🏢 Negócio: " + (p.negocio || "—"),
     p.mensagem ? "💬 \"" + p.mensagem.replace(/[\n\r]+/g, " ").slice(0, 80) + "\"" : "",
