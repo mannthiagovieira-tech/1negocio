@@ -3380,7 +3380,7 @@ async function plCrmInit() {
   const tbl = document.getElementById('pl-tbl-crm');
   tbl.innerHTML = '<div class="pa-loading">Carregando pool...</div>';
   try {
-    const data = await sbFetch('/rest/v1/leads_google?order=created_at.desc&limit=500&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,tema_conversa,setor,created_at,abordado_em');
+    const data = await sbFetch('/rest/v1/leads_google?order=created_at.desc&limit=500&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,tema_conversa,setor,url_anuncio,valor_anuncio,created_at,abordado_em');
     _plCrmData = data || [];
     // Popula dropdown cidades com top valores únicos
     const sel = document.getElementById('pl-crm-cidade');
@@ -3457,7 +3457,8 @@ function plCrmRender() {
     {key:'created_at',label:'Capturado', type:'date'},
     {key:'id', label:'', type:'actions', render: r => {
       const isIA = r.origem === 'ia_atendente_home' || r.origem === 'ia_atendente_home_prelead';
-      return `<div style="display:flex;gap:6px">${r.telefone ? `<button class="pa-btn-act" onclick="plCrmEnviar('${escapeHtml(r.telefone||'')}','${escapeHtml(r.nome||'')}')" title="disparo">📤</button>` : ''}${isIA ? `<button class="pa-btn-act" onclick="cvAbrir(null,'${r.id}')" title="ver conversa">💬</button>` : ''}<button class="pa-btn-act success" onclick="plCrmMarcar('${r.id}','contatado')" title="marcar contatado">✓</button><button class="pa-btn-act danger" onclick="plCrmMarcar('${r.id}','descartado')" title="descartar">🗑</button></div>`;
+      const isOlxSemTel = r.origem === 'olx' && (!r.telefone || (r.telefone||'').replace(/\D/g,'').length < 10);
+      return `<div style="display:flex;gap:6px">${r.telefone ? `<button class="pa-btn-act" onclick="plCrmEnviar('${escapeHtml(r.telefone||'')}','${escapeHtml(r.nome||'')}')" title="disparo">📤</button>` : ''}${isIA ? `<button class="pa-btn-act" onclick="cvAbrir(null,'${r.id}')" title="ver conversa">💬</button>` : ''}${isOlxSemTel ? `<button class="pa-btn-act" onclick="plCrmTelManual('${r.id}','${escapeHtml((r.url_anuncio||'').replace(/'/g,'&apos;'))}')" title="abrir URL e colar telefone">📞</button>` : ''}<button class="pa-btn-act success" onclick="plCrmMarcar('${r.id}','contatado')" title="marcar contatado">✓</button><button class="pa-btn-act danger" onclick="plCrmMarcar('${r.id}','descartado')" title="descartar">🗑</button></div>`;
     }}
   ], lista, 'Sem resultados');
 }
@@ -3491,6 +3492,28 @@ async function plCrmMarcar(id, status) {
     // se Cockpit estiver visível · refresh dos leads quentes
     if (typeof lqCarregar === 'function' && document.getElementById('secao-cockpit')?.style.display !== 'none') lqCarregar();
   } catch(e) { alert('Erro ao marcar: ' + e.message); }
+}
+async function plCrmTelManual(id, urlAnuncio) {
+  // Abre URL do anúncio em nova aba pra admin clicar "Mostrar telefone" no OLX
+  if (urlAnuncio) window.open(urlAnuncio, '_blank', 'noopener');
+  const tel = prompt('Cole o telefone aqui (com DDD · ex: 48999279320):');
+  if (!tel) return;
+  const dig = String(tel).replace(/\D/g,'');
+  if (dig.length < 10 || dig.length > 13) { alert('Telefone inválido · 10 a 13 dígitos'); return; }
+  const norm = dig.startsWith('55') ? dig : (dig.length === 10 || dig.length === 11 ? '55' + dig : dig);
+  try {
+    const res = await fetch(SB + `/rest/v1/leads_google?id=eq.${encodeURIComponent(id)}`, {
+      method:'PATCH',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ telefone: norm, telefone_buscado_em: new Date().toISOString() })
+    });
+    if (!res.ok) throw new Error('PATCH ' + res.status);
+    const i = _plCrmData.findIndex(l => l.id === id);
+    if (i >= 0) _plCrmData[i] = { ..._plCrmData[i], telefone: norm };
+    plCrmRender();
+    const sl = document.getElementById('pl-crm-status-line');
+    if (sl) { sl.textContent = `✓ Telefone salvo · ${formatarTelefone(norm)}`; sl.style.color='var(--ok)'; setTimeout(()=>{sl.textContent='';sl.style.color='';},2500); }
+  } catch(e) { alert('Erro: ' + e.message); }
 }
 function plCrmEnviar(tel, nome) {
   // Deeplink pra seção disparos · pré-preenche o form
