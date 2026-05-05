@@ -21,40 +21,21 @@ Deno.serve(async (req: Request) => {
 
   const sb = svc();
 
-  // Busca última versão (ativa ou não) pra calcular nova
-  const ultQuery = sb.from("documentos_templates").select("id, versao").eq("tipo", tipo);
-  const { data: ultimas } = formato
-    ? await ultQuery.eq("formato", formato).order("versao", { ascending: false }).limit(1)
-    : await ultQuery.is("formato", null).order("versao", { ascending: false }).limit(1);
-  const ultimaVersao = ultimas?.[0]?.versao || 0;
-  const novaVersao = ultimaVersao + 1;
-
-  // Desativa todas as ativas do par (geralmente só 1 · constraint partial unique)
-  const upd = sb.from("documentos_templates").update({ ativo: false }).eq("tipo", tipo).eq("ativo", true);
-  if (formato) await upd.eq("formato", formato);
-  else await upd.is("formato", null);
-
-  // Cria nova versão ativa
-  const { data: nova, error } = await sb.from("documentos_templates").insert({
-    tipo,
-    formato,
-    versao: novaVersao,
-    texto,
-    ativo: true,
-    notas_versao,
-    created_by: auth.admin!.id,
-  }).select("id, versao, ativo").single();
-  if (error) return jsonRes({ erro: "insert nova versão: " + error.message }, 500);
-
-  // Deleta rascunho do par (se existir)
-  const del = sb.from("documentos_templates_rascunho").delete().eq("tipo", tipo);
-  if (formato) await del.eq("formato", formato);
-  else await del.is("formato", null);
+  // Chamada atômica · função PL/pgSQL faz UPDATE+INSERT+DELETE numa única transação
+  const { data, error } = await sb.rpc("publicar_template_v2", {
+    p_tipo: tipo,
+    p_formato: formato,
+    p_texto: texto,
+    p_notas: notas_versao,
+    p_admin_id: auth.admin!.id,
+  });
+  if (error) return jsonRes({ erro: "publicar: " + error.message }, 500);
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return jsonRes({ erro: "publicar: sem retorno" }, 500);
 
   return jsonRes({
     ok: true,
-    template_id: nova.id,
-    nova_versao: nova.versao,
-    versao_anterior: ultimaVersao || null,
+    template_id: row.template_id,
+    nova_versao: row.nova_versao,
   });
 });

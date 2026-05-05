@@ -18,46 +18,19 @@ Deno.serve(async (req: Request) => {
 
   const sb = svc();
 
-  // Busca template origem
-  const { data: origem } = await sb.from("documentos_templates")
-    .select("id, tipo, formato, versao, texto")
-    .eq("id", template_id_origem).maybeSingle();
-  if (!origem) return jsonRes({ erro: "template origem não encontrado" }, 404);
-
-  // Última versão pra calcular próxima
-  const ultQuery = sb.from("documentos_templates").select("versao").eq("tipo", origem.tipo);
-  const { data: ultimas } = origem.formato
-    ? await ultQuery.eq("formato", origem.formato).order("versao", { ascending: false }).limit(1)
-    : await ultQuery.is("formato", null).order("versao", { ascending: false }).limit(1);
-  const ultimaVersao = ultimas?.[0]?.versao || 0;
-  const novaVersao = ultimaVersao + 1;
-
-  // Desativa atual
-  const upd = sb.from("documentos_templates").update({ ativo: false }).eq("tipo", origem.tipo).eq("ativo", true);
-  if (origem.formato) await upd.eq("formato", origem.formato);
-  else await upd.is("formato", null);
-
-  // Cria nova versão = texto da origem
-  const { data: nova, error } = await sb.from("documentos_templates").insert({
-    tipo: origem.tipo,
-    formato: origem.formato,
-    versao: novaVersao,
-    texto: origem.texto,
-    ativo: true,
-    notas_versao: `Reverter para conteúdo da v${origem.versao}`,
-    created_by: auth.admin!.id,
-  }).select("id, versao").single();
-  if (error) return jsonRes({ erro: "insert: " + error.message }, 500);
-
-  // Deleta rascunho do par
-  const del = sb.from("documentos_templates_rascunho").delete().eq("tipo", origem.tipo);
-  if (origem.formato) await del.eq("formato", origem.formato);
-  else await del.is("formato", null);
+  // Chamada atômica · função PL/pgSQL faz lookup+UPDATE+INSERT+DELETE numa transação
+  const { data, error } = await sb.rpc("reverter_template_atomico", {
+    p_template_id_origem: template_id_origem,
+    p_admin_id: auth.admin!.id,
+  });
+  if (error) return jsonRes({ erro: "reverter: " + error.message }, 500);
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return jsonRes({ erro: "reverter: sem retorno" }, 500);
 
   return jsonRes({
     ok: true,
-    template_id: nova.id,
-    nova_versao: nova.versao,
-    revertido_de_versao: origem.versao,
+    template_id: row.template_id,
+    nova_versao: row.nova_versao,
+    revertido_de_versao: row.revertido_de_versao,
   });
 });
