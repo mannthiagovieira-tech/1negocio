@@ -1,0 +1,26 @@
+name: Disparador WhatsApp · processa campanhas a cada 5 min
+
+# B76 · cron · processa campanhas com status='rodando'
+# Respeita cadência interna (intervalo, janela, skip_weekend)
+# Pausa campanhas com >20% falha automaticamente
+#
+# CUSTO ESTIMADO: cada disparo Z-API ~R$ 0,07
+# Volume controlado · admin define msgs_por_hora na campanha
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'  # a cada 5 min · ATIVO
+
+jobs:
+  processar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /functions/v1/disparador-processar-campanha
+        run: |
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"max_msgs":30}' \
+            'https://dbijmgqlcrgjlcfrastg.supabase.co/functions/v1/disparador-processar-campanha'
+          echo ""

@@ -1276,21 +1276,91 @@ table.t .acoes { white-space: nowrap; }
 
         <section id="secao-disparos" class="secao">
           <header class="secao-header">
-            <h1 class="secao-titulo">📤 Disparos WhatsApp</h1>
-            <p class="secao-subtitulo">Envio individual via Z-API + histórico de disparos</p>
+            <h1 class="secao-titulo">📤 Disparador WhatsApp</h1>
+            <p class="secao-subtitulo">B76 · campanhas com cadência · histórico · disparo individual</p>
           </header>
           <div class="secao-conteudo">
-            <!-- Etapa 2.A · form de envio individual (merge com disparos sem duplicar tabela) -->
-            <div class="bloco">
-              <div class="bloco-head"><div><div class="bloco-titulo">Disparar mensagem individual</div><div class="bloco-sub">via /functions/v1/zapi-relay · falha silenciosa · não bloqueia se número inválido</div></div></div>
-              <div class="pa-form-group"><label>Telefone (com DDD · só dígitos)</label><input id="pl-disp-tel" placeholder="ex: 11912345678"></div>
-              <div class="pa-form-group"><label>Mensagem</label><textarea id="pl-disp-msg" rows="4" placeholder="Olá! ..."></textarea></div>
-              <div class="modal-actions" style="margin-top:6px"><button class="btn" onclick="plDisparar()">📤 Enviar via Z-API</button></div>
-              <div id="pl-disp-status" style="margin-top:8px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
+            <div class="pa-tabs" style="margin-bottom:16px">
+              <div class="pa-tab active" data-dp-tab="criar" onclick="dpTab('criar')">➕ Criar Campanha</div>
+              <div class="pa-tab" data-dp-tab="ativas" onclick="dpTab('ativas')">▶ Campanhas Ativas <span id="dp-cnt-ativas" class="pa-muted">—</span></div>
+              <div class="pa-tab" data-dp-tab="historico" onclick="dpTab('historico')">📚 Histórico</div>
+              <div class="pa-tab" data-dp-tab="individual" onclick="dpTab('individual')">📤 Individual</div>
             </div>
-            <div class="bloco">
-              <div class="bloco-head"><div><div class="bloco-titulo">Últimos 300 disparos</div><div class="bloco-sub">tabela disparos_whatsapp · ordenado por criado_em desc</div></div></div>
-              <div id="pa-tbl-disparos"><div class="pa-loading">Aguardando seleção…</div></div>
+
+            <!-- TAB CRIAR -->
+            <div id="dp-tab-criar" class="dp-tab">
+              <div class="bloco">
+                <div class="bloco-head"><div><div class="bloco-titulo">Nova campanha</div><div class="bloco-sub">cadência respeitada · pausa fim de semana · não envia pra contatado <7 dias</div></div></div>
+                <div class="pa-form-group"><label>Nome da campanha</label><input id="dp-nome" placeholder="ex: Convite Sócio · vdrs · 2026-05" /></div>
+                <div class="pa-form-group">
+                  <label>Listas de origem (multi)</label>
+                  <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:13px">
+                    <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="dp-lista" value="vdrs"> 📋 Base · vdrs</label>
+                    <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="dp-lista" value="ptcprdrs"> 📋 Base · ptcprdrs</label>
+                    <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="dp-lista" value="ptcrrtoes"> 📋 Base · ptcrrtoes</label>
+                    <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="dp-lista" value="ia_atendente"> 🔥 IA Atendente</label>
+                    <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="dp-lista" value="floripa"> 📍 Floripa</label>
+                    <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="dp-lista" value="corretores"> 👔 Corretores</label>
+                    <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="dp-lista" value="olx"> 📦 OLX</label>
+                  </div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <div class="pa-form-group" style="flex:1;min-width:140px"><label>Filtro UF</label><input id="dp-uf" placeholder="ex: SC" maxlength="2" /></div>
+                  <div class="pa-form-group" style="flex:1;min-width:140px"><label>Filtro cidade</label><input id="dp-cidade" placeholder="opcional" /></div>
+                  <div class="pa-form-group" style="flex:1;min-width:140px"><label>Tag extra</label><input id="dp-tag-extra" placeholder="opcional" /></div>
+                </div>
+                <div class="pa-form-group">
+                  <label>Mensagem template (vars: {nome} · {primeiro_nome} · {cidade} · {estado})</label>
+                  <textarea id="dp-msg" rows="5" placeholder="Olá {primeiro_nome}, tudo bem? Sou da 1Negócio..."></textarea>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <div class="pa-form-group" style="min-width:130px"><label>Msgs/hora</label><input id="dp-mph" type="number" value="30" min="1" max="200" /></div>
+                  <div class="pa-form-group" style="min-width:130px"><label>Intervalo (min)</label><input id="dp-int" type="number" value="2" min="1" max="60" /></div>
+                  <div class="pa-form-group" style="min-width:130px"><label>Janela início (h)</label><input id="dp-jini" type="number" value="9" min="0" max="23" /></div>
+                  <div class="pa-form-group" style="min-width:130px"><label>Janela fim (h)</label><input id="dp-jfim" type="number" value="19" min="0" max="23" /></div>
+                  <div class="pa-form-group" style="min-width:130px"><label>Pula fds?</label><select id="dp-skipw"><option value="true" selected>Sim</option><option value="false">Não</option></select></div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+                  <button class="btn btn-mini" onclick="dpEstimar()">🔍 Estimar alvos</button>
+                  <button class="btn btn-mini btn-ghost" onclick="dpCriar('rascunho')">💾 Salvar rascunho</button>
+                  <button class="btn" onclick="dpCriar('rodando')">🚀 Criar e iniciar</button>
+                </div>
+                <div id="dp-criar-status" style="margin-top:10px;font-size:13px"></div>
+              </div>
+            </div>
+
+            <!-- TAB ATIVAS -->
+            <div id="dp-tab-ativas" class="dp-tab" style="display:none">
+              <div class="bloco">
+                <div class="bloco-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap">
+                  <div><div class="bloco-titulo">Campanhas em andamento</div><div class="bloco-sub">cron processa a cada 5min · respeita cadência</div></div>
+                  <button class="btn btn-mini btn-ghost" onclick="dpCarregarAtivas()">↻</button>
+                </div>
+                <div id="dp-ativas-list"><div class="pa-loading">Carregando...</div></div>
+              </div>
+            </div>
+
+            <!-- TAB HISTORICO -->
+            <div id="dp-tab-historico" class="dp-tab" style="display:none">
+              <div class="bloco">
+                <div class="bloco-head"><div><div class="bloco-titulo">Campanhas concluídas + pausadas</div></div></div>
+                <div id="dp-hist-list"><div class="pa-loading">Carregando...</div></div>
+              </div>
+            </div>
+
+            <!-- TAB INDIVIDUAL (legado) -->
+            <div id="dp-tab-individual" class="dp-tab" style="display:none">
+              <div class="bloco">
+                <div class="bloco-head"><div><div class="bloco-titulo">Disparar mensagem individual</div><div class="bloco-sub">via /functions/v1/zapi-relay</div></div></div>
+                <div class="pa-form-group"><label>Telefone</label><input id="pl-disp-tel" placeholder="ex: 11912345678"></div>
+                <div class="pa-form-group"><label>Mensagem</label><textarea id="pl-disp-msg" rows="4"></textarea></div>
+                <div class="modal-actions" style="margin-top:6px"><button class="btn" onclick="plDisparar()">📤 Enviar</button></div>
+                <div id="pl-disp-status" style="margin-top:8px;font-size:12px;font-family:var(--mono);color:var(--ink-3)"></div>
+              </div>
+              <div class="bloco">
+                <div class="bloco-head"><div><div class="bloco-titulo">Últimos 300 disparos individuais</div></div></div>
+                <div id="pa-tbl-disparos"><div class="pa-loading">Aguardando seleção…</div></div>
+              </div>
             </div>
           </div>
         </section>
@@ -1552,6 +1622,14 @@ table.t .acoes { white-space: nowrap; }
                 <label style="display:flex;flex-direction:column;gap:4px;min-width:160px"><span class="modal-grupo-label" style="margin:0">Categoria</span>
                   <select id="pl-crm-categoria" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
                     <option value="">Todas</option>
+                  </select>
+                </label>
+                <label style="display:flex;flex-direction:column;gap:4px;min-width:140px"><span class="modal-grupo-label" style="margin:0">Triagem</span>
+                  <select id="pl-crm-triagem" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="ativos">🟢 Ativos (default)</option>
+                    <option value="favoritos">⭐ Favoritos</option>
+                    <option value="descartados">❌ Descartados</option>
+                    <option value="todos">Todos</option>
                   </select>
                 </label>
               </div>
@@ -2248,7 +2326,7 @@ function mostrarSecao(id) {
     if (id === 'pa-filiados')   paLoadFiliados();
     if (id === 'pa-agenda')     paLoadAgenda();
     if (id === 'pa-conversas')  paLoadConversas();
-    if (id === 'disparos')      paLoadDisparos();
+    if (id === 'disparos')      { paLoadDisparos(); dpInit(); }
     if (id === 'pa-teses')      paLoadTeses();
     // Etapa 1.B
     if (id === 'pa-negocios')     paLoadNegocios();
@@ -3380,7 +3458,7 @@ async function plCrmInit() {
   const tbl = document.getElementById('pl-tbl-crm');
   tbl.innerHTML = '<div class="pa-loading">Carregando pool...</div>';
   try {
-    const data = await sbFetch('/rest/v1/leads_google?order=created_at.desc&limit=500&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,tema_conversa,setor,url_anuncio,valor_anuncio,created_at,abordado_em');
+    const data = await sbFetch('/rest/v1/leads_google?order=created_at.desc&limit=500&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,tema_conversa,setor,url_anuncio,valor_anuncio,favorito,descartado,favoritado_em,descartado_em,created_at,abordado_em');
     _plCrmData = data || [];
     // Popula dropdown cidades com top valores únicos
     const sel = document.getElementById('pl-crm-cidade');
@@ -3437,6 +3515,11 @@ function plCrmRender() {
   if (fTema) lista = lista.filter(l => l.tema_conversa === fTema);
   const fCategoria = document.getElementById('pl-crm-categoria')?.value || '';
   if (fCategoria) lista = lista.filter(l => l.categoria === fCategoria);
+  const fTriagem = document.getElementById('pl-crm-triagem')?.value || 'ativos';
+  if (fTriagem === 'ativos') lista = lista.filter(l => !l.descartado);
+  else if (fTriagem === 'favoritos') lista = lista.filter(l => l.favorito && !l.descartado);
+  else if (fTriagem === 'descartados') lista = lista.filter(l => l.descartado);
+  // 'todos' · sem filtro
 
   document.getElementById('pl-crm-status-line').textContent =
     `${lista.length} de ${_plCrmData.length} leads visíveis`;
@@ -3449,6 +3532,10 @@ function plCrmRender() {
       if (!c || c === 'establishment' || c === 'negocio') return '<span class="pa-muted" style="font-size:11px">—</span>';
       return `<span class="pa-badge pa-badge-gray" style="font-size:11px">${escapeHtml(c)}</span>`;
     }},
+    {key:'url_anuncio', label:'Link', type:'actions', render: r => {
+      if (!r.url_anuncio) return '<span class="pa-muted" style="font-size:11px">—</span>';
+      return `<a href="${escapeHtml(r.url_anuncio)}" target="_blank" rel="noopener" title="${escapeHtml(r.url_anuncio)}" style="color:var(--accent);text-decoration:none">🔗 ver</a>`;
+    }},
     {key:'telefone', label:'Telefone', type:'tel'},
     {key:'cidade',   label:'Cidade'},
     {key:'classificacao_ia', label:'Classificação IA', type:'actions', render: r => _plCrmChipClass(r.classificacao_ia)},
@@ -3458,7 +3545,8 @@ function plCrmRender() {
     {key:'id', label:'', type:'actions', render: r => {
       const isIA = r.origem === 'ia_atendente_home' || r.origem === 'ia_atendente_home_prelead';
       const isOlxSemTel = r.origem === 'olx' && (!r.telefone || (r.telefone||'').replace(/\D/g,'').length < 10);
-      return `<div style="display:flex;gap:6px">${r.telefone ? `<button class="pa-btn-act" onclick="plCrmEnviar('${escapeHtml(r.telefone||'')}','${escapeHtml(r.nome||'')}')" title="disparo">📤</button>` : ''}${isIA ? `<button class="pa-btn-act" onclick="cvAbrir(null,'${r.id}')" title="ver conversa">💬</button>` : ''}${isOlxSemTel ? `<button class="pa-btn-act" onclick="plCrmTelManual('${r.id}','${escapeHtml((r.url_anuncio||'').replace(/'/g,'&apos;'))}')" title="abrir URL e colar telefone">📞</button>` : ''}<button class="pa-btn-act success" onclick="plCrmMarcar('${r.id}','contatado')" title="marcar contatado">✓</button><button class="pa-btn-act danger" onclick="plCrmMarcar('${r.id}','descartado')" title="descartar">🗑</button></div>`;
+      const favStyle = r.favorito ? 'color:#ffc400;background:rgba(255,196,0,0.15)' : '';
+      return `<div style="display:flex;gap:6px;${r.descartado?'opacity:0.5':''}">${r.telefone ? `<button class="pa-btn-act" onclick="plCrmEnviar('${escapeHtml(r.telefone||'')}','${escapeHtml(r.nome||'')}')" title="disparo">📤</button>` : ''}${isIA ? `<button class="pa-btn-act" onclick="cvAbrir(null,'${r.id}')" title="ver conversa">💬</button>` : ''}${isOlxSemTel ? `<button class="pa-btn-act" onclick="plCrmTelManual('${r.id}','${escapeHtml((r.url_anuncio||'').replace(/'/g,'&apos;'))}')" title="abrir URL e colar telefone">📞</button>` : ''}<button class="pa-btn-act" style="${favStyle}" onclick="plCrmFavoritar('${r.id}', ${!r.favorito})" title="${r.favorito?'desfavoritar':'favoritar'}">${r.favorito?'⭐':'☆'}</button><button class="pa-btn-act success" onclick="plCrmMarcar('${r.id}','contatado')" title="marcar contatado">✓</button>${r.descartado ? `<button class="pa-btn-act" onclick="plCrmReabrir('${r.id}')" title="reabrir">↩</button>` : `<button class="pa-btn-act danger" onclick="plCrmDescartar('${r.id}','${escapeHtml((r.nome||'').replace(/'/g,'&apos;'))}')" title="descartar">❌</button>`}</div>`;
     }}
   ], lista, 'Sem resultados');
 }
@@ -3492,6 +3580,49 @@ async function plCrmMarcar(id, status) {
     // se Cockpit estiver visível · refresh dos leads quentes
     if (typeof lqCarregar === 'function' && document.getElementById('secao-cockpit')?.style.display !== 'none') lqCarregar();
   } catch(e) { alert('Erro ao marcar: ' + e.message); }
+}
+async function plCrmFavoritar(id, novoValor) {
+  try {
+    const res = await fetch(SB + `/rest/v1/leads_google?id=eq.${encodeURIComponent(id)}`, {
+      method:'PATCH',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ favorito: novoValor, favoritado_em: novoValor ? new Date().toISOString() : null })
+    });
+    if (!res.ok) throw new Error('PATCH ' + res.status);
+    const i = _plCrmData.findIndex(l => l.id === id);
+    if (i >= 0) _plCrmData[i] = { ..._plCrmData[i], favorito: novoValor, favoritado_em: novoValor ? new Date().toISOString() : null };
+    plCrmRender();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+async function plCrmDescartar(id, nome) {
+  if (!confirm(`Descartar "${nome || 'este lead'}"? Lead some do feed default · pode reabrir filtrando "Descartados".`)) return;
+  try {
+    const agora = new Date().toISOString();
+    const res = await fetch(SB + `/rest/v1/leads_google?id=eq.${encodeURIComponent(id)}`, {
+      method:'PATCH',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ descartado: true, descartado_em: agora, status: 'descartado' })
+    });
+    if (!res.ok) throw new Error('PATCH ' + res.status);
+    const i = _plCrmData.findIndex(l => l.id === id);
+    if (i >= 0) _plCrmData[i] = { ..._plCrmData[i], descartado: true, descartado_em: agora, status: 'descartado' };
+    plCrmRender();
+    const sl = document.getElementById('pl-crm-status-line');
+    if (sl) { sl.textContent = '❌ Descartado'; sl.style.color='var(--alert)'; setTimeout(()=>{sl.textContent='';sl.style.color='';},2000); }
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+async function plCrmReabrir(id) {
+  try {
+    const res = await fetch(SB + `/rest/v1/leads_google?id=eq.${encodeURIComponent(id)}`, {
+      method:'PATCH',
+      headers:{'apikey':AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ descartado: false, descartado_em: null, status: 'novo' })
+    });
+    if (!res.ok) throw new Error('PATCH ' + res.status);
+    const i = _plCrmData.findIndex(l => l.id === id);
+    if (i >= 0) _plCrmData[i] = { ..._plCrmData[i], descartado: false, descartado_em: null, status: 'novo' };
+    plCrmRender();
+  } catch(e) { alert('Erro: ' + e.message); }
 }
 async function plCrmTelManual(id, urlAnuncio) {
   // Abre URL do anúncio em nova aba pra admin clicar "Mostrar telefone" no OLX
@@ -5747,6 +5878,134 @@ function cvCopiarResumo() {
     btn.textContent = '✓ Copiado';
     setTimeout(() => btn.textContent = orig, 1500);
   }
+}
+
+/* ========================================================================
+   DP-* · B76 · Disparador WhatsApp (stubs · UI completa · backend ATIVO)
+   ======================================================================== */
+function dpInit() { dpTab('criar'); dpCarregarAtivas(); }
+function dpTab(name) {
+  document.querySelectorAll('.dp-tab').forEach(el => el.style.display = 'none');
+  const tab = document.getElementById('dp-tab-' + name);
+  if (tab) tab.style.display = 'block';
+  document.querySelectorAll('[data-dp-tab]').forEach(el => el.classList.toggle('active', el.dataset.dpTab === name));
+  if (name === 'ativas') dpCarregarAtivas();
+  if (name === 'historico') dpCarregarHistorico();
+}
+function _dpListas() {
+  return Array.from(document.querySelectorAll('.dp-lista:checked')).map(c => c.value);
+}
+function _dpBuildBody(status) {
+  const nome = (document.getElementById('dp-nome').value||'').trim();
+  const listas = _dpListas();
+  const msg = (document.getElementById('dp-msg').value||'').trim();
+  if (!nome) return { erro: 'Nome obrigatório' };
+  if (!listas.length) return { erro: 'Escolha pelo menos 1 lista' };
+  if (!msg) return { erro: 'Mensagem obrigatória' };
+  const filtros = {};
+  const uf = document.getElementById('dp-uf').value.trim().toUpperCase();
+  if (uf) filtros.estado = uf;
+  const cid = document.getElementById('dp-cidade').value.trim();
+  if (cid) filtros.cidade = cid;
+  const tag = document.getElementById('dp-tag-extra').value.trim();
+  if (tag) filtros.tag_extra = tag;
+  return {
+    nome,
+    lista_origens: listas,
+    filtros,
+    mensagem_template: msg,
+    cadencia: {
+      msgs_por_hora: parseInt(document.getElementById('dp-mph').value) || 30,
+      intervalo_min: parseInt(document.getElementById('dp-int').value) || 2,
+      janela_inicio: parseInt(document.getElementById('dp-jini').value) || 9,
+      janela_fim: parseInt(document.getElementById('dp-jfim').value) || 19,
+      skip_weekend: document.getElementById('dp-skipw').value === 'true',
+    },
+    status,
+  };
+}
+async function dpCriar(status) {
+  const status_el = document.getElementById('dp-criar-status');
+  const body = _dpBuildBody(status);
+  if (body.erro) { status_el.textContent = '⚠ ' + body.erro; status_el.style.color = 'var(--alert)'; return; }
+  if (status === 'rodando' && !confirm(`Criar e INICIAR campanha "${body.nome}"? Vai começar a disparar agora respeitando a cadência.`)) return;
+  status_el.textContent = 'Criando...'; status_el.style.color = 'var(--ink-3)';
+  try {
+    const res = await fetch(SB + '/rest/v1/disparador_campanhas', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token||AK), 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error('POST ' + res.status + ': ' + (await res.text()).slice(0,150));
+    status_el.textContent = `✓ Campanha criada · ${status === 'rodando' ? 'iniciada · cron processa em até 5min' : 'rascunho'}`;
+    status_el.style.color = 'var(--ok)';
+  } catch(e) { status_el.textContent = '✕ ' + e.message; status_el.style.color = 'var(--alert)'; }
+}
+function dpEstimar() { alert('Estimar alvos · feature em construção · use Criar e olha total_alvo após criação'); }
+async function dpCarregarAtivas() {
+  const list = document.getElementById('dp-ativas-list');
+  if (!list) return;
+  try {
+    const data = await sbFetch('/rest/v1/disparador_campanhas?status=in.(rodando,pausada,rascunho)&order=created_at.desc&select=*');
+    const cnt = document.getElementById('dp-cnt-ativas');
+    if (cnt) cnt.textContent = `(${data.length})`;
+    if (!data.length) { list.innerHTML = '<div class="pa-empty">Nenhuma campanha ativa.</div>'; return; }
+    list.innerHTML = data.map(c => {
+      const cad = c.cadencia || {};
+      const prox = c.proximo_envio_em ? new Date(c.proximo_envio_em).toLocaleString('pt-BR') : '—';
+      return `<div style="border:1px solid var(--accent-line);border-radius:var(--r2);padding:12px;margin-bottom:10px;background:var(--surface)">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600">${escapeHtml(c.nome)}</div>
+            <div class="pa-muted" style="font-size:12px">${(c.lista_origens||[]).join(' · ')} · status: <span style="color:${c.status==='rodando'?'var(--ok)':'var(--ink-3)'}">${c.status}</span></div>
+            <div class="pa-muted" style="font-size:11px;margin-top:4px">Enviados ${c.total_enviado||0} · falhas ${c.total_falhas||0} · próximo ${prox} · cadência ${cad.msgs_por_hora||'?'}/h</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            ${c.status==='rodando' ? `<button class="btn btn-mini btn-ghost" onclick="dpStatus('${c.id}','pausada')">⏸</button>` : ''}
+            ${c.status==='pausada' || c.status==='rascunho' ? `<button class="btn btn-mini" onclick="dpStatus('${c.id}','rodando')">▶</button>` : ''}
+            <button class="btn btn-mini btn-ghost" onclick="dpDeletar('${c.id}','${escapeHtml(c.nome)}')">🗑</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { list.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`; }
+}
+async function dpCarregarHistorico() {
+  const list = document.getElementById('dp-hist-list');
+  if (!list) return;
+  try {
+    const data = await sbFetch('/rest/v1/disparador_campanhas?status=eq.concluida&order=finished_at.desc&limit=30&select=*');
+    if (!data.length) { list.innerHTML = '<div class="pa-empty">Nenhuma concluída ainda.</div>'; return; }
+    list.innerHTML = paRenderTable([
+      {key:'nome', label:'Nome'},
+      {key:'lista_origens', label:'Listas', render: r => (r.lista_origens||[]).join(', ')},
+      {key:'total_enviado', label:'Enviados'},
+      {key:'total_falhas', label:'Falhas'},
+      {key:'finished_at', label:'Concluída', type:'date'},
+    ], data, 'Sem histórico');
+  } catch(e) { list.innerHTML = `<div class="pa-alert pa-alert-danger">${escapeHtml(e.message)}</div>`; }
+}
+async function dpStatus(id, novo) {
+  if (novo === 'rodando' && !confirm('Iniciar/retomar campanha? Cron processa em até 5min.')) return;
+  try {
+    const res = await fetch(SB + `/rest/v1/disparador_campanhas?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token||AK), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ status: novo, ...(novo==='rodando' && { started_at: new Date().toISOString() }) }),
+    });
+    if (!res.ok) throw new Error('PATCH ' + res.status);
+    await dpCarregarAtivas();
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+async function dpDeletar(id, nome) {
+  if (!confirm(`Remover campanha "${nome}"?`)) return;
+  try {
+    await fetch(SB + `/rest/v1/disparador_campanhas?id=eq.${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token||AK) },
+    });
+    await dpCarregarAtivas();
+  } catch(e) { alert('Erro: ' + e.message); }
 }
 
 /* ========================================================================

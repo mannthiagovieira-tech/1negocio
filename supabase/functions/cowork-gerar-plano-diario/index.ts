@@ -131,16 +131,18 @@ Deno.serve(async (req: Request) => {
         .eq("origem", "olx")
         .eq("classificacao_ia", "negocio_funcionamento")
         .is("abordado_em", null)
+        .neq("descartado", true)
         .or("revisar_depois.is.null,revisar_depois.eq.false")
         .order("created_at", { ascending: false })
         .limit(LIMITE_LEADS_OLX),
       // Parte 4 · BACKLOG corretores · TODOS consultor_empresarial não abordados (mais antigos primeiro)
-      // Acumula até admin marcar abordado · não some do plano
+      // Acumula até admin marcar abordado · não some do plano · ignora descartados
       supabase.from("leads_google")
         .select("id,nome,telefone,cidade,categoria,classificacao_ia,notas,url_anuncio,created_at")
         .eq("origem", "gmaps_corretores")
         .eq("classificacao_ia", "consultor_empresarial")
         .is("abordado_em", null)
+        .neq("descartado", true)
         .order("created_at", { ascending: true, nullsFirst: false })
         .limit(LIMITE_CORRETORES),
       // perfis IG distribuídos hoje (já filtrados como empreendedor)
