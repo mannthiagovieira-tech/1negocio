@@ -6726,17 +6726,16 @@ async function tdBuscarNegocio(q){
   _tdBuscaTimer=setTimeout(async()=>{
     const drop=document.getElementById('td-drop-neg');
     const e=encodeURIComponent(q);
-    const url=SB+'/rest/v1/negocios?or=(nome.ilike.*'+e+'*,cidade.ilike.*'+e+'*,codigo_diagnostico.ilike.*'+e+'*,codigo.ilike.*'+e+'*)&select=id,nome,cidade,estado,vendedor_id,codigo_diagnostico,codigo,setor&limit=10';
+    // Embedding via PostgREST · vendedor:usuarios!vendedor_id(...)
+    const url=SB+'/rest/v1/negocios?or=(nome.ilike.*'+e+'*,cidade.ilike.*'+e+'*,codigo_diagnostico.ilike.*'+e+'*,codigo.ilike.*'+e+'*)&select=id,nome,cidade,estado,vendedor_id,codigo_diagnostico,codigo,setor,vendedor:usuarios!vendedor_id(id,nome,whatsapp,email)&limit=10';
     const r=await tplFetch(url);
     if(!r.ok){drop.innerHTML='<div class="td-drop-vazio">erro</div>';drop.style.display='block';return;}
     const items=await r.json();
     if(!items.length){drop.innerHTML='<div class="td-drop-vazio">nenhum resultado</div>';drop.style.display='block';return;}
-    const vIds=[...new Set(items.map(i=>i.vendedor_id).filter(Boolean))];
-    const vMap={};
-    if(vIds.length){const rv=await tplFetch(SB+'/rest/v1/usuarios?id=in.('+vIds.join(',')+')&select=id,nome,whatsapp');if(rv.ok)(await rv.json()).forEach(u=>vMap[u.id]=u);}
     drop.innerHTML=items.map(n=>{
-      const payload=JSON.stringify({...n,_vend:vMap[n.vendedor_id]||null}).replace(/'/g,"&apos;").replace(/"/g,"&quot;");
-      return `<div class="td-drop-item" onclick='tdSelecionarNegocio(${payload})'>${tdEscape(n.nome||n.codigo_diagnostico||'—')} · ${tdEscape(n.cidade||'—')}/${tdEscape(n.estado||'—')} · ${tdEscape(n.setor||'—')}<div style="color:var(--ink-4);font-size:10px;margin-top:2px">Vendedor: ${tdEscape((vMap[n.vendedor_id]||{}).nome||'—')}</div></div>`;
+      const vend=n.vendedor||null;
+      const payload=JSON.stringify({...n,_vend:vend}).replace(/'/g,"&apos;").replace(/"/g,"&quot;");
+      return `<div class="td-drop-item" onclick='tdSelecionarNegocio(${payload})'>${tdEscape(n.nome||n.codigo_diagnostico||'—')} · ${tdEscape(n.cidade||'—')}/${tdEscape(n.estado||'—')} · ${tdEscape(n.setor||'—')}<div style="color:var(--ink-4);font-size:10px;margin-top:2px">Dono: ${tdEscape((vend||{}).nome||'—')} · ${tdEscape((vend||{}).whatsapp||'sem whatsapp')}</div></div>`;
     }).join('');
     drop.style.display='block';
   },300);
@@ -6746,7 +6745,12 @@ function tdSelecionarNegocio(n){
   document.getElementById('td-drop-neg').style.display='none';
   document.getElementById('td-busca-neg').value='';
   const sel=document.getElementById('td-sel-neg');
-  sel.innerHTML=`<div><strong>${tdEscape(n.nome||n.codigo_diagnostico||'—')}</strong> · ${tdEscape(n.cidade||'—')}/${tdEscape(n.estado||'—')}<br><span style="color:var(--ink-3)">Vendedor: ${tdEscape((n._vend||{}).nome||'—')} · ${tdEscape((n._vend||{}).whatsapp||'—')}</span></div><button class="td-btn td-btn-ghost" onclick="tdLimparNegocio()">trocar</button>`;
+  const vend=n._vend||n.vendedor||null;
+  const negTit=n.nome||n.codigo_diagnostico||'—';
+  const local=(n.cidade||'—')+'/'+(n.estado||'—');
+  const donoNome=vend?.nome||'—';
+  const donoTel=vend?.whatsapp||'sem whatsapp';
+  sel.innerHTML=`<div style="display:flex;flex-direction:column;gap:4px"><div style="font-family:var(--serif);font-weight:700;color:var(--ink)">${tdEscape(negTit)} · ${tdEscape(local)}</div><div style="font-family:var(--sans);font-size:13px;color:var(--ink-3)">Dono: ${tdEscape(donoNome)} · ${tdEscape(donoTel)}</div></div><button class="td-btn td-btn-ghost" onclick="tdLimparNegocio()">trocar</button>`;
   sel.style.display='flex';
 }
 function tdLimparNegocio(){_tdNeg=null;document.getElementById('td-sel-neg').style.display='none';}
@@ -6930,15 +6934,21 @@ async function ndBuscarComprador(q){
   if(!q||q.length<2){document.getElementById('nd-drop-comp').style.display='none';return;}
   _ndCompTimer=setTimeout(async()=>{
     const drop=document.getElementById('nd-drop-comp');
+    // Se input é só dígitos, normaliza (busca whatsapp ignora +/espaços via ilike)
+    const soDigitos=q.replace(/\D/g,'');
+    const queryWhats=soDigitos.length>=8?soDigitos:q;
     const e=encodeURIComponent(q);
-    const url=SB+'/rest/v1/usuarios?or=(nome.ilike.*'+e+'*,whatsapp.ilike.*'+e+'*,email.ilike.*'+e+'*)&tipo=eq.buy&select=id,nome,whatsapp,email&limit=10';
+    const eW=encodeURIComponent(queryWhats);
+    // Sem filtro tipo · admin escolhe qualquer usuário cadastrado
+    const url=SB+'/rest/v1/usuarios?or=(nome.ilike.*'+e+'*,whatsapp.ilike.*'+eW+'*,email.ilike.*'+e+'*)&select=id,nome,whatsapp,email,tipo&limit=10';
     const r=await tplFetch(url);
-    if(!r.ok){drop.innerHTML='<div class="td-drop-vazio">erro</div>';drop.style.display='block';return;}
+    if(!r.ok){drop.innerHTML='<div class="td-drop-vazio">erro '+r.status+'</div>';drop.style.display='block';return;}
     const items=await r.json();
-    if(!items.length){drop.innerHTML='<div class="td-drop-vazio">Comprador não cadastrado · oriente o cadastro antes de gerar NDA</div>';drop.style.display='block';return;}
+    if(!items.length){drop.innerHTML='<div class="td-drop-vazio">Nenhum usuário encontrado pra "'+tdEscape(q)+'". Tente buscar por nome ou parte do telefone sem o +55.</div>';drop.style.display='block';return;}
     drop.innerHTML=items.map(u=>{
       const payload=JSON.stringify(u).replace(/'/g,"&apos;").replace(/"/g,"&quot;");
-      return `<div class="td-drop-item" onclick='ndSelecionarComprador(${payload})'>${tdEscape(u.nome||'—')} · ${tdEscape(u.whatsapp||'—')}<br><span style="color:var(--ink-4);font-size:10px">${tdEscape(u.email||'sem email')}</span></div>`;
+      const tipoLbl=u.tipo==='buy'?'comprador':(u.tipo==='sell'?'vendedor':(u.tipo||'—'));
+      return `<div class="td-drop-item" onclick='ndSelecionarComprador(${payload})'>${tdEscape(u.nome||'—')} · ${tdEscape(u.whatsapp||'—')} <span style="color:var(--accent);font-size:9px;text-transform:uppercase;letter-spacing:.10em">${tipoLbl}</span><br><span style="color:var(--ink-4);font-size:10px">${tdEscape(u.email||'sem email')}</span></div>`;
     }).join('');
     drop.style.display='block';
   },300);
