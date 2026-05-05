@@ -1109,22 +1109,29 @@ async function popAssAbrirConfirm() {
   const btn = el('pop-ass-confirm-btn');
   if (status) { status.textContent = ''; status.style.color = ''; }
   if (btn) { btn.textContent = 'Confirmar'; btn.disabled = false; }
-  // carrega dados disponíveis
+  // carrega dados disponíveis · 1n_auth (chave do diagnóstico) · fallback Supabase auth
   let nome = '', tel = '', negocio = '';
   try {
-    const tokenRaw = localStorage.getItem('1n_token') || localStorage.getItem('sb-access-token') || '';
-    if (tokenRaw && tokenRaw.length > 50) {
-      const r = await fetch(SUPABASE_URL + '/auth/v1/user', {
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + tokenRaw }
-      });
-      if (r.ok) {
-        const u = await r.json();
-        const meta = u?.user_metadata || {};
-        nome = meta.nome || meta.full_name || '';
-        tel = (u.phone || meta.telefone || '').replace(/\D/g,'');
-      }
-    }
+    const auth = JSON.parse(localStorage.getItem('1n_auth') || '{}');
+    nome = auth.nome || '';
+    tel = (auth.whatsapp || '').replace(/\D/g,'');
   } catch(e) {}
+  if (!nome || !tel) {
+    try {
+      const tokenRaw = localStorage.getItem('1n_token') || localStorage.getItem('sb-access-token') || '';
+      if (tokenRaw && tokenRaw.length > 50) {
+        const r = await fetch(SUPABASE_URL + '/auth/v1/user', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + tokenRaw }
+        });
+        if (r.ok) {
+          const u = await r.json();
+          const meta = u?.user_metadata || {};
+          if (!nome) nome = meta.nome || meta.full_name || '';
+          if (!tel) tel = (u.phone || meta.telefone || '').replace(/\D/g,'');
+        }
+      }
+    } catch(e) {}
+  }
   try { if (typeof D !== 'undefined' && D?.identificacao?.nome_fantasia) negocio = D.identificacao.nome_fantasia; } catch(e) {}
   _popAssDados = { nome, tel, negocio };
 
