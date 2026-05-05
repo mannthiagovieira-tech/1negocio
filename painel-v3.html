@@ -1632,6 +1632,25 @@ table.t .acoes { white-space: nowrap; }
                     <option value="todos">Todos</option>
                   </select>
                 </label>
+                <label id="pl-crm-perfil-wrap" style="display:none;flex-direction:column;gap:4px;min-width:160px"><span class="modal-grupo-label" style="margin:0">Indicação (CSV)</span>
+                  <select id="pl-crm-perfil-csv" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="">Todos</option>
+                    <option value="vendedor">🏢 Vendedor</option>
+                    <option value="comprador">🛒 Comprador</option>
+                    <option value="vendedor+comprador">🔀 Ambos</option>
+                    <option value="corretor">👔 Corretor</option>
+                    <option value="indefinido">— Indefinido</option>
+                  </select>
+                </label>
+                <label id="pl-crm-acesso-wrap" style="display:none;flex-direction:column;gap:4px;min-width:160px"><span class="modal-grupo-label" style="margin:0">Último acesso</span>
+                  <select id="pl-crm-acesso" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="">Todos</option>
+                    <option value="7">≤ 7 dias</option>
+                    <option value="30">8-30 dias</option>
+                    <option value="90">31-90 dias</option>
+                    <option value="m90">+ 90 dias</option>
+                  </select>
+                </label>
               </div>
               <div id="pl-crm-status-line" style="margin-top:10px;font-size:11px;color:var(--ink-3);font-family:var(--mono)"></div>
             </div>
@@ -3479,7 +3498,7 @@ async function plCrmInit() {
     // B80 · busca em chunks de 1000 (limite PostgREST) usando range
     let all = [];
     for (let off = 0; off < 25000; off += 1000) {
-      const res = await fetch(SB + `/rest/v1/leads_google?order=created_at.desc&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,tema_conversa,setor,url_anuncio,valor_anuncio,favorito,descartado,favoritado_em,descartado_em,created_at,abordado_em&limit=1000&offset=${off}`, {
+      const res = await fetch(SB + `/rest/v1/leads_google?order=created_at.desc&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,tema_conversa,setor,url_anuncio,valor_anuncio,favorito,descartado,favoritado_em,descartado_em,metadata,created_at,abordado_em&limit=1000&offset=${off}`, {
         headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token||AK) },
       });
       if (!res.ok) throw new Error('GET ' + res.status);
@@ -3542,6 +3561,28 @@ function plCrmRender() {
   );
   if (fStatus) lista = lista.filter(l => l.status === fStatus);
   if (fOrigem) lista = lista.filter(l => l.origem === fOrigem);
+  // B81 · filtros condicionais base_manual
+  const ehBaseManual = fOrigem === 'base_manual_2026_05';
+  const wrapPerfil = document.getElementById('pl-crm-perfil-wrap');
+  const wrapAcesso = document.getElementById('pl-crm-acesso-wrap');
+  if (wrapPerfil) wrapPerfil.style.display = ehBaseManual ? 'flex' : 'none';
+  if (wrapAcesso) wrapAcesso.style.display = ehBaseManual ? 'flex' : 'none';
+  if (ehBaseManual) {
+    const fPerfil = document.getElementById('pl-crm-perfil-csv')?.value || '';
+    if (fPerfil) lista = lista.filter(l => (l.metadata?.perfil_csv) === fPerfil);
+    const fAcesso = document.getElementById('pl-crm-acesso')?.value || '';
+    if (fAcesso) {
+      lista = lista.filter(l => {
+        const ld = l.metadata?.login_dias;
+        if (ld == null) return false;
+        if (fAcesso === '7') return ld <= 7;
+        if (fAcesso === '30') return ld > 7 && ld <= 30;
+        if (fAcesso === '90') return ld > 30 && ld <= 90;
+        if (fAcesso === 'm90') return ld > 90;
+        return true;
+      });
+    }
+  }
   if (fClass) {
     if (fClass === 'quentes') lista = lista.filter(l => ['corretor_qualificado','consultor_empresarial','negocio_funcionamento'].includes(l.classificacao_ia));
     else if (fClass === 'ambiguos') lista = lista.filter(l => l.classificacao_ia === 'ambiguo');
@@ -3586,6 +3627,20 @@ function plCrmRender() {
     {key:'telefone', label:'Telefone', type:'tel'},
     {key:'cidade',   label:'Cidade'},
     {key:'classificacao_ia', label:'Classificação IA', type:'actions', render: r => _plCrmChipClass(r.classificacao_ia)},
+    {key:'metadata', label:'Indicação', type:'actions', render: r => {
+      const p = r.metadata?.perfil_csv;
+      if (!p) return '<span class="pa-muted" style="font-size:11px">—</span>';
+      const map = { vendedor:'🏢 Vendedor', comprador:'🛒 Comprador', 'vendedor+comprador':'🔀 Ambos', corretor:'👔 Corretor', indefinido:'— indef' };
+      return `<span class="pa-badge pa-badge-gray" style="font-size:11px" title="Indicou-se como: ${escapeHtml(p)}">${escapeHtml(map[p] || p)}</span>`;
+    }},
+    {key:'acesso', label:'Último acesso', type:'actions', render: r => {
+      const ld = r.metadata?.login_dias;
+      if (ld == null) return '<span class="pa-muted" style="font-size:11px">—</span>';
+      const dt = r.metadata?.data_cadastro_original ? new Date(r.metadata.data_cadastro_original).toLocaleDateString('pt-BR') : '';
+      const txt = ld === 0 ? 'hoje' : ld === 1 ? 'há 1 dia' : `há ${ld} dias`;
+      const cor = ld <= 7 ? 'var(--ok)' : ld <= 30 ? 'var(--accent)' : ld <= 90 ? '#ffc400' : 'var(--ink-3)';
+      return `<span style="font-size:11px;color:${cor}" title="Cadastrado: ${escapeHtml(dt)}">${txt}</span>`;
+    }},
     {key:'origem',   label:'Origem', type:'actions', render: r => `<span style="font-size:12px">${escapeHtml(_plCrmOrigemLabel(r.origem))}</span>`},
     {key:'status',   label:'Status', type:'badge'},
     {key:'created_at',label:'Capturado', type:'date'},
