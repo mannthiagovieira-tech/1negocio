@@ -142,7 +142,14 @@ body::after{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-50
 .socio-item-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink3);margin-top:4px}
 
 .oport-section{margin-top:20px;padding-top:20px;border-top:1px solid var(--pu-l)}
-.oport-title{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--pu);margin-bottom:12px}
+.oport-title{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--pu);margin:0}
+.oport-title-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;cursor:pointer;user-select:none}
+.oport-toggle{background:transparent;border:none;cursor:pointer;padding:6px;color:var(--pu);display:flex;align-items:center;justify-content:center;border-radius:6px;transition:all .15s}
+.oport-toggle:hover{background:var(--pu-d)}
+.oport-chevron{width:16px;height:16px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s ease}
+.oport-section[data-expanded="true"] .oport-chevron{transform:rotate(180deg)}
+.oport-detail{max-height:0;overflow:hidden;transition:max-height .3s ease}
+.oport-section[data-expanded="true"] .oport-detail{max-height:5000px}
 .oport-card{background:var(--bg2);border:1px solid var(--pu-l);border-radius:var(--r);padding:12px;margin-bottom:8px}
 .oport-header{display:flex;align-items:flex-start;gap:10px;margin-bottom:6px}
 .oport-num{width:20px;height:20px;background:var(--pu-d);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:10px;color:var(--pu);flex-shrink:0}
@@ -479,20 +486,26 @@ body::after{content:'';position:fixed;top:-15%;left:50%;transform:translateX(-50
       </div>
     </div>
     
-    <div class="oport-section">
-      <div class="oport-title">Oportunidades identificadas</div>
-      <div id="oport-content"></div>
-    </div>
-    
-    <div style="margin-top:20px;background:var(--bg1);border-radius:var(--r2);padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
-      <div>
-        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:4px">Investimento</div>
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--pu)">A partir de R$ 1.500/mês</div>
-        <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--ink3);margin-top:2px">+ % resultado incremental</div>
+    <div class="oport-section" id="oport-wrapper" data-expanded="false">
+      <div class="oport-title-bar" onclick="oportToggle()">
+        <div class="oport-title">Oportunidades identificadas</div>
+        <button class="oport-toggle" type="button" aria-label="Expandir oportunidades" onclick="event.stopPropagation();oportToggle()">
+          <svg class="oport-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
       </div>
-      <a href="#" id="btn-socio" style="flex-shrink:0;background:var(--pu);color:var(--bg);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:12px 20px;border-radius:var(--r2);text-decoration:none;white-space:nowrap;letter-spacing:.03em">
-        Quero saber mais
-      </a>
+      <div class="oport-detail">
+        <div id="oport-content"></div>
+        <div style="margin-top:20px;background:var(--bg1);border-radius:var(--r2);padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:4px">Investimento</div>
+            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--pu)">A partir de R$ 1.500/mês</div>
+            <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--ink3);margin-top:2px">+ % resultado incremental</div>
+          </div>
+          <a href="#" id="btn-socio" style="flex-shrink:0;background:var(--pu);color:var(--bg);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;padding:12px 20px;border-radius:var(--r2);text-decoration:none;white-space:nowrap;letter-spacing:.03em">
+            Quero saber mais
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1038,6 +1051,22 @@ function ianToggle() {
   w.setAttribute('data-expanded', expanded ? 'false' : 'true');
   try { localStorage.setItem('ian-expanded', expanded ? 'false' : 'true'); } catch(e){}
 }
+function oportToggle() {
+  const w = el('oport-wrapper'); if(!w) return;
+  const expanded = w.getAttribute('data-expanded') === 'true';
+  w.setAttribute('data-expanded', expanded ? 'false' : 'true');
+  try { localStorage.setItem('oport-expanded', expanded ? 'false' : 'true'); } catch(e){}
+}
+(function oportInit(){
+  try {
+    const s = localStorage.getItem('oport-expanded');
+    if (s === 'true') {
+      const fn = function(){ const w = document.getElementById('oport-wrapper'); if(w) w.setAttribute('data-expanded','true'); };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);
+      else fn();
+    }
+  } catch(e){}
+})();
 (function ianInit(){
   try {
     const s = localStorage.getItem('ian-expanded');
