@@ -6958,7 +6958,9 @@ function ndSelecionarComprador(u){
   document.getElementById('nd-drop-comp').style.display='none';
   document.getElementById('nd-busca-comp').value='';
   const sel=document.getElementById('nd-sel-comp');
-  sel.innerHTML=`<div><strong>${tdEscape(u.nome||'—')}</strong> · ${tdEscape(u.whatsapp||'—')} · ${tdEscape(u.email||'—')}</div><button class="td-btn td-btn-ghost" onclick="ndLimparComprador()">trocar</button>`;
+  const tipoLbl=u.tipo==='buy'?'comprador':(u.tipo==='sell'?'vendedor':(u.tipo||'—'));
+  const tag=`<span style="background:var(--accent-soft);color:var(--accent);padding:1px 8px;border-radius:6px;font-family:var(--mono);font-size:9px;letter-spacing:.10em;text-transform:uppercase;font-weight:600;margin-left:6px">${tdEscape(tipoLbl)}</span>`;
+  sel.innerHTML=`<div style="display:flex;flex-direction:column;gap:4px"><div style="font-family:var(--sans);font-weight:600;color:var(--ink);font-size:14px">${tdEscape(u.nome||'—')}${tag}</div><div style="font-family:var(--sans);font-size:13px;color:var(--ink-3)">${tdEscape(u.email||'—')} · ${tdEscape(u.whatsapp||'—')}</div></div><button class="td-btn td-btn-ghost" onclick="ndLimparComprador()">trocar</button>`;
   sel.style.display='flex';
   ndCheckDup();
 }
@@ -6970,14 +6972,16 @@ async function ndBuscarNegocio(q){
   _ndNegTimer=setTimeout(async()=>{
     const drop=document.getElementById('nd-drop-neg');
     const e=encodeURIComponent(q);
-    const url=SB+'/rest/v1/negocios?or=(nome.ilike.*'+e+'*,cidade.ilike.*'+e+'*,codigo_diagnostico.ilike.*'+e+'*,codigo.ilike.*'+e+'*)&select=id,nome,cidade,estado,codigo_diagnostico,setor&limit=10';
+    // Embedding vendedor pra mostrar dono+tel na pill
+    const url=SB+'/rest/v1/negocios?or=(nome.ilike.*'+e+'*,cidade.ilike.*'+e+'*,codigo_diagnostico.ilike.*'+e+'*,codigo.ilike.*'+e+'*)&select=id,nome,cidade,estado,codigo_diagnostico,setor,vendedor:usuarios!vendedor_id(id,nome,whatsapp)&limit=10';
     const r=await tplFetch(url);
     if(!r.ok){drop.innerHTML='<div class="td-drop-vazio">erro</div>';drop.style.display='block';return;}
     const items=await r.json();
     if(!items.length){drop.innerHTML='<div class="td-drop-vazio">nenhum resultado</div>';drop.style.display='block';return;}
     drop.innerHTML=items.map(n=>{
       const payload=JSON.stringify(n).replace(/'/g,"&apos;").replace(/"/g,"&quot;");
-      return `<div class="td-drop-item" onclick='ndSelecionarNegocio(${payload})'>${tdEscape(n.nome||n.codigo_diagnostico||'—')} · ${tdEscape(n.cidade||'—')}/${tdEscape(n.estado||'—')} · ${tdEscape(n.setor||'—')}</div>`;
+      const vend=n.vendedor;
+      return `<div class="td-drop-item" onclick='ndSelecionarNegocio(${payload})'>${tdEscape(n.nome||n.codigo_diagnostico||'—')} · ${tdEscape(n.cidade||'—')}/${tdEscape(n.estado||'—')} · ${tdEscape(n.setor||'—')}<div style="color:var(--ink-4);font-size:10px;margin-top:2px">Dono: ${tdEscape((vend||{}).nome||'—')} · ${tdEscape((vend||{}).whatsapp||'sem whatsapp')}</div></div>`;
     }).join('');
     drop.style.display='block';
   },300);
@@ -6987,7 +6991,13 @@ function ndSelecionarNegocio(n){
   document.getElementById('nd-drop-neg').style.display='none';
   document.getElementById('nd-busca-neg').value='';
   const sel=document.getElementById('nd-sel-neg');
-  sel.innerHTML=`<div><strong>${tdEscape(n.nome||n.codigo_diagnostico||'—')}</strong> · ${tdEscape(n.cidade||'—')}/${tdEscape(n.estado||'—')}</div><button class="td-btn td-btn-ghost" onclick="ndLimparNegocio()">trocar</button>`;
+  const vend=n.vendedor||null;
+  const negTit=n.nome||n.codigo_diagnostico||'—';
+  const local=(n.cidade||'—')+'/'+(n.estado||'—');
+  const donoNome=vend?.nome||'—';
+  const donoTel=vend?.whatsapp||'—';
+  const setor=n.setor?` · ${tdEscape(n.setor)}`:'';
+  sel.innerHTML=`<div style="display:flex;flex-direction:column;gap:4px"><div style="font-family:var(--serif);font-weight:700;color:var(--ink)">${tdEscape(negTit)} · ${tdEscape(local)}</div><div style="font-family:var(--sans);font-size:13px;color:var(--ink-3)">Dono: ${tdEscape(donoNome)} · ${tdEscape(donoTel)}${setor}</div></div><button class="td-btn td-btn-ghost" onclick="ndLimparNegocio()">trocar</button>`;
   sel.style.display='flex';
   ndCheckDup();
 }

@@ -47,7 +47,7 @@ Deno.serve(async (req: Request) => {
   if (solicEx) solicInfoId = solicEx.id;
   else {
     const { data: solicNova, error: solicErr } = await sb.from("solicitacoes_info").insert({
-      comprador_id, negocio_id, status: "aguardando", nivel: "2",
+      comprador_id, negocio_id, status: "aguardando", nivel: "completo",
     }).select("id").single();
     if (solicErr) return jsonRes({ erro: "criar solicitacoes_info: " + solicErr.message }, 500);
     solicInfoId = solicNova.id;
