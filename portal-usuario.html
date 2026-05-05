@@ -1389,7 +1389,7 @@ async function carregarTudo() {
   const uid = session.user_id;
   const nowIso = new Date().toISOString();
 
-  const [negocios, solInfos, termos, teses, favs, anunciosV2] = await Promise.all([
+  const [negocios, solInfos, termos, docsV2, teses, favs, anunciosV2] = await Promise.all([
     fetch(SUPABASE_URL + '/rest/v1/negocios'
       + '?vendedor_id=eq.' + uid
       + '&select=id,slug,tag,codigo,codigo_anuncio,codigo_diagnostico,nome,setor,categoria,cidade,estado,status,faturamento_anual,preco_pedido,avaliacao_min,avaliacao_max,score_saude,laudo_pago_liberado,laudo_html,plano,created_at,publicado_em,funil_impressoes,funil_visualizacoes,funil_cliques,funil_salvamentos,funil_compartilhamentos,rascunho_iniciado_em'
@@ -1410,6 +1410,22 @@ async function carregarTudo() {
       + '&order=assinado_em.desc',
       { headers: authHeaders() }
     ).then(r => r.ok ? r.json() : []).catch(() => []),
+
+    // Termos de adesão v2 (vendedor) + NDAs v2 (comprador) · sistema novo
+    Promise.all([
+      fetch(SUPABASE_URL + '/rest/v1/termos_adesao'
+        + '?vendedor_id=eq.' + uid
+        + '&select=id,codigo,plano,status,gerado_em,assinatura_em,link_token,negocio_id'
+        + '&order=gerado_em.desc.nullslast,abertura_em.desc',
+        { headers: authHeaders() }
+      ).then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch(SUPABASE_URL + '/rest/v1/nda_solicitacoes'
+        + '?usuario_id=eq.' + uid
+        + '&select=id,codigo,status,gerado_em,assinado_em,token,negocio_id'
+        + '&order=gerado_em.desc.nullslast,created_at.desc',
+        { headers: authHeaders() }
+      ).then(r => r.ok ? r.json() : []).catch(() => [])
+    ]).then(([t,n]) => ({termos:t, ndas:n})).catch(() => ({termos:[],ndas:[]})),
 
     fetch(SUPABASE_URL + '/rest/v1/teses_investimento'
       + '?usuario_id=eq.' + uid
@@ -1494,7 +1510,9 @@ async function carregarTudo() {
     ...solInfos.map(x => x.negocio_id),
     ...termos.map(x => x.negocio_id),
     ...favs.map(x => x.negocio_id),
-    ...ndaPendentes.map(x => x.negocio_id)
+    ...ndaPendentes.map(x => x.negocio_id),
+    ...((docsV2 && docsV2.termos) || []).map(x => x.negocio_id),
+    ...((docsV2 && docsV2.ndas) || []).map(x => x.negocio_id)
   ].filter(Boolean))];
 
   let negMap = {};
@@ -1517,6 +1535,7 @@ async function carregarTudo() {
   portalCache.negocios = negocios;
   portalCache.solicitacoes = solInfos;
   portalCache.termos = termos;
+  portalCache.docsV2 = docsV2 || { termos: [], ndas: [] };
   portalCache.teses = teses;
   portalCache.favoritos = favs;
   portalCache.ndaPendentes = ndaPendentes;
@@ -1939,17 +1958,68 @@ function renderTermosAssinados() {
   const cont = $('termos-container');
   const lista = portalCache.termos || [];
   const negMap = portalCache.negMap || {};
+  const docsV2 = portalCache.docsV2 || { termos: [], ndas: [] };
 
-  if (lista.length === 0) {
+  // ── Renderização v2 · Termos (vendedor) + NDAs (comprador) novos ──
+  let v2Html = '';
+  const STATUS_LBL = { pendente:'pendente', gerado:'pendente', enviado:'pendente', visualizado:'visualizado',
+    assinado:'assinado', em_analise:'assinado', aprovado:'aprovado', cancelado:'cancelado', reprovado:'recusado' };
+  const podeAssinar = s => ['pendente','gerado','enviado','visualizado'].includes(s);
+
+  function cardV2(d, tipo) {
+    const neg = negMap[d.negocio_id] || {};
+    const negNome = neg.nome || (neg.codigo ? '#' + neg.codigo : 'Negócio');
+    const negLocal = (neg.cidade && neg.estado) ? (neg.cidade + '/' + neg.estado) : '—';
+    const dt = d.gerado_em ? new Date(d.gerado_em).toLocaleDateString('pt-BR') : '—';
+    const tipoLbl = tipo==='termo' ? ('Termo de Adesão · ' + ((d.plano||'').toUpperCase())) : 'NDA · Confidencialidade';
+    const statusLbl = STATUS_LBL[d.status] || d.status;
+    const badgeCls = d.status==='assinado' || d.status==='aprovado' || d.status==='em_analise' ? 'publicado'
+                   : (d.status==='cancelado' || d.status==='reprovado' ? 'expirado' : 'aguardando');
+    const token = tipo==='termo' ? d.link_token : d.token;
+    const acoes = podeAssinar(d.status) && token
+      ? `<a href="/assinar?token=${encodeURIComponent(token)}" target="_blank" class="card-cta primary">Abrir e assinar →</a>
+         <a href="/assinar?token=${encodeURIComponent(token)}" target="_blank" class="card-cta">Ver detalhes</a>`
+      : (token ? `<a href="/assinar?token=${encodeURIComponent(token)}" target="_blank" class="card-cta">Ver documento</a>` : '');
+    return `
+      <div class="diag-card">
+        <div class="diag-top">
+          <div>
+            <div class="diag-codigo">${d.codigo}</div>
+            <div class="diag-nome">${negNome}</div>
+            <div class="diag-meta">${[tipoLbl, negLocal].filter(Boolean).join(' · ')}</div>
+          </div>
+          <span class="badge ${badgeCls}">${statusLbl}</span>
+        </div>
+        <div style="font-family:var(--mono); font-size:11px; color:var(--ink-3); letter-spacing:.06em">
+          Gerado: ${dt}
+        </div>
+        ${acoes ? `<div class="card-ctas">${acoes}</div>` : ''}
+      </div>
+    `;
+  }
+
+  const v2Cards = [
+    ...(docsV2.termos || []).map(t => cardV2(t, 'termo')),
+    ...(docsV2.ndas || []).map(n => cardV2(n, 'nda'))
+  ];
+  if (v2Cards.length) {
+    v2Html = '<div class="diag-grid" style="margin-bottom:24px">' + v2Cards.join('') + '</div>';
+  }
+
+  if (lista.length === 0 && v2Cards.length === 0) {
     cont.innerHTML = `
       <div class="empty-state">
-        <div class="msg">Você ainda não assinou nenhum termo.</div>
+        <div class="msg">Você ainda não tem termos.<br>Quando o admin gerar um Termo de Adesão (vendedor) ou NDA (comprador), ele aparece aqui.</div>
       </div>
     `;
     return;
   }
+  if (lista.length === 0) {
+    cont.innerHTML = v2Html;
+    return;
+  }
 
-  cont.innerHTML = '<div class="diag-grid">' + lista.map(a => {
+  cont.innerHTML = v2Html + '<div class="diag-grid">' + lista.map(a => {
     const neg = negMap[a.negocio_id] || {};
     const codigo = getCodigo(neg);
     const nome = neg.nome || 'Negócio';

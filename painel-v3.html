@@ -930,6 +930,7 @@ table.t .acoes { white-space: nowrap; }
           <div class="nav-item" data-secao="registrar-venda" onclick="mostrarSecao('registrar-venda')"><span class="nav-icon">💰</span><span class="nav-label">Registrar Venda</span></div>
           <div class="nav-item" data-secao="op-termos" onclick="mostrarSecao('op-termos')"><span class="nav-icon">📝</span><span class="nav-label">Termos de Adesão</span></div>
           <div class="nav-item" data-secao="op-ndas" onclick="mostrarSecao('op-ndas')"><span class="nav-icon">🔒</span><span class="nav-label">NDAs</span></div>
+          <div class="nav-item" data-secao="op-dossies" onclick="mostrarSecao('op-dossies')"><span class="nav-icon">📂</span><span class="nav-label">Autorizar Dossiês</span></div>
         </div>
 
         <!-- MARKETING -->
@@ -1432,6 +1433,27 @@ table.t .acoes { white-space: nowrap; }
             </div>
           </div>
         </div>
+
+        <!-- ═══ Autorizar Dossiês · solicitacoes_info ═══ -->
+        <section id="secao-op-dossies" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">📂 Autorizar Dossiês</h1>
+            <p class="secao-subtitulo">Liberar/recusar acesso a dossiê após NDA assinado</p>
+          </header>
+          <div class="td-toolbar">
+            <div class="td-filtros">
+              <div class="td-filtro-grupo" id="do-fil-status">
+                <button class="td-fil td-fil-active" data-st="aguardando,nda_pendente,nda_assinado">Aguardando</button>
+                <button class="td-fil" data-st="liberado">Liberados</button>
+                <button class="td-fil" data-st="recusado">Recusados</button>
+                <button class="td-fil" data-st="">Todos</button>
+              </div>
+            </div>
+          </div>
+          <div id="do-lista" class="td-lista">
+            <div class="td-loading">carregando...</div>
+          </div>
+        </section>
 
         <!-- Modal · Sucesso (compartilhado entre Termo e NDA) -->
         <div id="td-sucesso-overlay" class="modal-overlay" style="z-index:1100">
@@ -2735,6 +2757,7 @@ const SECAO_TITULOS = {
   'vgv': {grupo:'FINANCEIRO', titulo:'VGV de Comissões', icone:'💎'},
   'op-termos': {grupo:'OPERAÇÕES', titulo:'Termos de Adesão', icone:'📝'},
   'op-ndas': {grupo:'OPERAÇÕES', titulo:'NDAs', icone:'🔒'},
+  'op-dossies': {grupo:'OPERAÇÕES', titulo:'Autorizar Dossiês', icone:'📂'},
   'atendimento': {grupo:'OPERAÇÕES', titulo:'Atendimento', icone:'📞'},
   'pipeline': {grupo:'OPERAÇÕES', titulo:'Pipeline', icone:'🌱'},
   'aprovacoes': {grupo:'OPERAÇÕES', titulo:'Aprovações', icone:'✅'},
@@ -2804,6 +2827,7 @@ function mostrarSecao(id) {
     if (id === 'sys-templates') tplInit();
     if (id === 'op-termos') tdInit();
     if (id === 'op-ndas') ndInit();
+    if (id === 'op-dossies') doInit();
     if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); lqInit(); saInit(); }
     if (id === 'plano-dia') { cwLoadPlanoFull(); cwLoadPlanoHistorico(); }
     if (id === 'cowork-admin') cwAdmInit();
@@ -7026,6 +7050,93 @@ async function ndGerar(){
   ndFecharNovo();
   tdMostrarSucesso(j,{..._ndNeg,_vend:{nome:_ndComp.nome,whatsapp:_ndComp.whatsapp}},'nda');
   ndFetchLista();
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   Operações · Autorizar Dossiês (do*)
+   ═════════════════════════════════════════════════════════════════════ */
+const DO_STATUS_LBL = {
+  aguardando:'Aguardando', nda_pendente:'NDA pendente', nda_assinado:'NDA assinado',
+  liberado:'Liberado', recusado:'Recusado', aprovada:'Aprovada'
+};
+let _doFiltro = 'aguardando,nda_pendente,nda_assinado';
+
+async function doInit(){
+  document.querySelectorAll('#do-fil-status .td-fil').forEach(b=>{
+    b.onclick=()=>{document.querySelectorAll('#do-fil-status .td-fil').forEach(x=>x.classList.remove('td-fil-active'));b.classList.add('td-fil-active');_doFiltro=b.dataset.st;doFetch();};
+  });
+  doFetch();
+}
+
+async function doFetch(){
+  const cont=document.getElementById('do-lista');
+  cont.innerHTML='<div class="td-loading">carregando...</div>';
+  let url=SB+'/rest/v1/solicitacoes_info?select=id,nivel,status,msg_comprador,created_at,liberado_em,liberado_ate,liberado_por,comprador:usuarios!comprador_id(id,nome,whatsapp,email),negocio:negocios!negocio_id(id,nome,cidade,estado,setor),ndas:nda_solicitacoes!solicitacao_info_id(id,codigo,status,assinado_em,token)&order=created_at.desc&limit=100';
+  if(_doFiltro){url+='&status=in.('+_doFiltro.split(',').join(',')+')';}
+  const r=await tplFetch(url);
+  if(!r.ok){cont.innerHTML='<div class="td-loading">erro '+r.status+'</div>';return;}
+  const items=await r.json();
+  if(!items.length){cont.innerHTML='<div class="td-loading">nenhuma solicitação encontrada</div>';return;}
+  cont.innerHTML=items.map(doRender).join('');
+}
+
+function doRender(s){
+  const c=s.comprador||{};
+  const n=s.negocio||{};
+  const ndaList=Array.isArray(s.ndas)?s.ndas:(s.ndas?[s.ndas]:[]);
+  const nda=ndaList[0]||null;
+  const negNome=n.nome||'—';
+  const negLocal=(n.cidade||'—')+'/'+(n.estado||'—');
+  const dt=s.created_at?new Date(s.created_at).toLocaleDateString('pt-BR'):'—';
+  const stLbl=DO_STATUS_LBL[s.status]||s.status;
+  const podeAcao=['aguardando','nda_assinado','nda_pendente'].includes(s.status);
+  const liberadoAte=s.liberado_ate?new Date(s.liberado_ate).toLocaleDateString('pt-BR'):null;
+
+  return `<div class="td-card">
+    <div class="td-card-head">
+      <div>
+        <div class="td-card-codigo">${nda?(nda.codigo+' · NDA '+nda.status):'sem NDA'}</div>
+        <div class="td-card-titulo">${tdEscape(negNome)} · ${tdEscape(negLocal)}${n.setor?' · '+tdEscape(n.setor):''}</div>
+        <div class="td-card-meta">Comprador: ${tdEscape(c.nome||'—')} · ${tdEscape(c.whatsapp||'—')}</div>
+        <div class="td-card-meta">Solicitado: nível <strong>${tdEscape(s.nivel||'—')}</strong> · ${dt}${liberadoAte?' · liberado até '+liberadoAte:''}</div>
+        ${s.msg_comprador?`<div class="td-card-meta" style="margin-top:6px;font-style:italic;color:var(--ink-2)">"${tdEscape(s.msg_comprador)}"</div>`:''}
+      </div>
+      <span class="td-status s-${s.status==='liberado'?'aprovado':(s.status==='recusado'?'cancelado':'gerado')}"><span class="td-status-dot"></span>${stLbl}</span>
+    </div>
+    <div class="td-card-actions">
+      ${podeAcao?`<button class="td-btn td-btn-primario" onclick="doLiberar('${s.id}','${tdEscape(c.nome||'')}')">Liberar dossiê</button>`:''}
+      ${podeAcao?`<button class="td-btn td-btn-perigo" onclick="doRecusar('${s.id}')">Recusar</button>`:''}
+      ${nda?`<button class="td-btn td-btn-secundario" onclick="tdVer('${nda.id}','nda')">Ver NDA</button>`:''}
+    </div>
+  </div>`;
+}
+
+async function doLiberar(id, nomeComp){
+  if(!confirm(`Liberar dossiê pra ${nomeComp||'comprador'} por 30 dias?`))return;
+  const liberadoAte=new Date(Date.now()+30*24*60*60*1000).toISOString();
+  const r=await tplFetch(SB+'/rest/v1/solicitacoes_info?id=eq.'+id,{
+    method:'PATCH',
+    headers:{Prefer:'return=minimal'},
+    body:JSON.stringify({status:'liberado',liberado_em:new Date().toISOString(),liberado_ate:liberadoAte})
+  });
+  if(!r.ok){alert('Erro: '+r.status);return;}
+  alert('Dossiê liberado · válido por 30 dias');
+  doFetch();
+}
+
+async function doRecusar(id){
+  const motivo=prompt('Motivo da recusa (opcional):','');
+  if(motivo===null)return;
+  const patch={status:'recusado'};
+  if(motivo)patch.notas_admin=motivo;
+  const r=await tplFetch(SB+'/rest/v1/solicitacoes_info?id=eq.'+id,{
+    method:'PATCH',
+    headers:{Prefer:'return=minimal'},
+    body:JSON.stringify(patch)
+  });
+  if(!r.ok){alert('Erro: '+r.status);return;}
+  alert('Solicitação recusada');
+  doFetch();
 }
 
 window.addEventListener('load', async () => {
