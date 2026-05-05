@@ -1587,7 +1587,7 @@ table.t .acoes { white-space: nowrap; }
                 </label>
                 <label style="display:flex;flex-direction:column;gap:4px;min-width:140px"><span class="modal-grupo-label" style="margin:0">Origem</span>
                   <select id="pl-crm-origem" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
-                    <option value="">Todas</option><option value="ia_atendente_home">🔥 IA Atendente</option><option value="manual">manual</option><option value="olx">olx</option><option value="gmaps_corretores">gmaps_corretores</option><option value="gmaps_floripa">gmaps_floripa</option><option value="instagram">instagram</option><option value="facebook">facebook</option><option value="google">google</option>
+                    <option value="">Todas</option>
                   </select>
                 </label>
                 <label style="display:flex;flex-direction:column;gap:4px;min-width:160px"><span class="modal-grupo-label" style="margin:0">Tema (IA)</span>
@@ -3453,26 +3453,65 @@ async function plOlxRun() {
 
 // ---- pl-crm-google · CRM consolidado de leads_google ----
 let _plCrmData = [];
+let _plCrmPagina = 1;
+const PL_CRM_POR_PAGINA = 100;
+
+// B80 · nomes amigáveis pra origem (dropdown + tabela)
+const ORIGEM_LABEL = {
+  'base_manual_2026_05': '📋 Base Manual',
+  'base_manual': '📋 Base Manual',
+  'gmaps_floripa': '📍 Floripa B2B',
+  'gmaps_corretores': '👔 Corretores',
+  'olx': '📦 OLX',
+  'ia_atendente_home': '🔥 IA Atendente',
+  'ia_atendente_home_prelead': '🟡 IA Pré-lead',
+  'instagram': '📡 IG Likers',
+  'facebook': '📘 Facebook',
+  'google': '🔎 Google',
+  'manual': '✏️ Manual',
+};
+function _plCrmOrigemLabel(o) { return ORIGEM_LABEL[o] || o; }
 
 async function plCrmInit() {
   const tbl = document.getElementById('pl-tbl-crm');
-  tbl.innerHTML = '<div class="pa-loading">Carregando pool...</div>';
+  tbl.innerHTML = '<div class="pa-loading">Carregando pool · pode levar alguns segundos...</div>';
   try {
-    const data = await sbFetch('/rest/v1/leads_google?order=created_at.desc&limit=500&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,tema_conversa,setor,url_anuncio,valor_anuncio,favorito,descartado,favoritado_em,descartado_em,created_at,abordado_em');
-    _plCrmData = data || [];
-    // Popula dropdown cidades com top valores únicos
+    // B80 · busca em chunks de 1000 (limite PostgREST) usando range
+    let all = [];
+    for (let off = 0; off < 25000; off += 1000) {
+      const res = await fetch(SB + `/rest/v1/leads_google?order=created_at.desc&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,tema_conversa,setor,url_anuncio,valor_anuncio,favorito,descartado,favoritado_em,descartado_em,created_at,abordado_em&limit=1000&offset=${off}`, {
+        headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token||AK) },
+      });
+      if (!res.ok) throw new Error('GET ' + res.status);
+      const chunk = await res.json();
+      all = all.concat(chunk);
+      if (chunk.length < 1000) break;
+    }
+    _plCrmData = all;
+    _plCrmPagina = 1;
+
+    // Popula dropdown cidades
     const sel = document.getElementById('pl-crm-cidade');
     if (sel) {
       const cidades = [...new Set(_plCrmData.map(l => l.cidade).filter(Boolean))].sort();
       sel.innerHTML = '<option value="">Todas</option>' + cidades.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
     }
-    // B70 · popula dropdown categorias com valores únicos
+    // Popula dropdown categorias
     const selCat = document.getElementById('pl-crm-categoria');
     if (selCat) {
       const cats = [...new Set(_plCrmData.map(l => l.categoria).filter(Boolean))]
-        .filter(c => !['establishment','negocio'].includes(c)) // descarta categorias inúteis Google/OLX
+        .filter(c => !['establishment','negocio'].includes(c))
         .sort();
       selCat.innerHTML = '<option value="">Todas</option>' + cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    }
+    // B80 · popula dropdown ORIGEM dinâmico com counts
+    const selOrig = document.getElementById('pl-crm-origem');
+    if (selOrig) {
+      const counts = {};
+      for (const l of _plCrmData) counts[l.origem || '(sem)'] = (counts[l.origem || '(sem)'] || 0) + 1;
+      const ordered = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+      selOrig.innerHTML = '<option value="">Todas (' + _plCrmData.length.toLocaleString('pt-BR') + ')</option>' +
+        ordered.map(([o, n]) => `<option value="${escapeHtml(o)}">${escapeHtml(_plCrmOrigemLabel(o))} · ${n.toLocaleString('pt-BR')}</option>`).join('');
     }
     plCrmRender();
   } catch(e) { tbl.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`; }
@@ -3521,11 +3560,19 @@ function plCrmRender() {
   else if (fTriagem === 'descartados') lista = lista.filter(l => l.descartado);
   // 'todos' · sem filtro
 
+  // B80 · paginação client-side 100/página
+  const totalFiltrado = lista.length;
+  const totalPaginas = Math.max(1, Math.ceil(totalFiltrado / PL_CRM_POR_PAGINA));
+  if (_plCrmPagina > totalPaginas) _plCrmPagina = 1;
+  const inicio = (_plCrmPagina - 1) * PL_CRM_POR_PAGINA;
+  const pagina = lista.slice(inicio, inicio + PL_CRM_POR_PAGINA);
+
   document.getElementById('pl-crm-status-line').textContent =
-    `${lista.length} de ${_plCrmData.length} leads visíveis`;
+    `${totalFiltrado.toLocaleString('pt-BR')} de ${_plCrmData.length.toLocaleString('pt-BR')} leads · página ${_plCrmPagina}/${totalPaginas}`;
   const tbl = document.getElementById('pl-tbl-crm');
-  if (!lista.length) { tbl.innerHTML = '<div class="pa-empty">Nenhum lead com esses filtros.</div>'; return; }
-  tbl.innerHTML = paRenderTable([
+  if (!totalFiltrado) { tbl.innerHTML = '<div class="pa-empty">Nenhum lead com esses filtros.</div>'; return; }
+
+  const tabela = paRenderTable([
     {key:'nome',     label:'Nome'},
     {key:'categoria',label:'Categoria', type:'actions', render: r => {
       const c = r.categoria || '';
@@ -3539,7 +3586,7 @@ function plCrmRender() {
     {key:'telefone', label:'Telefone', type:'tel'},
     {key:'cidade',   label:'Cidade'},
     {key:'classificacao_ia', label:'Classificação IA', type:'actions', render: r => _plCrmChipClass(r.classificacao_ia)},
-    {key:'origem',   label:'Origem'},
+    {key:'origem',   label:'Origem', type:'actions', render: r => `<span style="font-size:12px">${escapeHtml(_plCrmOrigemLabel(r.origem))}</span>`},
     {key:'status',   label:'Status', type:'badge'},
     {key:'created_at',label:'Capturado', type:'date'},
     {key:'id', label:'', type:'actions', render: r => {
@@ -3548,7 +3595,22 @@ function plCrmRender() {
       const favStyle = r.favorito ? 'color:#ffc400;background:rgba(255,196,0,0.15)' : '';
       return `<div style="display:flex;gap:6px;${r.descartado?'opacity:0.5':''}">${r.telefone ? `<button class="pa-btn-act" onclick="plCrmEnviar('${escapeHtml(r.telefone||'')}','${escapeHtml(r.nome||'')}')" title="disparo">📤</button>` : ''}${isIA ? `<button class="pa-btn-act" onclick="cvAbrir(null,'${r.id}')" title="ver conversa">💬</button>` : ''}${isOlxSemTel ? `<button class="pa-btn-act" onclick="plCrmTelManual('${r.id}','${escapeHtml((r.url_anuncio||'').replace(/'/g,'&apos;'))}')" title="abrir URL e colar telefone">📞</button>` : ''}<button class="pa-btn-act" style="${favStyle}" onclick="plCrmFavoritar('${r.id}', ${!r.favorito})" title="${r.favorito?'desfavoritar':'favoritar'}">${r.favorito?'⭐':'☆'}</button><button class="pa-btn-act success" onclick="plCrmMarcar('${r.id}','contatado')" title="marcar contatado">✓</button>${r.descartado ? `<button class="pa-btn-act" onclick="plCrmReabrir('${r.id}')" title="reabrir">↩</button>` : `<button class="pa-btn-act danger" onclick="plCrmDescartar('${r.id}','${escapeHtml((r.nome||'').replace(/'/g,'&apos;'))}')" title="descartar">❌</button>`}</div>`;
     }}
-  ], lista, 'Sem resultados');
+  ], pagina, 'Sem resultados');
+
+  // B80 · controles de paginação
+  const paginacao = totalPaginas > 1 ? `<div style="display:flex;justify-content:center;align-items:center;gap:6px;padding:12px;flex-wrap:wrap">
+    <button class="btn btn-mini btn-ghost" onclick="plCrmPag(1)" ${_plCrmPagina===1?'disabled':''}>« Primeira</button>
+    <button class="btn btn-mini btn-ghost" onclick="plCrmPag(${_plCrmPagina-1})" ${_plCrmPagina===1?'disabled':''}>‹ Anterior</button>
+    <span class="pa-muted" style="font-size:13px;padding:0 8px">página <strong>${_plCrmPagina}</strong> de ${totalPaginas}</span>
+    <button class="btn btn-mini btn-ghost" onclick="plCrmPag(${_plCrmPagina+1})" ${_plCrmPagina>=totalPaginas?'disabled':''}>Próxima ›</button>
+    <button class="btn btn-mini btn-ghost" onclick="plCrmPag(${totalPaginas})" ${_plCrmPagina>=totalPaginas?'disabled':''}>Última »</button>
+  </div>` : '';
+  tbl.innerHTML = tabela + paginacao;
+}
+function plCrmPag(n) {
+  _plCrmPagina = Math.max(1, n);
+  plCrmRender();
+  document.getElementById('pl-tbl-crm')?.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 async function plCrmMarcar(id, status) {
   try {
