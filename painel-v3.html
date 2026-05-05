@@ -890,6 +890,18 @@ table.t .acoes { white-space: nowrap; }
           <div class="secao-explicacao"><p>Estado atual do negócio em uma rolagem só. Negócios novos · resultados · decisões pendentes · 11 blocos sequenciais.</p></div>
           <div class="secao-conteudo">
 
+            <!-- Fase 1 · SOLICITAÇÕES PLANO ASSESSORADO · prioridade máxima -->
+            <div class="bloco" id="sa-bloco" style="border:3px solid #dc2626;background:linear-gradient(180deg, rgba(220,38,38,0.12), transparent 60%);box-shadow:0 0 24px rgba(220,38,38,0.15)">
+              <div class="bloco-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+                <div>
+                  <div class="bloco-titulo" style="color:#dc2626">🔥🔥 SOLICITAÇÕES PLANO ASSESSORADO · <span id="sa-count">0</span></div>
+                  <div class="bloco-sub">Mais quente · admin contata em até 1h · auto-refresh 15s</div>
+                </div>
+                <button class="btn btn-ghost btn-mini" onclick="saCarregar()" title="Atualizar">↻</button>
+              </div>
+              <div id="sa-conteudo"><div class="pa-loading">Carregando solicitações...</div></div>
+            </div>
+
             <!-- Item 2 · LEADS QUENTÍSSIMOS · IA atendente -->
             <div class="bloco" id="lq-bloco" style="border:2px solid #ff5a4f;background:linear-gradient(180deg, rgba(255,90,79,0.08), transparent 60%)">
               <div class="bloco-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
@@ -1624,6 +1636,14 @@ table.t .acoes { white-space: nowrap; }
                     <option value="">Todas</option>
                   </select>
                 </label>
+                <label style="display:flex;flex-direction:column;gap:4px;min-width:140px"><span class="modal-grupo-label" style="margin:0">Plano</span>
+                  <select id="pl-crm-plano" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
+                    <option value="">Todos</option>
+                    <option value="gratuito">Gratuito</option>
+                    <option value="guiado">Guiado</option>
+                    <option value="assessorado">🔥 Assessorado</option>
+                  </select>
+                </label>
                 <label style="display:flex;flex-direction:column;gap:4px;min-width:140px"><span class="modal-grupo-label" style="margin:0">Triagem</span>
                   <select id="pl-crm-triagem" onchange="plCrmRender()" style="padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r1);color:var(--ink);font-size:13px">
                     <option value="ativos">🟢 Ativos (default)</option>
@@ -2332,7 +2352,7 @@ function mostrarSecao(id) {
       document.getElementById('bc-titulo').textContent = `${meta.icone} ${meta.titulo}`;
     }
     // Lazy-load por seção
-    if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); lqInit(); }
+    if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); lqInit(); saInit(); }
     if (id === 'plano-dia') { cwLoadPlanoFull(); cwLoadPlanoHistorico(); }
     if (id === 'cowork-admin') cwAdmInit();
     if (id === 'triagem-olx') trInit();
@@ -3498,7 +3518,7 @@ async function plCrmInit() {
     // B80 · busca em chunks de 1000 (limite PostgREST) usando range
     let all = [];
     for (let off = 0; off < 25000; off += 1000) {
-      const res = await fetch(SB + `/rest/v1/leads_google?order=created_at.desc&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,tema_conversa,setor,url_anuncio,valor_anuncio,favorito,descartado,favoritado_em,descartado_em,metadata,created_at,abordado_em&limit=1000&offset=${off}`, {
+      const res = await fetch(SB + `/rest/v1/leads_google?order=created_at.desc&select=id,nome,telefone,cidade,categoria,classificacao_ia,origem,status,bio,tags,tema_conversa,setor,url_anuncio,valor_anuncio,favorito,descartado,favoritado_em,descartado_em,metadata,tipo_plano,created_at,abordado_em&limit=1000&offset=${off}`, {
         headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token||AK) },
       });
       if (!res.ok) throw new Error('GET ' + res.status);
@@ -3561,6 +3581,8 @@ function plCrmRender() {
   );
   if (fStatus) lista = lista.filter(l => l.status === fStatus);
   if (fOrigem) lista = lista.filter(l => l.origem === fOrigem);
+  const fPlano = document.getElementById('pl-crm-plano')?.value || '';
+  if (fPlano) lista = lista.filter(l => (l.tipo_plano || 'gratuito') === fPlano);
   // B81 · filtros condicionais base_manual
   const ehBaseManual = fOrigem === 'base_manual_2026_05';
   const wrapPerfil = document.getElementById('pl-crm-perfil-wrap');
@@ -6256,6 +6278,74 @@ async function _floripaRodar(body, modo) {
   } catch(e) {
     if (status) { status.textContent = '✕ ' + e.message; status.style.color = 'var(--alert)'; }
   }
+}
+
+/* ========================================================================
+   SA-* · Fase 1 · Solicitações Plano Assessorado (Cockpit)
+   ======================================================================== */
+let _saTimer = null;
+function saInit() {
+  saCarregar();
+  if (_saTimer) clearInterval(_saTimer);
+  _saTimer = setInterval(() => {
+    if (document.getElementById('secao-cockpit')?.style.display !== 'none') saCarregar();
+  }, 15000);
+}
+async function saCarregar() {
+  const cont = document.getElementById('sa-conteudo');
+  if (!cont) return;
+  try {
+    const data = await sbFetch('/rest/v1/solicitacoes_assessorado?status=in.(aguardando,em_contato)&order=created_at.desc&limit=20&select=*');
+    const cnt = document.getElementById('sa-count');
+    if (cnt) cnt.textContent = data.length;
+    if (!data.length) {
+      cont.innerHTML = '<div class="pa-empty" style="padding:14px">Sem solicitações abertas. 🎉</div>';
+      return;
+    }
+    cont.innerHTML = data.map(s => {
+      const tel = (s.telefone||'').replace(/\D/g,'');
+      const wa = tel.length >= 10 ? (tel.startsWith('55') ? tel : '55'+tel) : '';
+      const horas = s.created_at ? Math.round((Date.now() - new Date(s.created_at).getTime()) / 3600000) : 0;
+      const tempoStr = horas < 1 ? `há ${Math.round((Date.now()-new Date(s.created_at).getTime())/60000)} min` : horas < 24 ? `há ${horas}h` : `há ${Math.round(horas/24)}d`;
+      const statusCor = s.status === 'em_contato' ? 'var(--accent)' : '#dc2626';
+      return `<div style="background:rgba(220,38,38,0.06);border:2px solid rgba(220,38,38,0.4);border-radius:var(--r2);padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:15px;color:#dc2626">🔥🔥 ${escapeHtml(s.nome_solicitante || '(sem nome)')}</div>
+            <div class="pa-muted" style="font-size:12px;margin-top:2px">📱 ${formatarTelefone(wa)} · 🏢 ${escapeHtml(s.nome_negocio || '—')}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+            <div class="pa-muted" style="font-size:11px">${tempoStr}</div>
+            <div style="font-size:10px;text-transform:uppercase;color:${statusCor};font-weight:700;letter-spacing:0.08em">${escapeHtml(s.status)}</div>
+          </div>
+        </div>
+        ${s.mensagem_livre ? `<div style="font-size:12px;line-height:1.5;color:var(--ink-2);font-style:italic;border-left:2px solid rgba(220,38,38,0.4);padding:6px 10px;margin-top:8px">"${escapeHtml(s.mensagem_livre.slice(0, 200))}"</div>` : ''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+          ${wa ? `<a class="btn btn-mini" style="background:#25d366;color:#000" href="https://wa.me/${wa}" target="_blank">📱 Ligar agora</a>` : ''}
+          ${s.status === 'aguardando' ? `<button class="btn btn-mini btn-ghost" onclick="saMarcar('${s.id}','em_contato')">📞 Em contato</button>` : ''}
+          <button class="btn btn-mini btn-ghost" onclick="saMarcar('${s.id}','convertido')">✓ Convertido</button>
+          <button class="btn btn-mini btn-ghost" onclick="saMarcar('${s.id}','descartado')">✕ Descartar</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    cont.innerHTML = `<div class="pa-alert pa-alert-danger" style="margin:14px">Erro: ${escapeHtml(e.message)}</div>`;
+  }
+}
+async function saMarcar(id, novo) {
+  try {
+    const agora = new Date().toISOString();
+    const payload = { status: novo, updated_at: agora };
+    if (novo === 'em_contato') payload.contato_iniciado_em = agora;
+    if (novo === 'convertido' || novo === 'descartado') payload.atendido_em = agora;
+    const res = await fetch(SB + `/rest/v1/solicitacoes_assessorado?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token||AK), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error('PATCH ' + res.status);
+    await saCarregar();
+  } catch(e) { alert('Erro: ' + e.message); }
 }
 
 /* ========================================================================
