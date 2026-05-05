@@ -2228,6 +2228,7 @@ async function loginVerify() {
     try {
       localStorage.setItem('1n_admin_session', JSON.stringify({
         token: j.access_token,
+        refresh_token: j.refresh_token,
         admin_nome: j.admin_nome || 'Admin',
         salvo_em: Date.now()
       }));
@@ -2248,17 +2249,44 @@ function logout() {
   location.reload();
 }
 
-// Restaura sessão
-function restaurarSessao() {
+// Refresh access_token usando refresh_token (Supabase Auth)
+async function refreshAdminToken() {
+  try {
+    const raw = localStorage.getItem('1n_admin_session');
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    if (!s?.refresh_token) return false;
+    const r = await fetch(SB + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: s.refresh_token })
+    });
+    if (!r.ok) return false;
+    const j = await r.json();
+    if (!j.access_token) return false;
+    s.token = j.access_token;
+    if (j.refresh_token) s.refresh_token = j.refresh_token;
+    s.salvo_em = Date.now();
+    localStorage.setItem('1n_admin_session', JSON.stringify(s));
+    __token = j.access_token;
+    return true;
+  } catch(e) { return false; }
+}
+
+// Restaura sessão · 30 dias · auto-refresh se access_token > 50min
+async function restaurarSessao() {
   try {
     const raw = localStorage.getItem('1n_admin_session');
     if (!raw) return false;
     const s = JSON.parse(raw);
     if (!s?.token) return false;
-    // Considera sessão válida por 7 dias
     const idade = Date.now() - (s.salvo_em || 0);
-    if (idade > 7 * 24 * 60 * 60 * 1000) return false;
+    if (idade > 30 * 24 * 60 * 60 * 1000) return false;
     __token = s.token;
+    if (s.refresh_token && idade > 50 * 60 * 1000) {
+      const ok = await refreshAdminToken();
+      if (!ok && idade > 24 * 60 * 60 * 1000) return false; // refresh falhou e token > 1d · força login
+    }
     document.getElementById('user-nome').textContent = s.admin_nome || 'Admin';
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-app').style.display = 'block';
@@ -5905,12 +5933,12 @@ window.addEventListener('hashchange', () => {
   if (document.getElementById('main-app').style.display !== 'none') mostrarSecao(hash);
 });
 
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
   // Tema salvo
   const savedTheme = localStorage.getItem('painel-v3-theme') || 'dark';
   setTheme(savedTheme);
-  // Tenta restaurar sessão
-  if (restaurarSessao()) {
+  // Tenta restaurar sessão (com refresh automático)
+  if (await restaurarSessao()) {
     initAfterLogin();
   }
 });

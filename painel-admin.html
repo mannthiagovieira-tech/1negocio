@@ -1522,10 +1522,11 @@ async function loginVerify() {
     if (!json.ok)       { loginMsg(json.error || 'Código inválido'); return; }
     if (!json.is_admin) { loginMsg('Acesso negado: usuário não é admin.'); return; }
     __token = json.access_token;
-    // Persiste sessão para sobreviver a F5 / fechamento de aba
+    // Persiste sessão (30 dias · auto-refresh)
     try {
       localStorage.setItem('1n_admin_session', JSON.stringify({
         token: json.access_token,
+        refresh_token: json.refresh_token,
         admin_nome: json.admin_nome || 'Admin',
         salvo_em: Date.now()
       }));
@@ -3512,6 +3513,25 @@ function gerarSugestoesTitulo(calc) {
 // Sessão dura até o token ser rejeitado pela Edge Function (admin-api).
 // Se válido, entra direto no painel sem pedir OTP.
 // =============================================
+async function refreshAdminToken(saved) {
+  if (!saved?.refresh_token) return null;
+  try {
+    const r = await fetch(SB + '/auth/v1/token?grant_type=refresh_token', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: saved.refresh_token })
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (!j.access_token) return null;
+    saved.token = j.access_token;
+    if (j.refresh_token) saved.refresh_token = j.refresh_token;
+    saved.salvo_em = Date.now();
+    localStorage.setItem('1n_admin_session', JSON.stringify(saved));
+    return saved.token;
+  } catch(e) { return null; }
+}
+
 async function bootAdmin() {
   let saved = null;
   try {
@@ -3519,35 +3539,33 @@ async function bootAdmin() {
     if (raw) saved = JSON.parse(raw);
   } catch(e) {}
 
-  if (!saved || !saved.token) return; // sem sessão -> mostra login (default)
+  if (!saved || !saved.token) return; // sem sessão -> login
 
-  // Tenta usar o token salvo numa chamada leve à admin-api pra validar
+  // Auto-refresh se token > 50min e tem refresh_token
+  const idade = Date.now() - (saved.salvo_em || 0);
+  if (saved.refresh_token && idade > 50 * 60 * 1000) {
+    const novo = await refreshAdminToken(saved);
+    if (novo) saved.token = novo;
+  }
+
   try {
     const res = await fetch(EDGE, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + saved.token
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + saved.token },
       body: JSON.stringify({ action: 'select', table: 'usuarios', limit: 1 })
     });
     if (res.status === 401 || res.status === 403) {
-      // Token expirado/inválido -> limpa e cai pro login
-      localStorage.removeItem('1n_admin_session');
-      return;
-    }
-    if (!res.ok) {
-      // Outro erro - mantém token salvo, mas mostra login pra ele tentar de novo
-      return;
-    }
-    // Token válido — restaura sessão e entra no painel
+      // Tenta refresh uma última vez antes de derrubar sessão
+      const novo = await refreshAdminToken(saved);
+      if (!novo) { localStorage.removeItem('1n_admin_session'); return; }
+      saved.token = novo;
+    } else if (!res.ok) return;
     __token = saved.token;
     document.getElementById('admin-nome-display').textContent = saved.admin_nome || 'Admin';
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-app').style.display     = 'block';
     loadDashboard();
   } catch(e) {
-    // Erro de rede - não derruba sessão, só não restaura agora
     console.warn('bootAdmin falhou:', e);
   }
 }
