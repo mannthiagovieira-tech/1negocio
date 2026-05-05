@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
   const codigo: string = codigoRpc as any;
 
   // 5. Renderiza texto
-  const texto = renderTemplate(tpl.texto, {
+  const vars: Record<string, string> = {
     nome_assinante: vendedorNome,
     negocio_titulo: neg.codigo_diagnostico || neg.setor || "—",
     cidade: neg.cidade || "—",
@@ -52,7 +52,11 @@ Deno.serve(async (req: Request) => {
     valor_adesao: formatBRL(valor_adesao),
     mensalidade: formatBRL(mensalidade),
     forma_pagamento: forma_pagamento || "—",
-  });
+  };
+  if (formato === "assessorada") {
+    vars.valor_total_contrato = formatBRL((Number(mensalidade) || 0) * 12);
+  }
+  const texto = renderTemplate(tpl.texto, vars);
 
   const linkToken = gerarTokenHex(16);
 
