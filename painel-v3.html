@@ -728,7 +728,8 @@ table.t .acoes { white-space: nowrap; }
 .tpl-card-actions{display:flex;gap:8px;margin-top:14px}
 .tpl-btn{font-family:var(--serif);font-weight:600;font-size:12px;padding:9px 14px;border-radius:999px;border:none;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .tpl-btn-primario{background:var(--accent);color:#0d2b1e}
-.tpl-btn-primario:hover{transform:translateY(-1px);filter:brightness(1.08)}
+.tpl-btn-primario:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.08)}
+.tpl-btn-primario:disabled{background:var(--surface-2);color:var(--ink-4);cursor:not-allowed;opacity:.6}
 .tpl-btn-secundario{background:transparent;border:1px solid var(--line-2);color:var(--ink-2)}
 .tpl-btn-secundario:hover{border-color:var(--accent);color:var(--accent)}
 .tpl-btn-ghost{background:transparent;color:var(--ink-3);border:none}
@@ -1490,7 +1491,7 @@ table.t .acoes { white-space: nowrap; }
               <span style="flex:1"></span>
               <button class="tpl-btn tpl-btn-secundario" onclick="tplPreview()">Pré-visualizar</button>
               <button class="tpl-btn tpl-btn-secundario" onclick="tplSaveDraft()">Salvar rascunho</button>
-              <button class="tpl-btn tpl-btn-primario" onclick="tplPublish()" id="tpl-btn-publicar">Publicar como v—</button>
+              <button class="tpl-btn tpl-btn-primario" onclick="tplPublish()" id="tpl-btn-publicar" disabled title="Salve um rascunho primeiro pra poder publicar">Publicar como v—</button>
             </div>
           </div>
         </div>
@@ -6097,6 +6098,13 @@ const TPL_PREVIEW_VARS = {
 
 let _tplEditing = null;  // {tipo, formato, ativa: {versao, texto, id}, rascunho: {...}|null, novaVersao}
 
+function tplSetPublishEnabled(enabled) {
+  const btn = document.getElementById('tpl-btn-publicar');
+  if (!btn) return;
+  btn.disabled = !enabled;
+  btn.title = enabled ? '' : 'Salve um rascunho primeiro pra poder publicar';
+}
+
 async function tplFetch(url, opts = {}) {
   return fetch(url, {
     ...opts,
@@ -6163,7 +6171,9 @@ async function tplOpenEditor(tipo, formato) {
 
   document.getElementById('tpl-ed-titulo').textContent = 'Editar · ' + def.titulo;
   document.getElementById('tpl-ed-sub').textContent = 'Versão ativa em produção: v' + (ativa.versao || '—');
-  document.getElementById('tpl-btn-publicar').textContent = 'Publicar como v' + novaVersao;
+  const btnPub = document.getElementById('tpl-btn-publicar');
+  btnPub.textContent = 'Publicar como v' + novaVersao;
+  tplSetPublishEnabled(!!rascunho);
 
   const banner = document.getElementById('tpl-banner');
   const btnDescartar = document.getElementById('tpl-btn-descartar');
@@ -6222,6 +6232,7 @@ async function tplSaveDraft() {
   banner.className = 'tpl-banner warn';
   banner.textContent = '⚠ Rascunho salvo às ' + dt + '. Versão em produção continua sendo v' + _tplEditing.ativa.versao + '.';
   document.getElementById('tpl-btn-descartar').style.display = 'inline-flex';
+  tplSetPublishEnabled(true);
 }
 
 async function tplDescartarRascunho() {
@@ -6240,6 +6251,7 @@ async function tplDescartarRascunho() {
   banner.className = 'tpl-banner info';
   banner.textContent = 'Rascunho descartado. Voltou pro texto ativo v' + _tplEditing.ativa.versao + '.';
   document.getElementById('tpl-btn-descartar').style.display = 'none';
+  tplSetPublishEnabled(false);
 }
 
 async function tplPublish() {
