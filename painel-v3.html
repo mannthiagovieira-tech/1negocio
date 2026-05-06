@@ -7989,6 +7989,7 @@ let _dispCnPrevIdx=0;
 function dispInit(){
   dispCarregarOrigens();
   dispCarregarCampanhasFiltro();
+  dispPoolBindLive();
   dispTab(_dispTab);
 }
 
@@ -8031,6 +8032,17 @@ function dispPoolLimparFiltros(){
   ['dpfp-origem','dpfp-cat','dpfp-camp'].forEach(id=>{const s=document.getElementById(id);[...s.options].forEach(o=>o.selected=false);});
   _dispPoolPag=1;
   dispPoolFetch();
+}
+
+let _dispPoolTimer=null;
+function dispPoolDebounce(){clearTimeout(_dispPoolTimer);_dispPoolTimer=setTimeout(()=>{_dispPoolPag=1;dispPoolFetch();},350);}
+function dispPoolBindLive(){
+  if(window._dispPoolBound)return;
+  window._dispPoolBound=true;
+  // text inputs com debounce
+  ['dpfp-estado','dpfp-cidade','dpfp-setor','dpfp-q'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',dispPoolDebounce);});
+  // selects/checkboxes · sem debounce (mudança é click discreto)
+  ['dpfp-origem','dpfp-cat','dpfp-tipo','dpfp-plano','dpfp-celular','dpfp-abord','dpfp-fav','dpfp-desc','dpfp-periodo','dpfp-camp'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('change',()=>{_dispPoolPag=1;dispPoolFetch();});});
 }
 
 async function dispPoolFetch(){
