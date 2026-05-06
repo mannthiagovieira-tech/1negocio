@@ -866,6 +866,29 @@ table.t .acoes { white-space: nowrap; }
 .pr-checkbox{display:flex;align-items:center;gap:8px;font-family:var(--sans);font-size:13px;color:var(--ink-2);cursor:pointer;user-select:none}
 .pr-checkbox input{accent-color:var(--accent);width:16px;height:16px}
 .pr-actions{display:flex;align-items:center;gap:8px;padding:14px 0;flex-wrap:wrap}
+
+/* Projetos Assessorada */
+.pj-prox{font-family:var(--mono);font-size:11px;color:var(--accent);font-weight:600}
+.pj-progresso{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.pj-progresso strong{color:var(--accent);font-weight:700}
+.pj-tarefas{display:flex;flex-direction:column;gap:14px}
+.pj-tarefa{background:var(--surface-2);border:1px solid var(--line-2);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.pj-tarefa.ok{border-color:var(--accent-line);background:var(--accent-soft)}
+.pj-tarefa.now{border-color:rgba(245,200,66,.40)}
+.pj-tarefa-head{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap}
+.pj-tarefa-titulo{font-family:var(--serif);font-weight:700;font-size:14px;color:var(--ink);display:flex;align-items:center;gap:10px}
+.pj-tarefa-icon{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.pj-tarefa-icon.ok{background:var(--accent);color:#0d2b1e;font-weight:700}
+.pj-tarefa-icon.now{background:rgba(245,200,66,.18);color:#f5c842;border:1.5px solid #f5c842}
+.pj-tarefa-icon.future{background:transparent;color:var(--ink-4);border:1.5px solid var(--line-2)}
+.pj-tarefa-meta{font-family:var(--mono);font-size:10px;color:var(--ink-3);letter-spacing:.04em}
+.pj-tarefa-desc{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-left:32px;line-height:1.5}
+.pj-tarefa-actions{display:flex;flex-wrap:wrap;gap:8px;margin-left:32px;margin-top:6px;align-items:center}
+.pj-tarefa-input{background:var(--surface);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px;color:var(--ink);font-family:var(--mono);font-size:11px;outline:none;width:120px}
+.pj-tarefa-input:focus{border-color:var(--accent)}
+.pj-tarefa-textarea{background:var(--surface);border:1px solid var(--line-2);border-radius:8px;padding:8px 10px;color:var(--ink);font-family:var(--sans);font-size:12px;outline:none;width:100%;min-height:60px;resize:vertical;margin-left:32px;margin-top:6px}
+.pj-progresso-bar{height:8px;background:var(--surface);border-radius:999px;overflow:hidden;margin:8px 0 4px;margin-left:32px;max-width:280px}
+.pj-progresso-bar-fill{height:100%;background:var(--accent);transition:width .3s ease}
 </style>
 </head>
 
@@ -942,6 +965,7 @@ table.t .acoes { white-space: nowrap; }
           <div class="nav-item" data-secao="op-termos" onclick="mostrarSecao('op-termos')"><span class="nav-icon">📝</span><span class="nav-label">Termos de Adesão</span></div>
           <div class="nav-item" data-secao="op-ndas" onclick="mostrarSecao('op-ndas')"><span class="nav-icon">🔒</span><span class="nav-label">NDAs</span></div>
           <div class="nav-item" data-secao="op-dossies" onclick="mostrarSecao('op-dossies')"><span class="nav-icon">📂</span><span class="nav-label">Autorizar Dossiês</span></div>
+          <div class="nav-item" data-secao="op-projetos" onclick="mostrarSecao('op-projetos')"><span class="nav-icon">📊</span><span class="nav-label">Projetos · Assessorada</span></div>
         </div>
 
         <!-- MARKETING -->
@@ -1445,6 +1469,43 @@ table.t .acoes { white-space: nowrap; }
           </div>
         </div>
 
+
+        <!-- ═══ Projetos Assessorada · checklist da jornada ═══ -->
+        <section id="secao-op-projetos" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">📊 Projetos · Venda Assessorada</h1>
+            <p class="secao-subtitulo">Checklist da jornada de cada negócio assessorado</p>
+          </header>
+          <div class="td-toolbar">
+            <div class="td-filtros">
+              <div class="td-filtro-grupo" id="pj-fil">
+                <button class="td-fil td-fil-active" data-f="ativos">Ativos (com tarefas)</button>
+                <button class="td-fil" data-f="iniciar">Sem tarefas (iniciar)</button>
+                <button class="td-fil" data-f="todos">Todos</button>
+              </div>
+            </div>
+          </div>
+          <div id="pj-lista" class="td-lista"><div class="td-loading">carregando...</div></div>
+        </section>
+
+        <!-- Modal · Detalhe do projeto -->
+        <div id="pj-detalhe-overlay" class="modal-overlay" style="z-index:1000">
+          <div class="tpl-modal-box" style="max-width:760px">
+            <div class="tpl-editor-head">
+              <div>
+                <div class="tpl-editor-titulo" id="pj-det-titulo">Projeto</div>
+                <div class="tpl-editor-sub" id="pj-det-sub">—</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="td-btn td-btn-secundario" id="pj-btn-ver-cliente" onclick="pjAbrirComoCliente()">Ver como cliente vê →</button>
+                <button class="tpl-btn-close" onclick="document.getElementById('pj-detalhe-overlay').classList.remove('show')">×</button>
+              </div>
+            </div>
+            <div class="td-modal-body">
+              <div id="pj-det-tarefas" class="pj-tarefas"></div>
+            </div>
+          </div>
+        </div>
 
         <!-- ═══ Autorizar Dossiês · solicitacoes_info ═══ -->
         <section id="secao-op-dossies" class="secao">
@@ -2835,6 +2896,7 @@ const SECAO_TITULOS = {
   'op-termos': {grupo:'OPERAÇÕES', titulo:'Termos de Adesão', icone:'📝'},
   'op-ndas': {grupo:'OPERAÇÕES', titulo:'NDAs', icone:'🔒'},
   'op-dossies': {grupo:'OPERAÇÕES', titulo:'Autorizar Dossiês', icone:'📂'},
+  'op-projetos': {grupo:'OPERAÇÕES', titulo:'Projetos · Assessorada', icone:'📊'},
   'atendimento': {grupo:'OPERAÇÕES', titulo:'Atendimento', icone:'📞'},
   'pipeline': {grupo:'OPERAÇÕES', titulo:'Pipeline', icone:'🌱'},
   'aprovacoes': {grupo:'OPERAÇÕES', titulo:'Aprovações', icone:'✅'},
@@ -2905,6 +2967,7 @@ function mostrarSecao(id) {
     if (id === 'op-termos') tdInit();
     if (id === 'op-ndas') ndInit();
     if (id === 'op-dossies') doInit();
+    if (id === 'op-projetos') pjInit();
     if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); lqInit(); saInit(); }
     if (id === 'plano-dia') { cwLoadPlanoFull(); cwLoadPlanoHistorico(); }
     if (id === 'cowork-admin') cwAdmInit();
@@ -7360,6 +7423,199 @@ function ttMostrarSucesso(j, form) {
     </div>
   `;
   document.getElementById('tt-sucesso-overlay').classList.add('show');
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   Projetos Assessorada (pj*)
+   ═════════════════════════════════════════════════════════════════════ */
+let _pjLista = [], _pjFiltro = 'ativos', _pjAbertoId = null;
+
+async function pjInit() {
+  document.querySelectorAll('#pj-fil .td-fil').forEach(b => {
+    b.onclick = () => {
+      document.querySelectorAll('#pj-fil .td-fil').forEach(x => x.classList.remove('td-fil-active'));
+      b.classList.add('td-fil-active');
+      _pjFiltro = b.dataset.f;
+      pjFetch();
+    };
+  });
+  pjFetch();
+}
+
+async function pjFetch() {
+  const cont = document.getElementById('pj-lista');
+  cont.innerHTML = '<div class="td-loading">carregando...</div>';
+  const url = SB + '/rest/v1/negocios?plano=eq.assessorada&select=id,nome,cidade,estado,setor,plano,status,created_at,vendedor:usuarios!vendedor_id(id,nome,whatsapp),tarefas:projeto_tarefas(id,ordem,titulo,concluido,contador_atual,contador_alvo)&order=created_at.desc&limit=100';
+  const r = await tplFetch(url);
+  if (!r.ok) { cont.innerHTML = '<div class="td-loading">erro ' + r.status + '</div>'; return; }
+  let items = await r.json();
+  if (_pjFiltro === 'ativos') items = items.filter(n => (n.tarefas||[]).length > 0);
+  else if (_pjFiltro === 'iniciar') items = items.filter(n => (n.tarefas||[]).length === 0);
+  _pjLista = items;
+  if (!items.length) { cont.innerHTML = '<div class="td-loading">nenhum negócio assessorado encontrado</div>'; return; }
+  cont.innerHTML = items.map(pjRenderItem).join('');
+}
+
+function pjRenderItem(n) {
+  const tarefas = n.tarefas || [];
+  const total = tarefas.length;
+  const concluidas = tarefas.filter(t => t.concluido).length;
+  const proxima = tarefas.find(t => !t.concluido);
+  const negNome = n.nome || '—';
+  const negLocal = (n.cidade||'—') + '/' + (n.estado||'—');
+  const vend = n.vendedor || {};
+  const cont200 = tarefas.find(t => t.contador_alvo);
+  const semTarefas = total === 0;
+
+  return `<div class="td-card">
+    <div class="td-card-head">
+      <div>
+        <div class="td-card-titulo">${tdEscape(negNome)} · ${tdEscape(negLocal)}</div>
+        <div class="td-card-meta">Cliente: ${tdEscape(vend.nome||'—')} · ${tdEscape(vend.whatsapp||'—')}</div>
+        ${semTarefas
+          ? `<div class="td-card-meta" style="color:#dca726;margin-top:4px">⚠ Sem tarefas iniciadas</div>`
+          : `<div class="td-card-meta" style="margin-top:4px"><span class="pj-progresso"><strong>${concluidas}/${total}</strong> tarefas concluídas</span>${proxima?` · Próxima: <span class="pj-prox">${tdEscape(proxima.titulo)}</span>`:''}</div>`
+        }
+        ${cont200 ? `<div class="td-card-meta">+200 contatos: <strong style="color:var(--accent)">${cont200.contador_atual||0}/${cont200.contador_alvo}</strong></div>` : ''}
+      </div>
+    </div>
+    <div class="td-card-actions">
+      ${semTarefas
+        ? `<button class="td-btn td-btn-primario" onclick="pjIniciar('${n.id}')">Iniciar projeto</button>`
+        : `<button class="td-btn td-btn-primario" onclick="pjAbrirDetalhe('${n.id}')">Abrir projeto</button>
+           <button class="td-btn td-btn-secundario" onclick="window.open('/meu-anuncio.html?id=${n.id}','_blank')">Ver como cliente</button>`
+      }
+    </div>
+  </div>`;
+}
+
+async function pjIniciar(negId) {
+  if (!confirm('Iniciar projeto · cria 10 tarefas default. Confirma?')) return;
+  const r = await fetch(SB + '/functions/v1/iniciar-projeto-assessorada', {
+    method: 'POST',
+    headers: { apikey: AK, Authorization: 'Bearer ' + __token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ negocio_id: negId })
+  });
+  const j = await r.json();
+  if (!j.ok) { alert('Erro: ' + (j.erro || r.status)); return; }
+  alert(j.ja_iniciado ? 'Projeto já estava iniciado · ' + j.total_tarefas + ' tarefas' : 'Projeto iniciado · ' + j.total_tarefas + ' tarefas criadas');
+  pjFetch();
+}
+
+async function pjAbrirDetalhe(negId) {
+  _pjAbertoId = negId;
+  document.getElementById('pj-detalhe-overlay').classList.add('show');
+  document.getElementById('pj-det-tarefas').innerHTML = '<div class="td-loading">carregando...</div>';
+  const r = await tplFetch(SB + '/rest/v1/negocios?id=eq.' + negId + '&select=id,nome,cidade,estado,plano,vendedor:usuarios!vendedor_id(nome,whatsapp),tarefas:projeto_tarefas(id,ordem,titulo,descricao,data_prevista,concluido,concluido_em,notas_admin,notas_cliente,contador_atual,contador_alvo)');
+  const arr = r.ok ? await r.json() : [];
+  if (!arr.length) { document.getElementById('pj-det-tarefas').innerHTML = '<div class="td-loading">não encontrado</div>'; return; }
+  const n = arr[0];
+  document.getElementById('pj-det-titulo').textContent = (n.nome || '—');
+  document.getElementById('pj-det-sub').textContent = `${n.cidade||'—'}/${n.estado||'—'} · Cliente: ${n.vendedor?.nome||'—'} · ${n.vendedor?.whatsapp||'—'}`;
+  const tarefas = (n.tarefas || []).slice().sort((a,b) => a.ordem - b.ordem);
+  const proximaIdx = tarefas.findIndex(t => !t.concluido);
+  document.getElementById('pj-det-tarefas').innerHTML = tarefas.map((t, i) => pjRenderTarefa(t, i, proximaIdx)).join('');
+}
+
+function pjRenderTarefa(t, idx, proximaIdx) {
+  const ok = t.concluido;
+  const now = !ok && idx === proximaIdx;
+  const cls = ok ? 'ok' : (now ? 'now' : '');
+  const iconCls = ok ? 'ok' : (now ? 'now' : 'future');
+  const icon = ok ? '✓' : (now ? '⏳' : t.ordem);
+
+  const dataInfo = ok ? `Concluída em ${new Date(t.concluido_em).toLocaleDateString('pt-BR')}`
+                  : (t.data_prevista ? `Previsto: ${new Date(t.data_prevista).toLocaleDateString('pt-BR')}` : '');
+
+  let progresso = '';
+  if (t.contador_alvo && t.contador_alvo > 0) {
+    const atual = t.contador_atual || 0;
+    const pct = Math.min(100, Math.round((atual / t.contador_alvo) * 100));
+    progresso = `
+      <div class="pj-progresso-bar"><div class="pj-progresso-bar-fill" style="width:${pct}%"></div></div>
+      <div class="pj-tarefa-actions">
+        <span class="td-card-meta">Progresso:</span>
+        <input type="number" class="pj-tarefa-input" id="pj-cont-${t.id}" value="${atual}" min="0" max="${t.contador_alvo}" style="width:80px">
+        <span class="td-card-meta">/ ${t.contador_alvo}</span>
+        <button class="td-btn td-btn-secundario" style="padding:6px 12px;font-size:11px" onclick="pjAtualizarContador('${t.id}',${t.contador_alvo})">Atualizar contador</button>
+      </div>
+    `;
+  }
+
+  let acoesConcluir = '';
+  if (!ok) {
+    const podeConc = !t.contador_alvo || (t.contador_atual||0) >= (t.contador_alvo||0);
+    acoesConcluir = `
+      <div class="pj-tarefa-actions">
+        <button class="td-btn td-btn-primario" style="padding:7px 14px;font-size:11px" onclick="pjConcluir('${t.id}')" ${podeConc?'':'disabled title="Atinja a meta primeiro"'}>Marcar como concluída</button>
+        ${!t.contador_alvo ? `<input type="date" class="pj-tarefa-input" id="pj-data-${t.id}" value="${t.data_prevista||''}" style="width:140px">
+        <button class="td-btn td-btn-secundario" style="padding:6px 12px;font-size:11px" onclick="pjAtualizarData('${t.id}')">Atualizar data</button>` : ''}
+      </div>
+      <textarea class="pj-tarefa-textarea" id="pj-na-${t.id}" placeholder="Notas internas (só admin vê)" onblur="pjSalvarNotas('${t.id}','admin',this.value)">${tdEscape(t.notas_admin||'')}</textarea>
+      <textarea class="pj-tarefa-textarea" id="pj-nc-${t.id}" placeholder="Notas pro cliente (aparece em /meu-anuncio quando concluída)" onblur="pjSalvarNotas('${t.id}','cliente',this.value)">${tdEscape(t.notas_cliente||'')}</textarea>
+    `;
+  } else if (t.notas_cliente) {
+    acoesConcluir = `<div class="pj-tarefa-desc" style="margin-top:6px;font-style:italic">"${tdEscape(t.notas_cliente)}"</div>`;
+  }
+
+  return `<div class="pj-tarefa ${cls}">
+    <div class="pj-tarefa-head">
+      <div class="pj-tarefa-titulo">
+        <span class="pj-tarefa-icon ${iconCls}">${icon}</span>
+        ${tdEscape(t.titulo)}
+      </div>
+      <div class="pj-tarefa-meta">${dataInfo}</div>
+    </div>
+    ${t.descricao ? `<div class="pj-tarefa-desc">${tdEscape(t.descricao)}</div>` : ''}
+    ${progresso}
+    ${acoesConcluir}
+  </div>`;
+}
+
+async function pjConcluir(id) {
+  if (!confirm('Marcar como concluída? Cliente vai ver imediatamente.')) return;
+  const r = await tplFetch(SB + '/rest/v1/projeto_tarefas?id=eq.' + id, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ concluido: true, concluido_em: new Date().toISOString() })
+  });
+  if (!r.ok) { alert('Erro: ' + r.status); return; }
+  pjAbrirDetalhe(_pjAbertoId);
+  pjFetch();
+}
+
+async function pjAtualizarContador(id, alvo) {
+  const v = parseInt(document.getElementById('pj-cont-' + id).value || '0', 10);
+  if (v < 0 || v > alvo) { alert('Valor inválido (0 a ' + alvo + ')'); return; }
+  const r = await tplFetch(SB + '/rest/v1/projeto_tarefas?id=eq.' + id, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ contador_atual: v })
+  });
+  if (!r.ok) { alert('Erro: ' + r.status); return; }
+  pjAbrirDetalhe(_pjAbertoId);
+}
+
+async function pjAtualizarData(id) {
+  const v = document.getElementById('pj-data-' + id).value;
+  await tplFetch(SB + '/rest/v1/projeto_tarefas?id=eq.' + id, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ data_prevista: v || null })
+  });
+}
+
+async function pjSalvarNotas(id, tipo, valor) {
+  const campo = tipo === 'admin' ? 'notas_admin' : 'notas_cliente';
+  await tplFetch(SB + '/rest/v1/projeto_tarefas?id=eq.' + id, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ [campo]: valor || null })
+  });
+}
+
+function pjAbrirComoCliente() {
+  if (_pjAbertoId) window.open('/meu-anuncio.html?id=' + _pjAbertoId, '_blank');
 }
 
 window.addEventListener('load', async () => {
