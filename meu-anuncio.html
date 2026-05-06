@@ -95,18 +95,26 @@ async function carregar() {
   if (!negId) { renderErro('Link inválido', 'Falta o ID do negócio na URL.'); return; }
 
   try {
-    // Busca negócio + entregáveis (Fase 1) em paralelo
-    const [rNeg, rEntregaveis] = await Promise.all([
+    // Busca negócio + entregáveis (Fase 1) + termo Assessorada em paralelo
+    const [rNeg, rEntregaveis, rTermo] = await Promise.all([
       fetch(`${SB}/rest/v1/negocios?id=eq.${negId}&select=id,nome,cidade,estado,setor,plano,status,created_at,metadata:projeto_metadata(iniciado_em,proxima_onda_em,status)`, { headers: authHeaders() }),
-      fetch(`${SB}/rest/v1/projeto_entregaveis?negocio_id=eq.${negId}&order=ordem.asc&select=id,ordem,mes_relativo,titulo,descricao_cliente,tipo,data_prevista,status,concluido_em,notas_cliente,contador_atual,contador_alvo`, { headers: authHeaders() })
+      fetch(`${SB}/rest/v1/projeto_entregaveis?negocio_id=eq.${negId}&order=ordem.asc&select=id,ordem,mes_relativo,titulo,descricao_cliente,tipo,data_prevista,status,concluido_em,notas_cliente,contador_atual,contador_alvo`, { headers: authHeaders() }),
+      fetch(`${SB}/rest/v1/termos_adesao?negocio_id=eq.${negId}&plano=eq.assessorada&status=in.(assinado,ativo)&order=assinatura_em.desc.nullslast,gerado_em.desc.nullslast&limit=1&select=id,codigo,plano,status,mensalidade,stripe_subscription_id,stripe_status,ultimo_pagamento_em,proximo_pagamento_em,assinatura_em`, { headers: authHeaders() })
     ]);
     if (!rNeg.ok) { renderErro('Acesso negado', 'Você não tem permissão pra ver este projeto.'); return; }
     const negArr = await rNeg.json();
     if (!negArr.length) { renderErro('Negócio não encontrado', 'Verifique o link.'); return; }
     const neg = negArr[0];
     const entregaveis = rEntregaveis.ok ? await rEntregaveis.json() : [];
+    const termoArr = rTermo.ok ? await rTermo.json() : [];
+    const termo = termoArr[0] || null;
+    let pagamentos = [];
+    if (termo) {
+      const rPag = await fetch(`${SB}/rest/v1/pagamentos_pix_manual?termo_id=eq.${termo.id}&order=competencia.desc&limit=12&select=competencia,valor,recebido_em,registrado_em`, { headers: authHeaders() });
+      if (rPag.ok) pagamentos = await rPag.json();
+    }
 
-    renderTela(neg, entregaveis);
+    renderTela(neg, entregaveis, termo, pagamentos);
   } catch(e) {
     renderErro('Erro de rede', 'Verifique sua conexão e tente novamente.');
   }
@@ -126,7 +134,75 @@ function calcularMesAtual(criadoEm) {
   return Math.max(1, Math.min(12, meses));
 }
 
-function renderTela(neg, entregaveis) {
+function fmtBRL(n){if(n===null||n===undefined)return '—';return Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+function fmtCompetencia(c){
+  if(!c)return '—';
+  const [y,m]=c.split('-');
+  const meses=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const idx=parseInt(m,10)-1;
+  return (meses[idx]||m)+'/'+y;
+}
+
+function renderPagamentos(termo, pagamentosPix) {
+  if (!termo || termo.plano !== 'assessorada') return '';
+  const mens = fmtBRL(termo.mensalidade);
+  const stripeAtivo = !!termo.stripe_subscription_id && termo.stripe_status === 'active';
+  const stripePastDue = termo.stripe_status === 'past_due';
+
+  // Constrói lista dos últimos 6 meses
+  const hoje = new Date();
+  const linhas = [];
+  const compsPagasPix = new Set((pagamentosPix||[]).filter(p => p.recebido_em).map(p => p.competencia));
+  const compAtual = hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
+
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    const c = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const pix = (pagamentosPix||[]).find(p => p.competencia === c && p.recebido_em);
+    if (pix) {
+      linhas.push(`<div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-2);padding:6px 0"><span style="color:var(--em);font-weight:700">✓</span><span>${fmtCompetencia(c)} · pago em ${dataBR(pix.recebido_em)} <span style="color:var(--ink-3);font-size:11px;font-family:var(--mono)">(Pix manual)</span></span></div>`);
+    } else if (stripeAtivo && termo.ultimo_pagamento_em && c === ultimoStripeCompetencia(termo.ultimo_pagamento_em)) {
+      linhas.push(`<div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-2);padding:6px 0"><span style="color:var(--em);font-weight:700">✓</span><span>${fmtCompetencia(c)} · pago em ${dataBR(termo.ultimo_pagamento_em)} <span style="color:var(--ink-3);font-size:11px;font-family:var(--mono)">(Stripe)</span></span></div>`);
+    } else if (c === compAtual) {
+      const lbl = stripeAtivo ? 'em cobrança automática' : (stripePastDue ? 'em atraso · revisar pagamento' : 'pendente');
+      const cor = stripePastDue ? '#c84444' : 'var(--ink-3)';
+      linhas.push(`<div style="display:flex;align-items:center;gap:10px;font-size:13px;color:${cor};padding:6px 0"><span>○</span><span>${fmtCompetencia(c)} · ${lbl}</span></div>`);
+    } else {
+      linhas.push(`<div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-4);padding:6px 0"><span>—</span><span>${fmtCompetencia(c)} · sem registro</span></div>`);
+    }
+  }
+
+  const fonte = stripeAtivo ? 'Cartão (Stripe)' : (stripePastDue ? 'Cartão · em atraso' : 'Pix manual');
+  const proximaInfo = (stripeAtivo && termo.proximo_pagamento_em)
+    ? `<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">Próxima cobrança automática: <strong style="color:var(--ink)">${dataBR(termo.proximo_pagamento_em)}</strong></div>`
+    : '';
+
+  return `
+    <div class="card">
+      <div class="section-titulo">Pagamentos</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+        <div>
+          <div style="font-family:var(--serif);font-weight:700;font-size:20px;color:var(--ink)">R$ ${mens} <span style="font-size:13px;color:var(--ink-3);font-weight:500">/mês</span></div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:2px;letter-spacing:.04em">Forma: ${escapeHtml(fonte)}</div>
+        </div>
+        ${stripePastDue ? '<div style="background:rgba(200,68,68,.10);border:1px solid rgba(200,68,68,.30);color:#c84444;padding:6px 12px;border-radius:999px;font-family:var(--mono);font-size:11px">⚠️ Pagamento em atraso</div>' : ''}
+      </div>
+      <div style="display:flex;flex-direction:column">
+        ${linhas.join('')}
+      </div>
+      ${proximaInfo}
+    </div>
+  `;
+}
+
+function ultimoStripeCompetencia(iso) {
+  // Dado um ultimo_pagamento_em ISO, retorna a competência (YYYY-MM) correspondente.
+  const d = new Date(iso);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+
+function renderTela(neg, entregaveis, termo, pagamentos) {
   const negTit = neg.nome || '—';
   const local = (neg.cidade || '—') + '/' + (neg.estado || '—');
   const setor = neg.setor || '—';
@@ -186,6 +262,9 @@ function renderTela(neg, entregaveis) {
       </div>
     `;
   }
+
+  // Pagamentos (só Assessorada)
+  html += renderPagamentos(termo, pagamentos);
 
   // Contato
   html += `

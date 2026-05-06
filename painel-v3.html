@@ -997,6 +997,9 @@ table.t .acoes { white-space: nowrap; }
           <div class="nav-item" data-secao="op-ndas" onclick="mostrarSecao('op-ndas')"><span class="nav-icon">🔒</span><span class="nav-label">NDAs</span></div>
           <div class="nav-item" data-secao="op-dossies" onclick="mostrarSecao('op-dossies')"><span class="nav-icon">📂</span><span class="nav-label">Autorizar Dossiês</span></div>
           <div class="nav-item" data-secao="op-projetos" onclick="mostrarSecao('op-projetos')"><span class="nav-icon">📊</span><span class="nav-label">Projetos · Assessorada</span></div>
+          <div class="nav-item" data-secao="op-pagamentos" onclick="mostrarSecao('op-pagamentos')"><span class="nav-icon">💸</span><span class="nav-label">Pagamentos · Pix manual</span></div>
+          <div class="nav-item" data-secao="op-zapi-telefones" onclick="mostrarSecao('op-zapi-telefones')"><span class="nav-icon">📞</span><span class="nav-label">Telefones Z-API</span></div>
+          <div class="nav-item" data-secao="op-disparador" onclick="mostrarSecao('op-disparador')"><span class="nav-icon">📨</span><span class="nav-label">Disparador WhatsApp</span></div>
         </div>
 
         <!-- MARKETING -->
@@ -1098,6 +1101,9 @@ table.t .acoes { white-space: nowrap; }
           </header>
           <div class="secao-explicacao"><p>Estado atual do negócio em uma rolagem só. Negócios novos · resultados · decisões pendentes · 11 blocos sequenciais.</p></div>
           <div class="secao-conteudo">
+
+            <!-- 🔥 Leads quentes · 7 dias (esconde se vazio) -->
+            <div id="cock-quentes-slot"></div>
 
             <!-- Entregáveis Projetos · próximos 7 dias -->
             <div class="cock-ent-card" id="cock-entregaveis" style="display:none">
@@ -1549,6 +1555,285 @@ table.t .acoes { white-space: nowrap; }
           </div>
         </section>
 
+        <!-- ═══ Pagamentos · Pix manual · termos sem assinatura Stripe ═══ -->
+        <section id="secao-op-pagamentos" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">💸 Pagamentos · Pix manual</h1>
+            <p class="secao-subtitulo">Termos Assessorada que pagam fora do Stripe · registro manual de mensalidades</p>
+          </header>
+          <div class="td-toolbar">
+            <div class="td-filtros">
+              <div class="td-filtro-grupo" id="pg-fil">
+                <button class="td-fil td-fil-active" data-f="mes_pendente">Mês atual pendentes</button>
+                <button class="td-fil" data-f="ultimos_30">Últimos 30 dias</button>
+                <button class="td-fil" data-f="todos">Todos</button>
+              </div>
+            </div>
+          </div>
+          <div id="pg-resumo" style="margin:10px 0 16px 0;font-size:12px;color:var(--ink-3)"></div>
+          <div id="pg-lista" class="td-lista"><div class="td-loading">carregando...</div></div>
+        </section>
+
+        <!-- Modal · registrar recebimento Pix manual -->
+        <div id="pg-receber-overlay" class="modal-overlay" style="z-index:1115">
+          <div class="td-modal-box" style="max-width:520px">
+            <div class="td-modal-head">
+              <div class="td-modal-titulo">💸 Registrar recebimento</div>
+              <button class="tpl-btn-close" onclick="document.getElementById('pg-receber-overlay').classList.remove('show')">×</button>
+            </div>
+            <div class="td-modal-body">
+              <div id="pg-rec-resumo" style="font-size:13px;color:var(--ink-2);margin-bottom:14px;line-height:1.5"></div>
+              <div style="margin-bottom:10px">
+                <label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Recebido em</label>
+                <input class="td-input" type="date" id="pg-rec-data">
+              </div>
+              <div style="margin-bottom:10px">
+                <label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Notas (opcional)</label>
+                <textarea class="td-textarea" id="pg-rec-notas" rows="3" placeholder="Ex: pago via PIX 0800-... · QRCode da NotaFiscal X"></textarea>
+              </div>
+              <div style="margin-bottom:14px">
+                <label style="display:flex;gap:8px;align-items:center;font-size:12px;cursor:pointer"><input type="checkbox" id="pg-rec-notif" checked> Notificar cliente via WhatsApp</label>
+              </div>
+              <div class="td-suc-actions">
+                <button class="td-btn td-btn-primario" id="pg-btn-confirmar" onclick="pgConfirmarRecebimento()">Confirmar recebimento</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ Telefones Z-API ═══ -->
+        <section id="secao-op-zapi-telefones" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">📞 Telefones Z-API</h1>
+            <p class="secao-subtitulo">Linhas de WhatsApp gerenciadas para envios · cada telefone tem instance/token próprios</p>
+          </header>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <div id="zapi-resumo" style="font-size:12px;color:var(--ink-3)"></div>
+            <button class="td-btn td-btn-primario" onclick="zapiAbrirNovo()">+ Adicionar telefone</button>
+          </div>
+          <div id="zapi-lista" class="td-lista"><div class="td-loading">carregando...</div></div>
+        </section>
+
+        <!-- Modal · adicionar/editar telefone Z-API -->
+        <div id="zapi-form-overlay" class="modal-overlay" style="z-index:1115">
+          <div class="td-modal-box" style="max-width:560px">
+            <div class="td-modal-head">
+              <div class="td-modal-titulo" id="zapi-form-titulo">Adicionar telefone</div>
+              <button class="tpl-btn-close" onclick="zapiFecharForm()">×</button>
+            </div>
+            <div class="td-modal-body">
+              <div class="pa-form-group"><label>Apelido *</label><input class="td-input" id="zapi-f-apelido" placeholder="Ex: 1Negócio · Vendedores"></div>
+              <div class="pa-form-group"><label>Número (E.164) *</label><input class="td-input" id="zapi-f-numero" placeholder="5548999999999"></div>
+              <div class="pa-form-group"><label>Z-API Instance *</label><input class="td-input" id="zapi-f-instance"></div>
+              <div class="pa-form-group"><label>Z-API Token *</label><input class="td-input" type="password" id="zapi-f-token"></div>
+              <div class="pa-form-group"><label>Z-API Client Token *</label><input class="td-input" type="password" id="zapi-f-client"></div>
+              <div style="display:flex;gap:8px">
+                <div class="pa-form-group" style="flex:1"><label>Finalidade</label><select class="td-input" id="zapi-f-finalidade"><option value="vendedores">Vendedores</option><option value="corretores">Corretores</option><option value="compradores">Compradores</option><option value="institucional">Institucional</option></select></div>
+                <div class="pa-form-group" style="flex:1"><label>Limite diário</label><input class="td-input" type="number" id="zapi-f-limite" value="100" min="1" max="2000"></div>
+              </div>
+              <div class="pa-form-group"><label>Notas (opcional)</label><textarea class="td-textarea" id="zapi-f-notas" rows="2"></textarea></div>
+              <div id="zapi-f-status" style="margin:8px 0;font-size:12px"></div>
+              <div class="td-suc-actions" style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="td-btn td-btn-secundario" onclick="zapiTestarConexao()">Testar conexão</button>
+                <button class="td-btn td-btn-primario" onclick="zapiSalvar()">Salvar</button>
+                <button class="td-btn td-btn-ghost" onclick="zapiFecharForm()">Cancelar</button>
+              </div>
+              <div id="zapi-f-webhook-info" style="margin-top:12px;font-size:11px;color:var(--ink-3);display:none;background:var(--surface-2);padding:8px 10px;border-radius:6px"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ Disparador WhatsApp · Pool / Campanhas / Log ═══ -->
+        <section id="secao-op-disparador" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">📨 Disparador WhatsApp</h1>
+            <p class="secao-subtitulo">Pool de leads → seleção → criar campanha · multi-telefone · classificação automática de respostas</p>
+          </header>
+          <div class="pa-tabs" style="margin-bottom:18px">
+            <div class="pa-tab active" data-disp-tab="pool" onclick="dispTab('pool')">🔍 Pool de Leads</div>
+            <div class="pa-tab" data-disp-tab="campanhas" onclick="dispTab('campanhas')">▶ Campanhas <span id="disp-cnt-camp" class="pa-muted"></span></div>
+            <div class="pa-tab" data-disp-tab="log" onclick="dispTab('log')">📚 Log Geral</div>
+          </div>
+
+          <!-- POOL -->
+          <div id="disp-tab-pool" class="disp-tab-content">
+            <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:flex-start">
+              <!-- Filtros -->
+              <div style="background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:14px;position:sticky;top:80px;max-height:calc(100vh - 100px);overflow-y:auto">
+                <div style="font-family:var(--mono);font-size:11px;letter-spacing:.10em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px">Filtros</div>
+                <div style="display:flex;flex-direction:column;gap:10px;font-size:12px">
+                  <div><label style="display:block;font-size:10px;color:var(--ink-3);margin-bottom:3px">Origem</label><select class="td-input" id="dpfp-origem" multiple size="3" style="font-size:11px;padding:4px"></select></div>
+                  <div style="display:flex;gap:6px">
+                    <div style="flex:1"><label style="display:block;font-size:10px;color:var(--ink-3);margin-bottom:3px">Estado</label><input class="td-input" id="dpfp-estado" placeholder="SC" maxlength="2" style="font-size:11px;padding:4px"></div>
+                    <div style="flex:2"><label style="display:block;font-size:10px;color:var(--ink-3);margin-bottom:3px">Cidade</label><input class="td-input" id="dpfp-cidade" style="font-size:11px;padding:4px"></div>
+                  </div>
+                  <div><label style="display:block;font-size:10px;color:var(--ink-3);margin-bottom:3px">Categoria IA</label><select class="td-input" id="dpfp-cat" multiple size="4" style="font-size:11px;padding:4px"><option value="potencial_alto">potencial_alto</option><option value="potencial_medio">potencial_medio</option><option value="potencial_baixo">potencial_baixo</option><option value="descartar">descartar</option></select></div>
+                  <div><label style="display:block;font-size:10px;color:var(--ink-3);margin-bottom:3px">Setor</label><input class="td-input" id="dpfp-setor" placeholder="ex: alimentacao,saude" style="font-size:11px;padding:4px"></div>
+                  <div><label style="display:block;font-size:10px;color:var(--ink-3);margin-bottom:3px">Tipo de lead</label><select class="td-input" id="dpfp-tipo" style="font-size:11px;padding:4px"><option value="">qualquer</option><option value="vendedor">vendedor</option><option value="corretor">corretor</option><option value="comprador">comprador</option><option value="indef">indef</option></select></div>
+                  <div><label style="display:block;font-size:10px;color:var(--ink-3);margin-bottom:3px">Plano alvo</label><select class="td-input" id="dpfp-plano" style="font-size:11px;padding:4px"><option value="">qualquer</option><option value="gratuito">gratuito</option><option value="guiado">guiado</option><option value="assessorada">assessorada</option></select></div>
+                  <div><label style="display:flex;gap:6px;align-items:center;font-size:11px"><input type="checkbox" id="dpfp-celular" checked> Tem celular</label></div>
+                  <div><label style="display:block;font-size:10px;color:var(--ink-3);margin-bottom:3px">Status abordagem</label><select class="td-input" id="dpfp-abord" style="font-size:11px;padding:4px"><option value="nunca">nunca abordado</option><option value="ja">já abordado</option><option value="">qualquer</option></select></div>
+                  <div style="display:flex;gap:8px;font-size:11px">
+                    <label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="dpfp-fav"> Favorito</label>
+                    <label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="dpfp-desc"> Descartado</label>
+                  </div>
+                  <div><label style="display:block;font-size:10px;color:var(--ink-3);margin-bottom:3px">Período cadastro</label><select class="td-input" id="dpfp-periodo" style="font-size:11px;padding:4px"><option value="">todos</option><option value="7">7 dias</option><option value="30">30 dias</option><option value="90">90 dias</option></select></div>
+                  <div><label style="display:block;font-size:10px;color:var(--ink-3);margin-bottom:3px">Já enviado em campanha</label><select class="td-input" id="dpfp-camp" multiple size="3" style="font-size:11px;padding:4px"></select><div style="font-size:9px;color:var(--ink-4);margin-top:2px">selecionar exclui leads dessas campanhas</div></div>
+                  <div><label style="display:block;font-size:10px;color:var(--ink-3);margin-bottom:3px">Busca livre (nome/telefone)</label><input class="td-input" id="dpfp-q" style="font-size:11px;padding:4px"></div>
+                  <div style="display:flex;gap:6px;margin-top:6px">
+                    <button class="td-btn td-btn-ghost" style="flex:1;font-size:11px;padding:6px" onclick="dispPoolLimparFiltros()">Limpar</button>
+                    <button class="td-btn td-btn-primario" style="flex:1;font-size:11px;padding:6px" onclick="dispPoolFetch()">Aplicar</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Lista leads -->
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                  <div id="disp-pool-resumo" style="font-size:13px;color:var(--ink-2)">—</div>
+                  <div style="display:flex;gap:6px">
+                    <button class="td-btn td-btn-ghost" style="font-size:11px;padding:5px 10px" onclick="dispPoolSelTodos()">Selecionar todos</button>
+                    <button class="td-btn td-btn-ghost" style="font-size:11px;padding:5px 10px" onclick="dispPoolInverter()">Inverter</button>
+                  </div>
+                </div>
+                <div id="disp-pool-lista"><div class="td-loading">carregando...</div></div>
+                <div id="disp-pool-paginacao" style="margin-top:14px;text-align:center"></div>
+              </div>
+            </div>
+
+            <!-- Sticky bottom · seleção -->
+            <div id="disp-pool-sticky" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:2px solid var(--em);padding:12px 24px;box-shadow:0 -4px 16px rgba(0,0,0,.15);z-index:50;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+              <div id="disp-pool-sel-count" style="font-family:var(--mono);font-size:13px;color:var(--ink)"></div>
+              <div style="display:flex;gap:8px">
+                <button class="td-btn td-btn-ghost" onclick="dispPoolMarcar('favorito')">⭐ Favoritar</button>
+                <button class="td-btn td-btn-ghost" onclick="dispPoolMarcar('descartado')">🗑 Descartar</button>
+                <button class="td-btn td-btn-primario" onclick="dispCampanhaAbrirNova()">+ Criar campanha</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- CAMPANHAS -->
+          <div id="disp-tab-campanhas" class="disp-tab-content" style="display:none">
+            <div style="margin-bottom:14px">
+              <div class="td-filtro-grupo" id="disp-camp-fil">
+                <button class="td-fil td-fil-active" data-st="rodando">Rodando</button>
+                <button class="td-fil" data-st="agendada">Agendadas</button>
+                <button class="td-fil" data-st="pausada">Pausadas</button>
+                <button class="td-fil" data-st="concluida">Concluídas</button>
+                <button class="td-fil" data-st="rascunho">Rascunhos</button>
+                <button class="td-fil" data-st="">Todas</button>
+              </div>
+            </div>
+            <div id="disp-camp-lista"><div class="td-loading">carregando...</div></div>
+          </div>
+
+          <!-- LOG GERAL -->
+          <div id="disp-tab-log" class="disp-tab-content" style="display:none">
+            <div style="margin-bottom:14px">
+              <div class="td-filtro-grupo" id="disp-log-fil">
+                <button class="td-fil td-fil-active" data-st="">Todos</button>
+                <button class="td-fil" data-st="enviado">Enviados</button>
+                <button class="td-fil" data-st="pendente">Pendentes</button>
+                <button class="td-fil" data-st="respondido">Respondidos</button>
+                <button class="td-fil" data-st="erro">Erros</button>
+              </div>
+            </div>
+            <div id="disp-log-lista"><div class="td-loading">carregando...</div></div>
+          </div>
+        </section>
+
+        <!-- Modal · Nova campanha -->
+        <div id="disp-camp-nova-overlay" class="modal-overlay" style="z-index:1120">
+          <div class="td-modal-box" style="max-width:680px;max-height:90vh;overflow-y:auto">
+            <div class="td-modal-head">
+              <div class="td-modal-titulo">+ Nova campanha</div>
+              <button class="tpl-btn-close" onclick="document.getElementById('disp-camp-nova-overlay').classList.remove('show')">×</button>
+            </div>
+            <div class="td-modal-body">
+              <div id="disp-cn-resumo-leads" style="background:var(--surface-2);padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px"></div>
+              <div class="pa-form-group"><label>Nome interno *</label><input class="td-input" id="disp-cn-nome" placeholder="ex: Convite assessorada · SC · 2026-05"></div>
+
+              <div style="margin:14px 0 8px 0;font-family:var(--mono);font-size:11px;letter-spacing:.10em;text-transform:uppercase;color:var(--ink-3)">Telefone de envio</div>
+              <div id="disp-cn-telefones" style="display:flex;flex-direction:column;gap:6px"></div>
+
+              <div style="margin:14px 0 8px 0;font-family:var(--mono);font-size:11px;letter-spacing:.10em;text-transform:uppercase;color:var(--ink-3)">Mensagem</div>
+              <div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">Variáveis: {nome} {primeiro_nome} {cidade} {estado} {setor}</div>
+              <textarea class="td-textarea" id="disp-cn-msg" rows="5" placeholder="Olá {primeiro_nome}, tudo bem? Sou da 1Negócio..." oninput="dispCnAtualizarPreview()"></textarea>
+              <div id="disp-cn-preview" style="margin-top:8px;background:var(--surface-2);padding:10px 12px;border-radius:6px;font-size:12px;color:var(--ink-2);min-height:60px;white-space:pre-wrap"></div>
+              <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+                <button class="td-btn td-btn-ghost" style="font-size:11px;padding:4px 10px" onclick="dispCnPrevAnt()">‹ anterior</button>
+                <span id="disp-cn-prev-idx" style="font-size:11px;color:var(--ink-3)">—</span>
+                <button class="td-btn td-btn-ghost" style="font-size:11px;padding:4px 10px" onclick="dispCnPrevProx()">próximo ›</button>
+              </div>
+
+              <div style="margin:14px 0 8px 0;font-family:var(--mono);font-size:11px;letter-spacing:.10em;text-transform:uppercase;color:var(--ink-3)">Cadência</div>
+              <div style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+                <label><input type="radio" name="disp-cn-veloc" value="5"> Devagar · 5/dia</label>
+                <label><input type="radio" name="disp-cn-veloc" value="20" checked> Normal · 20/dia</label>
+                <label><input type="radio" name="disp-cn-veloc" value="50"> Rápido · 50/dia</label>
+                <label><input type="radio" name="disp-cn-veloc" value="custom"> Custom · <input class="td-input" type="number" id="disp-cn-veloc-custom" min="1" max="500" style="display:inline-block;width:80px;margin-left:4px"> /dia</label>
+              </div>
+              <div style="margin-top:10px;font-size:13px">
+                <label style="display:block;margin-bottom:4px">Janela:</label>
+                <label style="display:block"><input type="radio" name="disp-cn-janela" value="comercial" checked> Comercial · 9h-18h · seg-sex</label>
+                <label style="display:block"><input type="radio" name="disp-cn-janela" value="estendido"> Estendido · 8h-21h · seg-sáb</label>
+                <label style="display:block"><input type="radio" name="disp-cn-janela" value="247"> 24/7</label>
+              </div>
+              <div style="margin-top:10px;font-size:11px;color:var(--ink-3)">Pausa entre envios: random 30-90s</div>
+              <div id="disp-cn-estimativa" style="margin-top:10px;font-size:13px;color:var(--ink-2);background:var(--em-d,rgba(10,168,90,.10));padding:8px 12px;border-radius:6px"></div>
+
+              <div id="disp-cn-status" style="margin:8px 0;font-size:12px"></div>
+
+              <div class="td-suc-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+                <button class="td-btn td-btn-ghost" onclick="document.getElementById('disp-camp-nova-overlay').classList.remove('show')">Cancelar</button>
+                <button class="td-btn td-btn-secundario" onclick="dispCnSalvar('rascunho')">💾 Salvar rascunho</button>
+                <button class="td-btn td-btn-secundario" onclick="dispCnSalvar('agendada')">📅 Agendar</button>
+                <button class="td-btn td-btn-primario" onclick="dispCnSalvar('rodando')">▶ Iniciar agora</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal · ver leads de uma campanha -->
+        <div id="disp-camp-leads-overlay" class="modal-overlay" style="z-index:1120">
+          <div class="td-modal-box" style="max-width:780px;max-height:90vh;overflow-y:auto">
+            <div class="td-modal-head">
+              <div class="td-modal-titulo" id="disp-cl-titulo">Leads da campanha</div>
+              <button class="tpl-btn-close" onclick="document.getElementById('disp-camp-leads-overlay').classList.remove('show')">×</button>
+            </div>
+            <div class="td-modal-body">
+              <div class="td-filtro-grupo" id="disp-cl-fil" style="margin-bottom:12px">
+                <button class="td-fil td-fil-active" data-st="">Todos</button>
+                <button class="td-fil" data-st="quente">🔥 Quentes</button>
+                <button class="td-fil" data-st="enviado">Enviados</button>
+                <button class="td-fil" data-st="pendente">Pendentes</button>
+                <button class="td-fil" data-st="respondido">Respondidos</button>
+                <button class="td-fil" data-st="erro">Erros</button>
+              </div>
+              <div id="disp-cl-lista"><div class="td-loading">carregando...</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal · editar mensagem campanha em curso -->
+        <div id="disp-camp-edit-msg-overlay" class="modal-overlay" style="z-index:1125">
+          <div class="td-modal-box" style="max-width:560px">
+            <div class="td-modal-head">
+              <div class="td-modal-titulo">Editar mensagem</div>
+              <button class="tpl-btn-close" onclick="document.getElementById('disp-camp-edit-msg-overlay').classList.remove('show')">×</button>
+            </div>
+            <div class="td-modal-body">
+              <div style="background:rgba(220,167,38,.10);padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;border-left:3px solid #dca726">⚠️ Mudança aplica APENAS pra leads ainda não enviados nesta campanha</div>
+              <textarea class="td-textarea" id="disp-em-msg" rows="6"></textarea>
+              <input type="hidden" id="disp-em-id">
+              <div class="td-suc-actions" style="margin-top:12px;display:flex;gap:8px">
+                <button class="td-btn td-btn-ghost" onclick="document.getElementById('disp-camp-edit-msg-overlay').classList.remove('show')">Cancelar</button>
+                <button class="td-btn td-btn-primario" onclick="dispCampSalvarMsgEdit()">Salvar nova mensagem</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- ═══ Autorizar Dossiês · solicitacoes_info ═══ -->
         <section id="secao-op-dossies" class="secao">
           <header class="secao-header">
@@ -1569,6 +1854,31 @@ table.t .acoes { white-space: nowrap; }
             <div class="td-loading">carregando...</div>
           </div>
         </section>
+
+        <!-- Modal · Stripe Checkout gerado (Assessorada) -->
+        <div id="td-stripe-overlay" class="modal-overlay" style="z-index:1110">
+          <div class="td-modal-box" style="max-width:560px">
+            <div class="td-modal-head">
+              <div class="td-modal-titulo">💳 Stripe Checkout gerado</div>
+              <button class="tpl-btn-close" onclick="tdFecharStripe()">×</button>
+            </div>
+            <div class="td-modal-body">
+              <div class="td-suc-codigo">Termo <span id="td-stripe-codigo">—</span> · <span id="td-stripe-mens">—</span>/mês</div>
+              <div class="td-suc-link-row">
+                <input class="td-input" id="td-stripe-link" readonly>
+                <button class="td-btn td-btn-secundario" onclick="tdCopiarFromInput('td-stripe-link')">Copiar link</button>
+              </div>
+              <div class="td-suc-msg-row">
+                <textarea class="td-textarea" id="td-stripe-msg" rows="6"></textarea>
+              </div>
+              <input type="hidden" id="td-stripe-tel">
+              <div class="td-suc-actions">
+                <button class="td-btn td-btn-primario" onclick="tdEnviarWhatsStripe()">Enviar via WhatsApp</button>
+              </div>
+              <div style="margin-top:10px;font-size:11px;color:#777">Quando o cliente concluir o pagamento, a assinatura é ativada automaticamente via webhook. Cobrança recorrente mensal a partir daí.</div>
+            </div>
+          </div>
+        </div>
 
         <!-- Modal · Sucesso (compartilhado entre Termo e NDA) -->
         <div id="td-sucesso-overlay" class="modal-overlay" style="z-index:1100">
@@ -2939,6 +3249,9 @@ const SECAO_TITULOS = {
   'op-ndas': {grupo:'OPERAÇÕES', titulo:'NDAs', icone:'🔒'},
   'op-dossies': {grupo:'OPERAÇÕES', titulo:'Autorizar Dossiês', icone:'📂'},
   'op-projetos': {grupo:'OPERAÇÕES', titulo:'Projetos · Assessorada', icone:'📊'},
+  'op-pagamentos': {grupo:'OPERAÇÕES', titulo:'Pagamentos · Pix manual', icone:'💸'},
+  'op-zapi-telefones': {grupo:'OPERAÇÕES', titulo:'Telefones Z-API', icone:'📞'},
+  'op-disparador': {grupo:'OPERAÇÕES', titulo:'Disparador WhatsApp', icone:'📨'},
   'atendimento': {grupo:'OPERAÇÕES', titulo:'Atendimento', icone:'📞'},
   'pipeline': {grupo:'OPERAÇÕES', titulo:'Pipeline', icone:'🌱'},
   'aprovacoes': {grupo:'OPERAÇÕES', titulo:'Aprovações', icone:'✅'},
@@ -3010,7 +3323,10 @@ function mostrarSecao(id) {
     if (id === 'op-ndas') ndInit();
     if (id === 'op-dossies') doInit();
     if (id === 'op-projetos') pjInit();
-    if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); lqInit(); saInit(); cockEntregaveisCarregar(); }
+    if (id === 'op-pagamentos') pgInit();
+    if (id === 'op-zapi-telefones') zapiInit();
+    if (id === 'op-disparador') dispInit();
+    if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); lqInit(); saInit(); cockEntregaveisCarregar(); cockQuentesCarregar(); }
     if (id === 'plano-dia') { cwLoadPlanoFull(); cwLoadPlanoHistorico(); }
     if (id === 'cowork-admin') cwAdmInit();
     if (id === 'triagem-olx') trInit();
@@ -6875,7 +7191,7 @@ async function tdFetchLista(){
   const cont=document.getElementById('td-lista');
   cont.innerHTML='<div class="td-loading">carregando...</div>';
   const offset=(_tdPag-1)*TD_PAG;
-  let url=SB+'/rest/v1/termos_adesao?select=id,codigo,plano,status,gerado_em,abertura_em,assinatura_em,negocio_id,vendedor_id,representante_nome,razao_social,whatsapp,link_token&order=gerado_em.desc.nullslast,abertura_em.desc&limit='+TD_PAG+'&offset='+offset;
+  let url=SB+'/rest/v1/termos_adesao?select=id,codigo,plano,status,gerado_em,abertura_em,assinatura_em,negocio_id,vendedor_id,representante_nome,razao_social,whatsapp,link_token,mensalidade,stripe_subscription_id,stripe_status,ultimo_pagamento_em,proximo_pagamento_em&order=gerado_em.desc.nullslast,abertura_em.desc&limit='+TD_PAG+'&offset='+offset;
   if(_tdFiltros.status){url+='&status=in.('+_tdFiltros.status.split(',').join(',')+')';}
   if(_tdFiltros.plano){url+='&plano=eq.'+_tdFiltros.plano;}
   if(_tdFiltros.q){
@@ -6903,7 +7219,68 @@ function tdRenderItem(t,neg){
   const dt=t.gerado_em?new Date(t.gerado_em).toLocaleDateString('pt-BR'):(t.abertura_em?new Date(t.abertura_em).toLocaleDateString('pt-BR'):'—');
   const podeCancelar=['pendente','gerado','enviado','visualizado'].includes(t.status);
   const podeEnviar=!!t.link_token&&!!t.whatsapp;
-  return `<div class="td-card"><div class="td-card-head"><div><div class="td-card-codigo">${t.codigo} · ${planoLbl}</div><div class="td-card-titulo">${tdEscape(negNome)}${negLocal?' · '+negLocal:''}</div><div class="td-card-meta">Vendedor: ${tdEscape(t.representante_nome||t.razao_social||'—')} · Gerado: ${dt}</div></div><span class="td-status s-${t.status}"><span class="td-status-dot"></span>${STATUS_LBL[t.status]||t.status}</span></div><div class="td-card-actions">${t.link_token?`<button class="td-btn td-btn-secundario" onclick="tdCopiarLink('${t.link_token}','termo')">Copiar link</button>`:''}${podeEnviar?`<button class="td-btn td-btn-secundario" onclick="tdEnviarWhats('${t.id}','termo')">Enviar WhatsApp</button>`:''}<button class="td-btn td-btn-secundario" onclick="tdVer('${t.id}','termo')">Ver</button>${podeCancelar?`<button class="td-btn td-btn-perigo" onclick="tdCancelar('${t.id}','termo')">Cancelar</button>`:''}</div></div>`;
+  const stripeBlock=tdRenderStripeBlock(t);
+  return `<div class="td-card"><div class="td-card-head"><div><div class="td-card-codigo">${t.codigo} · ${planoLbl}</div><div class="td-card-titulo">${tdEscape(negNome)}${negLocal?' · '+negLocal:''}</div><div class="td-card-meta">Vendedor: ${tdEscape(t.representante_nome||t.razao_social||'—')} · Gerado: ${dt}</div></div><span class="td-status s-${t.status}"><span class="td-status-dot"></span>${STATUS_LBL[t.status]||t.status}</span></div>${stripeBlock}<div class="td-card-actions">${t.link_token?`<button class="td-btn td-btn-secundario" onclick="tdCopiarLink('${t.link_token}','termo')">Copiar link</button>`:''}${podeEnviar?`<button class="td-btn td-btn-secundario" onclick="tdEnviarWhats('${t.id}','termo')">Enviar WhatsApp</button>`:''}<button class="td-btn td-btn-secundario" onclick="tdVer('${t.id}','termo')">Ver</button>${tdRenderStripeAction(t,neg)}${podeCancelar?`<button class="td-btn td-btn-perigo" onclick="tdCancelar('${t.id}','termo')">Cancelar</button>`:''}</div></div>`;
+}
+
+function tdRenderStripeBlock(t){
+  if(t.plano!=='assessorada')return '';
+  if(!t.stripe_subscription_id)return '';
+  const stMap={active:{lbl:'Ativa',cor:'#0d8a4a'},past_due:{lbl:'Em atraso',cor:'#c0392b'},canceled:{lbl:'Cancelada',cor:'#777'},incomplete:{lbl:'Incompleta',cor:'#888'},unpaid:{lbl:'Não paga',cor:'#c0392b'}};
+  const st=stMap[t.stripe_status]||{lbl:(t.stripe_status||'—'),cor:'#888'};
+  const ult=t.ultimo_pagamento_em?new Date(t.ultimo_pagamento_em).toLocaleDateString('pt-BR'):'—';
+  const prox=t.proximo_pagamento_em?new Date(t.proximo_pagamento_em).toLocaleDateString('pt-BR'):'—';
+  const mens=t.mensalidade?Number(t.mensalidade).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
+  return `<div style="margin:8px 0;padding:8px 10px;background:#f5f7fa;border-radius:6px;font-size:11px;color:#333;display:flex;gap:14px;flex-wrap:wrap;align-items:center"><span style="display:inline-flex;align-items:center;gap:6px;font-weight:600"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${st.cor}"></span>Stripe · ${st.lbl}</span><span>R$ ${mens}/mês</span><span>último pago: ${ult}</span><span>próx: ${prox}</span></div>`;
+}
+
+function tdRenderStripeAction(t,neg){
+  if(t.plano!=='assessorada')return '';
+  const elegivel=['assinado','ativo'].includes(t.status);
+  if(!elegivel)return '';
+  if(t.stripe_subscription_id){
+    return `<button class="td-btn td-btn-secundario" onclick="tdAbrirStripeDashboard('${t.stripe_subscription_id}')">Ver no Stripe</button>`;
+  }
+  if(!t.mensalidade||Number(t.mensalidade)<=0)return '';
+  const payload=JSON.stringify({id:t.id,codigo:t.codigo,mensalidade:t.mensalidade,nome:t.representante_nome||t.razao_social||'',whatsapp:t.whatsapp||'',negocio_nome:(neg&&(neg.nome||neg.codigo_diagnostico))||''}).replace(/'/g,'&apos;').replace(/"/g,'&quot;');
+  return `<button class="td-btn td-btn-secundario" onclick='tdGerarCheckoutStripe(${payload})'>💳 Gerar checkout</button>`;
+}
+
+function tdAbrirStripeDashboard(subId){
+  if(!subId){alert('Sem subscription_id');return;}
+  window.open('https://dashboard.stripe.com/subscriptions/'+encodeURIComponent(subId),'_blank');
+}
+
+async function tdGerarCheckoutStripe(t){
+  const conf=confirm(`Gerar Stripe Checkout pra ${t.codigo}?\n\nMensalidade: R$ ${Number(t.mensalidade).toLocaleString('pt-BR',{minimumFractionDigits:2})}\nCliente: ${t.nome||'—'}\n\nUma assinatura mensal será criada. O cliente paga a primeira mensalidade pelo link.`);
+  if(!conf)return;
+  try{
+    const r=await fetch(SB+'/functions/v1/criar-checkout-stripe-termo',{method:'POST',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({termo_id:t.id})});
+    const j=await r.json();
+    if(!j.ok){alert('Erro: '+(j.erro||r.status));return;}
+    tdMostrarSucessoStripe(j,t);
+    tdFetchLista();
+  }catch(e){alert('Erro de rede: '+e.message);}
+}
+
+function tdMostrarSucessoStripe(resp,t){
+  document.getElementById('td-stripe-codigo').textContent=t.codigo;
+  document.getElementById('td-stripe-mens').textContent='R$ '+Number(t.mensalidade).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('td-stripe-link').value=resp.checkout_url;
+  const primeiroNome=(t.nome||'').split(' ')[0]||'';
+  const valor=Number(t.mensalidade).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('td-stripe-msg').value=`Olá ${primeiroNome}! Segue o link pra pagar a primeira mensalidade da sua Venda Assessorada (R$ ${valor}):\n\n${resp.checkout_url}\n\nApós o pagamento, sua assinatura é configurada automaticamente. Qualquer dúvida estou à disposição.`;
+  document.getElementById('td-stripe-tel').value=(t.whatsapp||'').replace(/\D/g,'');
+  document.getElementById('td-stripe-overlay').classList.add('show');
+}
+
+function tdFecharStripe(){document.getElementById('td-stripe-overlay').classList.remove('show');}
+
+function tdEnviarWhatsStripe(){
+  const tel=(document.getElementById('td-stripe-tel').value||'').replace(/\D/g,'');
+  if(!tel){alert('Sem telefone');return;}
+  const msg=encodeURIComponent(document.getElementById('td-stripe-msg').value);
+  window.open(`https://wa.me/${tel}?text=${msg}`,'_blank');
 }
 
 function tdRenderPaginacao(total){
@@ -7467,6 +7844,782 @@ function ttMostrarSucesso(j, form) {
   document.getElementById('tt-sucesso-overlay').classList.add('show');
 }
 
+
+/* ═════════════════════════════════════════════════════════════════════
+   Telefones Z-API · cadastro multi-telefone
+   ═════════════════════════════════════════════════════════════════════ */
+let _zapiLista=[], _zapiEditId=null;
+
+async function zapiInit(){ zapiList(); }
+
+async function zapiList(){
+  const cont=document.getElementById('zapi-lista');
+  cont.innerHTML='<div class="td-loading">carregando...</div>';
+  const r=await tplFetch(SB+'/rest/v1/zapi_telefones?select=*&order=created_at.desc');
+  if(!r.ok){cont.innerHTML='<div class="td-loading">erro '+r.status+'</div>';return;}
+  _zapiLista=await r.json();
+  const total=_zapiLista.length;
+  const ativos=_zapiLista.filter(t=>t.ativo).length;
+  document.getElementById('zapi-resumo').textContent=`${total} telefones · ${ativos} ativos`;
+  if(!total){cont.innerHTML='<div class="td-loading">nenhum telefone cadastrado</div>';return;}
+  cont.innerHTML=_zapiLista.map(zapiCard).join('');
+}
+
+function zapiCard(t){
+  const corStatus={'conectado':'#0d8a4a','desconectado':'#c0392b','desconhecido':'#888'}[t.status_conexao]||'#888';
+  const lblStatus={'conectado':'🟢 conectado','desconectado':'🔴 desconectado','desconhecido':'⚪ desconhecido'}[t.status_conexao]||t.status_conexao;
+  const ult=t.ultima_atividade?new Date(t.ultima_atividade).toLocaleString('pt-BR'):'—';
+  return `<div class="td-card"><div class="td-card-head"><div><div class="td-card-codigo">${tdEscape(t.apelido)} · ${tdEscape(t.numero)}</div><div class="td-card-meta">Finalidade: ${tdEscape(t.finalidade||'—')} · ${t.ativo?'ATIVO':'PAUSADO'}</div><div class="td-card-meta" style="margin-top:4px">Hoje ${t.total_enviados_hoje||0}/${t.limite_diario||0} · total histórico ${t.total_enviados_total||0} · última atividade ${ult}</div></div><span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:${corStatus};font-family:var(--mono)">${lblStatus}</span></div><div class="td-card-actions"><button class="td-btn td-btn-secundario" onclick='zapiAbrirEditar(${JSON.stringify(t).replace(/'/g,"&apos;").replace(/"/g,"&quot;")})'>Editar</button><button class="td-btn td-btn-secundario" onclick="zapiToggleAtivo('${t.id}',${!t.ativo})">${t.ativo?'Pausar':'Ativar'}</button><button class="td-btn td-btn-secundario" onclick="zapiPing('${t.id}')">Testar conexão</button></div></div>`;
+}
+
+function zapiAbrirNovo(){
+  _zapiEditId=null;
+  document.getElementById('zapi-form-titulo').textContent='Adicionar telefone';
+  ['zapi-f-apelido','zapi-f-numero','zapi-f-instance','zapi-f-token','zapi-f-client','zapi-f-notas'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('zapi-f-finalidade').value='vendedores';
+  document.getElementById('zapi-f-limite').value='100';
+  document.getElementById('zapi-f-status').textContent='';
+  document.getElementById('zapi-f-webhook-info').style.display='none';
+  document.getElementById('zapi-form-overlay').classList.add('show');
+}
+
+function zapiAbrirEditar(t){
+  _zapiEditId=t.id;
+  document.getElementById('zapi-form-titulo').textContent='Editar telefone';
+  document.getElementById('zapi-f-apelido').value=t.apelido||'';
+  document.getElementById('zapi-f-numero').value=t.numero||'';
+  document.getElementById('zapi-f-instance').value=t.zapi_instance||'';
+  document.getElementById('zapi-f-token').value=t.zapi_token||'';
+  document.getElementById('zapi-f-client').value=t.zapi_client_token||'';
+  document.getElementById('zapi-f-finalidade').value=t.finalidade||'vendedores';
+  document.getElementById('zapi-f-limite').value=t.limite_diario||100;
+  document.getElementById('zapi-f-notas').value=t.notas||'';
+  zapiMostrarWebhook(t.id);
+  document.getElementById('zapi-f-status').textContent='';
+  document.getElementById('zapi-form-overlay').classList.add('show');
+}
+
+function zapiFecharForm(){document.getElementById('zapi-form-overlay').classList.remove('show');}
+
+function zapiMostrarWebhook(id){
+  const url=`${SB}/functions/v1/zapi-webhook-resposta?telefone_id=${id}`;
+  const div=document.getElementById('zapi-f-webhook-info');
+  div.innerHTML=`<strong>URL do webhook</strong> (configurar no painel Z-API · evento "Ao Receber"):<br><code style="word-break:break-all">${url}</code>`;
+  div.style.display='block';
+}
+
+function zapiPayloadForm(){
+  return {
+    apelido:document.getElementById('zapi-f-apelido').value.trim(),
+    numero:document.getElementById('zapi-f-numero').value.replace(/\D/g,''),
+    zapi_instance:document.getElementById('zapi-f-instance').value.trim(),
+    zapi_token:document.getElementById('zapi-f-token').value.trim(),
+    zapi_client_token:document.getElementById('zapi-f-client').value.trim(),
+    finalidade:document.getElementById('zapi-f-finalidade').value,
+    limite_diario:parseInt(document.getElementById('zapi-f-limite').value,10)||100,
+    notas:document.getElementById('zapi-f-notas').value||null,
+  };
+}
+
+async function zapiTestarConexao(){
+  const p=zapiPayloadForm();
+  const status=document.getElementById('zapi-f-status');
+  if(!p.zapi_instance||!p.zapi_token||!p.zapi_client_token){status.style.color='#c0392b';status.textContent='Preencha instance, token e client token antes';return;}
+  status.style.color='var(--ink-3)';status.textContent='Testando...';
+  try{
+    const url=`https://api.z-api.io/instances/${encodeURIComponent(p.zapi_instance)}/token/${encodeURIComponent(p.zapi_token)}/status`;
+    const r=await fetch(url,{headers:{'client-token':p.zapi_client_token}});
+    if(!r.ok){status.style.color='#c0392b';status.textContent=`HTTP ${r.status} · credenciais inválidas?`;return;}
+    const j=await r.json();
+    const conectado=j?.connected===true||j?.smartphoneConnected===true;
+    status.style.color=conectado?'#0d8a4a':'#dca726';
+    status.textContent=conectado?'✓ conectado · '+JSON.stringify(j).slice(0,120):'⚠ resposta válida mas sem conexão · '+JSON.stringify(j).slice(0,120);
+  }catch(e){status.style.color='#c0392b';status.textContent='Erro: '+e.message;}
+}
+
+async function zapiSalvar(){
+  const p=zapiPayloadForm();
+  const status=document.getElementById('zapi-f-status');
+  if(!p.apelido||!p.numero||!p.zapi_instance||!p.zapi_token||!p.zapi_client_token){status.style.color='#c0392b';status.textContent='Apelido, número, instance, token e client token são obrigatórios';return;}
+  status.style.color='var(--ink-3)';status.textContent='Salvando...';
+  let r;
+  if(_zapiEditId){
+    r=await fetch(SB+'/rest/v1/zapi_telefones?id=eq.'+_zapiEditId,{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json',Prefer:'return=representation'},body:JSON.stringify(p)});
+  } else {
+    r=await fetch(SB+'/rest/v1/zapi_telefones',{method:'POST',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json',Prefer:'return=representation'},body:JSON.stringify(p)});
+  }
+  if(!r.ok){const t=await r.text();status.style.color='#c0392b';status.textContent='Erro '+r.status+': '+t;return;}
+  const arr=await r.json();
+  const id=Array.isArray(arr)?arr[0]?.id:arr.id;
+  if(id)zapiMostrarWebhook(id);
+  status.style.color='#0d8a4a';status.textContent='✓ salvo · configure o webhook no painel Z-API com a URL acima';
+  zapiList();
+}
+
+async function zapiToggleAtivo(id,novo){
+  await fetch(SB+'/rest/v1/zapi_telefones?id=eq.'+id,{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({ativo:novo})});
+  zapiList();
+}
+
+async function zapiPing(id){
+  const t=_zapiLista.find(x=>x.id===id);
+  if(!t)return;
+  if(!t.zapi_instance||t.zapi_instance==='CONFIGURAR'){alert('Telefone sem credenciais. Edite e configure instance/token.');return;}
+  const url=`https://api.z-api.io/instances/${encodeURIComponent(t.zapi_instance)}/token/${encodeURIComponent(t.zapi_token)}/status`;
+  try{
+    const r=await fetch(url,{headers:{'client-token':t.zapi_client_token}});
+    const j=r.ok?await r.json():{};
+    const conectado=j?.connected===true||j?.smartphoneConnected===true;
+    const status=conectado?'conectado':'desconectado';
+    await fetch(SB+'/rest/v1/zapi_telefones?id=eq.'+id,{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({status_conexao:status,ultimo_check:new Date().toISOString()})});
+    alert(conectado?'✓ conectado':'⚠ desconectado · '+JSON.stringify(j).slice(0,200));
+    zapiList();
+  }catch(e){alert('Erro: '+e.message);}
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   Disparador WhatsApp · 3 sub-abas (Pool · Campanhas · Log)
+   ═════════════════════════════════════════════════════════════════════ */
+let _dispTab='pool';
+let _dispPoolLeads=[], _dispPoolSel=new Set(), _dispPoolPag=1, _dispPoolPagSize=100, _dispPoolTotal=0;
+let _dispOrigens=[], _dispCampHist=[];
+let _dispZapiTelefones=[];
+let _dispCnPrevIdx=0;
+
+function dispInit(){
+  dispCarregarOrigens();
+  dispCarregarCampanhasFiltro();
+  dispTab(_dispTab);
+}
+
+function dispTab(t){
+  _dispTab=t;
+  document.querySelectorAll('[data-disp-tab]').forEach(b=>b.classList.toggle('active',b.dataset.dispTab===t));
+  document.getElementById('disp-tab-pool').style.display=t==='pool'?'':'none';
+  document.getElementById('disp-tab-campanhas').style.display=t==='campanhas'?'':'none';
+  document.getElementById('disp-tab-log').style.display=t==='log'?'':'none';
+  if(t==='pool')dispPoolFetch();
+  if(t==='campanhas'){dispCampanhasInitFil();dispCampanhasFetch();}
+  if(t==='log'){dispLogInitFil();dispLogFetch();}
+}
+
+async function dispCarregarOrigens(){
+  const r=await tplFetch(SB+"/rest/v1/leads_google?select=origem&origem=not.is.null");
+  if(!r.ok)return;
+  const arr=await r.json();
+  const set=new Set(arr.map(x=>x.origem).filter(Boolean));
+  _dispOrigens=[...set].sort();
+  const sel=document.getElementById('dpfp-origem');
+  sel.innerHTML=_dispOrigens.map(o=>`<option value="${o}">${tdEscape(o)}</option>`).join('');
+}
+
+async function dispCarregarCampanhasFiltro(){
+  const r=await tplFetch(SB+'/rest/v1/disparador_campanhas?select=id,nome&order=created_at.desc&limit=100');
+  if(!r.ok)return;
+  _dispCampHist=await r.json();
+  const sel=document.getElementById('dpfp-camp');
+  sel.innerHTML=_dispCampHist.map(c=>`<option value="${c.id}">${tdEscape(c.nome||c.id.slice(0,8))}</option>`).join('');
+}
+
+function dispPoolLimparFiltros(){
+  ['dpfp-estado','dpfp-cidade','dpfp-setor','dpfp-q'].forEach(id=>document.getElementById(id).value='');
+  ['dpfp-tipo','dpfp-plano','dpfp-periodo'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('dpfp-abord').value='nunca';
+  document.getElementById('dpfp-celular').checked=true;
+  document.getElementById('dpfp-fav').checked=false;
+  document.getElementById('dpfp-desc').checked=false;
+  ['dpfp-origem','dpfp-cat','dpfp-camp'].forEach(id=>{const s=document.getElementById(id);[...s.options].forEach(o=>o.selected=false);});
+  _dispPoolPag=1;
+  dispPoolFetch();
+}
+
+async function dispPoolFetch(){
+  const cont=document.getElementById('disp-pool-lista');
+  cont.innerHTML='<div class="td-loading">carregando...</div>';
+  const offset=(_dispPoolPag-1)*_dispPoolPagSize;
+  let url=SB+'/rest/v1/leads_google?select=id,nome,telefone,cidade,estado,setor,categoria,origem,classificacao_ia,created_at,abordado_em,tipo_plano,favorito,descartado&order=created_at.desc.nullslast&limit='+_dispPoolPagSize+'&offset='+offset;
+
+  const origens=[...document.getElementById('dpfp-origem').selectedOptions].map(o=>o.value);
+  if(origens.length)url+='&origem=in.('+origens.map(encodeURIComponent).join(',')+')';
+  const estado=document.getElementById('dpfp-estado').value.trim().toUpperCase();
+  if(estado)url+='&estado=eq.'+estado;
+  const cidade=document.getElementById('dpfp-cidade').value.trim();
+  if(cidade)url+='&cidade=ilike.*'+encodeURIComponent(cidade)+'*';
+  const cats=[...document.getElementById('dpfp-cat').selectedOptions].map(o=>o.value);
+  if(cats.length)url+='&classificacao_ia=in.('+cats.join(',')+')';
+  const setor=document.getElementById('dpfp-setor').value.trim();
+  if(setor){const arr=setor.split(',').map(s=>s.trim()).filter(Boolean);if(arr.length===1)url+='&setor=ilike.*'+encodeURIComponent(arr[0])+'*';else url+='&setor=in.('+arr.map(encodeURIComponent).join(',')+')';}
+  const plano=document.getElementById('dpfp-plano').value;
+  if(plano)url+='&tipo_plano=eq.'+plano;
+  const celular=document.getElementById('dpfp-celular').checked;
+  if(celular)url+='&telefone=not.is.null';
+  const abord=document.getElementById('dpfp-abord').value;
+  if(abord==='nunca')url+='&abordado_em=is.null';
+  else if(abord==='ja')url+='&abordado_em=not.is.null';
+  if(document.getElementById('dpfp-fav').checked)url+='&favorito=eq.true';
+  if(document.getElementById('dpfp-desc').checked)url+='&descartado=eq.true';else url+='&or=(descartado.is.null,descartado.eq.false)';
+  const periodo=document.getElementById('dpfp-periodo').value;
+  if(periodo){const cut=new Date(Date.now()-parseInt(periodo,10)*86400000).toISOString();url+='&created_at=gte.'+cut;}
+  const q=document.getElementById('dpfp-q').value.trim();
+  if(q){const e=encodeURIComponent(q);url+='&or=(nome.ilike.*'+e+'*,telefone.ilike.*'+e+'*)';}
+
+  const r=await tplFetch(url,{headers:{Prefer:'count=exact'}});
+  if(!r.ok){cont.innerHTML='<div class="td-loading">erro '+r.status+'</div>';return;}
+  _dispPoolTotal=parseInt((r.headers.get('content-range')||'0/0').split('/')[1]||'0',10);
+  _dispPoolLeads=await r.json();
+
+  // Excluir leads que já estão em campanhas selecionadas
+  const campsExcluir=[...document.getElementById('dpfp-camp').selectedOptions].map(o=>o.value);
+  let excluirSet=new Set();
+  if(campsExcluir.length){
+    const re=await tplFetch(SB+'/rest/v1/disparador_envios?select=lead_id&campanha_id=in.('+campsExcluir.join(',')+')&lead_id=not.is.null');
+    if(re.ok){const ee=await re.json();excluirSet=new Set(ee.map(x=>x.lead_id));}
+  }
+  const filtrados=_dispPoolLeads.filter(l=>!excluirSet.has(l.id));
+  _dispPoolLeads=filtrados;
+
+  document.getElementById('disp-pool-resumo').innerHTML=`<strong>${_dispPoolTotal}</strong> leads no filtro · página ${_dispPoolPag} · ${filtrados.length} carregados · <strong style="color:var(--em)">${_dispPoolSel.size} selecionados</strong>`;
+
+  if(!filtrados.length){cont.innerHTML='<div class="td-loading">nenhum lead com esses filtros</div>';document.getElementById('disp-pool-paginacao').innerHTML='';dispPoolStickyAtualizar();return;}
+
+  cont.innerHTML=filtrados.map(dispPoolCard).join('');
+  const totPag=Math.max(1,Math.ceil(_dispPoolTotal/_dispPoolPagSize));
+  document.getElementById('disp-pool-paginacao').innerHTML=`<button class="td-btn td-btn-secundario" onclick="dispPoolPag(-1)" ${_dispPoolPag<=1?'disabled':''}>← anterior</button> <span style="font-family:var(--mono);font-size:12px;color:var(--ink-3);margin:0 12px">${_dispPoolPag}/${totPag}</span> <button class="td-btn td-btn-secundario" onclick="dispPoolPag(1)" ${_dispPoolPag>=totPag?'disabled':''}>próxima →</button>`;
+  dispPoolStickyAtualizar();
+}
+
+function dispPoolPag(d){_dispPoolPag=Math.max(1,_dispPoolPag+d);dispPoolFetch();}
+
+function dispPoolCard(l){
+  const sel=_dispPoolSel.has(l.id);
+  const opacity=l.abordado_em?'opacity:0.6':'';
+  const dias=l.created_at?Math.floor((Date.now()-new Date(l.created_at).getTime())/86400000):'—';
+  const tags=[];
+  if(l.favorito)tags.push('<span style="color:#dca726">⭐</span>');
+  if(l.descartado)tags.push('<span style="color:#c0392b">🗑</span>');
+  if(l.abordado_em)tags.push('<span style="color:var(--ink-3)">📨 abordado</span>');
+  return `<div class="td-card" style="${opacity}">
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <input type="checkbox" ${sel?'checked':''} onclick="dispPoolToggleSel('${l.id}')" style="margin-top:4px;width:18px;height:18px;cursor:pointer">
+      <div style="flex:1">
+        <div class="td-card-codigo">${tdEscape(l.nome||'(sem nome)')}</div>
+        <div class="td-card-meta">${tdEscape((l.cidade||'—')+'/'+(l.estado||'—'))} · ${tdEscape(l.setor||'—')} · ${tdEscape(l.categoria||'—')}</div>
+        <div class="td-card-meta" style="margin-top:3px">${l.telefone?'<a href="https://wa.me/'+l.telefone.replace(/\\D/g,'')+'" target="_blank" style="color:var(--em)">'+tdEscape(l.telefone)+'</a>':'<span style="color:var(--ink-4)">sem telefone</span>'} · origem: ${tdEscape(l.origem||'—')} · IA: ${tdEscape(l.classificacao_ia||'—')} · há ${dias}d ${tags.join(' ')}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function dispPoolToggleSel(id){
+  if(_dispPoolSel.has(id))_dispPoolSel.delete(id);else _dispPoolSel.add(id);
+  dispPoolStickyAtualizar();
+}
+
+function dispPoolSelTodos(){
+  _dispPoolLeads.forEach(l=>_dispPoolSel.add(l.id));
+  dispPoolFetch();
+}
+
+function dispPoolInverter(){
+  _dispPoolLeads.forEach(l=>{if(_dispPoolSel.has(l.id))_dispPoolSel.delete(l.id);else _dispPoolSel.add(l.id);});
+  dispPoolFetch();
+}
+
+function dispPoolStickyAtualizar(){
+  const div=document.getElementById('disp-pool-sticky');
+  if(_dispPoolSel.size>0){
+    div.style.display='flex';
+    document.getElementById('disp-pool-sel-count').textContent=_dispPoolSel.size+' lead'+(_dispPoolSel.size!==1?'s':'')+' selecionado'+(_dispPoolSel.size!==1?'s':'');
+  } else {
+    div.style.display='none';
+  }
+}
+
+async function dispPoolMarcar(tipo){
+  if(!_dispPoolSel.size)return;
+  const conf=confirm(`Marcar ${_dispPoolSel.size} leads como ${tipo}?`);
+  if(!conf)return;
+  const ids=[..._dispPoolSel];
+  const payload=tipo==='favorito'?{favorito:true,favoritado_em:new Date().toISOString()}:{descartado:true,descartado_em:new Date().toISOString()};
+  await fetch(SB+'/rest/v1/leads_google?id=in.('+ids.join(',')+')',{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  _dispPoolSel.clear();
+  dispPoolFetch();
+}
+
+async function dispCampanhaAbrirNova(){
+  if(!_dispPoolSel.size){alert('Selecione leads primeiro');return;}
+  // Carrega leads selecionados pra preview
+  const ids=[..._dispPoolSel];
+  const sel=_dispPoolLeads.filter(l=>_dispPoolSel.has(l.id));
+  document.getElementById('disp-cn-resumo-leads').innerHTML=`<strong>${ids.length}</strong> leads selecionados`;
+  document.getElementById('disp-cn-nome').value='';
+  document.getElementById('disp-cn-msg').value='';
+  // Carrega telefones Z-API ativos
+  const r=await tplFetch(SB+'/rest/v1/zapi_telefones?ativo=eq.true&select=*&order=created_at.asc');
+  _dispZapiTelefones=r.ok?await r.json():[];
+  document.getElementById('disp-cn-telefones').innerHTML=_dispZapiTelefones.length
+    ? _dispZapiTelefones.map((t,i)=>`<label style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:var(--surface-2);border-radius:6px;cursor:pointer"><input type="radio" name="disp-cn-tel" value="${t.id}" ${i===0?'checked':''}><span><strong>📱 ${tdEscape(t.apelido)}</strong> (${tdEscape(t.numero)}) · ${tdEscape(t.finalidade)} · hoje ${t.total_enviados_hoje||0}/${t.limite_diario}</span></label>`).join('')
+    : '<div style="color:#c0392b;font-size:12px">Nenhum telefone Z-API ativo. Cadastre em Operações > Telefones Z-API.</div>';
+  _dispCnPrevIdx=0;
+  dispCnAtualizarPreview();
+  dispCnEstimar();
+  document.getElementById('disp-camp-nova-overlay').classList.add('show');
+}
+
+function dispCnAtualizarPreview(){
+  const tpl=document.getElementById('disp-cn-msg').value;
+  const sel=_dispPoolLeads.filter(l=>_dispPoolSel.has(l.id));
+  if(!sel.length){document.getElementById('disp-cn-preview').textContent='(sem lead selecionado pra prévia)';document.getElementById('disp-cn-prev-idx').textContent='—';return;}
+  if(_dispCnPrevIdx>=sel.length)_dispCnPrevIdx=0;
+  const l=sel[_dispCnPrevIdx];
+  const nome=l.nome||'';
+  const vars={nome,primeiro_nome:nome.split(' ')[0]||'',cidade:l.cidade||'',estado:l.estado||'',setor:l.setor||''};
+  const out=(tpl||'').replace(/\{(\w+)\}/g,(_,k)=>vars[k]??('{'+k+'}'));
+  document.getElementById('disp-cn-preview').textContent=out||'(template vazio)';
+  document.getElementById('disp-cn-prev-idx').textContent=`lead ${_dispCnPrevIdx+1}/${sel.length} · ${nome||l.id.slice(0,8)}`;
+  dispCnEstimar();
+}
+
+function dispCnPrevAnt(){const sel=_dispPoolLeads.filter(l=>_dispPoolSel.has(l.id));if(!sel.length)return;_dispCnPrevIdx=(_dispCnPrevIdx-1+sel.length)%sel.length;dispCnAtualizarPreview();}
+function dispCnPrevProx(){const sel=_dispPoolLeads.filter(l=>_dispPoolSel.has(l.id));if(!sel.length)return;_dispCnPrevIdx=(_dispCnPrevIdx+1)%sel.length;dispCnAtualizarPreview();}
+
+function dispCnVelocidade(){
+  const r=document.querySelector('input[name="disp-cn-veloc"]:checked');
+  if(!r)return 20;
+  if(r.value==='custom')return parseInt(document.getElementById('disp-cn-veloc-custom').value,10)||20;
+  return parseInt(r.value,10)||20;
+}
+
+function dispCnJanelaConfig(){
+  const j=document.querySelector('input[name="disp-cn-janela"]:checked')?.value||'comercial';
+  if(j==='estendido')return {janela_inicio:'08:00',janela_fim:'21:00',dias_semana:['mon','tue','wed','thu','fri','sat']};
+  if(j==='247')return {janela_inicio:'00:00',janela_fim:'23:59',dias_semana:['mon','tue','wed','thu','fri','sat','sun']};
+  return {janela_inicio:'09:00',janela_fim:'18:00',dias_semana:['mon','tue','wed','thu','fri']};
+}
+
+function dispCnEstimar(){
+  const n=_dispPoolSel.size;
+  const v=dispCnVelocidade();
+  if(!n||!v){document.getElementById('disp-cn-estimativa').textContent='—';return;}
+  const dias=Math.ceil(n/v);
+  const j=document.querySelector('input[name="disp-cn-janela"]:checked')?.value||'comercial';
+  const lblJ=j==='estendido'?'Estendido':j==='247'?'24/7':'Comercial';
+  document.getElementById('disp-cn-estimativa').innerHTML=`<strong>${n}</strong> leads · <strong>${v}</strong>/dia · janela ${lblJ} → conclui em <strong>~${dias}</strong> dia${dias!==1?'s':''}`;
+}
+
+async function dispCnSalvar(statusInicial){
+  const status=document.getElementById('disp-cn-status');
+  const nome=document.getElementById('disp-cn-nome').value.trim();
+  const msg=document.getElementById('disp-cn-msg').value.trim();
+  const telId=document.querySelector('input[name="disp-cn-tel"]:checked')?.value;
+  const ids=[..._dispPoolSel];
+  if(!nome){status.style.color='#c0392b';status.textContent='Nome obrigatório';return;}
+  if(!msg){status.style.color='#c0392b';status.textContent='Mensagem obrigatória';return;}
+  if(!telId){status.style.color='#c0392b';status.textContent='Selecione um telefone';return;}
+  if(!ids.length){status.style.color='#c0392b';status.textContent='Sem leads selecionados';return;}
+
+  let agendado_para=null;
+  if(statusInicial==='agendada'){
+    const dt=prompt('Data/hora de início (YYYY-MM-DD HH:MM, horário local BRT):',new Date(Date.now()+3600000).toISOString().slice(0,16).replace('T',' '));
+    if(!dt){return;}
+    const m=dt.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    if(!m){status.style.color='#c0392b';status.textContent='Formato inválido';return;}
+    // BRT = UTC-3 → adiciona 3h pra chegar em UTC
+    const brtIso=`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:00-03:00`;
+    agendado_para=new Date(brtIso).toISOString();
+  }
+
+  const j=dispCnJanelaConfig();
+  const v=dispCnVelocidade();
+
+  const payload={
+    nome,
+    mensagem_template:msg,
+    zapi_telefone_id:telId,
+    lead_ids:ids,
+    total_leads:ids.length,
+    velocidade_por_dia:v,
+    janela_inicio:j.janela_inicio,
+    janela_fim:j.janela_fim,
+    dias_semana:j.dias_semana,
+    pausa_min_segundos:30,
+    pausa_max_segundos:90,
+    status:statusInicial,
+    iniciado_em:statusInicial==='rodando'?new Date().toISOString():null,
+    agendado_para,
+  };
+
+  status.style.color='var(--ink-3)';status.textContent='Criando campanha...';
+  const r=await fetch(SB+'/rest/v1/disparador_campanhas',{method:'POST',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json',Prefer:'return=representation'},body:JSON.stringify(payload)});
+  if(!r.ok){const t=await r.text();status.style.color='#c0392b';status.textContent='Erro '+r.status+': '+t;return;}
+  const arr=await r.json();
+  const camp=Array.isArray(arr)?arr[0]:arr;
+
+  // Cria envios pendentes
+  status.textContent='Criando '+ids.length+' envios pendentes...';
+  // batches de 200 pra não estourar payload
+  for(let i=0;i<ids.length;i+=200){
+    const slice=ids.slice(i,i+200);
+    const leads=_dispPoolLeads.filter(l=>slice.includes(l.id));
+    const linhas=leads.map(l=>({campanha_id:camp.id,lead_id:l.id,lead_telefone:l.telefone||null,status:'pendente'}));
+    await fetch(SB+'/rest/v1/disparador_envios',{method:'POST',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify(linhas)});
+  }
+
+  status.style.color='#0d8a4a';status.textContent='✓ Campanha '+(statusInicial==='rodando'?'iniciada':statusInicial==='agendada'?'agendada':'salva')+' · '+ids.length+' envios pendentes';
+  setTimeout(()=>{document.getElementById('disp-camp-nova-overlay').classList.remove('show');_dispPoolSel.clear();dispPoolFetch();dispCarregarCampanhasFiltro();},1200);
+}
+
+/* ─── Aba Campanhas ─── */
+let _dispCampFil='rodando';
+function dispCampanhasInitFil(){
+  document.querySelectorAll('#disp-camp-fil .td-fil').forEach(b=>{b.onclick=()=>{document.querySelectorAll('#disp-camp-fil .td-fil').forEach(x=>x.classList.remove('td-fil-active'));b.classList.add('td-fil-active');_dispCampFil=b.dataset.st;dispCampanhasFetch();};});
+}
+
+async function dispCampanhasFetch(){
+  const cont=document.getElementById('disp-camp-lista');
+  cont.innerHTML='<div class="td-loading">carregando...</div>';
+  let url=SB+'/rest/v1/disparador_campanhas?select=*,zapi_telefone:zapi_telefones!zapi_telefone_id(apelido,numero)&order=created_at.desc&limit=100';
+  if(_dispCampFil)url+='&status=eq.'+_dispCampFil;
+  const r=await tplFetch(url);
+  if(!r.ok){cont.innerHTML='<div class="td-loading">erro '+r.status+'</div>';return;}
+  const arr=await r.json();
+  document.getElementById('disp-cnt-camp').textContent=arr.length?'('+arr.length+')':'';
+  if(!arr.length){cont.innerHTML='<div class="td-loading">nenhuma campanha</div>';return;}
+  cont.innerHTML=arr.map(dispCampCard).join('');
+}
+
+function dispCampCard(c){
+  const tel=c.zapi_telefone||{};
+  const total=c.total_leads||0;
+  const env=c.total_enviados||0;
+  const pct=total?Math.round(env*100/total):0;
+  const ico={'rodando':'▶','agendada':'⏰','pausada':'⏸','concluida':'✓','rascunho':'📝'}[c.status]||'?';
+  const dt=c.iniciado_em?new Date(c.iniciado_em).toLocaleString('pt-BR'):(c.agendado_para?'agendada pra '+new Date(c.agendado_para).toLocaleString('pt-BR'):'—');
+  const acoes=[];
+  acoes.push(`<button class="td-btn td-btn-secundario" onclick="dispCampVerLeads('${c.id}','${tdEscape(c.nome).replace(/'/g,"\\'")}')">Ver leads</button>`);
+  if(c.status==='rodando'||c.status==='pausada'||c.status==='agendada'){
+    acoes.push(`<button class="td-btn td-btn-secundario" onclick="dispCampEditarMsg('${c.id}')">Editar mensagem</button>`);
+  }
+  if(c.status==='rodando'){acoes.push(`<button class="td-btn td-btn-secundario" onclick="dispCampSetStatus('${c.id}','pausada')">Pausar</button>`);}
+  if(c.status==='pausada'||c.status==='agendada'||c.status==='rascunho'){acoes.push(`<button class="td-btn td-btn-primario" onclick="dispCampSetStatus('${c.id}','rodando')">Retomar</button>`);}
+  if(['rodando','pausada','agendada','rascunho'].includes(c.status)){acoes.push(`<button class="td-btn td-btn-perigo" onclick="dispCampCancelar('${c.id}')">Cancelar</button>`);}
+
+  return `<div class="td-card"><div class="td-card-head"><div><div class="td-card-codigo">${ico} ${tdEscape(c.nome||'(sem nome)')}</div><div class="td-card-titulo">${dt}</div><div class="td-card-meta">📱 ${tdEscape(tel.apelido||'—')} · velocidade ${c.velocidade_por_dia||'—'}/dia</div></div><span class="td-status s-${c.status||'pendente'}"><span class="td-status-dot"></span>${tdEscape(c.status||'—')}</span></div><div style="margin:10px 0">Progresso: <strong>${env}/${total}</strong> · <span style="color:var(--em)">💬 ${c.total_respondidos||0}</span> · <span style="color:#dca726">🔥 ${c.total_quentes||0}</span> · <span style="color:#c0392b">⚠ ${c.total_erros||0}</span></div><div style="height:6px;background:var(--surface-2);border-radius:999px;overflow:hidden;margin-bottom:10px"><div style="height:100%;background:var(--em);width:${pct}%"></div></div><div class="td-card-actions">${acoes.join('')}</div></div>`;
+}
+
+async function dispCampSetStatus(id,novo){
+  const payload={status:novo};
+  if(novo==='rodando')payload.iniciado_em=new Date().toISOString();
+  await fetch(SB+'/rest/v1/disparador_campanhas?id=eq.'+id,{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  dispCampanhasFetch();
+}
+
+async function dispCampCancelar(id){
+  if(!confirm('Cancelar campanha? Envios pendentes serão marcados como cancelados.'))return;
+  await fetch(SB+'/rest/v1/disparador_campanhas?id=eq.'+id,{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({status:'cancelada',concluido_em:new Date().toISOString()})});
+  await fetch(SB+`/rest/v1/disparador_envios?campanha_id=eq.${id}&status=eq.pendente`,{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({status:'cancelado'})});
+  dispCampanhasFetch();
+}
+
+async function dispCampEditarMsg(id){
+  const r=await tplFetch(SB+'/rest/v1/disparador_campanhas?id=eq.'+id+'&select=mensagem_template');
+  const arr=r.ok?await r.json():[];
+  document.getElementById('disp-em-id').value=id;
+  document.getElementById('disp-em-msg').value=arr[0]?.mensagem_template||'';
+  document.getElementById('disp-camp-edit-msg-overlay').classList.add('show');
+}
+
+async function dispCampSalvarMsgEdit(){
+  const id=document.getElementById('disp-em-id').value;
+  const msg=document.getElementById('disp-em-msg').value;
+  const r=await fetch(SB+'/rest/v1/disparador_campanhas?id=eq.'+id,{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({mensagem_template:msg})});
+  if(!r.ok){alert('Erro: '+r.status);return;}
+  document.getElementById('disp-camp-edit-msg-overlay').classList.remove('show');
+  dispCampanhasFetch();
+}
+
+let _dispClFil='', _dispClCampId=null;
+async function dispCampVerLeads(id,nome){
+  _dispClCampId=id;
+  document.getElementById('disp-cl-titulo').textContent='Leads · '+nome;
+  document.querySelectorAll('#disp-cl-fil .td-fil').forEach(b=>{b.onclick=()=>{document.querySelectorAll('#disp-cl-fil .td-fil').forEach(x=>x.classList.remove('td-fil-active'));b.classList.add('td-fil-active');_dispClFil=b.dataset.st;dispClFetch();};});
+  _dispClFil='';
+  document.querySelectorAll('#disp-cl-fil .td-fil').forEach(x=>x.classList.remove('td-fil-active'));
+  document.querySelector('#disp-cl-fil .td-fil[data-st=""]')?.classList.add('td-fil-active');
+  dispClFetch();
+  document.getElementById('disp-camp-leads-overlay').classList.add('show');
+}
+
+async function dispClFetch(){
+  const cont=document.getElementById('disp-cl-lista');
+  cont.innerHTML='<div class="td-loading">carregando...</div>';
+  let url=SB+'/rest/v1/disparador_envios?select=*,lead:leads_google!lead_id(nome,telefone,cidade,estado)&campanha_id=eq.'+_dispClCampId+'&order=enviado_em.desc.nullslast&limit=300';
+  if(_dispClFil==='quente')url+='&quente=eq.true';
+  else if(_dispClFil)url+='&status=eq.'+_dispClFil;
+  const r=await tplFetch(url);
+  if(!r.ok){cont.innerHTML='<div class="td-loading">erro '+r.status+'</div>';return;}
+  const arr=await r.json();
+  if(!arr.length){cont.innerHTML='<div class="td-loading">nenhum envio</div>';return;}
+  cont.innerHTML=arr.map(dispClCard).join('');
+}
+
+function dispClCard(e){
+  const l=e.lead||{};
+  const nome=l.nome||'(sem nome)';
+  const tel=l.telefone||e.lead_telefone||'';
+  const enviado=e.enviado_em?new Date(e.enviado_em).toLocaleString('pt-BR'):'—';
+  const resp=e.resposta_em?new Date(e.resposta_em).toLocaleString('pt-BR'):null;
+  const ico={'pendente':'⏳','enviado':'✓','respondido':'💬','erro':'⚠','cancelado':'⊘'}[e.status]||'?';
+  const quenteBadge=e.quente?'<span style="background:#dca726;color:white;padding:2px 6px;border-radius:4px;font-size:10px">🔥 QUENTE</span>':'';
+  const respBox=resp?`<div style="margin-top:8px;padding:8px 10px;background:var(--surface-2);border-radius:6px;font-size:12px"><strong>Resposta em ${resp}:</strong><br>"${tdEscape(e.resposta_texto||'')}"<br><span style="color:var(--ink-3);font-size:11px;font-family:var(--mono)">classificação IA: ${tdEscape(e.classificacao_ia||'—')}</span></div>`:'';
+  const erroBox=e.erro_mensagem?`<div style="margin-top:8px;padding:6px 10px;background:rgba(200,68,68,.10);border-left:3px solid #c0392b;font-size:11px">${tdEscape(e.erro_mensagem)}</div>`:'';
+
+  return `<div class="td-card"><div class="td-card-head"><div><div class="td-card-codigo">${ico} ${tdEscape(nome)} ${quenteBadge}</div><div class="td-card-meta">${tdEscape((l.cidade||'—')+'/'+(l.estado||'—'))} · ${tel?'<a href="https://wa.me/'+tel.replace(/\\D/g,'')+'" target="_blank">'+tdEscape(tel)+'</a>':'—'}</div><div class="td-card-meta" style="margin-top:3px">enviado: ${enviado}</div></div></div>${respBox}${erroBox}</div>`;
+}
+
+/* ─── Aba Log Geral ─── */
+let _dispLogFil='';
+function dispLogInitFil(){
+  document.querySelectorAll('#disp-log-fil .td-fil').forEach(b=>{b.onclick=()=>{document.querySelectorAll('#disp-log-fil .td-fil').forEach(x=>x.classList.remove('td-fil-active'));b.classList.add('td-fil-active');_dispLogFil=b.dataset.st;dispLogFetch();};});
+}
+
+async function dispLogFetch(){
+  const cont=document.getElementById('disp-log-lista');
+  cont.innerHTML='<div class="td-loading">carregando...</div>';
+  let url=SB+'/rest/v1/disparador_envios?select=*,campanha:disparador_campanhas!campanha_id(nome),lead:leads_google!lead_id(nome,cidade,estado)&order=enviado_em.desc.nullslast&limit=500';
+  if(_dispLogFil)url+='&status=eq.'+_dispLogFil;
+  const r=await tplFetch(url);
+  if(!r.ok){cont.innerHTML='<div class="td-loading">erro '+r.status+'</div>';return;}
+  const arr=await r.json();
+  if(!arr.length){cont.innerHTML='<div class="td-loading">nada no log</div>';return;}
+  cont.innerHTML=arr.map(e=>{
+    const l=e.lead||{};
+    const c=e.campanha||{};
+    const nome=l.nome||'(sem nome)';
+    const dt=e.enviado_em?new Date(e.enviado_em).toLocaleString('pt-BR'):'—';
+    const ico={'pendente':'⏳','enviado':'✓','respondido':'💬','erro':'⚠','cancelado':'⊘'}[e.status]||'?';
+    return `<div class="td-card"><div class="td-card-head"><div><div class="td-card-codigo">${ico} ${tdEscape(nome)} · ${tdEscape(c.nome||'—')}</div><div class="td-card-meta">${tdEscape((l.cidade||'—')+'/'+(l.estado||'—'))} · ${tdEscape(e.lead_telefone||'—')} · ${dt}</div></div><span class="td-status s-${e.status||'pendente'}"><span class="td-status-dot"></span>${tdEscape(e.status||'—')}</span></div></div>`;
+  }).join('');
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   Cockpit · 🔥 Leads quentes
+   ═════════════════════════════════════════════════════════════════════ */
+async function cockQuentesCarregar(){
+  const slot=document.getElementById('cock-quentes-slot');
+  if(!slot)return;
+  const r=await tplFetch(SB+'/rest/v1/disparador_envios?select=id,resposta_em,resposta_texto,classificacao_ia,admin_respondeu,quente,lead_id,lead_telefone,campanha:disparador_campanhas!campanha_id(nome),lead:leads_google!lead_id(nome,cidade,estado,telefone)&quente=eq.true&resposta_em=gte.'+new Date(Date.now()-7*86400000).toISOString()+'&order=admin_respondeu.asc,resposta_em.desc&limit=20');
+  if(!r.ok){slot.innerHTML='';return;}
+  const arr=await r.json();
+  if(!arr.length){slot.innerHTML='';return;}
+  const aguardando=arr.filter(x=>!x.admin_respondeu);
+  const respondidos=arr.filter(x=>x.admin_respondeu);
+  let html=`<div class="bloco" style="border-left:3px solid #dca726"><div class="bloco-head"><div><div class="bloco-titulo">🔥 Leads quentes · últimos 7 dias (${arr.length})</div><div class="bloco-sub">${aguardando.length} aguardando seu retorno</div></div></div>`;
+  if(aguardando.length){
+    html+='<div style="margin-top:10px"><div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">Aguardando retorno</div>';
+    html+=aguardando.map(cockQuenteCard).join('');
+    html+='</div>';
+  }
+  if(respondidos.length){
+    html+=`<div style="margin-top:14px"><details><summary style="cursor:pointer;font-family:var(--mono);font-size:11px;color:var(--ink-3)">Já respondidos por você (${respondidos.length})</summary><div style="margin-top:8px">${respondidos.map(cockQuenteCard).join('')}</div></details></div>`;
+  }
+  html+='</div>';
+  slot.innerHTML=html;
+}
+
+function cockQuenteCard(e){
+  const l=e.lead||{};
+  const c=e.campanha||{};
+  const nome=l.nome||'(sem nome)';
+  const tel=l.telefone||e.lead_telefone||'';
+  const respDt=e.resposta_em?new Date(e.resposta_em).toLocaleString('pt-BR'):'—';
+  const corClass={'interesse_alto':'#dca726','interesse_medio':'#0aa85a','duvida':'#888'}[e.classificacao_ia]||'#888';
+  return `<div style="padding:10px 12px;background:var(--surface-2);border-radius:8px;margin-bottom:8px;${e.admin_respondeu?'opacity:0.6':''}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:240px">
+        <div style="font-weight:700;color:var(--ink)">${tdEscape(nome)} · ${tdEscape((l.cidade||'—')+'/'+(l.estado||'—'))}</div>
+        <div style="font-size:11px;color:var(--ink-3);margin-top:2px">Respondeu em ${respDt} · campanha: ${tdEscape(c.nome||'—')}</div>
+        <div style="font-size:12px;color:var(--ink-2);margin-top:6px;background:var(--surface);padding:6px 10px;border-radius:4px;border-left:2px solid ${corClass}">"${tdEscape(e.resposta_texto||'')}"</div>
+        <div style="font-size:10px;color:var(--ink-3);font-family:var(--mono);margin-top:4px">IA: ${tdEscape(e.classificacao_ia||'—')}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        ${tel?`<a href="https://wa.me/${tel.replace(/\D/g,'')}" target="_blank" class="td-btn td-btn-primario" style="font-size:11px;padding:5px 10px">📱 WhatsApp</a>`:''}
+        ${!e.admin_respondeu?`<button class="td-btn td-btn-secundario" style="font-size:11px;padding:5px 10px" onclick="cockQuenteRespondi('${e.id}')">Marcar como respondi</button>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+async function cockQuenteRespondi(id){
+  await fetch(SB+'/rest/v1/disparador_envios?id=eq.'+id,{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({admin_respondeu:true,admin_respondeu_em:new Date().toISOString()})});
+  cockQuentesCarregar();
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   Pagamentos Pix manual · termos Assessorada sem subscription Stripe
+   ═════════════════════════════════════════════════════════════════════ */
+let _pgLista=[], _pgFiltro='mes_pendente', _pgPagamentos={}, _pgAdminId=null;
+let _pgRecAtual=null;
+
+function pgCompetenciaAtual(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+
+function pgFmtCompetencia(c){
+  if(!c)return '—';
+  const [y,m]=c.split('-');
+  const meses=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const idx=parseInt(m,10)-1;
+  return (meses[idx]||m)+'/'+y;
+}
+
+async function pgInit(){
+  document.querySelectorAll('#pg-fil .td-fil').forEach(b=>{
+    b.onclick=()=>{document.querySelectorAll('#pg-fil .td-fil').forEach(x=>x.classList.remove('td-fil-active'));b.classList.add('td-fil-active');_pgFiltro=b.dataset.f;pgFetch();};
+  });
+  // Pega admin_id via JWT phone
+  if(!_pgAdminId&&__token){
+    try{
+      const dec=JSON.parse(atob(__token.split('.')[1]));
+      const phone=dec.phone||'';
+      if(phone){
+        const ra=await tplFetch(SB+'/rest/v1/admins?whatsapp=eq.'+encodeURIComponent(phone)+'&select=id&limit=1');
+        if(ra.ok){const a=await ra.json();if(a[0])_pgAdminId=a[0].id;}
+      }
+    }catch(e){}
+  }
+  pgFetch();
+}
+
+async function pgFetch(){
+  const cont=document.getElementById('pg-lista');
+  cont.innerHTML='<div class="td-loading">carregando...</div>';
+  // Termos Assessorada assinados/ativos SEM subscription Stripe ativa
+  const url=SB+'/rest/v1/termos_adesao?select=id,codigo,plano,status,mensalidade,negocio_id,vendedor_id,representante_nome,whatsapp,assinatura_em,stripe_subscription_id,stripe_status&plano=eq.assessorada&status=in.(assinado,ativo)&order=assinatura_em.desc.nullslast&limit=200';
+  const r=await tplFetch(url);
+  if(!r.ok){cont.innerHTML='<div class="td-loading">erro '+r.status+'</div>';return;}
+  let termos=await r.json();
+  // Filtra os que NÃO têm subscription ativa
+  termos=termos.filter(t=>!t.stripe_subscription_id||t.stripe_status==='canceled');
+  _pgLista=termos;
+
+  if(!termos.length){cont.innerHTML='<div class="td-loading">nenhum termo elegível pra Pix manual</div>';document.getElementById('pg-resumo').textContent='';return;}
+
+  // Busca pagamentos já registrados
+  const ids=termos.map(t=>t.id);
+  const rp=await tplFetch(SB+'/rest/v1/pagamentos_pix_manual?termo_id=in.('+ids.join(',')+')&select=id,termo_id,competencia,valor,recebido_em,registrado_em,notas_admin,notificou_cliente&order=competencia.desc');
+  _pgPagamentos={};
+  if(rp.ok){const arr=await rp.json();arr.forEach(p=>{(_pgPagamentos[p.termo_id]=_pgPagamentos[p.termo_id]||[]).push(p);});}
+
+  // Busca nomes negócios
+  const negIds=[...new Set(termos.map(t=>t.negocio_id).filter(Boolean))];
+  const negMap={};
+  if(negIds.length){const rn=await tplFetch(SB+'/rest/v1/negocios?id=in.('+negIds.join(',')+')&select=id,nome,codigo_diagnostico,cidade,estado');if(rn.ok)(await rn.json()).forEach(n=>negMap[n.id]=n);}
+
+  const compAtual=pgCompetenciaAtual();
+  let pendentesMes=0;
+  termos.forEach(t=>{
+    const pagos=(_pgPagamentos[t.id]||[]).filter(p=>p.recebido_em);
+    const compsPagas=new Set(pagos.map(p=>p.competencia));
+    if(!compsPagas.has(compAtual))pendentesMes++;
+  });
+
+  let arrFiltrada=termos;
+  if(_pgFiltro==='mes_pendente'){
+    arrFiltrada=termos.filter(t=>{
+      const pagos=(_pgPagamentos[t.id]||[]).filter(p=>p.recebido_em).map(p=>p.competencia);
+      return !pagos.includes(compAtual);
+    });
+  } else if(_pgFiltro==='ultimos_30'){
+    const cut=Date.now()-30*86400000;
+    arrFiltrada=termos.filter(t=>{
+      const pagos=(_pgPagamentos[t.id]||[]).filter(p=>p.registrado_em);
+      return pagos.some(p=>new Date(p.registrado_em).getTime()>=cut);
+    });
+  }
+
+  document.getElementById('pg-resumo').innerHTML=`<strong>${termos.length}</strong> termos elegíveis · <strong>${pendentesMes}</strong> sem registro pra ${pgFmtCompetencia(compAtual)} · filtro: <strong>${_pgFiltro}</strong> (${arrFiltrada.length})`;
+
+  if(!arrFiltrada.length){cont.innerHTML='<div class="td-loading">nada pra mostrar nesse filtro</div>';return;}
+
+  cont.innerHTML=arrFiltrada.map(t=>pgRenderItem(t,negMap[t.negocio_id])).join('');
+}
+
+function pgRenderItem(t,neg){
+  const negNome=neg?.nome||neg?.codigo_diagnostico||'—';
+  const negLocal=neg?`${neg.cidade||'—'}/${neg.estado||'—'}`:'';
+  const mens=t.mensalidade?Number(t.mensalidade).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
+  const compAtual=pgCompetenciaAtual();
+  const pagos=(_pgPagamentos[t.id]||[]).filter(p=>p.recebido_em);
+  const compsPagas=new Set(pagos.map(p=>p.competencia));
+  const pagouEsteMes=compsPagas.has(compAtual);
+
+  // Mostra últimos 6 meses
+  let linhasMes='';
+  const hoje=new Date();
+  for(let i=0;i<6;i++){
+    const d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
+    const c=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const pago=pagos.find(p=>p.competencia===c);
+    if(pago){
+      const dt=pago.recebido_em?new Date(pago.recebido_em).toLocaleDateString('pt-BR'):'—';
+      linhasMes+=`<div style="display:flex;gap:10px;align-items:center;font-size:11px;color:var(--ink-3)"><span style="color:#0d8a4a">✓</span><span>${pgFmtCompetencia(c)} · pago em ${dt}</span></div>`;
+    } else if(c===compAtual){
+      linhasMes+=`<div style="display:flex;gap:10px;align-items:center;font-size:11px;color:#c0392b"><span>○</span><span>${pgFmtCompetencia(c)} · pendente</span><button class="td-btn td-btn-primario" style="padding:3px 9px;font-size:10px;margin-left:auto" onclick='pgAbrirReceber(${JSON.stringify({id:t.id,codigo:t.codigo,competencia:c,valor:t.mensalidade,nome:t.representante_nome||"",whatsapp:t.whatsapp||"",negocio_nome:negNome}).replace(/'/g,"&apos;").replace(/"/g,"&quot;")})'>Marcar como recebido</button></div>`;
+    } else {
+      linhasMes+=`<div style="display:flex;gap:10px;align-items:center;font-size:11px;color:var(--ink-4)"><span>—</span><span>${pgFmtCompetencia(c)} · sem registro</span><button class="td-btn td-btn-secundario" style="padding:3px 9px;font-size:10px;margin-left:auto" onclick='pgAbrirReceber(${JSON.stringify({id:t.id,codigo:t.codigo,competencia:c,valor:t.mensalidade,nome:t.representante_nome||"",whatsapp:t.whatsapp||"",negocio_nome:negNome}).replace(/'/g,"&apos;").replace(/"/g,"&quot;")})'>Registrar</button></div>`;
+    }
+  }
+
+  const statusPill=pagouEsteMes
+    ? `<span class="td-status s-assinado"><span class="td-status-dot"></span>${pgFmtCompetencia(compAtual)} ok</span>`
+    : `<span class="td-status s-pendente"><span class="td-status-dot"></span>${pgFmtCompetencia(compAtual)} pendente</span>`;
+
+  return `<div class="td-card"><div class="td-card-head"><div><div class="td-card-codigo">${t.codigo} · R$ ${mens}/mês</div><div class="td-card-titulo">${tdEscape(negNome)}${negLocal?' · '+negLocal:''}</div><div class="td-card-meta">Cliente: ${tdEscape(t.representante_nome||'—')} · ${tdEscape(t.whatsapp||'—')}</div></div>${statusPill}</div><div style="margin-top:10px;padding:8px 10px;background:#f5f7fa;border-radius:6px;display:flex;flex-direction:column;gap:4px">${linhasMes}</div></div>`;
+}
+
+function pgAbrirReceber(p){
+  _pgRecAtual=p;
+  const valor=Number(p.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('pg-rec-resumo').innerHTML=`<strong>Termo:</strong> ${p.codigo}<br><strong>Cliente:</strong> ${tdEscape(p.nome||'—')}<br><strong>Negócio:</strong> ${tdEscape(p.negocio_nome||'—')}<br><strong>Competência:</strong> ${pgFmtCompetencia(p.competencia)}<br><strong>Valor:</strong> R$ ${valor}`;
+  const today=new Date().toISOString().slice(0,10);
+  document.getElementById('pg-rec-data').value=today;
+  document.getElementById('pg-rec-notas').value='';
+  document.getElementById('pg-rec-notif').checked=true;
+  document.getElementById('pg-receber-overlay').classList.add('show');
+}
+
+async function pgConfirmarRecebimento(){
+  if(!_pgRecAtual)return;
+  const btn=document.getElementById('pg-btn-confirmar');
+  btn.disabled=true;btn.textContent='Salvando...';
+  const dataInput=document.getElementById('pg-rec-data').value;
+  const notas=document.getElementById('pg-rec-notas').value||null;
+  const notif=document.getElementById('pg-rec-notif').checked;
+  const recebidoEm=dataInput?new Date(dataInput+'T12:00:00').toISOString():new Date().toISOString();
+
+  try{
+    const r=await fetch(SB+'/rest/v1/pagamentos_pix_manual',{method:'POST',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json',Prefer:'return=representation'},body:JSON.stringify({termo_id:_pgRecAtual.id,competencia:_pgRecAtual.competencia,valor:_pgRecAtual.valor,recebido_em:recebidoEm,registrado_por_admin_id:_pgAdminId,notas_admin:notas,notificou_cliente:notif})});
+    if(!r.ok){const t=await r.text();btn.disabled=false;btn.textContent='Confirmar recebimento';alert('Erro '+r.status+': '+t);return;}
+
+    if(notif&&_pgRecAtual.whatsapp){
+      const tel=_pgRecAtual.whatsapp.replace(/\D/g,'');
+      if(tel){
+        const valor=Number(_pgRecAtual.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+        const msg=`✅ Pagamento confirmado · Venda Assessorada\n\nMensalidade ${pgFmtCompetencia(_pgRecAtual.competencia)}: R$ ${valor}\nRecebido em ${new Date(recebidoEm).toLocaleDateString('pt-BR')}\n\nObrigado! Continuamos trabalhando na venda do seu negócio.`;
+        // Z-API via zapi-relay (não bloqueante)
+        fetch(SB+'/functions/v1/zapi-relay',{method:'POST',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({phone:tel,message:msg})}).catch(()=>{});
+      }
+    }
+    document.getElementById('pg-receber-overlay').classList.remove('show');
+    btn.disabled=false;btn.textContent='Confirmar recebimento';
+    pgFetch();
+  }catch(e){
+    btn.disabled=false;btn.textContent='Confirmar recebimento';
+    alert('Erro de rede: '+e.message);
+  }
+}
 
 /* ═════════════════════════════════════════════════════════════════════
    Projetos Assessorada · Fase 1 · 2 níveis (entregáveis + tarefas internas)
