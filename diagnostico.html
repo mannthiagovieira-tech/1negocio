@@ -7686,16 +7686,31 @@ async function salvarDiagnosticoFinal() {
 }
 
 // SALVAR NEGÓCIO NO SUPABASE - retorna o UUID do negócio criado
-async function salvarNegocioDB() {
+async function salvarNegocioDB(statusOverride) {
   // Verifica se tem os campos mínimos obrigatórios
   if(!D.codigo_diagnostico) {
     console.error('❌ codigo_diagnostico não definido! Gerando...');
     gerarCodigoDiagnostico();
   }
-  
+
   // Garante que slug não seja null
   const slugFinal = D.codigo_diagnostico || ('1N-' + Date.now().toString(36).toUpperCase());
-  
+
+  // Se já foi salvo (D.negocio_id existe) · UPDATE em vez de INSERT
+  if (D.negocio_id) {
+    const updPayload = { dados_json: D };
+    if (statusOverride) updPayload.status = statusOverride;
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/negocios?id=eq.${D.negocio_id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type':'application/json', 'apikey':SUPABASE_ANON, 'Authorization':'Bearer '+SUPABASE_ANON, 'Prefer':'return=minimal' },
+        body: JSON.stringify(updPayload)
+      });
+      if (r.ok) { console.log('✅ Negócio atualizado · id:', D.negocio_id, 'status:', statusOverride||'(mantém)'); return D.negocio_id; }
+      console.warn('UPDATE falhou · seguindo pra INSERT como fallback');
+    } catch(e) { console.warn('UPDATE erro · seguindo pra INSERT:', e); }
+  }
+
   // Prepara objeto para inserção na tabela negocios
   const negocio = {
     slug: slugFinal,
@@ -7709,7 +7724,7 @@ async function salvarNegocioDB() {
     descricao: D.descricao_final || '',
     faturamento_anual: (D.fat_mensal || 0) * 12,
     tipo_negocio: D.tipo_negocio || null,
-    status: 'em_avaliacao',
+    status: statusOverride || 'em_avaliacao',
     plano: 'gratuito',
     // vendedor_id: SEMPRE usar user.id se usuário está logado (Google ou Email)
     vendedor_id: D.google_user_id || null,
@@ -7798,6 +7813,22 @@ async function gerarLaudoInstantaneo() {
   // ── Verificar RO negativo antes de gerar laudo ──
   const roVal = D.ro_mensal || D.resultado_op || 0;
   if (roVal < 0) {
+    // ── Salva negócio ANTES do popup com status de alerta ──
+    // Garante que admin recebe notificação mesmo se cliente sair pelo WhatsApp.
+    // Fire-and-forget no alerta · não bloqueia exibição do popup.
+    try {
+      if (!D.codigo_diagnostico) gerarCodigoDiagnostico();
+      const negocioId = await salvarNegocioDB('consulta_consultor_ro_negativo');
+      if (negocioId) {
+        fetch(`${SUPABASE_URL}/functions/v1/notificar-diagnostico`, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+SUPABASE_ANON },
+          body: JSON.stringify({ negocio_id: negocioId, tipo: 'ro_negativo' })
+        }).then(r=>r.json()).then(j=>console.log('[alerta-consultor]', j)).catch(e=>console.warn('[alerta-consultor] erro:', e));
+      }
+    } catch(e) {
+      console.warn('[alerta-consultor] save antes do popup falhou:', e);
+    }
     document.getElementById('popup-ro-negativo').style.display = 'flex';
     return;
   }
@@ -7808,9 +7839,9 @@ function fecharPopupRONeg() {
   document.getElementById('popup-ro-negativo').style.display = 'none';
 }
 
-async function gerarLaudoInstantaneoConfirmado() {
+async function gerarLaudoInstantaneoConfirmado(statusInicial) {
   console.log('=== INICIANDO gerarLaudoInstantaneo ===');
-  console.log('D.codigo_diagnostico atual:', D.codigo_diagnostico);
+  console.log('D.codigo_diagnostico atual:', D.codigo_diagnostico, 'statusInicial:', statusInicial||'(default)');
   
   const btnGerar = document.querySelector('[onclick="gerarLaudoInstantaneo()"]');
   const loading = document.getElementById('laudo-loading');
@@ -7841,7 +7872,7 @@ async function gerarLaudoInstantaneoConfirmado() {
   // Salva no banco
   try {
     console.log('Chamando salvarNegocioDB...');
-    const negocioId = await salvarNegocioDB();
+    const negocioId = await salvarNegocioDB(statusInicial);
     console.log('Retorno de salvarNegocioDB:', negocioId);
     
     // DEBUG: mostrar status do salvamento
@@ -8106,7 +8137,7 @@ function toggleTheme(){
     <p style="font-size:14px;color:#444;line-height:1.6;margin:0 0 24px;">Identificamos que o <strong>resultado operacional do seu negócio está negativo</strong>. Isso distorce a avaliação e não é o melhor momento para precificar sua empresa.<br><br>Recomendamos conversar com um especialista antes de gerar o laudo.</p>
     <div style="display:flex;flex-direction:column;gap:12px;">
       <a href="https://wa.me/5511952136406?text=Ol%C3%A1!%20Fiz%20o%20diagn%C3%B3stico%20na%201Neg%C3%B3cio%20e%20o%20resultado%20operacional%20ficou%20negativo.%20Gostaria%20de%20conversar%20com%20um%20especialista." target="_blank" style="display:block;padding:14px;background:#25D366;color:#fff;border-radius:10px;font-family:var(--mono);font-weight:700;font-size:13px;text-decoration:none;letter-spacing:.05em;">💬 FALAR COM ESPECIALISTA</a>
-      <button onclick="fecharPopupRONeg();gerarLaudoInstantaneoConfirmado();" style="padding:14px;background:transparent;color:#888;border:1px solid #ddd;border-radius:10px;font-family:var(--mono);font-size:12px;cursor:pointer;letter-spacing:.05em;">Ver relatório mesmo assim</button>
+      <button onclick="fecharPopupRONeg();gerarLaudoInstantaneoConfirmado('rascunho');" style="padding:14px;background:transparent;color:#888;border:1px solid #ddd;border-radius:10px;font-family:var(--mono);font-size:12px;cursor:pointer;letter-spacing:.05em;">Ver relatório mesmo assim</button>
     </div>
   </div>
 </div>

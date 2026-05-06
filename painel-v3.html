@@ -1209,6 +1209,25 @@ table.t .acoes { white-space: nowrap; }
   .apr-list-row.header{display:none}
 }
 
+/* Alertas a contactar · tab + cards */
+.apr-anu-tab-alerta{color:#dc2626}
+.apr-anu-tab-alerta.active{color:#dc2626;border-bottom-color:#dc2626}
+.apr-anu-tab-alerta .apr-anu-tab-count{background:rgba(220,38,38,.10);color:#dc2626}
+.apr-anu-tab-alerta.active .apr-anu-tab-count{background:#dc2626;color:#fff}
+.apr-alerta-card{background:var(--surface-2);border:1px solid var(--line-2);border-left:4px solid #dc2626;border-radius:10px;padding:14px 18px;margin-bottom:10px}
+.apr-alerta-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:10px;flex-wrap:wrap}
+.apr-alerta-nome{font-family:var(--serif);font-weight:700;font-size:15px;color:var(--ink)}
+.apr-alerta-meta{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:3px}
+.apr-alerta-badge{display:inline-block;background:rgba(220,38,38,.12);color:#dc2626;font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:999px;letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+.apr-alerta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px;font-family:var(--mono);font-size:11px}
+.apr-alerta-grid > div{display:flex;flex-direction:column;gap:2px}
+.apr-alerta-grid .l{color:var(--ink-4);font-size:9px;text-transform:uppercase;letter-spacing:.08em}
+.apr-alerta-grid .v{color:var(--ink);font-weight:600;font-size:13px}
+.apr-alerta-grid .v.neg{color:#dc2626}
+.apr-alerta-actions{display:flex;gap:6px;flex-wrap:wrap}
+.apr-alerta-link{color:var(--accent);text-decoration:none;font-weight:600}
+.apr-alerta-link:hover{text-decoration:underline}
+
 </style>
 </head>
 
@@ -1659,6 +1678,7 @@ table.t .acoes { white-space: nowrap; }
               <button class="apr-anu-tab" data-anu-tab="publicados" onclick="aprAnuTab('publicados')">Publicados <span class="apr-anu-tab-count" id="apr-cnt-publicados">—</span></button>
               <button class="apr-anu-tab" data-anu-tab="pausados" onclick="aprAnuTab('pausados')">Pausados <span class="apr-anu-tab-count" id="apr-cnt-pausados">—</span></button>
               <button class="apr-anu-tab" data-anu-tab="vendidos" onclick="aprAnuTab('vendidos')">Vendidos <span class="apr-anu-tab-count" id="apr-cnt-vendidos">—</span></button>
+              <button class="apr-anu-tab apr-anu-tab-alerta" data-anu-tab="alertas" onclick="aprAnuTab('alertas')">🚨 Alertas a contactar <span class="apr-anu-tab-count" id="apr-cnt-alertas">—</span></button>
             </div>
 
             <div class="apr-subfiltros" id="apr-subfiltros">
@@ -10577,8 +10597,9 @@ async function aprLoadAnuncios(){
   try{
     const lr=await paApi('select','laudos_v2',{select:'negocio_id',match:{ativo:true},limit:5000});
     const negV2=new Set((lr.data||[]).map(l=>l.negocio_id).filter(Boolean));
-    const nr=await paApi('select','negocios',{select:'id,codigo_diagnostico,nome,titulo_anuncio,setor,cidade,estado,status,preco_pedido,publicado_em,created_at,vendedor_id',order:'created_at',ascending:false,limit:1000});
-    const negs=(nr.data||[]).filter(n=>negV2.has(n.id));
+    const nr=await paApi('select','negocios',{select:'id,codigo_diagnostico,nome,titulo_anuncio,setor,cidade,estado,status,preco_pedido,publicado_em,created_at,vendedor_id,alerta_consultor_enviado_em,dados_json',order:'created_at',ascending:false,limit:1000});
+    // Inclui · negócios com laudo_v2 OU em status de alerta consultor (sem laudo)
+    const negs=(nr.data||[]).filter(n=>negV2.has(n.id)||n.status==='consulta_consultor_ro_negativo');
     const tr=await paApi('select','termos_adesao',{select:'negocio_id,assinatura_em,plano,valor_pretendido',order:'assinatura_em',ascending:false,limit:5000});
     const tMap=new Map();(tr.data||[]).forEach(t=>{if(!tMap.has(t.negocio_id))tMap.set(t.negocio_id,t);});
     const vMap=new Map();
@@ -10609,19 +10630,30 @@ async function aprLoadAnuncios(){
 }
 
 function aprAtualizarContadores(){
-  const ag=_aprAnuTodos.filter(n=>!n._anuncio||n._anuncio.status==='rascunho'||n._anuncio.status==='aguardando_aprovacao').length;
-  const pb=_aprAnuTodos.filter(n=>n._anuncio&&n._anuncio.status==='publicado').length;
-  const ps=_aprAnuTodos.filter(n=>n._anuncio&&n._anuncio.status==='pausado').length;
-  const vd=_aprAnuTodos.filter(n=>n._anuncio&&n._anuncio.status==='vendido').length;
+  // Alertas · negócios em status de alerta consultor (excluídos das tabs operacionais)
+  const al=_aprAnuTodos.filter(n=>n.status==='consulta_consultor_ro_negativo'&&n.alerta_consultor_enviado_em).length;
+  // Restante (operacional · só negócios com laudo_v2 e não-alerta)
+  const op=_aprAnuTodos.filter(n=>n.status!=='consulta_consultor_ro_negativo'&&n.status!=='consulta_perdida');
+  const ag=op.filter(n=>!n._anuncio||n._anuncio.status==='rascunho'||n._anuncio.status==='aguardando_aprovacao').length;
+  const pb=op.filter(n=>n._anuncio&&n._anuncio.status==='publicado').length;
+  const ps=op.filter(n=>n._anuncio&&n._anuncio.status==='pausado').length;
+  const vd=op.filter(n=>n._anuncio&&n._anuncio.status==='vendido').length;
   document.getElementById('apr-cnt-aguardando').textContent=ag;
   document.getElementById('apr-cnt-publicados').textContent=pb;
   document.getElementById('apr-cnt-pausados').textContent=ps;
   document.getElementById('apr-cnt-vendidos').textContent=vd;
-  const pr=_aprAnuTodos.filter(n=>n._maturidade==='pronto').length;
+  document.getElementById('apr-cnt-alertas').textContent=al;
+  const pr=op.filter(n=>n._maturidade==='pronto').length;
   const pillTopo=document.getElementById('apr-cnt-aguardando-pill');
   if(pillTopo){pillTopo.style.display=ag>0?'inline-block':'none';pillTopo.textContent=ag;}
   const resumo=document.getElementById('apr-prontos-resumo');
-  if(resumo)resumo.innerHTML=pr>0?`<strong style="color:var(--accent)">${pr} pronto${pr>1?'s':''}</strong> pra publicar · ${ag} na fila de aguardando`:`${ag} na fila de aguardando`;
+  if(resumo){
+    const partes=[];
+    if(pr>0)partes.push(`<strong style="color:var(--accent)">${pr} pronto${pr>1?'s':''}</strong> pra publicar`);
+    partes.push(`${ag} na fila de aguardando`);
+    if(al>0)partes.push(`<strong style="color:#dc2626">${al} alerta${al>1?'s':''} a contactar</strong>`);
+    resumo.innerHTML=partes.join(' · ');
+  }
 }
 
 function aprAnuTab(t){
@@ -10631,12 +10663,69 @@ function aprAnuTab(t){
   if(sf)sf.style.display=t==='aguardando'?'flex':'none';
   aprAplicarFiltro();
 }
+
+function aprRenderAlertas(alertas){
+  const tbl=document.getElementById('apr-tbl-anuncios');
+  if(!alertas.length){tbl.innerHTML='<div class="apr-empty">nenhum alerta pendente · 🎉</div>';return;}
+  tbl.innerHTML=alertas.map(n=>{
+    const d=n.dados_json||{};
+    const nomeContato=d.nome_contato||'—';
+    const wppRaw=(d.whatsapp||'').replace(/\D/g,'');
+    const wppDDI=wppRaw.startsWith('55')?wppRaw:'55'+wppRaw;
+    const wppFmt=wppRaw.length===11?`(${wppRaw.substring(0,2)}) ${wppRaw.substring(2,7)}-${wppRaw.substring(7)}`:wppRaw;
+    const fatM=Number(d.fat_mensal||0);
+    const roM=Number(d.ro_mensal||d.resultado_op||0);
+    const margem=fatM>0?(roM/fatM*100).toFixed(1)+'%':'—';
+    const recebidoEm=n.alerta_consultor_enviado_em?new Date(n.alerta_consultor_enviado_em).toLocaleString('pt-BR'):'—';
+    const cidLoc=(n.cidade||'—')+'/'+(n.estado||'—');
+    return `<div class="apr-alerta-card">
+      <div class="apr-alerta-card-head">
+        <div>
+          <div class="apr-alerta-nome">${tdEscape(nomeContato)} <span style="font-weight:400;color:var(--ink-3);font-size:13px">· ${tdEscape(n.nome||'(sem nome)')}</span></div>
+          <div class="apr-alerta-meta">📍 ${tdEscape(cidLoc)} · ${tdEscape(n.setor||'—')} · ${tdEscape(n.codigo_diagnostico||'—')}</div>
+          <div class="apr-alerta-meta" style="margin-top:3px">📱 ${wppRaw?`<a class="apr-alerta-link" href="https://wa.me/${wppDDI}" target="_blank">${tdEscape(wppFmt)}</a>`:'<span style="color:var(--ink-4)">sem WhatsApp</span>'}</div>
+        </div>
+        <span class="apr-alerta-badge">🚨 RO negativo</span>
+      </div>
+      <div class="apr-alerta-grid">
+        <div><span class="l">Faturamento/mês</span><span class="v">R$ ${aprFmtMoneyBR(fatM)}</span></div>
+        <div><span class="l">Resultado/mês</span><span class="v neg">R$ ${aprFmtMoneyBR(roM)}</span></div>
+        <div><span class="l">Margem</span><span class="v neg">${margem}</span></div>
+        <div><span class="l">Sugestão recebida</span><span class="v" style="font-size:11px;font-weight:500">${recebidoEm}</span></div>
+      </div>
+      <div class="apr-alerta-actions">
+        ${wppRaw?`<a class="apr-btn-wpp" href="https://wa.me/${wppDDI}" target="_blank">💬 WhatsApp</a>`:''}
+        <button class="apr-btn apr-btn-secondary" onclick="aprAlertaMarcar('${n.id}','rascunho','Marcar como contactado · vai pra fila Aguardando publicação')">✓ Contactado</button>
+        <button class="apr-btn apr-btn-warn" onclick="aprAlertaMarcar('${n.id}','consulta_perdida','Marcar como perdido · sai da fila')">✕ Perdido</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function aprAlertaMarcar(negocioId,novoStatus,confirmTxt){
+  if(!confirm(confirmTxt+'\n\nConfirma?'))return;
+  try{
+    const r=await paApi('update','negocios',{match:{id:negocioId}},{status:novoStatus});
+    if(r&&r.error)throw new Error(r.error);
+    alert('✓ Status atualizado: '+novoStatus);
+    aprLoadAnuncios();
+  }catch(e){alert('Erro: '+(e.message||e));}
+}
 function aprSubFiltro(s){_aprSubFiltro=s;document.querySelectorAll('.apr-sub-btn').forEach(b=>b.classList.toggle('active',b.dataset.sub===s));aprAplicarFiltro();}
 function aprOrdem(o){_aprOrdem=o;document.querySelectorAll('.apr-ord-btn').forEach(b=>b.classList.toggle('active',b.dataset.ord===o));aprAplicarFiltro();}
 
 function aprAplicarFiltro(){
   const q=(document.getElementById('apr-search-input')?.value||'').toLowerCase().trim();
   let lista=_aprAnuTodos;
+  // Aba "alertas" tem render próprio · skip filtros e sort normais
+  if(_aprTabAtual==='alertas'){
+    let alertas=_aprAnuTodos.filter(n=>n.status==='consulta_consultor_ro_negativo'&&n.alerta_consultor_enviado_em);
+    if(q){alertas=alertas.filter(n=>(n.codigo_diagnostico||'').toLowerCase().includes(q)||(n.nome||'').toLowerCase().includes(q)||(n.cidade||'').toLowerCase().includes(q));}
+    alertas.sort((a,b)=>new Date(b.alerta_consultor_enviado_em).getTime()-new Date(a.alerta_consultor_enviado_em).getTime());
+    aprRenderAlertas(alertas);return;
+  }
+  // Operacional · exclui status de alerta/perdida
+  lista=lista.filter(n=>n.status!=='consulta_consultor_ro_negativo'&&n.status!=='consulta_perdida');
   if(_aprTabAtual==='aguardando')lista=lista.filter(n=>!n._anuncio||n._anuncio.status==='rascunho'||n._anuncio.status==='aguardando_aprovacao');
   else if(_aprTabAtual==='publicados')lista=lista.filter(n=>n._anuncio&&n._anuncio.status==='publicado');
   else if(_aprTabAtual==='pausados')lista=lista.filter(n=>n._anuncio&&n._anuncio.status==='pausado');
