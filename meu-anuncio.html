@@ -95,18 +95,18 @@ async function carregar() {
   if (!negId) { renderErro('Link inválido', 'Falta o ID do negócio na URL.'); return; }
 
   try {
-    // Busca negócio + tarefas em paralelo
-    const [rNeg, rTarefas] = await Promise.all([
-      fetch(`${SB}/rest/v1/negocios?id=eq.${negId}&select=id,nome,cidade,estado,setor,plano,status,created_at`, { headers: authHeaders() }),
-      fetch(`${SB}/rest/v1/projeto_tarefas?negocio_id=eq.${negId}&order=ordem.asc&select=id,ordem,titulo,descricao,data_prevista,concluido,concluido_em,notas_cliente,contador_atual,contador_alvo`, { headers: authHeaders() })
+    // Busca negócio + entregáveis (Fase 1) em paralelo
+    const [rNeg, rEntregaveis] = await Promise.all([
+      fetch(`${SB}/rest/v1/negocios?id=eq.${negId}&select=id,nome,cidade,estado,setor,plano,status,created_at,metadata:projeto_metadata(iniciado_em,proxima_onda_em,status)`, { headers: authHeaders() }),
+      fetch(`${SB}/rest/v1/projeto_entregaveis?negocio_id=eq.${negId}&order=ordem.asc&select=id,ordem,mes_relativo,titulo,descricao_cliente,tipo,data_prevista,status,concluido_em,notas_cliente,contador_atual,contador_alvo`, { headers: authHeaders() })
     ]);
     if (!rNeg.ok) { renderErro('Acesso negado', 'Você não tem permissão pra ver este projeto.'); return; }
     const negArr = await rNeg.json();
     if (!negArr.length) { renderErro('Negócio não encontrado', 'Verifique o link.'); return; }
     const neg = negArr[0];
-    const tarefas = rTarefas.ok ? await rTarefas.json() : [];
+    const entregaveis = rEntregaveis.ok ? await rEntregaveis.json() : [];
 
-    renderTela(neg, tarefas);
+    renderTela(neg, entregaveis);
   } catch(e) {
     renderErro('Erro de rede', 'Verifique sua conexão e tente novamente.');
   }
@@ -126,12 +126,14 @@ function calcularMesAtual(criadoEm) {
   return Math.max(1, Math.min(12, meses));
 }
 
-function renderTela(neg, tarefas) {
+function renderTela(neg, entregaveis) {
   const negTit = neg.nome || '—';
   const local = (neg.cidade || '—') + '/' + (neg.estado || '—');
   const setor = neg.setor || '—';
   const planoLbl = neg.plano === 'assessorada' ? 'Venda Assessorada' : (neg.plano || '—').toUpperCase();
-  const mesAtual = calcularMesAtual(neg.created_at);
+  const meta = Array.isArray(neg.metadata) ? neg.metadata[0] : neg.metadata;
+  const baseMes = meta?.iniciado_em || neg.created_at;
+  const mesAtual = calcularMesAtual(baseMes);
 
   // Hero
   let html = `
@@ -146,11 +148,11 @@ function renderTela(neg, tarefas) {
     </div>
   `;
 
-  // Timeline
-  if (!tarefas.length) {
+  // Timeline · agrupa por mês relativo
+  if (!entregaveis.length) {
     html += `
       <div class="card">
-        <div class="section-titulo">Jornada</div>
+        <div class="section-titulo">Jornada · entregáveis do trimestre</div>
         <div class="empty">
           Seu projeto ainda não foi iniciado.<br>
           Em breve a equipe da 1Negócio vai configurar seu painel de acompanhamento.
@@ -158,15 +160,29 @@ function renderTela(neg, tarefas) {
       </div>
     `;
   } else {
-    // Próxima tarefa em curso = primeira não concluída
-    const proximaIdx = tarefas.findIndex(t => !t.concluido);
+    const grupos = {};
+    entregaveis.forEach(e => { if (!grupos[e.mes_relativo]) grupos[e.mes_relativo]=[]; grupos[e.mes_relativo].push(e); });
+    const mesesOrdenados = Object.keys(grupos).map(Number).sort((a,b)=>a-b);
+    const proximoIdx = entregaveis.findIndex(e => e.status !== 'concluido');
+    const baseDt = new Date(baseMes);
+    const mesNomes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
     html += `
       <div class="card">
-        <div class="section-titulo">Jornada</div>
-        <div class="timeline">
-          ${tarefas.map((t, i) => renderTarefa(t, i, proximaIdx)).join('')}
-        </div>
+        <div class="section-titulo">Jornada · entregáveis do trimestre</div>
+        ${mesesOrdenados.map(m => {
+          const dt = new Date(baseDt.getFullYear(), baseDt.getMonth() + m, 1);
+          const lbl = `MÊS ${m} · ${mesNomes[dt.getMonth()].toUpperCase()} ${dt.getFullYear()}`;
+          return `
+            <div style="margin-bottom:18px">
+              <div style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line)">${lbl}</div>
+              <div class="timeline">
+                ${grupos[m].map((e, i) => renderEntregavel(e, entregaveis.indexOf(e), proximoIdx)).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+        <div style="margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ink-4);text-align:center">Próximas etapas geradas conforme avançamos.</div>
       </div>
     `;
   }
@@ -183,8 +199,8 @@ function renderTela(neg, tarefas) {
   document.getElementById('root').innerHTML = html;
 }
 
-function renderTarefa(t, idx, proximaIdx) {
-  const ok = t.concluido;
+function renderEntregavel(t, idx, proximaIdx) {
+  const ok = t.status === 'concluido';
   const now = !ok && idx === proximaIdx;
   const future = !ok && !now;
 
@@ -198,7 +214,6 @@ function renderTarefa(t, idx, proximaIdx) {
 
   const notas = (ok && t.notas_cliente) ? `<div class="tarefa-notas">${escapeHtml(t.notas_cliente)}</div>` : '';
 
-  // Tarefa contador (+200 contatos)
   let progresso = '';
   if (t.contador_alvo && t.contador_alvo > 0) {
     const atual = t.contador_atual || 0;
@@ -217,7 +232,7 @@ function renderTarefa(t, idx, proximaIdx) {
       ${iconHtml}
       <div class="tarefa-corpo">
         <div class="tarefa-titulo ${tituloCls}">${escapeHtml(t.titulo)}</div>
-        ${t.descricao ? `<div class="tarefa-desc">${escapeHtml(t.descricao)}</div>` : ''}
+        ${t.descricao_cliente ? `<div class="tarefa-desc">${escapeHtml(t.descricao_cliente)}</div>` : ''}
         ${dataInfo ? `<div class="tarefa-data">${dataInfo}</div>` : ''}
         ${progresso}
         ${notas}
