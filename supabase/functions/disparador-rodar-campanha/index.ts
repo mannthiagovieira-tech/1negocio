@@ -167,9 +167,7 @@ async function processarCampanha(sb: any, c: Campanha): Promise<{ acao: string; 
     if (env.lead_id) {
       await sb.from("leads_google").update({ abordado_em: nowIso }).eq("id", env.lead_id);
     }
-    // Incrementa contadores
-    await sb.rpc("incrementar_campanha_envio", { p_campanha_id: c.id }).catch(() => null);
-    // Fallback se RPC não existe
+    // Incrementa contadores · SELECT+UPDATE atômico-aproximado
     const { data: cur } = await sb.from("disparador_campanhas").select("total_enviados").eq("id", c.id).maybeSingle();
     await sb.from("disparador_campanhas").update({ total_enviados: (cur?.total_enviados || 0) + 1 }).eq("id", c.id);
     await sb.from("zapi_telefones").update({
@@ -192,27 +190,45 @@ async function processarCampanha(sb: any, c: Campanha): Promise<{ acao: string; 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  const sb = createClient(SB_URL, SB_SERVICE);
+  try {
+    const sb = createClient(SB_URL, SB_SERVICE);
 
-  // 1. Promove campanhas agendadas vencidas para rodando
-  await sb.from("disparador_campanhas")
-    .update({ status: "rodando", iniciado_em: new Date().toISOString() })
-    .eq("status", "agendada")
-    .lte("agendado_para", new Date().toISOString());
+    // 1. Promove campanhas agendadas vencidas para rodando
+    await sb.from("disparador_campanhas")
+      .update({ status: "rodando", iniciado_em: new Date().toISOString() })
+      .eq("status", "agendada")
+      .lte("agendado_para", new Date().toISOString());
 
-  // 2. Carrega campanhas em curso
-  const { data: campanhas } = await sb.from("disparador_campanhas")
-    .select("id, nome, status, zapi_telefone_id, mensagem_template, janela_inicio, janela_fim, dias_semana, velocidade_por_dia, pausa_min_segundos, pausa_max_segundos, iniciado_em, agendado_para")
-    .eq("status", "rodando");
+    // 2. Carrega campanhas em curso
+    const { data: campanhas, error: campErr } = await sb.from("disparador_campanhas")
+      .select("id, nome, status, zapi_telefone_id, mensagem_template, janela_inicio, janela_fim, dias_semana, velocidade_por_dia, pausa_min_segundos, pausa_max_segundos, iniciado_em, agendado_para, total_erros")
+      .eq("status", "rodando");
+    if (campErr) {
+      console.error("[disp] SELECT campanhas erro:", campErr);
+      return new Response(JSON.stringify({ ok: false, erro: "SELECT campanhas: " + campErr.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
-  const resultados: any[] = [];
-  for (const c of (campanhas || [])) {
-    const r = await processarCampanha(sb, c as Campanha);
-    resultados.push({ campanha: c.nome || c.id, ...r });
+    const resultados: any[] = [];
+    for (const c of (campanhas || [])) {
+      try {
+        const r = await processarCampanha(sb, c as Campanha);
+        resultados.push({ campanha: c.nome || c.id, ...r });
+      } catch (e) {
+        const msg = (e as Error).message || String(e);
+        const stk = (e as Error).stack || "";
+        console.error(`[disp] processarCampanha(${c.nome}) THROW:`, msg, stk);
+        resultados.push({ campanha: c.nome || c.id, acao: "throw", detalhe: msg });
+      }
+    }
+
+    return new Response(JSON.stringify({ ok: true, processadas: resultados.length, resultados }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    const msg = (e as Error).message || String(e);
+    const stk = (e as Error).stack || "";
+    console.error("[disp] TOPLEVEL THROW:", msg, stk);
+    return new Response(JSON.stringify({ ok: false, erro: msg, stack: stk.slice(0, 500) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
-
-  return new Response(JSON.stringify({ ok: true, processadas: resultados.length, resultados }), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
 });
