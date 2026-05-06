@@ -114,7 +114,7 @@ async function processarCampanha(sb: any, c: Campanha): Promise<{ acao: string; 
 
   // 4. Pega próximo envio pendente
   const { data: env } = await sb.from("disparador_envios")
-    .select("id, lead_id, lead_telefone")
+    .select("id, lead_id, lead_telefone, mensagem_customizada")
     .eq("campanha_id", c.id)
     .eq("status", "pendente")
     .limit(1)
@@ -141,7 +141,9 @@ async function processarCampanha(sb: any, c: Campanha): Promise<{ acao: string; 
     setor: lead?.setor || "",
   };
   const telefoneEnvio = env.lead_telefone || lead?.telefone || "";
-  const mensagem = renderTemplate(c.mensagem_template || "", vars);
+  const mensagem = (env as any).mensagem_customizada
+    ? String((env as any).mensagem_customizada)
+    : renderTemplate(c.mensagem_template || "", vars);
 
   if (!telefoneEnvio) {
     await sb.from("disparador_envios").update({ status: "erro", erro_mensagem: "lead sem telefone" }).eq("id", env.id);

@@ -2025,14 +2025,34 @@ table.t .acoes { white-space: nowrap; }
                   <label class="disp-pill"><input type="radio" name="disp-cn-veloc" value="custom">🛠 Custom<input class="td-input" type="number" id="disp-cn-veloc-custom" min="1" max="500" style="margin-left:6px;width:54px;padding:3px 6px;font-size:11px"></label>
                 </div>
 
-                <div style="font-family:var(--mono);font-size:10px;color:var(--ink-4);margin:12px 0 6px;letter-spacing:.06em;text-transform:uppercase">Janela</div>
+                <div style="font-family:var(--mono);font-size:10px;color:var(--ink-4);margin:12px 0 6px;letter-spacing:.06em;text-transform:uppercase">Dias da semana</div>
+                <div id="disp-cn-dias-chips" class="disp-chips"></div>
+
+                <div style="font-family:var(--mono);font-size:10px;color:var(--ink-4);margin:12px 0 6px;letter-spacing:.06em;text-transform:uppercase">Janela horária</div>
                 <div class="disp-pills" id="disp-cn-janela-pills">
-                  <label class="disp-pill on"><input type="radio" name="disp-cn-janela" value="comercial" checked>🏢 Comercial<span class="disp-pill-mini">9-18 · seg-sex</span></label>
-                  <label class="disp-pill"><input type="radio" name="disp-cn-janela" value="estendido">🌅 Estendido<span class="disp-pill-mini">8-21 · seg-sáb</span></label>
+                  <label class="disp-pill on"><input type="radio" name="disp-cn-janela" value="comercial" checked>🏢 Comercial<span class="disp-pill-mini">9-18</span></label>
+                  <label class="disp-pill"><input type="radio" name="disp-cn-janela" value="estendido">🌅 Estendido<span class="disp-pill-mini">8-21</span></label>
                   <label class="disp-pill"><input type="radio" name="disp-cn-janela" value="247">🌐 24/7</label>
+                  <label class="disp-pill"><input type="radio" name="disp-cn-janela" value="custom">🛠 Custom</label>
+                </div>
+                <div id="disp-cn-janela-custom" style="display:none;margin-top:8px;display:none">
+                  <div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--ink-3)">
+                    <span>de</span>
+                    <input class="td-input" type="time" id="disp-cn-janela-ini" value="09:00" style="width:auto;flex:0 0 100px">
+                    <span>até</span>
+                    <input class="td-input" type="time" id="disp-cn-janela-fim" value="18:00" style="width:auto;flex:0 0 100px">
+                  </div>
+                  <div id="disp-cn-janela-erro" style="font-size:11px;color:#ff6b5c;margin-top:4px"></div>
                 </div>
 
-                <div style="font-family:var(--mono);font-size:11px;color:var(--ink-4);margin-top:10px">⏱ Pausa entre envios: aleatória 30–90s</div>
+                <div style="font-family:var(--mono);font-size:10px;color:var(--ink-4);margin:12px 0 6px;letter-spacing:.06em;text-transform:uppercase">Intervalo entre envios <span style="text-transform:none;letter-spacing:0;color:var(--ink-4);font-family:var(--sans)">· segundos · aleatório dentro da faixa</span></div>
+                <div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--ink-3)">
+                  <span>min</span>
+                  <input class="td-input" type="number" id="disp-cn-pausa-min" value="30" min="5" max="3600" style="width:auto;flex:0 0 80px">
+                  <span>max</span>
+                  <input class="td-input" type="number" id="disp-cn-pausa-max" value="90" min="10" max="7200" style="width:auto;flex:0 0 80px">
+                </div>
+                <div id="disp-cn-pausa-erro" style="font-size:11px;color:#ff6b5c;margin-top:4px"></div>
 
                 <div id="disp-cn-estimativa" class="disp-estimativa">—</div>
               </div>
@@ -2070,18 +2090,54 @@ table.t .acoes { white-space: nowrap; }
           </div>
         </div>
 
+        <!-- Modal · editar mensagem INDIVIDUAL de um envio -->
+        <div id="disp-em-ind-overlay" class="modal-overlay" style="z-index:1130">
+          <div class="td-modal-box" style="width:min(95vw,560px)">
+            <div class="td-modal-head">
+              <div class="td-modal-titulo">✎ Editar mensagem individual</div>
+              <button class="tpl-btn-close" onclick="document.getElementById('disp-em-ind-overlay').classList.remove('show')">×</button>
+            </div>
+            <div class="td-modal-body">
+              <div id="disp-em-ind-resumo" style="background:var(--surface-2);padding:10px 12px;border-radius:8px;font-size:12px;margin-bottom:12px;font-family:var(--mono);color:var(--ink-2)"></div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--ink-4);margin-bottom:6px;letter-spacing:.06em;text-transform:uppercase">Variáveis disponíveis</div>
+              <div class="disp-vars" id="disp-em-ind-vars"></div>
+              <textarea class="td-textarea" id="disp-em-ind-msg" rows="6" style="min-height:140px"></textarea>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--ink-4);margin:10px 0 4px;letter-spacing:.06em;text-transform:uppercase">Pré-visualização</div>
+              <div id="disp-em-ind-preview" class="disp-preview"></div>
+              <input type="hidden" id="disp-em-ind-envio-id">
+              <div id="disp-em-ind-status" style="margin:8px 0;font-size:12px"></div>
+              <div class="disp-modal-footer">
+                <button class="td-btn td-btn-ghost" onclick="document.getElementById('disp-em-ind-overlay').classList.remove('show')">Cancelar</button>
+                <button class="td-btn td-btn-perigo" id="disp-em-ind-revert" onclick="dispEmIndReverter()" style="display:none">↩ Voltar ao template</button>
+                <button class="td-btn td-btn-primario" onclick="dispEmIndSalvar()">Salvar customização</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Modal · editar mensagem campanha em curso -->
         <div id="disp-camp-edit-msg-overlay" class="modal-overlay" style="z-index:1125">
-          <div class="td-modal-box" style="max-width:560px">
+          <div class="td-modal-box" style="width:min(95vw,560px)">
             <div class="td-modal-head">
-              <div class="td-modal-titulo">Editar mensagem</div>
+              <div class="td-modal-titulo">Editar mensagem da campanha</div>
               <button class="tpl-btn-close" onclick="document.getElementById('disp-camp-edit-msg-overlay').classList.remove('show')">×</button>
             </div>
             <div class="td-modal-body">
-              <div style="background:rgba(220,167,38,.10);padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;border-left:3px solid #dca726">⚠️ Mudança aplica APENAS pra leads ainda não enviados nesta campanha</div>
-              <textarea class="td-textarea" id="disp-em-msg" rows="6"></textarea>
+              <div style="background:rgba(220,167,38,.10);padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:12px;border-left:3px solid #dca726">⚠️ Mudança aplica APENAS aos leads ainda <strong>pendentes</strong> · enviados não são afetados</div>
+              <textarea class="td-textarea" id="disp-em-msg" rows="6" style="min-height:140px"></textarea>
               <input type="hidden" id="disp-em-id">
-              <div class="td-suc-actions" style="margin-top:12px;display:flex;gap:8px">
+
+              <label style="display:flex;gap:10px;align-items:flex-start;margin-top:14px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;cursor:pointer">
+                <input type="checkbox" id="disp-em-overwrite" checked style="margin-top:3px;width:16px;height:16px;accent-color:var(--accent);cursor:pointer">
+                <div>
+                  <div style="font-family:var(--serif);font-weight:600;font-size:13px;color:var(--ink)">Sobrescrever mensagens já customizadas individualmente</div>
+                  <div style="font-family:var(--sans);font-size:11px;color:var(--ink-3);margin-top:3px;line-height:1.5"><strong>Marcado:</strong> aplica novo template em <strong>TODOS</strong> os pendentes (mesmo os customizados manualmente).<br><strong>Desmarcado:</strong> preserva mensagens editadas manualmente · novo template vale só pros que não foram customizados.</div>
+                </div>
+              </label>
+
+              <div id="disp-em-status" style="margin:8px 0;font-size:12px"></div>
+
+              <div class="disp-modal-footer">
                 <button class="td-btn td-btn-ghost" onclick="document.getElementById('disp-camp-edit-msg-overlay').classList.remove('show')">Cancelar</button>
                 <button class="td-btn td-btn-primario" onclick="dispCampSalvarMsgEdit()">Salvar nova mensagem</button>
               </div>
@@ -8334,17 +8390,27 @@ function dispRenderCatChips(){
 function dispToggleCat(v){if(_dispCatsSel.has(v))_dispCatsSel.delete(v);else _dispCatsSel.add(v);dispRenderCatChips();_dispPoolPag=1;dispPoolFetch();}
 
 function dispBindModalPills(){
-  // Radio change → toggle .on no label pai
+  // Radio change → toggle .on no label pai + mostrar bloco custom da janela
   document.querySelectorAll('input[name="disp-cn-veloc"],input[name="disp-cn-janela"]').forEach(r=>{
     r.addEventListener('change',()=>{
       const grupo=r.name;
       document.querySelectorAll(`input[name="${grupo}"]`).forEach(x=>x.closest('.disp-pill')?.classList.toggle('on',x.checked));
-      dispCnEstimar();
+      // Mostra inputs de horário custom só quando janela=custom
+      if(grupo==='disp-cn-janela'){
+        const sel=document.querySelector('input[name="disp-cn-janela"]:checked')?.value;
+        const cBox=document.getElementById('disp-cn-janela-custom');
+        if(cBox)cBox.style.display=sel==='custom'?'block':'none';
+      }
+      dispCnValidarCadencia();dispCnEstimar();
     });
   });
   // Custom number muda velocidade
   const cust=document.getElementById('disp-cn-veloc-custom');
   if(cust)cust.addEventListener('input',()=>{const r=document.querySelector('input[name="disp-cn-veloc"][value="custom"]');if(r){r.checked=true;document.querySelectorAll('input[name="disp-cn-veloc"]').forEach(x=>x.closest('.disp-pill')?.classList.toggle('on',x.checked));}dispCnEstimar();});
+  // Validações ao vivo
+  ['disp-cn-janela-ini','disp-cn-janela-fim','disp-cn-pausa-min','disp-cn-pausa-max'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.addEventListener('input',()=>{dispCnValidarCadencia();dispCnEstimar();});
+  });
 }
 
 function dispCnInsertVar(v){
@@ -8559,6 +8625,16 @@ async function dispCampanhaAbrirNova(){
     }).join('');
   }
   _dispCnPrevIdx=0;
+  // Reset cadência
+  _dispCnDiasSel=new Set(['mon','tue','wed','thu','fri']);
+  dispCnRenderDiasChips();
+  document.getElementById('disp-cn-pausa-min').value='30';
+  document.getElementById('disp-cn-pausa-max').value='90';
+  document.getElementById('disp-cn-janela-ini').value='09:00';
+  document.getElementById('disp-cn-janela-fim').value='18:00';
+  document.getElementById('disp-cn-janela-custom').style.display='none';
+  document.getElementById('disp-cn-janela-erro').textContent='';
+  document.getElementById('disp-cn-pausa-erro').textContent='';
   dispCnAtualizarPreview();
   dispCnEstimar();
   document.getElementById('disp-camp-nova-overlay').classList.add('show');
@@ -8590,11 +8666,50 @@ function dispCnVelocidade(){
   return parseInt(r.value,10)||20;
 }
 
+const DIAS_SEMANA=[{v:'sun',l:'D'},{v:'mon',l:'S'},{v:'tue',l:'T'},{v:'wed',l:'Q'},{v:'thu',l:'Q'},{v:'fri',l:'S'},{v:'sat',l:'S'}];
+let _dispCnDiasSel=new Set(['mon','tue','wed','thu','fri']);
+
+function dispCnRenderDiasChips(){
+  const cont=document.getElementById('disp-cn-dias-chips');
+  if(!cont)return;
+  cont.innerHTML=DIAS_SEMANA.map(d=>{
+    const on=_dispCnDiasSel.has(d.v);
+    return `<button class="disp-chip ${on?'on':''}" onclick="dispCnToggleDia('${d.v}')" title="${d.v}" style="min-width:32px;justify-content:center">${d.l}</button>`;
+  }).join('');
+}
+function dispCnToggleDia(v){if(_dispCnDiasSel.has(v))_dispCnDiasSel.delete(v);else _dispCnDiasSel.add(v);dispCnRenderDiasChips();dispCnEstimar();}
+
 function dispCnJanelaConfig(){
   const j=document.querySelector('input[name="disp-cn-janela"]:checked')?.value||'comercial';
-  if(j==='estendido')return {janela_inicio:'08:00',janela_fim:'21:00',dias_semana:['mon','tue','wed','thu','fri','sat']};
-  if(j==='247')return {janela_inicio:'00:00',janela_fim:'23:59',dias_semana:['mon','tue','wed','thu','fri','sat','sun']};
-  return {janela_inicio:'09:00',janela_fim:'18:00',dias_semana:['mon','tue','wed','thu','fri']};
+  let janela_inicio,janela_fim;
+  if(j==='estendido'){janela_inicio='08:00';janela_fim='21:00';}
+  else if(j==='247'){janela_inicio='00:00';janela_fim='23:59';}
+  else if(j==='custom'){
+    janela_inicio=document.getElementById('disp-cn-janela-ini').value||'09:00';
+    janela_fim=document.getElementById('disp-cn-janela-fim').value||'18:00';
+  }
+  else {janela_inicio='09:00';janela_fim='18:00';}
+  const dias=[..._dispCnDiasSel];
+  return {janela_inicio,janela_fim,dias_semana:dias.length?dias:['mon','tue','wed','thu','fri']};
+}
+
+function dispCnValidarCadencia(){
+  const erro=[];
+  // janela custom
+  if(document.querySelector('input[name="disp-cn-janela"]:checked')?.value==='custom'){
+    const ini=document.getElementById('disp-cn-janela-ini').value;
+    const fim=document.getElementById('disp-cn-janela-fim').value;
+    if(ini>=fim){document.getElementById('disp-cn-janela-erro').textContent='Fim precisa ser maior que início';erro.push('janela');}
+    else document.getElementById('disp-cn-janela-erro').textContent='';
+  }
+  // pausa
+  const pmin=parseInt(document.getElementById('disp-cn-pausa-min').value,10)||0;
+  const pmax=parseInt(document.getElementById('disp-cn-pausa-max').value,10)||0;
+  if(pmax<=pmin){document.getElementById('disp-cn-pausa-erro').textContent='Max precisa ser maior que min';erro.push('pausa');}
+  else document.getElementById('disp-cn-pausa-erro').textContent='';
+  // dias
+  if(!_dispCnDiasSel.size)erro.push('dias');
+  return erro.length===0;
 }
 
 function dispCnEstimar(){
@@ -8629,8 +8744,12 @@ async function dispCnSalvar(statusInicial){
     agendado_para=new Date(brtIso).toISOString();
   }
 
+  if(!dispCnValidarCadencia()){status.style.color='#c0392b';status.textContent='Corrija os erros de cadência antes de salvar';return;}
+
   const j=dispCnJanelaConfig();
   const v=dispCnVelocidade();
+  const pmin=parseInt(document.getElementById('disp-cn-pausa-min').value,10)||30;
+  const pmax=parseInt(document.getElementById('disp-cn-pausa-max').value,10)||90;
 
   const payload={
     nome,
@@ -8642,11 +8761,12 @@ async function dispCnSalvar(statusInicial){
     janela_inicio:j.janela_inicio,
     janela_fim:j.janela_fim,
     dias_semana:j.dias_semana,
-    pausa_min_segundos:30,
-    pausa_max_segundos:90,
+    pausa_min_segundos:pmin,
+    pausa_max_segundos:pmax,
     status:statusInicial,
     iniciado_em:statusInicial==='rodando'?new Date().toISOString():null,
     agendado_para,
+    template_aplicado_em:new Date().toISOString(),
   };
 
   status.style.color='var(--ink-3)';status.textContent='Criando campanha...';
@@ -8749,16 +8869,32 @@ async function dispCampEditarMsg(id){
   const arr=r.ok?await r.json():[];
   document.getElementById('disp-em-id').value=id;
   document.getElementById('disp-em-msg').value=arr[0]?.mensagem_template||'';
+  document.getElementById('disp-em-overwrite').checked=true;
+  document.getElementById('disp-em-status').textContent='';
   document.getElementById('disp-camp-edit-msg-overlay').classList.add('show');
 }
 
 async function dispCampSalvarMsgEdit(){
   const id=document.getElementById('disp-em-id').value;
   const msg=document.getElementById('disp-em-msg').value;
-  const r=await fetch(SB+'/rest/v1/disparador_campanhas?id=eq.'+id,{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({mensagem_template:msg})});
-  if(!r.ok){alert('Erro: '+r.status);return;}
-  document.getElementById('disp-camp-edit-msg-overlay').classList.remove('show');
-  dispCampanhasFetch();
+  const overwrite=document.getElementById('disp-em-overwrite').checked;
+  const status=document.getElementById('disp-em-status');
+  status.style.color='var(--ink-3)';status.textContent='Salvando...';
+
+  const r=await fetch(SB+'/rest/v1/disparador_campanhas?id=eq.'+id,{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({mensagem_template:msg,template_aplicado_em:new Date().toISOString()})});
+  if(!r.ok){const t=await r.text();status.style.color='#c0392b';status.textContent='Erro '+r.status+': '+t;return;}
+
+  if(overwrite){
+    // Zera mensagem_customizada de todos os envios pendentes desta campanha
+    status.textContent='Sobrescrevendo customizações...';
+    const ro=await fetch(SB+'/rest/v1/disparador_envios?campanha_id=eq.'+id+'&status=eq.pendente&mensagem_customizada=not.is.null',{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json',Prefer:'return=representation'},body:JSON.stringify({mensagem_customizada:null})});
+    if(!ro.ok){status.style.color='#dca726';status.textContent='Template salvo · falha ao zerar customizadas (HTTP '+ro.status+')';return;}
+    const arr=await ro.json();
+    status.style.color='#3dff95';status.textContent=`✓ Template aplicado · ${arr.length} customização${arr.length!==1?'es':''} sobrescrita${arr.length!==1?'s':''}`;
+  } else {
+    status.style.color='#3dff95';status.textContent='✓ Template salvo · customizações individuais preservadas';
+  }
+  setTimeout(()=>{document.getElementById('disp-camp-edit-msg-overlay').classList.remove('show');dispCampanhasFetch();},900);
 }
 
 let _dispClFil='', _dispClCampId=null;
@@ -8773,31 +8909,138 @@ async function dispCampVerLeads(id,nome){
   document.getElementById('disp-camp-leads-overlay').classList.add('show');
 }
 
+let _dispClCampMsgTpl='';
 async function dispClFetch(){
   const cont=document.getElementById('disp-cl-lista');
-  cont.innerHTML='<div class="td-loading">carregando...</div>';
-  let url=SB+'/rest/v1/disparador_envios?select=*,lead:leads_google!lead_id(nome,telefone,cidade,estado)&campanha_id=eq.'+_dispClCampId+'&order=enviado_em.desc.nullslast&limit=300';
+  cont.innerHTML='<div class="disp-empty"><div class="disp-empty-emoji">⌛</div>carregando...</div>';
+  // Carrega template da campanha pra render
+  const rc=await tplFetch(SB+'/rest/v1/disparador_campanhas?id=eq.'+_dispClCampId+'&select=mensagem_template');
+  if(rc.ok){const cArr=await rc.json();_dispClCampMsgTpl=cArr[0]?.mensagem_template||'';}
+
+  let url=SB+'/rest/v1/disparador_envios?select=*,lead:leads_google!lead_id(nome,telefone,cidade,estado,setor)&campanha_id=eq.'+_dispClCampId+'&order=enviado_em.desc.nullslast,id&limit=300';
   if(_dispClFil==='quente')url+='&quente=eq.true';
   else if(_dispClFil)url+='&status=eq.'+_dispClFil;
   const r=await tplFetch(url);
-  if(!r.ok){cont.innerHTML='<div class="td-loading">erro '+r.status+'</div>';return;}
+  if(!r.ok){cont.innerHTML='<div class="disp-empty">erro '+r.status+'</div>';return;}
   const arr=await r.json();
-  if(!arr.length){cont.innerHTML='<div class="td-loading">nenhum envio</div>';return;}
+  if(!arr.length){cont.innerHTML='<div class="disp-empty"><div class="disp-empty-emoji">📭</div>nenhum envio nesse filtro</div>';return;}
   cont.innerHTML=arr.map(dispClCard).join('');
+}
+
+function dispRenderMsgPreview(env,tpl){
+  if(env.mensagem_customizada)return env.mensagem_customizada;
+  const l=env.lead||{};
+  const nome=l.nome||'';
+  const vars={nome,primeiro_nome:nome.split(' ')[0]||'',cidade:l.cidade||'',estado:l.estado||'',setor:l.setor||''};
+  return (tpl||'').replace(/\{(\w+)\}/g,(_,k)=>vars[k]??('{'+k+'}'));
 }
 
 function dispClCard(e){
   const l=e.lead||{};
   const nome=l.nome||'(sem nome)';
   const tel=l.telefone||e.lead_telefone||'';
-  const enviado=e.enviado_em?new Date(e.enviado_em).toLocaleString('pt-BR'):'—';
+  const enviado=e.enviado_em?new Date(e.enviado_em).toLocaleString('pt-BR'):null;
   const resp=e.resposta_em?new Date(e.resposta_em).toLocaleString('pt-BR'):null;
   const ico={'pendente':'⏳','enviado':'✓','respondido':'💬','erro':'⚠','cancelado':'⊘'}[e.status]||'?';
-  const quenteBadge=e.quente?'<span style="background:#dca726;color:white;padding:2px 6px;border-radius:4px;font-size:10px">🔥 QUENTE</span>':'';
+  const quenteBadge=e.quente?'<span style="background:#dca726;color:#fff;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600">🔥 QUENTE</span>':'';
+  const isCustom=!!e.mensagem_customizada;
+  const msgRender=dispRenderMsgPreview(e,_dispClCampMsgTpl);
+  const msgPreview=msgRender.split('\n').slice(0,2).join('\n')+(msgRender.split('\n').length>2||msgRender.length>120?'…':'');
   const respBox=resp?`<div style="margin-top:8px;padding:8px 10px;background:var(--surface-2);border-radius:6px;font-size:12px"><strong>Resposta em ${resp}:</strong><br>"${tdEscape(e.resposta_texto||'')}"<br><span style="color:var(--ink-3);font-size:11px;font-family:var(--mono)">classificação IA: ${tdEscape(e.classificacao_ia||'—')}</span></div>`:'';
   const erroBox=e.erro_mensagem?`<div style="margin-top:8px;padding:6px 10px;background:rgba(200,68,68,.10);border-left:3px solid #c0392b;font-size:11px">${tdEscape(e.erro_mensagem)}</div>`:'';
 
-  return `<div class="td-card"><div class="td-card-head"><div><div class="td-card-codigo">${ico} ${tdEscape(nome)} ${quenteBadge}</div><div class="td-card-meta">${tdEscape((l.cidade||'—')+'/'+(l.estado||'—'))} · ${tel?'<a href="https://wa.me/'+tel.replace(/\\D/g,'')+'" target="_blank">'+tdEscape(tel)+'</a>':'—'}</div><div class="td-card-meta" style="margin-top:3px">enviado: ${enviado}</div></div></div>${respBox}${erroBox}</div>`;
+  const acoes=[];
+  if(e.status==='pendente'){
+    acoes.push(`<button class="td-btn td-btn-secundario" style="font-size:10px;padding:4px 10px" onclick='dispEmIndAbrir("${e.id}")'>✎ Editar mensagem</button>`);
+    if(isCustom)acoes.push(`<button class="td-btn td-btn-ghost" style="font-size:10px;padding:4px 10px;color:#ff6b5c" onclick="dispEmIndReverterDireto('${e.id}')">↩ Voltar ao template</button>`);
+  }
+
+  return `<div class="td-card" style="${isCustom?'border-left:3px solid var(--accent)':''}">
+    <div class="td-card-head">
+      <div>
+        <div class="td-card-codigo">${ico} ${tdEscape(nome)} ${quenteBadge} ${isCustom?'<span title="Mensagem customizada" style="color:var(--accent);font-size:11px">✎ custom</span>':''}</div>
+        <div class="td-card-meta">📍 ${tdEscape((l.cidade||'—')+'/'+(l.estado||'—'))} · ${tel?'📞 <a href="https://wa.me/'+tel.replace(/\\D/g,'')+'" target="_blank" style="color:var(--accent)">'+tdEscape(tel)+'</a>':'sem telefone'}</div>
+        ${enviado?`<div class="td-card-meta" style="margin-top:3px">enviado: ${enviado}</div>`:''}
+      </div>
+    </div>
+    <div style="margin-top:8px;padding:8px 10px;background:${isCustom?'var(--accent-soft)':'var(--surface)'};border-radius:6px;font-family:var(--sans);font-size:12px;color:var(--ink-2);white-space:pre-wrap;line-height:1.5">${tdEscape(msgPreview)||'<span style="color:var(--ink-4)">(sem mensagem)</span>'}</div>
+    ${acoes.length?`<div class="td-card-actions" style="margin-top:8px">${acoes.join('')}</div>`:''}
+    ${respBox}${erroBox}
+  </div>`;
+}
+
+/* ─── Modal · editar mensagem individual ─── */
+let _dispEmIndEnv=null;
+async function dispEmIndAbrir(envioId){
+  const r=await tplFetch(SB+'/rest/v1/disparador_envios?id=eq.'+envioId+'&select=*,lead:leads_google!lead_id(nome,telefone,cidade,estado,setor),campanha:disparador_campanhas!campanha_id(mensagem_template)');
+  if(!r.ok){alert('Erro ao carregar envio');return;}
+  const arr=await r.json();
+  const e=arr[0];if(!e)return;
+  _dispEmIndEnv=e;
+  const l=e.lead||{};
+  document.getElementById('disp-em-ind-envio-id').value=e.id;
+  document.getElementById('disp-em-ind-resumo').innerHTML=`<strong>${tdEscape(l.nome||'(sem nome)')}</strong> · ${tdEscape((l.cidade||'—')+'/'+(l.estado||'—'))} · ${tdEscape(l.telefone||e.lead_telefone||'sem tel')}`;
+  // Vars disponíveis
+  const vars=[];
+  if(l.nome){vars.push({k:'{nome}',v:l.nome});vars.push({k:'{primeiro_nome}',v:l.nome.split(' ')[0]||''});}
+  if(l.cidade)vars.push({k:'{cidade}',v:l.cidade});
+  if(l.estado)vars.push({k:'{estado}',v:l.estado});
+  if(l.setor)vars.push({k:'{setor}',v:l.setor});
+  document.getElementById('disp-em-ind-vars').innerHTML=vars.map(x=>`<span class="disp-var" onclick="dispEmIndInsertVar('${x.k}')" title="${tdEscape(x.v)}">${x.k}</span>`).join('');
+  // Conteúdo: customizada se existe, senão template renderizado
+  const tpl=(e.campanha||{}).mensagem_template||'';
+  const conteudo=e.mensagem_customizada || tpl;
+  document.getElementById('disp-em-ind-msg').value=conteudo;
+  document.getElementById('disp-em-ind-revert').style.display=e.mensagem_customizada?'inline-flex':'none';
+  document.getElementById('disp-em-ind-status').textContent='';
+  dispEmIndAtualizarPreview();
+  document.getElementById('disp-em-ind-overlay').classList.add('show');
+}
+
+function dispEmIndInsertVar(v){
+  const ta=document.getElementById('disp-em-ind-msg');
+  const start=ta.selectionStart,end=ta.selectionEnd;
+  ta.value=ta.value.slice(0,start)+v+ta.value.slice(end);
+  ta.selectionStart=ta.selectionEnd=start+v.length;
+  ta.focus();
+  dispEmIndAtualizarPreview();
+}
+
+function dispEmIndAtualizarPreview(){
+  const tpl=document.getElementById('disp-em-ind-msg').value;
+  const l=_dispEmIndEnv?.lead||{};
+  const nome=l.nome||'';
+  const vars={nome,primeiro_nome:nome.split(' ')[0]||'',cidade:l.cidade||'',estado:l.estado||'',setor:l.setor||''};
+  const out=(tpl||'').replace(/\{(\w+)\}/g,(_,k)=>vars[k]??('{'+k+'}'));
+  document.getElementById('disp-em-ind-preview').textContent=out||'(vazio)';
+}
+
+async function dispEmIndSalvar(){
+  const id=document.getElementById('disp-em-ind-envio-id').value;
+  const msg=document.getElementById('disp-em-ind-msg').value.trim();
+  if(!msg){alert('Mensagem vazia · cole conteúdo ou use "Voltar ao template"');return;}
+  const status=document.getElementById('disp-em-ind-status');
+  status.style.color='var(--ink-3)';status.textContent='Salvando...';
+  const r=await fetch(SB+'/rest/v1/disparador_envios?id=eq.'+id,{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({mensagem_customizada:msg})});
+  if(!r.ok){const t=await r.text();status.style.color='#c0392b';status.textContent='Erro '+r.status+': '+t;return;}
+  status.style.color='#3dff95';status.textContent='✓ Customização salva';
+  setTimeout(()=>{document.getElementById('disp-em-ind-overlay').classList.remove('show');dispClFetch();},800);
+}
+
+async function dispEmIndReverter(){
+  const id=document.getElementById('disp-em-ind-envio-id').value;
+  if(!confirm('Voltar ao template? A mensagem customizada será perdida.'))return;
+  const r=await fetch(SB+'/rest/v1/disparador_envios?id=eq.'+id,{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({mensagem_customizada:null})});
+  if(!r.ok){alert('Erro: '+r.status);return;}
+  document.getElementById('disp-em-ind-overlay').classList.remove('show');
+  dispClFetch();
+}
+
+async function dispEmIndReverterDireto(envioId){
+  if(!confirm('Voltar ao template padrão da campanha?'))return;
+  const r=await fetch(SB+'/rest/v1/disparador_envios?id=eq.'+envioId,{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({mensagem_customizada:null})});
+  if(!r.ok){alert('Erro: '+r.status);return;}
+  dispClFetch();
 }
 
 /* ─── Aba Log Geral ─── */
