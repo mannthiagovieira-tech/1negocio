@@ -11431,9 +11431,123 @@ async function mmCarregarUsuarios(matches){
   } catch(e){}
 }
 
+/* ───── Templates de mensagem ───── */
+const MM_TEMPLATES = {
+  wppComprador: `Olá, {nome_comprador}. Tudo bem?
+
+Aqui é da 1Negócio · você tem uma tese ativa de busca de empresas pra adquirir.
+
+Encontramos uma oportunidade que se encaixa bem no seu perfil:
+
+{titulo_negocio}
+{cidade}/{estado}
+Avaliação: R$ {avaliacao_formatada}
+Setor: {setor}
+
+Score de compatibilidade com sua tese: {score}/100
+
+Posso te enviar mais detalhes? Tudo sob sigilo, claro.
+
+— 1Negócio · 1negocio.com.br`,
+  wppVendedor: `Olá, {nome_vendedor}. Tudo bem?
+
+Aqui é da 1Negócio. Tenho uma boa notícia sobre o seu anúncio:
+
+{titulo_negocio} ({codigo_negocio})
+
+Identificamos um comprador qualificado com tese ativa que combina com o perfil do seu negócio. Score de compatibilidade: {score}/100.
+
+Posso avançar para apresentação dele a você? Já está sob NDA da plataforma.
+
+— 1Negócio · 1negocio.com.br`,
+  emailSubject: `1Negócio · oportunidade compatível com sua tese · {codigo_negocio}`,
+  emailBody: `Olá, {nome_comprador}.
+
+Identificamos uma oportunidade de aquisição que tem alta compatibilidade com sua tese de investimento ativa na 1Negócio.
+
+Resumo do negócio:
+- Setor: {setor}
+- Localização: {cidade}/{estado}
+- Avaliação: R$ {avaliacao_formatada}
+- Código: {codigo_negocio}
+
+Score de compatibilidade calculado pelo nosso sistema: {score}/100
+
+Posso te enviar o dossiê completo? Acesso liberado mediante NDA padrão da plataforma.
+
+Aguardo seu retorno.
+
+—
+1Negócio · 1negocio.com.br`
+};
+
+function mmUrlTemplate(template, vars){
+  return Object.entries(vars).reduce((acc, [k,v]) => acc.replaceAll('{'+k+'}', v ?? ''), template);
+}
+function mmWhatsappLink(wpp, template, vars){
+  const tel = String(wpp).replace(/\D/g,'').replace(/^55/,'');
+  const msg = encodeURIComponent(mmUrlTemplate(template, vars));
+  return `https://wa.me/55${tel}?text=${msg}`;
+}
+function mmEmailLink(email, subject, body, vars){
+  const s = encodeURIComponent(mmUrlTemplate(subject, vars));
+  const b = encodeURIComponent(mmUrlTemplate(body, vars));
+  return `mailto:${email}?subject=${s}&body=${b}`;
+}
+
+function mmVarsContato(m){
+  const tese = m.teses_investimento || {};
+  const neg = m.negocios || {};
+  const comp = _mmUsuariosMap[m.comprador_id] || {};
+  const vend = _mmUsuariosMap[m.vendedor_id] || {};
+  return {
+    nome_comprador: comp.nome || 'comprador',
+    nome_vendedor: vend.nome || 'vendedor',
+    titulo_negocio: neg.nome || 'Negócio',
+    codigo_negocio: neg.codigo || (m.negocio_id||'').slice(0,8),
+    cidade: neg.cidade || '—',
+    estado: neg.estado || '—',
+    setor: neg.setor || '—',
+    avaliacao_formatada: neg.avaliacao_max ? Number(neg.avaliacao_max).toLocaleString('pt-BR') : 'a confirmar',
+    score: m.score_100 || 0,
+  };
+}
+
+function mmAtalhosContato(m){
+  const comp = _mmUsuariosMap[m.comprador_id] || {};
+  const vend = _mmUsuariosMap[m.vendedor_id] || {};
+  const vars = mmVarsContato(m);
+  const wppC = comp.whatsapp ? mmWhatsappLink(comp.whatsapp, MM_TEMPLATES.wppComprador, vars) : null;
+  const wppV = vend.whatsapp ? mmWhatsappLink(vend.whatsapp, MM_TEMPLATES.wppVendedor, vars) : null;
+  const mlC = comp.email ? mmEmailLink(comp.email, MM_TEMPLATES.emailSubject, MM_TEMPLATES.emailBody, vars) : null;
+  const isContatado = !!m.contactado_em;
+  const dtCont = isContatado ? new Date(m.contactado_em).toLocaleDateString('pt-BR') : '';
+  const btnStyle = `padding:6px 12px;font-family:var(--sans);font-size:12px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line)`;
+  const btnWpp = `${btnStyle};color:#16a34a;border-color:rgba(22,163,74,.4);background:rgba(22,163,74,.06)`;
+  const btnDis = `${btnStyle};opacity:.4;cursor:not-allowed;color:var(--ink-3);background:transparent`;
+
+  const wppCBtn = wppC
+    ? `<a href="${wppC}" target="_blank" rel="noopener" onclick="mmRegistrarContato('${m.id}','wpp_comprador')" style="${btnWpp};text-decoration:none">▷ WhatsApp comprador</a>`
+    : `<span style="${btnDis}">WhatsApp comprador (sem wpp)</span>`;
+  const wppVBtn = wppV
+    ? `<a href="${wppV}" target="_blank" rel="noopener" onclick="mmRegistrarContato('${m.id}','wpp_vendedor')" style="${btnWpp};text-decoration:none">▷ WhatsApp vendedor</a>`
+    : `<span style="${btnDis}">WhatsApp vendedor (sem wpp)</span>`;
+  const mlBtn = mlC
+    ? `<a href="${mlC}" onclick="mmRegistrarContato('${m.id}','email_comprador')" style="${btnStyle};color:var(--ink-2);text-decoration:none">@ Email comprador</a>`
+    : `<span style="${btnDis}">@ Email comprador (sem email)</span>`;
+  const contatadoBtn = isContatado
+    ? `<button onclick="mmDesfazerContatado('${m.id}')" style="${btnStyle};color:var(--accent,#3dff95);border-color:var(--accent-line, rgba(61,255,149,.3));background:rgba(61,255,149,.08)">✓ Contatado em ${dtCont} (desfazer)</button>`
+    : `<button onclick="mmMarcarContatado('${m.id}')" style="${btnStyle};color:var(--ink-2)">✓ Contatado</button>`;
+  const rejeitarBtn = m.status === 'pendente'
+    ? `<span id="mm-rej-${m.id}"><button onclick="mmRejeitarInline('${m.id}')" style="${btnStyle};color:#dc2626;border-color:rgba(220,38,38,.3)">✗ Rejeitar match</button></span>`
+    : '';
+  return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">${wppCBtn}${wppVBtn}${mlBtn}${contatadoBtn}${rejeitarBtn}</div>`;
+}
+
 function mmCardMatch(m){
   const tese = m.teses_investimento || {};
   const neg = m.negocios || {};
+  const comp = _mmUsuariosMap[m.comprador_id] || {};
   const codigoTese = tese.codigo || (m.tese_id||'').slice(0,8);
   const tituloTese = tese.titulo || tese.tese_descricao || '—';
   const codigoNeg = neg.codigo || (m.negocio_id||'').slice(0,8);
@@ -11448,9 +11562,9 @@ function mmCardMatch(m){
       + '</div>'
     : '';
   const status = m.status || 'pendente';
-  const acoes = status === 'pendente'
+  const isContatado = !!m.contactado_em;
+  const acoesStatus = status === 'pendente'
     ? `<button onclick="mmValidar('${m.id}')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent);border-radius:999px;cursor:pointer">Validar</button>
-       <button onclick="mmRejeitar('${m.id}')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Rejeitar</button>
        <button onclick="mmNotas('${m.id}')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;color:var(--ink-3);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Notas</button>`
     : status === 'rejeitado'
     ? `<button onclick="mmReabrir('${m.id}')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Reabrir</button>
@@ -11459,12 +11573,15 @@ function mmCardMatch(m){
     ? `<button onclick="mmConverter('${m.id}')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent);border-radius:999px;cursor:pointer">Marcar conversão</button>
        <button onclick="mmPerder('${m.id}')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Marcar perdido</button>`
     : '';
+  const compInfo = comp.nome ? `${comp.nome}` : 'comprador';
+  const opacityStyle = isContatado ? 'opacity:.55' : '';
+
   return `
-    <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:14px">
+    <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:14px;${opacityStyle}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">
         <div>
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)">Match ${m.id.slice(0,8)} · ${m.origem}</div>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:2px">Gerado em ${dt}</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:2px">Gerado em ${dt}${isContatado ? ' · <span style="color:var(--accent,#3dff95)">contatado em '+new Date(m.contactado_em).toLocaleDateString('pt-BR')+'</span>' : ''}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
           <div style="font-family:var(--serif);font-weight:800;font-size:24px;color:var(--accent,#3dff95);line-height:1">${m.score_5_10}/10</div>
@@ -11473,8 +11590,8 @@ function mmCardMatch(m){
       </div>
       <div style="display:grid;grid-template-columns:1fr;gap:10px;padding:12px;background:rgba(0,0,0,.2);border-radius:12px;margin-bottom:12px">
         <div>
-          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)">Tese</div>
-          <div style="font-family:var(--sans);font-weight:600;font-size:14px;color:var(--ink);margin-top:2px">${codigoTese} · ${tituloTese}</div>
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)">Comprador</div>
+          <div style="font-family:var(--sans);font-weight:600;font-size:14px;color:var(--ink);margin-top:2px">${compInfo} · ${codigoTese} · ${tituloTese}</div>
           <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:2px">setores: ${(tese.setores||[]).join(', ') || '—'} · loc: ${tese.localizacao_tipo||'—'}${tese.estado?'/'+tese.estado:''}${tese.cidade?'/'+tese.cidade:''} · valor_alvo: ${tese.valor_alvo?('R\$ '+Number(tese.valor_alvo).toLocaleString('pt-BR')):'—'}</div>
         </div>
         <div style="border-top:1px dashed var(--line);padding-top:10px">
@@ -11489,11 +11606,69 @@ function mmCardMatch(m){
       </div>
       ${tagHtml}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
-        ${acoes}
+        ${acoesStatus}
         <button onclick="window.open('/negocio.html?id=${m.negocio_id}','_blank')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;color:var(--ink-3);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Ver negócio</button>
       </div>
+      ${mmAtalhosContato(m)}
     </div>
   `;
+}
+
+async function mmMarcarContatado(id){
+  try {
+    const adminId = (window._adminUserId || null);
+    const body = { contactado_em: new Date().toISOString() };
+    if (adminId) body.contactado_por = adminId;
+    const r = await fetch(SB+'/rest/v1/matchmaking_resultados?id=eq.'+id, {
+      method:'PATCH',
+      headers:{ 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer '+(__token||AK), 'Prefer':'return=minimal' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) { alert('falhou: '+r.status); return; }
+    mmCarregarTab();
+  } catch(e){ alert('erro: '+(e.message||e)); }
+}
+async function mmDesfazerContatado(id){
+  try {
+    await fetch(SB+'/rest/v1/matchmaking_resultados?id=eq.'+id, {
+      method:'PATCH',
+      headers:{ 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer '+(__token||AK), 'Prefer':'return=minimal' },
+      body: JSON.stringify({ contactado_em: null, contactado_por: null })
+    });
+    mmCarregarTab();
+  } catch(e){ alert('erro: '+(e.message||e)); }
+}
+
+function mmRejeitarInline(id){
+  const wrap = document.getElementById('mm-rej-'+id);
+  if (!wrap) return;
+  wrap.innerHTML = `<span style="font-family:var(--mono);font-size:11px;color:#ff7a7a;margin-right:6px">Confirmar rejeição?</span>
+    <button onclick="mmRejeitarConfirmar('${id}')" style="padding:5px 11px;font-family:var(--mono);font-size:11px;color:#fff;background:#dc2626;border:1px solid #dc2626;border-radius:999px;cursor:pointer;margin-right:4px">Sim</button>
+    <button onclick="mmRejeitarCancelar('${id}')" style="padding:5px 11px;font-family:var(--mono);font-size:11px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Cancelar</button>`;
+}
+function mmRejeitarCancelar(id){
+  const wrap = document.getElementById('mm-rej-'+id);
+  if (!wrap) return;
+  const btnStyle = `padding:6px 12px;font-family:var(--sans);font-size:12px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);color:#dc2626;border-color:rgba(220,38,38,.3)`;
+  wrap.innerHTML = `<button onclick="mmRejeitarInline('${id}')" style="${btnStyle}">✗ Rejeitar match</button>`;
+}
+async function mmRejeitarConfirmar(id){
+  try {
+    const r = await fetch(SB+'/rest/v1/matchmaking_resultados?id=eq.'+id, {
+      method:'PATCH',
+      headers:{ 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer '+(__token||AK), 'Prefer':'return=minimal' },
+      body: JSON.stringify({ status:'rejeitado', rejeitado_em: new Date().toISOString(), status_motivo: 'rejeitado inline' })
+    });
+    if (!r.ok) { alert('falhou: '+r.status); return; }
+    mmCarregarTab();
+  } catch(e){ alert('erro: '+(e.message||e)); }
+}
+
+async function mmRegistrarContato(matchId, canal){
+  // fire-and-forget · evento
+  try {
+    if (window.registrarEvento) window.registrarEvento('match_contato_'+canal, { entidade_tipo:'match', entidade_id: matchId });
+  } catch(e){}
 }
 
 async function mmCarregarTab(){
@@ -11937,6 +12112,12 @@ function mmInit(){
 window.mmInit = mmInit;
 window.mmTab = mmTab;
 window.mmAgrupar = mmAgrupar;
+window.mmMarcarContatado = mmMarcarContatado;
+window.mmDesfazerContatado = mmDesfazerContatado;
+window.mmRejeitarInline = mmRejeitarInline;
+window.mmRejeitarCancelar = mmRejeitarCancelar;
+window.mmRejeitarConfirmar = mmRejeitarConfirmar;
+window.mmRegistrarContato = mmRegistrarContato;
 window.mmRodarCron = mmRodarCron;
 window.mmCarregarHeader = mmCarregarHeader;
 window.mmValidar = mmValidar;
