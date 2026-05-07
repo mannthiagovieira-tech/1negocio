@@ -1390,7 +1390,7 @@ async function carregarTudo() {
   const uid = session.user_id;
   const nowIso = new Date().toISOString();
 
-  const [negocios, solInfos, termos, docsV2, teses, favs, anunciosV2] = await Promise.all([
+  const [negocios, solInfos, termos, docsV2, teses, favs, anunciosV2, salvosTeses] = await Promise.all([
     fetch(SUPABASE_URL + '/rest/v1/negocios'
       + '?vendedor_id=eq.' + uid
       + '&select=id,slug,tag,codigo,codigo_anuncio,codigo_diagnostico,nome,setor,categoria,cidade,estado,status,faturamento_anual,preco_pedido,avaliacao_min,avaliacao_max,score_saude,laudo_pago_liberado,laudo_html,plano,created_at,publicado_em,funil_impressoes,funil_visualizacoes,funil_cliques,funil_salvamentos,funil_compartilhamentos,rascunho_iniciado_em'
@@ -1448,6 +1448,14 @@ async function carregarTudo() {
       + '?vendedor_id=eq.' + uid
       + '&select=id,codigo,negocio_id,status,publicado_em,titulo,valor_pedido,textos_negocio'
       + '&order=publicado_em.desc.nullslast',
+      { headers: authHeaders() }
+    ).then(r => r.ok ? r.json() : []).catch(() => []),
+
+    // F4B v6 · view cruzada negocios_salvos × negocios_salvos_teses × negocios
+    fetch(SUPABASE_URL + '/rest/v1/negocios_salvos_por_tese'
+      + '?usuario_id=eq.' + uid
+      + '&select=*'
+      + '&order=salvo_em.desc',
       { headers: authHeaders() }
     ).then(r => r.ok ? r.json() : []).catch(() => [])
   ]);
@@ -1543,6 +1551,7 @@ async function carregarTudo() {
   portalCache.negMap = negMap;
   portalCache.anunciosV2 = anunciosV2 || [];
   portalCache.anunciosMap = anunciosMap;
+  portalCache.salvosTeses = salvosTeses || [];
 
   // Atualiza badges
   setBadge('badge-negocios', negocios.length);
@@ -2162,7 +2171,67 @@ function renderTermosAssinados() {
   }).join('') + '</div>';
 }
 
-// ==================== VIEW: TESES ====================
+// ==================== VIEW: TESES (F4B v6 · tese como hub) ====================
+const SETORES_LABELS = {
+  servicos_empresas:'Serviços B2B (consultoria · TI · contabilidade)',
+  varejo:'Varejo (loja · e-commerce · revendedora)',
+  saude:'Saúde (clínica · odonto · veterinária · fisio)',
+  alimentacao:'Alimentação (restaurante · padaria · bar · delivery)',
+  beleza_estetica:'Beleza e Estética (salão · barbearia · spa)',
+  educacao:'Educação (escola · curso · idiomas · EAD)',
+  servicos_locais:'Outros Serviços (lavanderia · oficina · manutenção)',
+  bem_estar:'Academia · Bem-estar (studio · personal)',
+  industria:'Indústria (fábrica · manufatura · confecção)',
+  construcao:'Construção (obra · reforma · incorporadora)',
+  hospedagem:'Hospedagem (hotel · pousada · airbnb)',
+  logistica:'Logística (transporte · depósito · distribuidora)'
+};
+const SETORES_KEYS = Object.keys(SETORES_LABELS);
+const MODELOS_LABELS = {
+  presta_servico:'Prestação de serviços (consultoria · clínica · agência)',
+  produz_revende:'Produção e venda direta (padaria · indústria com venda própria)',
+  fabricacao:'Fabricação para terceiros',
+  revenda:'Revenda de produtos (loja · e-commerce)',
+  distribuicao:'Distribuição B2B',
+  vende_governo:'Venda para governo (licitações)',
+  saas:'SaaS · Software · Plataforma',
+  assinatura:'Assinatura · Recorrência'
+};
+const MODELOS_KEYS = Object.keys(MODELOS_LABELS);
+const ESTADOS_BR = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
+
+function teseStatusPill(status) {
+  const s = status || 'ativa';
+  const map = {
+    ativa:    { label:'ativa',    bg:'rgba(10,168,90,.12)', color:'#0aa85a', border:'rgba(10,168,90,.3)' },
+    pausada:  { label:'pausada',  bg:'rgba(217,119,6,.12)', color:'#b45309', border:'rgba(217,119,6,.3)' },
+    rascunho: { label:'rascunho', bg:'rgba(10,15,12,.06)',  color:'rgba(10,21,16,.78)', border:'rgba(10,15,12,.18)' },
+    auto_negocio: { label:'auto', bg:'rgba(10,15,12,.06)',  color:'rgba(10,21,16,.78)', border:'rgba(10,15,12,.18)' }
+  };
+  const c = map[s] || map.ativa;
+  return `<span style="display:inline-flex;align-items:center;padding:4px 10px;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;background:${c.bg};color:${c.color};border:1px solid ${c.border};border-radius:999px">${c.label}</span>`;
+}
+
+function teseStats(teseId) {
+  const salvos = (portalCache.salvosTeses || []).filter(s => s.tese_id === teseId);
+  const solicitacoes = (portalCache.solicitacoes || []).filter(s => Array.isArray(s.teses_atreladas) && s.teses_atreladas.indexOf(teseId) >= 0);
+  return { salvos: salvos.length, solicitacoes: solicitacoes.length };
+}
+
+function tituloAnonimoCascata(negocioId) {
+  const an = (portalCache.anunciosMap || {})[negocioId];
+  return (an && an.textos_negocio && an.textos_negocio.titulo_negocio && an.textos_negocio.titulo_negocio.conteudo)
+      || (an && an.titulo)
+      || 'Negócio à venda';
+}
+
+function fmtBRL(v) {
+  if (v == null || v === '') return '—';
+  const n = Number(String(v).replace(/[^\d]/g,''));
+  if (!Number.isFinite(n) || n <= 0) return String(v);
+  return 'R$ ' + n.toLocaleString('pt-BR');
+}
+
 function renderTeses() {
   const cont = $('teses-container');
   const lista = portalCache.teses || [];
@@ -2181,29 +2250,356 @@ function renderTeses() {
 
   cont.innerHTML = '<div class="diag-grid">' + lista.map(t => {
     const codigo = t.codigo || (t.id ? t.id.substring(0,8).toUpperCase() : '—');
-    const setores = Array.isArray(t.setores) ? t.setores.join(', ') : '';
-    const formas = Array.isArray(t.formas_atuacao) ? t.formas_atuacao.join(', ') : '';
-    const local = [t.cidade, t.estado].filter(Boolean).join(', ');
+    const titulo = t.titulo || t.tese_descricao || 'Tese sem título';
+    const tituloShort = titulo.slice(0, 80) + (titulo.length > 80 ? '...' : '');
+    const setoresLabels = (Array.isArray(t.setores) ? t.setores : []).map(s => (SETORES_LABELS[s] || s).split(' (')[0]).join(' · ') || '—';
+    const formasLabels = (Array.isArray(t.formas_atuacao) ? t.formas_atuacao : []).map(m => (MODELOS_LABELS[m] || m).split(' (')[0]).join(' · ');
+    const localTxt = t.cidade ? (t.cidade + (t.estado ? '/' + t.estado : '')) : (t.estado || 'Brasil todo');
+    const dataCad = t.created_at ? new Date(t.created_at).toLocaleDateString('pt-BR') : '—';
+    const valorTxt = t.valor_investimento || null;
+    const stats = teseStats(t.id);
+    const status = (t.status || 'ativa');
+    const isPausada = status === 'pausada';
+    const btnPauseLabel = isPausada ? 'Ativar' : 'Pausar';
 
     return `
-      <div class="diag-card">
+      <div class="diag-card" id="tese-card-${t.id}">
         <div class="diag-top">
-          <div>
+          <div style="flex:1;min-width:0">
             <div class="diag-codigo">${codigo}</div>
-            <div class="diag-nome">${(t.tese_descricao || 'Tese sem descrição').substring(0,80)}${(t.tese_descricao||'').length>80?'...':''}</div>
-            <div class="diag-meta">${[setores, local].filter(Boolean).join(' · ') || '—'}</div>
+            <div class="diag-nome">${tituloShort}</div>
+            <div class="diag-meta">${setoresLabels}</div>
           </div>
-          <span class="badge ${t.status==='ativa'?'publicado':'rascunho'}">${t.status || 'ativa'}</span>
+          ${teseStatusPill(status)}
         </div>
-        ${t.valor_investimento ? `<div style="font-family:var(--mono); font-size:11px; color:var(--ink-3)">Valor de investimento: ${t.valor_investimento}</div>` : ''}
-        ${formas ? `<div style="font-family:var(--mono); font-size:11px; color:var(--ink-3)">Atuação: ${formas}</div>` : ''}
-        <div class="card-ctas">
-          <button class="card-cta" onclick="abrirEditarTese('${t.id}')">Editar tese</button>
+        <div style="font-family:var(--mono); font-size:11px; color:var(--ink-3); margin-top:6px; line-height:1.6">
+          ${valorTxt ? `Ticket: ${valorTxt}<br>` : ''}
+          Localização: ${localTxt}<br>
+          ${formasLabels ? `Atuação: ${formasLabels}<br>` : ''}
+          Cadastrada em ${dataCad}
         </div>
+        <div style="font-family:var(--sans); font-size:13px; color:var(--ink-2); margin-top:10px; padding-top:10px; border-top:1px dashed var(--line)">
+          <strong>${stats.salvos}</strong> negócio${stats.salvos===1?'':'s'} salvo${stats.salvos===1?'':'s'} · <strong>${stats.solicitacoes}</strong> solicitaç${stats.solicitacoes===1?'ão':'ões'}
+        </div>
+        <div class="card-ctas" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="card-cta" onclick="toggleTeseDetalhe('${t.id}')" id="btn-toggle-${t.id}">Ver detalhes ▾</button>
+          <button class="card-cta" onclick="abrirEditarTese('${t.id}')">Editar</button>
+          <button class="card-cta" onclick="togglePausarTese('${t.id}', '${status}')">${btnPauseLabel}</button>
+        </div>
+        <div id="tese-detalhe-${t.id}" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"></div>
       </div>
     `;
   }).join('') + '</div>';
 }
+
+// ===== F4B · expansão view detalhe + sub-seções =====
+function toggleTeseDetalhe(teseId) {
+  const det = document.getElementById('tese-detalhe-' + teseId);
+  const btn = document.getElementById('btn-toggle-' + teseId);
+  if (!det) return;
+  const aberto = det.style.display !== 'none';
+  if (aberto) {
+    det.style.display = 'none';
+    if (btn) btn.textContent = 'Ver detalhes ▾';
+    return;
+  }
+  // Tracking · view_tese_detalhe
+  try {
+    const t = (portalCache.teses || []).find(x => x.id === teseId);
+    window.registrarEvento && window.registrarEvento('view_tese_detalhe', {
+      entidade_tipo:'tese', entidade_id: teseId, meta:{ codigo: t && t.codigo }
+    });
+  } catch(e){}
+  det.innerHTML = renderDetalheTese(teseId);
+  det.style.display = 'block';
+  if (btn) btn.textContent = 'Ocultar ▴';
+}
+
+function renderDetalheTese(teseId) {
+  const salvosTeses = (portalCache.salvosTeses || []).filter(s => s.tese_id === teseId);
+  const solics = (portalCache.solicitacoes || []).filter(s => Array.isArray(s.teses_atreladas) && s.teses_atreladas.indexOf(teseId) >= 0);
+
+  const blocoSalvos = salvosTeses.length === 0
+    ? `<div style="font-family:var(--sans);font-size:13px;color:var(--ink-3);font-style:italic">Você ainda não salvou negócios nesta tese · explore em <a href="/" style="color:var(--accent);text-decoration:underline">/</a></div>`
+    : salvosTeses.map(ns => {
+        const tit = tituloAnonimoCascata(ns.negocio_id);
+        const localN = (ns.cidade || ns.estado) ? [ns.cidade, ns.estado].filter(Boolean).join('/') : '—';
+        const ava = ns.avaliacao_max ? fmtBRL(ns.avaliacao_max) : (ns.preco_pedido ? fmtBRL(ns.preco_pedido) : '—');
+        const codN = ns.codigo_anuncio || ns.codigo || (ns.negocio_id || '').slice(0,8).toUpperCase();
+        return `
+          <div style="background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+              <div style="flex:1;min-width:0">
+                <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ink-3);letter-spacing:.04em">${codN}</div>
+                <div style="font-family:var(--sans);font-weight:600;font-size:14px;color:var(--ink);margin-top:2px;line-height:1.3">${tit}</div>
+                <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:3px">${localN} · Avaliação ${ava}</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+              <a href="/negocio.html?id=${ns.negocio_id}" target="_blank" rel="noopener" class="card-cta" style="padding:6px 12px;font-size:11px">Ver negócio</a>
+              <button class="card-cta" style="padding:6px 12px;font-size:11px" onclick="abrirMoverDeTese('${ns.salvo_id}','${teseId}')">Mover de tese</button>
+              <button class="card-cta" style="padding:6px 12px;font-size:11px;color:#c84133" onclick="removerSalvoDeTese('${ns.salvo_id}','${teseId}')">Remover</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+  const blocoSolics = solics.length === 0
+    ? `<div style="font-family:var(--sans);font-size:13px;color:var(--ink-3);font-style:italic">Você ainda não solicitou informações através desta tese.</div>`
+    : solics.map(sl => {
+        const tit = tituloAnonimoCascata(sl.negocio_id);
+        const data = sl.created_at ? new Date(sl.created_at).toLocaleDateString('pt-BR') : '—';
+        return `
+          <div style="background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+              <div style="flex:1;min-width:0">
+                <div style="font-family:var(--sans);font-weight:600;font-size:14px;color:var(--ink);line-height:1.3">${tit}</div>
+                <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:3px">status: ${sl.status || '—'} · Solicitado em ${data}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+  return `
+    <div style="font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">▼ Negócios salvos nesta tese (${salvosTeses.length})</div>
+    ${blocoSalvos}
+    <div style="font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin:18px 0 8px">▼ Solicitações desta tese (${solics.length})</div>
+    ${blocoSolics}
+  `;
+}
+
+// ===== F4B · pausar/ativar =====
+async function togglePausarTese(teseId, statusAtual) {
+  const novoStatus = (statusAtual === 'pausada') ? 'ativa' : 'pausada';
+  const verbo = (novoStatus === 'pausada') ? 'Pausar' : 'Reativar';
+  const t = (portalCache.teses || []).find(x => x.id === teseId);
+  const codigo = (t && t.codigo) || teseId.slice(0,8);
+  const msg = novoStatus === 'pausada'
+    ? `Pausar ${codigo}? Você não receberá novos matches dessa tese até reativar.`
+    : `Reativar ${codigo}?`;
+  if (!confirm(msg)) return;
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/teses_investimento?id=eq.' + teseId, {
+      method: 'PATCH',
+      headers: { ...authHeaders(), 'Content-Type':'application/json', 'Prefer':'return=minimal' },
+      body: JSON.stringify({ status: novoStatus })
+    });
+    if (!r.ok) throw new Error('patch ' + r.status);
+    try { window.registrarEvento && window.registrarEvento(novoStatus === 'pausada' ? 'pausar_tese' : 'ativar_tese', { entidade_tipo:'tese', entidade_id: teseId, meta:{ codigo } }); } catch(e){}
+    toast(verbo + 'a · ' + codigo);
+    carregarTudo();
+  } catch (e) {
+    toast('Erro ao ' + verbo.toLowerCase() + ' · tente novamente', true);
+  }
+}
+
+// ===== F4B · editar tese (substitui stub) =====
+let _editarTeseAtual = null;
+async function abrirEditarTese(teseId) {
+  const t = (portalCache.teses || []).find(x => x.id === teseId);
+  if (!t) { toast('Tese não encontrada', true); return; }
+  _editarTeseAtual = t;
+  const overlay = $('modalEditarTeseOverlay');
+  if (!overlay) return;
+  // popula form
+  $('eTituloTese').value = t.titulo || t.tese_descricao || '';
+  $('eObsTese').value = t.observacoes || '';
+  // setores
+  const setoresSel = new Set(Array.isArray(t.setores) ? t.setores : []);
+  $('eSetoresWrap').innerHTML = SETORES_KEYS.map(k => {
+    const sel = setoresSel.has(k);
+    return `<label style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:${sel?'var(--accent-soft, rgba(10,168,90,.12))':'var(--bg)'};border:1px solid ${sel?'var(--accent)':'var(--line)'};border-radius:8px;margin-bottom:4px;cursor:pointer">
+      <input type="checkbox" data-setor="${k}" ${sel?'checked':''} style="margin-top:2px;flex-shrink:0">
+      <span style="font-family:var(--sans);font-size:12.5px;color:var(--ink);line-height:1.4">${SETORES_LABELS[k]}</span>
+    </label>`;
+  }).join('');
+  // formas
+  const formasSel = new Set(Array.isArray(t.formas_atuacao) ? t.formas_atuacao : []);
+  $('eFormasWrap').innerHTML = MODELOS_KEYS.map(k => {
+    const sel = formasSel.has(k);
+    return `<label style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:${sel?'var(--accent-soft, rgba(10,168,90,.12))':'var(--bg)'};border:1px solid ${sel?'var(--accent)':'var(--line)'};border-radius:8px;margin-bottom:4px;cursor:pointer">
+      <input type="checkbox" data-forma="${k}" ${sel?'checked':''} style="margin-top:2px;flex-shrink:0">
+      <span style="font-family:var(--sans);font-size:12.5px;color:var(--ink);line-height:1.4">${MODELOS_LABELS[k]}</span>
+    </label>`;
+  }).join('');
+  // localizacao
+  $('eEstadoTese').value = t.estado || '';
+  $('eCidadeTese').value = t.cidade || '';
+  // valor (split simples)
+  const v = (t.valor_investimento || '').toString();
+  const valMatch = v.match(/(\d[\d.]*)/g) || [];
+  $('eValMin').value = valMatch[0] || '';
+  $('eValMax').value = valMatch[1] || '';
+
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => $('eTituloTese').focus(), 100);
+}
+function fecharEditarTese() {
+  const overlay = $('modalEditarTeseOverlay');
+  if (overlay) overlay.style.display = 'none';
+  document.body.style.overflow = '';
+  _editarTeseAtual = null;
+}
+async function salvarEdicaoTese() {
+  if (!_editarTeseAtual) return;
+  const teseId = _editarTeseAtual.id;
+  const setores = Array.from(document.querySelectorAll('#eSetoresWrap input[data-setor]:checked')).map(el => el.dataset.setor);
+  const formas = Array.from(document.querySelectorAll('#eFormasWrap input[data-forma]:checked')).map(el => el.dataset.forma);
+  const titulo = $('eTituloTese').value.trim();
+  const obs = $('eObsTese').value.trim();
+  const estado = $('eEstadoTese').value.trim().toUpperCase().slice(0,2) || null;
+  const cidade = $('eCidadeTese').value.trim() || null;
+  const min = ($('eValMin').value || '').replace(/\D/g,'');
+  const max = ($('eValMax').value || '').replace(/\D/g,'');
+  const valor = (min || max) ? ((min || '0') + (max ? '-' + max : '')) : null;
+
+  if (!titulo || titulo.length < 3) { toast('Título precisa ter ao menos 3 caracteres', true); return; }
+  if (setores.length === 0) { toast('Selecione ao menos 1 setor', true); return; }
+
+  const camposAlterados = [];
+  if (titulo !== (_editarTeseAtual.titulo||'')) camposAlterados.push('titulo');
+  if (obs !== (_editarTeseAtual.observacoes||'')) camposAlterados.push('observacoes');
+  if (estado !== _editarTeseAtual.estado) camposAlterados.push('estado');
+  if (cidade !== _editarTeseAtual.cidade) camposAlterados.push('cidade');
+  if (valor !== _editarTeseAtual.valor_investimento) camposAlterados.push('valor');
+  if (JSON.stringify(setores.sort()) !== JSON.stringify((_editarTeseAtual.setores||[]).slice().sort())) camposAlterados.push('setores');
+  if (JSON.stringify(formas.sort()) !== JSON.stringify((_editarTeseAtual.formas_atuacao||[]).slice().sort())) camposAlterados.push('formas_atuacao');
+
+  const btn = $('eBtnSalvar');
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+  try {
+    const body = {
+      titulo,
+      tese_descricao: titulo, // mantém compat com lista antiga
+      setores: setores.length ? setores : null,
+      formas_atuacao: formas.length ? formas : null,
+      estado,
+      cidade,
+      valor_investimento: valor,
+      observacoes: obs || null
+    };
+    const r = await fetch(SUPABASE_URL + '/rest/v1/teses_investimento?id=eq.' + teseId, {
+      method: 'PATCH',
+      headers: { ...authHeaders(), 'Content-Type':'application/json', 'Prefer':'return=minimal' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      console.error('[edit tese] erro', r.status, txt);
+      throw new Error('patch ' + r.status);
+    }
+    try { window.registrarEvento && window.registrarEvento('editar_tese', { entidade_tipo:'tese', entidade_id: teseId, meta:{ campos_alterados: camposAlterados } }); } catch(e){}
+    toast('Tese atualizada');
+    fecharEditarTese();
+    carregarTudo();
+  } catch (e) {
+    toast('Erro ao salvar · tente novamente', true);
+    btn.disabled = false;
+    btn.textContent = 'Salvar alterações';
+  }
+}
+
+// ===== F4B · mover negócio salvo de tese =====
+let _moverDeTeseAtual = null;
+let _moverDeTeseSelecao = [];
+async function abrirMoverDeTese(salvoId, teseAtualId) {
+  _moverDeTeseAtual = { salvoId, teseAtualId };
+  _moverDeTeseSelecao = [teseAtualId];
+  const teses = (portalCache.teses || []).filter(t => (t.status || 'ativa') === 'ativa');
+  const lista = $('moverLista');
+  if (!lista) return;
+  if (teses.length === 0) {
+    lista.innerHTML = '<div style="font-family:var(--sans);font-size:13px;color:var(--ink-3);text-align:center;padding:14px">Você não tem outras teses ativas. Cadastre em <a href="/cadastre.html" style="color:var(--accent);text-decoration:underline">/cadastre</a></div>';
+  } else {
+    lista.innerHTML = teses.map(t => {
+      const sel = _moverDeTeseSelecao.indexOf(t.id) >= 0;
+      const tit = (t.titulo || t.tese_descricao || 'Tese').slice(0,80);
+      return `<div class="mov-item" data-id="${t.id}" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:${sel?'var(--accent-soft, rgba(10,168,90,.12))':'var(--bg)'};border:1px solid ${sel?'var(--accent)':'var(--line)'};border-radius:10px;margin-bottom:6px;cursor:pointer">
+        <span class="mov-check" style="width:16px;height:16px;border:1.5px solid ${sel?'var(--accent)':'var(--ink-3)'};border-radius:4px;display:flex;align-items:center;justify-content:center;background:${sel?'var(--accent)':'#fff'};color:#fff;font-weight:700;font-size:11px">${sel?'✓':''}</span>
+        <span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--accent)">${t.codigo||'—'}</span>
+        <span style="font-family:var(--sans);font-size:13px;color:var(--ink);flex:1">${tit}</span>
+      </div>`;
+    }).join('');
+    lista.querySelectorAll('.mov-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const id = el.dataset.id;
+        const idx = _moverDeTeseSelecao.indexOf(id);
+        if (idx >= 0) _moverDeTeseSelecao.splice(idx,1); else _moverDeTeseSelecao.push(id);
+        // re-render seleção
+        abrirMoverDeTese(_moverDeTeseAtual.salvoId, _moverDeTeseAtual.teseAtualId);
+        // restaura seleção pra próxima rerender (workaround simples)
+      });
+    });
+  }
+  $('modalMoverOverlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+function fecharMoverModal() {
+  $('modalMoverOverlay').style.display = 'none';
+  document.body.style.overflow = '';
+  _moverDeTeseAtual = null;
+  _moverDeTeseSelecao = [];
+}
+async function executarMoverTese() {
+  if (!_moverDeTeseAtual) return;
+  const { salvoId } = _moverDeTeseAtual;
+  const novasTeses = _moverDeTeseSelecao.slice();
+  const btn = $('moverBtnSalvar');
+  btn.disabled = true;
+  btn.textContent = 'Movendo...';
+  try {
+    // 1) DELETE todos os atrelos antigos desse salvo
+    await fetch(SUPABASE_URL + '/rest/v1/negocios_salvos_teses?negocio_salvo_id=eq.' + salvoId, {
+      method: 'DELETE',
+      headers: { ...authHeaders(), 'Prefer':'return=minimal' }
+    });
+    // 2) INSERT novos
+    if (novasTeses.length > 0) {
+      const rows = novasTeses.map(tid => ({ negocio_salvo_id: salvoId, tese_id: tid }));
+      await fetch(SUPABASE_URL + '/rest/v1/negocios_salvos_teses', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type':'application/json', 'Prefer':'return=minimal' },
+        body: JSON.stringify(rows)
+      });
+    }
+    toast('Negócio movido');
+    fecharMoverModal();
+    carregarTudo();
+  } catch (e) {
+    toast('Erro ao mover · tente novamente', true);
+    btn.disabled = false;
+    btn.textContent = 'Salvar';
+  }
+}
+
+// ===== F4B · remover negócio de tese (mantém salvo órfão se for última) =====
+async function removerSalvoDeTese(salvoId, teseId) {
+  if (!confirm('Remover este negócio da tese? O negócio segue salvo (sem tese · avulso).')) return;
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/negocios_salvos_teses?negocio_salvo_id=eq.' + salvoId + '&tese_id=eq.' + teseId, {
+      method: 'DELETE',
+      headers: { ...authHeaders(), 'Prefer':'return=minimal' }
+    });
+    if (!r.ok) throw new Error('delete ' + r.status);
+    toast('Removido da tese');
+    carregarTudo();
+  } catch (e) {
+    toast('Erro ao remover · tente novamente', true);
+  }
+}
+
+window.toggleTeseDetalhe = toggleTeseDetalhe;
+window.togglePausarTese = togglePausarTese;
+window.abrirEditarTese = abrirEditarTese;
+window.fecharEditarTese = fecharEditarTese;
+window.salvarEdicaoTese = salvarEdicaoTese;
+window.abrirMoverDeTese = abrirMoverDeTese;
+window.fecharMoverModal = fecharMoverModal;
+window.executarMoverTese = executarMoverTese;
+window.removerSalvoDeTese = removerSalvoDeTese;
 
 // ==================== VIEW: FAVORITOS ====================
 function renderFavoritos() {
@@ -2272,11 +2668,7 @@ function criarTese() {
   window.location.href = '/cadastre.html';
 }
 
-// Stub · modal real implementado na FASE 4B
-function abrirEditarTese(teseId) {
-  alert('Edição inline em breve · por enquanto, cadastre uma nova tese em /cadastre.html');
-}
-window.abrirEditarTese = abrirEditarTese;
+// (stub abrirEditarTese substituído pela implementação real em renderTeses · F4B)
 
 
 async function salvarNome() {
@@ -2363,6 +2755,85 @@ document.addEventListener('keydown', (e) => {
 
 init();
 </script>
+
+<!-- Modal Editar Tese (BLOCO 3 v6 F4B) -->
+<div id="modalEditarTeseOverlay" style="display:none;position:fixed;inset:0;background:rgba(10,15,12,.55);backdrop-filter:blur(4px);z-index:200;align-items:flex-start;justify-content:center;padding:18px;overflow-y:auto" onclick="if(event.target===this)fecharEditarTese()">
+  <div role="dialog" aria-modal="true" style="width:100%;max-width:560px;max-height:88vh;overflow-y:auto;background:var(--surface,#fff);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow-card,0 24px 60px -18px rgba(10,20,12,.18));padding:24px;margin:auto">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
+      <div>
+        <div style="font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)">Editar tese</div>
+        <h3 style="font-family:var(--serif);font-weight:700;font-size:20px;letter-spacing:-.02em;color:var(--ink);margin-top:6px">Atualizar tese de investimento</h3>
+      </div>
+      <button onclick="fecharEditarTese()" aria-label="Fechar" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--ink-3);padding:4px 8px;line-height:1">✕</button>
+    </div>
+
+    <div style="margin-top:14px">
+      <label style="display:block;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">Título</label>
+      <input id="eTituloTese" type="text" maxlength="80" style="width:100%;padding:11px 12px;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px">
+    </div>
+
+    <div style="margin-top:14px">
+      <label style="display:block;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">Setores de interesse</label>
+      <div id="eSetoresWrap"></div>
+    </div>
+
+    <div style="margin-top:14px;display:grid;grid-template-columns:90px 1fr;gap:8px">
+      <div>
+        <label style="display:block;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">UF</label>
+        <input id="eEstadoTese" type="text" maxlength="2" style="width:100%;padding:11px 12px;font-family:var(--mono);font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;text-transform:uppercase" placeholder="SP">
+      </div>
+      <div>
+        <label style="display:block;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">Cidade <span style="font-weight:500;letter-spacing:.04em;text-transform:lowercase">(opcional · vazio = estado todo · sem UF = Brasil todo)</span></label>
+        <input id="eCidadeTese" type="text" maxlength="80" style="width:100%;padding:11px 12px;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px" placeholder="São Paulo">
+      </div>
+    </div>
+
+    <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div>
+        <label style="display:block;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">Ticket mínimo (R$)</label>
+        <input id="eValMin" type="text" inputmode="numeric" style="width:100%;padding:11px 12px;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px" placeholder="200000">
+      </div>
+      <div>
+        <label style="display:block;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">Ticket máximo (R$)</label>
+        <input id="eValMax" type="text" inputmode="numeric" style="width:100%;padding:11px 12px;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px" placeholder="800000">
+      </div>
+    </div>
+
+    <div style="margin-top:14px">
+      <label style="display:block;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">Modelos de operação <span style="font-weight:500;letter-spacing:.04em;text-transform:lowercase">(opcional)</span></label>
+      <div id="eFormasWrap"></div>
+    </div>
+
+    <div style="margin-top:14px">
+      <label style="display:block;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">Observações <span style="font-weight:500;letter-spacing:.04em;text-transform:lowercase">(opcional)</span></label>
+      <textarea id="eObsTese" maxlength="500" rows="3" style="width:100%;padding:11px 12px;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;resize:vertical"></textarea>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;border-top:1px solid var(--line);padding-top:14px">
+      <button onclick="fecharEditarTese()" style="padding:11px 18px;font-family:var(--sans);font-weight:600;font-size:13px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Cancelar</button>
+      <button id="eBtnSalvar" onclick="salvarEdicaoTese()" style="padding:11px 22px;font-family:var(--sans);font-weight:700;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink,#fff);background:var(--accent);border:1px solid var(--accent);border-radius:999px;cursor:pointer">Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Mover de tese (BLOCO 3 v6 F4B) -->
+<div id="modalMoverOverlay" style="display:none;position:fixed;inset:0;background:rgba(10,15,12,.55);backdrop-filter:blur(4px);z-index:200;align-items:center;justify-content:center;padding:18px" onclick="if(event.target===this)fecharMoverModal()">
+  <div role="dialog" aria-modal="true" style="width:100%;max-width:480px;max-height:88vh;overflow:auto;background:var(--surface,#fff);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow-card,0 24px 60px -18px rgba(10,20,12,.18));padding:24px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
+      <div>
+        <div style="font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)">Negócio salvo</div>
+        <h3 style="font-family:var(--serif);font-weight:700;font-size:20px;letter-spacing:-.02em;color:var(--ink);margin-top:6px">Mover de tese</h3>
+      </div>
+      <button onclick="fecharMoverModal()" aria-label="Fechar" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--ink-3);padding:4px 8px;line-height:1">✕</button>
+    </div>
+    <p style="font-family:var(--sans);font-size:13px;color:var(--ink-3);margin:8px 0 16px;line-height:1.5">Selecione 1+ teses ativas. Desmarcar tudo deixa o negócio salvo como avulso.</p>
+    <div id="moverLista" style="margin-bottom:16px"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="fecharMoverModal()" style="padding:11px 18px;font-family:var(--sans);font-weight:600;font-size:13px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Cancelar</button>
+      <button id="moverBtnSalvar" onclick="executarMoverTese()" style="padding:11px 22px;font-family:var(--sans);font-weight:700;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink,#fff);background:var(--accent);border:1px solid var(--accent);border-radius:999px;cursor:pointer">Salvar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal Atrelar a tese (BLOCO 3 v6 F4C) -->
 <div id="modalAtrelarOverlay" style="display:none;position:fixed;inset:0;background:rgba(10,15,12,.55);backdrop-filter:blur(4px);z-index:200;align-items:center;justify-content:center;padding:18px" onclick="if(event.target===this)fecharModalAtrelar()">
