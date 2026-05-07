@@ -3416,6 +3416,12 @@ table.t .acoes { white-space: nowrap; }
                 <button class="mm-tab" data-tab="rejeitado" onclick="mmTab('rejeitado')" style="padding:8px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Rejeitados <span id="mm-c-rejeitado" style="margin-left:4px;opacity:.7">0</span></button>
                 <button class="mm-tab" data-tab="busca" onclick="mmTab('busca')" style="padding:8px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Buscar manual</button>
               </div>
+              <div id="mm-agrupamento" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)">
+                <span style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-right:6px">Agrupar por</span>
+                <button class="mm-grp" data-grp="sem" onclick="mmAgrupar('sem')" style="padding:6px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-inv,#fff);background:var(--ink,#0a1510);border:1px solid var(--ink);border-radius:999px;cursor:pointer">Sem agrupamento</button>
+                <button class="mm-grp" data-grp="comprador" onclick="mmAgrupar('comprador')" style="padding:6px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Comprador</button>
+                <button class="mm-grp" data-grp="negocio" onclick="mmAgrupar('negocio')" style="padding:6px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Negócio</button>
+              </div>
               <div id="mm-conteudo"></div>
             </div>
           </div>
@@ -11215,7 +11221,11 @@ function mtInit(){
 
 /* ════════════════ V7 · Matchmaking ════════════════ */
 let _mmTab = 'pendente';
+let _mmAgrup = 'sem'; // 'sem' | 'comprador' | 'negocio'
 let _mmPolling = null;
+let _mmUsuariosMap = {}; // user_id → {nome, whatsapp, email}
+let _mmMatches = []; // último resultado carregado · pra re-render no toggle
+try { _mmAgrup = localStorage.getItem('mm_agrupamento') || 'sem'; } catch(e){}
 
 function mmHumanizarFator(f){
   const c = f.codigo || '';
@@ -11292,7 +11302,133 @@ function mmTab(t){
     b.style.color = ativo ? '#0a1510' : 'var(--ink-2)';
     b.style.borderColor = ativo ? 'var(--accent,#3dff95)' : 'var(--line)';
   });
+  // toggle agrupamento só faz sentido fora da aba 'busca'
+  const grp = document.getElementById('mm-agrupamento');
+  if (grp) grp.style.display = (t === 'busca') ? 'none' : 'flex';
   mmCarregarTab();
+}
+
+function mmAgrupar(modo){
+  _mmAgrup = modo;
+  try { localStorage.setItem('mm_agrupamento', modo); } catch(e){}
+  document.querySelectorAll('.mm-grp').forEach(b => {
+    const ativo = b.dataset.grp === modo;
+    b.style.background = ativo ? 'var(--ink,#0a1510)' : 'transparent';
+    b.style.color = ativo ? 'var(--ink-inv,#fff)' : 'var(--ink-2)';
+    b.style.borderColor = ativo ? 'var(--ink,#0a1510)' : 'var(--line)';
+  });
+  mmRenderConteudo();
+}
+
+function mmCardMatchMini(m){
+  // Variante compacta · usada dentro dos grupos
+  return mmCardMatch(m);
+}
+
+function mmRenderAgrupadoComprador(matches){
+  // Agrupa por comprador_id · dentro agrupa por tese_id
+  const porComp = {};
+  for (const m of matches){
+    const cid = m.comprador_id || 'sem-comprador';
+    if (!porComp[cid]) porComp[cid] = { comprador_id: cid, teses: {}, total: 0 };
+    const tid = m.tese_id || 'sem-tese';
+    if (!porComp[cid].teses[tid]) porComp[cid].teses[tid] = { tese: m.teses_investimento || {}, matches: [] };
+    porComp[cid].teses[tid].matches.push(m);
+    porComp[cid].total++;
+  }
+  const grupos = Object.values(porComp).sort((a,b)=>b.total-a.total);
+  if (!grupos.length) return '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:18px;text-align:center">Sem matches.</div>';
+  return grupos.map(g => {
+    const u = _mmUsuariosMap[g.comprador_id] || {};
+    const nome = u.nome || 'Sem nome';
+    const wpp = u.whatsapp ? mmFormataWpp(u.whatsapp) : '—';
+    const teses = Object.values(g.teses);
+    return `
+      <details class="mm-grp-acc" style="background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:14px;margin-bottom:10px">
+        <summary style="cursor:pointer;padding:14px 16px;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <div>
+            <div style="font-family:var(--serif);font-size:16px;font-weight:700;color:var(--ink)">${nome}</div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:2px">${wpp} · ${teses.length} ${teses.length===1?'tese':'teses'} · ${g.total} match${g.total===1?'':'es'} totais</div>
+          </div>
+          <span style="font-family:var(--mono);font-size:14px;color:var(--ink-3)">▾</span>
+        </summary>
+        <div style="padding:0 16px 14px">
+        ${teses.map(t => `
+          <details style="background:rgba(0,0,0,.15);border:1px solid var(--line);border-radius:10px;margin-bottom:8px">
+            <summary style="cursor:pointer;padding:10px 14px;list-style:none;display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <span style="font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent,#3dff95)">[${t.tese.codigo||'—'}]</span>
+                <span style="font-family:var(--sans);font-weight:600;font-size:13px;color:var(--ink);margin-left:6px">${t.tese.titulo || t.tese.tese_descricao || 'Tese'}</span>
+              </div>
+              <span style="font-family:var(--mono);font-size:11px;color:var(--ink-3)">${t.matches.length} match${t.matches.length===1?'':'es'} ▾</span>
+            </summary>
+            <div style="padding:10px 12px">${t.matches.map(mmCardMatchMini).join('')}</div>
+          </details>
+        `).join('')}
+        </div>
+      </details>
+    `;
+  }).join('');
+}
+
+function mmRenderAgrupadoNegocio(matches){
+  const porNeg = {};
+  for (const m of matches){
+    const nid = m.negocio_id || 'sem-negocio';
+    if (!porNeg[nid]) porNeg[nid] = { negocio: m.negocios || {}, matches: [] };
+    porNeg[nid].matches.push(m);
+  }
+  const grupos = Object.values(porNeg).sort((a,b)=>b.matches.length-a.matches.length);
+  if (!grupos.length) return '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:18px;text-align:center">Sem matches.</div>';
+  return grupos.map(g => {
+    const n = g.negocio;
+    const cod = n.codigo || (g.matches[0]?.negocio_id||'').slice(0,8);
+    const titulo = n.nome || `Negócio ${cod}`;
+    const local = `${n.cidade||'?'}/${n.estado||'?'}`;
+    return `
+      <details class="mm-grp-acc" style="background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:14px;margin-bottom:10px">
+        <summary style="cursor:pointer;padding:14px 16px;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <div>
+            <div><span style="font-family:var(--mono);color:var(--accent,#3dff95);font-size:11px;letter-spacing:.08em;text-transform:uppercase">[${cod}]</span> <span style="font-family:var(--serif);font-size:16px;font-weight:700;color:var(--ink)">${titulo}</span></div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:2px">${local} · ${n.setor||'—'} · ${g.matches.length} compradores compatíveis</div>
+          </div>
+          <span style="font-family:var(--mono);font-size:14px;color:var(--ink-3)">▾</span>
+        </summary>
+        <div style="padding:10px 16px 14px">${g.matches.map(mmCardMatchMini).join('')}</div>
+      </details>
+    `;
+  }).join('');
+}
+
+function mmRenderConteudo(){
+  const cont = document.getElementById('mm-conteudo');
+  if (!cont) return;
+  if (_mmTab === 'busca') return; // busca tem seu próprio HTML
+  if (!_mmMatches || !_mmMatches.length){
+    cont.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:24px;text-align:center">Nenhum match nesta aba ainda.</div>';
+    return;
+  }
+  if (_mmAgrup === 'comprador') cont.innerHTML = mmRenderAgrupadoComprador(_mmMatches);
+  else if (_mmAgrup === 'negocio') cont.innerHTML = mmRenderAgrupadoNegocio(_mmMatches);
+  else cont.innerHTML = _mmMatches.map(mmCardMatch).join('');
+}
+
+async function mmCarregarUsuarios(matches){
+  const ids = new Set();
+  for (const m of matches){
+    if (m.comprador_id) ids.add(m.comprador_id);
+    if (m.vendedor_id) ids.add(m.vendedor_id);
+  }
+  if (!ids.size) return;
+  try {
+    const lst = Array.from(ids).join(',');
+    const r = await fetch(`${SB}/rest/v1/usuarios?select=id,nome,whatsapp,email&id=in.(${lst})`, {
+      headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) }
+    });
+    if (!r.ok) return;
+    const rows = await r.json();
+    for (const u of rows){ _mmUsuariosMap[u.id] = u; }
+  } catch(e){}
 }
 
 function mmCardMatch(m){
@@ -11380,11 +11516,16 @@ async function mmCarregarTab(){
     });
     if (!r.ok) { cont.innerHTML = '<div style="color:#ff7a7a;padding:14px">erro http '+r.status+'</div>'; return; }
     const rows = await r.json();
-    if (!rows.length) {
-      cont.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:24px;text-align:center">Nenhum match nesta aba ainda.</div>';
-      return;
-    }
-    cont.innerHTML = rows.map(mmCardMatch).join('');
+    _mmMatches = rows;
+    await mmCarregarUsuarios(rows);
+    mmRenderConteudo();
+    // Sincroniza estado visual do toggle agrupamento
+    document.querySelectorAll('.mm-grp').forEach(b => {
+      const ativo = b.dataset.grp === _mmAgrup;
+      b.style.background = ativo ? 'var(--ink,#0a1510)' : 'transparent';
+      b.style.color = ativo ? 'var(--ink-inv,#fff)' : 'var(--ink-2)';
+      b.style.borderColor = ativo ? 'var(--ink,#0a1510)' : 'var(--line)';
+    });
   } catch(e){
     cont.innerHTML = '<div style="color:#ff7a7a;padding:14px">erro: '+(e.message||e)+'</div>';
   }
@@ -11795,6 +11936,7 @@ function mmInit(){
 
 window.mmInit = mmInit;
 window.mmTab = mmTab;
+window.mmAgrupar = mmAgrupar;
 window.mmRodarCron = mmRodarCron;
 window.mmCarregarHeader = mmCarregarHeader;
 window.mmValidar = mmValidar;
