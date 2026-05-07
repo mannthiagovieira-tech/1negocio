@@ -3417,10 +3417,9 @@ table.t .acoes { white-space: nowrap; }
                 <button class="mm-tab" data-tab="busca" onclick="mmTab('busca')" style="padding:8px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Buscar manual</button>
               </div>
               <div id="mm-agrupamento" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)">
-                <span style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-right:6px">Agrupar por</span>
-                <button class="mm-grp" data-grp="sem" onclick="mmAgrupar('sem')" style="padding:6px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-inv,#fff);background:var(--ink,#0a1510);border:1px solid var(--ink);border-radius:999px;cursor:pointer">Sem agrupamento</button>
-                <button class="mm-grp" data-grp="comprador" onclick="mmAgrupar('comprador')" style="padding:6px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Comprador</button>
-                <button class="mm-grp" data-grp="negocio" onclick="mmAgrupar('negocio')" style="padding:6px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Negócio</button>
+                <span style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-right:6px">Visão</span>
+                <button class="mm-grp" data-grp="tese" onclick="mmModoAgrupar('tese')" style="padding:6px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-inv,#fff);background:var(--ink,#0a1510);border:1px solid var(--ink);border-radius:999px;cursor:pointer">Por tese</button>
+                <button class="mm-grp" data-grp="negocio" onclick="mmModoAgrupar('negocio')" style="padding:6px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Por negócio</button>
               </div>
               <div id="mm-conteudo"></div>
             </div>
@@ -11221,11 +11220,15 @@ function mtInit(){
 
 /* ════════════════ V7 · Matchmaking ════════════════ */
 let _mmTab = 'pendente';
-let _mmAgrup = 'sem'; // 'sem' | 'comprador' | 'negocio'
+let _mmModo = 'tese'; // 'tese' | 'negocio'
 let _mmPolling = null;
 let _mmUsuariosMap = {}; // user_id → {nome, whatsapp, email}
-let _mmMatches = []; // último resultado carregado · pra re-render no toggle
-try { _mmAgrup = localStorage.getItem('mm_agrupamento') || 'sem'; } catch(e){}
+let _mmBlocos = []; // último resultado agrupado carregado
+let _mmExpandidos = new Set(); // ids de blocos expandidos (não persiste)
+try {
+  const v = localStorage.getItem('mm_modo_agrupamento');
+  if (v === 'tese' || v === 'negocio') _mmModo = v;
+} catch(e){}
 
 function mmHumanizarFator(f){
   const c = f.codigo || '';
@@ -11308,21 +11311,86 @@ function mmTab(t){
   mmCarregarTab();
 }
 
-function mmAgrupar(modo){
-  _mmAgrup = modo;
-  try { localStorage.setItem('mm_agrupamento', modo); } catch(e){}
+function mmModoAgrupar(modo){
+  if (modo !== 'tese' && modo !== 'negocio') modo = 'tese';
+  _mmModo = modo;
+  _mmExpandidos = new Set();
+  try { localStorage.setItem('mm_modo_agrupamento', modo); } catch(e){}
   document.querySelectorAll('.mm-grp').forEach(b => {
     const ativo = b.dataset.grp === modo;
     b.style.background = ativo ? 'var(--ink,#0a1510)' : 'transparent';
     b.style.color = ativo ? 'var(--ink-inv,#fff)' : 'var(--ink-2)';
     b.style.borderColor = ativo ? 'var(--ink,#0a1510)' : 'var(--line)';
   });
-  mmRenderConteudo();
+  mmCarregarTab();
 }
 
-function mmCardMatchMini(m){
-  // Variante compacta · usada dentro dos grupos
-  return mmCardMatch(m);
+/* ───── SVG icons stroke 2 (lucide-style · sem emoji) ───── */
+const MM_SVG_CHECK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+const MM_SVG_X = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+const MM_SVG_NOTE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+const MM_SVG_CHEV_DOWN = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+const MM_SVG_CHEV_UP = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
+
+/* ───── Linha compacta · 1 match (substitui card grande nas listas agrupadas) ───── */
+function mmFatorCurto(f){
+  const c = (f.codigo || '').toString();
+  // ex: "setor:varejo" / "estado:CE" / "ticket_proximidade:85%"
+  return c;
+}
+
+function mmLinhaCompacta(m, ladoOposto){
+  // ladoOposto = 'negocio' (mostra dados do negocio · view por tese)
+  // ladoOposto = 'tese' (mostra dados da tese · view por negocio)
+  const id = m.match_id;
+  const score10 = m.score_5_10;
+  const score100 = m.score_100;
+  let codigo, nomeCurto;
+  if (ladoOposto === 'negocio'){
+    codigo = m.negocio_codigo || (m.negocio_id||'').slice(0,8);
+    nomeCurto = (m.negocio_nome || `Negócio ${codigo}`).slice(0, 50);
+  } else {
+    codigo = m.tese_codigo || (m.tese_id||'').slice(0,8);
+    nomeCurto = (m.tese_titulo || m.tese_descricao || 'Tese').slice(0, 50);
+  }
+  const fatores = Array.isArray(m.fatores_casados) ? m.fatores_casados : [];
+  const fatStr = fatores.map(mmFatorCurto).join(' · ');
+  const fatTooltip = fatStr.replace(/"/g,'&quot;');
+  const isContatado = !!m.contactado_em;
+  const status = m.status || 'pendente';
+  const opa = isContatado ? 'opacity:.55;' : '';
+
+  let acoes = '';
+  if (status === 'pendente'){
+    acoes = `
+      <button onclick="mmValidar('${id}')" title="Validar" style="padding:5px 10px;border:1px solid var(--accent-line, rgba(61,255,149,.3));background:rgba(61,255,149,.08);color:var(--accent,#3dff95);border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em">${MM_SVG_CHECK}<span>Validar</span></button>
+      <span id="mm-rej-${id}"><button onclick="mmRejeitarInline('${id}')" title="Rejeitar" style="padding:5px 10px;border:1px solid rgba(220,38,38,.3);background:transparent;color:#dc2626;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em">${MM_SVG_X}<span>Rejeitar</span></button></span>
+      <button onclick="mmNotas('${id}')" title="Notas" style="padding:5px 10px;border:1px solid var(--line);background:transparent;color:var(--ink-3);border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em">${MM_SVG_NOTE}<span>Notas</span></button>`;
+  } else if (status === 'rejeitado'){
+    acoes = `<button onclick="mmReabrir('${id}')" style="padding:5px 10px;border:1px solid var(--line);background:transparent;color:var(--ink-2);border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em">Reabrir</button>${m.status_motivo ? '<span style="font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-left:6px">motivo: '+m.status_motivo+'</span>' : ''}`;
+  } else if (status === 'validado' || status === 'liberado' || status === 'em_negociacao'){
+    acoes = `<button onclick="mmConverter('${id}')" style="padding:5px 10px;border:1px solid var(--accent-line, rgba(61,255,149,.3));background:rgba(61,255,149,.08);color:var(--accent,#3dff95);border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em">Conversão</button>
+      <button onclick="mmPerder('${id}')" style="padding:5px 10px;border:1px solid var(--line);background:transparent;color:var(--ink-2);border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em">Perdido</button>`;
+  }
+  const contat = isContatado ? `<span style="margin-left:8px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent,#3dff95)">contatado em ${new Date(m.contactado_em).toLocaleDateString('pt-BR')}</span>` : '';
+
+  return `
+    <div class="mm-linha" data-mid="${id}" style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid var(--line);${opa}transition:background .15s">
+      <div style="flex-shrink:0;width:60px">
+        <div style="font-family:var(--serif);font-weight:800;font-size:18px;color:var(--accent,#3dff95);line-height:1">${score10}/10</div>
+        <div style="font-family:var(--mono);font-size:9.5px;color:var(--ink-3);margin-top:2px">${score100}/100</div>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+          <span style="font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent,#3dff95)">${codigo}</span>
+          <span style="font-family:var(--sans);font-weight:600;font-size:13.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nomeCurto}</span>
+          ${contat}
+        </div>
+        <div title="${fatTooltip}" style="font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fatStr || '—'}</div>
+      </div>
+      <div style="flex-shrink:0;display:flex;gap:6px;align-items:center">${acoes}</div>
+    </div>
+  `;
 }
 
 function mmRenderAgrupadoComprador(matches){
@@ -11400,17 +11468,113 @@ function mmRenderAgrupadoNegocio(matches){
   }).join('');
 }
 
+/* ───── Blocos agrupados (POR TESE / POR NEGÓCIO · top 3 + expandir) ───── */
+function mmBlocoTese(b){
+  const codigo = b.tese_codigo || (b.tese_id||'').slice(0,8);
+  const titulo = b.tese_titulo || b.tese_descricao || 'Tese sem título';
+  const setores = (b.tese_setores||[]).join(', ') || '—';
+  const localTxt = b.localizacao_tipo === 'brasil_todo'
+    ? 'Brasil todo'
+    : (b.tese_estado ? (b.tese_cidade ? `${b.tese_cidade}/${b.tese_estado}` : b.tese_estado) : '—');
+  const valor = b.valor_alvo ? `R\$ ${Number(b.valor_alvo).toLocaleString('pt-BR')}` : '—';
+  const matches = Array.isArray(b.matches) ? b.matches : [];
+  const total = matches.length;
+  const expandido = _mmExpandidos.has(b.tese_id);
+  const visiveis = expandido ? matches.slice(0, 10) : matches.slice(0, 3);
+  const restantes = Math.max(0, Math.min(total, 10) - 3);
+  const linhas = visiveis.map(m => mmLinhaCompacta(m, 'negocio')).join('');
+  const btnExpand = total > 3
+    ? `<div style="padding:10px 16px;text-align:center;border-top:1px solid var(--line)">
+         <button onclick="mmToggleExpandir('${b.tese_id}')" style="background:transparent;border:none;color:var(--ink-3);font-family:var(--mono);font-size:11px;letter-spacing:.04em;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+           ${expandido ? MM_SVG_CHEV_UP+'<span>Ocultar</span>' : MM_SVG_CHEV_DOWN+'<span>Ver os outros '+(total-3)+' matches</span>'}
+         </button>
+       </div>`
+    : '';
+  return `
+    <div class="mm-bloco" style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:18px;margin-bottom:14px;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 20px 14px">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)">Tese</div>
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:4px">
+            <span style="font-family:var(--mono);color:var(--accent,#3dff95);font-size:11px;letter-spacing:.08em;text-transform:uppercase">${codigo}</span>
+            <span style="font-family:var(--serif);font-weight:700;font-size:17px;color:var(--ink)">${titulo}</span>
+          </div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:4px">${setores} · ${localTxt} · valor_alvo ${valor}</div>
+        </div>
+        <div style="flex-shrink:0;text-align:right">
+          <div style="font-family:var(--serif);font-weight:800;font-size:22px;color:var(--ink);line-height:1">${total}</div>
+          <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-top:2px">${total===1?'match':'matches'}</div>
+        </div>
+      </div>
+      <div style="padding:0 0 0 0;border-top:1px solid var(--line)">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);padding:10px 16px;background:rgba(0,0,0,.15)">Top negócios ${expandido && total>10 ? '(mostrando 10 de '+total+')' : (total>3 ? '(mostrando '+Math.min(total,expandido?10:3)+' de '+total+')' : '')}</div>
+        ${linhas}
+      </div>
+      ${btnExpand}
+    </div>
+  `;
+}
+
+function mmBlocoNegocio(b){
+  const codigo = b.negocio_codigo || (b.negocio_id||'').slice(0,8);
+  const nome = b.negocio_nome || `Negócio ${codigo}`;
+  const setor = b.negocio_setor || '—';
+  const local = `${b.negocio_cidade||'?'}/${b.negocio_estado||'?'}`;
+  const ava = b.negocio_avaliacao_max ? `R\$ ${Number(b.negocio_avaliacao_max).toLocaleString('pt-BR')}` : 'sem avaliação';
+  const ise = b.negocio_score_saude != null ? `ISE ${b.negocio_score_saude}` : 'ISE —';
+  const matches = Array.isArray(b.matches) ? b.matches : [];
+  const total = matches.length;
+  const expandido = _mmExpandidos.has(b.negocio_id);
+  const visiveis = expandido ? matches.slice(0, 10) : matches.slice(0, 3);
+  const linhas = visiveis.map(m => mmLinhaCompacta(m, 'tese')).join('');
+  const btnExpand = total > 3
+    ? `<div style="padding:10px 16px;text-align:center;border-top:1px solid var(--line)">
+         <button onclick="mmToggleExpandir('${b.negocio_id}')" style="background:transparent;border:none;color:var(--ink-3);font-family:var(--mono);font-size:11px;letter-spacing:.04em;cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+           ${expandido ? MM_SVG_CHEV_UP+'<span>Ocultar</span>' : MM_SVG_CHEV_DOWN+'<span>Ver os outros '+(total-3)+' compradores</span>'}
+         </button>
+       </div>`
+    : '';
+  return `
+    <div class="mm-bloco" style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:18px;margin-bottom:14px;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 20px 14px">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)">Negócio</div>
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:4px">
+            <span style="font-family:var(--mono);color:var(--accent,#3dff95);font-size:11px;letter-spacing:.08em;text-transform:uppercase">${codigo}</span>
+            <span style="font-family:var(--serif);font-weight:700;font-size:17px;color:var(--ink)">${nome}</span>
+          </div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:4px">${setor} · ${local} · ${ava} · ${ise}</div>
+        </div>
+        <div style="flex-shrink:0;text-align:right">
+          <div style="font-family:var(--serif);font-weight:800;font-size:22px;color:var(--ink);line-height:1">${total}</div>
+          <div style="font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-top:2px">${total===1?'match':'matches'}</div>
+        </div>
+      </div>
+      <div style="padding:0 0 0 0;border-top:1px solid var(--line)">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);padding:10px 16px;background:rgba(0,0,0,.15)">Top compradores ${expandido && total>10 ? '(mostrando 10 de '+total+')' : (total>3 ? '(mostrando '+Math.min(total,expandido?10:3)+' de '+total+')' : '')}</div>
+        ${linhas}
+      </div>
+      ${btnExpand}
+    </div>
+  `;
+}
+
+function mmToggleExpandir(blocoId){
+  if (_mmExpandidos.has(blocoId)) _mmExpandidos.delete(blocoId);
+  else _mmExpandidos.add(blocoId);
+  mmRenderConteudo();
+}
+
 function mmRenderConteudo(){
   const cont = document.getElementById('mm-conteudo');
   if (!cont) return;
   if (_mmTab === 'busca') return; // busca tem seu próprio HTML
-  if (!_mmMatches || !_mmMatches.length){
+  if (!_mmBlocos || !_mmBlocos.length){
     cont.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:24px;text-align:center">Nenhum match nesta aba ainda.</div>';
     return;
   }
-  if (_mmAgrup === 'comprador') cont.innerHTML = mmRenderAgrupadoComprador(_mmMatches);
-  else if (_mmAgrup === 'negocio') cont.innerHTML = mmRenderAgrupadoNegocio(_mmMatches);
-  else cont.innerHTML = _mmMatches.map(mmCardMatch).join('');
+  if (_mmModo === 'negocio') cont.innerHTML = _mmBlocos.map(mmBlocoNegocio).join('');
+  else cont.innerHTML = _mmBlocos.map(mmBlocoTese).join('');
 }
 
 async function mmCarregarUsuarios(matches){
@@ -11679,24 +11843,23 @@ async function mmCarregarTab(){
     mmInicializarComboboxes();
     return;
   }
+  // status filter
   let filtro;
   if (_mmTab === 'validado') filtro = 'status=in.(validado,liberado,em_negociacao,convertido)';
   else if (_mmTab === 'rejeitado') filtro = 'status=eq.rejeitado';
   else filtro = 'status=eq.pendente';
+  // view por modo
+  const view = _mmModo === 'negocio' ? 'matchmaking_agrupado_por_negocio' : 'matchmaking_agrupado_por_tese';
   cont.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:18px;text-align:center">carregando...</div>';
   try {
-    const sel = 'select=*,teses_investimento(codigo,titulo,tese_descricao,setores,localizacao_tipo,estado,cidade,valor_alvo),negocios(codigo,nome,setor,estado,cidade,avaliacao_max,score_saude)';
-    const r = await fetch(`${SB}/rest/v1/matchmaking_resultados?${filtro}&${sel}&order=score_100.desc&limit=50`, {
-      headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) }
-    });
+    const url = `${SB}/rest/v1/${view}?select=*&${filtro}&order=top_score.desc.nullslast,total_matches.desc&limit=50`;
+    const r = await fetch(url, { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
     if (!r.ok) { cont.innerHTML = '<div style="color:#ff7a7a;padding:14px">erro http '+r.status+'</div>'; return; }
-    const rows = await r.json();
-    _mmMatches = rows;
-    await mmCarregarUsuarios(rows);
+    _mmBlocos = await r.json();
     mmRenderConteudo();
-    // Sincroniza estado visual do toggle agrupamento
+    // Sincroniza visual do toggle modo
     document.querySelectorAll('.mm-grp').forEach(b => {
-      const ativo = b.dataset.grp === _mmAgrup;
+      const ativo = b.dataset.grp === _mmModo;
       b.style.background = ativo ? 'var(--ink,#0a1510)' : 'transparent';
       b.style.color = ativo ? 'var(--ink-inv,#fff)' : 'var(--ink-2)';
       b.style.borderColor = ativo ? 'var(--ink,#0a1510)' : 'var(--line)';
@@ -12111,7 +12274,9 @@ function mmInit(){
 
 window.mmInit = mmInit;
 window.mmTab = mmTab;
-window.mmAgrupar = mmAgrupar;
+window.mmAgrupar = mmModoAgrupar; // backward compat
+window.mmModoAgrupar = mmModoAgrupar;
+window.mmToggleExpandir = mmToggleExpandir;
 window.mmMarcarContatado = mmMarcarContatado;
 window.mmDesfazerContatado = mmDesfazerContatado;
 window.mmRejeitarInline = mmRejeitarInline;
