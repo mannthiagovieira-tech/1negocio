@@ -11331,6 +11331,54 @@ const MM_SVG_X = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" st
 const MM_SVG_NOTE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
 const MM_SVG_CHEV_DOWN = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
 const MM_SVG_CHEV_UP = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
+const MM_SVG_USER = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>';
+const MM_SVG_PHONE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z"/></svg>';
+const MM_SVG_ALERT = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+
+/* WhatsApp deeplink helper */
+function mmAbrirWhats(phone, nomeOrigem, papel) {
+  if (!phone) return;
+  const phoneClean = String(phone).replace(/\D/g, '');
+  const phoneIntl = phoneClean.startsWith('55') ? phoneClean : ('55' + phoneClean);
+  const ctxMsg = papel === 'vendedor'
+    ? 'uma proposta de comprador interessado em seu negócio'
+    : 'um negócio compatível com sua tese de investimento';
+  const ola = nomeOrigem ? ('Olá ' + nomeOrigem.split(' ')[0]) : 'Olá';
+  const msg = encodeURIComponent(ola + ', sou da equipe 1Negócio. Estou entrando em contato sobre ' + ctxMsg + '.');
+  window.open('https://wa.me/' + phoneIntl + '?text=' + msg, '_blank');
+}
+function mmFmtPhone(p) {
+  if (!p) return '—';
+  const c = String(p).replace(/\D/g, '');
+  const local = c.startsWith('55') ? c.slice(2) : c;
+  if (local.length === 11) return '(' + local.slice(0,2) + ') ' + local.slice(2,7) + '-' + local.slice(7);
+  if (local.length === 10) return '(' + local.slice(0,2) + ') ' + local.slice(2,6) + '-' + local.slice(6);
+  return p;
+}
+function mmRenderContato(papel, nome, phone, ehSeed, mid) {
+  const labelPapel = papel === 'comprador' ? 'COMPRADOR' : 'VENDEDOR';
+  if (papel === 'vendedor' && ehSeed) {
+    return `
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)">
+        ${MM_SVG_USER}<span style="color:var(--am,#f5b955);font-weight:600">VENDEDOR · SEED</span>
+        <span style="color:var(--ink-3)">sem vendedor real · admin contata vendedor original</span>
+      </div>`;
+  }
+  const nomeShow = nome || (papel === 'comprador' ? 'Comprador não identificado' : 'Vendedor não identificado');
+  const phoneShow = mmFmtPhone(phone);
+  const podeWA = !!phone;
+  const btnWA = podeWA
+    ? `<button onclick="mmAbrirWhats('${(phone||'').replace(/'/g,"")}','${(nome||'').replace(/'/g,"")}','${papel}')" style="margin-left:auto;padding:4px 10px;border:1px solid rgba(34,197,94,.4);background:rgba(34,197,94,.08);color:#22c55e;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;letter-spacing:.04em">${MM_SVG_PHONE}<span>WhatsApp</span></button>`
+    : '';
+  return `
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-family:var(--mono);font-size:10.5px;color:var(--ink-2)">
+      ${MM_SVG_USER}<span style="color:var(--ink-3);letter-spacing:.06em">${labelPapel}</span>
+      <span style="color:var(--ink);font-weight:600">${nomeShow}</span>
+      <span style="color:var(--ink-3)">· ${phoneShow}</span>
+      ${btnWA}
+    </div>`;
+}
+window.mmAbrirWhats = mmAbrirWhats;
 
 /* ───── Linha compacta · 1 match (substitui card grande nas listas agrupadas) ───── */
 function mmFatorCurto(f){
@@ -11374,21 +11422,29 @@ function mmLinhaCompacta(m, ladoOposto){
   }
   const contat = isContatado ? `<span style="margin-left:8px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent,#3dff95)">contatado em ${new Date(m.contactado_em).toLocaleDateString('pt-BR')}</span>` : '';
 
+  const contatosHtml = `
+    ${mmRenderContato('comprador', m.comprador_nome, m.comprador_phone, false, id)}
+    ${mmRenderContato('vendedor', m.vendedor_nome, m.vendedor_phone, !!m.vendedor_eh_seed, id)}
+  `;
+
   return `
-    <div class="mm-linha" data-mid="${id}" style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid var(--line);${opa}transition:background .15s">
-      <div style="flex-shrink:0;width:60px">
-        <div style="font-family:var(--serif);font-weight:800;font-size:18px;color:var(--accent,#3dff95);line-height:1">${score10}/10</div>
-        <div style="font-family:var(--mono);font-size:9.5px;color:var(--ink-3);margin-top:2px">${score100}/100</div>
-      </div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
-          <span style="font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent,#3dff95)">${codigo}</span>
-          <span style="font-family:var(--sans);font-weight:600;font-size:13.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nomeCurto}</span>
-          ${contat}
+    <div class="mm-linha" data-mid="${id}" style="display:flex;flex-direction:column;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);${opa}transition:background .15s">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="flex-shrink:0;width:60px">
+          <div style="font-family:var(--serif);font-weight:800;font-size:18px;color:var(--accent,#3dff95);line-height:1">${score10}/10</div>
+          <div style="font-family:var(--mono);font-size:9.5px;color:var(--ink-3);margin-top:2px">${score100}/100</div>
         </div>
-        <div title="${fatTooltip}" style="font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fatStr || '—'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+            <span style="font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent,#3dff95)">${codigo}</span>
+            <span style="font-family:var(--sans);font-weight:600;font-size:13.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nomeCurto}</span>
+            ${contat}
+          </div>
+          <div title="${fatTooltip}" style="font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fatStr || '—'}</div>
+        </div>
+        <div style="flex-shrink:0;display:flex;gap:6px;align-items:center">${acoes}</div>
       </div>
-      <div style="flex-shrink:0;display:flex;gap:6px;align-items:center">${acoes}</div>
+      <div style="margin-left:74px;border-top:1px dashed var(--line);padding-top:6px">${contatosHtml}</div>
     </div>
   `;
 }

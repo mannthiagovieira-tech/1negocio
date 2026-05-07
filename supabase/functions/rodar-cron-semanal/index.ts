@@ -66,51 +66,83 @@ async function analisarPerfilOculto(userId: string | null, setor: string | null,
 type Tese = any; type Negocio = any;
 type Fator = { codigo: string; pontos: number };
 
+// Pesos V7 BLOCO 5: Setor 40 · Forma 35 · Loc 10 · Ticket 10 · ISE 5 = 100
 async function calcularMatchPar(tese: Tese, neg: Negocio, tagsAdmin: string[]) {
   const fatores: Fator[] = [];
   if (neg.status && !STATUSES_ELEGIVEIS.includes(neg.status)) return null;
+
+  // SETOR 40 · eliminatório
   const setores = tese.setores || [];
   const aceitaIndif = setores.includes("indiferente");
-  if (neg.setor && !aceitaIndif && setores.length > 0 && !setores.includes(neg.setor)) return null;
-  if (tese.localizacao_tipo && tese.localizacao_tipo !== "brasil_todo") {
-    if (tese.estado && neg.estado && tese.estado !== neg.estado) return null;
-    if (tese.localizacao_tipo === "cidade" && tese.cidade && neg.cidade && tese.cidade !== neg.cidade) return null;
+  let pontosSetor = 0;
+  if (setores.length > 0) {
+    if (aceitaIndif) { pontosSetor = 40; fatores.push({ codigo: "setor:indiferente", pontos: 40 }); }
+    else if (neg.setor && setores.includes(neg.setor)) { pontosSetor = 40; fatores.push({ codigo: `setor:${neg.setor}`, pontos: 40 }); }
+    else return null;
   }
+
+  // FORMA 35 · eliminatório quando declarada (lógica A intersecção)
+  let pontosForma = 0;
+  const teseTemForma = Array.isArray(tese.formas_atuacao) && tese.formas_atuacao.length > 0;
+  const negTemForma = Array.isArray(neg.formas_atuacao) && neg.formas_atuacao.length > 0;
+  if (teseTemForma) {
+    if (!negTemForma) return null;
+    const inter = tese.formas_atuacao.filter((f: string) => neg.formas_atuacao.includes(f));
+    if (inter.length === 0) return null;
+    pontosForma = 35;
+    fatores.push({ codigo: `forma:${inter.join(",")}`, pontos: 35 });
+  }
+
+  // LOC até 10 · eliminatório quando estado/cidade declarado
+  let pontosLoc = 0;
+  if (tese.localizacao_tipo === "brasil_todo" || !tese.localizacao_tipo) {
+    pontosLoc = 5; fatores.push({ codigo: "localizacao:brasil_todo", pontos: 5 });
+  } else if (tese.localizacao_tipo === "estado") {
+    if (tese.estado && neg.estado && tese.estado !== neg.estado) return null;
+    pontosLoc = 8; if (neg.estado) fatores.push({ codigo: `estado:${neg.estado}`, pontos: 8 });
+  } else if (tese.localizacao_tipo === "cidade") {
+    if (tese.estado && neg.estado && tese.estado !== neg.estado) return null;
+    if (tese.cidade && neg.cidade && tese.cidade !== neg.cidade) {
+      pontosLoc = 7; fatores.push({ codigo: `estado:${neg.estado}`, pontos: 7 });
+    } else {
+      pontosLoc = 10; if (neg.cidade) fatores.push({ codigo: `cidade:${neg.cidade}`, pontos: 10 });
+    }
+  }
+
+  // TICKET até 10 · eliminatório ±30%
+  let pontosTicket = 0;
   if (tese.valor_alvo != null && neg.avaliacao_max != null) {
     if (neg.avaliacao_max < tese.valor_alvo * 0.7 || neg.avaliacao_max > tese.valor_alvo * 1.3) return null;
-  }
-  // Pontos
-  if (aceitaIndif) fatores.push({ codigo: "setor:indiferente", pontos: 25 });
-  else if (neg.setor && setores.includes(neg.setor)) fatores.push({ codigo: `setor:${neg.setor}`, pontos: 25 });
-  if (tese.localizacao_tipo === "brasil_todo" || !tese.localizacao_tipo) fatores.push({ codigo: "localizacao:brasil_todo", pontos: 10 });
-  else if (tese.estado && neg.estado && tese.estado === neg.estado) {
-    fatores.push({ codigo: `estado:${neg.estado}`, pontos: 15 });
-    if (tese.cidade && neg.cidade && tese.cidade === neg.cidade) fatores.push({ codigo: `cidade:${neg.cidade}`, pontos: 10 });
-  }
-  if (tese.valor_alvo != null && neg.avaliacao_max != null) {
     const dist = Math.abs(neg.avaliacao_max - tese.valor_alvo) / tese.valor_alvo;
-    const p = Math.round(20 * (1 - Math.min(dist / 0.30, 1)));
-    if (p > 0) fatores.push({ codigo: `ticket_proximidade:${Math.round((1 - Math.min(dist / 0.30, 1)) * 100)}%`, pontos: p });
+    const p = Math.round(10 * (1 - Math.min(dist / 0.30, 1)));
+    if (p > 0) {
+      pontosTicket = p;
+      fatores.push({ codigo: `ticket_proximidade:${Math.round((1 - Math.min(dist/0.30,1))*100)}%`, pontos: p });
+    }
   }
-  // MODELO (10pts) · interseção formas_atuacao tese × negócio
-  if (tese.formas_atuacao && Array.isArray(tese.formas_atuacao) && tese.formas_atuacao.length > 0
-      && neg.formas_atuacao && Array.isArray(neg.formas_atuacao) && neg.formas_atuacao.length > 0) {
-    const interseccao = tese.formas_atuacao.filter((f: string) => neg.formas_atuacao.includes(f));
-    if (interseccao.length > 0) fatores.push({ codigo: `modelo:${interseccao.join(",")}`, pontos: 10 });
-  }
-  // ISE (até 10pts) · alinhado com 5 faixas nomeadas (skill v2)
-  if (typeof neg.score_saude === "number") {
-    if (neg.score_saude >= 85) fatores.push({ codigo: `ise_estruturado:${neg.score_saude}`, pontos: 10 });
-    else if (neg.score_saude >= 70) fatores.push({ codigo: `ise_consolidado:${neg.score_saude}`, pontos: 7 });
-    else if (neg.score_saude >= 50) fatores.push({ codigo: `ise_operacional:${neg.score_saude}`, pontos: 4 });
-  }
-  const perfilPts = await analisarPerfilOculto(tese.usuario_id, neg.setor, neg.estado);
-  if (perfilPts > 0) fatores.push({ codigo: `perfil_compatibilidade:${perfilPts >= 1.5 ? 5 : perfilPts >= 1 ? 3 : 1}`, pontos: Math.round(perfilPts) });
 
-  const scoreBase = fatores.reduce((s, f) => s + f.pontos, 0);
+  // ISE até 5 · 5 faixas
+  let pontosISE = 0;
+  if (typeof neg.score_saude === "number") {
+    if (neg.score_saude >= 85) { pontosISE = 5; fatores.push({ codigo: `ise_estruturado:${neg.score_saude}`, pontos: 5 }); }
+    else if (neg.score_saude >= 70) { pontosISE = 3; fatores.push({ codigo: `ise_consolidado:${neg.score_saude}`, pontos: 3 }); }
+    else if (neg.score_saude >= 50) { pontosISE = 1; fatores.push({ codigo: `ise_operacional:${neg.score_saude}`, pontos: 1 }); }
+  }
+
+  const scoreBase = pontosSetor + pontosForma + pontosLoc + pontosTicket + pontosISE;
   const { score: scoreFinal, aplicadas } = aplicarTags(scoreBase, tagsAdmin);
   if (scoreFinal < 30) return null;
   return { score: scoreFinal, score510: calcularScore510(scoreFinal), fatores, tags: aplicadas };
+}
+
+type Contato = { id: string; phone: string | null; nome: string | null; email: string | null; eh_seed: boolean };
+async function getContato(userId: string | null): Promise<Contato | null> {
+  if (!userId) return null;
+  try {
+    const { data } = await adminClient.rpc("get_user_contato", { p_user_id: userId });
+    if (Array.isArray(data) && data.length > 0) return data[0] as Contato;
+    return null;
+  } catch { return null; }
 }
 
 async function rodarBatch(execId: string, iniciado_por: string | null) {
@@ -161,12 +193,24 @@ async function rodarBatch(execId: string, iniciado_por: string | null) {
       const top = arr.slice(0, 10);
 
       if (top.length) {
-        const rows = top.map(({ neg, r }) => ({
-          tese_id: tese.id, negocio_id: neg.id,
-          comprador_id: tese.usuario_id, vendedor_id: neg.vendedor_id,
-          score_100: r.score, score_5_10: r.score510,
-          fatores_casados: r.fatores, tags_aplicadas: r.tags,
-          origem: "cron_semanal", cron_execucao_id: execId, status: "pendente",
+        const comprador = await getContato(tese.usuario_id);
+        const vendedoresCache: Record<string, Contato | null> = {};
+        const rows = await Promise.all(top.map(async ({ neg, r }) => {
+          const vid = neg.vendedor_id || "";
+          if (vid && !(vid in vendedoresCache)) vendedoresCache[vid] = await getContato(vid);
+          const vendedor = vid ? vendedoresCache[vid] : null;
+          return {
+            tese_id: tese.id, negocio_id: neg.id,
+            comprador_id: tese.usuario_id, vendedor_id: neg.vendedor_id,
+            score_100: r.score, score_5_10: r.score510,
+            fatores_casados: r.fatores, tags_aplicadas: r.tags,
+            origem: "cron_semanal", cron_execucao_id: execId, status: "pendente",
+            comprador_phone: comprador?.phone ?? null,
+            comprador_nome: comprador?.nome ?? null,
+            vendedor_phone: vendedor?.phone ?? null,
+            vendedor_nome: vendedor?.nome ?? null,
+            vendedor_eh_seed: vendedor?.eh_seed ?? false,
+          };
         }));
         const { error: upErr } = await adminClient.from("matchmaking_resultados").upsert(rows, { onConflict: "tese_id,negocio_id" });
         if (!upErr) matchesGerados += top.length;
