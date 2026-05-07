@@ -1378,6 +1378,7 @@ table.t .acoes { white-space: nowrap; }
         <div class="sidebar-grupo">
           <div class="sidebar-grupo-titulo">V7 MATCHMAKING</div>
           <div class="nav-item" data-secao="mt-maquininha" onclick="mostrarSecao('mt-maquininha')"><span class="nav-icon">▦</span><span class="nav-label">Maquininha de Teses</span></div>
+          <div class="nav-item" data-secao="mm-matchmaking" onclick="mostrarSecao('mm-matchmaking')"><span class="nav-icon">◇</span><span class="nav-label">Matchmaking</span></div>
         </div>
 
         <!-- LEGADOS -->
@@ -3387,6 +3388,39 @@ table.t .acoes { white-space: nowrap; }
           </div>
         </section>
 
+        <!-- ════════════════ V7 · Matchmaking ════════════════ -->
+        <section id="secao-mm-matchmaking" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">Matchmaking</h1>
+            <p class="secao-subtitulo" style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)">Score 0-100 entre teses e negócios · pendentes / validados / rejeitados</p>
+          </header>
+          <div class="secao-conteudo">
+            <div class="bloco">
+              <div class="bloco-head">
+                <div>
+                  <div class="bloco-titulo">Cron semanal</div>
+                  <div class="bloco-sub" id="mm-ult-exec">Última execução: —</div>
+                </div>
+                <div style="display:flex;gap:10px">
+                  <button id="mm-btn-cron" onclick="mmRodarCron()" style="padding:10px 18px;font-family:var(--sans);font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent,#3dff95);border-radius:999px;cursor:pointer">Rodar cron agora</button>
+                  <button onclick="mmCarregarHeader()" style="padding:10px 14px;font-family:var(--mono);font-size:11px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Atualizar</button>
+                </div>
+              </div>
+              <div id="mm-cron-info" style="margin-top:12px;font-family:var(--mono);font-size:11px;color:var(--ink-3)"></div>
+            </div>
+
+            <div class="bloco">
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:14px">
+                <button class="mm-tab" data-tab="pendente" onclick="mmTab('pendente')" style="padding:8px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent);border-radius:999px;cursor:pointer">Pendentes <span id="mm-c-pendente" style="margin-left:4px;opacity:.7">0</span></button>
+                <button class="mm-tab" data-tab="validado" onclick="mmTab('validado')" style="padding:8px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Validados <span id="mm-c-validado" style="margin-left:4px;opacity:.7">0</span></button>
+                <button class="mm-tab" data-tab="rejeitado" onclick="mmTab('rejeitado')" style="padding:8px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Rejeitados <span id="mm-c-rejeitado" style="margin-left:4px;opacity:.7">0</span></button>
+                <button class="mm-tab" data-tab="busca" onclick="mmTab('busca')" style="padding:8px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Buscar manual</button>
+              </div>
+              <div id="mm-conteudo"></div>
+            </div>
+          </div>
+        </section>
+
         <!-- ════════════════ V7 · Maquininha de Teses ════════════════ -->
         <section id="secao-mt-maquininha" class="secao">
           <header class="secao-header">
@@ -3885,6 +3919,7 @@ const SECAO_TITULOS = {
   'pl-leads-manuais':  {grupo:'LEADS MIGRADO', titulo:'Leads manuais',        icone:'➕'},
   'pl-config':         {grupo:'LEADS MIGRADO', titulo:'API Keys',             icone:'🔑'},
   'mt-maquininha':     {grupo:'V7 MATCHMAKING',titulo:'Maquininha de Teses',  icone:'▦'},
+  'mm-matchmaking':    {grupo:'V7 MATCHMAKING',titulo:'Matchmaking',          icone:'◇'},
 };
 
 function mostrarSecao(id) {
@@ -3918,6 +3953,7 @@ function mostrarSecao(id) {
     if (id === 'gerador-conteudo') { gcInit(); }
     // Etapa 1.A · loaders das seções portadas do painel-admin
     if (id === 'mt-maquininha') mtInit();
+    if (id === 'mm-matchmaking') mmInit();
     if (id === 'pa-usuarios')   paLoadUsuarios();
     if (id === 'pa-leads')      paLoadLeads();
     if (id === 'pa-transacoes') paLoadTransacoes();
@@ -11176,6 +11212,372 @@ async function mtGerar(modo){
 function mtInit(){
   mtCarregar();
 }
+
+/* ════════════════ V7 · Matchmaking ════════════════ */
+let _mmTab = 'pendente';
+let _mmPolling = null;
+
+function mmHumanizarFator(f){
+  const c = f.codigo || '';
+  const p = f.pontos || 0;
+  if (c.startsWith('setor:indiferente')) return `Tese aceita qualquer setor (+${p})`;
+  if (c.startsWith('setor:')) return `Setor alinhado · ${c.split(':')[1]} (+${p})`;
+  if (c.startsWith('estado:')) return `Localização · ${c.split(':')[1]} (+${p})`;
+  if (c.startsWith('cidade:')) return `Cidade exata · ${c.split(':')[1]} (+${p})`;
+  if (c.startsWith('localizacao:brasil_todo')) return `Tese aceita Brasil todo (+${p})`;
+  if (c.startsWith('ticket_proximidade:')) return `Ticket próximo do alvo · ${c.split(':')[1]} (+${p})`;
+  if (c.startsWith('ise_alto:')) return `Saúde do negócio alta · ISE ${c.split(':')[1]} (+${p})`;
+  if (c.startsWith('ise_bom:')) return `Saúde do negócio sólida · ISE ${c.split(':')[1]} (+${p})`;
+  if (c.startsWith('recente:30d')) return `Publicado há menos de 30 dias (+${p})`;
+  if (c.startsWith('recente:90d')) return `Publicado nos últimos 90 dias (+${p})`;
+  if (c.startsWith('perfil_compatibilidade:')) return `Comprador interagiu com similares · nível ${c.split(':')[1]} (+${p})`;
+  return `${c} (+${p})`;
+}
+
+function mmHumanizarTag(t){
+  const tag = t.tag || '';
+  const p = t.peso || 0;
+  const sign = p > 0 ? `+${p}` : (p < 0 ? `${p}` : '0');
+  return `Tag admin · ${tag.replace(/_/g,' ')} (${sign})`;
+}
+
+async function mmCarregarHeader(){
+  try {
+    const r = await fetch(SB+'/rest/v1/matchmaking_cron_execucoes?select=*&order=iniciado_em.desc&limit=3', {
+      headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) }
+    });
+    const exs = r.ok ? await r.json() : [];
+    const ult = exs[0];
+    if (!ult) {
+      document.getElementById('mm-ult-exec').textContent = 'Última execução: nunca';
+      document.getElementById('mm-cron-info').innerHTML = '';
+      return;
+    }
+    const dt = new Date(ult.iniciado_em).toLocaleString('pt-BR');
+    document.getElementById('mm-ult-exec').textContent = `Última execução: ${dt} · ${ult.status}`;
+    const dur = ult.duracao_ms ? Math.round(ult.duracao_ms/1000)+'s' : (ult.status==='rodando'?'em curso':'—');
+    document.getElementById('mm-cron-info').innerHTML =
+      `<span style="color:var(--ink-2)">Teses processadas: <b>${ult.teses_processadas||0}</b> · Pares avaliados: <b>${ult.pares_avaliados||0}</b> · Matches gerados: <b>${ult.matches_gerados||0}</b> · Duração: ${dur}</span>`;
+    if (ult.status === 'rodando') {
+      if (!_mmPolling) _mmPolling = setInterval(mmCarregarHeader, 3000);
+    } else if (_mmPolling) {
+      clearInterval(_mmPolling); _mmPolling = null;
+      mmCarregarTab();
+    }
+  } catch(e){
+    document.getElementById('mm-cron-info').textContent = 'erro: '+(e.message||e);
+  }
+}
+
+async function mmCarregarContagens(){
+  try {
+    const sts = ['pendente','validado','rejeitado'];
+    for (const s of sts) {
+      const r = await fetch(SB+'/rest/v1/matchmaking_resultados?select=id&status=eq.'+s, {
+        headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK), 'Prefer':'count=exact' }
+      });
+      const cr = r.headers.get('content-range') || '0-0/0';
+      const tot = (cr.split('/')[1] || '0');
+      const el = document.getElementById('mm-c-'+s);
+      if (el) el.textContent = tot;
+    }
+  } catch(e){}
+}
+
+function mmTab(t){
+  _mmTab = t;
+  document.querySelectorAll('.mm-tab').forEach(b => {
+    const ativo = b.dataset.tab === t;
+    b.style.background = ativo ? 'var(--accent,#3dff95)' : 'transparent';
+    b.style.color = ativo ? '#0a1510' : 'var(--ink-2)';
+    b.style.borderColor = ativo ? 'var(--accent,#3dff95)' : 'var(--line)';
+  });
+  mmCarregarTab();
+}
+
+function mmCardMatch(m){
+  const tese = m.teses_investimento || {};
+  const neg = m.negocios || {};
+  const codigoTese = tese.codigo || (m.tese_id||'').slice(0,8);
+  const tituloTese = tese.titulo || tese.tese_descricao || '—';
+  const codigoNeg = neg.codigo || (m.negocio_id||'').slice(0,8);
+  const nomeNeg = neg.nome || (`Negócio ${codigoNeg}`);
+  const fatores = Array.isArray(m.fatores_casados) ? m.fatores_casados : [];
+  const tags = Array.isArray(m.tags_aplicadas) ? m.tags_aplicadas : [];
+  const dt = m.criado_em ? new Date(m.criado_em).toLocaleString('pt-BR') : '—';
+  const fatHtml = fatores.map(f => `<li style="font-family:var(--sans);font-size:13px;color:var(--ink-2);margin:4px 0">• ${mmHumanizarFator(f)}</li>`).join('');
+  const tagHtml = tags.length
+    ? '<div style="margin-top:8px"><div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px">Tags admin</div>'
+      + tags.map(t => `<li style="font-family:var(--sans);font-size:12.5px;color:${t.peso>0?'var(--accent,#3dff95)':(t.peso<0?'#ff7a7a':'var(--ink-3)')};margin:3px 0;list-style:none">${mmHumanizarTag(t)}</li>`).join('')
+      + '</div>'
+    : '';
+  const status = m.status || 'pendente';
+  const acoes = status === 'pendente'
+    ? `<button onclick="mmValidar('${m.id}')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent);border-radius:999px;cursor:pointer">Validar</button>
+       <button onclick="mmRejeitar('${m.id}')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Rejeitar</button>
+       <button onclick="mmNotas('${m.id}')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;color:var(--ink-3);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Notas</button>`
+    : status === 'rejeitado'
+    ? `<button onclick="mmReabrir('${m.id}')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Reabrir</button>
+       ${m.status_motivo ? '<span style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-left:10px">motivo: '+m.status_motivo+'</span>' : ''}`
+    : status === 'validado' || status === 'liberado'
+    ? `<button onclick="mmConverter('${m.id}')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent);border-radius:999px;cursor:pointer">Marcar conversão</button>
+       <button onclick="mmPerder('${m.id}')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Marcar perdido</button>`
+    : '';
+  return `
+    <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)">Match ${m.id.slice(0,8)} · ${m.origem}</div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:2px">Gerado em ${dt}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <div style="font-family:var(--serif);font-weight:800;font-size:24px;color:var(--accent,#3dff95);line-height:1">${m.score_5_10}/10</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--ink-3)">score ${m.score_100}/100</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr;gap:10px;padding:12px;background:rgba(0,0,0,.2);border-radius:12px;margin-bottom:12px">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)">Tese</div>
+          <div style="font-family:var(--sans);font-weight:600;font-size:14px;color:var(--ink);margin-top:2px">${codigoTese} · ${tituloTese}</div>
+          <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:2px">setores: ${(tese.setores||[]).join(', ') || '—'} · loc: ${tese.localizacao_tipo||'—'}${tese.estado?'/'+tese.estado:''}${tese.cidade?'/'+tese.cidade:''} · valor_alvo: ${tese.valor_alvo?('R\$ '+Number(tese.valor_alvo).toLocaleString('pt-BR')):'—'}</div>
+        </div>
+        <div style="border-top:1px dashed var(--line);padding-top:10px">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)">Negócio</div>
+          <div style="font-family:var(--sans);font-weight:600;font-size:14px;color:var(--ink);margin-top:2px">${codigoNeg} · ${nomeNeg}</div>
+          <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:2px">setor: ${neg.setor||'—'} · ${neg.cidade||'?'}/${neg.estado||'?'} · avaliação: ${neg.avaliacao_max?('R\$ '+Number(neg.avaliacao_max).toLocaleString('pt-BR')):'—'} · ISE ${neg.score_saude||'—'}</div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">Por que casou</div>
+        <ul style="margin:0;padding:0;list-style:none">${fatHtml || '<li style="color:var(--ink-3);font-style:italic">sem fatores adicionais</li>'}</ul>
+      </div>
+      ${tagHtml}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+        ${acoes}
+        <button onclick="window.open('/negocio.html?id=${m.negocio_id}','_blank')" style="padding:7px 14px;font-family:var(--mono);font-size:11px;color:var(--ink-3);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Ver negócio</button>
+      </div>
+    </div>
+  `;
+}
+
+async function mmCarregarTab(){
+  const cont = document.getElementById('mm-conteudo');
+  if (!cont) return;
+  if (_mmTab === 'busca') {
+    cont.innerHTML = mmHtmlBusca();
+    return;
+  }
+  let filtro;
+  if (_mmTab === 'validado') filtro = 'status=in.(validado,liberado,em_negociacao,convertido)';
+  else if (_mmTab === 'rejeitado') filtro = 'status=eq.rejeitado';
+  else filtro = 'status=eq.pendente';
+  cont.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:18px;text-align:center">carregando...</div>';
+  try {
+    const sel = 'select=*,teses_investimento(codigo,titulo,tese_descricao,setores,localizacao_tipo,estado,cidade,valor_alvo),negocios(codigo,nome,setor,estado,cidade,avaliacao_max,score_saude)';
+    const r = await fetch(`${SB}/rest/v1/matchmaking_resultados?${filtro}&${sel}&order=score_100.desc&limit=50`, {
+      headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) }
+    });
+    if (!r.ok) { cont.innerHTML = '<div style="color:#ff7a7a;padding:14px">erro http '+r.status+'</div>'; return; }
+    const rows = await r.json();
+    if (!rows.length) {
+      cont.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:24px;text-align:center">Nenhum match nesta aba ainda.</div>';
+      return;
+    }
+    cont.innerHTML = rows.map(mmCardMatch).join('');
+  } catch(e){
+    cont.innerHTML = '<div style="color:#ff7a7a;padding:14px">erro: '+(e.message||e)+'</div>';
+  }
+  mmCarregarContagens();
+}
+
+function mmHtmlBusca(){
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;padding:14px">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">Tese → Negócios</div>
+        <input id="mm-bp-tese" placeholder="ID ou código T-XXXX" style="width:100%;padding:9px 12px;font-family:var(--mono);font-size:13px;color:var(--ink);background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:8px;margin-bottom:8px">
+        <button onclick="mmBuscarPorTese()" style="padding:9px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent);border-radius:999px;cursor:pointer;width:100%">Gerar matches</button>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;padding:14px">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">Negócio → Compradores</div>
+        <input id="mm-bp-neg" placeholder="ID ou código do negócio" style="width:100%;padding:9px 12px;font-family:var(--mono);font-size:13px;color:var(--ink);background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:8px;margin-bottom:8px">
+        <button onclick="mmBuscarPorNegocio()" style="padding:9px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent);border-radius:999px;cursor:pointer;width:100%">Gerar matches</button>
+      </div>
+    </div>
+    <div id="mm-busca-resultado"></div>
+  `;
+}
+
+async function mmResolverIdTese(input){
+  const v = (input||'').trim();
+  if (!v) return null;
+  if (v.match(/^[0-9a-f]{8}-/i)) return v;
+  // procura por código
+  try {
+    const r = await fetch(SB+'/rest/v1/teses_investimento?codigo=eq.'+encodeURIComponent(v)+'&select=id&limit=1', {
+      headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) }
+    });
+    const rows = await r.json();
+    return rows?.[0]?.id || null;
+  } catch { return null; }
+}
+
+async function mmResolverIdNegocio(input){
+  const v = (input||'').trim();
+  if (!v) return null;
+  if (v.match(/^[0-9a-f]{8}-/i)) return v;
+  try {
+    const r = await fetch(SB+'/rest/v1/negocios?or=(codigo.eq.'+encodeURIComponent(v)+',codigo_anuncio.eq.'+encodeURIComponent(v)+')&select=id&limit=1', {
+      headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) }
+    });
+    const rows = await r.json();
+    return rows?.[0]?.id || null;
+  } catch { return null; }
+}
+
+async function mmBuscarPorTese(){
+  const inp = document.getElementById('mm-bp-tese');
+  const tese_id = await mmResolverIdTese(inp.value);
+  if (!tese_id) { alert('Tese não encontrada'); return; }
+  const out = document.getElementById('mm-busca-resultado');
+  out.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:14px">processando...</div>';
+  try {
+    const r = await fetch(SB+'/functions/v1/calcular-matchmaking', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) },
+      body: JSON.stringify({ modo:'tese', tese_id, salvar:false, origem:'manual_perfil' })
+    });
+    const d = await r.json();
+    if (!d.ok) { out.innerHTML = '<div style="color:#ff7a7a;padding:10px">'+(d.error||'erro')+'</div>'; return; }
+    const top = (d.top || []).slice(0, 10);
+    if (!top.length) { out.innerHTML = '<div style="font-family:var(--mono);color:var(--ink-3);padding:10px">avaliados '+d.avaliados+' · 0 acima do threshold 30</div>'; return; }
+    out.innerHTML = `<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:8px 0">${d.avaliados} avaliados · ${top.length} acima do threshold</div>`
+      + `<button onclick="mmSalvarLote('tese','${tese_id}')" style="margin-bottom:14px;padding:9px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0a1510;background:var(--accent);border:1px solid var(--accent);border-radius:999px;cursor:pointer">Salvar todos como pendentes</button>`
+      + top.map(t => `<div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-family:var(--sans);font-weight:600;color:var(--ink)">${t.negocio.codigo||t.negocio.id.slice(0,8)} · ${t.negocio.nome||'—'}</div>
+          <div style="font-family:var(--serif);font-weight:800;font-size:18px;color:var(--accent)">${t.res.score_5_10}/10</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:4px">score ${t.res.score_final}/100 · setor ${t.negocio.setor||'?'} · ${t.negocio.cidade||'?'}/${t.negocio.estado||'?'}</div>
+      </div>`).join('');
+  } catch(e){ out.innerHTML = '<div style="color:#ff7a7a;padding:10px">erro: '+(e.message||e)+'</div>'; }
+}
+
+async function mmBuscarPorNegocio(){
+  const inp = document.getElementById('mm-bp-neg');
+  const negocio_id = await mmResolverIdNegocio(inp.value);
+  if (!negocio_id) { alert('Negócio não encontrado'); return; }
+  const out = document.getElementById('mm-busca-resultado');
+  out.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:14px">processando...</div>';
+  try {
+    const r = await fetch(SB+'/functions/v1/calcular-matchmaking', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) },
+      body: JSON.stringify({ modo:'negocio', negocio_id, salvar:false, origem:'manual_negocio' })
+    });
+    const d = await r.json();
+    if (!d.ok) { out.innerHTML = '<div style="color:#ff7a7a;padding:10px">'+(d.error||'erro')+'</div>'; return; }
+    const top = (d.top || []).slice(0, 10);
+    if (!top.length) { out.innerHTML = '<div style="font-family:var(--mono);color:var(--ink-3);padding:10px">avaliados '+d.avaliados+' · 0 acima do threshold 30</div>'; return; }
+    out.innerHTML = `<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:8px 0">${d.avaliados} avaliados · ${top.length} acima do threshold</div>`
+      + `<button onclick="mmSalvarLote('negocio','${negocio_id}')" style="margin-bottom:14px;padding:9px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0a1510;background:var(--accent);border:1px solid var(--accent);border-radius:999px;cursor:pointer">Salvar todos como pendentes</button>`
+      + top.map(t => `<div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-family:var(--sans);font-weight:600;color:var(--ink)">${t.tese.codigo||t.tese.id.slice(0,8)} · ${t.tese.titulo||t.tese.tese_descricao||'—'}</div>
+          <div style="font-family:var(--serif);font-weight:800;font-size:18px;color:var(--accent)">${t.res.score_5_10}/10</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-3);margin-top:4px">score ${t.res.score_final}/100 · setores ${(t.tese.setores||[]).join(',')||'?'} · ${t.tese.localizacao_tipo||'?'}</div>
+      </div>`).join('');
+  } catch(e){ out.innerHTML = '<div style="color:#ff7a7a;padding:10px">erro: '+(e.message||e)+'</div>'; }
+}
+
+async function mmSalvarLote(modo, id){
+  if (!confirm('Salvar todos os matches do top 10 como pendentes?')) return;
+  try {
+    const body = modo === 'tese' ? { modo:'tese', tese_id:id, salvar:true, origem:'manual_perfil' }
+                                 : { modo:'negocio', negocio_id:id, salvar:true, origem:'manual_negocio' };
+    const r = await fetch(SB+'/functions/v1/calcular-matchmaking', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error||'erro'); return; }
+    alert(`${d.gerados||0} matches salvos como pendentes`);
+    mmTab('pendente');
+  } catch(e){ alert('erro: '+(e.message||e)); }
+}
+
+async function mmRodarCron(){
+  if (!confirm('Rodar cron semanal manualmente? Pode demorar 5-10 min.')) return;
+  const btn = document.getElementById('mm-btn-cron');
+  btn.disabled = true; btn.textContent = 'iniciando...';
+  try {
+    const r = await fetch(SB+'/functions/v1/rodar-cron-semanal', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) },
+      body: '{}'
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error||'erro'); btn.disabled=false; btn.textContent='Rodar cron agora'; return; }
+    btn.textContent = 'rodando...';
+    mmCarregarHeader();
+    setTimeout(()=>{ btn.disabled=false; btn.textContent='Rodar cron agora'; }, 5000);
+  } catch(e){ alert('erro: '+(e.message||e)); btn.disabled=false; btn.textContent='Rodar cron agora'; }
+}
+
+async function mmAtualizarStatus(id, status, motivo){
+  try {
+    const body = { status, atualizado_em: new Date().toISOString() };
+    if (motivo) body.status_motivo = motivo;
+    if (status === 'validado') body.validado_em = new Date().toISOString();
+    const r = await fetch(SB+'/rest/v1/matchmaking_resultados?id=eq.'+id, {
+      method:'PATCH',
+      headers:{ 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer '+(__token||AK), 'Prefer':'return=minimal' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) { alert('falhou: '+r.status); return; }
+    mmCarregarTab();
+  } catch(e){ alert('erro: '+(e.message||e)); }
+}
+
+function mmValidar(id){ mmAtualizarStatus(id, 'validado'); }
+function mmRejeitar(id){ const m = prompt('Motivo da rejeição:'); if (m===null) return; mmAtualizarStatus(id, 'rejeitado', m||'sem motivo'); }
+function mmReabrir(id){ mmAtualizarStatus(id, 'pendente', null); }
+function mmConverter(id){ mmAtualizarStatus(id, 'convertido'); }
+function mmPerder(id){ const m = prompt('Motivo (opcional):'); mmAtualizarStatus(id, 'perdido', m||null); }
+async function mmNotas(id){
+  const n = prompt('Notas admin:');
+  if (n===null) return;
+  try {
+    await fetch(SB+'/rest/v1/matchmaking_resultados?id=eq.'+id, {
+      method:'PATCH',
+      headers:{ 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer '+(__token||AK), 'Prefer':'return=minimal' },
+      body: JSON.stringify({ notas_admin: n })
+    });
+    mmCarregarTab();
+  } catch(e){ alert('erro: '+(e.message||e)); }
+}
+
+function mmInit(){
+  mmCarregarHeader();
+  mmCarregarContagens();
+  mmTab('pendente');
+}
+
+window.mmInit = mmInit;
+window.mmTab = mmTab;
+window.mmRodarCron = mmRodarCron;
+window.mmCarregarHeader = mmCarregarHeader;
+window.mmValidar = mmValidar;
+window.mmRejeitar = mmRejeitar;
+window.mmReabrir = mmReabrir;
+window.mmConverter = mmConverter;
+window.mmPerder = mmPerder;
+window.mmNotas = mmNotas;
+window.mmBuscarPorTese = mmBuscarPorTese;
+window.mmBuscarPorNegocio = mmBuscarPorNegocio;
+window.mmSalvarLote = mmSalvarLote;
 </script>
 </body>
 </html>
