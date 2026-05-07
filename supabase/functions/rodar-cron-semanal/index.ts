@@ -92,14 +92,17 @@ async function calcularMatchPar(tese: Tese, neg: Negocio, tagsAdmin: string[]) {
     const p = Math.round(20 * (1 - Math.min(dist / 0.30, 1)));
     if (p > 0) fatores.push({ codigo: `ticket_proximidade:${Math.round((1 - Math.min(dist / 0.30, 1)) * 100)}%`, pontos: p });
   }
-  if (typeof neg.score_saude === "number") {
-    if (neg.score_saude >= 75) fatores.push({ codigo: `ise_alto:${neg.score_saude}`, pontos: 10 });
-    else if (neg.score_saude >= 60) fatores.push({ codigo: `ise_bom:${neg.score_saude}`, pontos: 5 });
+  // MODELO (10pts) · interseção formas_atuacao tese × negócio
+  if (tese.formas_atuacao && Array.isArray(tese.formas_atuacao) && tese.formas_atuacao.length > 0
+      && neg.formas_atuacao && Array.isArray(neg.formas_atuacao) && neg.formas_atuacao.length > 0) {
+    const interseccao = tese.formas_atuacao.filter((f: string) => neg.formas_atuacao.includes(f));
+    if (interseccao.length > 0) fatores.push({ codigo: `modelo:${interseccao.join(",")}`, pontos: 10 });
   }
-  if (neg.publicado_em) {
-    const d = (Date.now() - new Date(neg.publicado_em).getTime()) / (24*60*60*1000);
-    if (d <= 30) fatores.push({ codigo: "recente:30d", pontos: 5 });
-    else if (d <= 90) fatores.push({ codigo: "recente:90d", pontos: 2 });
+  // ISE (até 10pts) · alinhado com 5 faixas nomeadas (skill v2)
+  if (typeof neg.score_saude === "number") {
+    if (neg.score_saude >= 85) fatores.push({ codigo: `ise_estruturado:${neg.score_saude}`, pontos: 10 });
+    else if (neg.score_saude >= 70) fatores.push({ codigo: `ise_consolidado:${neg.score_saude}`, pontos: 7 });
+    else if (neg.score_saude >= 50) fatores.push({ codigo: `ise_operacional:${neg.score_saude}`, pontos: 4 });
   }
   const perfilPts = await analisarPerfilOculto(tese.usuario_id, neg.setor, neg.estado);
   if (perfilPts > 0) fatores.push({ codigo: `perfil_compatibilidade:${perfilPts >= 1.5 ? 5 : perfilPts >= 1 ? 3 : 1}`, pontos: Math.round(perfilPts) });
@@ -128,7 +131,7 @@ async function rodarBatch(execId: string, iniciado_por: string | null) {
     try {
       // Pré-filtro SQL
       let q = adminClient.from("negocios")
-        .select("id,codigo,nome,setor,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id");
+        .select("id,codigo,nome,setor,formas_atuacao,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id");
       q = q.in("status", STATUSES_ELEGIVEIS);
       const setoresArr = tese.setores || [];
       if (!setoresArr.includes("indiferente") && setoresArr.length > 0) q = q.in("setor", setoresArr);

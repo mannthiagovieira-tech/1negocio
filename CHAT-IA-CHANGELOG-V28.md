@@ -4,6 +4,7 @@
 **Arquivo modificado:** `supabase/functions/chat-ia/index.ts` (constante `SYSTEM_PROMPT`)
 **Backup:** `supabase/functions/chat-ia/index.ts.backup-pre-v28-03mai2026`
 **Tamanho do prompt:** 30.291 → **32.074 chars** (+1.783 chars; ~14,9k tokens input agora)
+**Fonte das tabelas/parâmetros:** `skill-avaliadora-v2.js` + `parametros_versoes` (snapshot ativo).
 
 ---
 

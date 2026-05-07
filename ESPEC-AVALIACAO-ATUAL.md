@@ -3,6 +3,8 @@
 > Documento gerado em 03/05/2026 lendo `main` (commit 05c98c4).
 > Foco: skill **v2** (skill-avaliadora-v2.js) — a skill v1 está deprecada.
 > Tudo aqui é o que está rodando hoje em produção. Nada inventado.
+>
+> **Fonte canônica:** `skill-avaliadora-v2.js` (3002 linhas) + `parametros_versoes` (id=v2026.11-pool-9-categorias). Este documento descreve a metodologia mas NÃO substitui a skill. Em caso de conflito · skill vence.
 
 ---
 

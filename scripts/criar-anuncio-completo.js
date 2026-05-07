@@ -401,7 +401,6 @@ async function processarPerfil(perfilPath) {
     cidade: id.cidade,
     estado: id.estado,
     tempo_operacao_anos: id.tempo_operacao_anos,
-    modelo_negocio: id.modelo_negocio,
     slug: codigo,
     codigo_diagnostico: codigo,
     faturamento_anual: (dadosJson.fat_mensal || 0) * 12,

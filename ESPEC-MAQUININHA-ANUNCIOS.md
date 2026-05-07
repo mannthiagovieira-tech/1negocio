@@ -480,7 +480,10 @@ Salvador=20, Fortaleza=20, Florianópolis=15
 + 10 cidades interior (5 cada = 50)
 ```
 
-**SETORES — 18 categorias:**
+**SETORES — 18 categorias (HISTÓRICO):**
+
+> ⚠ Lista abaixo é histórico do gerador Python deprecado em 02/05/2026. Pipeline V2 atual roda APENAS com 12 setores canônicos da skill v2: saude · educacao · servicos_empresas · bem_estar · beleza_estetica · industria · hospedagem · logistica · alimentacao · servicos_locais · varejo · construcao. Categorias antigas (Tecnologia · Academia · Pet · Farmácia · Imobiliário · Automotivo · Eventos · Cultura · B2B genérico) NÃO existem no canônico atual.
+
 ```
 Varejo=60, Alimentação=55, Serviços B2B=50, Saúde=45, Beleza=40,
 Pet=30, Educação=30, Tecnologia=25, Academia=25, Hospedagem=20,

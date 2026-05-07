@@ -29,7 +29,8 @@ type Tese = {
 };
 type Negocio = {
   id: string; codigo?: string | null; nome?: string | null;
-  setor: string | null; estado: string | null; cidade: string | null;
+  setor: string | null; formas_atuacao: string[] | null;
+  estado: string | null; cidade: string | null;
   status: string; avaliacao_min: number | null; avaliacao_max: number | null;
   score_saude: number | null; publicado_em: string | null; vendedor_id: string | null;
 };
@@ -136,21 +137,20 @@ export async function calcularMatchPar(tese: Tese, negocio: Negocio, tagsAdmin: 
     }
   }
 
-  // MODELO (10pts) · negocios.formas_atuacao não existe nesta base · pula com nota
-  // (ver report · documentado como decisão)
-
-  // ISE (até 10pts) · score_saude
-  if (typeof negocio.score_saude === "number") {
-    if (negocio.score_saude >= 75) fatores.push({ codigo: `ise_alto:${negocio.score_saude}`, pontos: 10 });
-    else if (negocio.score_saude >= 60) fatores.push({ codigo: `ise_bom:${negocio.score_saude}`, pontos: 5 });
+  // MODELO (10pts) · interseção formas_atuacao tese × negócio
+  if (tese.formas_atuacao && Array.isArray(tese.formas_atuacao) && tese.formas_atuacao.length > 0
+      && negocio.formas_atuacao && Array.isArray(negocio.formas_atuacao) && negocio.formas_atuacao.length > 0) {
+    const interseccao = tese.formas_atuacao.filter((f) => negocio.formas_atuacao!.includes(f));
+    if (interseccao.length > 0) {
+      fatores.push({ codigo: `modelo:${interseccao.join(",")}`, pontos: 10 });
+    }
   }
 
-  // RECÊNCIA (até 5pts)
-  if (negocio.publicado_em) {
-    const ageMs = Date.now() - new Date(negocio.publicado_em).getTime();
-    const ageDays = ageMs / (24 * 60 * 60 * 1000);
-    if (ageDays <= 30) fatores.push({ codigo: `recente:30d`, pontos: 5 });
-    else if (ageDays <= 90) fatores.push({ codigo: `recente:90d`, pontos: 2 });
+  // ISE (até 10pts) · alinhado com 5 faixas nomeadas (skill v2)
+  if (typeof negocio.score_saude === "number") {
+    if (negocio.score_saude >= 85) fatores.push({ codigo: `ise_estruturado:${negocio.score_saude}`, pontos: 10 });
+    else if (negocio.score_saude >= 70) fatores.push({ codigo: `ise_consolidado:${negocio.score_saude}`, pontos: 7 });
+    else if (negocio.score_saude >= 50) fatores.push({ codigo: `ise_operacional:${negocio.score_saude}`, pontos: 4 });
   }
 
   // PERFIL OCULTO (até 5pts)
@@ -220,7 +220,7 @@ async function getTagsAdmin(userId: string | null): Promise<string[]> {
 async function processarParaTese(tese: Tese, salvar: boolean, origem: string, cronExecId?: string | null) {
   // Pré-filtro SQL · reduz pares
   let query = adminClient.from("negocios")
-    .select("id,codigo,nome,setor,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id");
+    .select("id,codigo,nome,setor,formas_atuacao,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id");
   query = query.in("status", Array.from(STATUSES_ELEGIVEIS));
   // Setor
   const setoresArr = tese.setores || [];
@@ -284,7 +284,7 @@ Deno.serve(async (req: Request) => {
   if (modo === "par") {
     if (!body.tese_id || !body.negocio_id) return json({ ok: false, error: "tese_id e negocio_id obrigatorios" }, 400);
     const { data: tese } = await adminClient.from("teses_investimento").select("*").eq("id", body.tese_id).single();
-    const { data: neg } = await adminClient.from("negocios").select("id,codigo,nome,setor,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id").eq("id", body.negocio_id).single();
+    const { data: neg } = await adminClient.from("negocios").select("id,codigo,nome,setor,formas_atuacao,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id").eq("id", body.negocio_id).single();
     if (!tese || !neg) return json({ ok: false, error: "tese ou negocio nao encontrado" }, 404);
     const tagsAdmin = await getTagsAdmin(tese.usuario_id);
     const res = await calcularMatchPar(tese as Tese, neg as Negocio, tagsAdmin);
@@ -310,7 +310,7 @@ Deno.serve(async (req: Request) => {
   if (modo === "negocio") {
     if (!body.negocio_id) return json({ ok: false, error: "negocio_id obrigatorio" }, 400);
     // tese vs negocio: itera teses ativas · usa pré-filtro inverso
-    const { data: neg } = await adminClient.from("negocios").select("id,codigo,nome,setor,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id").eq("id", body.negocio_id).single();
+    const { data: neg } = await adminClient.from("negocios").select("id,codigo,nome,setor,formas_atuacao,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id").eq("id", body.negocio_id).single();
     if (!neg) return json({ ok: false, error: "negocio nao encontrado" }, 404);
     const { data: teses } = await adminClient.from("teses_investimento").select("*").eq("status", "ativa").limit(500);
     const arr: Array<{ tese: Tese; res: ResultadoMatch }> = [];

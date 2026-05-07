@@ -145,7 +145,7 @@ consumidores leem do mesmo `calc_json` e refletem automaticamente.
 ## Glossário rápido
 
 - **NDA** = Termo de Confidencialidade que comprador assina pra ver dados sigilosos
-- **ISE** = Índice de Saúde Empresarial (score 0-100, soma de 6 dimensões)
+- **ISE** = Índice de Saúde Empresarial (score 0-100, soma de 8 pilares ISE · skill v2)
 - **calc_json** = JSON canônico com DRE/BP/ISE/valuation gerado pela skill v2
 - **fator/múltiplo** = multiplicador aplicado ao RO anual pra valuation
 - **valor_1n / avaliacao_min/max** = faixa central da avaliação calculada

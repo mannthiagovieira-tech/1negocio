@@ -3,6 +3,8 @@
 > Documento gerado em 03/05/2026 lendo `main` (commit 05c98c4 → versão chat-ia v27 deployada).
 > Cobre: arquitetura, system prompt, tools, fluxos, validações, persistência, integração Z-API.
 > Tudo aqui é o que está rodando hoje em produção. Nada inventado.
+>
+> **Fonte canônica de fórmulas/parâmetros:** `skill-avaliadora-v2.js` + `parametros_versoes` (snapshot ativo). Em caso de conflito · skill vence. Atualizar este doc se a skill mudar.
 
 ---
 
