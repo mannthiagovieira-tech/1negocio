@@ -57,6 +57,10 @@ input,textarea,select{font:inherit;color:inherit}
 .step.active{display:block;animation:fadeIn .3s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
+/* UX 3 v6 · one-question-per-screen */
+.group.sub{display:none}
+.group.sub.active{display:block;animation:fadeIn .25s ease}
+
 .card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:24px;box-shadow:var(--shadow-card)}
 
 .group{margin-bottom:18px}
@@ -232,22 +236,35 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.5}
         <div class="bar"><div class="bar-fill" style="width:75%"></div></div>
       </div>
       <h2 style="font-family:var(--serif);font-weight:700;font-size:22px;letter-spacing:-.02em;margin-bottom:6px">Olá <span id="hello-nome">você</span> · vamos cadastrar sua tese</h2>
-      <p style="color:var(--ink-3);font-size:13.5px;margin-bottom:22px">Quanto mais específico · melhor o match.</p>
+      <p style="color:var(--ink-3);font-size:13.5px;margin-bottom:18px">Quanto mais específico · melhor o match.</p>
 
-      <div class="group">
+      <!-- Progress sub-steps · UX 3 v6 -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:22px">
+        <span id="sub-num" style="font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);flex-shrink:0">Pergunta 1 / 6</span>
+        <div style="flex:1;height:2px;background:var(--line);border-radius:2px;overflow:hidden">
+          <div id="sub-bar" style="height:100%;background:var(--accent);width:16.66%;transition:width .25s ease"></div>
+        </div>
+      </div>
+
+      <div class="group sub" data-sub="1">
         <label class="lbl" for="i-titulo">Título da tese</label>
         <input class="inp" id="i-titulo" type="text" placeholder="Ex: Restaurante grande em SP" maxlength="80">
         <div class="help">Nome curto pra você identificar essa tese (3 a 80 chars)</div>
         <div class="err" id="e-titulo">Título precisa de 3 a 80 caracteres.</div>
       </div>
 
-      <div class="group">
+      <div class="group sub" data-sub="2">
         <label class="lbl">Setores de interesse</label>
         <div class="opt-grid" id="setores-grid"></div>
         <div class="err" id="e-setores">Selecione ao menos um setor.</div>
       </div>
 
-      <div class="group">
+      <div class="group sub" data-sub="3">
+        <label class="lbl">Modelos de operação <span class="lbl-opt">(opcional)</span></label>
+        <div class="opt-grid" id="modelos-grid"></div>
+      </div>
+
+      <div class="group sub" data-sub="4">
         <label class="lbl">Localização</label>
         <div class="radio-row">
           <label><input type="radio" name="loc" value="brasil" checked><span class="ttl">Brasil todo</span></label>
@@ -271,7 +288,7 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.5}
         <div class="err" id="e-loc">Selecione estado/cidade ou marque Brasil todo.</div>
       </div>
 
-      <div class="group">
+      <div class="group sub" data-sub="5">
         <label class="lbl">Faixa de investimento (R$)</label>
         <div class="inp-grid">
           <input class="inp" id="i-min" type="text" inputmode="numeric" placeholder="100.000">
@@ -281,19 +298,19 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.5}
         <div class="err" id="e-faixa">Faixa inválida · máximo precisa ser maior que mínimo.</div>
       </div>
 
-      <div class="group">
-        <label class="lbl">Modelos de operação <span class="lbl-opt">(opcional)</span></label>
-        <div class="opt-grid" id="modelos-grid"></div>
-      </div>
-
-      <div class="group">
+      <div class="group sub" data-sub="6">
         <label class="lbl">Sobre sua tese <span class="lbl-opt">(opcional)</span></label>
         <textarea class="inp" id="i-desc" placeholder="Conte mais sobre o que procura · preferências · contexto pessoal" maxlength="500"></textarea>
         <div class="counter"><span id="desc-count">0</span> / 500</div>
       </div>
 
       <div class="err" id="e-submit">Erro ao cadastrar tese. Tente novamente em alguns segundos.</div>
-      <button class="cta" id="btn-submit-tese" disabled>Cadastrar tese</button>
+
+      <!-- Navegação sub-steps · UX 3 v6 -->
+      <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
+        <button class="cta cta-ghost" id="btn-sub-prev" type="button" onclick="prevSub()" style="flex:0 0 auto;padding:14px 22px">Voltar</button>
+        <button class="cta" id="btn-sub-next" type="button" onclick="nextSub()" style="flex:1">Continuar</button>
+      </div>
     </div>
   </section>
 
@@ -612,6 +629,7 @@ $('#btn-verify-otp').addEventListener('click', async () => {
     const firstName = (D.userExistente?.nome || D.nome || 'você').split(' ')[0];
     $('#hello-nome').textContent = firstName;
     goStep(3);
+    iniciarSubSteps();
   } catch(e){
     $('#e-otp').classList.add('show');
   } finally {
@@ -705,26 +723,99 @@ $('#i-desc').addEventListener('input', e => {
   $('#desc-count').textContent = e.target.value.length;
 });
 
-function validateStep3(){
-  const okTitulo = D.titulo.trim().length >= 3 && D.titulo.trim().length <= 80;
-  const okSetores = D.setoresSel.length >= 1;
-  const okFaixa = D.valorMin > 0 && D.valorMax > D.valorMin;
-  let okLoc = false;
-  if (D.loc === 'brasil') okLoc = true;
-  else if (D.loc === 'estado') okLoc = !!D.estado;
-  else if (D.loc === 'cidade') okLoc = !!D.estado && !!D.cidade.trim();
-  $('#btn-submit-tese').disabled = !(okTitulo && okSetores && okFaixa && okLoc);
+// Sub-step state · UX 3 v6
+const TOTAL_SUBS = 6;
+function validateStep3(){ /* mantido pra compatibilidade · só atualiza UI do botão atual */
+  updateSubUI();
 }
+function validateSub(n){
+  if (n === 1) return D.titulo.trim().length >= 3 && D.titulo.trim().length <= 80;
+  if (n === 2) return D.setoresSel.length >= 1;
+  if (n === 3) return true; // modelos opcional
+  if (n === 4) {
+    if (D.loc === 'brasil') return true;
+    if (D.loc === 'estado') return !!D.estado;
+    if (D.loc === 'cidade') return !!D.estado && !!D.cidade.trim();
+    return false;
+  }
+  if (n === 5) return D.valorMin > 0 && D.valorMax > D.valorMin;
+  if (n === 6) return true; // observações opcional
+  return false;
+}
+function updateSubUI(){
+  const cur = D.subStep || 1;
+  document.querySelectorAll('.group.sub').forEach(el => {
+    el.classList.toggle('active', String(cur) === el.dataset.sub);
+  });
+  const numEl = $('#sub-num'); if (numEl) numEl.textContent = `Pergunta ${cur} / ${TOTAL_SUBS}`;
+  const barEl = $('#sub-bar'); if (barEl) barEl.style.width = (cur * 100 / TOTAL_SUBS).toFixed(2) + '%';
+  const prev = $('#btn-sub-prev'); if (prev) prev.style.visibility = cur === 1 ? 'hidden' : 'visible';
+  const next = $('#btn-sub-next');
+  if (next) {
+    if (cur === TOTAL_SUBS) {
+      next.textContent = 'Cadastrar tese';
+    } else {
+      next.textContent = 'Continuar';
+    }
+    next.disabled = !validateSub(cur);
+  }
+}
+function nextSub(){
+  const cur = D.subStep || 1;
+  if (!validateSub(cur)) {
+    if (cur === 1) $('#e-titulo').classList.add('show');
+    if (cur === 2) $('#e-setores').classList.add('show');
+    if (cur === 4) $('#e-loc').classList.add('show');
+    if (cur === 5) $('#e-faixa').classList.add('show');
+    return;
+  }
+  // limpa erros do sub atual
+  $$('.err').forEach(e => e.classList.remove('show'));
+  if (cur === TOTAL_SUBS) {
+    submeterTese();
+    return;
+  }
+  D.subStep = cur + 1;
+  updateSubUI();
+  saveProgress();
+  // foco automático
+  setTimeout(() => {
+    const ativo = document.querySelector('.group.sub.active input, .group.sub.active textarea');
+    if (ativo && typeof ativo.focus === 'function') ativo.focus();
+  }, 80);
+}
+function prevSub(){
+  const cur = D.subStep || 1;
+  if (cur <= 1) return;
+  $$('.err').forEach(e => e.classList.remove('show'));
+  D.subStep = cur - 1;
+  updateSubUI();
+  saveProgress();
+}
+function iniciarSubSteps(){
+  D.subStep = 1;
+  updateSubUI();
+}
+window.nextSub = nextSub;
+window.prevSub = prevSub;
 
-$('#btn-submit-tese').addEventListener('click', async () => {
+async function submeterTese(){
   if (!D.accessToken) { alert('Sessão expirada · valide o código de novo.'); goStep(1); return }
   $('#e-submit').classList.remove('show');
-  $('#e-titulo').classList.toggle('show', !(D.titulo.trim().length >= 3 && D.titulo.trim().length <= 80));
-  $('#e-setores').classList.toggle('show', D.setoresSel.length === 0);
-  $('#e-faixa').classList.toggle('show', !(D.valorMin > 0 && D.valorMax > D.valorMin));
-  if ($('#btn-submit-tese').disabled) return;
+  // checa todos os subs
+  for (let i = 1; i <= TOTAL_SUBS; i++) {
+    if (!validateSub(i)) {
+      D.subStep = i;
+      updateSubUI();
+      if (i === 1) $('#e-titulo').classList.add('show');
+      if (i === 2) $('#e-setores').classList.add('show');
+      if (i === 4) $('#e-loc').classList.add('show');
+      if (i === 5) $('#e-faixa').classList.add('show');
+      return;
+    }
+  }
 
-  const btn = $('#btn-submit-tese');
+  const btn = $('#btn-sub-next');
   btn.disabled = true; btn.textContent = 'Cadastrando...';
 
   const payload = {
@@ -738,7 +829,7 @@ $('#btn-submit-tese').addEventListener('click', async () => {
     nome: D.userExistente?.nome || D.nome,
     whatsapp: D.whatsapp,
     usuario_id: D.userId,
-    status: 'novo',
+    status: 'ativa',
   };
 
   try {
@@ -770,8 +861,9 @@ $('#btn-submit-tese').addEventListener('click', async () => {
     $('#e-submit').classList.add('show');
   } finally {
     btn.disabled = false; btn.textContent = 'Cadastrar tese';
+    updateSubUI();
   }
-});
+}
 
 /* STEP 4 */
 function resetParaNovaTese(){
@@ -789,12 +881,58 @@ function resetParaNovaTese(){
   $$('input[name=loc]').forEach(r => { r.checked = r.value === 'brasil' });
   $$('.err').forEach(e => e.classList.remove('show'));
   goStep(3);
+  iniciarSubSteps();
 }
 
 renderSetores();
 renderModelos();
 setupLoc();
 loadProgress();
+
+/* UX 1 v6 · Skip OTP se já há sessão válida em localStorage */
+(async function bootSessaoLogada(){
+  function parseJwt(token){
+    try {
+      const p = token.split('.');
+      if (p.length !== 3) return null;
+      const payload = p[1].replace(/-/g,'+').replace(/_/g,'/');
+      const padded = payload + '='.repeat((4 - payload.length%4) % 4);
+      return JSON.parse(atob(padded));
+    } catch(e){ return null }
+  }
+  let access = null;
+  try { access = localStorage.getItem('sb_access_token'); } catch(e){}
+  if (!access) return;
+  const decoded = parseJwt(access);
+  if (!decoded) return;
+  const nowSec = Math.floor(Date.now()/1000);
+  if (decoded.exp && decoded.exp < nowSec) return; // expirado · cai no fluxo OTP normal
+  // Sessão válida · popula D + pula pra Step 3
+  D.accessToken = access;
+  D.userId = decoded.sub;
+  let nome = decoded.user_metadata?.nome || decoded.user_metadata?.full_name || '';
+  let phone = decoded.phone || '';
+  if (phone && phone.startsWith('+')) phone = phone.slice(1);
+  if (!nome && decoded.sub) {
+    try {
+      const r = await fetch(SUPABASE_URL+'/rest/v1/usuarios?select=nome,whatsapp&id=eq.'+decoded.sub+'&limit=1', {
+        headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer '+access }
+      });
+      const dat = r.ok ? await r.json() : [];
+      if (Array.isArray(dat) && dat[0]) {
+        nome = dat[0].nome || '';
+        phone = phone || dat[0].whatsapp || '';
+      }
+    } catch(e){}
+  }
+  D.nome = nome;
+  D.whatsapp = phone;
+  D.userExistente = { id: decoded.sub, nome };
+  const firstName = (nome || 'você').split(' ')[0];
+  $('#hello-nome').textContent = firstName;
+  goStep(3);
+  iniciarSubSteps();
+})();
 </script>
 
 </body>
