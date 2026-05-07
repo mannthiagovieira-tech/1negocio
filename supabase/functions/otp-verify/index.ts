@@ -109,7 +109,8 @@ Deno.serve(async (req: Request) => {
                        return json({ ok: false, error: "whatsapp e codigo sao obrigatorios" }, 400);
              }
 
-             const phoneSemPlus = whatsapp.replace(/^\+/, "").replace(/\D/g, "");
+             // Normaliza: strip nao-digitos + garante prefixo 55 (idempotente)
+             const phoneSemPlus = "55" + (whatsapp ?? "").replace(/\D/g, "").replace(/^55/, "");
         const phoneComPlus = "+" + phoneSemPlus;
 
              if (!isE164SemPlus(phoneSemPlus)) {
@@ -165,17 +166,49 @@ Deno.serve(async (req: Request) => {
                                    });
                        }
              } else {
-                       const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
-                                   phone: phoneComPlus,
-                                   password: syntheticPassword,
-                                   phone_confirm: true,
-                                   user_metadata: { nome: nome || phoneComPlus },
-                       });
+                       // LAZY MIGRATION · auth.user existente so-email · adicionar phone preservando id
+                       // Bridge confirmado em D6: usuarios.id === auth.users.id em 100% dos casos com match
+                       const { data: legacyUserRow } = await adminClient
+                                   .from("usuarios")
+                                   .select("id, email")
+                                   .eq("whatsapp", phoneSemPlus)
+                                   .maybeSingle();
 
-          if (createErr || !newUser?.user) {
-                      console.error("[otp-verify] Erro ao criar user:", createErr);
-                      return json({ ok: false, error: "Erro ao criar conta" }, 500);
-          }
+                       if (legacyUserRow?.id) {
+                                   const { error: updErr } = await adminClient.auth.admin.updateUserById(
+                                                 legacyUserRow.id,
+                                                 {
+                                                             phone: phoneComPlus,
+                                                             phone_confirm: true,
+                                                             password: syntheticPassword,
+                                                             user_metadata: nome ? { nome } : undefined,
+                                                 }
+                                   );
+
+                                   if (updErr) {
+                                                 console.error("[otp-verify] Lazy migration falhou:", updErr);
+                                                 // NAO cair em createUser · evita duplicata de auth.users
+                                                 return json({
+                                                             ok: false,
+                                                             error: "Nao conseguimos validar agora. Tente novamente em alguns segundos. Se persistir · fale com a gente em wa.me/5511952136406"
+                                                 }, 500);
+                                   }
+
+                                   console.log(`Lazy migration: ${legacyUserRow.email} -> phone ${phoneComPlus}`);
+                       } else {
+                                   // Usuario realmente novo · cria do zero
+                                   const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
+                                                 phone: phoneComPlus,
+                                                 password: syntheticPassword,
+                                                 phone_confirm: true,
+                                                 user_metadata: { nome: nome || phoneComPlus },
+                                   });
+
+                                   if (createErr || !newUser?.user) {
+                                                 console.error("[otp-verify] Erro ao criar user:", createErr);
+                                                 return json({ ok: false, error: "Erro ao criar conta" }, 500);
+                                   }
+                       }
              }
 
              // 5. Gera sessao
