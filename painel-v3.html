@@ -1374,6 +1374,12 @@ table.t .acoes { white-space: nowrap; }
           <div class="nav-item" data-secao="pl-config" onclick="mostrarSecao('pl-config')"><span class="nav-icon">🔑</span><span class="nav-label">API Keys</span></div>
         </div>
 
+        <!-- V7 MATCHMAKING -->
+        <div class="sidebar-grupo">
+          <div class="sidebar-grupo-titulo">V7 MATCHMAKING</div>
+          <div class="nav-item" data-secao="mt-maquininha" onclick="mostrarSecao('mt-maquininha')"><span class="nav-icon">▦</span><span class="nav-label">Maquininha de Teses</span></div>
+        </div>
+
         <!-- LEGADOS -->
         <div class="legacy-divider">Painéis legados</div>
         <a class="legacy-link" href="/painel-admin.html" target="_blank">↗ Painel Admin</a>
@@ -3381,6 +3387,44 @@ table.t .acoes { white-space: nowrap; }
           </div>
         </section>
 
+        <!-- ════════════════ V7 · Maquininha de Teses ════════════════ -->
+        <section id="secao-mt-maquininha" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">Maquininha de Teses</h1>
+            <p class="secao-subtitulo" style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)">Gera teses sintéticas pra testar matchmaking · zero impacto em produção</p>
+          </header>
+          <div class="secao-conteudo">
+            <div class="bloco">
+              <div class="bloco-head">
+                <div>
+                  <div class="bloco-titulo">Gerar lote</div>
+                  <div class="bloco-sub">Distribuição alvo: 12 setores · 12 estados · log-normal de tickets · localização 50/30/20.</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:14px">
+                <div>
+                  <label style="display:block;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">Quantidade</label>
+                  <input type="number" id="mt-qtd" min="10" max="500" value="100" style="width:120px;padding:9px 12px;font-family:var(--mono);font-size:14px;color:var(--ink);background:var(--surface,#0e1612);border:1px solid var(--line,rgba(255,255,255,.12));border-radius:10px">
+                </div>
+                <button id="mt-btn-gerar" onclick="mtGerar('gerar')" style="padding:11px 22px;font-family:var(--sans);font-weight:700;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent,#3dff95);border-radius:999px;cursor:pointer">Gerar N teses</button>
+                <button id="mt-btn-smoke" onclick="mtGerar('smoke')" style="padding:11px 22px;font-family:var(--sans);font-weight:600;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Smoke test (50 + validação)</button>
+                <span id="mt-status" style="font-family:var(--mono);font-size:11px;color:var(--ink-3)"></span>
+              </div>
+            </div>
+
+            <div class="bloco">
+              <div class="bloco-head">
+                <div>
+                  <div class="bloco-titulo">Gerações recentes</div>
+                  <div class="bloco-sub">Status atualiza automaticamente quando há geração rodando.</div>
+                </div>
+                <button onclick="mtCarregar()" style="padding:7px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Atualizar</button>
+              </div>
+              <div id="mt-tabela-wrap" style="margin-top:14px;overflow-x:auto"></div>
+            </div>
+          </div>
+        </section>
+
       </div>
     </main>
 
@@ -3840,6 +3884,7 @@ const SECAO_TITULOS = {
   'pl-templates':      {grupo:'LEADS MIGRADO', titulo:'Templates msg',        icone:'📝'},
   'pl-leads-manuais':  {grupo:'LEADS MIGRADO', titulo:'Leads manuais',        icone:'➕'},
   'pl-config':         {grupo:'LEADS MIGRADO', titulo:'API Keys',             icone:'🔑'},
+  'mt-maquininha':     {grupo:'V7 MATCHMAKING',titulo:'Maquininha de Teses',  icone:'▦'},
 };
 
 function mostrarSecao(id) {
@@ -3872,6 +3917,7 @@ function mostrarSecao(id) {
     if (id === 'monitoramento-conteudo') mpInit();
     if (id === 'gerador-conteudo') { gcInit(); }
     // Etapa 1.A · loaders das seções portadas do painel-admin
+    if (id === 'mt-maquininha') mtInit();
     if (id === 'pa-usuarios')   paLoadUsuarios();
     if (id === 'pa-leads')      paLoadLeads();
     if (id === 'pa-transacoes') paLoadTransacoes();
@@ -11042,6 +11088,94 @@ function aprAbrirPreviewPagina(){
 }
 
 function aprCopiarTexto(t){try{navigator.clipboard.writeText(t).then(()=>alert('Link copiado!'));}catch(e){prompt('Copie:',t);}}
+
+/* ════════════════ V7 · Maquininha de Teses ════════════════ */
+let _mtPolling = null;
+
+async function mtCarregar(){
+  const wrap = document.getElementById('mt-tabela-wrap');
+  if (!wrap) return;
+  try {
+    const r = await fetch(SB + '/rest/v1/maquininha_teses_geracoes?select=*&order=iniciado_em.desc&limit=20', {
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) }
+    });
+    if (!r.ok) { wrap.innerHTML = '<div style="font-family:var(--mono);color:var(--ink-3);padding:12px">Erro ao listar (HTTP '+r.status+')</div>'; return; }
+    const rows = await r.json();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      wrap.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:14px;text-align:center">Nenhuma geração ainda · clique em "Gerar N teses" pra começar.</div>';
+      mtAjustarPolling([]);
+      return;
+    }
+    wrap.innerHTML = '<table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px">'
+      + '<thead><tr style="text-align:left;color:var(--ink-3);letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--line)">'
+      + '<th style="padding:8px 10px">Iniciado</th><th>Solicit</th><th>Gerada</th><th>Falha</th><th>Custo USD</th><th>Status</th><th></th>'
+      + '</tr></thead><tbody>'
+      + rows.map(r => {
+          const d = r.iniciado_em ? new Date(r.iniciado_em).toLocaleString('pt-BR') : '—';
+          const cls = r.status === 'concluida' ? '#3dff95' : (r.status === 'falha' ? '#ff4d4d' : (r.status === 'rodando' ? '#ffb347' : '#888'));
+          const det = r.log_resumo?.validacao?.go_no_go ? ' · ' + r.log_resumo.validacao.go_no_go : '';
+          return `<tr style="border-bottom:1px solid var(--line);color:var(--ink-2)">
+            <td style="padding:8px 10px">${d}</td>
+            <td>${r.qtd_solicitada}</td>
+            <td>${r.qtd_gerada || 0}</td>
+            <td>${r.qtd_falhada || 0}</td>
+            <td>$${(Number(r.custo_estimado_usd)||0).toFixed(2)}</td>
+            <td><span style="color:${cls};font-weight:600;text-transform:uppercase;letter-spacing:.06em">${r.status}${det}</span></td>
+            <td><button onclick='mtVerLog(${JSON.stringify(JSON.stringify(r.log_resumo||{}))})' style="background:transparent;border:1px solid var(--line);border-radius:6px;padding:3px 8px;color:var(--ink-3);font-family:var(--mono);font-size:10px;cursor:pointer">log</button></td>
+          </tr>`;
+        }).join('')
+      + '</tbody></table>';
+    mtAjustarPolling(rows);
+  } catch(e) {
+    wrap.innerHTML = '<div style="color:#ff4d4d;font-family:var(--mono);padding:12px">erro: '+(e.message||e)+'</div>';
+  }
+}
+
+function mtAjustarPolling(rows){
+  const rodando = rows.some(r => r.status === 'rodando');
+  if (rodando) {
+    if (!_mtPolling) _mtPolling = setInterval(mtCarregar, 2500);
+  } else {
+    if (_mtPolling) { clearInterval(_mtPolling); _mtPolling = null; }
+  }
+}
+
+function mtVerLog(jsonStr){
+  try { alert(JSON.stringify(JSON.parse(jsonStr), null, 2)); } catch(e){ alert(jsonStr); }
+}
+
+async function mtGerar(modo){
+  const qtdInp = document.getElementById('mt-qtd');
+  const qtd = modo === 'smoke' ? 50 : Math.max(10, Math.min(500, parseInt(qtdInp.value, 10) || 100));
+  const status = document.getElementById('mt-status');
+  const btnG = document.getElementById('mt-btn-gerar');
+  const btnS = document.getElementById('mt-btn-smoke');
+  if (modo === 'gerar' && !confirm(`Gerar ${qtd} teses sintéticas? Custo estimado ~$${(qtd*0.0017).toFixed(3)} USD.`)) return;
+  btnG.disabled = true; btnS.disabled = true;
+  status.textContent = 'enviando...';
+  try {
+    const r = await fetch(SB + '/functions/v1/maquininha-teses', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer ' + (__token || AK) },
+      body: JSON.stringify({ qtd, modo })
+    });
+    const data = await r.json().catch(()=>({}));
+    if (!r.ok || !data.ok) {
+      status.textContent = 'erro · ' + (data.error || ('http '+r.status));
+      return;
+    }
+    status.textContent = 'rodando · geracao ' + (data.geracao_id || '').slice(0,8);
+    mtCarregar();
+  } catch(e) {
+    status.textContent = 'erro · ' + (e.message || e);
+  } finally {
+    btnG.disabled = false; btnS.disabled = false;
+  }
+}
+
+function mtInit(){
+  mtCarregar();
+}
 </script>
 </body>
 </html>
