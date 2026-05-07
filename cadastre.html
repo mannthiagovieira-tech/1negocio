@@ -235,8 +235,8 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.5}
         <span class="step-num">Step 3 / 4 · Cadastro liberado</span>
         <div class="bar"><div class="bar-fill" style="width:75%"></div></div>
       </div>
-      <h2 style="font-family:var(--serif);font-weight:700;font-size:22px;letter-spacing:-.02em;margin-bottom:6px">Olá <span id="hello-nome">você</span> · vamos cadastrar sua tese</h2>
-      <p style="color:var(--ink-3);font-size:13.5px;margin-bottom:18px">Quanto mais específico · melhor o match.</p>
+      <h2 id="sub-title" style="font-family:var(--serif);font-weight:700;font-size:22px;letter-spacing:-.02em;margin-bottom:6px">Olá <span id="hello-nome">você</span> · vamos cadastrar sua tese</h2>
+      <p id="sub-sub" style="color:var(--ink-3);font-size:13.5px;margin-bottom:18px">Quanto mais específico · melhor o match.</p>
 
       <!-- Progress sub-steps · UX 3 v6 -->
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:22px">
@@ -255,12 +255,14 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.5}
 
       <div class="group sub" data-sub="2">
         <label class="lbl">Setores de interesse</label>
+        <div class="help" style="margin-bottom:8px">Marque todos que interessam · pode escolher mais de um</div>
         <div class="opt-grid" id="setores-grid"></div>
         <div class="err" id="e-setores">Selecione ao menos um setor.</div>
       </div>
 
       <div class="group sub" data-sub="3">
         <label class="lbl">Modelos de operação <span class="lbl-opt">(opcional)</span></label>
+        <div class="help" style="margin-bottom:8px">Marque todos os modelos que interessam · ou "Indiferente" se não souber</div>
         <div class="opt-grid" id="modelos-grid"></div>
       </div>
 
@@ -306,11 +308,12 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.5}
 
       <div class="err" id="e-submit">Erro ao cadastrar tese. Tente novamente em alguns segundos.</div>
 
-      <!-- Navegação sub-steps · UX 3 v6 -->
-      <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
-        <button class="cta cta-ghost" id="btn-sub-prev" type="button" onclick="prevSub()" style="flex:0 0 auto;padding:14px 22px">Voltar</button>
-        <button class="cta" id="btn-sub-next" type="button" onclick="nextSub()" style="flex:1">Continuar</button>
-      </div>
+    </div>
+
+    <!-- Navegação sub-steps · sticky bottom · UX 3 v6 -->
+    <div id="sub-nav" style="position:sticky;bottom:0;background:var(--bg);padding:14px 0 8px;margin-top:14px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:10px;z-index:5">
+      <button class="cta cta-ghost" id="btn-sub-prev" type="button" onclick="prevSub()">Voltar</button>
+      <button class="cta" id="btn-sub-next" type="button" onclick="nextSub()">Continuar</button>
     </div>
   </section>
 
@@ -362,6 +365,7 @@ const MODELOS = [
   ['vende_governo','Venda para governo','Contratos públicos · licitações'],
   ['saas','SaaS · Software · Plataforma','Vende acesso a software · app · marketplace'],
   ['assinatura','Assinatura · Recorrência','Clube · mensalidade · plano'],
+  ['indiferente','Indiferente · não sei ainda','Atualizo no portal quando souber'],
 ];
 
 const ESTADOS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
@@ -669,8 +673,28 @@ document.addEventListener('click', e => {
   const kind = row.dataset.kind;
   const arr = kind === 'setor' ? D.setoresSel : D.modelosSel;
   const idx = arr.indexOf(v);
-  if (idx >= 0) arr.splice(idx,1); else arr.push(v);
-  row.classList.toggle('sel');
+  if (idx >= 0) {
+    arr.splice(idx, 1);
+    row.classList.remove('sel');
+  } else {
+    arr.push(v);
+    row.classList.add('sel');
+  }
+  // Mutex 'indiferente' em modelos · selecionar exclui outros · selecionar outro exclui 'indiferente'
+  if (kind === 'modelo') {
+    if (v === 'indiferente' && arr.indexOf('indiferente') >= 0) {
+      // limpa outros
+      D.modelosSel = ['indiferente'];
+      document.querySelectorAll('.opt-row[data-kind="modelo"]').forEach(el => {
+        el.classList.toggle('sel', el.dataset.v === 'indiferente');
+      });
+    } else if (v !== 'indiferente' && arr.indexOf('indiferente') >= 0) {
+      // remove 'indiferente'
+      D.modelosSel = arr.filter(x => x !== 'indiferente');
+      const ind = document.querySelector('.opt-row[data-kind="modelo"][data-v="indiferente"]');
+      if (ind) ind.classList.remove('sel');
+    }
+  }
   validateStep3();
 });
 
@@ -725,6 +749,14 @@ $('#i-desc').addEventListener('input', e => {
 
 // Sub-step state · UX 3 v6
 const TOTAL_SUBS = 6;
+const SUB_HEROES = {
+  1: { t:'Vamos começar · qual o título?',          s:'Um nome curto que te ajuda a identificar essa tese depois.' },
+  2: { t:'Que setores te interessam?',              s:'Pode marcar mais de um. Quanto mais específico · melhor o match.' },
+  3: { t:'Que modelos de operação?',                s:'Opcional. Se não souber ainda · escolha "Indiferente".' },
+  4: { t:'Onde quer comprar?',                      s:'Brasil todo · estado específico · ou cidade específica.' },
+  5: { t:'Qual sua faixa de investimento?',         s:'Mínimo e máximo em reais. Ajuda a filtrar oportunidades fora do orçamento.' },
+  6: { t:'Algo a mais que devemos saber?',          s:'Opcional. Conte preferências · contexto pessoal · qualquer coisa que ajude.' }
+};
 function validateStep3(){ /* mantido pra compatibilidade · só atualiza UI do botão atual */
   updateSubUI();
 }
@@ -749,7 +781,22 @@ function updateSubUI(){
   });
   const numEl = $('#sub-num'); if (numEl) numEl.textContent = `Pergunta ${cur} / ${TOTAL_SUBS}`;
   const barEl = $('#sub-bar'); if (barEl) barEl.style.width = (cur * 100 / TOTAL_SUBS).toFixed(2) + '%';
-  const prev = $('#btn-sub-prev'); if (prev) prev.style.visibility = cur === 1 ? 'hidden' : 'visible';
+  // Hero adaptativo por sub-step (mantém greeting no sub 1 · troca nos demais)
+  const subTitle = $('#sub-title'); const subSub = $('#sub-sub');
+  if (subTitle && subSub) {
+    const firstName = (D.userExistente?.nome || D.nome || '').split(' ')[0];
+    if (cur === 1 && firstName) {
+      subTitle.innerHTML = `Olá <span style="color:var(--accent)">${firstName}</span> · ${SUB_HEROES[1].t.toLowerCase()}`;
+    } else {
+      subTitle.textContent = SUB_HEROES[cur].t;
+    }
+    subSub.textContent = SUB_HEROES[cur].s;
+  }
+  const prev = $('#btn-sub-prev');
+  if (prev) {
+    prev.disabled = cur === 1;
+    prev.style.opacity = cur === 1 ? '.4' : '1';
+  }
   const next = $('#btn-sub-next');
   if (next) {
     if (cur === TOTAL_SUBS) {
@@ -821,7 +868,7 @@ async function submeterTese(){
   const payload = {
     titulo: D.titulo.trim(),
     setores: D.setoresSel,
-    formas_atuacao: D.modelosSel.length ? D.modelosSel : null,
+    formas_atuacao: (D.modelosSel.length && !(D.modelosSel.length === 1 && D.modelosSel[0] === 'indiferente')) ? D.modelosSel.filter(x => x !== 'indiferente') : null,
     estado: D.loc === 'brasil' ? null : (D.estado || null),
     cidade: D.loc === 'cidade' ? (D.cidade || null) : null,
     valor_investimento: String(D.valorMin) + '-' + String(D.valorMax),
