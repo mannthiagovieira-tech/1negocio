@@ -3144,6 +3144,12 @@ window.addEventListener('resize', ()=>{
           </div>
         </div>
 
+        <!-- Multi-select teses pra atrelar (apenas logado · BLOCO 3 v6) -->
+        <div id="reqTesesAtreladas" style="display:none;margin:14px 0">
+          <div style="font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">Atrelar a uma tese <span style="font-weight:500;letter-spacing:.04em;text-transform:lowercase">(opcional)</span></div>
+          <div id="reqTesesList"></div>
+        </div>
+
         <div class="req-info">
           <div class="req-info-ico">✓</div>
           <div class="req-info-text">Seus dados são privados. A 1Negócio analisa sua solicitação e te retorna pelo WhatsApp.</div>
@@ -3292,6 +3298,62 @@ window.addEventListener('resize', ()=>{
   }
 
   // ─── Abertura do modal ───
+  // BLOCO 3 v6 · carrega teses do user logado e renderiza checkboxes
+  let _tesesAtreladasSel = [];
+  async function carregarTesesParaAtrelar(sess){
+    _tesesAtreladasSel = [];
+    const cont = $('reqTesesList');
+    const wrap = $('reqTesesAtreladas');
+    if(!cont || !wrap) return;
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/teses_investimento'
+        + '?usuario_id=eq.' + sess.user_id
+        + '&status=eq.ativa'
+        + '&select=id,codigo,titulo,tese_descricao'
+        + '&order=created_at.desc', {
+        headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + sess.token }
+      });
+      const teses = r.ok ? await r.json() : [];
+      if (Array.isArray(teses) && teses.length > 0) {
+        cont.innerHTML = teses.map(t => {
+          const titulo = (t.titulo || t.tese_descricao || 'Tese sem título').slice(0,60);
+          return `<div class="req-tese-item" data-id="${t.id}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:10px;margin-bottom:6px;cursor:pointer;transition:all .15s">
+            <span class="req-tese-check" style="width:16px;height:16px;border:1.5px solid var(--ink-3);border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#fff;font-size:11px;font-weight:700;color:#fff"></span>
+            <span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--accent);letter-spacing:.04em">${t.codigo || '—'}</span>
+            <span style="font-family:var(--sans);font-size:13px;color:var(--ink);flex:1">${titulo}</span>
+          </div>`;
+        }).join('');
+        cont.querySelectorAll('.req-tese-item').forEach(el => {
+          el.addEventListener('click', () => {
+            const id = el.dataset.id;
+            const idx = _tesesAtreladasSel.indexOf(id);
+            if (idx >= 0) {
+              _tesesAtreladasSel.splice(idx,1);
+              el.style.background = 'var(--bg)';
+              el.style.borderColor = 'var(--line)';
+              el.querySelector('.req-tese-check').style.background = '#fff';
+              el.querySelector('.req-tese-check').style.borderColor = 'var(--ink-3)';
+              el.querySelector('.req-tese-check').textContent = '';
+            } else {
+              _tesesAtreladasSel.push(id);
+              el.style.background = 'var(--accent-soft, rgba(10,168,90,.12))';
+              el.style.borderColor = 'var(--accent)';
+              el.querySelector('.req-tese-check').style.background = 'var(--accent)';
+              el.querySelector('.req-tese-check').style.borderColor = 'var(--accent)';
+              el.querySelector('.req-tese-check').textContent = '✓';
+            }
+          });
+        });
+      } else {
+        cont.innerHTML = `<div style="font-family:var(--sans);font-size:12.5px;color:var(--ink-3);padding:8px 0">Você ainda não cadastrou tese. Pode cadastrar depois em <a href="/cadastre" style="color:var(--accent);text-decoration:underline">/cadastre</a></div>`;
+      }
+      wrap.style.display = '';
+    } catch(e){
+      console.warn('[req-modal] erro carregar teses:', e);
+      wrap.style.display = 'none';
+    }
+  }
+
   window.openReqModal = function(negocioId){
     console.log('[1N modal] openReqModal chamado com:', negocioId);
 
@@ -3378,14 +3440,18 @@ window.addEventListener('resize', ()=>{
         $('reqLoggedAsName').textContent = session.nome || 'usuário';
         $('reqLoggedAsPhone').textContent = formatFone(session.whatsapp);
         $('reqBtnEnviarLabel').textContent = 'Confirmar solicitação';
+        await carregarTesesParaAtrelar(session);
       } else {
         show($('reqAuthFields'));
         hide($('reqLoggedAs'));
+        hide($('reqTesesAtreladas'));
         $('reqWpp').value = '';
         $('reqNome').value = '';
         $('reqBtnEnviarLabel').textContent = 'Solicitar informações';
       }
       btnEnviar.disabled = false;
+      // Tracking · abrir modal (fire-and-forget · função pode não existir ainda)
+      try { window.registrarEvento && window.registrarEvento('abrir_modal_solicitar', { entidade_tipo:'negocio', entidade_id: currentNegocio.uuid }); } catch(e){}
     })();
 
     // Anima abertura
@@ -3529,6 +3595,7 @@ window.addEventListener('resize', ()=>{
     }
   };
 
+  let _reqReenvioTimer = null;
   window.reqReenviar = async function(){
     const btn = $('reqBtnReenviar');
     btn.disabled = true; btn.textContent = 'Reenviando...';
@@ -3547,8 +3614,26 @@ window.addEventListener('resize', ()=>{
         body: JSON.stringify({ whatsapp: authWhatsapp })
       });
       const data = await res.json();
-      btn.textContent = data.ok ? '✓ Código reenviado' : (data.error||'Erro ao reenviar');
-      setTimeout(()=>{ btn.textContent = 'Não recebi — reenviar código'; btn.disabled = false; }, 2800);
+      if (!data.ok) {
+        btn.textContent = data.error || 'Erro ao reenviar';
+        setTimeout(()=>{ btn.textContent = 'Não recebi — reenviar código'; btn.disabled = false; }, 2800);
+        return;
+      }
+      // Countdown 30s pra reenviar de novo (BLOCO 3 v6)
+      let s = 30;
+      btn.textContent = '✓ Código reenviado · aguarde ' + s + 's';
+      clearInterval(_reqReenvioTimer);
+      _reqReenvioTimer = setInterval(() => {
+        s--;
+        if (s <= 0) {
+          clearInterval(_reqReenvioTimer);
+          btn.textContent = 'Não recebi — reenviar código';
+          btn.disabled = false;
+        } else {
+          btn.textContent = '✓ Código reenviado · aguarde ' + s + 's';
+        }
+      }, 1000);
+      return; // pula o setTimeout antigo
       // Foca no campo pra usuário digitar o novo
       if(data.ok) setTimeout(()=>$('reqOtp').focus(), 200);
     }catch(e){
@@ -3581,26 +3666,29 @@ window.addEventListener('resize', ()=>{
     };
 
     try{
-      // 1) Cria/atualiza tese (sempre, mesmo se vazia — ajuda admin a saber a origem)
-      const tesePayload = {
-        usuario_id: usuario_id,
-        nome: nome,
-        whatsapp: whatsapp,
-        tese_descricao: tese || null,
-        setores: currentNegocio.setor ? [currentNegocio.setor] : null,
-        estado: currentNegocio.estado || null,
-        cidade: currentNegocio.cidade || null,
-        valor_investimento: currentNegocio.valor ? String(currentNegocio.valor) : null,
-        status: 'auto_negocio',
-        observacoes: 'Tese gerada a partir de interesse no negócio ' + currentNegocio.codigo
-      };
-      const teseRes = await fetch(SUPABASE_URL + '/rest/v1/teses_investimento', {
-        method:'POST', headers: headersAuth, body: JSON.stringify(tesePayload)
-      });
-      if(!teseRes.ok && teseRes.status !== 409){
-        const txt = await teseRes.text();
-        console.error('[1N] Erro tese (não-crítico):', txt);
-        // não para o fluxo — tese é auxiliar
+      // 1) BLOCO 3 v6 · Cria tese auto APENAS se deslogado (primeiro lead)
+      //    Se já logado · usuário tem perfil + pode atrelar via teses_atreladas (passo 2)
+      if(!session){
+        const tesePayload = {
+          usuario_id: usuario_id,
+          nome: nome,
+          whatsapp: whatsapp,
+          tese_descricao: tese || null,
+          setores: currentNegocio.setor ? [currentNegocio.setor] : null,
+          estado: currentNegocio.estado || null,
+          cidade: currentNegocio.cidade || null,
+          valor_investimento: currentNegocio.valor ? String(currentNegocio.valor) : null,
+          status: 'auto_negocio',
+          observacoes: 'Tese gerada a partir de interesse no negócio ' + currentNegocio.codigo
+        };
+        const teseRes = await fetch(SUPABASE_URL + '/rest/v1/teses_investimento', {
+          method:'POST', headers: headersAuth, body: JSON.stringify(tesePayload)
+        });
+        if(!teseRes.ok && teseRes.status !== 409){
+          const txt = await teseRes.text();
+          console.error('[1N] Erro tese (não-crítico):', txt);
+          // não para o fluxo — tese é auxiliar
+        }
       }
 
       // 2) Cria solicitação de info — UPSERT (se já existe, atualiza)
@@ -3610,7 +3698,8 @@ window.addEventListener('resize', ()=>{
         negocio_id: currentNegocio.uuid,
         status: 'nda_pendente',
         msg_comprador: tese || null,
-        nivel: 'basico'
+        nivel: 'basico',
+        teses_atreladas: (session && _tesesAtreladasSel.length > 0) ? _tesesAtreladasSel : null
       };
       // Prefer resolution=merge-duplicates faz UPSERT se houver conflito na unique constraint
       const solRes = await fetch(SUPABASE_URL + '/rest/v1/solicitacoes_info', {
@@ -3658,6 +3747,17 @@ window.addEventListener('resize', ()=>{
       if(successText){
         successText.innerHTML = 'Recebemos seu interesse no negócio <strong id="reqSuccessCodigo">' + currentNegocio.codigo + '</strong>.<br>Em até 24h você recebe atualização no WhatsApp com os próximos passos.';
       }
+      // Pixel Meta Lead event (BLOCO 3 v6)
+      try {
+        if (window.fbq) fbq('track','Lead',{
+          content_name:'solicitacao_info',
+          content_category:'comprador',
+          value: 0,
+          currency: 'BRL'
+        });
+      } catch(e){}
+      // Tracking interno
+      try { window.registrarEvento && window.registrarEvento('enviar_solicitacao', { entidade_tipo:'negocio', entidade_id: currentNegocio.uuid, meta:{ teses_atreladas: _tesesAtreladasSel } }); } catch(e){}
       btn.disabled = false; loading.classList.remove('show');
     }catch(e){
       console.error('[1N] Erro de conexão:', e);
