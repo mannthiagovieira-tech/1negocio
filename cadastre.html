@@ -251,6 +251,18 @@ textarea.inp{min-height:96px;resize:vertical;line-height:1.5}
         <input class="inp" id="i-titulo" type="text" placeholder="Ex: Restaurante grande em SP" maxlength="80">
         <div class="help">Nome curto pra você identificar essa tese (3 a 80 chars)</div>
         <div class="err" id="e-titulo">Título precisa de 3 a 80 caracteres.</div>
+
+        <label class="lbl" for="i-desc-curta" style="margin-top:18px">O que você está procurando · em poucas palavras?</label>
+        <div class="help" style="margin-top:0"><strong>⚠ IMPORTANTE:</strong> use os adjetivos mais específicos possíveis. É isso que vai conectar você com o negócio certo no nosso matchmaking.</div>
+        <div style="margin:10px 0 12px;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2,#f7f7f5);font-size:13px;line-height:1.65">
+          <div style="font-family:var(--mono,monospace);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ok,#22c55e);margin-bottom:6px">Exemplos bons</div>
+          <div>✅ Distribuidora de eletrônicos<br>✅ Pet shop estabelecido<br>✅ Loja de roupas com clientela fiel<br>✅ Clínica odontológica<br>✅ Restaurante delivery</div>
+          <div style="font-family:var(--mono,monospace);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--alert,#dc2626);margin:12px 0 6px">Exemplos ruins</div>
+          <div style="opacity:.75">❌ Empresa que dê dinheiro (genérico)<br>❌ Negócio bom (sem direção)<br>❌ Comércio em geral (amplo demais)</div>
+        </div>
+        <input class="inp" id="i-desc-curta" type="text" maxlength="80" placeholder="Ex: Distribuidora de eletrônicos, Pet shop estabelecido">
+        <div class="counter" style="text-align:right;font-family:var(--mono,monospace);font-size:9px;color:var(--ink-4);margin-top:4px"><span id="desc-curta-count">0</span>/80</div>
+        <div class="err" id="e-desc-curta">Use 3 a 80 caracteres com adjetivos específicos.</div>
       </div>
 
       <div class="group sub" data-sub="2">
@@ -402,7 +414,7 @@ const CIDADES = {
 
 const D = {
   whatsapp:'', whatsappFormatado:'', nome:'', userExistente:null,
-  titulo:'', setoresSel:[], loc:'brasil', estado:'', cidade:'', cidadeLivre:false,
+  titulo:'', descricao_curta:'', setoresSel:[], loc:'brasil', estado:'', cidade:'', cidadeLivre:false,
   valorMin:0, valorMax:0, modelosSel:[], descricao:'',
   accessToken:null, userId:null, codigoTese:'',
 };
@@ -740,6 +752,11 @@ function setupLoc(){
 }
 
 $('#i-titulo').addEventListener('input', e => { D.titulo = e.target.value; validateStep3() });
+$('#i-desc-curta').addEventListener('input', e => {
+  D.descricao_curta = e.target.value;
+  const c = $('#desc-curta-count'); if (c) c.textContent = e.target.value.length;
+  validateStep3();
+});
 $('#i-min').addEventListener('input', e => { D.valorMin = maskMoney(e.target); validateStep3() });
 $('#i-max').addEventListener('input', e => { D.valorMax = maskMoney(e.target); validateStep3() });
 $('#i-desc').addEventListener('input', e => {
@@ -761,7 +778,11 @@ function validateStep3(){ /* mantido pra compatibilidade · só atualiza UI do b
   updateSubUI();
 }
 function validateSub(n){
-  if (n === 1) return D.titulo.trim().length >= 3 && D.titulo.trim().length <= 80;
+  if (n === 1) {
+    const tituloOk = D.titulo.trim().length >= 3 && D.titulo.trim().length <= 80;
+    const descOk = D.descricao_curta.trim().length >= 3 && D.descricao_curta.trim().length <= 80;
+    return tituloOk && descOk;
+  }
   if (n === 2) return D.setoresSel.length >= 1;
   if (n === 3) return true; // modelos opcional
   if (n === 4) {
@@ -867,6 +888,7 @@ async function submeterTese(){
 
   const payload = {
     titulo: D.titulo.trim(),
+    descricao_curta: D.descricao_curta.trim(),
     setores: D.setoresSel,
     formas_atuacao: (D.modelosSel.length && !(D.modelosSel.length === 1 && D.modelosSel[0] === 'indiferente')) ? D.modelosSel.filter(x => x !== 'indiferente') : null,
     estado: D.loc === 'brasil' ? null : (D.estado || null),
@@ -914,10 +936,10 @@ async function submeterTese(){
 
 /* STEP 4 */
 function resetParaNovaTese(){
-  D.titulo=''; D.setoresSel=[]; D.modelosSel=[]; D.descricao='';
+  D.titulo=''; D.descricao_curta=''; D.setoresSel=[]; D.modelosSel=[]; D.descricao='';
   D.loc='brasil'; D.estado=''; D.cidade=''; D.cidadeLivre=false;
   D.valorMin=0; D.valorMax=0; D.codigoTese='';
-  $('#i-titulo').value=''; $('#i-min').value=''; $('#i-max').value='';
+  $('#i-titulo').value=''; $('#i-desc-curta').value=''; const cc=$('#desc-curta-count'); if(cc) cc.textContent='0'; $('#i-min').value=''; $('#i-max').value='';
   $('#i-desc').value=''; $('#desc-count').textContent='0';
   $('#i-cidade-livre').value=''; $('#i-cidade-livre').style.display='none';
   $('#sub-estado').classList.remove('open');

@@ -66,6 +66,41 @@ async function analisarPerfilOculto(userId: string | null, setor: string | null,
 type Tese = any; type Negocio = any;
 type Fator = { codigo: string; pontos: number };
 
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
+const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+
+async function sha256Hex(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function compararSemantico(descNeg: string | null, descTese: string | null): Promise<{ score: 0 | 50 | 100; razao: string }> {
+  if (!descNeg || !descTese || descNeg.length < 5 || descTese.length < 5) return { score: 50, razao: "descricao_ausente" };
+  const hash = await sha256Hex(descNeg.toLowerCase().trim() + "||" + descTese.toLowerCase().trim());
+  try {
+    const { data: cached } = await adminClient.from("matchmaking_semantica_cache").select("score, razao").eq("hash_par", hash).maybeSingle();
+    if (cached) return { score: cached.score as 0 | 50 | 100, razao: cached.razao || "cache" };
+  } catch {}
+  if (!ANTHROPIC_API_KEY) return { score: 50, razao: "sem_api_key" };
+  const prompt = `Compare semanticamente as duas descrições abaixo.\n\nNEGÓCIO: "${descNeg}"\nTESE (busca do comprador): "${descTese}"\n\nREGRAS:\n- Identifique o NÚCLEO SEMÂNTICO de cada um (substantivo + adjetivo principal).\n- Palavras AMPLAS (loja · comércio · empresa · negócio · serviço) NÃO contam como match.\n- O match real está no que vem DEPOIS dessas palavras.\n\nResponda APENAS uma destas três strings · sem explicação · sem markdown:\nMATCH (núcleos compatíveis)\nPARCIAL (mesma família mas especialidade diferente)\nSEM_RELACAO (núcleos divergentes)`;
+  try {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({ model: HAIKU_MODEL, max_tokens: 20, messages: [{ role: "user", content: prompt }] }),
+    });
+    if (!resp.ok) return { score: 50, razao: `haiku_${resp.status}` };
+    const data = await resp.json();
+    const txt = (data.content?.[0]?.text || "").trim().toUpperCase();
+    let score: 0 | 50 | 100 = 50; let razao = "haiku_resposta_invalida";
+    if (txt.includes("SEM_RELACAO")) { score = 0; razao = "nucleo_divergente"; }
+    else if (txt.includes("MATCH")) { score = 100; razao = "nucleo_compativel"; }
+    else if (txt.includes("PARCIAL")) { score = 50; razao = "mesma_familia"; }
+    try { await adminClient.from("matchmaking_semantica_cache").insert({ hash_par: hash, score, razao }); } catch {}
+    return { score, razao };
+  } catch { return { score: 50, razao: "haiku_erro" }; }
+}
+
 // Pesos V7 BLOCO 5: Setor 40 · Forma 35 · Loc 10 · Ticket 10 · ISE 5 = 100
 async function calcularMatchPar(tese: Tese, neg: Negocio, tagsAdmin: string[]) {
   const fatores: Fator[] = [];
@@ -129,7 +164,14 @@ async function calcularMatchPar(tese: Tese, neg: Negocio, tagsAdmin: string[]) {
     else if (neg.score_saude >= 50) { pontosISE = 1; fatores.push({ codigo: `ise_operacional:${neg.score_saude}`, pontos: 1 }); }
   }
 
-  const scoreBase = pontosSetor + pontosForma + pontosLoc + pontosTicket + pontosISE;
+  // SEMÂNTICA · eliminatória suave + bônus 10pts
+  const semantica = await compararSemantico(neg.descricao_curta || null, tese.descricao_curta || null);
+  if (semantica.score === 0) return null;
+  let pontosSemantica = 0;
+  if (semantica.score === 100) { pontosSemantica = 10; fatores.push({ codigo: `semantica:${semantica.razao}`, pontos: 10 }); }
+
+  const scoreRaw = pontosSetor + pontosForma + pontosLoc + pontosTicket + pontosISE + pontosSemantica;
+  const scoreBase = Math.min(scoreRaw, 100);
   const { score: scoreFinal, aplicadas } = aplicarTags(scoreBase, tagsAdmin);
   if (scoreFinal < 30) return null;
   return { score: scoreFinal, score510: calcularScore510(scoreFinal), fatores, tags: aplicadas };
@@ -162,8 +204,8 @@ async function rodarBatch(execId: string, iniciado_por: string | null) {
     const tese = teses[i] as Tese;
     try {
       // Pré-filtro SQL
-      let q = adminClient.from("negocios")
-        .select("id,codigo,nome,setor,formas_atuacao,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id");
+      let q = adminClient.from("negocios_com_descricao")
+        .select("id,codigo,nome,setor,formas_atuacao,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id,descricao_curta");
       q = q.in("status", STATUSES_ELEGIVEIS);
       const setoresArr = tese.setores || [];
       if (!setoresArr.includes("indiferente") && setoresArr.length > 0) q = q.in("setor", setoresArr);
