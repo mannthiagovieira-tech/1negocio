@@ -11365,6 +11365,7 @@ async function mmCarregarTab(){
   if (!cont) return;
   if (_mmTab === 'busca') {
     cont.innerHTML = mmHtmlBusca();
+    mmInicializarComboboxes();
     return;
   }
   let filtro;
@@ -11390,22 +11391,249 @@ async function mmCarregarTab(){
   mmCarregarContagens();
 }
 
+/* Helpers · combobox autocomplete · vanilla JS · keyboard nav */
+function mmFormataWpp(w){
+  if (!w) return '';
+  const d = String(w).replace(/\D/g,'').replace(/^55/,'');
+  if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+  return d;
+}
+
+const _mmCb = {}; // state por inputId
+
+function mmCombobox(cfg){
+  const { inputId, queryFn, renderItem, onSelect } = cfg;
+  const inp = document.getElementById(inputId);
+  const dd = document.getElementById(inputId + '-dd');
+  if (!inp || !dd) return;
+  if (_mmCb[inputId]) return; // já bindado
+  const st = _mmCb[inputId] = { items: [], cur: -1, timer: null };
+
+  function close(){ dd.style.display = 'none'; st.cur = -1; }
+  function render(){
+    if (st.items.length === 0){
+      dd.innerHTML = '<div class="mm-cb-empty" style="padding:12px;font-family:var(--mono);font-size:11px;color:var(--ink-3);text-align:center">Nenhum resultado · revise os termos</div>';
+    } else {
+      dd.innerHTML = st.items.map((it,i)=>`<div class="mm-cb-item" data-i="${i}" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--line);${i===st.cur?'background:rgba(61,255,149,.08)':''}">${renderItem(it)}</div>`).join('');
+      dd.querySelectorAll('.mm-cb-item').forEach(el=>{
+        el.addEventListener('mouseenter', ()=>{ st.cur = +el.dataset.i; render(); });
+        el.addEventListener('mousedown', e=>{ e.preventDefault(); pick(+el.dataset.i); });
+      });
+    }
+    dd.style.display = 'block';
+  }
+  function pick(i){
+    if (i<0 || i>=st.items.length) return;
+    onSelect(st.items[i], inp);
+    close();
+  }
+  inp.addEventListener('input', ()=>{
+    clearTimeout(st.timer);
+    delete inp.dataset.selecionado;
+    inp.style.background = '';
+    inp.style.borderColor = '';
+    const q = inp.value.trim();
+    if (q.length < 2){ close(); return; }
+    inp.dataset.loading = '1';
+    st.timer = setTimeout(async ()=>{
+      try {
+        st.items = (await queryFn(q)) || [];
+      } catch(e){ st.items = []; }
+      delete inp.dataset.loading;
+      render();
+    }, 250);
+  });
+  inp.addEventListener('keydown', e=>{
+    if (dd.style.display === 'none' && e.key !== 'ArrowDown') return;
+    if (e.key === 'ArrowDown'){ e.preventDefault(); st.cur = Math.min(st.items.length-1, st.cur+1); render(); }
+    else if (e.key === 'ArrowUp'){ e.preventDefault(); st.cur = Math.max(0, st.cur-1); render(); }
+    else if (e.key === 'Enter'){ e.preventDefault(); if (st.cur>=0) pick(st.cur); }
+    else if (e.key === 'Escape'){ close(); }
+  });
+  document.addEventListener('mousedown', e=>{
+    if (!dd.contains(e.target) && e.target !== inp) close();
+  });
+}
+
+async function mmQueryCompradores(q){
+  // Busca usuarios com 1+ tese ativa · ILIKE em nome/email/whatsapp
+  const norm = q.replace(/\D/g,'');
+  const filtros = [`nome.ilike.%${q}%`, `email.ilike.%${q}%`];
+  if (norm.length >= 2) filtros.push(`whatsapp.ilike.%${norm}%`);
+  const url = `${SB}/rest/v1/usuarios?select=id,nome,email,whatsapp,teses_investimento!inner(id,codigo,titulo,tese_descricao,status)&teses_investimento.status=eq.ativa&or=(${filtros.join(',')})&limit=15`;
+  const r = await fetch(url, { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
+  if (!r.ok) return [];
+  const rows = await r.json();
+  // Agrega · 1 row por usuario com lista de teses
+  const map = new Map();
+  for (const u of rows){
+    const teses = (u.teses_investimento||[]).filter(t=>t.status==='ativa');
+    if (!map.has(u.id)) map.set(u.id, { id:u.id, nome:u.nome, email:u.email, whatsapp:u.whatsapp, teses });
+  }
+  return Array.from(map.values());
+}
+
+async function mmQueryNegocios(q){
+  // ILIKE direto + filtro client-side de vendedor.nome
+  const filtros = [`nome.ilike.%${q}%`, `codigo.ilike.%${q}%`, `codigo_anuncio.ilike.%${q}%`, `cidade.ilike.%${q}%`, `setor.ilike.%${q}%`];
+  const num = q.replace(/\D/g,'');
+  if (num && Number(num) > 0) filtros.push(`avaliacao_max.eq.${num}`);
+  const url = `${SB}/rest/v1/negocios?select=id,codigo,codigo_anuncio,nome,cidade,estado,setor,avaliacao_max,vendedor:usuarios!negocios_vendedor_id_fkey(id,nome,whatsapp,email)&or=(${filtros.join(',')})&limit=15`;
+  const r = await fetch(url, { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
+  if (!r.ok) return [];
+  const rows = await r.json();
+  const ql = q.toLowerCase();
+  // Inclui adicional via vendedor.nome
+  const extras = await fetch(`${SB}/rest/v1/usuarios?select=id&nome.ilike.%${q}%&limit=10`, { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
+  let extraIds = [];
+  if (extras.ok){
+    const ues = await extras.json();
+    extraIds = ues.map(u=>u.id);
+  }
+  if (extraIds.length){
+    const r2 = await fetch(`${SB}/rest/v1/negocios?select=id,codigo,codigo_anuncio,nome,cidade,estado,setor,avaliacao_max,vendedor:usuarios!negocios_vendedor_id_fkey(id,nome,whatsapp,email)&vendedor_id=in.(${extraIds.join(',')})&limit=10`, { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
+    if (r2.ok){
+      const more = await r2.json();
+      for (const m of more){ if (!rows.find(x=>x.id===m.id)) rows.push(m); }
+    }
+  }
+  return rows.slice(0,15);
+}
+
+function mmRenderItemComprador(u){
+  const tel = u.whatsapp ? mmFormataWpp(u.whatsapp) : '';
+  const ml = u.email || '';
+  const t = u.teses?.length || 0;
+  return `
+    <div style="font-family:var(--serif);font-size:14px;font-weight:700;color:var(--ink);line-height:1.2">${u.nome||'Sem nome'}</div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:3px">${[tel, ml].filter(Boolean).join(' · ') || '—'} · <span style="color:${t>0?'var(--accent,#3dff95)':'#ff7a7a'}">${t} ${t===1?'tese ativa':'teses ativas'}</span></div>
+  `;
+}
+
+function mmRenderItemNegocio(n){
+  const cod = n.codigo || n.codigo_anuncio || (n.id||'').slice(0,8).toUpperCase();
+  const titulo = n.nome || `Negócio ${cod}`;
+  const av = n.avaliacao_max ? `R\$ ${Number(n.avaliacao_max).toLocaleString('pt-BR')}` : 'sem avaliação';
+  const vend = n.vendedor?.nome ? `Vendedor: ${n.vendedor.nome}` : '';
+  return `
+    <div><span style="font-family:var(--mono);color:var(--accent,#3dff95);font-size:11px;letter-spacing:.08em;text-transform:uppercase">[${cod}]</span> <span style="font-family:var(--serif);font-size:14px;font-weight:700;color:var(--ink)">${titulo}</span></div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:3px">${[`${n.cidade||'?'}/${n.estado||'?'}`, n.setor||'?', av, vend].filter(Boolean).join(' · ')}</div>
+  `;
+}
+
+function mmComboboxClear(inputId, ddTeseId){
+  const inp = document.getElementById(inputId);
+  const dd = document.getElementById(inputId + '-dd');
+  if (inp){
+    inp.value = '';
+    delete inp.dataset.selecionado;
+    delete inp.dataset.compradorId;
+    delete inp.dataset.negocioId;
+    delete inp.dataset.teseId;
+    inp.style.background = '';
+    inp.style.borderColor = '';
+  }
+  if (dd) dd.style.display = 'none';
+  if (ddTeseId){
+    const t = document.getElementById(ddTeseId);
+    if (t) t.innerHTML = '';
+  }
+  mmAtualizarBtnGerar();
+}
+
+function mmSelecionarComprador(u, inp){
+  inp.dataset.compradorId = u.id;
+  inp.style.background = 'var(--accent-soft, rgba(61,255,149,.08))';
+  inp.style.borderColor = 'var(--accent-line, rgba(61,255,149,.3))';
+  const teseSel = document.getElementById('mm-bp-comprador-teses');
+  if (!u.teses || u.teses.length === 0){
+    inp.value = `${u.nome} · sem teses ativas · matchmaking não disponível`;
+    teseSel.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:#ff7a7a;padding:8px 0">Comprador sem tese ativa · escolha outro ou peça pra cadastrar</div>';
+    delete inp.dataset.teseId;
+  } else if (u.teses.length === 1){
+    const t = u.teses[0];
+    inp.value = `${u.nome} (Tese: ${t.titulo || t.tese_descricao || t.codigo})`;
+    inp.dataset.teseId = t.id;
+    teseSel.innerHTML = '';
+  } else {
+    inp.value = `${u.nome} · ${u.teses.length} teses · escolha embaixo`;
+    teseSel.innerHTML = '<div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:8px 0 6px">Escolha qual tese usar</div>'
+      + u.teses.map(t=>`<button class="mm-tese-opt" onclick="mmEscolherTese('${t.id}','${(t.titulo||t.tese_descricao||t.codigo||'').replace(/'/g,'&#39;')}','${u.nome.replace(/'/g,'&#39;')}')" style="display:block;width:100%;text-align:left;padding:9px 12px;margin-bottom:6px;font-family:var(--sans);font-size:13px;color:var(--ink);background:rgba(0,0,0,.04);border:1px solid var(--line);border-radius:8px;cursor:pointer">${t.codigo||'—'} · ${t.titulo || t.tese_descricao || 'Tese sem título'}</button>`).join('');
+    delete inp.dataset.teseId;
+  }
+  mmAtualizarBtnGerar();
+}
+
+function mmEscolherTese(teseId, titulo, nomeComprador){
+  const inp = document.getElementById('mm-bp-comprador');
+  inp.dataset.teseId = teseId;
+  inp.value = `${nomeComprador} (Tese: ${titulo})`;
+  document.getElementById('mm-bp-comprador-teses').innerHTML = '';
+  mmAtualizarBtnGerar();
+}
+
+function mmSelecionarNegocio(n, inp){
+  inp.dataset.negocioId = n.id;
+  const cod = n.codigo || n.codigo_anuncio || (n.id||'').slice(0,8);
+  inp.value = `[${cod}] ${n.nome || 'Negócio'} · ${n.cidade||'?'}/${n.estado||'?'}`;
+  inp.style.background = 'var(--accent-soft, rgba(61,255,149,.08))';
+  inp.style.borderColor = 'var(--accent-line, rgba(61,255,149,.3))';
+  mmAtualizarBtnGerar();
+}
+
+function mmAtualizarBtnGerar(){
+  const inpC = document.getElementById('mm-bp-comprador');
+  const btnC = document.getElementById('mm-btn-gerar-comprador');
+  if (inpC && btnC){
+    const ok = inpC.dataset.compradorId && inpC.dataset.teseId;
+    btnC.disabled = !ok;
+    btnC.style.opacity = ok ? '1' : '.4';
+    btnC.style.cursor = ok ? 'pointer' : 'not-allowed';
+  }
+  const inpN = document.getElementById('mm-bp-negocio');
+  const btnN = document.getElementById('mm-btn-gerar-negocio');
+  if (inpN && btnN){
+    const ok = !!inpN.dataset.negocioId;
+    btnN.disabled = !ok;
+    btnN.style.opacity = ok ? '1' : '.4';
+    btnN.style.cursor = ok ? 'pointer' : 'not-allowed';
+  }
+}
+
 function mmHtmlBusca(){
   return `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;padding:14px">
-        <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">Tese → Negócios</div>
-        <input id="mm-bp-tese" placeholder="ID ou código T-XXXX" style="width:100%;padding:9px 12px;font-family:var(--mono);font-size:13px;color:var(--ink);background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:8px;margin-bottom:8px">
-        <button onclick="mmBuscarPorTese()" style="padding:9px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent);border-radius:999px;cursor:pointer;width:100%">Gerar matches</button>
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;padding:14px;position:relative">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">Comprador → Negócios</div>
+        <div style="position:relative">
+          <input id="mm-bp-comprador" placeholder="Buscar comprador · nome · telefone · email" autocomplete="off" style="width:100%;padding:10px 32px 10px 12px;font-family:var(--sans);font-size:13px;color:var(--ink);background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:8px;margin-bottom:8px;transition:all .15s">
+          <button onclick="mmComboboxClear('mm-bp-comprador','mm-bp-comprador-teses')" title="Limpar" style="position:absolute;right:8px;top:8px;background:transparent;border:none;color:var(--ink-3);cursor:pointer;font-size:14px;padding:2px 6px">✕</button>
+          <div id="mm-bp-comprador-dd" style="display:none;position:absolute;top:42px;left:0;right:0;background:var(--surface,#0e1612);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.4);max-height:420px;overflow-y:auto;z-index:10"></div>
+        </div>
+        <div id="mm-bp-comprador-teses"></div>
+        <button id="mm-btn-gerar-comprador" disabled onclick="mmGerarMatchesComprador()" style="margin-top:8px;padding:9px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent);border-radius:999px;cursor:not-allowed;width:100%;opacity:.4">Gerar matches</button>
       </div>
-      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;padding:14px">
+      <div style="background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;padding:14px;position:relative">
         <div style="font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px">Negócio → Compradores</div>
-        <input id="mm-bp-neg" placeholder="ID ou código do negócio" style="width:100%;padding:9px 12px;font-family:var(--mono);font-size:13px;color:var(--ink);background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:8px;margin-bottom:8px">
-        <button onclick="mmBuscarPorNegocio()" style="padding:9px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent);border-radius:999px;cursor:pointer;width:100%">Gerar matches</button>
+        <div style="position:relative">
+          <input id="mm-bp-negocio" placeholder="Buscar negócio · título · código · cidade · setor · valor · vendedor" autocomplete="off" style="width:100%;padding:10px 32px 10px 12px;font-family:var(--sans);font-size:13px;color:var(--ink);background:rgba(0,0,0,.2);border:1px solid var(--line);border-radius:8px;margin-bottom:8px;transition:all .15s">
+          <button onclick="mmComboboxClear('mm-bp-negocio')" title="Limpar" style="position:absolute;right:8px;top:8px;background:transparent;border:none;color:var(--ink-3);cursor:pointer;font-size:14px;padding:2px 6px">✕</button>
+          <div id="mm-bp-negocio-dd" style="display:none;position:absolute;top:42px;left:0;right:0;background:var(--surface,#0e1612);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.4);max-height:420px;overflow-y:auto;z-index:10"></div>
+        </div>
+        <button id="mm-btn-gerar-negocio" disabled onclick="mmGerarMatchesNegocio()" style="margin-top:8px;padding:9px 16px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent);border-radius:999px;cursor:not-allowed;width:100%;opacity:.4">Gerar matches</button>
       </div>
     </div>
     <div id="mm-busca-resultado"></div>
   `;
+}
+
+function mmInicializarComboboxes(){
+  // chamados após mmTab('busca') · DOM acabou de criar inputs
+  setTimeout(()=>{
+    mmCombobox({ inputId:'mm-bp-comprador', queryFn:mmQueryCompradores, renderItem:mmRenderItemComprador, onSelect:mmSelecionarComprador });
+    mmCombobox({ inputId:'mm-bp-negocio', queryFn:mmQueryNegocios, renderItem:mmRenderItemNegocio, onSelect:mmSelecionarNegocio });
+  }, 0);
 }
 
 async function mmResolverIdTese(input){
@@ -11435,10 +11663,10 @@ async function mmResolverIdNegocio(input){
   } catch { return null; }
 }
 
-async function mmBuscarPorTese(){
-  const inp = document.getElementById('mm-bp-tese');
-  const tese_id = await mmResolverIdTese(inp.value);
-  if (!tese_id) { alert('Tese não encontrada'); return; }
+async function mmGerarMatchesComprador(){
+  const inp = document.getElementById('mm-bp-comprador');
+  const tese_id = inp?.dataset.teseId;
+  if (!tese_id) { alert('Selecione comprador e tese antes'); return; }
   const out = document.getElementById('mm-busca-resultado');
   out.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:14px">processando...</div>';
   try {
@@ -11463,10 +11691,10 @@ async function mmBuscarPorTese(){
   } catch(e){ out.innerHTML = '<div style="color:#ff7a7a;padding:10px">erro: '+(e.message||e)+'</div>'; }
 }
 
-async function mmBuscarPorNegocio(){
-  const inp = document.getElementById('mm-bp-neg');
-  const negocio_id = await mmResolverIdNegocio(inp.value);
-  if (!negocio_id) { alert('Negócio não encontrado'); return; }
+async function mmGerarMatchesNegocio(){
+  const inp = document.getElementById('mm-bp-negocio');
+  const negocio_id = inp?.dataset.negocioId;
+  if (!negocio_id) { alert('Selecione um negócio antes'); return; }
   const out = document.getElementById('mm-busca-resultado');
   out.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:14px">processando...</div>';
   try {
@@ -11575,8 +11803,10 @@ window.mmReabrir = mmReabrir;
 window.mmConverter = mmConverter;
 window.mmPerder = mmPerder;
 window.mmNotas = mmNotas;
-window.mmBuscarPorTese = mmBuscarPorTese;
-window.mmBuscarPorNegocio = mmBuscarPorNegocio;
+window.mmGerarMatchesComprador = mmGerarMatchesComprador;
+window.mmGerarMatchesNegocio = mmGerarMatchesNegocio;
+window.mmComboboxClear = mmComboboxClear;
+window.mmEscolherTese = mmEscolherTese;
 window.mmSalvarLote = mmSalvarLote;
 </script>
 </body>
