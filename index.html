@@ -2727,6 +2727,28 @@ function render(){
   });
   setupSwipe();
   alignChevrons();
+  // BLOCO 3 v6 · view_card_negocio com debounce 1s
+  try {
+    if (window._viewCardTimer) clearTimeout(window._viewCardTimer);
+    const topCardEl = document.querySelector('.stage .card[data-pos="0"]');
+    const topId = topCardEl && topCardEl.dataset.id;
+    if (topId) {
+      window._viewCardTimer = setTimeout(() => {
+        window.registrarEvento && window.registrarEvento('view_card_negocio', {
+          entidade_tipo: 'negocio',
+          entidade_id: topId,
+          meta: { posicao: state.idx, total: state.filtered.length }
+        });
+      }, 1000);
+    }
+    // click_card · attach 1× só no top card
+    if (topCardEl && !topCardEl.dataset.clkBound) {
+      topCardEl.dataset.clkBound = '1';
+      topCardEl.addEventListener('click', () => {
+        try { window.registrarEvento && window.registrarEvento('click_card_negocio', { entidade_tipo:'negocio', entidade_id: topId }); } catch(e){}
+      }, { once: true });
+    }
+  } catch(e){}
 }
 
 /* Alinha os chevrons (.stage-side) com a linha divisória que fica no topo do .val-hero.
@@ -3578,6 +3600,8 @@ window.addEventListener('resize', ()=>{
         whatsapp: authWhatsapp
       };
       try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(session)); }catch(e){}
+      try{ localStorage.setItem('sb_access_token', data.access_token); localStorage.setItem('sb_refresh_token', data.refresh_token||''); }catch(e){}
+      try { window.registrarEvento && window.registrarEvento('login_otp', { meta:{ is_admin: !!data.is_admin, origem:'req_modal' } }); } catch(e){}
       // Registra solicitação
       const tese = $('reqTese').value.trim();
       await registrarSolicitacao({

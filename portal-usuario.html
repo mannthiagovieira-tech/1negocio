@@ -997,7 +997,7 @@
           <span class="nav-badge" id="badge-favoritos" style="display:none">0</span>
         </button>
         <button class="nav-item" data-nav="solicitacoes" onclick="mostrarView('solicitacoes')">
-          <span>Solicitações</span>
+          <span>Solicitações avulsas</span>
           <span class="nav-badge" id="badge-solicitacoes" style="display:none">0</span>
         </button>
         <button class="nav-item" data-nav="termos" onclick="mostrarView('termos')">
@@ -1090,12 +1090,12 @@
         </div>
       </section>
 
-      <!-- VIEW: SOLICITAÇÕES (todas, com status visível) -->
+      <!-- VIEW: SOLICITAÇÕES AVULSAS (BLOCO 3 v6 · só sem teses_atreladas) -->
       <section class="view" data-view="solicitacoes">
         <div class="view-head">
           <div class="view-head-left">
-            <h1 class="view-title">Solicitações</h1>
-            <p class="view-sub">Tudo que você solicitou para acessar o material completo de algum negócio.</p>
+            <h1 class="view-title">Solicitações avulsas</h1>
+            <p class="view-sub">Solicitações que ainda não foram atreladas a nenhuma tese de investimento. Atrele pra organizar e cobrir regra de comissão sócio-parceiro.</p>
           </div>
         </div>
         <div id="solicitacoes-container">
@@ -1400,7 +1400,7 @@ async function carregarTudo() {
 
     fetch(SUPABASE_URL + '/rest/v1/solicitacoes_info'
       + '?comprador_id=eq.' + uid
-      + '&select=id,negocio_id,status,liberado_em,liberado_ate,nivel,created_at,msg_comprador'
+      + '&select=id,negocio_id,status,liberado_em,liberado_ate,nivel,created_at,msg_comprador,teses_atreladas'
       + '&order=created_at.desc',
       { headers: authHeaders() }
     ).then(r => r.ok ? r.json() : []).catch(() => []),
@@ -1816,10 +1816,12 @@ function renderCardNegocio(n) {
   `;
 }
 
-// ==================== VIEW: SOLICITAÇÕES (todas) ====================
+// ==================== VIEW: SOLICITAÇÕES AVULSAS (BLOCO 3 v6) ====================
 function renderSolicitacoes() {
   const cont = $('solicitacoes-container');
-  const lista = portalCache.solicitacoes || [];
+  const todas = portalCache.solicitacoes || [];
+  // Filtro v6 · só mostra avulsas (sem teses atreladas)
+  const lista = todas.filter(s => !Array.isArray(s.teses_atreladas) || s.teses_atreladas.length === 0);
   const negMap = portalCache.negMap || {};
   const ndaPendentes = portalCache.ndaPendentes || [];
 
@@ -1830,9 +1832,12 @@ function renderSolicitacoes() {
   });
 
   if (lista.length === 0) {
+    const todasMsg = todas.length > 0
+      ? 'Todas as suas solicitações já estão atreladas a alguma tese.'
+      : 'Você ainda não solicitou acesso a nenhum material.';
     cont.innerHTML = `
       <div class="empty-state">
-        <div class="msg">Você ainda não solicitou acesso a nenhum material.</div>
+        <div class="msg">${todasMsg}</div>
         <div class="cta-row">
           <a href="/" class="cta">Ver negócios disponíveis →</a>
         </div>
@@ -1953,11 +1958,110 @@ function renderSolicitacoes() {
         <div style="font-family:var(--mono); font-size:10px; color:var(--ink-4); letter-spacing:.06em">
           Solicitado em ${dataSol}
         </div>
-        ${cta ? `<div class="card-ctas">${cta}</div>` : ''}
+        <div class="card-ctas" style="display:flex;gap:8px;flex-wrap:wrap">
+          ${cta || ''}
+          <button class="card-cta" onclick="abrirModalAtrelarTese('${s.id}')">Atrelar a tese</button>
+        </div>
       </div>
     `;
   }).join('') + '</div>';
 }
+
+// ===== Modal Atrelar a tese (BLOCO 3 v6 F4C) =====
+let _modalAtrelarSolicId = null;
+let _modalAtrelarSelecao = [];
+
+async function abrirModalAtrelarTese(solicitacaoId) {
+  _modalAtrelarSolicId = solicitacaoId;
+  _modalAtrelarSelecao = [];
+  const overlay = $('modalAtrelarOverlay');
+  const lista = $('modalAtrelarLista');
+  if (!overlay || !lista) return;
+  lista.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:8px">carregando teses...</div>';
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/teses_investimento'
+      + '?usuario_id=eq.' + session.user_id
+      + '&status=eq.ativa'
+      + '&select=id,codigo,titulo,tese_descricao'
+      + '&order=created_at.desc', { headers: authHeaders() });
+    const teses = r.ok ? await r.json() : [];
+    if (!Array.isArray(teses) || teses.length === 0) {
+      lista.innerHTML = '<div style="font-family:var(--sans);font-size:13px;color:var(--ink-3);padding:14px;text-align:center">Você ainda não cadastrou tese ativa. Cadastre uma em <a href="/cadastre.html" style="color:var(--accent);text-decoration:underline">/cadastre</a></div>';
+      $('modalAtrelarBtnAtrelar').disabled = true;
+      return;
+    }
+    lista.innerHTML = teses.map(t => {
+      const titulo = (t.titulo || t.tese_descricao || 'Tese sem título').slice(0, 80);
+      return `<div class="atr-item" data-id="${t.id}" style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg);border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer;transition:all .15s">
+        <span class="atr-check" style="width:18px;height:18px;border:1.5px solid var(--ink-3);border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#fff;color:#fff;font-weight:700;font-size:12px"></span>
+        <span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--accent);letter-spacing:.04em;flex-shrink:0">${t.codigo || '—'}</span>
+        <span style="font-family:var(--sans);font-size:13.5px;color:var(--ink);flex:1;line-height:1.35">${titulo}</span>
+      </div>`;
+    }).join('');
+    lista.querySelectorAll('.atr-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const id = el.dataset.id;
+        const idx = _modalAtrelarSelecao.indexOf(id);
+        const check = el.querySelector('.atr-check');
+        if (idx >= 0) {
+          _modalAtrelarSelecao.splice(idx, 1);
+          el.style.background = 'var(--bg)';
+          el.style.borderColor = 'var(--line)';
+          check.style.background = '#fff';
+          check.style.borderColor = 'var(--ink-3)';
+          check.textContent = '';
+        } else {
+          _modalAtrelarSelecao.push(id);
+          el.style.background = 'var(--accent-soft, rgba(10,168,90,.12))';
+          el.style.borderColor = 'var(--accent)';
+          check.style.background = 'var(--accent)';
+          check.style.borderColor = 'var(--accent)';
+          check.textContent = '✓';
+        }
+        $('modalAtrelarBtnAtrelar').disabled = _modalAtrelarSelecao.length === 0;
+      });
+    });
+    $('modalAtrelarBtnAtrelar').disabled = true;
+  } catch (e) {
+    lista.innerHTML = '<div style="font-family:var(--sans);font-size:13px;color:#c84133;padding:8px">Erro ao carregar teses. Tente novamente.</div>';
+  }
+}
+
+function fecharModalAtrelar() {
+  const overlay = $('modalAtrelarOverlay');
+  if (overlay) overlay.style.display = 'none';
+  document.body.style.overflow = '';
+  _modalAtrelarSolicId = null;
+  _modalAtrelarSelecao = [];
+}
+
+async function atrelarTeseSelecionada() {
+  if (!_modalAtrelarSolicId || _modalAtrelarSelecao.length === 0) return;
+  const btn = $('modalAtrelarBtnAtrelar');
+  btn.disabled = true;
+  btn.textContent = 'Atrelando...';
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/solicitacoes_info?id=eq.' + _modalAtrelarSolicId, {
+      method: 'PATCH',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ teses_atreladas: _modalAtrelarSelecao })
+    });
+    if (!r.ok) throw new Error('patch ' + r.status);
+    toast('Solicitação atrelada · saiu da aba avulsas');
+    fecharModalAtrelar();
+    carregarTudo();
+  } catch (e) {
+    toast('Erro ao atrelar · tente novamente', true);
+    btn.disabled = false;
+    btn.textContent = 'Atrelar';
+  }
+}
+
+window.abrirModalAtrelarTese = abrirModalAtrelarTese;
+window.fecharModalAtrelar = fecharModalAtrelar;
+window.atrelarTeseSelecionada = atrelarTeseSelecionada;
 
 // ==================== VIEW: TERMOS ASSINADOS ====================
 function renderTermosAssinados() {
@@ -2211,7 +2315,10 @@ async function salvarNome() {
 }
 
 function logout() {
+  // BLOCO 3 v6 · tracking ANTES de limpar sessão (precisa do token vivo)
+  try { window.registrarEvento && window.registrarEvento('logout', {}); } catch (e) {}
   try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+  try { localStorage.removeItem('sb_access_token'); localStorage.removeItem('sb_refresh_token'); } catch (e) {}
   session = null;
   location.reload();
 }
@@ -2256,5 +2363,25 @@ document.addEventListener('keydown', (e) => {
 
 init();
 </script>
+
+<!-- Modal Atrelar a tese (BLOCO 3 v6 F4C) -->
+<div id="modalAtrelarOverlay" style="display:none;position:fixed;inset:0;background:rgba(10,15,12,.55);backdrop-filter:blur(4px);z-index:200;align-items:center;justify-content:center;padding:18px" onclick="if(event.target===this)fecharModalAtrelar()">
+  <div role="dialog" aria-modal="true" style="width:100%;max-width:480px;max-height:88vh;overflow:auto;background:var(--surface,#fff);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow-card,0 24px 60px -18px rgba(10,20,12,.18));padding:24px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
+      <div>
+        <div style="font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)">Solicitação avulsa</div>
+        <h3 style="font-family:var(--serif);font-weight:700;font-size:20px;letter-spacing:-.02em;color:var(--ink);margin-top:6px">Atrelar à tese de investimento</h3>
+      </div>
+      <button onclick="fecharModalAtrelar()" aria-label="Fechar" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--ink-3);padding:4px 8px;line-height:1">✕</button>
+    </div>
+    <p style="font-family:var(--sans);font-size:13px;color:var(--ink-3);margin:8px 0 16px;line-height:1.5">Selecione uma ou mais teses ativas. Você pode mudar essa associação depois.</p>
+    <div id="modalAtrelarLista" style="margin-bottom:16px"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="fecharModalAtrelar()" style="padding:11px 18px;font-family:var(--sans);font-weight:600;font-size:13px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Cancelar</button>
+      <button id="modalAtrelarBtnAtrelar" onclick="atrelarTeseSelecionada()" disabled style="padding:11px 22px;font-family:var(--sans);font-weight:700;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink,#fff);background:var(--accent);border:1px solid var(--accent);border-radius:999px;cursor:pointer;opacity:.4">Atrelar</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
