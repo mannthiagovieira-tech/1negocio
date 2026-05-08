@@ -128,7 +128,7 @@
       av.style.display = '';
     }
     t.textContent = primeiro;
-    s.textContent = 'Acessar minha conta';
+    s.textContent = 'Acesse seus negócios';
     if (out) out.style.display = '';
   }
 

@@ -71,9 +71,18 @@
     .drawer-avatar{width:40px;height:40px;border-radius:50%;background:var(--accent, #0aa85a);color:var(--accent-ink, #ffffff);display:flex;align-items:center;justify-content:center;font-family:var(--serif, 'Syne', serif);font-weight:700;font-size:17px;flex-shrink:0;letter-spacing:0;text-transform:uppercase}
     .drawer-link.enter.logged .drawer-link-t{font-family:var(--serif, 'Syne', serif);font-weight:700;font-size:16px;letter-spacing:0;text-transform:none;color:var(--accent, #0aa85a)}
     .drawer-link.enter.logged .drawer-link-s{font-family:var(--mono, 'JetBrains Mono', monospace);font-size:10.5px;color:color-mix(in oklab, var(--accent, #0aa85a) 70%, var(--ink-3, rgba(10,21,16,.58)))}
-    .drawer-link.signout{margin-top:2px}
-    .drawer-link.signout .drawer-link-t{color:#c84133}
-    .drawer-link.signout .drawer-link-s{color:rgba(200,65,51,.65)}
+    .drawer-link.signout{
+      display:flex;justify-content:center;padding:14px 0 6px;margin-top:10px;
+      border-top:1px solid var(--line, rgba(10,15,12,.1));
+      opacity:.55;transition:opacity .15s;
+    }
+    .drawer-link.signout:hover{opacity:1;background:transparent}
+    .drawer-link.signout .drawer-link-t{
+      font-family:var(--mono, 'JetBrains Mono', monospace);
+      font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;
+      color:var(--ink-3, rgba(10,21,16,.58));
+    }
+    .drawer-link.signout .drawer-link-s{display:none}
     .drawer-section{display:flex;align-items:center;gap:10px;margin:18px 22px 6px}
     .drawer-section:first-of-type{margin-top:10px}
     .drawer-section-label{font-family:var(--mono, 'JetBrains Mono', monospace);font-size:9.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3, rgba(10,21,16,.58));flex-shrink:0}
@@ -122,8 +131,22 @@
           <svg class="enter-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
         </a>
 
+        <div class="drawer-theme">
+          <span class="drawer-theme-label">Aparência</span>
+          <div class="drawer-theme-toggle" id="drawerThemeToggle" role="tablist" aria-label="Tema">
+            <button class="dtt-opt" data-theme="light" type="button" aria-label="Tema claro">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="7" y2="7"/><line x1="17" y1="17" x2="19.1" y2="19.1"/><line x1="4.9" y1="19.1" x2="7" y2="17"/><line x1="17" y1="7" x2="19.1" y2="4.9"/></svg>
+              <span>Claro</span>
+            </button>
+            <button class="dtt-opt" data-theme="dark" type="button" aria-label="Tema escuro">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+              <span>Escuro</span>
+            </button>
+          </div>
+        </div>
+
         <div class="drawer-section"><span class="drawer-section-label">Avaliar</span><span class="drawer-section-line"></span></div>
-        <a class="drawer-link" href="/diagnostico.html"><div><div class="drawer-link-t">Avaliar grátis</div><div class="drawer-link-s">Quanto vale o seu negócio · 5 min</div></div></a>
+        <a class="drawer-link" href="/avaliar.html"><div><div class="drawer-link-t">Avaliar gratuitamente</div><div class="drawer-link-s">Quanto vale a sua empresa · entenda o processo</div></div></a>
 
         <div class="drawer-section"><span class="drawer-section-label">Vender</span><span class="drawer-section-line"></span></div>
         <a class="drawer-link" href="/vender.html"><div><div class="drawer-link-t">Como funciona pra vender</div><div class="drawer-link-s">Do diagnóstico à venda</div></div></a>
@@ -139,26 +162,12 @@
         <div class="drawer-section"><span class="drawer-section-label">Institucional</span><span class="drawer-section-line"></span></div>
         <a class="drawer-link" href="/analises.html"><div><div class="drawer-link-t">Análises do mercado</div><div class="drawer-link-s">Compra e venda de empresas na prática</div></div></a>
         <a class="drawer-link" href="https://wa.me/5511952136406" target="_blank" rel="noopener"><div><div class="drawer-link-t">Falar conosco</div><div class="drawer-link-s">WhatsApp comercial · resposta no horário útil</div></div></a>
-        <a class="drawer-link signout" href="#" id="drawer-signout" style="display:none"><div><div class="drawer-link-t">Sair da conta</div><div class="drawer-link-s">Encerra sua sessão neste navegador</div></div></a>
-
-        <div class="drawer-theme">
-          <span class="drawer-theme-label">Aparência</span>
-          <div class="drawer-theme-toggle" id="drawerThemeToggle" role="tablist" aria-label="Tema">
-            <button class="dtt-opt" data-theme="light" type="button" aria-label="Tema claro">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="7" y2="7"/><line x1="17" y1="17" x2="19.1" y2="19.1"/><line x1="4.9" y1="19.1" x2="7" y2="17"/><line x1="17" y1="7" x2="19.1" y2="4.9"/></svg>
-              <span>Claro</span>
-            </button>
-            <button class="dtt-opt" data-theme="dark" type="button" aria-label="Tema escuro">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-              <span>Escuro</span>
-            </button>
-          </div>
-        </div>
       </div>
       <div class="drawer-foot">
-        <a href="/diagnostico.html" class="hd-cta">
-          <span class="hd-cta-stack"><span class="hd-cta-main">Avaliar meu negócio</span><span class="hd-cta-sub">(grátis · sem cartão)</span></span>
+        <a href="/avaliar.html" class="hd-cta">
+          <span class="hd-cta-stack"><span class="hd-cta-main">Avaliar gratuitamente</span></span>
         </a>
+        <a class="drawer-link signout" href="#" id="drawer-signout" style="display:none"><div><div class="drawer-link-t">Sair da conta</div><div class="drawer-link-s">Encerra sua sessão neste navegador</div></div></a>
       </div>
     </aside>
   `;
