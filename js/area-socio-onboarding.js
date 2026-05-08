@@ -130,15 +130,19 @@
     _root.innerHTML = '<div style="padding:24px;color:var(--ink-3);font-family:var(--mono,monospace)">carregando...</div>';
     try {
       const socio = await _fetchSocio();
+      // V8 B8.2 · roteamento corrigido:
+      //   sem row              → landing
+      //   pendente_termo       → landing (se dados_cadastro NULL) · senão termo
+      //   aguardando_aprov_doc → "em análise"
+      //   aprovado/suspenso/cancelado → estado terminal correspondente
       if (!socio) return _renderLanding();
-      switch (socio.status) {
-        case 'pendente_termo': return _renderEstado2(socio);
-        case 'aguardando_aprovacao_doc': return _renderEstado3(socio);
-        case 'aprovado': return _renderEstado4(socio);
-        case 'suspenso':
-        case 'cancelado': return _renderEstado5(socio);
-        default: return _renderLanding();
+      if (socio.status === 'aprovado') return _renderEstado4(socio);
+      if (socio.status === 'aguardando_aprovacao_doc') return _renderEstado3(socio);
+      if (socio.status === 'suspenso' || socio.status === 'cancelado') return _renderEstado5(socio);
+      if (socio.status === 'pendente_termo') {
+        return socio.dados_cadastro ? _renderEstado2(socio) : _renderLanding();
       }
+      return _renderLanding();
     } catch (e) {
       _root.innerHTML = `<div style="padding:24px;color:#dc2626">Erro carregando: ${_h(e.message)}</div>`;
     }
@@ -237,7 +241,7 @@
       <div style="max-width:760px;margin:0 auto">
         <div style="margin-bottom:18px">
           <button id="btn-soc-voltar" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink-2);font-family:var(--mono,monospace);font-size:11px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer">
-            ← Voltar
+            ← Voltar pra apresentação
           </button>
         </div>
 
