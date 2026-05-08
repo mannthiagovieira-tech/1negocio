@@ -624,25 +624,8 @@ async function init(){
     console.log('[negocio.html] lauArr:', lauArr);
     if(!Array.isArray(negArr)||negArr.length===0) return showError('Negócio não encontrado','Verifique o link.');
     NEG=negArr[0];
-    // V8 BLOCO 3 · resolver telefone do contato (vendedor real OU consultor 1Negócio se seed/sem fone)
-    window.TELCONTATO_FALLBACK = '5511952136406'; // consultor Venda Assessorada
-    window.TELCONTATO = window.TELCONTATO_FALLBACK;
-    try {
-      if (NEG.vendedor_id) {
-        const r = await fetch(SUPABASE_URL+'/rest/v1/rpc/get_user_contato', {
-          method:'POST',
-          headers:{ ...H, 'Content-Type':'application/json' },
-          body: JSON.stringify({ p_user_id: NEG.vendedor_id })
-        });
-        if (r.ok) {
-          const arr = await r.json();
-          const c = Array.isArray(arr) ? arr[0] : null;
-          if (c && c.phone && !c.eh_seed) {
-            window.TELCONTATO = String(c.phone).replace(/\D/g,'');
-          }
-        }
-      }
-    } catch(e) { console.warn('TELCONTATO fallback:', e); }
+    // V8 BLOCO 4 · REGRA DE SIGILO INVIOLÁVEL: comprador/vendedor NUNCA contatam direto.
+    // Toda comunicação passa pelo consultor 1Negócio. Phone único hardcoded · sempre.
     if(Array.isArray(lauArr)&&lauArr[0]&&lauArr[0].calc_json){
       CALC=lauArr[0].calc_json;
       if(SESSION) await verificarAcessoC3(NEG.id);
@@ -2271,13 +2254,13 @@ function renderAbaPrivadoLiberada(acesso){
         <h3>Vamos avançar?</h3>
         <p>Você pode tirar dúvidas, pedir esclarecimentos ou iniciar a negociação direto com o sócio responsável pelo negócio. Tudo registrado, tudo seguro.</p>
         <div class="grid">
-          <a class="btn" href="https://wa.me/${window.TELCONTATO||'5511952136406'}?text=${encodeURIComponent('Olá, tenho dúvidas sobre o negócio ' + codigo + '.')}" target="_blank" rel="noopener">
+          <a class="btn" href="https://wa.me/5511952136406?text=${encodeURIComponent('Olá, tenho dúvidas sobre o negócio ' + codigo + '.')}" target="_blank" rel="noopener">
             <span class="icon">💬</span><span class="label">Tirar dúvidas</span>
           </a>
-          <a class="btn" href="https://wa.me/${window.TELCONTATO||'5511952136406'}?text=${encodeURIComponent('Olá, gostaria de esclarecimentos sobre o negócio ' + codigo + '.')}" target="_blank" rel="noopener">
+          <a class="btn" href="https://wa.me/5511952136406?text=${encodeURIComponent('Olá, gostaria de esclarecimentos sobre o negócio ' + codigo + '.')}" target="_blank" rel="noopener">
             <span class="icon">📋</span><span class="label">Pedir esclarecimentos</span>
           </a>
-          <a class="btn primary" href="https://wa.me/${window.TELCONTATO||'5511952136406'}?text=${encodeURIComponent('Olá, tenho interesse em negociar o negócio ' + codigo + '.')}" target="_blank" rel="noopener">
+          <a class="btn primary" href="https://wa.me/5511952136406?text=${encodeURIComponent('Olá, tenho interesse em negociar o negócio ' + codigo + '.')}" target="_blank" rel="noopener">
             <span class="icon">🤝</span><span class="label">Iniciar negociação</span>
           </a>
         </div>
@@ -2340,8 +2323,8 @@ function inicializarTabs(){
       const pair = document.createElement('div');
       pair.className = 'footer-cta-pair';
       pair.innerHTML =
-        '<a class="footer-cta-btn outline" href="https://wa.me/' + (window.TELCONTATO||'5511952136406') + '?text=' + msgDuvidas + '" target="_blank" rel="noopener">Tirar dúvidas</a>' +
-        '<a class="footer-cta-btn primary" href="https://wa.me/' + (window.TELCONTATO||'5511952136406') + '?text=' + msgPropose + '" target="_blank" rel="noopener">Iniciar negociação <span aria-hidden="true">→</span></a>';
+        '<a class="footer-cta-btn outline" href="https://wa.me/5511952136406?text=' + msgDuvidas + '" target="_blank" rel="noopener">Tirar dúvidas</a>' +
+        '<a class="footer-cta-btn primary" href="https://wa.me/5511952136406?text=' + msgPropose + '" target="_blank" rel="noopener">Iniciar negociação <span aria-hidden="true">→</span></a>';
       footerBar.insertBefore(pair, footerBar.firstChild);
     }
   }
