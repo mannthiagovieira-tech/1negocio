@@ -1,7 +1,7 @@
-// area-socio-onboarding.js · V8 BLOCO 8 · 1Negócio
+// area-socio-onboarding.js · V8 BLOCO 8.4 · 1Negócio
 // Componente de fluxo do sócio-assessor · 6 estados:
-//   1a · landing (hero + diferenciais + tabela comissão)
-//   1b · cadastro profundo (form com perguntas) → salva dados_cadastro JSONB
+//   1a · landing (hero · 4 diferenciais SVG · tabela comissão · requisitos numerados)
+//   1b · cadastro profundo (form sem nome/wpp/email · usa session) → dados_cadastro JSONB
 //   2  · termo + upload doc
 //   3  · em análise
 //   4  · aprovado
@@ -20,6 +20,12 @@
     'Comércio · Varejo','Serviços B2B','Serviços B2C','E-commerce','Beleza · Estética',
     'Logística · Transporte','Outros'
   ];
+
+  // V8 B8.4 · ícones SVG inline · Lucide-style · stroke 1.6 · 28px
+  const ICON_LOCK = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+  const ICON_CHECKLIST = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>`;
+  const ICON_COINS = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>`;
+  const ICON_HANDSHAKE = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/></svg>`;
 
   const TERMO_HTML = `
     <h3 style="font-family:var(--serif,'Syne',sans-serif);font-weight:700;font-size:18px;margin:0 0 12px">Termo de adesão · Sócio-Assessor 1Negócio</h3>
@@ -43,6 +49,14 @@
   }
   function _h(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
+  function _formatWpp(raw) {
+    const v = String(raw || '').replace(/\D/g, '');
+    if (v.length === 13 && v.startsWith('55')) return '+55 (' + v.slice(2,4) + ') ' + v.slice(4,9) + '-' + v.slice(9);
+    if (v.length === 11) return '(' + v.slice(0,2) + ') ' + v.slice(2,7) + '-' + v.slice(7);
+    if (v.length === 10) return '(' + v.slice(0,2) + ') ' + v.slice(2,6) + '-' + v.slice(6);
+    return raw || '—';
+  }
+
   async function _fetchSocio() {
     const sess = _sess();
     if (!sess || !sess.user_id) return null;
@@ -55,7 +69,6 @@
   async function _criarOuPatchSocio(dados_cadastro) {
     const sess = _sess();
     if (!sess) throw new Error('sem_sessao');
-    // Tenta INSERT · se já existe (UNIQUE constraint usuario_id) faz PATCH
     const insR = await _af(SUPABASE_URL + '/rest/v1/socios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
@@ -70,7 +83,6 @@
       const arr = await insR.json();
       return arr[0];
     }
-    // 409 conflict: já existe row · PATCH dados_cadastro
     if (insR.status === 409) {
       const r = await _af(SUPABASE_URL + '/rest/v1/socios?usuario_id=eq.' + sess.user_id, {
         method: 'PATCH',
@@ -130,11 +142,6 @@
     _root.innerHTML = '<div style="padding:24px;color:var(--ink-3);font-family:var(--mono,monospace)">carregando...</div>';
     try {
       const socio = await _fetchSocio();
-      // V8 B8.2 · roteamento corrigido:
-      //   sem row              → landing
-      //   pendente_termo       → landing (se dados_cadastro NULL) · senão termo
-      //   aguardando_aprov_doc → "em análise"
-      //   aprovado/suspenso/cancelado → estado terminal correspondente
       if (!socio) return _renderLanding();
       if (socio.status === 'aprovado') return _renderEstado4(socio);
       if (socio.status === 'aguardando_aprovacao_doc') return _renderEstado3(socio);
@@ -149,76 +156,84 @@
   }
 
   // ============================================================
-  // ESTADO 1A · LANDING
+  // ESTADO 1A · LANDING (V8 B8.4 refactor)
   // ============================================================
   function _renderLanding() {
+    const diferenciais = [
+      [ICON_LOCK,      'Sigilo blindado',     'Comprador e vendedor nunca se falam direto. Tudo via consultor 1Negócio · você fica protegido.'],
+      [ICON_CHECKLIST, 'Trilho técnico pronto','Laudo · DRE · valuation · NDA · termos. Você indica · a gente operacionaliza.'],
+      [ICON_COINS,     'Comissão recorrente', 'Vendas, laudos, guiados, avaliações e mensalidades de Assessorada — todas pagam você.'],
+      [ICON_HANDSHAKE, 'Vínculo formal',      'Cada negócio/tese fica gravado no seu nome (S-XXXX) · zero risco de perder a comissão.'],
+    ];
+    const requisitos = [
+      ['Termo aceito',    'Cláusulas de sigilo, conduta, comissões e cancelamento. Você lê e aceita digital antes da aprovação.'],
+      ['Documento de identidade','RG, CNH ou passaporte. Privado · só admin acessa via link assinado e temporário.'],
+      ['Comunicação profissional','WhatsApp e plataforma · resposta rápida · não pressionar partes envolvidas.'],
+      ['Sem mensalidade · sem volume mínimo','Você pode cancelar a qualquer momento. Comissões fechadas continuam devidas.'],
+    ];
     _root.innerHTML = `
       <div style="max-width:880px;margin:0 auto">
 
-        <!-- HERO -->
-        <section style="padding:36px 32px;border:1px solid var(--accent-line,rgba(10,168,90,.3));border-radius:24px;background:linear-gradient(160deg,var(--accent-soft,rgba(10,168,90,.12)),var(--surface) 75%);margin-bottom:22px">
-          <div style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent,#0aa85a);font-weight:600;margin-bottom:14px;display:inline-flex;align-items:center;gap:10px">
+        <section style="padding:38px 34px 34px;border:1px solid var(--accent-line,rgba(10,168,90,.3));border-radius:24px;background:linear-gradient(160deg,var(--accent-soft,rgba(10,168,90,.12)),var(--surface) 75%);margin-bottom:22px">
+          <div style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent,#0aa85a);font-weight:600;margin-bottom:16px;display:inline-flex;align-items:center;gap:10px">
             <span style="width:24px;height:1px;background:currentColor"></span>Programa Sócio-Assessor
           </div>
-          <h1 style="font-family:var(--serif,'Syne'),serif;font-weight:800;font-size:clamp(28px,4vw,42px);line-height:1.08;letter-spacing:-.022em;color:var(--ink);margin:0 0 14px">
+          <h1 style="font-family:var(--serif,'Syne'),serif;font-weight:800;font-size:clamp(30px,4.4vw,46px);line-height:1.05;letter-spacing:-.025em;color:var(--ink);margin:0 0 16px;max-width:680px">
             Vire sócio-assessor da 1Negócio.<br>Ganhe trazendo empresas e compradores.
           </h1>
-          <p style="font-size:15.5px;color:var(--ink-2);line-height:1.6;margin:0 0 8px;max-width:640px">
+          <p style="font-size:16px;color:var(--ink-2);line-height:1.6;margin:0 0 8px;max-width:640px">
             Você indica · 1Negócio entrega o trilho técnico (laudo · diligência · documentos · NDA · operação). Você ganha comissão sobre cada conversão.
           </p>
-          <p style="font-size:13.5px;color:var(--ink-3);line-height:1.55;margin:0;max-width:640px">
-            Sem mensalidade. Sem volume mínimo. Aprovação em até 48h.
+          <p style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:14px 0 0">
+            Sem mensalidade · Sem volume mínimo · Aprovação em até 48h
           </p>
         </section>
 
-        <!-- DIFERENCIAIS -->
         <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:22px">
-          ${[
-            ['📦','Sigilo blindado','Comprador e vendedor nunca se falam direto. Tudo via consultor 1Negócio · você fica protegido.'],
-            ['🧭','Trilho técnico pronto','Laudo · DRE · valuation · NDA · termos. Você indica · a gente operacionaliza.'],
-            ['💵','Comissão recorrente','Vendas, laudos, guiados, avaliações e mensalidades de Assessorada — todas pagam você.'],
-            ['🪪','Vínculo formal','Cada negócio/tese fica gravado no seu nome (S-XXXX) · zero risco de perder a comissão.'],
-          ].map(([emoji,titulo,desc]) => `
-            <div style="padding:18px 18px 16px;border:1px solid var(--line);border-radius:18px;background:var(--surface);box-shadow:var(--shadow-soft,0 6px 24px -10px rgba(10,20,12,.1))">
-              <div style="font-size:24px;margin-bottom:6px">${emoji}</div>
-              <div style="font-family:var(--serif,'Syne'),serif;font-weight:700;font-size:15px;color:var(--ink);margin-bottom:4px">${titulo}</div>
-              <div style="font-size:13px;color:var(--ink-3);line-height:1.5">${desc}</div>
+          ${diferenciais.map(([icon,titulo,desc]) => `
+            <div style="padding:22px 20px 18px;border:1px solid var(--line);border-radius:18px;background:var(--surface);box-shadow:var(--shadow-soft,0 6px 24px -10px rgba(10,20,12,.1));display:flex;flex-direction:column;gap:10px">
+              <div style="color:var(--accent,#0aa85a)">${icon}</div>
+              <div style="font-family:var(--serif,'Syne'),serif;font-weight:700;font-size:16px;color:var(--ink);letter-spacing:-.01em">${titulo}</div>
+              <div style="font-size:13px;color:var(--ink-3);line-height:1.55">${desc}</div>
             </div>
           `).join('')}
         </section>
 
-        <!-- TABELA COMISSÃO -->
-        <section style="padding:24px 26px;border:1px solid var(--line);border-radius:20px;background:var(--surface);margin-bottom:22px">
-          <div style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:14px">Como você ganha</div>
+        <section style="padding:26px 28px;border:1px solid var(--line);border-radius:20px;background:var(--surface);margin-bottom:22px">
+          <div style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:16px">Como você ganha</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border:1px solid var(--line);border-radius:14px;overflow:hidden">
             ${[
-              ['Venda 2pp','2% sobre o valor da venda · cada lado pago separado · até 4% se trazer comprador E vendedor'],
+              ['Venda 2pp','2% sobre o valor da venda · cada lado pago separado · até 4% se trouxer comprador E vendedor'],
               ['Laudo · Guiado · Avaliação','50% da receita do produto que você indicou'],
               ['Venda Assessorada','40% da mensalidade enquanto o contrato vigorar'],
             ].map(([titulo,desc],i) => `
-              <div style="padding:16px 18px;border-right:${i<2?'1px solid var(--line)':'0'};background:${i===0?'var(--accent-soft,rgba(10,168,90,.06))':'var(--bg-2,#fff)'}">
-                <div style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:.08em;color:var(--accent,#0aa85a);font-weight:700;margin-bottom:6px">${titulo}</div>
-                <div style="font-size:12.5px;color:var(--ink-2);line-height:1.5">${desc}</div>
+              <div style="padding:18px 18px;border-right:${i<2?'1px solid var(--line)':'0'};background:${i===0?'var(--accent-soft,rgba(10,168,90,.06))':'var(--bg-2,#fff)'}">
+                <div style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:.08em;color:var(--accent,#0aa85a);font-weight:700;margin-bottom:8px">${titulo}</div>
+                <div style="font-size:13px;color:var(--ink-2);line-height:1.55">${desc}</div>
               </div>
             `).join('')}
           </div>
         </section>
 
-        <!-- REQUISITOS -->
-        <section style="padding:22px 26px;border:1px solid var(--line);border-radius:20px;background:var(--bg-2,#fff);margin-bottom:22px">
-          <div style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:12px">Requisitos</div>
-          <ul style="margin:0;padding:0 0 0 18px;font-size:13.5px;color:var(--ink-2);line-height:1.85">
-            <li>Aceitar termo de sigilo e conduta (cláusulas abaixo no formulário)</li>
-            <li>Enviar documento de identidade (RG · CNH · passaporte) pra validação</li>
-            <li>Comunicação profissional via WhatsApp e plataforma</li>
-            <li>Sem mensalidade · sem volume mínimo · você pode cancelar quando quiser</li>
-          </ul>
+        <section style="padding:26px 28px;border:1px solid var(--line);border-radius:20px;background:var(--bg-2,#fff);margin-bottom:22px">
+          <div style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:18px">Requisitos</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px 22px">
+            ${requisitos.map(([titulo,desc],i) => `
+              <div style="display:grid;grid-template-columns:42px 1fr;gap:14px;align-items:start">
+                <div style="font-family:var(--mono,monospace);font-size:13px;letter-spacing:.04em;color:var(--accent,#0aa85a);font-weight:700;padding-top:1px">${String(i+1).padStart(2,'0')}</div>
+                <div>
+                  <div style="font-family:var(--serif,'Syne'),serif;font-weight:700;font-size:14.5px;color:var(--ink);margin-bottom:4px;letter-spacing:-.005em">${titulo}</div>
+                  <div style="font-size:13px;color:var(--ink-3);line-height:1.55">${desc}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
         </section>
 
-        <!-- CTA -->
-        <section style="text-align:center;padding:8px">
-          <button id="btn-soc-comecar" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;height:58px;padding:0 38px;border-radius:999px;background:var(--accent,#0aa85a);color:var(--accent-ink,#fff);font-family:var(--mono,monospace);font-size:13px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;border:1px solid transparent;cursor:pointer;transition:transform .12s">
-            Quero me cadastrar como sócio-assessor →
+        <section style="text-align:center;padding:8px 0 4px">
+          <button id="btn-soc-comecar" style="display:inline-flex;align-items:center;justify-content:center;gap:10px;height:60px;padding:0 38px;border-radius:999px;background:var(--accent,#0aa85a);color:var(--accent-ink,#fff);font-family:var(--mono,monospace);font-size:13px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;border:1px solid transparent;cursor:pointer;transition:transform .12s,box-shadow .15s">
+            Quero me cadastrar como sócio-assessor
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
           </button>
           <div style="font-family:var(--mono,monospace);font-size:11px;color:var(--ink-3);letter-spacing:.06em;margin-top:14px">
             Resposta em até 48h · Sem compromisso até a aprovação
@@ -231,12 +246,12 @@
   }
 
   // ============================================================
-  // ESTADO 1B · FORM PROFUNDO
+  // ESTADO 1B · FORM (V8 B8.4 sem nome/wpp/email · usa session)
   // ============================================================
   function _renderForm() {
     const sess = _sess() || {};
-    const nomeAtual = sess.nome || '';
-    const wppAtual = sess.whatsapp || '';
+    const nome = sess.nome || 'Sem nome';
+    const wpp = _formatWpp(sess.whatsapp);
     _root.innerHTML = `
       <div style="max-width:760px;margin:0 auto">
         <div style="margin-bottom:18px">
@@ -252,12 +267,16 @@
           <h2 style="font-family:var(--serif,'Syne'),serif;font-weight:800;font-size:clamp(24px,3vw,32px);line-height:1.1;margin:0 0 8px;color:var(--ink)">
             Conta um pouco sobre você.
           </h2>
-          <p style="font-size:14px;color:var(--ink-2);line-height:1.55;margin:0 0 26px;max-width:560px">
+          <p style="font-size:14px;color:var(--ink-2);line-height:1.55;margin:0 0 14px;max-width:560px">
             Esses dados ajudam a 1Negócio a alinhar expectativas antes de aprovar e a recomendar negócios que combinam com seu perfil.
           </p>
+          <div style="display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;background:var(--surface-2,#f7f7f5);border:1px solid var(--line);font-family:var(--mono,monospace);font-size:11px;letter-spacing:.04em;color:var(--ink-3);margin-bottom:24px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Cadastrando como <strong style="color:var(--ink);font-weight:600">${_h(nome)}</strong> · ${_h(wpp)}
+          </div>
 
           <form id="form-socio" novalidate>
-            ${_blocoQuemEhVoce(nomeAtual, wppAtual)}
+            ${_blocoLocal()}
             ${_divider()}
             ${_blocoExperiencia()}
             ${_divider()}
@@ -298,34 +317,18 @@
     return _inputStyle().replace('height:48px', 'min-height:90px;height:auto').replace('padding:0 16px', 'padding:12px 16px;line-height:1.5;resize:vertical');
   }
 
-  function _blocoQuemEhVoce(nome, wpp) {
+  function _blocoLocal() {
     return `
       <div>
-        <div style="${_blocoTituloStyle()}">01 · Quem é você</div>
-        <div style="display:grid;grid-template-columns:1fr;gap:12px">
+        <div style="${_blocoTituloStyle()}">01 · Onde você atua</div>
+        <div style="display:grid;grid-template-columns:90px 1fr;gap:8px">
           <div>
-            <label style="${_labelStyle()};display:block;margin-bottom:6px" for="f-nome">Nome completo</label>
-            <input id="f-nome" name="nome" type="text" required value="${_h(nome)}" style="${_inputStyle()}">
+            <label style="${_labelStyle()};display:block;margin-bottom:6px" for="f-uf">UF</label>
+            <input id="f-uf" name="estado" type="text" maxlength="2" style="${_inputStyle()};text-transform:uppercase;text-align:center;font-family:var(--mono,monospace)" placeholder="SP">
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div>
-              <label style="${_labelStyle()};display:block;margin-bottom:6px" for="f-wpp">WhatsApp</label>
-              <input id="f-wpp" name="whatsapp" type="tel" required value="${_h(wpp)}" placeholder="(11) 99999-9999" style="${_inputStyle()};font-family:var(--mono,monospace)">
-            </div>
-            <div>
-              <label style="${_labelStyle()};display:block;margin-bottom:6px" for="f-email">E-mail</label>
-              <input id="f-email" name="email" type="email" required style="${_inputStyle()}">
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:90px 1fr;gap:8px">
-            <div>
-              <label style="${_labelStyle()};display:block;margin-bottom:6px" for="f-uf">UF</label>
-              <input id="f-uf" name="estado" type="text" maxlength="2" style="${_inputStyle()};text-transform:uppercase;text-align:center;font-family:var(--mono,monospace)" placeholder="SP">
-            </div>
-            <div>
-              <label style="${_labelStyle()};display:block;margin-bottom:6px" for="f-cidade">Cidade</label>
-              <input id="f-cidade" name="cidade" type="text" style="${_inputStyle()}" placeholder="São Paulo">
-            </div>
+          <div>
+            <label style="${_labelStyle()};display:block;margin-bottom:6px" for="f-cidade">Cidade principal</label>
+            <input id="f-cidade" name="cidade" type="text" style="${_inputStyle()}" placeholder="São Paulo">
           </div>
         </div>
       </div>
@@ -417,26 +420,21 @@
   }
 
   function _bindFormEnvio() {
-    const wpp = document.getElementById('f-wpp');
-    if (wpp) {
-      wpp.addEventListener('input', e => {
-        let v = e.target.value.replace(/\D/g, '').slice(0, 11);
-        if (v.length > 6) v = '(' + v.slice(0,2) + ') ' + v.slice(2,7) + '-' + v.slice(7);
-        else if (v.length > 2) v = '(' + v.slice(0,2) + ') ' + v.slice(2);
-        e.target.value = v;
-      });
-    }
     const form = document.getElementById('form-socio');
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const err = document.getElementById('soc-form-err');
       err.textContent = '';
+      const sess = _sess() || {};
       const fd = new FormData(form);
       const setores = Array.from(form.querySelectorAll('input[name="setores"]:checked')).map(x => x.value);
+
+      // V8 B8.4 · snapshot da session no momento do cadastro · admin tem
+      // o estado exato mesmo se user editar perfil depois
       const dados = {
-        nome: (fd.get('nome') || '').toString().trim(),
-        whatsapp: (fd.get('whatsapp') || '').toString().replace(/\D/g, ''),
-        email: (fd.get('email') || '').toString().trim(),
+        nome: (sess.nome || '').toString().trim(),
+        whatsapp: String(sess.whatsapp || '').replace(/\D/g, ''),
+        email: (sess.email || '').toString().trim(),
         cidade: (fd.get('cidade') || '').toString().trim() || null,
         estado: (fd.get('estado') || '').toString().toUpperCase().trim() || null,
         profissao: (fd.get('profissao') || '').toString() || null,
@@ -448,9 +446,6 @@
         motivacao: (fd.get('motivacao') || '').toString().trim(),
       };
 
-      if (dados.nome.length < 3) { err.textContent = 'Informe seu nome completo.'; return; }
-      if (dados.whatsapp.length < 10 || dados.whatsapp.length > 11) { err.textContent = 'WhatsApp inválido (DDD + número).'; return; }
-      if (dados.email.indexOf('@') < 1) { err.textContent = 'E-mail inválido.'; return; }
       if (dados.motivacao.length < 10) { err.textContent = 'Conta um pouco mais sobre sua motivação.'; return; }
 
       const btn = document.getElementById('btn-soc-form-enviar');
@@ -533,7 +528,7 @@
     _root.innerHTML = `
       <div style="max-width:560px;margin:0 auto;padding:32px;border:1px solid var(--line);border-radius:20px;background:var(--surface);text-align:center">
         <div style="display:inline-flex;width:56px;height:56px;background:rgba(245,200,66,.15);border-radius:50%;align-items:center;justify-content:center;margin-bottom:14px">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f5c842" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f5c842" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
         <h2 style="font-family:var(--serif,'Syne'),sans-serif;font-weight:700;font-size:22px;margin:0 0 10px">Em análise</h2>
         <p style="font-size:14px;color:var(--ink-2);line-height:1.6;margin:0 0 8px">
