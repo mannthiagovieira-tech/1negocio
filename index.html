@@ -1932,7 +1932,7 @@ body[data-theme="light"] .req-inp,body[data-theme="light"] .req-txt{background:#
     <button class="sheet-close" onclick="toggleDrawer()">✕</button>
   </div>
   <div class="drawer-body">
-    <a class="drawer-link enter" id="drawer-auth-link" href="/portal-usuario.html">
+    <a class="drawer-link enter" id="drawer-auth-link" href="/auth.html">
       <div class="drawer-avatar" id="drawer-avatar" style="display:none"></div>
       <div>
         <div class="drawer-link-t" id="drawer-auth-t">ENTRAR</div>
@@ -1958,7 +1958,7 @@ body[data-theme="light"] .req-inp,body[data-theme="light"] .req-txt{background:#
     <div class="drawer-section"><span class="drawer-section-label">Institucional</span><span class="drawer-section-line"></span></div>
     <a class="drawer-link" href="/analises.html"><div><div class="drawer-link-t">Análises do mercado</div><div class="drawer-link-s">Compra e venda de empresas na prática</div></div></a>
     <a class="drawer-link" href="https://wa.me/5511952136406" target="_blank" rel="noopener"><div><div class="drawer-link-t">Falar conosco</div><div class="drawer-link-s">WhatsApp comercial · resposta no horário útil</div></div></a>
-    <a class="drawer-link signout" href="#" id="drawer-signout" onclick="event.preventDefault();drawerSignOut()" style="display:none"><div><div class="drawer-link-t">Sair da conta</div><div class="drawer-link-s">Encerra sua sessão neste navegador</div></div></a>
+    <a class="drawer-link signout" href="#" id="drawer-signout" onclick="event.preventDefault();HamburgerAccount.signOut()" style="display:none"><div><div class="drawer-link-t">Sair da conta</div><div class="drawer-link-s">Encerra sua sessão neste navegador</div></div></a>
 
     <div class="drawer-theme">
       <span class="drawer-theme-label">Aparência</span>
@@ -4376,109 +4376,8 @@ window.addEventListener('resize', ()=>{
 })();
 </script>
 
-<script>
-/* ═══ Drawer · auth state detection (BLOCO 3 FASE 6) ═══ */
-(function(){
-  const SUPABASE_URL_DRAWER = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
-  const SUPABASE_ANON_DRAWER = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
-
-  function parseJwt(token){
-    try {
-      const parts = token.split('.');
-      if (parts.length !== 3) return null;
-      const payload = parts[1].replace(/-/g,'+').replace(/_/g,'/');
-      const padded = payload + '='.repeat((4 - payload.length%4) % 4);
-      return JSON.parse(atob(padded));
-    } catch(e){ return null }
-  }
-
-  function tokenValido(token){
-    if (!token) return null;
-    const decoded = parseJwt(token);
-    if (!decoded) return null;
-    const nowSec = Math.floor(Date.now()/1000);
-    if (decoded.exp && decoded.exp < nowSec) return null;
-    return decoded;
-  }
-
-  function inicial(nome){
-    const s = (nome || '').trim();
-    if (!s) return '·';
-    return s.charAt(0).toUpperCase();
-  }
-
-  function renderLogado(nome){
-    const link = document.getElementById('drawer-auth-link');
-    const av = document.getElementById('drawer-avatar');
-    const t = document.getElementById('drawer-auth-t');
-    const s = document.getElementById('drawer-auth-s');
-    const out = document.getElementById('drawer-signout');
-    if (!link || !av || !t || !s || !out) return;
-    link.classList.add('logged');
-    av.textContent = inicial(nome);
-    av.style.display = '';
-    t.textContent = nome || 'Sua conta';
-    s.textContent = 'Minha área';
-    out.style.display = '';
-  }
-
-  function renderDeslogado(){
-    const link = document.getElementById('drawer-auth-link');
-    const av = document.getElementById('drawer-avatar');
-    const t = document.getElementById('drawer-auth-t');
-    const s = document.getElementById('drawer-auth-s');
-    const out = document.getElementById('drawer-signout');
-    if (!link || !av || !t || !s || !out) return;
-    link.classList.remove('logged');
-    av.style.display = 'none';
-    t.textContent = 'ENTRAR';
-    s.textContent = 'Acesse sua conta';
-    out.style.display = 'none';
-  }
-
-  async function buscarNome(token, userId){
-    try {
-      const r = await fetch(SUPABASE_URL_DRAWER+'/rest/v1/usuarios?select=nome&id=eq.'+userId+'&limit=1', {
-        headers: { 'apikey': SUPABASE_ANON_DRAWER, 'Authorization': 'Bearer '+token }
-      });
-      const d = await r.json();
-      if (Array.isArray(d) && d[0]?.nome) return d[0].nome;
-    } catch(e){}
-    return null;
-  }
-
-  async function checarAuth(){
-    const access = localStorage.getItem('sb_access_token');
-    const decoded = tokenValido(access);
-    if (!decoded) {
-      renderDeslogado();
-      return;
-    }
-    // tenta nome do user_metadata via JWT primeiro · fallback consulta tabela usuarios
-    let nome = decoded.user_metadata?.nome || decoded.user_metadata?.full_name || null;
-    if (!nome && decoded.sub) {
-      nome = await buscarNome(access, decoded.sub);
-    }
-    renderLogado(nome || 'Sua conta');
-  }
-
-  window.drawerSignOut = function(){
-    try {
-      localStorage.removeItem('sb_access_token');
-      localStorage.removeItem('sb_refresh_token');
-    } catch(e){}
-    // Não chama signOut da API · só limpa local · UX rápida
-    window.location.href = '/';
-  };
-
-  // Boot
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', checarAuth);
-  } else {
-    checarAuth();
-  }
-})();
-</script>
+<!-- V8 B8.5 · ENTRAR dinâmico via componente reutilizável -->
+<script src="/js/hamburger-account.js"></script>
 
 <script src="/auth-fetch.js"></script>
 <script src="/salvar-em-tese.js"></script>
