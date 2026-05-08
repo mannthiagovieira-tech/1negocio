@@ -587,15 +587,62 @@
   }
 
   function _renderEstado4(socio) {
+    // V8 B8.13 SUB-BLOCO B FASE 2 · sócio aprovado · 3 ações + placeholder vínculos
     _root.innerHTML = `
-      <div style="max-width:560px;margin:0 auto;padding:32px;border:1.5px solid var(--accent,#0aa85a);border-radius:20px;background:var(--accent-soft,rgba(10,168,90,.06))">
-        <div style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent,#0aa85a);font-weight:600;margin-bottom:6px">${_h(socio.codigo || 'S-????')}</div>
-        <h2 style="font-family:var(--serif,'Syne'),sans-serif;font-weight:700;font-size:24px;margin:0 0 10px">Bem-vindo · você é sócio-assessor 1Negócio</h2>
-        <p style="font-size:14px;color:var(--ink-2);line-height:1.65;margin:0 0 18px">
-          A área completa do sócio (cadastrar tese · pedir vínculos · catálogo · financeiro · projetos) chega na próxima fase. Por enquanto · seu cadastro está ativo.
-        </p>
+      <div class="area-socio-aprovado">
+        <div class="aprovado-hero">
+          <div class="aprovado-codigo">${_h(socio.codigo || 'S-????')}</div>
+          <h2 class="aprovado-titulo">Bem-vindo · você é sócio-assessor 1Negócio</h2>
+          <p class="aprovado-sub">Cadastre teses ou diagnósticos em nome de quem você assessora. O proprietário recebe um link no WhatsApp pra aceitar o vínculo.</p>
+        </div>
+
+        <div class="aprovado-acoes">
+          <button type="button" class="btn-acao" data-acao="cadastrar-tese">
+            <span class="btn-acao-icon" aria-hidden="true">📋</span>
+            <span class="btn-acao-corpo">
+              <span class="btn-acao-titulo">Cadastrar tese pra alguém</span>
+              <span class="btn-acao-sub">Comprador que busca empresa · 8 passos · WhatsApp dispara automático</span>
+            </span>
+          </button>
+
+          <button type="button" class="btn-acao" data-acao="cadastrar-diagnostico">
+            <span class="btn-acao-icon" aria-hidden="true">🏢</span>
+            <span class="btn-acao-corpo">
+              <span class="btn-acao-titulo">Cadastrar diagnóstico pra alguém</span>
+              <span class="btn-acao-sub">Vendedor com empresa pra avaliar · 8 passos · entra na curadoria</span>
+            </span>
+          </button>
+
+          <button type="button" class="btn-acao" data-acao="pedir-vinculo" disabled>
+            <span class="btn-acao-icon" aria-hidden="true">🔗</span>
+            <span class="btn-acao-corpo">
+              <span class="btn-acao-titulo">Pedir vínculo a código existente</span>
+              <span class="btn-acao-sub">Vincular-se a uma tese ou diagnóstico já cadastrado <span class="btn-acao-badge">Em breve</span></span>
+            </span>
+          </button>
+        </div>
+
+        <div class="aprovado-vinculos">
+          <div class="aprovado-vinculos-titulo">Seus vínculos</div>
+          <div class="aprovado-vinculos-vazio">Nenhum vínculo ainda · cadastre tese ou diagnóstico pra começar.</div>
+        </div>
       </div>
     `;
+
+    // Wire up botões via SocioAcoes (socio-acoes.js)
+    const root = _root;
+    root.querySelectorAll('[data-acao]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const acao = e.currentTarget.getAttribute('data-acao');
+        if (!window.SocioAcoes) {
+          console.warn('[area-socio] SocioAcoes não carregado');
+          return;
+        }
+        if (acao === 'cadastrar-tese') window.SocioAcoes.modalCadastrarTese({ socio });
+        else if (acao === 'cadastrar-diagnostico') window.SocioAcoes.modalCadastrarDiagnostico({ socio });
+        else if (acao === 'pedir-vinculo') window.SocioAcoes.modalPedirVinculo({ socio });
+      });
+    });
   }
 
   function _renderEstado5(socio) {

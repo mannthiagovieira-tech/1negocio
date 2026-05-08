@@ -1,8 +1,5 @@
-// registrar-evento · BLOCO 3 v6 · 1negocio.com.br
+// registrar-evento · BLOCO 3 v6 + V8 B8.12 + V8 B8.13 SUB-BLOCO A + V8 B8.13 SUB-BLOCO B FASE 2 · 1negocio.com.br
 // Registra evento em public.eventos_usuario (schema legado polimórfico)
-// Aceita { tipo, entidade_tipo?, entidade_id?, meta?, duracao_ms? }
-// Server-side popula: usuario_id (JWT) · sessao_id (header) · ip · user_agent
-// Rate limit: 100 req/min por sessao_id (em memória · TTL janela 60s)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -21,9 +18,26 @@ const TIPOS_VALIDOS = new Set([
   "enviar_solicitacao", "cadastrar_tese", "editar_tese",
   "pausar_tese", "ativar_tese", "view_tese_detalhe",
   "login_otp", "logout", "view_perfil_anuncio",
+  // V8 B8.12 · Sócio-Assessor onboarding events
+  "socio_solicitou_cadastro",
+  "socio_aceitou_termo",
+  "socio_subiu_documento",
+  "admin_aprovou_socio",
+  "admin_rejeitou_documento",
+  // V8 B8.13 SUB-BLOCO A · Vínculo + Proprietário
+  "proprietario_aceitou_vinculo",
+  "proprietario_recusou_vinculo",
+  "proprietario_link_expirou",
+  "whatsapp_enviado_proprietario",
+  // V8 B8.13 SUB-BLOCO B FASE 2 · Sócio cadastra terceiro
+  "socio_cadastrou_tese_terceiro",
+  "socio_cadastrou_diag_terceiro",
 ]);
 
-const ENTIDADE_TIPOS_VALIDOS = new Set(["negocio", "tese", "anuncio", "usuario"]);
+const ENTIDADE_TIPOS_VALIDOS = new Set([
+  "negocio", "tese", "anuncio", "usuario", "socio",
+  "vinculo_socio",
+]);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,7 +52,6 @@ function json(data: unknown, status = 200) {
   });
 }
 
-// Rate limit em memória · janela de 60s · 100 req max por sessao_id
 const rateMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_WINDOW_MS = 60_000;
 const RATE_MAX = 100;
@@ -55,7 +68,6 @@ function checkRate(sessao_id: string): boolean {
   return true;
 }
 
-// Limpeza periódica do rate map (impede leak)
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of rateMap.entries()) if (v.resetAt < now) rateMap.delete(k);
