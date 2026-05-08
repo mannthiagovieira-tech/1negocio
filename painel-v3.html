@@ -1238,7 +1238,7 @@ table.t .acoes { white-space: nowrap; }
      ======================================================================== -->
 <div id="login-screen">
   <div class="login-box">
-    <div class="login-logo"><span class="login-logo-mark">1</span>Negócio</div>
+    <a href="/" class="login-logo" aria-label="1Negócio · página inicial" style="text-decoration:none;color:inherit"><span class="login-logo-mark">1</span>Negócio</a>
     <div class="login-sub">PAINEL ADMIN · v3</div>
 
     <div id="login-step-phone">
@@ -1268,7 +1268,7 @@ table.t .acoes { white-space: nowrap; }
     <!-- ──────────── SIDEBAR ──────────── -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-head">
-        <div class="sidebar-logo"><span class="mark">1</span>Negócio</div>
+        <a href="/" class="sidebar-logo" aria-label="1Negócio · página inicial" style="text-decoration:none;color:inherit"><span class="mark">1</span>Negócio</a>
       </div>
 
       <div class="theme-toggle">
@@ -12393,14 +12393,16 @@ window.mmSalvarLote = mmSalvarLote;
       const r = await sbFetch(url.replace(SB,''));
       const lista = Array.isArray(r) ? r : [];
       if (lista.length === 0) { cont.innerHTML = '<div class="pa-empty" style="padding:14px">Sem sócios neste filtro.</div>'; return; }
-      // Buscar nomes/phones dos usuarios via RPC ou public.usuarios
       const ids = lista.map(s => s.usuario_id);
       const usrs = await sbFetch('/rest/v1/usuarios?id=in.(' + ids.join(',') + ')&select=id,nome,whatsapp,email');
       const byId = {}; (usrs || []).forEach(u => { byId[u.id] = u; });
       cont.innerHTML = lista.map(s => {
         const u = byId[s.usuario_id] || {};
         const statusCor = s.status==='aprovado'?'#22c55e':s.status==='aguardando_aprovacao_doc'?'#f5b955':s.status==='suspenso'||s.status==='cancelado'?'#dc2626':'#7a8581';
-        const docUrl = s.documento_url ? (SB + '/storage/v1/object/authenticated/documentos-socios/' + s.documento_url) : null;
+        const wpp = (u.whatsapp || '').replace(/\D/g,'');
+        const wppHtml = wpp
+          ? `<a href="https://wa.me/${wpp}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;font-weight:600" title="Abrir WhatsApp">${escapeHtml(u.whatsapp)} ↗</a>`
+          : '<span class="pa-muted">—</span>';
         let acoes = '';
         if (s.status === 'aguardando_aprovacao_doc') {
           acoes = `<button class="btn btn-mini" onclick="sociosAcao('${s.id}','aprovar')">✓ Aprovar</button>
@@ -12412,33 +12414,126 @@ window.mmSalvarLote = mmSalvarLote;
           acoes = `<button class="btn btn-mini" onclick="sociosAcao('${s.id}','reativar')">▶ Reativar</button>
             <button class="btn btn-mini" onclick="sociosAcao('${s.id}','cancelar')">✗ Cancelar</button>`;
         }
-        const docBtn = docUrl ? `<a href="${docUrl}" target="_blank" class="btn btn-mini" title="Ver documento" style="text-decoration:none">📄 Ver doc</a>` : '<span class="pa-muted">sem doc</span>';
+        const docBtn = s.documento_url
+          ? `<button class="btn btn-mini" onclick="sociosVerDoc('${s.id}','${escapeHtml(s.documento_tipo || '')}')" title="Ver documento (signed URL · 10min)">📄 Ver doc</button>`
+          : '<span class="pa-muted">sem doc</span>';
         const termoTxt = s.termo_assinado_em ? '✓ ' + new Date(s.termo_assinado_em).toLocaleDateString('pt-BR') + ' · ' + (s.termo_versao || 'v?') : '—';
+        const dadosBtn = s.dados_cadastro
+          ? `<button class="btn btn-mini" onclick="sociosToggleDados('${s.id}')" id="btn-dados-${s.id}" style="background:transparent;border:1px dashed var(--line-2)">▾ Ver dados de cadastro</button>`
+          : '<span class="pa-muted" style="font-size:10px">cadastro antigo · sem perguntas</span>';
+        const dadosBox = s.dados_cadastro
+          ? `<div id="dados-${s.id}" style="display:none;margin-top:10px;padding:14px 16px;background:var(--surface-2,#f7f7f5);border-radius:10px;border:1px solid var(--line)">${sociosRenderDados(s.dados_cadastro)}</div>`
+          : '';
         return `
         <div style="border:1px solid var(--accent-line);border-radius:var(--r2);padding:14px 16px;background:var(--surface);margin-bottom:10px">
           <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">
             <div>
               <div style="font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--accent);font-weight:600">${escapeHtml(s.codigo || 'S-???? (sem código)')}</div>
               <div style="font-weight:600;font-size:14px;margin-top:3px">${escapeHtml(u.nome || '—')}</div>
-              <div class="pa-muted" style="font-size:11px;margin-top:2px">${escapeHtml(u.whatsapp || '—')} · ${escapeHtml(u.email || '—')}</div>
+              <div class="pa-muted" style="font-size:11px;margin-top:2px">${wppHtml} · ${escapeHtml(u.email || '—')}</div>
             </div>
             <div style="text-align:right">
               <div style="font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:${statusCor};font-weight:700;text-transform:uppercase">${escapeHtml(s.status)}</div>
               <div class="pa-muted" style="font-size:10px;margin-top:3px">criado ${new Date(s.created_at).toLocaleDateString('pt-BR')}</div>
             </div>
           </div>
-          <div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-size:11px">
+          <div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-size:11px;align-items:center">
             <div><span class="pa-muted">Termo:</span> ${termoTxt}</div>
             <div><span class="pa-muted">Doc tipo:</span> ${escapeHtml(s.documento_tipo || '—')}</div>
             <div>${docBtn}</div>
             <div><span class="pa-muted">Cat. teses:</span> ${s.acesso_catalogo_teses?'✓':'—'}</div>
+            <div>${dadosBtn}</div>
           </div>
+          ${dadosBox}
           ${s.notas_admin ? `<div style="margin-top:8px;padding:8px 10px;background:var(--surface-2,#f7f7f5);border-radius:8px;font-size:11px;color:var(--ink-3)">Nota: ${escapeHtml(s.notas_admin)}</div>` : ''}
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${acoes}</div>
         </div>`;
       }).join('');
     } catch(e) {
       cont.innerHTML = '<div class="pa-empty" style="padding:14px;color:#dc2626">Erro: ' + escapeHtml(e.message || '?') + '</div>';
+    }
+  }
+
+  // V8 B8 P3 · render JSONB dados_cadastro como key/value enxuto
+  function sociosRenderDados(d) {
+    if (!d || typeof d !== 'object') return '<div class="pa-muted">sem dados</div>';
+    const labels = {
+      nome: 'Nome', whatsapp: 'WhatsApp', email: 'E-mail',
+      cidade: 'Cidade', estado: 'UF', profissao: 'Profissão',
+      tempo_atuacao: 'Tempo de atuação', parceiro_outras_plataformas: 'Outras plataformas',
+      carteira: 'Carteira atual', setores: 'Setores', disponibilidade: 'Disponibilidade',
+      motivacao: 'Motivação',
+    };
+    const ordem = ['nome','whatsapp','email','cidade','estado','profissao','tempo_atuacao','parceiro_outras_plataformas','carteira','setores','disponibilidade','motivacao'];
+    const linhas = ordem.filter(k => d[k] != null && d[k] !== '').map(k => {
+      const val = Array.isArray(d[k]) ? (d[k].length ? d[k].join(' · ') : '—') : String(d[k]);
+      const wide = (k === 'carteira' || k === 'motivacao' || (k==='setores' && Array.isArray(d[k]) && d[k].length>3));
+      return `<div style="display:${wide?'block':'flex'};gap:10px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:12px">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);min-width:130px">${escapeHtml(labels[k] || k)}</div>
+        <div style="color:var(--ink-2);line-height:1.5;${wide?'margin-top:4px':''}">${escapeHtml(val)}</div>
+      </div>`;
+    }).join('');
+    return linhas || '<div class="pa-muted">sem dados</div>';
+  }
+
+  function sociosToggleDados(id) {
+    const box = document.getElementById('dados-' + id);
+    const btn = document.getElementById('btn-dados-' + id);
+    if (!box) return;
+    const open = box.style.display !== 'none';
+    box.style.display = open ? 'none' : 'block';
+    if (btn) btn.textContent = (open ? '▾' : '▴') + ' Ver dados de cadastro';
+  }
+
+  // V8 B8 P3 · Modal Ver doc · gera signed URL via edge function e renderiza img/iframe
+  async function sociosVerDoc(socio_id, tipo) {
+    let overlay = document.getElementById('socios-doc-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'socios-doc-overlay';
+      overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(10,15,12,.7);z-index:300;align-items:center;justify-content:center;padding:24px';
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.style.display='none'; };
+      overlay.innerHTML = `
+        <div style="width:100%;max-width:900px;max-height:92vh;background:var(--surface);border-radius:18px;border:1px solid var(--line);box-shadow:0 30px 80px -20px rgba(0,0,0,.5);overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <div>
+              <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)">Documento do sócio</div>
+              <div id="socios-doc-titulo" style="font-weight:700;font-size:15px;margin-top:2px">—</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <a id="socios-doc-link" href="#" target="_blank" rel="noopener" class="btn btn-mini" style="text-decoration:none">↗ Abrir em nova aba</a>
+              <button class="btn btn-mini" onclick="document.getElementById('socios-doc-overlay').style.display='none'">✕ Fechar</button>
+            </div>
+          </div>
+          <div id="socios-doc-body" style="flex:1;overflow:auto;background:#000;display:flex;align-items:center;justify-content:center"><div style="color:#fff;font-family:var(--mono);font-size:12px;padding:20px">carregando...</div></div>
+        </div>`;
+      document.body.appendChild(overlay);
+    }
+    overlay.style.display = 'flex';
+    document.getElementById('socios-doc-titulo').textContent = (tipo || 'documento').toUpperCase();
+    const body = document.getElementById('socios-doc-body');
+    body.innerHTML = '<div style="color:#fff;font-family:var(--mono);font-size:12px;padding:20px">gerando link seguro...</div>';
+    try {
+      const r = await fetch(SB + '/functions/v1/admin-aprovar-doc-socio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) },
+        body: JSON.stringify({ socio_id, acao: 'signed_url' }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data.ok || !data.signed_url) {
+        body.innerHTML = '<div style="color:#fff;font-family:var(--mono);font-size:12px;padding:20px">Erro: ' + escapeHtml(data.erro || ('http_' + r.status)) + '</div>';
+        return;
+      }
+      const url = data.signed_url;
+      document.getElementById('socios-doc-link').href = url;
+      const isPdf = (data.tipo === 'pdf') || (data.path || '').toLowerCase().endsWith('.pdf');
+      if (isPdf) {
+        body.innerHTML = '<iframe src="' + url + '" style="width:100%;height:78vh;border:0;background:#fff"></iframe>';
+      } else {
+        body.innerHTML = '<img src="' + url + '" alt="documento" style="max-width:100%;max-height:78vh;display:block">';
+      }
+    } catch (e) {
+      body.innerHTML = '<div style="color:#fff;font-family:var(--mono);font-size:12px;padding:20px">Erro de rede: ' + escapeHtml(e.message || '?') + '</div>';
     }
   }
   function sociosFiltrar(f) {
@@ -12466,6 +12561,8 @@ window.mmSalvarLote = mmSalvarLote;
   window.sociosInit = sociosInit;
   window.sociosFiltrar = sociosFiltrar;
   window.sociosAcao = sociosAcao;
+  window.sociosToggleDados = sociosToggleDados;
+  window.sociosVerDoc = sociosVerDoc;
 </script>
 </body>
 </html>

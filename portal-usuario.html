@@ -879,9 +879,9 @@
 <!-- ═══════════════════ AUTH ═══════════════════ -->
 <div class="auth-wrap" id="auth-screen" style="display:none">
   <div class="auth-card">
-    <div class="auth-logo">
+    <a href="/" class="auth-logo" aria-label="1Negócio · página inicial" style="text-decoration:none;color:inherit">
       <span class="one">1</span><span class="rest">NEGÓCIO</span>
-    </div>
+    </a>
 
     <!-- Bloco 1: inicial -->
     <div id="bloco-inicial">
@@ -959,9 +959,9 @@
 <!-- ═══════════════════ APP SHELL ═══════════════════ -->
 <div class="app-shell" id="app-screen">
   <div class="topbar">
-    <div class="logo">
+    <a href="/" class="logo" aria-label="1Negócio · página inicial" style="text-decoration:none">
       <span class="one">1</span><span class="rest">NEGÓCIO</span>
-    </div>
+    </a>
     <div class="actions">
       <div class="greet">Olá, <strong id="user-nome-top">—</strong></div>
       <button class="btn-exit" onclick="logout()">Sair</button>
@@ -1409,73 +1409,61 @@ async function carregarTudo() {
   const uid = session.user_id;
   const nowIso = new Date().toISOString();
 
+  // V8 B8 P1 · usa afetch (V8 B3 zerou authHeaders → 401 silencioso → portal vazio)
   const [negocios, solInfos, termos, docsV2, teses, favs, anunciosV2, salvosTeses] = await Promise.all([
-    fetch(SUPABASE_URL + '/rest/v1/negocios'
+    afetch(SUPABASE_URL + '/rest/v1/negocios'
       + '?vendedor_id=eq.' + uid
       + '&select=id,slug,tag,codigo,codigo_anuncio,codigo_diagnostico,nome,setor,categoria,cidade,estado,status,faturamento_anual,preco_pedido,avaliacao_min,avaliacao_max,score_saude,laudo_pago_liberado,laudo_html,plano,created_at,publicado_em,funil_impressoes,funil_visualizacoes,funil_cliques,funil_salvamentos,funil_compartilhamentos,rascunho_iniciado_em'
-      + '&order=created_at.desc',
-      { headers: authHeaders() }
+      + '&order=created_at.desc'
     ).then(r => r.ok ? r.json() : []).catch(() => []),
 
-    fetch(SUPABASE_URL + '/rest/v1/solicitacoes_info'
+    afetch(SUPABASE_URL + '/rest/v1/solicitacoes_info'
       + '?comprador_id=eq.' + uid
       + '&select=id,negocio_id,status,liberado_em,liberado_ate,nivel,created_at,msg_comprador,teses_atreladas'
-      + '&order=created_at.desc',
-      { headers: authHeaders() }
+      + '&order=created_at.desc'
     ).then(r => r.ok ? r.json() : []).catch(() => []),
 
-    fetch(SUPABASE_URL + '/rest/v1/nda_assinaturas'
+    afetch(SUPABASE_URL + '/rest/v1/nda_assinaturas'
       + '?usuario_id=eq.' + uid
       + '&select=id,negocio_id,tipo_termo,doc_url,doc_nome,assinado_em,solicitacao_id,nda_solicitacao_id'
-      + '&order=assinado_em.desc',
-      { headers: authHeaders() }
+      + '&order=assinado_em.desc'
     ).then(r => r.ok ? r.json() : []).catch(() => []),
 
-    // Termos de adesão v2 (vendedor) + NDAs v2 (comprador) · sistema novo
     Promise.all([
-      fetch(SUPABASE_URL + '/rest/v1/termos_adesao'
+      afetch(SUPABASE_URL + '/rest/v1/termos_adesao'
         + '?vendedor_id=eq.' + uid
         + '&select=id,codigo,plano,status,gerado_em,assinatura_em,link_token,negocio_id'
-        + '&order=gerado_em.desc.nullslast,abertura_em.desc',
-        { headers: authHeaders() }
+        + '&order=gerado_em.desc.nullslast,abertura_em.desc'
       ).then(r => r.ok ? r.json() : []).catch(() => []),
-      fetch(SUPABASE_URL + '/rest/v1/nda_solicitacoes'
+      afetch(SUPABASE_URL + '/rest/v1/nda_solicitacoes'
         + '?usuario_id=eq.' + uid
         + '&select=id,codigo,status,gerado_em,assinado_em,token,negocio_id'
-        + '&order=gerado_em.desc.nullslast,created_at.desc',
-        { headers: authHeaders() }
+        + '&order=gerado_em.desc.nullslast,created_at.desc'
       ).then(r => r.ok ? r.json() : []).catch(() => [])
     ]).then(([t,n]) => ({termos:t, ndas:n})).catch(() => ({termos:[],ndas:[]})),
 
-    fetch(SUPABASE_URL + '/rest/v1/teses_investimento'
+    afetch(SUPABASE_URL + '/rest/v1/teses_investimento'
       + '?usuario_id=eq.' + uid
       + '&select=id,codigo,tese_descricao,valor_investimento,setores,formas_atuacao,cidade,estado,status,created_at'
-      + '&order=created_at.desc',
-      { headers: authHeaders() }
+      + '&order=created_at.desc'
     ).then(r => r.ok ? r.json() : []).catch(() => []),
 
-    fetch(SUPABASE_URL + '/rest/v1/negocios_salvos'
+    afetch(SUPABASE_URL + '/rest/v1/negocios_salvos'
       + '?usuario_id=eq.' + uid
       + '&select=id,negocio_id,salvo_em,notas'
-      + '&order=salvo_em.desc',
-      { headers: authHeaders() }
+      + '&order=salvo_em.desc'
     ).then(r => r.ok ? r.json() : []).catch(() => []),
 
-    // FIX 5 — busca anuncios_v2 do vendedor pra calcular status efetivo
-    // Adicionado textos_negocio pro card de solicitação espelhar título da home
-    fetch(SUPABASE_URL + '/rest/v1/anuncios_v2'
+    afetch(SUPABASE_URL + '/rest/v1/anuncios_v2'
       + '?vendedor_id=eq.' + uid
       + '&select=id,codigo,negocio_id,status,publicado_em,titulo,valor_pedido,textos_negocio'
-      + '&order=publicado_em.desc.nullslast',
-      { headers: authHeaders() }
+      + '&order=publicado_em.desc.nullslast'
     ).then(r => r.ok ? r.json() : []).catch(() => []),
 
-    // F4B v6 · view cruzada negocios_salvos × negocios_salvos_teses × negocios
-    fetch(SUPABASE_URL + '/rest/v1/negocios_salvos_por_tese'
+    afetch(SUPABASE_URL + '/rest/v1/negocios_salvos_por_tese'
       + '?usuario_id=eq.' + uid
       + '&select=*'
-      + '&order=salvo_em.desc',
-      { headers: authHeaders() }
+      + '&order=salvo_em.desc'
     ).then(r => r.ok ? r.json() : []).catch(() => [])
   ]);
 

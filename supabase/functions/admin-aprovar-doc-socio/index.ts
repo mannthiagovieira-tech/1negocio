@@ -50,12 +50,22 @@ Deno.serve(async (req: Request) => {
   const socio_id = String(body?.socio_id || "").trim();
   const acao = String(body?.acao || "").trim();
   const notas = (body?.notas != null ? String(body.notas) : null) || null;
-  if (!socio_id || !["aprovar", "negar", "suspender", "cancelar", "reativar"].includes(acao)) {
+  if (!socio_id || !["aprovar", "negar", "suspender", "cancelar", "reativar", "signed_url"].includes(acao)) {
     return json({ ok: false, erro: "params_invalidos" }, 400);
   }
 
   const { data: socio, error: errFetch } = await adminClient.from("socios").select("*").eq("id", socio_id).single();
   if (errFetch || !socio) return json({ ok: false, erro: "socio_nao_encontrado" }, 404);
+
+  // V8 B8 P3 · gera signed URL pro admin visualizar documento privado
+  if (acao === "signed_url") {
+    if (!socio.documento_url) return json({ ok: false, erro: "sem_documento" }, 404);
+    const { data: signed, error: errSign } = await adminClient.storage
+      .from("documentos-socios")
+      .createSignedUrl(socio.documento_url, 600);
+    if (errSign || !signed?.signedUrl) return json({ ok: false, erro: "signed_url_falhou: " + (errSign?.message || "?") }, 500);
+    return json({ ok: true, signed_url: signed.signedUrl, path: socio.documento_url, tipo: socio.documento_tipo });
+  }
 
   const updates: any = { updated_at: new Date().toISOString() };
   if (notas) updates.notas_admin = notas;
