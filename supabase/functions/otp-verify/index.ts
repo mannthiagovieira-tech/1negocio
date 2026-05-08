@@ -157,13 +157,18 @@ Deno.serve(async (req: Request) => {
              }
 
              const existingUser = userRows?.[0] ?? null;
+             let usuarioNovo = false;
+             let temNome = false;
 
              if (existingUser) {
                        const currentNome = existingUser.raw_user_meta_data?.nome;
+                       temNome = !!(currentNome && String(currentNome).trim().length > 1
+                                   && currentNome !== existingUser.phone);
                        if (nome && nome !== currentNome) {
                                    await adminClient.auth.admin.updateUserById(existingUser.id, {
                                                  user_metadata: { ...existingUser.raw_user_meta_data, nome },
                                    });
+                                   temNome = true;
                        }
              } else {
                        // LAZY MIGRATION · auth.user existente so-email · adicionar phone preservando id
@@ -195,19 +200,22 @@ Deno.serve(async (req: Request) => {
                                    }
 
                                    console.log(`Lazy migration: ${legacyUserRow.email} -> phone ${phoneComPlus}`);
+                                   temNome = !!(nome && String(nome).trim().length > 1);
                        } else {
                                    // Usuario realmente novo · cria do zero
                                    const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
                                                  phone: phoneComPlus,
                                                  password: syntheticPassword,
                                                  phone_confirm: true,
-                                                 user_metadata: { nome: nome || phoneComPlus },
+                                                 user_metadata: nome ? { nome } : {},
                                    });
 
                                    if (createErr || !newUser?.user) {
                                                  console.error("[otp-verify] Erro ao criar user:", createErr);
                                                  return json({ ok: false, error: "Erro ao criar conta" }, 500);
                                    }
+                                   usuarioNovo = true;
+                                   temNome = !!(nome && String(nome).trim().length > 1);
                        }
              }
 
@@ -240,5 +248,7 @@ Deno.serve(async (req: Request) => {
                        refresh_token: sessionData.session.refresh_token,
                        user_id: sessionData.user.id,
                        is_admin,
+                       usuario_novo: usuarioNovo,
+                       tem_nome: temNome,
              });
 });

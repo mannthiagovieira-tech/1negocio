@@ -17,6 +17,7 @@ const TIPOS_VALIDOS = new Set([
   "termo_sigilo_assinado",
   "view_card_negocio", "click_card_negocio", "view_negocio_detalhe",
   "salvar_negocio", "remover_salvo", "abrir_modal_solicitar", "abrir_modal_salvar",
+  "iniciar_otp_salvar", "completar_otp_salvar", "criar_conta_salvar",
   "enviar_solicitacao", "cadastrar_tese", "editar_tese",
   "pausar_tese", "ativar_tese", "view_tese_detalhe",
   "login_otp", "logout", "view_perfil_anuncio",

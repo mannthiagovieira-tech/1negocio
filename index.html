@@ -2854,7 +2854,9 @@ function _negocioUuidTopCard(){
 async function salvarTopCard(){
   const uuid = _negocioUuidTopCard();
   if (!uuid || !window.SET) return;
-  await window.SET.abrir(uuid, () => atualizarBotaoSalvarTop());
+  const deal = state.filtered.find(x => String(x.uuid || x.id) === String(uuid)) || state.filtered[state.idx] || {};
+  const nome = deal.nome || deal.title || deal.t || deal.tipo_negocio || deal.id || '';
+  await window.SET.abrir(uuid, nome, () => atualizarBotaoSalvarTop());
 }
 
 async function atualizarBotaoSalvarTop(){
@@ -4499,15 +4501,14 @@ window.addEventListener('resize', ()=>{
           } catch {}
           return null;
         },
-        registrarEvento: window.registrarEvento || (() => {}),
-        otpAbrir: (cb) => {
-          // Reusa modal de Solicitar info pra disparar OTP · após login completo, retoma
-          if (typeof window.openReqModal === 'function') {
-            window._setPendenciaPosLogin = cb;
-            const uuid = (typeof _negocioUuidTopCard === 'function') ? _negocioUuidTopCard() : null;
-            if (uuid) window.openReqModal(uuid);
-          } else if (cb) cb();
+        setSession: (s) => {
+          try {
+            const cur = JSON.parse(localStorage.getItem('1n_auth') || '{}');
+            const merged = Object.assign({}, cur, s);
+            localStorage.setItem('1n_auth', JSON.stringify(merged));
+          } catch {}
         },
+        registrarEvento: window.registrarEvento || (() => {}),
       });
     }
     _waitAndConfig();
