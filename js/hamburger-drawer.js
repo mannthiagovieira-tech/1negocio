@@ -113,7 +113,7 @@
         <button class="sheet-close" type="button" aria-label="Fechar">✕</button>
       </div>
       <div class="drawer-body">
-        <a class="drawer-link enter" id="drawer-auth-link" href="/auth.html">
+        <a class="drawer-link enter" id="drawer-auth-link" href="/portal-usuario.html">
           <div class="drawer-avatar" id="drawer-avatar" style="display:none"></div>
           <div>
             <div class="drawer-link-t" id="drawer-auth-t">ENTRAR</div>

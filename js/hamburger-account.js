@@ -2,7 +2,7 @@
 // Card "ENTRAR" dinâmico do menu hamburger · reusa em qualquer página
 // que tenha o markup padrão do drawer:
 //
-//   <a class="drawer-link enter" id="drawer-auth-link" href="/auth.html">
+//   <a class="drawer-link enter" id="drawer-auth-link" href="/portal-usuario.html">
 //     <div class="drawer-avatar" id="drawer-avatar" style="display:none"></div>
 //     <div>
 //       <div class="drawer-link-t" id="drawer-auth-t">ENTRAR</div>
@@ -139,7 +139,7 @@
     const s = document.getElementById('drawer-auth-s');
     const out = document.getElementById('drawer-signout');
     if (!link || !t || !s) return; // página sem markup do drawer · noop
-    link.setAttribute('href', '/auth.html');
+    link.setAttribute('href', '/portal-usuario.html');
     link.classList.remove('logged');
     if (av) av.style.display = 'none';
     t.textContent = 'ENTRAR';
