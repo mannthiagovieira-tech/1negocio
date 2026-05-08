@@ -21,6 +21,21 @@
 
   const cache = new Map();
 
+  // Helper: usa window.OneN.auth.authFetch quando disponível (V8 BLOCO 2 · refresh automático)
+  // Fallback pra fetch puro se script não carregou (graceful degradation)
+  function _af(url, opts) {
+    if (window.OneN && window.OneN.auth && window.OneN.auth.authFetch) {
+      return window.OneN.auth.authFetch(url, opts);
+    }
+    return fetch(url, opts);
+  }
+  function _getSessionEffective() {
+    if (window.OneN && window.OneN.auth && window.OneN.auth.getSession) {
+      return window.OneN.auth.getSession();
+    }
+    return cfg.getSession ? cfg.getSession() : null;
+  }
+
   // ───── HELPERS ─────
   const $ = (s, root) => (root || document).querySelector(s);
   const _h = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -35,12 +50,12 @@
   }
 
   async function _rpcEstado(neg_id, sess) {
-    if (!sess || !sess.token || !sess.user_id) return null;
+    if (!sess || !sess.user_id) return null;
     try {
       const url = cfg.supabaseUrl + '/rest/v1/rpc/negocio_salvo_status';
-      const r = await fetch(url, {
+      const r = await _af(url, {
         method: 'POST',
-        headers: _headers(sess.token),
+        headers: { 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
         body: JSON.stringify({ p_user_id: sess.user_id, p_negocio_id: neg_id }),
       });
       if (!r.ok) return null;
@@ -50,14 +65,14 @@
   }
 
   async function _carregarTeses(sess) {
-    if (!sess || !sess.token || !sess.user_id) return [];
+    if (!sess || !sess.user_id) return [];
     try {
       const url = cfg.supabaseUrl + '/rest/v1/teses_investimento'
         + '?usuario_id=eq.' + sess.user_id
         + '&status=eq.ativa'
         + '&select=id,codigo,titulo,descricao_curta'
         + '&order=criado_em.desc&limit=50';
-      const r = await fetch(url, { headers: _headers(sess.token) });
+      const r = await _af(url, { headers: { 'Content-Type': 'application/json' } });
       if (!r.ok) return [];
       return await r.json();
     } catch { return []; }
@@ -65,8 +80,8 @@
 
   // ───── PUBLIC API ─────
   async function estado(negocio_id) {
-    const sess = cfg.getSession ? cfg.getSession() : null;
-    if (!sess) {
+    const sess = _getSessionEffective();
+    if (!sess || !sess.user_id) {
       cache.set(negocio_id, { esta_salvo: false });
       return { esta_salvo: false };
     }
@@ -179,13 +194,17 @@
   // ───── ABRIR ─────
   async function abrir(negocio_id, nome_negocio, onSaved) {
     _injetarModal();
-    const sess = cfg.getSession ? cfg.getSession() : null;
+    let sess = _getSessionEffective();
+    // Se há OneN.auth · forçar refresh proativo se expirado (impede modal abrir com token zumbi)
+    if (sess && window.OneN && window.OneN.auth && window.OneN.auth.ensureFreshSession) {
+      sess = await window.OneN.auth.ensureFreshSession();
+    }
     _ctx = { negocio_id, nome_negocio: _truncate(nome_negocio, 80), sess, teses: [], estadoAtual: { esta_salvo: false, teses: [], salvar_avulso: false, notas: '' }, onSaved, tela: null };
 
     $('#set-sub-neg').innerHTML = '<em>' + _h(_ctx.nome_negocio) + '</em>';
     $('#set-overlay').classList.add('open');
 
-    if (sess && sess.token && sess.user_id) {
+    if (sess && sess.user_id) {
       try { cfg.registrarEvento && cfg.registrarEvento('abrir_modal_salvar', { entidade_tipo: 'negocio', entidade_id: negocio_id }); } catch {}
       await _abrirTelaTese();
     } else {
@@ -236,7 +255,7 @@
     try {
       const r = await fetch(cfg.supabaseUrl + '/functions/v1/otp-send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': cfg.supabaseAnon, 'Authorization': 'Bearer ' + cfg.supabaseAnon },
+        headers: { 'Content-Type': 'application/json', 'apikey': cfg.supabaseAnon },
         body: JSON.stringify({ whatsapp: phoneSemPlus }),
       });
       const data = await r.json();
@@ -283,19 +302,27 @@
     try {
       const r = await fetch(cfg.supabaseUrl + '/functions/v1/otp-verify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': cfg.supabaseAnon, 'Authorization': 'Bearer ' + cfg.supabaseAnon },
+        headers: { 'Content-Type': 'application/json', 'apikey': cfg.supabaseAnon },
         body: JSON.stringify({ whatsapp: _ctx.phoneSemPlus, codigo }),
       });
       const data = await r.json();
       if (!r.ok || !data.ok) { err.textContent = data.error || 'Código incorreto.'; btn.disabled = false; btn.textContent = 'Validar'; return; }
-      // Persiste session
+      // Persiste session via OneN.auth (fonte única) com fallback no cfg.setSession antigo
       const novaSess = {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
         token: data.access_token,
         refresh: data.refresh_token,
         user_id: data.user_id,
+        expires_at: data.expires_at,
+        is_admin: !!data.is_admin,
         whatsapp: _ctx.phoneSemPlus,
       };
-      try { cfg.setSession && cfg.setSession(novaSess); } catch {}
+      if (window.OneN && window.OneN.auth && window.OneN.auth.setSession) {
+        window.OneN.auth.setSession(novaSess);
+      } else {
+        try { cfg.setSession && cfg.setSession(novaSess); } catch {}
+      }
       _ctx.sess = novaSess;
       try { cfg.registrarEvento && cfg.registrarEvento('completar_otp_salvar', { entidade_tipo: 'negocio', entidade_id: _ctx.negocio_id, usuario_novo: !!data.usuario_novo }); } catch {}
 
@@ -342,11 +369,10 @@
     err.textContent = '';
     const btn = $('#set-submit'); btn.disabled = true; btn.textContent = 'Salvando...';
     try {
-      // Re-chama otp-verify só pra atualizar nome via metadata · ele faz updateUserById quando nome difere
-      // Alternativa mais limpa: chamar direto via PATCH /auth/v1/user com Bearer do user
-      const r = await fetch(cfg.supabaseUrl + '/auth/v1/user', {
+      // PUT /auth/v1/user · authFetch garante token fresco
+      const r = await _af(cfg.supabaseUrl + '/auth/v1/user', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'apikey': cfg.supabaseAnon, 'Authorization': 'Bearer ' + _ctx.sess.token },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ data: { nome } }),
       });
       if (!r.ok) {
@@ -459,8 +485,8 @@
     try {
       let salvo_id = _ctx.estadoAtual.salvo_id;
       if (removerInteiro && salvo_id) {
-        await fetch(cfg.supabaseUrl + '/rest/v1/negocios_salvos?id=eq.' + salvo_id, {
-          method: 'DELETE', headers: _headers(sess.token),
+        await _af(cfg.supabaseUrl + '/rest/v1/negocios_salvos?id=eq.' + salvo_id, {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
         });
         try { cfg.registrarEvento && cfg.registrarEvento('remover_salvo', { entidade_tipo: 'negocio', entidade_id: _ctx.negocio_id }); } catch {}
         cache.delete(_ctx.negocio_id);
@@ -471,17 +497,20 @@
       }
 
       if (!salvo_id) {
-        const r = await fetch(cfg.supabaseUrl + '/rest/v1/negocios_salvos?on_conflict=usuario_id,negocio_id', {
+        const r = await _af(cfg.supabaseUrl + '/rest/v1/negocios_salvos?on_conflict=usuario_id,negocio_id', {
           method: 'POST',
-          headers: { ..._headers(sess.token), 'Prefer': 'return=representation,resolution=merge-duplicates' },
+          headers: { 'Content-Type': 'application/json', 'Prefer': 'return=representation,resolution=merge-duplicates' },
           body: JSON.stringify({ usuario_id: sess.user_id, negocio_id: _ctx.negocio_id, notas }),
         });
-        if (!r.ok) throw new Error('insert ' + r.status);
+        if (!r.ok) {
+          const txt = await r.text().catch(() => '');
+          throw new Error('insert ' + r.status + (txt ? ': ' + txt.slice(0, 120) : ''));
+        }
         const arr = await r.json();
         salvo_id = arr[0] && arr[0].id;
       } else {
-        await fetch(cfg.supabaseUrl + '/rest/v1/negocios_salvos?id=eq.' + salvo_id, {
-          method: 'PATCH', headers: _headers(sess.token),
+        await _af(cfg.supabaseUrl + '/rest/v1/negocios_salvos?id=eq.' + salvo_id, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ notas }),
         });
       }
@@ -489,15 +518,15 @@
       const novas = teses_marcadas.filter(t => !teses_atuais.has(t));
       if (novas.length > 0) {
         const rows = novas.map(t => ({ negocio_salvo_id: salvo_id, tese_id: t }));
-        await fetch(cfg.supabaseUrl + '/rest/v1/negocios_salvos_teses', {
-          method: 'POST', headers: _headers(sess.token),
+        await _af(cfg.supabaseUrl + '/rest/v1/negocios_salvos_teses', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(rows),
         });
       }
       const remover = [...teses_atuais].filter(t => !teses_marcadas.includes(t));
       for (const t of remover) {
-        await fetch(cfg.supabaseUrl + '/rest/v1/negocios_salvos_teses?negocio_salvo_id=eq.' + salvo_id + '&tese_id=eq.' + t, {
-          method: 'DELETE', headers: _headers(sess.token),
+        await _af(cfg.supabaseUrl + '/rest/v1/negocios_salvos_teses?negocio_salvo_id=eq.' + salvo_id + '&tese_id=eq.' + t, {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
         });
       }
 
