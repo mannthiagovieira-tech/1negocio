@@ -288,6 +288,7 @@ function contatoFields(comprador: Contato | null, vendedor: Contato | null) {
   return {
     comprador_phone: comprador?.phone ?? null,
     comprador_nome: comprador?.nome ?? null,
+    comprador_eh_seed: comprador?.eh_seed ?? false,
     vendedor_phone: vendedor?.phone ?? null,
     vendedor_nome: vendedor?.nome ?? null,
     vendedor_eh_seed: vendedor?.eh_seed ?? false,

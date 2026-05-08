@@ -249,6 +249,7 @@ async function rodarBatch(execId: string, iniciado_por: string | null) {
             origem: "cron_semanal", cron_execucao_id: execId, status: "pendente",
             comprador_phone: comprador?.phone ?? null,
             comprador_nome: comprador?.nome ?? null,
+            comprador_eh_seed: comprador?.eh_seed ?? false,
             vendedor_phone: vendedor?.phone ?? null,
             vendedor_nome: vendedor?.nome ?? null,
             vendedor_eh_seed: vendedor?.eh_seed ?? false,
