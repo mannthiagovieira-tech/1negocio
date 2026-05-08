@@ -497,6 +497,9 @@ body.has-cta-flutuante{padding-bottom:130px}
       <button class="icon-btn" id="btn-theme" aria-label="Alternar tema" title="Alternar tema">
         <svg viewBox="0 0 24 24" id="icon-theme"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
       </button>
+      <button class="icon-btn" id="btn-salvar-neg" aria-label="Salvar em tese" title="Salvar em tese" onclick="salvarNegocioPagina()">
+        <svg id="ico-salvar-neg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      </button>
       <button class="icon-btn" id="btn-share" aria-label="Compartilhar" title="Compartilhar">
         <svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
       </button>
@@ -611,7 +614,7 @@ async function init(){
 
   try{
     const [rNeg,rLaudo]=await Promise.all([
-      fetch(SUPABASE_URL+'/rest/v1/negocios?id=eq.'+ANUNCIO.negocio_id+'&select=id,nome,categoria,subcategoria,cidade,estado,setor,faturamento_anual,publicado_em,created_at,codigo_diagnostico,titulo_anuncio',{headers:H}),
+      fetch(SUPABASE_URL+'/rest/v1/negocios?id=eq.'+ANUNCIO.negocio_id+'&select=id,nome,categoria,subcategoria,cidade,estado,setor,faturamento_anual,publicado_em,created_at,codigo_diagnostico,titulo_anuncio,vendedor_id',{headers:H}),
       fetch(SUPABASE_URL+'/rest/v1/laudos_v2?id=eq.'+ANUNCIO.laudo_v2_id+'&select=calc_json,criado_em',{headers:H})
     ]);
     const negArr=await rNeg.json();
@@ -621,6 +624,25 @@ async function init(){
     console.log('[negocio.html] lauArr:', lauArr);
     if(!Array.isArray(negArr)||negArr.length===0) return showError('Negócio não encontrado','Verifique o link.');
     NEG=negArr[0];
+    // V8 BLOCO 3 · resolver telefone do contato (vendedor real OU consultor 1Negócio se seed/sem fone)
+    window.TELCONTATO_FALLBACK = '5511952136406'; // consultor Venda Assessorada
+    window.TELCONTATO = window.TELCONTATO_FALLBACK;
+    try {
+      if (NEG.vendedor_id) {
+        const r = await fetch(SUPABASE_URL+'/rest/v1/rpc/get_user_contato', {
+          method:'POST',
+          headers:{ ...H, 'Content-Type':'application/json' },
+          body: JSON.stringify({ p_user_id: NEG.vendedor_id })
+        });
+        if (r.ok) {
+          const arr = await r.json();
+          const c = Array.isArray(arr) ? arr[0] : null;
+          if (c && c.phone && !c.eh_seed) {
+            window.TELCONTATO = String(c.phone).replace(/\D/g,'');
+          }
+        }
+      }
+    } catch(e) { console.warn('TELCONTATO fallback:', e); }
     if(Array.isArray(lauArr)&&lauArr[0]&&lauArr[0].calc_json){
       CALC=lauArr[0].calc_json;
       if(SESSION) await verificarAcessoC3(NEG.id);
@@ -2249,13 +2271,13 @@ function renderAbaPrivadoLiberada(acesso){
         <h3>Vamos avançar?</h3>
         <p>Você pode tirar dúvidas, pedir esclarecimentos ou iniciar a negociação direto com o sócio responsável pelo negócio. Tudo registrado, tudo seguro.</p>
         <div class="grid">
-          <a class="btn" href="https://wa.me/5548999279320?text=${encodeURIComponent('Olá, tenho dúvidas sobre o negócio ' + codigo + '.')}" target="_blank" rel="noopener">
+          <a class="btn" href="https://wa.me/${window.TELCONTATO||'5511952136406'}?text=${encodeURIComponent('Olá, tenho dúvidas sobre o negócio ' + codigo + '.')}" target="_blank" rel="noopener">
             <span class="icon">💬</span><span class="label">Tirar dúvidas</span>
           </a>
-          <a class="btn" href="https://wa.me/5548999279320?text=${encodeURIComponent('Olá, gostaria de esclarecimentos sobre o negócio ' + codigo + '.')}" target="_blank" rel="noopener">
+          <a class="btn" href="https://wa.me/${window.TELCONTATO||'5511952136406'}?text=${encodeURIComponent('Olá, gostaria de esclarecimentos sobre o negócio ' + codigo + '.')}" target="_blank" rel="noopener">
             <span class="icon">📋</span><span class="label">Pedir esclarecimentos</span>
           </a>
-          <a class="btn primary" href="https://wa.me/5548999279320?text=${encodeURIComponent('Olá, tenho interesse em negociar o negócio ' + codigo + '.')}" target="_blank" rel="noopener">
+          <a class="btn primary" href="https://wa.me/${window.TELCONTATO||'5511952136406'}?text=${encodeURIComponent('Olá, tenho interesse em negociar o negócio ' + codigo + '.')}" target="_blank" rel="noopener">
             <span class="icon">🤝</span><span class="label">Iniciar negociação</span>
           </a>
         </div>
@@ -2318,8 +2340,8 @@ function inicializarTabs(){
       const pair = document.createElement('div');
       pair.className = 'footer-cta-pair';
       pair.innerHTML =
-        '<a class="footer-cta-btn outline" href="https://wa.me/5548999279320?text=' + msgDuvidas + '" target="_blank" rel="noopener">Tirar dúvidas</a>' +
-        '<a class="footer-cta-btn primary" href="https://wa.me/5548999279320?text=' + msgPropose + '" target="_blank" rel="noopener">Iniciar negociação <span aria-hidden="true">→</span></a>';
+        '<a class="footer-cta-btn outline" href="https://wa.me/' + (window.TELCONTATO||'5511952136406') + '?text=' + msgDuvidas + '" target="_blank" rel="noopener">Tirar dúvidas</a>' +
+        '<a class="footer-cta-btn primary" href="https://wa.me/' + (window.TELCONTATO||'5511952136406') + '?text=' + msgPropose + '" target="_blank" rel="noopener">Iniciar negociação <span aria-hidden="true">→</span></a>';
       footerBar.insertBefore(pair, footerBar.firstChild);
     }
   }
@@ -2785,5 +2807,50 @@ function renderCamada3Liberada(sec, mat, ac){
 init();
 </script>
 <script src="/auth-fetch.js"></script>
+<script src="/salvar-em-tese.js"></script>
+<script>
+  // V8 BLOCO 3 · botão Salvar em tese · negocio.html
+  (function () {
+    function _waitConfig(){
+      if (!window.SET || typeof window.SET.config !== 'function') return setTimeout(_waitConfig, 100);
+      window.SET.config({
+        supabaseUrl: 'https://dbijmgqlcrgjlcfrastg.supabase.co',
+        supabaseAnon: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA',
+        getSession: () => (window.OneN && window.OneN.auth ? window.OneN.auth.getSession() : null),
+        setSession: (s) => { if (window.OneN && window.OneN.auth) window.OneN.auth.setSession(s); },
+        registrarEvento: window.registrarEvento || (() => {}),
+      });
+    }
+    _waitConfig();
+    window.salvarNegocioPagina = async function() {
+      const id = (window.NEG && window.NEG.id) || (window.ANUNCIO && window.ANUNCIO.negocio_id);
+      if (!id || !window.SET) return;
+      const nome = (window.NEG && (window.NEG.titulo_anuncio || window.NEG.nome)) || 'este negócio';
+      await window.SET.abrir(id, nome, () => atualizarBotaoSalvarNeg());
+    };
+    window.atualizarBotaoSalvarNeg = async function() {
+      const id = (window.NEG && window.NEG.id) || (window.ANUNCIO && window.ANUNCIO.negocio_id);
+      if (!id || !window.SET) return;
+      await window.SET.estado(id);
+      const btn = document.getElementById('btn-salvar-neg');
+      const ico = document.getElementById('ico-salvar-neg');
+      if (!btn) return;
+      if (window.SET.statusButton(id) === 'salvo') {
+        btn.setAttribute('title', 'Salvo · clicar para editar');
+        btn.style.color = 'var(--accent, #3dff95)';
+        if (ico) ico.setAttribute('fill', 'currentColor');
+      } else {
+        btn.setAttribute('title', 'Salvar em tese');
+        btn.style.color = '';
+        if (ico) ico.setAttribute('fill', 'none');
+      }
+    };
+    // Atualiza botão quando NEG carregar (~500ms após DOMContentLoaded)
+    setTimeout(() => { if (typeof atualizarBotaoSalvarNeg === 'function') atualizarBotaoSalvarNeg(); }, 1500);
+    window.addEventListener('1n:session-refreshed', () => {
+      if (typeof atualizarBotaoSalvarNeg === 'function') atualizarBotaoSalvarNeg();
+    });
+  })();
+</script>
 </body>
 </html>

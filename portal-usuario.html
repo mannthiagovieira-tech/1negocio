@@ -992,7 +992,7 @@
           <span>Minhas teses</span>
           <span class="nav-badge" id="badge-teses" style="display:none">0</span>
         </button>
-        <button class="nav-item" data-nav="favoritos" onclick="mostrarView('favoritos')" style="display:none" aria-hidden="true">
+        <button class="nav-item" data-nav="favoritos" onclick="mostrarView('favoritos')">
           <span>Favoritos</span>
           <span class="nav-badge" id="badge-favoritos" style="display:none">0</span>
         </button>
@@ -1077,12 +1077,12 @@
         </div>
       </section>
 
-      <!-- VIEW: FAVORITOS -->
+      <!-- VIEW: AVULSOS (negócios salvos sem vínculo de tese) -->
       <section class="view" data-view="favoritos">
         <div class="view-head">
           <div class="view-head-left">
-            <h1 class="view-title">Favoritos</h1>
-            <p class="view-sub">Negócios que você salvou para acompanhar.</p>
+            <h1 class="view-title">Negócios salvos · avulsos</h1>
+            <p class="view-sub">Negócios salvos sem vínculo a uma tese. Você pode mover pra uma tese a qualquer momento.</p>
           </div>
         </div>
         <div id="favoritos-container">
@@ -1371,9 +1371,12 @@ const portalCache = {
   negMap: {}
 };
 
-function authHeaders() {
-  return { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token };
-}
+// V8 BLOCO 3 · authFetch wrapper · usa OneN.auth se carregado, senão fetch puro com headers manuais
+const afetch = (u, o) => (window.OneN && window.OneN.auth && window.OneN.auth.authFetch)
+  ? window.OneN.auth.authFetch(u, o)
+  : fetch(u, Object.assign({}, o, { headers: Object.assign({}, (o && o.headers) || {}, { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + (session && session.token || SUPABASE_ANON) }) }));
+// authHeaders ficou redundante (authFetch injeta apikey+Bearer fresh) · mantido como no-op por compat
+function authHeaders() { return {}; }
 
 function mostrarView(nome) {
   document.querySelectorAll('[data-view]').forEach(v => v.classList.remove('active'));
@@ -1476,7 +1479,7 @@ async function carregarTudo() {
     .filter(Boolean)
     .filter(id => !anunciosMap[id]);
   if (negIdsSolicitados.length) {
-    const anunciosCompradorRes = await fetch(
+    const anunciosCompradorRes = await afetch(
       SUPABASE_URL + '/rest/v1/anuncios_v2'
       + '?negocio_id=in.(' + negIdsSolicitados.join(',') + ')'
       + '&select=id,codigo,negocio_id,status,publicado_em,titulo,valor_pedido,textos_negocio'
@@ -1501,7 +1504,7 @@ async function carregarTudo() {
   });
 
   // Carrega NDA solicitações pendentes (status aprovado, dentro do prazo, sem assinatura)
-  const ndaPendRes = await fetch(SUPABASE_URL + '/rest/v1/nda_solicitacoes'
+  const ndaPendRes = await afetch(SUPABASE_URL + '/rest/v1/nda_solicitacoes'
     + '?usuario_id=eq.' + uid
     + '&status=eq.aprovado'
     + '&expira_em=gt.' + encodeURIComponent(nowIso)
@@ -1535,7 +1538,7 @@ async function carregarTudo() {
       + '?id=in.(' + externos.join(',') + ')'
       + '&select=id,tag,codigo_anuncio,codigo,slug,nome,setor,categoria,cidade,estado,faturamento_anual,preco_pedido';
     try {
-      const r = await fetch(negUrl, { headers: authHeaders() });
+      const r = await afetch(\1() });
       if (r.ok) (await r.json()).forEach(n => { negMap[n.id] = n; });
     } catch(e) { /* fallback: cards mostram '—' */ }
   }
@@ -1990,7 +1993,7 @@ async function abrirModalAtrelarTese(solicitacaoId) {
   overlay.style.display = 'flex';
   document.body.style.overflow = 'hidden';
   try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/teses_investimento'
+    const r = await afetch(SUPABASE_URL + '/rest/v1/teses_investimento'
       + '?usuario_id=eq.' + session.user_id
       + '&status=eq.ativa'
       + '&select=id,codigo,titulo,tese_descricao'
@@ -2052,7 +2055,7 @@ async function atrelarTeseSelecionada() {
   btn.disabled = true;
   btn.textContent = 'Atrelando...';
   try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/solicitacoes_info?id=eq.' + _modalAtrelarSolicId, {
+    const r = await afetch(SUPABASE_URL + '/rest/v1/solicitacoes_info?id=eq.' + _modalAtrelarSolicId, {
       method: 'PATCH',
       headers: { ...authHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ teses_atreladas: _modalAtrelarSelecao })
@@ -2380,7 +2383,7 @@ async function togglePausarTese(teseId, statusAtual) {
     : `Reativar ${codigo}?`;
   if (!confirm(msg)) return;
   try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/teses_investimento?id=eq.' + teseId, {
+    const r = await afetch(SUPABASE_URL + '/rest/v1/teses_investimento?id=eq.' + teseId, {
       method: 'PATCH',
       headers: { ...authHeaders(), 'Content-Type':'application/json', 'Prefer':'return=minimal' },
       body: JSON.stringify({ status: novoStatus })
@@ -2481,7 +2484,7 @@ async function salvarEdicaoTese() {
       valor_investimento: valor,
       observacoes: obs || null
     };
-    const r = await fetch(SUPABASE_URL + '/rest/v1/teses_investimento?id=eq.' + teseId, {
+    const r = await afetch(SUPABASE_URL + '/rest/v1/teses_investimento?id=eq.' + teseId, {
       method: 'PATCH',
       headers: { ...authHeaders(), 'Content-Type':'application/json', 'Prefer':'return=minimal' },
       body: JSON.stringify(body)
@@ -2552,14 +2555,14 @@ async function executarMoverTese() {
   btn.textContent = 'Movendo...';
   try {
     // 1) DELETE todos os atrelos antigos desse salvo
-    await fetch(SUPABASE_URL + '/rest/v1/negocios_salvos_teses?negocio_salvo_id=eq.' + salvoId, {
+    await afetch(SUPABASE_URL + '/rest/v1/negocios_salvos_teses?negocio_salvo_id=eq.' + salvoId, {
       method: 'DELETE',
       headers: { ...authHeaders(), 'Prefer':'return=minimal' }
     });
     // 2) INSERT novos
     if (novasTeses.length > 0) {
       const rows = novasTeses.map(tid => ({ negocio_salvo_id: salvoId, tese_id: tid }));
-      await fetch(SUPABASE_URL + '/rest/v1/negocios_salvos_teses', {
+      await afetch(SUPABASE_URL + '/rest/v1/negocios_salvos_teses', {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type':'application/json', 'Prefer':'return=minimal' },
         body: JSON.stringify(rows)
@@ -2579,7 +2582,7 @@ async function executarMoverTese() {
 async function removerSalvoDeTese(salvoId, teseId) {
   if (!confirm('Remover este negócio da tese? O negócio segue salvo (sem tese · avulso).')) return;
   try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/negocios_salvos_teses?negocio_salvo_id=eq.' + salvoId + '&tese_id=eq.' + teseId, {
+    const r = await afetch(SUPABASE_URL + '/rest/v1/negocios_salvos_teses?negocio_salvo_id=eq.' + salvoId + '&tese_id=eq.' + teseId, {
       method: 'DELETE',
       headers: { ...authHeaders(), 'Prefer':'return=minimal' }
     });
@@ -2604,13 +2607,20 @@ window.removerSalvoDeTese = removerSalvoDeTese;
 // ==================== VIEW: FAVORITOS ====================
 function renderFavoritos() {
   const cont = $('favoritos-container');
-  const lista = portalCache.favoritos || [];
+  const all = portalCache.favoritos || [];
+  const salvosTeses = portalCache.salvosTeses || [];
+  const idsComTese = new Set(salvosTeses.map(s => s.salvo_id).filter(Boolean));
+  // V8 BLOCO 3 · só mostra AVULSOS (sem vínculo de tese)
+  const lista = all.filter(f => !idsComTese.has(f.id));
   const negMap = portalCache.negMap || {};
+
+  // Atualiza badge pra refletir só avulsos
+  setBadge('badge-favoritos', lista.length);
 
   if (lista.length === 0) {
     cont.innerHTML = `
       <div class="empty-state">
-        <div class="msg">Você ainda não favoritou nenhum negócio.<br>Toque no coração de qualquer negócio para salvar aqui.</div>
+        <div class="msg">Você não tem negócios salvos avulsos.<br>Salvar com vínculo a uma tese? Acesse a tese · ela mostra os negócios salvos no contexto dela.</div>
         <div class="cta-row">
           <a href="/" class="cta">Explorar negócios →</a>
         </div>
@@ -2635,21 +2645,43 @@ function renderFavoritos() {
             <div class="diag-nome">${nome}</div>
             <div class="diag-meta">${[setor, local].filter(Boolean).join(' · ') || '—'}</div>
           </div>
-          <button class="badge" style="background:transparent;border:1px solid var(--line);cursor:pointer" onclick="removerFavorito('${f.id}')" title="Remover dos favoritos">remover</button>
+          <button class="badge" style="background:transparent;border:1px solid var(--line);cursor:pointer" onclick="removerFavorito('${f.id}')" title="Remover dos salvos">remover</button>
         </div>
         ${preco ? `<div style="font-family:var(--mono); font-size:11px; color:var(--ink-3)">Valor pedido: ${fmtMoney(preco)}</div>` : ''}
         <div class="card-ctas">
           <a href="/negocio.html?id=${f.negocio_id}" class="card-cta primary">Ver negócio →</a>
+          <button class="card-cta" onclick="moverAvulsoParaTese('${f.negocio_id}','${(nome||'').replace(/'/g,"\\'")}')">Mover pra tese...</button>
         </div>
       </div>
     `;
   }).join('') + '</div>';
 }
 
+// V8 BLOCO 3 · abre window.SET pra editar vínculos (mover avulso pra tese)
+async function moverAvulsoParaTese(negId, nome) {
+  if (!window.SET || !window.SET.abrir) { alert('Recurso indisponível'); return; }
+  await window.SET.abrir(negId, nome || 'este negócio', async () => {
+    // Pós-edit: recarrega cache de salvosTeses + favoritos pra refletir mudança
+    try {
+      const sess = window.OneN && window.OneN.auth && window.OneN.auth.getSession();
+      if (sess && sess.user_id) {
+        const [rFav, rST] = await Promise.all([
+          afetch(SUPABASE_URL + '/rest/v1/negocios_salvos?usuario_id=eq.' + sess.user_id + '&order=salvo_em.desc'),
+          afetch(SUPABASE_URL + '/rest/v1/negocios_salvos_por_tese?select=*'),
+        ]);
+        portalCache.favoritos = rFav.ok ? await rFav.json() : portalCache.favoritos;
+        portalCache.salvosTeses = rST.ok ? await rST.json() : portalCache.salvosTeses;
+        renderFavoritos();
+      }
+    } catch (e) { console.warn('refresh avulsos:', e); }
+  });
+}
+window.moverAvulsoParaTese = moverAvulsoParaTese;
+
 async function removerFavorito(favId) {
   if (!confirm('Remover este negócio dos favoritos?')) return;
   try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/negocios_salvos?id=eq.' + favId, {
+    const r = await afetch(SUPABASE_URL + '/rest/v1/negocios_salvos?id=eq.' + favId, {
       method: 'DELETE',
       headers: authHeaders()
     });
@@ -2855,12 +2887,27 @@ init();
 </div>
 
 <script src="/auth-fetch.js"></script>
+<script src="/salvar-em-tese.js"></script>
 <script>
   // V8 BLOCO 2 · listener de session expired
   window.addEventListener('1n:session-expired', () => {
     try { alert('Sua sessão expirou. Faça login novamente.'); } catch {}
     try { window.location.reload(); } catch {}
   });
+  // V8 BLOCO 3 · config SET para botão "Mover pra tese" na aba avulsos
+  (function () {
+    function _w(){
+      if (!window.SET || typeof window.SET.config !== 'function') return setTimeout(_w, 100);
+      window.SET.config({
+        supabaseUrl: 'https://dbijmgqlcrgjlcfrastg.supabase.co',
+        supabaseAnon: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA',
+        getSession: () => (window.OneN && window.OneN.auth ? window.OneN.auth.getSession() : null),
+        setSession: (s) => { if (window.OneN && window.OneN.auth) window.OneN.auth.setSession(s); },
+        registrarEvento: window.registrarEvento || (() => {}),
+      });
+    }
+    _w();
+  })();
 </script>
 </body>
 </html>
