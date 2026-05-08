@@ -1011,6 +1011,9 @@
         <button class="nav-item" data-nav="perfil" onclick="mostrarView('perfil')">
           <span>Meu perfil</span>
         </button>
+        <button class="nav-item" data-nav="socio" onclick="mostrarView('socio')">
+          <span id="nav-socio-label">Tornar-se sócio</span>
+        </button>
       </div>
     </aside>
 
@@ -1073,6 +1076,19 @@
           <a href="/cadastre.html" class="btn-primary-pill">+ Nova tese</a>
         </div>
         <div id="teses-container">
+          <div class="loading-state">carregando...</div>
+        </div>
+      </section>
+
+      <!-- VIEW: SÓCIO-ASSESSOR (V8 BLOCO 7 FASE 1) -->
+      <section class="view" data-view="socio">
+        <div class="view-head">
+          <div class="view-head-left">
+            <h1 class="view-title">Sócio-Assessor</h1>
+            <p class="view-sub">Vire sócio · ganhe comissão por trazer compradores ou negócios pra plataforma.</p>
+          </div>
+        </div>
+        <div id="socio-container">
           <div class="loading-state">carregando...</div>
         </div>
       </section>
@@ -2888,6 +2904,43 @@ init();
 
 <script src="/auth-fetch.js"></script>
 <script src="/salvar-em-tese.js"></script>
+<script src="/js/area-socio-onboarding.js"></script>
+<script>
+  // V8 B7 · render onboarding ao mostrar view socio + atualizar label
+  (function () {
+    const _origMostrar = window.mostrarView;
+    window.mostrarView = function (nome) {
+      if (typeof _origMostrar === 'function') _origMostrar(nome);
+      if (nome === 'socio' && window.SocioOnboarding) {
+        window.SocioOnboarding.render('#socio-container');
+      }
+    };
+    async function _atualizarLabel() {
+      try {
+        const sess = window.OneN && window.OneN.auth && window.OneN.auth.getSession();
+        if (!sess || !sess.user_id) return;
+        const r = await window.OneN.auth.authFetch('https://dbijmgqlcrgjlcfrastg.supabase.co/rest/v1/socios?usuario_id=eq.' + sess.user_id + '&select=status,codigo&limit=1');
+        if (!r.ok) return;
+        const arr = await r.json();
+        const s = Array.isArray(arr) && arr[0];
+        const lbl = document.getElementById('nav-socio-label');
+        if (!lbl) return;
+        if (!s) lbl.textContent = 'Tornar-se sócio';
+        else if (s.status === 'aprovado') lbl.textContent = 'Sócio · ' + (s.codigo || 'S-????');
+        else if (s.status === 'aguardando_aprovacao_doc') lbl.textContent = 'Sócio · em análise';
+        else if (s.status === 'pendente_termo') lbl.textContent = 'Sócio · pendente';
+        else if (s.status === 'suspenso') lbl.textContent = 'Sócio · suspenso';
+        else if (s.status === 'cancelado') lbl.textContent = 'Sócio · cancelado';
+      } catch {}
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(_atualizarLabel, 800));
+    } else {
+      setTimeout(_atualizarLabel, 800);
+    }
+    window.addEventListener('1n:session-refreshed', _atualizarLabel);
+  })();
+</script>
 <script>
   // V8 BLOCO 2 · listener de session expired
   window.addEventListener('1n:session-expired', () => {

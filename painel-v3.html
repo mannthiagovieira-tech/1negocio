@@ -2471,7 +2471,25 @@ table.t .acoes { white-space: nowrap; }
 
         <section id="secao-projetos-compra" class="secao"><header class="secao-header"><h1 class="secao-titulo">💡 Projetos Compra (teses)</h1><p class="secao-subtitulo">Lista geral de teses de investimento</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Compradores que registraram tese de investimento.</p><ul><li>Setores · regiões · valor de interesse</li><li>Match com negócios disponíveis</li><li>Sócio responsável (quem trouxe)</li><li>Status de aproximação</li></ul></div></section>
 
-        <section id="secao-socios" class="secao"><header class="secao-header"><h1 class="secao-titulo">🎖️ Sócios</h1><p class="secao-subtitulo">Sócios institucionais · plano trienal R$ 5.346</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Lista de Sócios formais (auto-serviço · portal próprio).</p><ul><li>Cadastro completo + termos assinados</li><li>Negócios e teses vinculados</li><li>Comissões geradas (recebido + a receber)</li><li>Renovação do plano trienal</li></ul></div></section>
+        <section id="secao-socios" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">🎖️ Sócios-Assessores</h1>
+            <p class="secao-subtitulo">Aprovar documentos · suspender · cancelar · ver vínculos</p>
+          </header>
+          <div style="padding:18px 22px">
+            <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="socios-filtros">
+              <button class="btn btn-mini active" data-flt="todos" onclick="sociosFiltrar('todos')">Todos</button>
+              <button class="btn btn-mini" data-flt="aguardando_aprovacao_doc" onclick="sociosFiltrar('aguardando_aprovacao_doc')">Aguardando aprovação</button>
+              <button class="btn btn-mini" data-flt="aprovado" onclick="sociosFiltrar('aprovado')">Aprovados</button>
+              <button class="btn btn-mini" data-flt="pendente_termo" onclick="sociosFiltrar('pendente_termo')">Pendente termo</button>
+              <button class="btn btn-mini" data-flt="suspenso" onclick="sociosFiltrar('suspenso')">Suspensos</button>
+              <button class="btn btn-mini" data-flt="cancelado" onclick="sociosFiltrar('cancelado')">Cancelados</button>
+            </div>
+            <div id="socios-conteudo">
+              <div class="pa-loading">carregando...</div>
+            </div>
+          </div>
+        </section>
 
         <section id="secao-parceiros" class="secao"><header class="secao-header"><h1 class="secao-titulo">🔗 Parceiros</h1><p class="secao-subtitulo">Parceiros pontuais · sem plano · gerenciados manualmente</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Parceiros pontuais (vinculação manual · contato via WhatsApp).</p><ul><li>Lista com limite de vínculos simultâneos</li><li>Vínculos ativos (negócios · teses)</li><li>Comissões geradas</li><li>Histórico de WhatsApp da 1Negócio com cada um</li></ul></div></section>
 
@@ -3962,6 +3980,7 @@ function mostrarSecao(id) {
     if (id === 'pa-usuarios')   paLoadUsuarios();
     if (id === 'pa-leads')      paLoadLeads();
     if (id === 'pa-transacoes') paLoadTransacoes();
+    if (id === 'socios') sociosInit();
     if (id === 'pa-filiados')   paLoadFiliados();
     if (id === 'pa-agenda')     paLoadAgenda();
     if (id === 'pa-conversas')  paLoadConversas();
@@ -12358,5 +12377,95 @@ window.mmEscolherTese = mmEscolherTese;
 window.mmSalvarLote = mmSalvarLote;
 </script>
 <script src="/auth-fetch.js"></script>
+<script>
+  // V8 BLOCO 7 FASE 1 · Sócios admin (lista + filtro + aprovar/negar/suspender/cancelar/reativar)
+  let _sociosFiltro = 'todos';
+  async function sociosInit() {
+    sociosCarregar();
+  }
+  async function sociosCarregar() {
+    const cont = document.getElementById('socios-conteudo');
+    if (!cont) return;
+    cont.innerHTML = '<div class="pa-loading">carregando...</div>';
+    try {
+      let url = SB + '/rest/v1/socios?select=*&order=created_at.desc&limit=200';
+      if (_sociosFiltro !== 'todos') url += '&status=eq.' + _sociosFiltro;
+      const r = await sbFetch(url.replace(SB,''));
+      const lista = Array.isArray(r) ? r : [];
+      if (lista.length === 0) { cont.innerHTML = '<div class="pa-empty" style="padding:14px">Sem sócios neste filtro.</div>'; return; }
+      // Buscar nomes/phones dos usuarios via RPC ou public.usuarios
+      const ids = lista.map(s => s.usuario_id);
+      const usrs = await sbFetch('/rest/v1/usuarios?id=in.(' + ids.join(',') + ')&select=id,nome,whatsapp,email');
+      const byId = {}; (usrs || []).forEach(u => { byId[u.id] = u; });
+      cont.innerHTML = lista.map(s => {
+        const u = byId[s.usuario_id] || {};
+        const statusCor = s.status==='aprovado'?'#22c55e':s.status==='aguardando_aprovacao_doc'?'#f5b955':s.status==='suspenso'||s.status==='cancelado'?'#dc2626':'#7a8581';
+        const docUrl = s.documento_url ? (SB + '/storage/v1/object/authenticated/documentos-socios/' + s.documento_url) : null;
+        let acoes = '';
+        if (s.status === 'aguardando_aprovacao_doc') {
+          acoes = `<button class="btn btn-mini" onclick="sociosAcao('${s.id}','aprovar')">✓ Aprovar</button>
+            <button class="btn btn-mini" onclick="sociosAcao('${s.id}','negar')">✗ Negar</button>`;
+        } else if (s.status === 'aprovado') {
+          acoes = `<button class="btn btn-mini" onclick="sociosAcao('${s.id}','suspender')">⏸ Suspender</button>
+            <button class="btn btn-mini" onclick="sociosAcao('${s.id}','cancelar')">✗ Cancelar</button>`;
+        } else if (s.status === 'suspenso') {
+          acoes = `<button class="btn btn-mini" onclick="sociosAcao('${s.id}','reativar')">▶ Reativar</button>
+            <button class="btn btn-mini" onclick="sociosAcao('${s.id}','cancelar')">✗ Cancelar</button>`;
+        }
+        const docBtn = docUrl ? `<a href="${docUrl}" target="_blank" class="btn btn-mini" title="Ver documento" style="text-decoration:none">📄 Ver doc</a>` : '<span class="pa-muted">sem doc</span>';
+        const termoTxt = s.termo_assinado_em ? '✓ ' + new Date(s.termo_assinado_em).toLocaleDateString('pt-BR') + ' · ' + (s.termo_versao || 'v?') : '—';
+        return `
+        <div style="border:1px solid var(--accent-line);border-radius:var(--r2);padding:14px 16px;background:var(--surface);margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start">
+            <div>
+              <div style="font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--accent);font-weight:600">${escapeHtml(s.codigo || 'S-???? (sem código)')}</div>
+              <div style="font-weight:600;font-size:14px;margin-top:3px">${escapeHtml(u.nome || '—')}</div>
+              <div class="pa-muted" style="font-size:11px;margin-top:2px">${escapeHtml(u.whatsapp || '—')} · ${escapeHtml(u.email || '—')}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:${statusCor};font-weight:700;text-transform:uppercase">${escapeHtml(s.status)}</div>
+              <div class="pa-muted" style="font-size:10px;margin-top:3px">criado ${new Date(s.created_at).toLocaleDateString('pt-BR')}</div>
+            </div>
+          </div>
+          <div style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-size:11px">
+            <div><span class="pa-muted">Termo:</span> ${termoTxt}</div>
+            <div><span class="pa-muted">Doc tipo:</span> ${escapeHtml(s.documento_tipo || '—')}</div>
+            <div>${docBtn}</div>
+            <div><span class="pa-muted">Cat. teses:</span> ${s.acesso_catalogo_teses?'✓':'—'}</div>
+          </div>
+          ${s.notas_admin ? `<div style="margin-top:8px;padding:8px 10px;background:var(--surface-2,#f7f7f5);border-radius:8px;font-size:11px;color:var(--ink-3)">Nota: ${escapeHtml(s.notas_admin)}</div>` : ''}
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${acoes}</div>
+        </div>`;
+      }).join('');
+    } catch(e) {
+      cont.innerHTML = '<div class="pa-empty" style="padding:14px;color:#dc2626">Erro: ' + escapeHtml(e.message || '?') + '</div>';
+    }
+  }
+  function sociosFiltrar(f) {
+    _sociosFiltro = f;
+    document.querySelectorAll('#socios-filtros .btn').forEach(b => b.classList.toggle('active', b.dataset.flt === f));
+    sociosCarregar();
+  }
+  async function sociosAcao(socio_id, acao) {
+    let notas = null;
+    if (acao === 'negar' || acao === 'suspender' || acao === 'cancelar') {
+      notas = prompt('Motivo (opcional · 200 chars):', '') || null;
+    }
+    if (acao === 'cancelar' && !confirm('Cancelar definitivamente este sócio?')) return;
+    try {
+      const r = await fetch(SB + '/functions/v1/admin-aprovar-doc-socio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) },
+        body: JSON.stringify({ socio_id, acao, notas }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data.ok) { alert('Erro: ' + (data.erro || r.status)); return; }
+      sociosCarregar();
+    } catch(e) { alert('Erro de rede: ' + e.message); }
+  }
+  window.sociosInit = sociosInit;
+  window.sociosFiltrar = sociosFiltrar;
+  window.sociosAcao = sociosAcao;
+</script>
 </body>
 </html>
