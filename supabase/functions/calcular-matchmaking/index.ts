@@ -1,6 +1,10 @@
-// calcular-matchmaking · V7 FASE A · 1negocio.com.br
+// calcular-matchmaking · V8 B8.13 · 1negocio.com.br
 // Score 0-100 entre tese × negócio · com fatores casados + pontuação tags admin
 // Auth: service_role (cron) OU admin via JWT phone match
+//
+// V8 B8.13 · MUDANÇA: ticket compara tese.valor_alvo vs anuncios_v2.valor_pedido
+// (em vez de negocios.avaliacao_max · que era 1/788 preenchido).
+// Universo agora = só negócios COM ANÚNCIO PUBLICADO (anuncios_v2.status=publicado).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aplicarTags, type TagAplicada } from "../_shared/matchmaking-tags.ts";
@@ -33,7 +37,9 @@ type Negocio = {
   setor: string | null; formas_atuacao: string[] | null;
   descricao_curta?: string | null;
   estado: string | null; cidade: string | null;
-  status: string; avaliacao_min: number | null; avaliacao_max: number | null;
+  status: string;
+  valor_pedido: number | null; // V8 B8.13 · vem do anúncio publicado mais recente
+  avaliacao_min: number | null; avaliacao_max: number | null; // mantido pra retro-compat · não usado no scoring
   score_saude: number | null; publicado_em: string | null; vendedor_id: string | null;
 };
 
@@ -48,7 +54,6 @@ async function sha256Hex(s: string): Promise<string> {
 async function compararSemantico(descNeg: string | null, descTese: string | null): Promise<{ score: 0 | 50 | 100; razao: string }> {
   if (!descNeg || !descTese || descNeg.length < 5 || descTese.length < 5) return { score: 50, razao: "descricao_ausente" };
   const hash = await sha256Hex(descNeg.toLowerCase().trim() + "||" + descTese.toLowerCase().trim());
-  // Cache check
   try {
     const { data: cached } = await adminClient.from("matchmaking_semantica_cache").select("score, razao").eq("hash_par", hash).maybeSingle();
     if (cached) return { score: cached.score as 0 | 50 | 100, razao: cached.razao || "cache" };
@@ -182,14 +187,14 @@ export async function calcularMatchPar(tese: Tese, negocio: Negocio, tagsAdmin: 
     }
   }
 
-  // TICKET (até 10pts · eliminatório ±30%)
+  // TICKET (até 10pts · eliminatório ±30%) · V8 B8.13: usa valor_pedido do anúncio
   let pontosTicket = 0;
-  if (tese.valor_alvo != null && negocio.avaliacao_max != null) {
+  if (tese.valor_alvo != null && negocio.valor_pedido != null) {
     const piso = tese.valor_alvo * 0.7;
     const teto = tese.valor_alvo * 1.3;
-    if (negocio.avaliacao_max < piso) return elim(`ticket_baixo:${negocio.avaliacao_max}_vs_${tese.valor_alvo}`, fatores);
-    if (negocio.avaliacao_max > teto) return elim(`ticket_alto:${negocio.avaliacao_max}_vs_${tese.valor_alvo}`, fatores);
-    const distRel = Math.abs(negocio.avaliacao_max - tese.valor_alvo) / tese.valor_alvo;
+    if (negocio.valor_pedido < piso) return elim(`ticket_baixo:${negocio.valor_pedido}_vs_${tese.valor_alvo}`, fatores);
+    if (negocio.valor_pedido > teto) return elim(`ticket_alto:${negocio.valor_pedido}_vs_${tese.valor_alvo}`, fatores);
+    const distRel = Math.abs(negocio.valor_pedido - tese.valor_alvo) / tese.valor_alvo;
     const p = Math.round(10 * (1 - Math.min(distRel / 0.30, 1)));
     if (p > 0) {
       const prox = Math.round((1 - Math.min(distRel / 0.30, 1)) * 100);
@@ -295,32 +300,63 @@ function contatoFields(comprador: Contato | null, vendedor: Contato | null) {
   };
 }
 
+// V8 B8.13 · busca valor_pedido do anúncio publicado mais recente desse negócio
+async function getValorPedidoAnuncio(negocioId: string): Promise<number | null> {
+  try {
+    const { data } = await adminClient
+      .from("anuncios_v2")
+      .select("valor_pedido")
+      .eq("negocio_id", negocioId)
+      .eq("status", "publicado")
+      .order("publicado_em", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return data?.valor_pedido ?? null;
+  } catch { return null; }
+}
+
 async function processarParaTese(tese: Tese, salvar: boolean, origem: string, cronExecId?: string | null) {
-  // Pré-filtro SQL · reduz pares
-  let query = adminClient.from("negocios")
-    .select("id,codigo,nome,setor,formas_atuacao,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id,descricao_curta");
-  query = query.in("status", Array.from(STATUSES_ELEGIVEIS));
-  // Setor
+  // V8 B8.13 · pré-filtro 2-step:
+  //   passo 1 · busca anúncios publicados (filtra por valor_pedido na janela ±30%)
+  //   passo 2 · puxa negócios desses IDs · aplica filtros adicionais (setor/estado)
+  const valorAlvo = tese.valor_alvo;
+  const piso = valorAlvo != null ? valorAlvo * 0.7 : null;
+  const teto = valorAlvo != null ? valorAlvo * 1.3 : null;
+
+  let anQ = adminClient.from("anuncios_v2").select("negocio_id, valor_pedido").eq("status", "publicado");
+  if (piso != null && teto != null) {
+    anQ = anQ.gte("valor_pedido", piso).lte("valor_pedido", teto);
+  }
+  const { data: anuncios, error: anErr } = await anQ.limit(1000);
+  if (anErr || !anuncios || anuncios.length === 0) return { avaliados: 0, gerados: 0, top: [] as any[] };
+
+  const negocioIds = Array.from(new Set((anuncios as any[]).map((a) => a.negocio_id).filter(Boolean)));
+  const valorPedidoMap = new Map<string, number>();
+  for (const a of anuncios as any[]) {
+    if (a.negocio_id && a.valor_pedido != null) valorPedidoMap.set(a.negocio_id, Number(a.valor_pedido));
+  }
+
+  // passo 2 · puxa negocios_com_descricao por IDs com filtros adicionais
+  let negQ = adminClient.from("negocios_com_descricao")
+    .select("id,codigo,nome,setor,formas_atuacao,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id,descricao_curta")
+    .in("id", negocioIds);
+  negQ = negQ.in("status", Array.from(STATUSES_ELEGIVEIS));
   const setoresArr = tese.setores || [];
   if (!setoresArr.includes("indiferente") && setoresArr.length > 0) {
-    query = query.in("setor", setoresArr);
+    negQ = negQ.in("setor", setoresArr);
   }
-  // Estado
   if (tese.localizacao_tipo && tese.localizacao_tipo !== "brasil_todo" && tese.estado) {
-    query = query.eq("estado", tese.estado);
+    negQ = negQ.eq("estado", tese.estado);
   }
-  // Ticket
-  if (tese.valor_alvo != null) {
-    const piso = tese.valor_alvo * 0.7;
-    const teto = tese.valor_alvo * 1.3;
-    query = query.or(`avaliacao_max.is.null,and(avaliacao_max.gte.${piso},avaliacao_max.lte.${teto})`);
-  }
-  const { data: candidatos, error } = await query.limit(500);
+  const { data: candidatos, error } = await negQ.limit(500);
   if (error || !candidatos) return { avaliados: 0, gerados: 0, top: [] as any[] };
+
+  // anexa valor_pedido do mapa
+  const candidatosComPreco = (candidatos as any[]).map((c) => ({ ...c, valor_pedido: valorPedidoMap.get(c.id) ?? null })) as Negocio[];
 
   const tagsAdmin = await getTagsAdmin(tese.usuario_id);
   const resultados: Array<{ negocio: Negocio; res: ResultadoMatch }> = [];
-  for (const n of candidatos as Negocio[]) {
+  for (const n of candidatosComPreco) {
     const res = await calcularMatchPar(tese, n, tagsAdmin);
     if (!res.eliminado && res.score_final >= 30) resultados.push({ negocio: n, res });
   }
@@ -351,7 +387,7 @@ async function processarParaTese(tese: Tese, salvar: boolean, origem: string, cr
     }));
     await adminClient.from("matchmaking_resultados").upsert(rows, { onConflict: "tese_id,negocio_id" });
   }
-  return { avaliados: candidatos.length, gerados: top.length, top };
+  return { avaliados: candidatosComPreco.length, gerados: top.length, top };
 }
 
 Deno.serve(async (req: Request) => {
@@ -371,8 +407,10 @@ Deno.serve(async (req: Request) => {
     const { data: tese } = await adminClient.from("teses_investimento").select("*").eq("id", body.tese_id).single();
     const { data: neg } = await adminClient.from("negocios_com_descricao").select("id,codigo,nome,setor,formas_atuacao,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id,descricao_curta").eq("id", body.negocio_id).single();
     if (!tese || !neg) return json({ ok: false, error: "tese ou negocio nao encontrado" }, 404);
+    const valorPedido = await getValorPedidoAnuncio(body.negocio_id);
+    const negComPreco: Negocio = { ...(neg as any), valor_pedido: valorPedido };
     const tagsAdmin = await getTagsAdmin(tese.usuario_id);
-    const res = await calcularMatchPar(tese as Tese, neg as Negocio, tagsAdmin);
+    const res = await calcularMatchPar(tese as Tese, negComPreco, tagsAdmin);
     if (salvar && !res.eliminado && res.score_final >= 30) {
       const comprador = await getContato(tese.usuario_id);
       const vendedor = await getContato(neg.vendedor_id);
@@ -397,14 +435,15 @@ Deno.serve(async (req: Request) => {
 
   if (modo === "negocio") {
     if (!body.negocio_id) return json({ ok: false, error: "negocio_id obrigatorio" }, 400);
-    // tese vs negocio: itera teses ativas · usa pré-filtro inverso
     const { data: neg } = await adminClient.from("negocios_com_descricao").select("id,codigo,nome,setor,formas_atuacao,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id,descricao_curta").eq("id", body.negocio_id).single();
     if (!neg) return json({ ok: false, error: "negocio nao encontrado" }, 404);
+    const valorPedido = await getValorPedidoAnuncio(body.negocio_id);
+    const negComPreco: Negocio = { ...(neg as any), valor_pedido: valorPedido };
     const { data: teses } = await adminClient.from("teses_investimento").select("*").eq("status", "ativa").limit(500);
     const arr: Array<{ tese: Tese; res: ResultadoMatch }> = [];
     for (const t of (teses || []) as Tese[]) {
       const tagsAdmin = await getTagsAdmin(t.usuario_id);
-      const res = await calcularMatchPar(t, neg as Negocio, tagsAdmin);
+      const res = await calcularMatchPar(t, negComPreco, tagsAdmin);
       if (!res.eliminado && res.score_final >= 30) arr.push({ tese: t, res });
     }
     arr.sort((a, b) => b.res.score_final - a.res.score_final);

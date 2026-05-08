@@ -1,6 +1,10 @@
-// rodar-cron-semanal · V7 FASE A · 1negocio.com.br
+// rodar-cron-semanal · V8 B8.13 · 1negocio.com.br
 // Itera todas teses ativas · gera/atualiza top 10 matches por tese
 // SEM cron pg_cron ativo · invocação manual via UI/curl service_role
+//
+// V8 B8.13 · MUDANÇA: ticket compara tese.valor_alvo vs anuncios_v2.valor_pedido
+// (em vez de negocios.avaliacao_max · que era 1/788 preenchido).
+// Universo agora = só negócios COM ANÚNCIO PUBLICADO (anuncios_v2.status=publicado).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aplicarTags, type TagAplicada } from "../_shared/matchmaking-tags.ts";
@@ -47,22 +51,6 @@ function calcularScore510(s: number): number {
   if (s >= 60) return 7; if (s >= 50) return 6; return 5;
 }
 
-async function analisarPerfilOculto(userId: string | null, setor: string | null, estado: string | null): Promise<number> {
-  if (!userId || !setor || !estado) return 0;
-  try {
-    const desde = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const { count } = await adminClient.from("eventos_usuario").select("*", { count: "exact", head: true })
-      .eq("usuario_id", userId).eq("entidade_tipo", "negocio").gte("created_at", desde);
-    if (!count || count < 5) return 0;
-    const { data } = await adminClient.rpc("contar_eventos_negocios_similares", {
-      p_user_id: userId, p_setor: setor, p_estado: estado, p_dias: 30,
-    });
-    const views = Number(data?.[0]?.views ?? 0);
-    if (views >= 20) return 1.5; if (views >= 10) return 1; if (views >= 5) return 0.5;
-    return 0;
-  } catch { return 0; }
-}
-
 type Tese = any; type Negocio = any;
 type Fator = { codigo: string; pontos: number };
 
@@ -102,6 +90,7 @@ async function compararSemantico(descNeg: string | null, descTese: string | null
 }
 
 // Pesos V7 BLOCO 5: Setor 40 · Forma 35 · Loc 10 · Ticket 10 · ISE 5 = 100
+// V8 B8.13: TICKET usa neg.valor_pedido (anexado pelo pré-filtro · vem de anuncios_v2)
 async function calcularMatchPar(tese: Tese, neg: Negocio, tagsAdmin: string[]) {
   const fatores: Fator[] = [];
   if (neg.status && !STATUSES_ELEGIVEIS.includes(neg.status)) return null;
@@ -144,11 +133,11 @@ async function calcularMatchPar(tese: Tese, neg: Negocio, tagsAdmin: string[]) {
     }
   }
 
-  // TICKET até 10 · eliminatório ±30%
+  // TICKET até 10 · eliminatório ±30% · V8 B8.13: usa valor_pedido
   let pontosTicket = 0;
-  if (tese.valor_alvo != null && neg.avaliacao_max != null) {
-    if (neg.avaliacao_max < tese.valor_alvo * 0.7 || neg.avaliacao_max > tese.valor_alvo * 1.3) return null;
-    const dist = Math.abs(neg.avaliacao_max - tese.valor_alvo) / tese.valor_alvo;
+  if (tese.valor_alvo != null && neg.valor_pedido != null) {
+    if (neg.valor_pedido < tese.valor_alvo * 0.7 || neg.valor_pedido > tese.valor_alvo * 1.3) return null;
+    const dist = Math.abs(neg.valor_pedido - tese.valor_alvo) / tese.valor_alvo;
     const p = Math.round(10 * (1 - Math.min(dist / 0.30, 1)));
     if (p > 0) {
       pontosTicket = p;
@@ -203,20 +192,38 @@ async function rodarBatch(execId: string, iniciado_por: string | null) {
   for (let i = 0; i < teses.length; i++) {
     const tese = teses[i] as Tese;
     try {
-      // Pré-filtro SQL
+      // V8 B8.13 · pré-filtro 2-step
+      //   passo 1 · anuncios_v2 publicados (filtra por valor_pedido na janela ±30%)
+      //   passo 2 · negocios_com_descricao por IDs · aplica filtros adicionais
+      const valorAlvo = tese.valor_alvo;
+      const piso = valorAlvo != null ? valorAlvo * 0.7 : null;
+      const teto = valorAlvo != null ? valorAlvo * 1.3 : null;
+
+      let anQ = adminClient.from("anuncios_v2").select("negocio_id, valor_pedido").eq("status", "publicado");
+      if (piso != null && teto != null) {
+        anQ = anQ.gte("valor_pedido", piso).lte("valor_pedido", teto);
+      }
+      const { data: anuncios } = await anQ.limit(1000);
+      if (!anuncios || anuncios.length === 0) { tesesProc++; continue; }
+
+      const negocioIds = Array.from(new Set((anuncios as any[]).map((a) => a.negocio_id).filter(Boolean)));
+      const valorPedidoMap = new Map<string, number>();
+      for (const a of anuncios as any[]) {
+        if (a.negocio_id && a.valor_pedido != null) valorPedidoMap.set(a.negocio_id, Number(a.valor_pedido));
+      }
+
       let q = adminClient.from("negocios_com_descricao")
-        .select("id,codigo,nome,setor,formas_atuacao,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id,descricao_curta");
+        .select("id,codigo,nome,setor,formas_atuacao,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id,descricao_curta")
+        .in("id", negocioIds);
       q = q.in("status", STATUSES_ELEGIVEIS);
       const setoresArr = tese.setores || [];
       if (!setoresArr.includes("indiferente") && setoresArr.length > 0) q = q.in("setor", setoresArr);
       if (tese.localizacao_tipo && tese.localizacao_tipo !== "brasil_todo" && tese.estado) q = q.eq("estado", tese.estado);
-      if (tese.valor_alvo != null) {
-        const piso = tese.valor_alvo * 0.7;
-        const teto = tese.valor_alvo * 1.3;
-        q = q.or(`avaliacao_max.is.null,and(avaliacao_max.gte.${piso},avaliacao_max.lte.${teto})`);
-      }
       const { data: cands } = await q.limit(500);
       if (!cands || !cands.length) { tesesProc++; continue; }
+
+      // Anexa valor_pedido a cada candidato
+      const candsComPreco = (cands as any[]).map((c) => ({ ...c, valor_pedido: valorPedidoMap.get(c.id) ?? null }));
 
       // Tags admin
       let tagsAdmin: string[] = [];
@@ -226,7 +233,7 @@ async function rodarBatch(execId: string, iniciado_por: string | null) {
       }
 
       const arr: Array<{ neg: Negocio; r: any }> = [];
-      for (const n of cands as Negocio[]) {
+      for (const n of candsComPreco as Negocio[]) {
         paresAval++;
         const r = await calcularMatchPar(tese, n, tagsAdmin);
         if (r) arr.push({ neg: n, r });
@@ -279,7 +286,7 @@ async function rodarBatch(execId: string, iniciado_por: string | null) {
     status: "concluida",
     concluido_em: new Date().toISOString(),
     teses_processadas: tesesProc,
-    negocios_processados: 0, // opcional · não rastreamos único
+    negocios_processados: 0,
     pares_avaliados: paresAval,
     matches_gerados: matchesGerados,
     duracao_ms: Date.now() - inicio,
