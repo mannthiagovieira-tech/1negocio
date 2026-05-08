@@ -49,6 +49,38 @@
   }
   function _h(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
+  // V8 B8.12 OPÇÃO C · session id estável + helper de tracking
+  function _sessionId() {
+    try {
+      let sid = localStorage.getItem('1n_session_id');
+      if (!sid) {
+        sid = (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('s_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10));
+        localStorage.setItem('1n_session_id', sid);
+      }
+      return sid;
+    } catch (e) { return 's_fallback_' + Date.now(); }
+  }
+  async function _registrarEventoSocio(tipo, socioId, meta) {
+    try {
+      const sess = _sess();
+      if (!sess || !sess.token) return;
+      await fetch(SUPABASE_URL + '/functions/v1/registrar-evento', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + sess.token,
+          'X-Session-Id': _sessionId(),
+        },
+        body: JSON.stringify({
+          tipo,
+          entidade_tipo: 'socio',
+          entidade_id: socioId,
+          meta: meta || {},
+        }),
+      });
+    } catch (e) { console.warn('[evento]', tipo, e); }
+  }
+
   function _formatWpp(raw) {
     const v = String(raw || '').replace(/\D/g, '');
     if (v.length === 13 && v.startsWith('55')) return '+55 (' + v.slice(2,4) + ') ' + v.slice(4,9) + '-' + v.slice(9);
@@ -451,7 +483,15 @@
       const btn = document.getElementById('btn-soc-form-enviar');
       btn.disabled = true; btn.textContent = 'Enviando...';
       try {
-        await _criarOuPatchSocio(dados);
+        const socioRow = await _criarOuPatchSocio(dados);
+        // V8 B8.12 OPÇÃO C · evento 1/5
+        if (socioRow && socioRow.id) {
+          await _registrarEventoSocio('socio_solicitou_cadastro', socioRow.id, {
+            profissao: dados.profissao || null,
+            cidade: dados.cidade || null,
+            estado: dados.estado || null,
+          });
+        }
         await render(_root);
       } catch (e) {
         err.textContent = e.message;
@@ -514,7 +554,11 @@
       err.textContent = '';
       btn.disabled = true; btn.textContent = 'Enviando...';
       try {
+        // V8 B8.12 OPÇÃO C · evento 2/5
+        await _registrarEventoSocio('socio_aceitou_termo', socio.id, { termo_versao: TERMO_VERSAO });
         const path = await _uploadDoc(file);
+        // V8 B8.12 OPÇÃO C · evento 3/5
+        await _registrarEventoSocio('socio_subiu_documento', socio.id, { documento_tipo: tipo });
         await _enviarTermoEDoc(socio.id, path, tipo);
         await render(_root);
       } catch (e) {

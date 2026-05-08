@@ -24,6 +24,25 @@ function decodeJwtPayload(t: string): any | null {
   } catch { return null; }
 }
 
+// V8 B8.12 OPÇÃO C · helper pra registrar evento server-side · falha silenciosa
+async function dispararEvento(tipo: string, socioId: string, meta: Record<string, unknown>) {
+  try {
+    await adminClient.from("eventos_usuario").insert({
+      usuario_id: null,
+      sessao_id: "admin-edge",
+      tipo,
+      entidade_tipo: "socio",
+      entidade_id: socioId,
+      duracao_ms: null,
+      meta: meta || {},
+      ip: null,
+      user_agent: null,
+    });
+  } catch (e) {
+    console.warn("[evento server]", tipo, (e as Error).message || e);
+  }
+}
+
 async function gateAdmin(req: Request): Promise<{ ok: boolean; admin_id?: string | null }> {
   const auth = req.headers.get("authorization") || "";
   if (!auth.startsWith("Bearer ")) return { ok: false };
@@ -103,6 +122,19 @@ Deno.serve(async (req: Request) => {
   const { data: updated, error: errUp } = await adminClient
     .from("socios").update(updates).eq("id", socio_id).select().single();
   if (errUp) return json({ ok: false, erro: "update_falhou: " + errUp.message }, 500);
+
+  // V8 B8.12 OPÇÃO C · eventos 4/5 e 5/5 · server-side · falha silenciosa
+  if (acao === "aprovar") {
+    await dispararEvento("admin_aprovou_socio", socio_id, {
+      codigo: updated?.codigo || null,
+      admin_id: gate.admin_id || null,
+    });
+  } else if (acao === "negar") {
+    await dispararEvento("admin_rejeitou_documento", socio_id, {
+      motivo: notas,
+      admin_id: gate.admin_id || null,
+    });
+  }
 
   return json({ ok: true, socio: updated });
 });
