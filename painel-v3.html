@@ -1316,6 +1316,7 @@ table.t .acoes { white-space: nowrap; }
           <div class="nav-item" data-secao="projetos-venda" onclick="mostrarSecao('projetos-venda')"><span class="nav-icon">🏢</span><span class="nav-label">Projetos Venda</span></div>
           <div class="nav-item" data-secao="projetos-compra" onclick="mostrarSecao('projetos-compra')"><span class="nav-icon">💡</span><span class="nav-label">Projetos Compra (teses)</span></div>
           <div class="nav-item" data-secao="socios" onclick="mostrarSecao('socios')"><span class="nav-icon">🎖️</span><span class="nav-label">Sócios</span></div>
+          <div class="nav-item" data-secao="vinculos" onclick="mostrarSecao('vinculos')"><span class="nav-icon">🔗</span><span class="nav-label">Vínculos</span><span class="nav-badge" id="nav-badge-vinculos" style="display:none">0</span></div>
           <div class="nav-item" data-secao="parceiros" onclick="mostrarSecao('parceiros')"><span class="nav-icon">🔗</span><span class="nav-label">Parceiros</span></div>
           <div class="nav-item" data-secao="funis" onclick="mostrarSecao('funis')"><span class="nav-icon">🎯</span><span class="nav-label">Funis</span></div>
           <div class="nav-item" data-secao="calendario" onclick="mostrarSecao('calendario')"><span class="nav-icon">📅</span><span class="nav-label">Calendário</span></div>
@@ -2486,6 +2487,25 @@ table.t .acoes { white-space: nowrap; }
               <button class="btn btn-mini" data-flt="cancelado" onclick="sociosFiltrar('cancelado')">Cancelados</button>
             </div>
             <div id="socios-conteudo">
+              <div class="pa-loading">carregando...</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="secao-vinculos" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">🔗 Vínculos</h1>
+            <p class="secao-subtitulo">Aprovar · rejeitar · revogar vínculos sócio↔tese/negócio · reenviar WhatsApp</p>
+          </header>
+          <div style="padding:18px 22px">
+            <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="vinculos-filtros">
+              <button class="btn btn-mini active" data-flt="todos" onclick="vinculosFiltrar('todos')">Todos</button>
+              <button class="btn btn-mini" data-flt="aguardando_aceite_proprietario" onclick="vinculosFiltrar('aguardando_aceite_proprietario')">Aguardando proprietário</button>
+              <button class="btn btn-mini" data-flt="aguardando_admin" onclick="vinculosFiltrar('aguardando_admin')" style="border-color:var(--accent,#0aa85a);color:var(--accent,#0aa85a)">Aguardando admin</button>
+              <button class="btn btn-mini" data-flt="ativo" onclick="vinculosFiltrar('ativo')">Ativos</button>
+              <button class="btn btn-mini" data-flt="removido" onclick="vinculosFiltrar('removido')">Removidos</button>
+            </div>
+            <div id="vinculos-conteudo">
               <div class="pa-loading">carregando...</div>
             </div>
           </div>
@@ -3981,6 +4001,7 @@ function mostrarSecao(id) {
     if (id === 'pa-leads')      paLoadLeads();
     if (id === 'pa-transacoes') paLoadTransacoes();
     if (id === 'socios') sociosInit();
+    if (id === 'vinculos') vinculosInit();
     if (id === 'pa-filiados')   paLoadFiliados();
     if (id === 'pa-agenda')     paLoadAgenda();
     if (id === 'pa-conversas')  paLoadConversas();
@@ -12563,6 +12584,161 @@ window.mmSalvarLote = mmSalvarLote;
   window.sociosAcao = sociosAcao;
   window.sociosToggleDados = sociosToggleDados;
   window.sociosVerDoc = sociosVerDoc;
+
+  /* ───────── V8 B8.13 SUB-BLOCO D · VÍNCULOS ───────── */
+  let _vinculosFiltro = 'todos';
+  let _vinculosCache = [];
+
+  function vinculosInit() {
+    vinculosCarregar();
+    vinculosAtualizarBadge();
+  }
+  async function vinculosAtualizarBadge() {
+    try {
+      const r = await fetch(SB + '/rest/v1/vinculos_socio?select=id&status=in.(aguardando_aceite_proprietario,aguardando_admin)', {
+        headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Prefer': 'count=exact' }
+      });
+      const total = Number(r.headers.get('content-range')?.split('/')?.[1] || 0);
+      const badge = document.getElementById('nav-badge-vinculos');
+      if (badge) {
+        badge.textContent = String(total);
+        badge.style.display = total > 0 ? 'inline-block' : 'none';
+      }
+    } catch {}
+  }
+  async function vinculosCarregar() {
+    const cont = document.getElementById('vinculos-conteudo');
+    if (!cont) return;
+    cont.innerHTML = '<div class="pa-loading">carregando...</div>';
+    try {
+      let url = SB + '/rest/v1/vinculos_socio?select=*,socio:socios(codigo,dados_cadastro,usuario_id),tese:teses_investimento(codigo,titulo,valor_alvo),diagnostico:negocios!vinculos_socio_diagnostico_id_fkey(id,codigo,nome,setor),notif:notificacoes_proprietario(id,proprietario_phone,whatsapp_enviado_em,status,proprietario_decidiu_em)&order=created_at.desc&limit=500';
+      if (_vinculosFiltro !== 'todos') url += '&status=eq.' + _vinculosFiltro;
+      const r = await fetch(url, { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) } });
+      if (!r.ok) { cont.innerHTML = '<div class="pa-empty">Erro ' + r.status + '</div>'; return; }
+      const data = await r.json();
+      _vinculosCache = data;
+      cont.innerHTML = vinculosRenderLista(data);
+    } catch (e) {
+      cont.innerHTML = '<div class="pa-empty">Erro: ' + escapeHtml(e.message || '?') + '</div>';
+    }
+  }
+  function vinculosRenderLista(rows) {
+    if (!rows.length) return '<div class="pa-empty">Nenhum vínculo encontrado.</div>';
+    return rows.map(v => {
+      const socio = v.socio || {};
+      const dados = socio.dados_cadastro || {};
+      const socioNome = dados.nome || 'Sócio sem nome';
+      const tipoVinc = v.tese_id ? 'tese' : 'diag';
+      const entLabel = tipoVinc === 'tese'
+        ? (v.tese ? `T-${(v.tese.codigo || '').replace(/^T-/, '') || '????'} · ${escapeHtml(v.tese.titulo || 'Tese')}` : 'Tese (?)')
+        : (v.diagnostico ? `${escapeHtml(v.diagnostico.codigo || '1N-????')} · ${escapeHtml(v.diagnostico.nome || 'Negócio')}` : 'Negócio (?)');
+      const notif = Array.isArray(v.notif) && v.notif.length ? v.notif[0] : null;
+      const phone = notif?.proprietario_phone || '';
+      const phoneSuffix = phone ? '****' + phone.slice(-4) : '—';
+      const whatsappEnviado = notif?.whatsapp_enviado_em
+        ? new Date(notif.whatsapp_enviado_em).toLocaleString('pt-BR')
+        : 'não enviado';
+      const podeReenviar = notif && (notif.status === 'pendente') && v.status === 'aguardando_aceite_proprietario';
+
+      const statusColor = {
+        'aguardando_aceite_proprietario': '#f59e0b',
+        'aguardando_admin': 'var(--accent, #0aa85a)',
+        'ativo': '#22c55e',
+        'removido': '#dc2626',
+      }[v.status] || 'var(--ink-3)';
+      const statusLabel = {
+        'aguardando_aceite_proprietario': 'aguardando proprietário',
+        'aguardando_admin': 'aguardando admin',
+        'ativo': 'ativo',
+        'removido': 'removido',
+      }[v.status] || v.status;
+
+      let acoes = '';
+      if (v.status === 'aguardando_admin') {
+        acoes = `<button class="btn btn-mini" style="background:var(--accent,#0aa85a);border-color:var(--accent,#0aa85a);color:#fff" onclick="vinculosAcao('${v.id}','aprovar')">✓ Aprovar</button>
+          <button class="btn btn-mini" onclick="vinculosAcao('${v.id}','rejeitar')">✗ Rejeitar</button>`;
+      } else if (v.status === 'aguardando_aceite_proprietario') {
+        if (podeReenviar) acoes += `<button class="btn btn-mini" onclick="vinculosReenviarWhatsApp('${v.id}')">📤 Reenviar WhatsApp</button> `;
+        acoes += `<button class="btn btn-mini" onclick="vinculosAcao('${v.id}','rejeitar')">✗ Cancelar</button>`;
+      } else if (v.status === 'ativo') {
+        acoes = `<button class="btn btn-mini" style="border-color:#dc2626;color:#dc2626" onclick="vinculosAcao('${v.id}','revogar')">⊗ Revogar</button>`;
+      }
+
+      const motivo = v.removido_motivo ? `<div style="font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-top:6px">Motivo: ${escapeHtml(v.removido_motivo)}</div>` : '';
+      const notas = v.notas_admin ? `<div style="font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-top:4px">Notas: ${escapeHtml(v.notas_admin)}</div>` : '';
+
+      return `<div class="bloco" style="padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div style="flex:1;min-width:240px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <span style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--accent,#0aa85a);font-weight:600">${escapeHtml(v.codigo || 'V-????')}</span>
+              <span style="padding:2px 8px;border-radius:999px;background:${statusColor};color:#fff;font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em">${statusLabel}</span>
+            </div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:4px">${escapeHtml(socioNome)} <span style="color:var(--ink-3);font-family:var(--mono);font-size:11px">(${escapeHtml(socio.codigo || 'S-????')})</span></div>
+            <div style="font-size:13px;color:var(--ink-2);margin-bottom:4px">${tipoVinc === 'tese' ? '📋' : '🏢'} ${entLabel}</div>
+            <div style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">
+              Origem · ${escapeHtml(v.origem || '?')} · Proprietário ${phoneSuffix}<br>
+              WhatsApp · ${whatsappEnviado}<br>
+              Criado · ${new Date(v.created_at).toLocaleString('pt-BR')}
+              ${v.proprietario_aceitou_em ? '<br>Proprietário aceitou · ' + new Date(v.proprietario_aceitou_em).toLocaleString('pt-BR') : ''}
+              ${v.admin_aprovou_em ? '<br>Admin aprovou · ' + new Date(v.admin_aprovou_em).toLocaleString('pt-BR') : ''}
+              ${v.removido_em ? '<br>Removido · ' + new Date(v.removido_em).toLocaleString('pt-BR') : ''}
+            </div>
+            ${motivo}${notas}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start">${acoes}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  function vinculosFiltrar(f) {
+    _vinculosFiltro = f;
+    document.querySelectorAll('#vinculos-filtros .btn').forEach(b => b.classList.toggle('active', b.dataset.flt === f));
+    vinculosCarregar();
+  }
+  async function vinculosAcao(vinculo_id, acao) {
+    let notas = null;
+    if (acao === 'rejeitar') {
+      notas = prompt('Motivo da rejeição (opcional · 500 chars):', '') || null;
+      if (!confirm('Rejeitar este vínculo?')) return;
+    } else if (acao === 'revogar') {
+      notas = prompt('Motivo da revogação (opcional · 500 chars):', '');
+      if (notas === null) return;
+      if (!confirm('Revogar este vínculo ativo? socio_codigo será removido da tese/negócio.')) return;
+    } else if (acao === 'aprovar') {
+      notas = prompt('Notas internas (opcional · não vai pro sócio):', '') || null;
+    }
+    try {
+      const r = await fetch(SB + '/functions/v1/admin-aprovar-vinculo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) },
+        body: JSON.stringify({ vinculo_id, acao, notas }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data.ok) { alert('Erro: ' + (data.error || data.detalhe || r.status)); return; }
+      vinculosCarregar();
+      vinculosAtualizarBadge();
+    } catch (e) { alert('Erro de rede: ' + e.message); }
+  }
+  async function vinculosReenviarWhatsApp(vinculo_id) {
+    if (!confirm('Reenviar WhatsApp pro proprietário?')) return;
+    try {
+      const r = await fetch(SB + '/functions/v1/admin-reenviar-whatsapp-vinculo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) },
+        body: JSON.stringify({ vinculo_id }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data.ok) { alert('Erro: ' + (data.error || r.status)); return; }
+      alert(data.whatsapp_enviado ? '✓ WhatsApp reenviado' : '⚠ Notificação criada mas WhatsApp falhou (Z-API). Tente novamente.');
+      vinculosCarregar();
+    } catch (e) { alert('Erro de rede: ' + e.message); }
+  }
+  window.vinculosInit = vinculosInit;
+  window.vinculosFiltrar = vinculosFiltrar;
+  window.vinculosAcao = vinculosAcao;
+  window.vinculosReenviarWhatsApp = vinculosReenviarWhatsApp;
+  window.vinculosCarregar = vinculosCarregar;
 </script>
 </body>
 </html>

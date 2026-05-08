@@ -34,6 +34,11 @@ const TIPOS_VALIDOS = new Set([
   "socio_cadastrou_diag_terceiro",
   // V8 B8.13 SUB-BLOCO C FASE 3 · Sócio pede vínculo
   "socio_pediu_vinculo",
+  // V8 B8.13 SUB-BLOCO D · Admin processa vínculos
+  "admin_aprovou_vinculo",
+  "admin_rejeitou_vinculo",
+  "admin_revogou_vinculo",
+  "admin_reenviou_whatsapp_vinculo",
 ]);
 
 const ENTIDADE_TIPOS_VALIDOS = new Set([

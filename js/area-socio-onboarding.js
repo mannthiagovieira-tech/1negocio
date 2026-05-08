@@ -624,7 +624,7 @@
 
         <div class="aprovado-vinculos">
           <div class="aprovado-vinculos-titulo">Seus vínculos</div>
-          <div class="aprovado-vinculos-vazio">Nenhum vínculo ainda · cadastre tese ou diagnóstico pra começar.</div>
+          <div id="meus-vinculos-conteudo" class="aprovado-vinculos-vazio">carregando...</div>
         </div>
       </div>
     `;
@@ -643,6 +643,68 @@
         else if (acao === 'pedir-vinculo') window.SocioAcoes.modalPedirVinculo({ socio });
       });
     });
+
+    // V8 B8.13 SUB-BLOCO D · popula "Meus vínculos"
+    _carregarMeusVinculos(socio.id);
+  }
+
+  async function _carregarMeusVinculos(socioId) {
+    const container = document.getElementById('meus-vinculos-conteudo');
+    if (!container || !socioId) return;
+    try {
+      const SUPABASE_URL = window.SUPABASE_URL || 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+      let token = null;
+      if (window.supabase && window.supabase.auth && typeof window.supabase.auth.getSession === 'function') {
+        const { data } = await window.supabase.auth.getSession();
+        token = data?.session?.access_token || null;
+      }
+      if (!token) token = localStorage.getItem('sb-access-token') || null;
+      if (!token) { container.textContent = 'Sessão expirada · faça login novamente.'; return; }
+
+      const url = SUPABASE_URL + '/rest/v1/vinculos_socio?select=id,codigo,status,origem,tese_id,diagnostico_id,created_at,proprietario_aceitou_em,admin_aprovou_em,tese:teses_investimento(codigo,titulo),diagnostico:negocios!vinculos_socio_diagnostico_id_fkey(codigo,nome)&socio_id=eq.' + encodeURIComponent(socioId) + '&order=created_at.desc&limit=50';
+      const r = await fetch(url, { headers: { 'apikey': token, 'Authorization': 'Bearer ' + token } });
+      if (!r.ok) { container.textContent = 'Erro ao carregar vínculos: ' + r.status; return; }
+      const rows = await r.json();
+      if (!rows.length) {
+        container.textContent = 'Nenhum vínculo ainda · cadastre tese ou diagnóstico pra começar.';
+        return;
+      }
+      const statusColor = {
+        'aguardando_aceite_proprietario': '#f59e0b',
+        'aguardando_admin': 'var(--accent, #0aa85a)',
+        'ativo': '#22c55e',
+        'removido': '#dc2626',
+      };
+      const statusLabel = {
+        'aguardando_aceite_proprietario': 'aguardando proprietário',
+        'aguardando_admin': 'aguardando admin',
+        'ativo': 'ativo',
+        'removido': 'removido',
+      };
+      const html = rows.map(v => {
+        const tipoLabel = v.tese_id
+          ? `📋 Tese ${_h(v.tese?.codigo || 'T-????')} · ${_h(v.tese?.titulo || '')}`
+          : `🏢 Negócio ${_h(v.diagnostico?.codigo || '1N-????')} · ${_h(v.diagnostico?.nome || '')}`;
+        const created = new Date(v.created_at);
+        let extra = '';
+        if (v.status === 'aguardando_aceite_proprietario') {
+          const dias = Math.floor((Date.now() - created.getTime()) / (1000 * 60 * 60 * 24));
+          extra = ` · há ${dias} dia${dias === 1 ? '' : 's'}`;
+        }
+        return `<div style="padding:10px 12px;border:1px solid var(--ink-line,#e5e5e3);border-radius:10px;margin-bottom:6px;background:#fff">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-family:var(--mono,monospace);font-size:11px;color:var(--accent,#0aa85a);font-weight:600">${_h(v.codigo || 'V-????')}</span>
+            <span style="padding:2px 8px;border-radius:999px;background:${statusColor[v.status] || '#888'};color:#fff;font-size:10px;font-family:var(--mono,monospace);text-transform:uppercase;letter-spacing:.05em">${statusLabel[v.status] || v.status}</span>
+          </div>
+          <div style="font-size:13px;color:var(--ink-2,#4a4a4a);margin-top:6px">${tipoLabel}</div>
+          <div style="font-size:11px;color:var(--ink-3,#717171);margin-top:4px;font-family:var(--mono,monospace)">${created.toLocaleDateString('pt-BR')}${extra}</div>
+        </div>`;
+      }).join('');
+      container.classList.remove('aprovado-vinculos-vazio');
+      container.innerHTML = html;
+    } catch (e) {
+      container.textContent = 'Erro: ' + (e.message || e);
+    }
   }
 
   function _renderEstado5(socio) {
