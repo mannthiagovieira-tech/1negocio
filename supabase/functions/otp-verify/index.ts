@@ -156,30 +156,51 @@ Deno.serve(async (req: Request) => {
                        return json({ ok: false, error: "Erro interno" }, 500);
              }
 
+             // V8 BLOCO 6 · IDs reservados (Seed Maquininha · Demo) · NUNCA login/lazy-migration
+             const RESERVED_IDS = new Set([
+                       "aaaaaaaa-0000-0000-0000-000000000001",
+                       "aaaaaaaa-0000-0000-0000-000000000002",
+             ]);
+
              const existingUser = userRows?.[0] ?? null;
              let usuarioNovo = false;
              let temNome = false;
 
+             // Guard catastrófico: phone match em auth.users com ID reservado · impossível em produção
+             // mas defensivo (alguém pode ter setado phone na seed manualmente)
+             if (existingUser && RESERVED_IDS.has(existingUser.id)) {
+                       console.error("[otp-verify] Phone bate com ID reservado:", existingUser.id);
+                       return json({ ok: false, error: "phone_reservado" }, 403);
+             }
+
              if (existingUser) {
                        const currentNome = existingUser.raw_user_meta_data?.nome;
-                       temNome = !!(currentNome && String(currentNome).trim().length > 1
-                                   && currentNome !== existingUser.phone);
-                       if (nome && nome !== currentNome) {
+                       const currentLooksLikeName = !!(currentNome
+                                   && String(currentNome).trim().length > 1
+                                   && currentNome !== existingUser.phone
+                                   && !/^\+?\d+$/.test(String(currentNome)));
+                       temNome = currentLooksLikeName;
+                       // Só atualiza nome se: (a) ainda não tem nome OU (b) front mandou nome diferente E não é numérico
+                       const novoNomeValido = !!(nome
+                                   && String(nome).trim().length > 1
+                                   && !/^\+?\d+$/.test(String(nome)));
+                       if (novoNomeValido && (!currentLooksLikeName || nome !== currentNome)) {
                                    await adminClient.auth.admin.updateUserById(existingUser.id, {
                                                  user_metadata: { ...existingUser.raw_user_meta_data, nome },
                                    });
                                    temNome = true;
                        }
              } else {
-                       // LAZY MIGRATION · auth.user existente so-email · adicionar phone preservando id
-                       // Bridge confirmado em D6: usuarios.id === auth.users.id em 100% dos casos com match
+                       // LAZY MIGRATION · auth.user só-email · adiciona phone preservando id
+                       // Filtra IDs reservados pra NUNCA escrever phone na Seed
                        const { data: legacyUserRow } = await adminClient
                                    .from("usuarios")
                                    .select("id, email")
                                    .eq("whatsapp", phoneSemPlus)
+                                   .not("id", "in", "(" + Array.from(RESERVED_IDS).map(id => `"${id}"`).join(",") + ")")
                                    .maybeSingle();
 
-                       if (legacyUserRow?.id) {
+                       if (legacyUserRow?.id && !RESERVED_IDS.has(legacyUserRow.id)) {
                                    const { error: updErr } = await adminClient.auth.admin.updateUserById(
                                                  legacyUserRow.id,
                                                  {
@@ -189,27 +210,22 @@ Deno.serve(async (req: Request) => {
                                                              user_metadata: nome ? { nome } : undefined,
                                                  }
                                    );
-
                                    if (updErr) {
                                                  console.error("[otp-verify] Lazy migration falhou:", updErr);
-                                                 // NAO cair em createUser · evita duplicata de auth.users
                                                  return json({
                                                              ok: false,
                                                              error: "Nao conseguimos validar agora. Tente novamente em alguns segundos. Se persistir · fale com a gente em wa.me/5511952136406"
                                                  }, 500);
                                    }
-
                                    console.log(`Lazy migration: ${legacyUserRow.email} -> phone ${phoneComPlus}`);
                                    temNome = !!(nome && String(nome).trim().length > 1);
                        } else {
-                                   // Usuario realmente novo · cria do zero
                                    const { data: newUser, error: createErr } = await adminClient.auth.admin.createUser({
                                                  phone: phoneComPlus,
                                                  password: syntheticPassword,
                                                  phone_confirm: true,
                                                  user_metadata: nome ? { nome } : {},
                                    });
-
                                    if (createErr || !newUser?.user) {
                                                  console.error("[otp-verify] Erro ao criar user:", createErr);
                                                  return json({ ok: false, error: "Erro ao criar conta" }, 500);
