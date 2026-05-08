@@ -32,6 +32,8 @@ const TIPOS_VALIDOS = new Set([
   // V8 B8.13 SUB-BLOCO B FASE 2 · Sócio cadastra terceiro
   "socio_cadastrou_tese_terceiro",
   "socio_cadastrou_diag_terceiro",
+  // V8 B8.13 SUB-BLOCO C FASE 3 · Sócio pede vínculo
+  "socio_pediu_vinculo",
 ]);
 
 const ENTIDADE_TIPOS_VALIDOS = new Set([

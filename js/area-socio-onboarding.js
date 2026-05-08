@@ -613,11 +613,11 @@
             </span>
           </button>
 
-          <button type="button" class="btn-acao" data-acao="pedir-vinculo" disabled>
+          <button type="button" class="btn-acao" data-acao="pedir-vinculo">
             <span class="btn-acao-icon" aria-hidden="true">🔗</span>
             <span class="btn-acao-corpo">
               <span class="btn-acao-titulo">Pedir vínculo a código existente</span>
-              <span class="btn-acao-sub">Vincular-se a uma tese ou diagnóstico já cadastrado <span class="btn-acao-badge">Em breve</span></span>
+              <span class="btn-acao-sub">Vincular-se a uma tese (T-XXXX) ou negócio (1N-XXXX) já cadastrado · proprietário recebe WhatsApp</span>
             </span>
           </button>
         </div>

@@ -659,28 +659,131 @@
     });
   }
 
-  // ───── modal: pedir vínculo · placeholder até SUB-BLOCO C ─────
-  function modalPedirVinculo() {
-    const wrap = document.createElement('div');
-    wrap.className = 'modal-stepper-overlay';
-    wrap.innerHTML = `
-      <div class="modal-stepper">
-        <div class="modal-stepper-head">
-          <div class="modal-stepper-titulo">Pedir vínculo</div>
-          <button type="button" class="modal-stepper-close" aria-label="Fechar">×</button>
-        </div>
-        <div class="modal-stepper-body">
+  // ───── modal: pedir vínculo · V8 B8.13 SUB-BLOCO C FASE 3 · 4 steps ─────
+  function modalPedirVinculo(_opts) {
+    const steps = [
+      // 1. Cola código
+      {
+        render: async (s) => `
           <div class="msf-step">
-            <h3 class="msf-q">Em breve</h3>
-            <p class="msf-hint">Essa funcionalidade será liberada na próxima fase do sócio-assessor (SUB-BLOCO C). Você poderá colar um código de tese ou diagnóstico existente e pedir vínculo ao proprietário.</p>
+            <h3 class="msf-q">Código da tese ou negócio</h3>
+            <p class="msf-hint">Cole o código que o proprietário compartilhou com você</p>
+            <input type="text" class="msf-input" id="msf-codigo" placeholder="T-0053  ou  1N-1149" maxlength="20" value="${_h(s.codigo || '')}" autocomplete="off" />
+            <div class="msf-hint" style="margin-top:10px">
+              · Tese de comprador → começa com <strong>T-</strong><br>
+              · Negócio à venda → começa com <strong>1N-</strong>
+            </div>
+            <div class="msf-err" id="msf-codigo-err"></div>
           </div>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(wrap);
-    document.body.style.overflow = 'hidden';
-    function fechar() { document.body.style.overflow = ''; wrap.remove(); }
-    wrap.querySelector('.modal-stepper-close').addEventListener('click', fechar);
+        `,
+        onMount: (el, s) => {
+          const inp = el.querySelector('#msf-codigo');
+          inp.addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase(); });
+          inp.focus();
+        },
+        validate: async (el, s) => {
+          const errEl = el.querySelector('#msf-codigo-err');
+          const codigo = String(el.querySelector('#msf-codigo').value || '').trim().toUpperCase();
+          if (!codigo) { errEl.textContent = 'Cole o código'; return false; }
+          // Busca via edge · valida formato + existência + conflito
+          try {
+            const res = await _apiCall('socio-buscar-codigo', { codigo });
+            s.codigo = codigo;
+            s.preview = res;
+            return true;
+          } catch (e) {
+            errEl.textContent = e.message || String(e);
+            return false;
+          }
+        },
+      },
+      // 2. Preview
+      {
+        render: async (s) => {
+          const p = s.preview || {};
+          const tipoLabel = p.tipo === 'tese' ? 'Tese de investimento' : 'Negócio à venda';
+          const valorOuSetor = p.tipo === 'tese' && p.valor_alvo
+            ? `Valor alvo · ${_formatBRL(Number(p.valor_alvo))}`
+            : (p.setor ? `Setor · ${_h(p.setor)}` : '');
+
+          // 4 cenários:
+          let alertHtml = '';
+          let canContinue = true;
+          if (p.ja_pediu_vinculo) {
+            alertHtml = `<div class="msf-alert msf-alert-warn"><strong>Você já pediu vínculo a esse código.</strong> Aguarde resposta do proprietário ou cancele o pedido anterior pelo admin.</div>`;
+            canContinue = false;
+          } else if (p.tem_socio_ativo) {
+            alertHtml = `<div class="msf-alert msf-alert-warn"><strong>Esse código já tem sócio ativo.</strong> Você pode pedir mesmo assim · o proprietário decide se troca de sócio.</div>`;
+            canContinue = true;
+          } else {
+            alertHtml = `<div class="msf-alert msf-alert-ok"><strong>Disponível.</strong> Você pode pedir vínculo · proprietário recebe um WhatsApp pra aceitar ou recusar.</div>`;
+          }
+
+          s._canContinue = canContinue;
+
+          return `
+            <div class="msf-step">
+              <h3 class="msf-q">Preview do código</h3>
+              <div class="msf-preview">
+                <div class="msf-preview-codigo">${_h(p.codigo)}</div>
+                <div class="msf-preview-tipo">${_h(tipoLabel)}</div>
+                <div class="msf-preview-resumo">${_h(p.resumo || '—')}</div>
+                ${valorOuSetor ? `<div class="msf-preview-meta">${_h(valorOuSetor)}</div>` : ''}
+                <div class="msf-preview-meta">Proprietário · <strong>${_h(p.proprietario_iniciais || '??')}</strong> <span style="color:var(--ink-3)">(sigilo · só iniciais até ele aceitar)</span></div>
+              </div>
+              ${alertHtml}
+            </div>
+          `;
+        },
+        validate: async (el, s) => {
+          if (!s._canContinue) {
+            // Bloqueia avanço quando já pediu
+            return false;
+          }
+          return true;
+        },
+      },
+      // 3. Confirmação
+      {
+        render: async (s) => {
+          const p = s.preview || {};
+          return `
+            <div class="msf-step">
+              <h3 class="msf-q">Confirmar pedido de vínculo</h3>
+              <p class="msf-hint">Ao confirmar:</p>
+              <ul class="msf-hint" style="padding-left:18px;line-height:1.7">
+                <li>Vínculo é criado em status <strong>aguardando aceite</strong></li>
+                <li>Proprietário recebe um WhatsApp com link de aceite</li>
+                <li>Link expira em 30 dias · você é notificado quando ele aceitar ou recusar</li>
+                <li>Enquanto pendente · você não tem acesso aos dados completos</li>
+              </ul>
+              <div class="msf-resumo" style="margin-top:14px">
+                <div class="msf-resumo-row"><span>Código</span><strong>${_h(p.codigo)}</strong></div>
+                <div class="msf-resumo-row"><span>Tipo</span><strong>${_h(p.tipo === 'tese' ? 'Tese' : 'Negócio')}</strong></div>
+                <div class="msf-resumo-row"><span>Proprietário</span><strong>${_h(p.proprietario_iniciais || '??')}</strong></div>
+              </div>
+            </div>
+          `;
+        },
+      },
+    ];
+
+    _modalStepper({
+      titulo: 'Pedir vínculo a código existente',
+      ctaFinalLabel: 'Pedir vínculo e enviar WhatsApp',
+      steps,
+      onSubmit: async (s, { mostrarSucesso }) => {
+        const res = await _apiCall('socio-pedir-vinculo', { codigo: s.codigo });
+        mostrarSucesso(`
+          <div class="msf-step">
+            <h3 class="msf-q" style="color:var(--accent,#0aa85a)">✓ Vínculo solicitado</h3>
+            <p class="msf-hint">Código do vínculo: <strong>${_h(res.vinculo_codigo || '—')}</strong></p>
+            <p class="msf-hint" style="margin-top:14px">WhatsApp enviado pro proprietário · ele tem 30 dias pra aceitar.</p>
+            <p class="msf-hint">Você é notificado quando houver resposta.</p>
+          </div>
+        `);
+      },
+    });
   }
 
   window.SocioAcoes = {
