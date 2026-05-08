@@ -1811,6 +1811,10 @@ body[data-theme="light"] .req-inp,body[data-theme="light"] .req-txt{background:#
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         <span class="ai-pulse"></span>
       </button>
+      <button class="action" id="btn-salvar-top" onclick="salvarTopCard()" style="background:transparent;color:var(--ink);border:1px solid var(--line);font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:0 14px;display:inline-flex;align-items:center;gap:6px">
+        <svg id="ico-salvar-top" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        <span id="lbl-salvar-top">Salvar em tese</span>
+      </button>
       <button class="action primary" onclick="contactTopCard()">
         SOLICITAR INFORMAÇÕES
       </button>
@@ -2841,6 +2845,43 @@ function contactTopCard(){
   if(!top) return;
   const id = top.dataset.id || (state.filtered[state.idx] && state.filtered[state.idx].id);
   if(id) contact(id);
+}
+
+function _negocioUuidTopCard(){
+  const top = $('#stack .card[data-pos="0"]');
+  if(!top) return null;
+  const id = top.dataset.id || (state.filtered[state.idx] && state.filtered[state.idx].id);
+  const deal = state.filtered.find(x => String(x.id) === String(id));
+  return (deal && (deal.uuid || deal.id_uuid)) || (deal && deal.id) || id;
+}
+
+async function salvarTopCard(){
+  const uuid = _negocioUuidTopCard();
+  if (!uuid || !window.SET) return;
+  await window.SET.abrir(uuid, () => atualizarBotaoSalvarTop());
+}
+
+async function atualizarBotaoSalvarTop(){
+  const uuid = _negocioUuidTopCard();
+  if (!uuid || !window.SET) return;
+  await window.SET.estado(uuid);
+  const btn = document.getElementById('btn-salvar-top');
+  const lbl = document.getElementById('lbl-salvar-top');
+  const ico = document.getElementById('ico-salvar-top');
+  if (!btn || !lbl) return;
+  if (window.SET.statusButton(uuid) === 'salvo') {
+    lbl.textContent = 'Salvo';
+    btn.style.color = 'var(--accent)';
+    btn.style.borderColor = 'var(--accent-line, rgba(61,255,149,.3))';
+    btn.style.background = 'rgba(61,255,149,.08)';
+    if (ico) ico.setAttribute('fill', 'currentColor');
+  } else {
+    lbl.textContent = 'Salvar em tese';
+    btn.style.color = 'var(--ink)';
+    btn.style.borderColor = 'var(--line)';
+    btn.style.background = 'transparent';
+    if (ico) ico.setAttribute('fill', 'none');
+  }
 }
 
 function shareTopCard(e){
@@ -4444,5 +4485,44 @@ window.addEventListener('resize', ()=>{
 })();
 </script>
 
+<script src="/salvar-em-tese.js"></script>
+<script>
+  // Configuração SET (Salvar em Tese) · BLOCO V8
+  (function () {
+    function _waitAndConfig() {
+      if (!window.SET || typeof window.SET.config !== 'function') {
+        return setTimeout(_waitAndConfig, 100);
+      }
+      window.SET.config({
+        supabaseUrl: 'https://dbijmgqlcrgjlcfrastg.supabase.co',
+        supabaseAnon: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA',
+        getSession: () => {
+          try {
+            const raw = localStorage.getItem('1n_auth');
+            if (raw) {
+              const s = JSON.parse(raw);
+              if (s && s.token && s.user_id) return s;
+            }
+          } catch {}
+          return null;
+        },
+        registrarEvento: window.registrarEvento || (() => {}),
+        otpAbrir: (cb) => {
+          // Reusa modal de Solicitar info pra disparar OTP · após login completo, retoma
+          if (typeof window.openReqModal === 'function') {
+            window._setPendenciaPosLogin = cb;
+            const uuid = (typeof _negocioUuidTopCard === 'function') ? _negocioUuidTopCard() : null;
+            if (uuid) window.openReqModal(uuid);
+          } else if (cb) cb();
+        },
+      });
+    }
+    _waitAndConfig();
+    // Atualiza botão Salvar quando trocar de card
+    window.addEventListener('1n:card-trocou', () => {
+      if (typeof atualizarBotaoSalvarTop === 'function') atualizarBotaoSalvarTop();
+    });
+  })();
+</script>
 </body>
 </html>
