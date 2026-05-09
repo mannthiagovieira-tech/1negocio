@@ -12,8 +12,10 @@
 
   const SUPABASE_URL = window.SUPABASE_URL || 'https://dbijmgqlcrgjlcfrastg.supabase.co';
 
-  // Vocabulário canônico · INSTRUCOES-1NEGOCIO v6 §11
-  const SETORES = [
+  // V8 B8.13 cura raiz · prefere /js/vocabulario-canonico.js (window.VC)
+  // Fallback local mantido pra resilência caso script ordem dê problema
+  if (!window.VC) console.warn('[socio-acoes] vocabulario-canonico.js não carregou · usando fallback local');
+  const _SETORES_FALLBACK = [
     { id: 'servicos_empresas', label: 'Serviços B2B' },
     { id: 'varejo', label: 'Varejo' },
     { id: 'saude', label: 'Saúde' },
@@ -27,9 +29,7 @@
     { id: 'hospedagem', label: 'Hospedagem' },
     { id: 'logistica', label: 'Logística' },
   ];
-
-  // Modelo de negócio (NÃO modalidade M&A)
-  const FORMAS = [
+  const _FORMAS_FALLBACK = [
     { id: 'presta_servico', label: 'Presta serviço' },
     { id: 'produz_revende', label: 'Produz e revende' },
     { id: 'fabricacao', label: 'Fabricação' },
@@ -39,8 +39,11 @@
     { id: 'saas', label: 'SaaS' },
     { id: 'assinatura', label: 'Assinatura/recorrência' },
   ];
+  const _UFS_FALLBACK = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
 
-  const UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
+  const SETORES = (window.VC && window.VC.SETORES) ? window.VC.SETORES : _SETORES_FALLBACK;
+  const FORMAS  = (window.VC && window.VC.FORMAS)  ? window.VC.FORMAS  : _FORMAS_FALLBACK;
+  const UFS     = (window.VC && window.VC.UFS)     ? window.VC.UFS     : _UFS_FALLBACK;
 
   // ───── helpers ─────
   const _h = (s) => String(s || '').replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
