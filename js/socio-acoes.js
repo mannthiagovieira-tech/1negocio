@@ -55,27 +55,35 @@
     return 'R$ ' + Number(n).toLocaleString('pt-BR');
   }
 
-  async function _getToken() {
-    try {
-      if (window.supabase && window.supabase.auth && typeof window.supabase.auth.getSession === 'function') {
-        const { data } = await window.supabase.auth.getSession();
-        return data?.session?.access_token || null;
-      }
-      return localStorage.getItem('sb-access-token') || null;
-    } catch { return null; }
+  // V8 B8.13 fix · usa OneN.auth (helper canônico do projeto · auth-fetch.js)
+  // OneN.auth.getSession() retorna { token, user_id, ... } · campo é .token (não .access_token)
+  // OneN.auth.authFetch auto-injeta Authorization+apikey e renova via otp-refresh quando expira
+  function _getToken() {
+    const sess = (window.OneN && window.OneN.auth && window.OneN.auth.getSession)
+      ? window.OneN.auth.getSession() : null;
+    return (sess && sess.token) || null;
   }
 
   async function _apiCall(path, body) {
-    const token = await _getToken();
-    if (!token) throw new Error('Sessão expirada · faça login novamente');
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/${path}`, {
+    const url = `${SUPABASE_URL}/functions/v1/${path}`;
+    const opts = {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    });
+    };
+    let res;
+    if (window.OneN && window.OneN.auth && window.OneN.auth.authFetch) {
+      // Caminho preferido · authFetch renova token automaticamente em 401
+      res = await window.OneN.auth.authFetch(url, opts);
+    } else {
+      // Fallback · OneN não carregou · lê token direto e dispara fetch puro
+      const token = _getToken() || localStorage.getItem('sb_access_token') || null;
+      if (!token) {
+        const has = !!(window.OneN && window.OneN.auth);
+        throw new Error(`Sem token · OneN.auth=${has} · sb_access_token=${!!localStorage.getItem('sb_access_token')}`);
+      }
+      res = await fetch(url, { ...opts, headers: { ...opts.headers, 'Authorization': 'Bearer ' + token } });
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
     return data;

@@ -653,16 +653,16 @@
     if (!container || !socioId) return;
     try {
       const SUPABASE_URL = window.SUPABASE_URL || 'https://dbijmgqlcrgjlcfrastg.supabase.co';
-      let token = null;
-      if (window.supabase && window.supabase.auth && typeof window.supabase.auth.getSession === 'function') {
-        const { data } = await window.supabase.auth.getSession();
-        token = data?.session?.access_token || null;
-      }
-      if (!token) token = localStorage.getItem('sb-access-token') || null;
-      if (!token) { container.textContent = 'Sessão expirada · faça login novamente.'; return; }
+      // V8 B8.13 fix · reusa _sess() declarado no topo do arquivo (linhas 46-49)
+      // que aponta pra OneN.auth · padrão canônico do projeto
+      const sess = _sess();
+      if (!sess) { container.textContent = 'Auth indisponível · OneN.auth não carregou · recarregue a página.'; return; }
+      if (!sess.token) { container.textContent = 'Sessão sem token · faça login novamente.'; return; }
+      const token = sess.token;
 
       const url = SUPABASE_URL + '/rest/v1/vinculos_socio?select=id,codigo,status,origem,tese_id,diagnostico_id,created_at,proprietario_aceitou_em,admin_aprovou_em,tese:teses_investimento(codigo,titulo),diagnostico:negocios!vinculos_socio_diagnostico_id_fkey(codigo,nome)&socio_id=eq.' + encodeURIComponent(socioId) + '&order=created_at.desc&limit=50';
-      const r = await fetch(url, { headers: { 'apikey': token, 'Authorization': 'Bearer ' + token } });
+      // Prefere _af (que já é authFetch · renova token automático em 401)
+      const r = await _af(url, { headers: { 'apikey': token, 'Authorization': 'Bearer ' + token } });
       if (!r.ok) { container.textContent = 'Erro ao carregar vínculos: ' + r.status; return; }
       const rows = await r.json();
       if (!rows.length) {
