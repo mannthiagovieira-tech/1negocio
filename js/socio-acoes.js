@@ -12,32 +12,35 @@
 
   const SUPABASE_URL = window.SUPABASE_URL || 'https://dbijmgqlcrgjlcfrastg.supabase.co';
 
-  // Vocabulário canônico
+  // Vocabulário canônico · INSTRUCOES-1NEGOCIO v6 §11
   const SETORES = [
-    { id: 'alimentacao', label: 'Alimentação' },
+    { id: 'servicos_empresas', label: 'Serviços B2B' },
+    { id: 'varejo', label: 'Varejo' },
     { id: 'saude', label: 'Saúde' },
+    { id: 'alimentacao', label: 'Alimentação' },
     { id: 'beleza_estetica', label: 'Beleza e estética' },
     { id: 'educacao', label: 'Educação' },
-    { id: 'varejo', label: 'Varejo' },
+    { id: 'servicos_locais', label: 'Serviços locais' },
+    { id: 'bem_estar', label: 'Bem-estar' },
     { id: 'industria', label: 'Indústria' },
-    { id: 'logistica', label: 'Logística' },
     { id: 'construcao', label: 'Construção' },
-    { id: 'servicos_empresas', label: 'Serviços B2B' },
-    { id: 'tecnologia', label: 'Tecnologia / SaaS' },
     { id: 'hospedagem', label: 'Hospedagem' },
-    { id: 'indiferente', label: 'Indiferente · qualquer setor' },
+    { id: 'logistica', label: 'Logística' },
   ];
 
+  // Modelo de negócio (NÃO modalidade M&A)
   const FORMAS = [
-    { id: 'aquisicao_total', label: 'Aquisição total (100%)' },
-    { id: 'participacao_majoritaria', label: 'Participação majoritária (>50%)' },
-    { id: 'participacao_minoritaria', label: 'Participação minoritária (<50%)' },
-    { id: 'joint_venture', label: 'Joint venture' },
-    { id: 'franquia', label: 'Franquia' },
-    { id: 'fusao', label: 'Fusão' },
-    { id: 'parceria_estrategica', label: 'Parceria estratégica' },
-    { id: 'indiferente', label: 'Indiferente · qualquer forma' },
+    { id: 'presta_servico', label: 'Presta serviço' },
+    { id: 'produz_revende', label: 'Produz e revende' },
+    { id: 'fabricacao', label: 'Fabricação' },
+    { id: 'revenda', label: 'Revenda' },
+    { id: 'distribuicao', label: 'Distribuição' },
+    { id: 'vende_governo', label: 'Vende pra governo' },
+    { id: 'saas', label: 'SaaS' },
+    { id: 'assinatura', label: 'Assinatura/recorrência' },
   ];
+
+  const UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
 
   // ───── helpers ─────
   const _h = (s) => String(s || '').replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
@@ -312,12 +315,12 @@
           return true;
         },
       },
-      // 4. formas atuação (multi)
+      // 4. modelo de negócio (multi · NÃO modalidade M&A)
       {
         render: async (s) => `
           <div class="msf-step">
-            <h3 class="msf-q">Forma de atuação</h3>
-            <p class="msf-hint">Como ele(a) prefere entrar no negócio</p>
+            <h3 class="msf-q">Modelo de negócio</h3>
+            <p class="msf-hint">Como a empresa que ele(a) busca opera (1 ou mais)</p>
             <div class="msf-chips" id="msf-formas">
               ${FORMAS.map(o => `<button type="button" class="msf-chip${(s.formas_atuacao || []).includes(o.id) ? ' on' : ''}" data-id="${o.id}">${_h(o.label)}</button>`).join('')}
             </div>
@@ -332,7 +335,7 @@
         validate: async (el, s) => {
           const ids = [...el.querySelectorAll('.msf-chip.on')].map(c => c.getAttribute('data-id'));
           if (ids.length === 0) {
-            el.querySelector('#msf-formas-err').textContent = 'Selecione pelo menos 1 forma';
+            el.querySelector('#msf-formas-err').textContent = 'Selecione pelo menos 1 modelo';
             return false;
           }
           s.formas_atuacao = ids;
@@ -351,7 +354,10 @@
               <label><input type="radio" name="msf-loc" value="cidade" ${s.localizacao_tipo === 'cidade' ? 'checked' : ''}><span>Cidade específica</span></label>
             </div>
             <div id="msf-loc-detalhe">
-              <input type="text" class="msf-input" id="msf-estado" placeholder="UF (ex SP)" maxlength="2" value="${_h(s.estado || '')}" style="margin-top:10px;display:none">
+              <select class="msf-input" id="msf-estado" style="margin-top:10px;display:none">
+                <option value="">— UF —</option>
+                ${UFS.map(uf => `<option value="${uf}"${s.estado === uf ? ' selected' : ''}>${uf}</option>`).join('')}
+              </select>
               <input type="text" class="msf-input" id="msf-cidade" placeholder="Cidade" maxlength="60" value="${_h(s.cidade || '')}" style="margin-top:8px;display:none">
             </div>
             <div class="msf-err" id="msf-loc-err"></div>
@@ -373,8 +379,8 @@
           const tipo = (el.querySelector('input[name="msf-loc"]:checked') || {}).value || 'brasil_todo';
           s.localizacao_tipo = tipo;
           if (tipo === 'estado' || tipo === 'cidade') {
-            const uf = String(el.querySelector('#msf-estado').value || '').trim().toUpperCase();
-            if (uf.length !== 2) { el.querySelector('#msf-loc-err').textContent = 'UF com 2 letras'; return false; }
+            const uf = String(el.querySelector('#msf-estado').value || '').trim();
+            if (!UFS.includes(uf)) { el.querySelector('#msf-loc-err').textContent = 'Selecione uma UF'; return false; }
             s.estado = uf;
           } else { s.estado = null; }
           if (tipo === 'cidade') {
@@ -523,7 +529,7 @@
             <h3 class="msf-q">Setor e categoria</h3>
             <p class="msf-hint">Em qual setor a empresa opera</p>
             <div class="msf-chips" id="msf-setor-d">
-              ${SETORES.filter(x => x.id !== 'indiferente').map(o => `<button type="button" class="msf-chip${s.setor === o.id ? ' on' : ''}" data-id="${o.id}">${_h(o.label)}</button>`).join('')}
+              ${SETORES.map(o => `<button type="button" class="msf-chip${s.setor === o.id ? ' on' : ''}" data-id="${o.id}">${_h(o.label)}</button>`).join('')}
             </div>
             <input type="text" class="msf-input" id="msf-cat" placeholder="Categoria · ex: padaria, clínica veterinária" value="${_h(s.categoria || '')}" maxlength="100" style="margin-top:14px">
             <div class="msf-err" id="msf-setor-err"></div>
@@ -552,16 +558,19 @@
             <h3 class="msf-q">Localização da empresa</h3>
             <p class="msf-hint">Onde a empresa opera fisicamente</p>
             <input type="text" class="msf-input" id="msf-cidade-d" placeholder="Cidade" maxlength="60" value="${_h(s.cidade || '')}" />
-            <input type="text" class="msf-input" id="msf-estado-d" placeholder="UF (ex SP)" maxlength="2" value="${_h(s.estado || '')}" style="margin-top:8px" />
+            <select class="msf-input" id="msf-estado-d" style="margin-top:8px">
+              <option value="">— UF —</option>
+              ${UFS.map(uf => `<option value="${uf}"${s.estado === uf ? ' selected' : ''}>${uf}</option>`).join('')}
+            </select>
             <div class="msf-err" id="msf-loc-d-err"></div>
           </div>
         `,
         onMount: (el) => el.querySelector('#msf-cidade-d').focus(),
         validate: async (el, s) => {
           const c = String(el.querySelector('#msf-cidade-d').value || '').trim();
-          const u = String(el.querySelector('#msf-estado-d').value || '').trim().toUpperCase();
+          const u = String(el.querySelector('#msf-estado-d').value || '').trim();
           if (c.length < 2) { el.querySelector('#msf-loc-d-err').textContent = 'Digite a cidade'; return false; }
-          if (u.length !== 2) { el.querySelector('#msf-loc-d-err').textContent = 'UF com 2 letras'; return false; }
+          if (!UFS.includes(u)) { el.querySelector('#msf-loc-d-err').textContent = 'Selecione uma UF'; return false; }
           s.cidade = c; s.estado = u;
           return true;
         },

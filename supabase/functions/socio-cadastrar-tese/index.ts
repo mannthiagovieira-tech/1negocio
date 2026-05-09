@@ -50,45 +50,45 @@ async function gateSocio(req: Request): Promise<{ ok: boolean; socio_id?: string
   }
 }
 
-async function findOrCreateGhost(phone: string, nome: string | null): Promise<{ user_id: string | null; is_ghost: boolean }> {
+async function findOrCreateGhost(phone: string, nome: string | null): Promise<{ user_id: string | null; is_ghost: boolean; erro?: string }> {
   const phoneCom55 = phone.startsWith("55") ? phone : "55" + phone;
+  const phoneRaw = phone.replace(/^55/, "");
 
-  // Busca prévia por phone
-  try {
-    const { data: page } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
-    const users = page?.users || [];
-    const existing = users.find((u: any) =>
-      u.phone === phoneCom55 ||
-      u.phone === phone ||
-      u.user_metadata?.phone === phoneCom55 ||
-      u.user_metadata?.phone === phone
-    );
-    if (existing) return { user_id: existing.id, is_ghost: false };
-  } catch (e) {
-    console.warn("[ghost listUsers]", (e as Error).message);
+  // Busca paginada robusta · normalização agressiva (ignora formato + · espaços)
+  async function buscar(): Promise<any | null> {
+    for (let page = 1; page <= 5; page++) {
+      try {
+        const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
+        if (error || !data?.users?.length) return null;
+        const found = data.users.find((u: any) => {
+          const p = String(u.phone || "").replace(/\D/g, "");
+          const meta = String(u.user_metadata?.phone || "").replace(/\D/g, "");
+          return p === phoneCom55 || p === phoneRaw || meta === phoneCom55 || meta === phoneRaw;
+        });
+        if (found) return found;
+        if (data.users.length < 1000) return null;
+      } catch (e) { console.warn("[ghost listUsers page", page, "]", (e as Error).message); return null; }
+    }
+    return null;
   }
 
-  // Cria ghost · phone_confirm false
+  const existing = await buscar();
+  if (existing) return { user_id: existing.id, is_ghost: false };
+
   try {
     const { data: created, error } = await adminClient.auth.admin.createUser({
       phone: phoneCom55,
       phone_confirm: false,
       user_metadata: { nome: nome || "Proprietário", ghost: true },
     });
-    if (error) {
-      // Se phone_exists · re-busca
-      if (String(error.message || "").toLowerCase().includes("already") || String(error.message || "").toLowerCase().includes("exists")) {
-        const { data: page2 } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
-        const u = (page2?.users || []).find((x: any) => x.phone === phoneCom55);
-        if (u) return { user_id: u.id, is_ghost: false };
-      }
-      console.warn("[ghost create]", error.message);
-      return { user_id: null, is_ghost: false };
-    }
-    return { user_id: created.user?.id || null, is_ghost: true };
+    if (!error && created.user?.id) return { user_id: created.user.id, is_ghost: true };
+    // Qualquer erro · re-busca (cobre todas variantes de "phone exists" sem depender de includes)
+    console.warn("[ghost createUser err]", error?.message);
+    const retry = await buscar();
+    if (retry) return { user_id: retry.id, is_ghost: false };
+    return { user_id: null, is_ghost: false, erro: error?.message || "createUser falhou sem detalhe" };
   } catch (e) {
-    console.warn("[ghost throw]", (e as Error).message);
-    return { user_id: null, is_ghost: false };
+    return { user_id: null, is_ghost: false, erro: (e as Error).message };
   }
 }
 
@@ -158,12 +158,14 @@ Deno.serve(async (req: Request) => {
   // 1. Resolve user_id do proprietário (existente ou cria ghost)
   let userId = proprietario_user_id_in;
   let isGhost = false;
+  let ghostErro: string | null = null;
   if (!userId) {
     const r = await findOrCreateGhost(proprietario_phone_raw, proprietario_nome);
     userId = r.user_id;
     isGhost = r.is_ghost;
+    ghostErro = (r as any).erro || null;
   }
-  if (!userId) return json({ ok: false, error: "user_id_indisponivel" }, 500);
+  if (!userId) return json({ ok: false, error: "user_id_indisponivel", detalhe: ghostErro }, 500);
 
   // 2. Sincroniza public.usuarios com tipo='buy' (tese = comprador)
   await ensureUsuarioRow(userId, proprietario_nome, phoneCom55, "buy");
