@@ -1,11 +1,10 @@
-// socio-acoes.js · V8 B8.13 SUB-BLOCO B FASE 2 · 1Negócio
-// Modais multi-step pra sócio cadastrar tese/diagnóstico em nome de terceiros.
-// Padrão cadastre.html · sticky bottom buttons · progress bar · 1 pergunta por tela.
+// socio-acoes.js · v9 · 1Negócio
+// Modais que disparam ações do sócio na Área do Sócio.
 //
 // API:
-//   window.SocioAcoes.modalCadastrarTese({ socio })
-//   window.SocioAcoes.modalCadastrarDiagnostico({ socio })
-//   window.SocioAcoes.modalPedirVinculo({ socio })  · placeholder até SUB-BLOCO C
+//   window.SocioAcoes.modalCadastrarTese({ socio })        · v9 · 2 steps · delega pra cadastre.html?ctx=
+//   window.SocioAcoes.modalCadastrarDiagnostico({ socio }) · v9 · 2 steps · delega pra diagnostico.html?ctx=
+//   window.SocioAcoes.modalPedirVinculo({ socio })         · 3 steps · pedido de vínculo a código existente
 
 (function () {
   'use strict';
@@ -91,7 +90,7 @@
       res = await fetch(url, { ...opts, headers: { ...opts.headers, 'Authorization': 'Bearer ' + token } });
     }
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!res.ok || data.ok === false) throw new Error(data.error || data.mensagem || `HTTP ${res.status}`);
     return data;
   }
 
@@ -198,488 +197,224 @@
     render();
   }
 
-  // ───── steps comuns: telefone + confirmação ─────
-  function _stepTelefone() {
-    return {
-      render: async (s) => `
-        <div class="msf-step">
-          <h3 class="msf-q">Telefone do proprietário</h3>
-          <p class="msf-hint">DDD + número (10 ou 11 dígitos · WhatsApp dele)</p>
-          <input type="tel" class="msf-input" id="msf-phone" placeholder="(11) 91234-5678" value="${_h(s.phoneMasked || '')}" maxlength="16" autocomplete="off" />
-          <div class="msf-err" id="msf-phone-err"></div>
+  // ============================================================
+  // v9 · Iniciar cadastro de tese ou diagnóstico em nome de terceiro
+  // Modal enxuto de 2 steps · phone+nome → caminho A/B → delega pro funil
+  // (cadastre.html?ctx= ou diagnostico.html?ctx=) ou dispara WhatsApp.
+  // ============================================================
+  async function _modalIniciarCadastro(tipo) {
+    const tipoLabel = tipo === 'tese' ? 'tese de investimento' : 'diagnóstico de empresa';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'sa-overlay';
+    overlay.style.cssText = `
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.6);
+      backdrop-filter: blur(8px);
+      z-index: 99999;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    `;
+
+    overlay.innerHTML = `
+      <div style="
+        background: var(--surface, #121a15);
+        color: var(--ink, #f4f7f4);
+        border: 1px solid var(--line-2, rgba(255,255,255,.12));
+        border-radius: 24px;
+        max-width: 520px; width: 100%;
+        padding: 28px;
+        font-family: var(--sans, 'Geist', sans-serif);
+      ">
+        <h2 style="
+          font-family: var(--serif, 'Syne', serif);
+          font-size: 22px; font-weight: 700;
+          letter-spacing: -.025em;
+          margin: 0 0 8px 0;
+        ">Cadastrar ${_h(tipoLabel)} pra alguém</h2>
+        <p style="
+          font-size: 13px; color: var(--ink-2, rgba(244,247,244,.72));
+          margin: 0 0 24px 0; line-height: 1.5;
+        ">Você vai cadastrar em nome de outra pessoa. Comece informando o telefone e nome do proprietário.</p>
+
+        <div id="sa-step-1">
+          <label style="display:block; font-size:11px; font-family:var(--mono); text-transform:uppercase; letter-spacing:.08em; color:var(--ink-3); margin-bottom:6px;">Telefone do proprietário (com DDD)</label>
+          <input id="sa-phone" type="tel" placeholder="(48) 99999-9999" style="
+            width: 100%;
+            background: var(--bg-2, #0e1612);
+            color: var(--ink);
+            border: 1px solid var(--line-2);
+            border-radius: 12px;
+            padding: 13px 15px;
+            font-size: 14px;
+            font-family: var(--sans);
+            margin-bottom: 16px;
+            box-sizing: border-box;
+          ">
+
+          <label style="display:block; font-size:11px; font-family:var(--mono); text-transform:uppercase; letter-spacing:.08em; color:var(--ink-3); margin-bottom:6px;">Nome do proprietário</label>
+          <input id="sa-nome" type="text" placeholder="João Padeiro" style="
+            width: 100%;
+            background: var(--bg-2, #0e1612);
+            color: var(--ink);
+            border: 1px solid var(--line-2);
+            border-radius: 12px;
+            padding: 13px 15px;
+            font-size: 14px;
+            font-family: var(--sans);
+            margin-bottom: 24px;
+            box-sizing: border-box;
+          ">
+
+          <div style="display:flex; gap:8px; justify-content:flex-end;">
+            <button id="sa-cancelar" style="
+              background: transparent; color: var(--ink-2);
+              border: 1px solid var(--line);
+              border-radius: 999px;
+              padding: 10px 18px;
+              font-size: 13px; font-weight: 600;
+              cursor: pointer;
+              font-family: var(--sans);
+            ">Cancelar</button>
+            <button id="sa-continuar" style="
+              background: var(--accent, #3dff95);
+              color: var(--accent-ink, #0a0f0c);
+              border: none;
+              border-radius: 999px;
+              padding: 10px 22px;
+              font-size: 13px; font-weight: 700;
+              text-transform: uppercase; letter-spacing: .06em;
+              cursor: pointer;
+              font-family: var(--sans);
+            ">Continuar</button>
+          </div>
         </div>
-      `,
-      onMount: (el, s) => {
-        const inp = el.querySelector('#msf-phone');
-        inp.addEventListener('input', (e) => {
-          e.target.value = _maskPhone(e.target.value);
-        });
-        inp.focus();
-      },
-      validate: async (el, s) => {
-        const inp = el.querySelector('#msf-phone');
-        const errEl = el.querySelector('#msf-phone-err');
-        const digits = String(inp.value || '').replace(/\D/g, '');
-        if (digits.length < 10 || digits.length > 11) {
-          errEl.textContent = 'Telefone inválido · digite DDD + número';
-          return false;
-        }
-        s.phone = digits;
-        s.phoneMasked = inp.value;
-        // Valida via edge
+
+        <div id="sa-step-2" style="display:none;">
+          <p style="font-size: 13px; color: var(--ink-2); margin: 0 0 20px 0; line-height: 1.5;">
+            Como você quer prosseguir?
+          </p>
+
+          <button class="sa-caminho" data-caminho="a" style="
+            display: block; width: 100%;
+            text-align: left;
+            background: var(--bg-2);
+            color: var(--ink);
+            border: 1px solid var(--line-2);
+            border-radius: 16px;
+            padding: 16px 18px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            font-family: var(--sans);
+          ">
+            <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">Vou preencher agora</div>
+            <div style="font-size: 12px; color: var(--ink-2); line-height: 1.4;">Eu mesmo preencho os dados. <span id="sa-nome-preview-a"></span> recebe WhatsApp depois pra confirmar o vínculo.</div>
+          </button>
+
+          <button class="sa-caminho" data-caminho="b" style="
+            display: block; width: 100%;
+            text-align: left;
+            background: var(--bg-2);
+            color: var(--ink);
+            border: 1px solid var(--line-2);
+            border-radius: 16px;
+            padding: 16px 18px;
+            margin-bottom: 20px;
+            cursor: pointer;
+            font-family: var(--sans);
+          ">
+            <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">Mandar link pro proprietário preencher</div>
+            <div style="font-size: 12px; color: var(--ink-2); line-height: 1.4;"><span id="sa-nome-preview-b"></span> recebe WhatsApp com link pra preencher pessoalmente.</div>
+          </button>
+
+          <div style="display:flex; justify-content:flex-start;">
+            <button id="sa-voltar" style="
+              background: transparent; color: var(--ink-3);
+              border: none;
+              font-size: 12px;
+              cursor: pointer;
+              font-family: var(--sans);
+            ">← Voltar</button>
+          </div>
+        </div>
+
+        <div id="sa-step-loading" style="display:none; text-align:center; padding:30px;">
+          <div style="font-size: 13px; color: var(--ink-2);">Iniciando cadastro...</div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+
+    let phone = '';
+    let nome = '';
+
+    const $ = (sel) => overlay.querySelector(sel);
+    const fechar = () => { document.body.style.overflow = ''; overlay.remove(); };
+
+    $('#sa-cancelar').onclick = fechar;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) fechar(); });
+
+    // Mascara o input de telefone enquanto digita
+    $('#sa-phone').addEventListener('input', (e) => {
+      e.target.value = _maskPhone(e.target.value);
+    });
+    setTimeout(() => $('#sa-phone').focus(), 50);
+
+    $('#sa-continuar').onclick = () => {
+      phone = $('#sa-phone').value.trim();
+      nome = $('#sa-nome').value.trim();
+      if (phone.replace(/\D/g, '').length < 10) { alert('Telefone inválido · digite DDD + número'); return; }
+      if (nome.length < 2) { alert('Nome do proprietário obrigatório'); return; }
+
+      $('#sa-nome-preview-a').textContent = nome;
+      $('#sa-nome-preview-b').textContent = nome;
+      $('#sa-step-1').style.display = 'none';
+      $('#sa-step-2').style.display = 'block';
+    };
+
+    $('#sa-voltar').onclick = () => {
+      $('#sa-step-2').style.display = 'none';
+      $('#sa-step-1').style.display = 'block';
+    };
+
+    overlay.querySelectorAll('.sa-caminho').forEach((btn) => {
+      btn.onclick = async () => {
+        const caminho = btn.dataset.caminho;
+        $('#sa-step-2').style.display = 'none';
+        $('#sa-step-loading').style.display = 'block';
+
         try {
-          const res = await _apiCall('socio-validar-phone', { phone: digits });
-          s.proprietario_existe = !!res.existe;
-          s.proprietario_user_id = res.user_id || null;
-          s.proprietario_nome_existente = res.nome || null;
+          const result = await _apiCall('socio-iniciar-cadastro-terceiro', {
+            tipo,
+            proprietario_phone: phone,
+            proprietario_nome: nome,
+            caminho,
+          });
+
+          // _apiCall throw em ok=false · então se chegou aqui, sucesso.
+          if (caminho === 'a') {
+            // Redireciona pro funil real (cadastre.html?ctx= ou diagnostico.html?ctx=)
+            window.location.href = result.redirect_url;
+          } else {
+            // Caminho B · WhatsApp foi enviado
+            alert(`Link enviado por WhatsApp pra ${nome}. Acompanhe em "Meus vínculos".`);
+            fechar();
+          }
         } catch (e) {
-          errEl.textContent = 'Erro ao validar telefone: ' + (e.message || e);
-          return false;
+          console.error('[socio-iniciar-cadastro-terceiro] falhou:', e);
+          alert(e.message || 'Erro de conexão. Tenta de novo.');
+          fechar();
         }
-        return true;
-      },
-    };
-  }
-
-  function _stepConfirmacaoProprietario() {
-    return {
-      render: async (s) => {
-        if (s.proprietario_existe) {
-          const nome = s.proprietario_nome_existente || 'Proprietário';
-          return `
-            <div class="msf-step">
-              <h3 class="msf-q">Cadastrando pra ${_h(nome)}</h3>
-              <p class="msf-hint">Encontramos esse telefone no sistema · cadastrando em nome de <strong>${_h(nome)}</strong>.</p>
-              <p class="msf-hint" style="margin-top:14px">Continue pra preencher os dados.</p>
-            </div>
-          `;
-        }
-        return `
-          <div class="msf-step">
-            <h3 class="msf-q">Vamos criar uma conta nova</h3>
-            <p class="msf-hint">Esse telefone ainda não tem conta. Qual o nome do proprietário?</p>
-            <input type="text" class="msf-input" id="msf-nome" placeholder="Nome completo" value="${_h(s.proprietario_nome || '')}" maxlength="100" autocomplete="off" />
-            <div class="msf-err" id="msf-nome-err"></div>
-          </div>
-        `;
-      },
-      onMount: (el, s) => {
-        if (!s.proprietario_existe) {
-          const inp = el.querySelector('#msf-nome');
-          if (inp) inp.focus();
-        }
-      },
-      validate: async (el, s) => {
-        if (s.proprietario_existe) return true;
-        const inp = el.querySelector('#msf-nome');
-        const errEl = el.querySelector('#msf-nome-err');
-        const nome = String(inp.value || '').trim();
-        if (nome.length < 2) {
-          errEl.textContent = 'Digite o nome do proprietário';
-          return false;
-        }
-        s.proprietario_nome = nome;
-        return true;
-      },
-    };
-  }
-
-  // ───── modal: cadastrar TESE · 8 steps ─────
-  function modalCadastrarTese(_opts) {
-    const steps = [
-      _stepTelefone(),
-      _stepConfirmacaoProprietario(),
-      // 3. setores (multi)
-      {
-        render: async (s) => `
-          <div class="msf-step">
-            <h3 class="msf-q">Setores de interesse</h3>
-            <p class="msf-hint">Selecione 1 ou mais setores que ele(a) quer comprar</p>
-            <div class="msf-chips" id="msf-setores">
-              ${SETORES.map(o => `<button type="button" class="msf-chip${(s.setores || []).includes(o.id) ? ' on' : ''}" data-id="${o.id}">${_h(o.label)}</button>`).join('')}
-            </div>
-            <div class="msf-err" id="msf-setores-err"></div>
-          </div>
-        `,
-        onMount: (el, s) => {
-          el.querySelectorAll('.msf-chip').forEach((c) => {
-            c.addEventListener('click', () => {
-              c.classList.toggle('on');
-            });
-          });
-        },
-        validate: async (el, s) => {
-          const ids = [...el.querySelectorAll('.msf-chip.on')].map(c => c.getAttribute('data-id'));
-          if (ids.length === 0) {
-            el.querySelector('#msf-setores-err').textContent = 'Selecione pelo menos 1 setor';
-            return false;
-          }
-          s.setores = ids;
-          return true;
-        },
-      },
-      // 4. modelo de negócio (multi · NÃO modalidade M&A)
-      {
-        render: async (s) => `
-          <div class="msf-step">
-            <h3 class="msf-q">Modelo de negócio</h3>
-            <p class="msf-hint">Como a empresa que ele(a) busca opera (1 ou mais)</p>
-            <div class="msf-chips" id="msf-formas">
-              ${FORMAS.map(o => `<button type="button" class="msf-chip${(s.formas_atuacao || []).includes(o.id) ? ' on' : ''}" data-id="${o.id}">${_h(o.label)}</button>`).join('')}
-            </div>
-            <div class="msf-err" id="msf-formas-err"></div>
-          </div>
-        `,
-        onMount: (el, s) => {
-          el.querySelectorAll('.msf-chip').forEach((c) => {
-            c.addEventListener('click', () => c.classList.toggle('on'));
-          });
-        },
-        validate: async (el, s) => {
-          const ids = [...el.querySelectorAll('.msf-chip.on')].map(c => c.getAttribute('data-id'));
-          if (ids.length === 0) {
-            el.querySelector('#msf-formas-err').textContent = 'Selecione pelo menos 1 modelo';
-            return false;
-          }
-          s.formas_atuacao = ids;
-          return true;
-        },
-      },
-      // 5. localização
-      {
-        render: async (s) => `
-          <div class="msf-step">
-            <h3 class="msf-q">Localização preferida</h3>
-            <p class="msf-hint">Onde ele(a) quer comprar a empresa</p>
-            <div class="msf-radio">
-              <label><input type="radio" name="msf-loc" value="brasil_todo" ${s.localizacao_tipo === 'brasil_todo' || !s.localizacao_tipo ? 'checked' : ''}><span>Brasil todo</span></label>
-              <label><input type="radio" name="msf-loc" value="estado" ${s.localizacao_tipo === 'estado' ? 'checked' : ''}><span>Estado específico</span></label>
-              <label><input type="radio" name="msf-loc" value="cidade" ${s.localizacao_tipo === 'cidade' ? 'checked' : ''}><span>Cidade específica</span></label>
-            </div>
-            <div id="msf-loc-detalhe">
-              <select class="msf-input" id="msf-estado" style="margin-top:10px;display:none">
-                <option value="">— UF —</option>
-                ${UFS.map(uf => `<option value="${uf}"${s.estado === uf ? ' selected' : ''}>${uf}</option>`).join('')}
-              </select>
-              <input type="text" class="msf-input" id="msf-cidade" placeholder="Cidade" maxlength="60" value="${_h(s.cidade || '')}" style="margin-top:8px;display:none">
-            </div>
-            <div class="msf-err" id="msf-loc-err"></div>
-          </div>
-        `,
-        onMount: (el, s) => {
-          const radios = el.querySelectorAll('input[name="msf-loc"]');
-          const elE = el.querySelector('#msf-estado');
-          const elC = el.querySelector('#msf-cidade');
-          function refresh() {
-            const v = (el.querySelector('input[name="msf-loc"]:checked') || {}).value;
-            elE.style.display = (v === 'estado' || v === 'cidade') ? 'block' : 'none';
-            elC.style.display = v === 'cidade' ? 'block' : 'none';
-          }
-          radios.forEach(r => r.addEventListener('change', refresh));
-          refresh();
-        },
-        validate: async (el, s) => {
-          const tipo = (el.querySelector('input[name="msf-loc"]:checked') || {}).value || 'brasil_todo';
-          s.localizacao_tipo = tipo;
-          if (tipo === 'estado' || tipo === 'cidade') {
-            const uf = String(el.querySelector('#msf-estado').value || '').trim();
-            if (!UFS.includes(uf)) { el.querySelector('#msf-loc-err').textContent = 'Selecione uma UF'; return false; }
-            s.estado = uf;
-          } else { s.estado = null; }
-          if (tipo === 'cidade') {
-            const cidade = String(el.querySelector('#msf-cidade').value || '').trim();
-            if (cidade.length < 2) { el.querySelector('#msf-loc-err').textContent = 'Digite a cidade'; return false; }
-            s.cidade = cidade;
-          } else { s.cidade = null; }
-          return true;
-        },
-      },
-      // 6. valor alvo
-      {
-        render: async (s) => `
-          <div class="msf-step">
-            <h3 class="msf-q">Valor alvo da operação</h3>
-            <p class="msf-hint">Quanto ele(a) pretende investir · entre R$ 50 mil e R$ 10 milhões</p>
-            <input type="number" class="msf-input" id="msf-valor" placeholder="500000" min="50000" max="10000000" step="1000" value="${s.valor_alvo || ''}" />
-            <div class="msf-hint" id="msf-valor-fmt" style="margin-top:8px;font-family:var(--mono,monospace)"></div>
-            <div class="msf-err" id="msf-valor-err"></div>
-          </div>
-        `,
-        onMount: (el, s) => {
-          const inp = el.querySelector('#msf-valor');
-          const fmt = el.querySelector('#msf-valor-fmt');
-          function update() {
-            const n = Number(inp.value);
-            fmt.textContent = Number.isFinite(n) && n > 0 ? _formatBRL(n) : '';
-          }
-          inp.addEventListener('input', update);
-          inp.focus();
-          update();
-        },
-        validate: async (el, s) => {
-          const n = Number(el.querySelector('#msf-valor').value);
-          if (!Number.isFinite(n) || n < 50000 || n > 10000000) {
-            el.querySelector('#msf-valor-err').textContent = 'Valor entre R$ 50.000 e R$ 10.000.000';
-            return false;
-          }
-          s.valor_alvo = n;
-          return true;
-        },
-      },
-      // 7. observações
-      {
-        render: async (s) => `
-          <div class="msf-step">
-            <h3 class="msf-q">Observações <span class="msf-opt">(opcional)</span></h3>
-            <p class="msf-hint">Algo específico que o admin precisa saber · até 500 caracteres</p>
-            <textarea class="msf-input msf-textarea" id="msf-obs" maxlength="500" rows="5" placeholder="Ex: prefere fora de capitais · setor B2B com SaaS recorrente">${_h(s.observacoes || '')}</textarea>
-          </div>
-        `,
-        onMount: (el) => el.querySelector('#msf-obs').focus(),
-        validate: async (el, s) => {
-          s.observacoes = String(el.querySelector('#msf-obs').value || '').trim() || null;
-          return true;
-        },
-      },
-      // 8. confirmação final
-      {
-        render: async (s) => {
-          const labelSet = (s.setores || []).map(id => (SETORES.find(x => x.id === id) || {}).label || id).join(' · ');
-          const labelFor = (s.formas_atuacao || []).map(id => (FORMAS.find(x => x.id === id) || {}).label || id).join(' · ');
-          const loc = s.localizacao_tipo === 'brasil_todo' ? 'Brasil todo'
-            : s.localizacao_tipo === 'estado' ? `Estado · ${s.estado}`
-            : `Cidade · ${s.cidade}/${s.estado}`;
-          const nome = s.proprietario_existe ? (s.proprietario_nome_existente || 'Proprietário') : (s.proprietario_nome || 'Proprietário');
-          return `
-            <div class="msf-step">
-              <h3 class="msf-q">Revisar e confirmar</h3>
-              <div class="msf-resumo">
-                <div class="msf-resumo-row"><span>Proprietário</span><strong>${_h(nome)}</strong></div>
-                <div class="msf-resumo-row"><span>Telefone</span><strong>${_h(s.phoneMasked)}</strong></div>
-                <div class="msf-resumo-row"><span>Setores</span><strong>${_h(labelSet)}</strong></div>
-                <div class="msf-resumo-row"><span>Forma</span><strong>${_h(labelFor)}</strong></div>
-                <div class="msf-resumo-row"><span>Localização</span><strong>${_h(loc)}</strong></div>
-                <div class="msf-resumo-row"><span>Valor alvo</span><strong>${_formatBRL(s.valor_alvo)}</strong></div>
-                ${s.observacoes ? `<div class="msf-resumo-row"><span>Obs</span><strong>${_h(s.observacoes)}</strong></div>` : ''}
-              </div>
-              <p class="msf-hint" style="margin-top:14px">Ao confirmar · o proprietário recebe um WhatsApp com link pra aceitar o vínculo. Você é notificado quando ele aceitar.</p>
-            </div>
-          `;
-        },
-      },
-    ];
-
-    _modalStepper({
-      titulo: 'Cadastrar tese pra alguém',
-      ctaFinalLabel: 'Criar tese e enviar WhatsApp',
-      steps,
-      onSubmit: async (s, { mostrarSucesso }) => {
-        const body = {
-          proprietario_phone: s.phone,
-          proprietario_user_id: s.proprietario_user_id || null,
-          proprietario_nome: s.proprietario_existe ? null : s.proprietario_nome,
-          dados_tese: {
-            setores: s.setores,
-            formas_atuacao: s.formas_atuacao,
-            localizacao_tipo: s.localizacao_tipo,
-            estado: s.estado,
-            cidade: s.cidade,
-            valor_alvo: s.valor_alvo,
-            observacoes: s.observacoes,
-          },
-        };
-        const res = await _apiCall('socio-cadastrar-tese', body);
-        mostrarSucesso(`
-          <div class="msf-step">
-            <h3 class="msf-q" style="color:var(--accent,#0aa85a)">✓ Tese criada</h3>
-            <p class="msf-hint">Código do vínculo: <strong>${_h(res.vinculo_codigo || '—')}</strong></p>
-            <p class="msf-hint">Código da tese: <strong>${_h(res.tese_codigo || '—')}</strong></p>
-            <p class="msf-hint" style="margin-top:14px">WhatsApp enviado pro proprietário · ele tem 30 dias pra aceitar.</p>
-            ${res.is_ghost ? '<p class="msf-hint">Conta nova criada (ghost) · será ativada quando o proprietário aceitar.</p>' : ''}
-          </div>
-        `);
-      },
+      };
     });
   }
 
-  // ───── modal: cadastrar DIAGNÓSTICO · 8 steps ─────
-  function modalCadastrarDiagnostico(_opts) {
-    const steps = [
-      _stepTelefone(),
-      _stepConfirmacaoProprietario(),
-      // 3. nome do negócio
-      {
-        render: async (s) => `
-          <div class="msf-step">
-            <h3 class="msf-q">Nome do negócio</h3>
-            <p class="msf-hint">Razão social ou nome fantasia da empresa</p>
-            <input type="text" class="msf-input" id="msf-nome-neg" maxlength="100" placeholder="Padaria do Zé Ltda" value="${_h(s.nome_negocio || '')}" />
-            <div class="msf-err" id="msf-nome-neg-err"></div>
-          </div>
-        `,
-        onMount: (el) => el.querySelector('#msf-nome-neg').focus(),
-        validate: async (el, s) => {
-          const v = String(el.querySelector('#msf-nome-neg').value || '').trim();
-          if (v.length < 2) { el.querySelector('#msf-nome-neg-err').textContent = 'Digite o nome do negócio'; return false; }
-          s.nome_negocio = v;
-          return true;
-        },
-      },
-      // 4. setor + categoria
-      {
-        render: async (s) => `
-          <div class="msf-step">
-            <h3 class="msf-q">Setor e categoria</h3>
-            <p class="msf-hint">Em qual setor a empresa opera</p>
-            <div class="msf-chips" id="msf-setor-d">
-              ${SETORES.map(o => `<button type="button" class="msf-chip${s.setor === o.id ? ' on' : ''}" data-id="${o.id}">${_h(o.label)}</button>`).join('')}
-            </div>
-            <input type="text" class="msf-input" id="msf-cat" placeholder="Categoria · ex: padaria, clínica veterinária" value="${_h(s.categoria || '')}" maxlength="100" style="margin-top:14px">
-            <div class="msf-err" id="msf-setor-err"></div>
-          </div>
-        `,
-        onMount: (el, s) => {
-          el.querySelectorAll('.msf-chip').forEach(c => {
-            c.addEventListener('click', () => {
-              el.querySelectorAll('.msf-chip').forEach(x => x.classList.remove('on'));
-              c.classList.add('on');
-            });
-          });
-        },
-        validate: async (el, s) => {
-          const sel = el.querySelector('.msf-chip.on');
-          if (!sel) { el.querySelector('#msf-setor-err').textContent = 'Selecione um setor'; return false; }
-          s.setor = sel.getAttribute('data-id');
-          s.categoria = String(el.querySelector('#msf-cat').value || '').trim() || null;
-          return true;
-        },
-      },
-      // 5. localização (cidade · estado)
-      {
-        render: async (s) => `
-          <div class="msf-step">
-            <h3 class="msf-q">Localização da empresa</h3>
-            <p class="msf-hint">Onde a empresa opera fisicamente</p>
-            <input type="text" class="msf-input" id="msf-cidade-d" placeholder="Cidade" maxlength="60" value="${_h(s.cidade || '')}" />
-            <select class="msf-input" id="msf-estado-d" style="margin-top:8px">
-              <option value="">— UF —</option>
-              ${UFS.map(uf => `<option value="${uf}"${s.estado === uf ? ' selected' : ''}>${uf}</option>`).join('')}
-            </select>
-            <div class="msf-err" id="msf-loc-d-err"></div>
-          </div>
-        `,
-        onMount: (el) => el.querySelector('#msf-cidade-d').focus(),
-        validate: async (el, s) => {
-          const c = String(el.querySelector('#msf-cidade-d').value || '').trim();
-          const u = String(el.querySelector('#msf-estado-d').value || '').trim();
-          if (c.length < 2) { el.querySelector('#msf-loc-d-err').textContent = 'Digite a cidade'; return false; }
-          if (!UFS.includes(u)) { el.querySelector('#msf-loc-d-err').textContent = 'Selecione uma UF'; return false; }
-          s.cidade = c; s.estado = u;
-          return true;
-        },
-      },
-      // 6. faturamento anual
-      {
-        render: async (s) => `
-          <div class="msf-step">
-            <h3 class="msf-q">Faturamento anual</h3>
-            <p class="msf-hint">Receita bruta dos últimos 12 meses · em reais</p>
-            <input type="number" class="msf-input" id="msf-fat" placeholder="1200000" min="1" step="1000" value="${s.faturamento_anual || ''}" />
-            <div class="msf-hint" id="msf-fat-fmt" style="margin-top:8px;font-family:var(--mono,monospace)"></div>
-            <div class="msf-err" id="msf-fat-err"></div>
-          </div>
-        `,
-        onMount: (el) => {
-          const inp = el.querySelector('#msf-fat');
-          const fmt = el.querySelector('#msf-fat-fmt');
-          function up() {
-            const n = Number(inp.value);
-            fmt.textContent = Number.isFinite(n) && n > 0 ? _formatBRL(n) : '';
-          }
-          inp.addEventListener('input', up);
-          inp.focus();
-          up();
-        },
-        validate: async (el, s) => {
-          const n = Number(el.querySelector('#msf-fat').value);
-          if (!Number.isFinite(n) || n <= 0) { el.querySelector('#msf-fat-err').textContent = 'Faturamento inválido'; return false; }
-          s.faturamento_anual = n;
-          return true;
-        },
-      },
-      // 7. descrição curta (opcional)
-      {
-        render: async (s) => `
-          <div class="msf-step">
-            <h3 class="msf-q">Descrição curta <span class="msf-opt">(opcional)</span></h3>
-            <p class="msf-hint">1 linha sobre o negócio · até 200 caracteres</p>
-            <textarea class="msf-input msf-textarea" id="msf-desc" maxlength="200" rows="3" placeholder="Ex: padaria com 2 unidades · 12 anos de operação · ponto na esquina">${_h(s.descricao_curta || '')}</textarea>
-          </div>
-        `,
-        onMount: (el) => el.querySelector('#msf-desc').focus(),
-        validate: async (el, s) => {
-          s.descricao_curta = String(el.querySelector('#msf-desc').value || '').trim() || null;
-          return true;
-        },
-      },
-      // 8. confirmação
-      {
-        render: async (s) => {
-          const setorLabel = (SETORES.find(x => x.id === s.setor) || {}).label || s.setor;
-          const nome = s.proprietario_existe ? (s.proprietario_nome_existente || 'Proprietário') : (s.proprietario_nome || 'Proprietário');
-          return `
-            <div class="msf-step">
-              <h3 class="msf-q">Revisar e confirmar</h3>
-              <div class="msf-resumo">
-                <div class="msf-resumo-row"><span>Proprietário</span><strong>${_h(nome)}</strong></div>
-                <div class="msf-resumo-row"><span>Telefone</span><strong>${_h(s.phoneMasked)}</strong></div>
-                <div class="msf-resumo-row"><span>Negócio</span><strong>${_h(s.nome_negocio)}</strong></div>
-                <div class="msf-resumo-row"><span>Setor</span><strong>${_h(setorLabel)}${s.categoria ? ' · ' + _h(s.categoria) : ''}</strong></div>
-                <div class="msf-resumo-row"><span>Localização</span><strong>${_h(s.cidade + '/' + s.estado)}</strong></div>
-                <div class="msf-resumo-row"><span>Faturamento anual</span><strong>${_formatBRL(s.faturamento_anual)}</strong></div>
-                ${s.descricao_curta ? `<div class="msf-resumo-row"><span>Descrição</span><strong>${_h(s.descricao_curta)}</strong></div>` : ''}
-              </div>
-              <p class="msf-hint" style="margin-top:14px">Diagnóstico entra em curadoria admin. WhatsApp enviado pro proprietário pra aceitar o vínculo.</p>
-            </div>
-          `;
-        },
-      },
-    ];
+  function modalCadastrarTese(_opts)        { return _modalIniciarCadastro('tese'); }
+  function modalCadastrarDiagnostico(_opts) { return _modalIniciarCadastro('diagnostico'); }
 
-    _modalStepper({
-      titulo: 'Cadastrar diagnóstico pra alguém',
-      ctaFinalLabel: 'Criar diagnóstico e enviar WhatsApp',
-      steps,
-      onSubmit: async (s, { mostrarSucesso }) => {
-        const body = {
-          proprietario_phone: s.phone,
-          proprietario_user_id: s.proprietario_user_id || null,
-          proprietario_nome: s.proprietario_existe ? null : s.proprietario_nome,
-          dados_diagnostico: {
-            nome_negocio: s.nome_negocio,
-            setor: s.setor,
-            categoria: s.categoria,
-            cidade: s.cidade,
-            estado: s.estado,
-            faturamento_anual: s.faturamento_anual,
-            descricao_curta: s.descricao_curta,
-          },
-        };
-        const res = await _apiCall('socio-cadastrar-diagnostico', body);
-        mostrarSucesso(`
-          <div class="msf-step">
-            <h3 class="msf-q" style="color:var(--accent,#0aa85a)">✓ Diagnóstico criado</h3>
-            <p class="msf-hint">Código do vínculo: <strong>${_h(res.vinculo_codigo || '—')}</strong></p>
-            <p class="msf-hint">Código do negócio: <strong>${_h(res.negocio_codigo || '—')}</strong></p>
-            <p class="msf-hint" style="margin-top:14px">WhatsApp enviado pro proprietário · ele tem 30 dias pra aceitar.</p>
-            ${res.is_ghost ? '<p class="msf-hint">Conta nova criada (ghost) · será ativada quando o proprietário aceitar.</p>' : ''}
-          </div>
-        `);
-      },
-    });
-  }
-
-  // ───── modal: pedir vínculo · V8 B8.13 SUB-BLOCO C FASE 3 · 4 steps ─────
+  // ───── modal: pedir vínculo · 3 steps · usa socio-pedir-vinculo v2 (ETAPA 6) ─────
   function modalPedirVinculo(_opts) {
     const steps = [
       // 1. Cola código
