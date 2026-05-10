@@ -2039,6 +2039,53 @@ table.t .acoes { white-space: nowrap; }
           </div>
         </div>
 
+        <!-- v9.10.4 · Modal Adicionar movimentação financeira -->
+        <div id="mv-movimentacao-overlay" class="modal-overlay" style="z-index:1115">
+          <div class="td-modal-box" style="max-width:520px">
+            <div class="td-modal-head">
+              <div class="td-modal-titulo">+ Adicionar movimentação</div>
+              <button class="tpl-btn-close" onclick="mvFecharMovimentacao()">×</button>
+            </div>
+            <div class="td-modal-body">
+              <div id="mv-mov-neg-info" style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-bottom:14px"></div>
+              <div class="pa-form-group">
+                <label>Tipo *</label>
+                <div style="display:flex;gap:14px;margin-top:4px">
+                  <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:13px"><input type="radio" name="mv-mov-tipo" value="entrada" checked> 💰 Entrada</label>
+                  <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-size:13px"><input type="radio" name="mv-mov-tipo" value="saida"> 💸 Saída</label>
+                </div>
+              </div>
+              <div class="pa-form-group">
+                <label>Categoria *</label>
+                <select class="td-input" id="mv-mov-categoria">
+                  <option value="mensalidade_assessorada">📅 Mensalidade Assessorada</option>
+                  <option value="venda_empresa">🎯 Venda da empresa</option>
+                  <option value="ads_meta">📘 Ads Meta</option>
+                  <option value="ads_google">🔍 Ads Google</option>
+                  <option value="ads_outro">📢 Ads outro</option>
+                  <option value="comissao_socio">🤝 Comissão sócio</option>
+                  <option value="taxa_plataforma">🏛 Taxa de plataforma</option>
+                  <option value="reembolso">↩ Reembolso</option>
+                  <option value="outro">…outro</option>
+                </select>
+              </div>
+              <div style="display:flex;gap:10px">
+                <div class="pa-form-group" style="flex:1"><label>Valor R$ *</label><input class="td-input" type="number" step="0.01" id="mv-mov-valor" placeholder="250.00"></div>
+                <div class="pa-form-group" style="flex:1"><label>Data *</label><input class="td-input" type="date" id="mv-mov-data"></div>
+              </div>
+              <div class="pa-form-group" style="margin-bottom:14px">
+                <label>Descrição (opcional)</label>
+                <textarea class="td-textarea" id="mv-mov-descricao" rows="2" placeholder="Ex: primeira mensalidade pix · boost post 3"></textarea>
+              </div>
+              <div id="mv-mov-erro" style="color:var(--alert);font-size:12px;margin-bottom:8px;display:none"></div>
+              <div class="td-suc-actions">
+                <button class="td-btn td-btn-ghost" onclick="mvFecharMovimentacao()">Cancelar</button>
+                <button class="td-btn td-btn-primario" id="mv-mov-btn" onclick="mvSalvarMovimentacao()">Salvar movimentação</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- ═══ Pagamentos · Pix manual · termos sem assinatura Stripe ═══ -->
         <section id="secao-op-pagamentos" class="secao">
           <header class="secao-header">
@@ -9713,7 +9760,7 @@ async function pgConfirmarRecebimento(){
    ═════════════════════════════════════════════════════════════════════ */
 let _pjLista=[], _pjFiltro='ativos', _pjAbertoId=null, _pjAbertoNeg=null;
 let _pjEntregaveis=[], _pjAbaDetalhe='visao', _pjMovimentacoes=[];
-let _mvProjetoEditando=null;
+let _mvProjetoEditando=null, _mvMovNegId=null;
 
 async function pjInit(){
   document.querySelectorAll('#pj-fil .td-fil').forEach(b=>{
@@ -9923,10 +9970,10 @@ async function pjEditarCampoInline(negId,campo,elId,tipo){
     }
     fb.textContent='salvando...';fb.style.color='var(--ink-3)';
     try{
-      const r=await fetch(SB+'/rest/v1/projeto_metadata?negocio_id=eq.'+encodeURIComponent(negId)+'&status=eq.ativo',{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json',Prefer:'return=representation'},body:JSON.stringify({[campo]:valor,updated_at:new Date().toISOString()})});
-      if(!r.ok){const t=await r.text();fb.textContent='✕ '+r.status;fb.style.color='var(--alert)';console.warn('[pjEditarCampoInline]',campo,r.status,t);return;}
-      const arr=await r.json();
-      if(meta&&arr&&arr[0])meta[campo]=arr[0][campo];
+      const r=await fetch(SB+'/functions/v1/editar-projeto-campo',{method:'POST',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({negocio_id:negId,campo,valor})});
+      const j=await r.json();
+      if(!j.ok){fb.textContent='✕ '+(j.error||r.status);fb.style.color='var(--alert)';console.warn('[pjEditarCampoInline]',campo,r.status,j);return;}
+      if(meta)meta[campo]=j.valor_salvo;
       fb.textContent='✓ salvo';fb.style.color='var(--em)';
       setTimeout(()=>{el.dataset.editing='';pjRefreshDetalhe();},400);
     }catch(e){fb.textContent='✕ rede';fb.style.color='var(--alert)';}
@@ -9958,11 +10005,10 @@ function pjRenderFinanceiro(n,meta,movs){
       <span style="text-align:right;font-family:var(--mono);color:${cor};font-weight:600">${sinal} ${pjFmtMoeda(m.valor)}</span>
     </div>`;
   }).join(''):'';
-  const aviso='<div style="font-size:11px;color:var(--ink-4);font-family:var(--mono);background:rgba(220,167,38,.08);border:1px dashed rgba(220,167,38,.4);border-radius:8px;padding:8px 10px;margin-top:10px">⏳ Registro de movimentações chega na <strong>v9.10.1</strong> · edge `registrar-movimentacao` aguarda deploy</div>';
   return `<div class="pj-bloco-fin" style="background:var(--surface);border:1px solid var(--line-2);border-radius:14px;padding:16px 18px;margin-bottom:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4)">💰 Financeiro</div>
-      <div style="font-size:11px;color:var(--ink-4)">${movs.length} movimentação${movs.length===1?'':'ões'}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4)">💰 Financeiro · ${movs.length} movimentação${movs.length===1?'':'ões'}</div>
+      <button class="td-btn td-btn-primario" style="padding:5px 12px;font-size:11px" onclick="mvAbrirMovimentacao('${n.id}')">+ Movimentação</button>
     </div>
     <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-4);margin-bottom:6px">REALIZADO até hoje</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;font-size:13px;margin-bottom:14px">
@@ -9971,8 +10017,7 @@ function pjRenderFinanceiro(n,meta,movs){
       <div>Saldo: <strong style="color:${saldo>=0?'var(--em)':'#c14'}">${pjFmtMoeda(saldo)}</strong></div>
     </div>
     ${comAlvo!=null?`<div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-4);margin-bottom:6px">ALVO</div><div style="font-size:13px;margin-bottom:14px">Comissão venda: <strong style="color:var(--em)">${pjFmtMoeda(comAlvo)}</strong> <span style="color:var(--ink-4);font-size:11px">(quando fechar)</span></div>`:''}
-    ${linhas?`<div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-4);margin-bottom:4px">Últimas movimentações</div>${linhas}`:'<div style="font-size:12px;color:var(--ink-4);font-style:italic;padding:8px 0">Nenhuma movimentação registrada.</div>'}
-    ${aviso}
+    ${linhas?`<div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-4);margin-bottom:4px">Últimas movimentações</div>${linhas}`:'<div style="font-size:12px;color:var(--ink-4);font-style:italic;padding:8px 0">Nenhuma movimentação registrada. Clique em <strong>+ Movimentação</strong> pra adicionar.</div>'}
   </div>`;
 }
 
@@ -10081,22 +10126,11 @@ async function mvSalvarProjeto(){
   const txtOrig=btn.textContent;
   btn.disabled=true;btn.textContent='Criando...';
   try{
-    // 1. Checa metadata existente
-    const rChk=await fetch(SB+'/rest/v1/projeto_metadata?negocio_id=eq.'+encodeURIComponent(negId)+'&select=id,status',{headers:{apikey:AK,Authorization:'Bearer '+__token}});
-    if(!rChk.ok){erro.textContent='Falha consulta: '+rChk.status;erro.style.display='block';return;}
-    const existentes=await rChk.json();
-    const ativo=existentes.find(m=>m.status==='ativo');
-    if(ativo){erro.textContent='Já existe projeto ativo pra esse negócio.';erro.style.display='block';return;}
-    // 2. Flag negocio assessorada
-    const agora=new Date().toISOString();
-    await fetch(SB+'/rest/v1/negocios?id=eq.'+encodeURIComponent(negId),{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({plano:'assessorada'})});
-    // 3. INSERT ou UPDATE projeto_metadata
-    if(existentes.length){
-      const rUp=await fetch(SB+'/rest/v1/projeto_metadata?id=eq.'+encodeURIComponent(existentes[0].id),{method:'PATCH',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({motivo_inicio:motivo,motivo_detalhe:detalhe,status:'ativo',updated_at:agora})});
-      if(!rUp.ok){const t=await rUp.text();erro.textContent='Falha update: '+rUp.status+' · '+t.slice(0,140);erro.style.display='block';return;}
-    }else{
-      const rIn=await fetch(SB+'/rest/v1/projeto_metadata',{method:'POST',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({negocio_id:negId,motivo_inicio:motivo,motivo_detalhe:detalhe,status:'ativo',iniciado_em:agora,updated_at:agora})});
-      if(!rIn.ok){const t=await rIn.text();erro.textContent='Falha insert: '+rIn.status+' · '+t.slice(0,140);erro.style.display='block';return;}
+    const r=await fetch(SB+'/functions/v1/criar-projeto-metadata',{method:'POST',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({negocio_id:negId,motivo_inicio:motivo,motivo_detalhe:detalhe})});
+    const j=await r.json();
+    if(!j.ok){
+      const msg=j.error==='projeto_ativo_existe'?'Já existe projeto ativo pra esse negócio.':('Falha: '+(j.error||r.status)+(j.detalhe?' · '+j.detalhe:''));
+      erro.textContent=msg;erro.style.display='block';return;
     }
     mvFecharProjeto();
     if(confirm('Projeto criado · gerar primeira onda de entregáveis (meses 0-3) agora?\n\nVocê pode editar metas, comissão e público-alvo direto no cabeçalho do projeto depois.')){
@@ -10154,6 +10188,53 @@ async function mvCancelarProjeto(){
     if(!j.ok){erro.textContent='Falha: '+(j.error||r.status)+(j.detalhe?' · '+j.detalhe:'');erro.style.display='block';return;}
     mvFecharCancelar();
     if(typeof pjFetch==='function')pjFetch();
+    if(_pjAbertoId===negId)pjAbrirDetalhe(negId);
+  }catch(e){erro.textContent='Erro de rede: '+e.message;erro.style.display='block';}
+  finally{btn.disabled=false;btn.textContent=txtOrig;}
+}
+
+// v9.10.4 · Adicionar movimentação financeira
+async function mvAbrirMovimentacao(negId){
+  _mvMovNegId=negId;
+  document.querySelector('input[name="mv-mov-tipo"][value="entrada"]').checked=true;
+  document.getElementById('mv-mov-categoria').value='mensalidade_assessorada';
+  document.getElementById('mv-mov-valor').value='';
+  document.getElementById('mv-mov-data').value=new Date().toISOString().slice(0,10);
+  document.getElementById('mv-mov-descricao').value='';
+  document.getElementById('mv-mov-erro').style.display='none';
+  const info=document.getElementById('mv-mov-neg-info');
+  info.textContent='carregando...';
+  document.getElementById('mv-movimentacao-overlay').classList.add('show');
+  try{
+    const r=await tplFetch(SB+'/rest/v1/negocios?id=eq.'+encodeURIComponent(negId)+'&select=id,nome,titulo_anuncio,cidade,estado');
+    const arr=r.ok?await r.json():[];
+    const n=arr[0]||{};
+    info.innerHTML=`Projeto · <strong>${tdEscape(n.titulo_anuncio||n.nome||'—')}</strong> · ${tdEscape(n.cidade||'—')}/${tdEscape(n.estado||'—')}`;
+  }catch(e){info.textContent='erro: '+e.message;}
+}
+function mvFecharMovimentacao(){document.getElementById('mv-movimentacao-overlay').classList.remove('show');_mvMovNegId=null;}
+async function mvSalvarMovimentacao(){
+  const erro=document.getElementById('mv-mov-erro');
+  erro.style.display='none';
+  const negId=_mvMovNegId;
+  if(!negId){erro.textContent='Negócio não definido.';erro.style.display='block';return;}
+  const tipoEl=document.querySelector('input[name="mv-mov-tipo"]:checked');
+  const tipo=tipoEl?tipoEl.value:'';
+  const categoria=document.getElementById('mv-mov-categoria').value;
+  const valor=parseFloat(document.getElementById('mv-mov-valor').value);
+  const data=document.getElementById('mv-mov-data').value||null;
+  const descricao=document.getElementById('mv-mov-descricao').value.trim()||null;
+  if(!tipo){erro.textContent='Selecione o tipo.';erro.style.display='block';return;}
+  if(!categoria){erro.textContent='Selecione a categoria.';erro.style.display='block';return;}
+  if(!Number.isFinite(valor)||valor<=0){erro.textContent='Valor deve ser > 0.';erro.style.display='block';return;}
+  const btn=document.getElementById('mv-mov-btn');
+  const txtOrig=btn.textContent;
+  btn.disabled=true;btn.textContent='Salvando...';
+  try{
+    const r=await fetch(SB+'/functions/v1/registrar-movimentacao',{method:'POST',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({negocio_id:negId,tipo,categoria,valor,data,descricao})});
+    const j=await r.json();
+    if(!j.ok){erro.textContent='Falha: '+(j.error||r.status)+(j.detalhe?' · '+j.detalhe:'');erro.style.display='block';return;}
+    mvFecharMovimentacao();
     if(_pjAbertoId===negId)pjAbrirDetalhe(negId);
   }catch(e){erro.textContent='Erro de rede: '+e.message;erro.style.display='block';}
   finally{btn.disabled=false;btn.textContent=txtOrig;}
