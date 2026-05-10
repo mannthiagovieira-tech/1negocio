@@ -423,6 +423,9 @@ const D = {
   accessToken:null, userId:null, codigoTese:'',
 };
 
+// v9 · Contexto sócio→terceiro (declarado cedo · setado em carregarContextoV9 · usado no submit)
+let V9_CTX = null;
+
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 
@@ -872,7 +875,8 @@ window.nextSub = nextSub;
 window.prevSub = prevSub;
 
 async function submeterTese(){
-  if (!D.accessToken) { alert('Sessão expirada · valide o código de novo.'); goStep(1); return }
+  // v9 · Em contexto sócio→terceiro o token (?ctx=...) é a credencial · não exige accessToken
+  if (!D.accessToken && !(V9_CTX && V9_CTX.valido)) { alert('Sessão expirada · valide o código de novo.'); goStep(1); return }
   $('#e-submit').classList.remove('show');
   // checa todos os subs
   for (let i = 1; i <= TOTAL_SUBS; i++) {
@@ -901,17 +905,24 @@ async function submeterTese(){
     descricao_adicional: D.descricao.trim() || null,
     nome: D.userExistente?.nome || D.nome,
     whatsapp: D.whatsapp,
-    usuario_id: D.userId,
+    usuario_id: (V9_CTX && V9_CTX.valido) ? V9_CTX.proprietario_id : D.userId,
     status: 'ativa',
   };
 
   try {
+    const isV9 = !!(V9_CTX && V9_CTX.valido);
     const _af = (u, o) => (window.OneN && window.OneN.auth && window.OneN.auth.authFetch) ? window.OneN.auth.authFetch(u, o) : fetch(u, o);
-    const r = await _af(SUPABASE_URL+'/rest/v1/teses_investimento?select=codigo,titulo', {
+
+    // v9 · No contexto sócio→terceiro o sócio (auth.uid) ≠ usuario_id (proprietário) ·
+    // por isso `return=representation` falha no read-back via tese_select_owner RLS.
+    // Solução: return=minimal + extrair id do header Location.
+    const url = SUPABASE_URL + '/rest/v1/teses_investimento' + (isV9 ? '' : '?select=codigo,titulo');
+    const prefer = isV9 ? 'return=minimal' : 'return=representation';
+    const r = await _af(url, {
       method:'POST',
       headers:{
         'Content-Type':'application/json',
-        'Prefer':'return=representation'
+        'Prefer': prefer
       },
       body: JSON.stringify(payload)
     });
@@ -920,13 +931,64 @@ async function submeterTese(){
       console.error('[insert tese]', r.status, errTxt);
       throw new Error('insert');
     }
-    const data = await r.json();
-    const row = Array.isArray(data) ? data[0] : data;
-    D.codigoTese = row?.codigo || '—';
-    $('#suc-codigo').textContent = D.codigoTese;
-    $('#suc-titulo').textContent = row?.titulo || D.titulo;
+
+    let teseIdCriada = null;
+    let row = null;
+
+    if (isV9) {
+      // Extrai id do header Location: /rest/v1/teses_investimento?id=eq.<uuid>
+      const loc = r.headers.get('Location') || r.headers.get('location') || '';
+      const m = loc.match(/id=eq\.([0-9a-fA-F-]+)/);
+      teseIdCriada = m ? m[1] : null;
+    } else {
+      const data = await r.json();
+      row = Array.isArray(data) ? data[0] : data;
+      teseIdCriada = row?.id || null;
+      D.codigoTese = row?.codigo || '—';
+      $('#suc-codigo').textContent = D.codigoTese;
+      $('#suc-titulo').textContent = row?.titulo || D.titulo;
+    }
+
+    // v9 · vincular-recem-criado · cria vinculos_socio amarrando tese ao sócio que iniciou
+    if (isV9 && teseIdCriada) {
+      try {
+        const vincResp = await fetch(`${SUPABASE_URL}/functions/v1/vincular-recem-criado`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON,
+            'Authorization': 'Bearer ' + (
+              (window.OneN && window.OneN.auth && window.OneN.auth.getSession && window.OneN.auth.getSession()?.token)
+              || (function(){ try { return localStorage.getItem('sb_access_token') || SUPABASE_ANON } catch(e){ return SUPABASE_ANON } })()
+            ),
+          },
+          body: JSON.stringify({
+            ctx_token: V9_CTX.token,
+            objeto_tipo: 'tese',
+            objeto_id: teseIdCriada,
+          }),
+        });
+        const vincJ = await vincResp.json().catch(() => ({}));
+        if (!vincResp.ok || !vincJ.ok) {
+          console.error('[v9 vincular] falhou:', vincJ);
+          D.codigoTese = '(vínculo pendente · contate o admin)';
+          $('#suc-codigo').textContent = D.codigoTese;
+          $('#suc-titulo').textContent = D.titulo;
+        } else {
+          D.codigoTese = vincJ.vinculo_codigo || 'V-—';
+          $('#suc-codigo').textContent = D.codigoTese;
+          $('#suc-titulo').textContent = D.titulo + ' · vínculo ' + D.codigoTese;
+        }
+      } catch (e) {
+        console.error('[v9 vincular] exception:', e);
+        D.codigoTese = '(vínculo pendente · contate o admin)';
+        $('#suc-codigo').textContent = D.codigoTese;
+        $('#suc-titulo').textContent = D.titulo;
+      }
+    }
+
     if (window.fbq) fbq('track','Lead',{ content_name:'tese_investimento', codigo:D.codigoTese });
-    try { window.registrarEvento && window.registrarEvento('cadastrar_tese', { entidade_tipo:'tese', entidade_id: row?.id, meta:{ codigo: D.codigoTese } }); } catch(e){}
+    try { window.registrarEvento && window.registrarEvento('cadastrar_tese', { entidade_tipo:'tese', entidade_id: teseIdCriada, meta:{ codigo: D.codigoTese, v9_ctx: isV9 } }); } catch(e){}
     clearProgress();
     goStep(4);
   } catch(e) {
@@ -961,8 +1023,92 @@ renderModelos();
 setupLoc();
 loadProgress();
 
+// =============================================================
+// v9 · Contexto sócio→terceiro · valida ?ctx, mostra banner, bypassa login
+// =============================================================
+async function carregarContextoV9() {
+  const url = new URL(location.href);
+  const token = url.searchParams.get('ctx');
+  if (!token) return;
+  V9_CTX = {
+    token,
+    valido: false,
+    proprietario_id: null,
+    proprietario_nome: null,
+    proprietario_phone: null,
+    socio_codigo: null,
+    socio_nome: null,
+    erro: null,
+  };
+  try {
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/consultar-contexto-cadastro`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': 'Bearer ' + SUPABASE_ANON,
+      },
+      body: JSON.stringify({ ctx_token: token }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) {
+      V9_CTX.erro = j.mensagem || 'Token inválido';
+      alert('Link inválido: ' + V9_CTX.erro);
+      return;
+    }
+    if (j.tipo !== 'tese') {
+      V9_CTX.erro = 'Esse link é pra outro tipo de cadastro (' + j.tipo + ')';
+      alert(V9_CTX.erro);
+      return;
+    }
+    V9_CTX.valido = true;
+    V9_CTX.proprietario_id = j.proprietario_id;
+    V9_CTX.proprietario_nome = j.proprietario_nome;
+    V9_CTX.proprietario_phone = j.proprietario_phone;
+    V9_CTX.socio_codigo = j.socio_codigo;
+    V9_CTX.socio_nome = j.socio_nome;
+    aplicarHeaderV9();
+    bypassLoginV9();
+  } catch (e) {
+    console.error('v9 ctx falhou:', e);
+    V9_CTX.erro = 'Erro ao validar token';
+    alert('Não consegui validar o link · tente de novo');
+  }
+}
+
+function aplicarHeaderV9() {
+  if (!V9_CTX || !V9_CTX.valido) return;
+  if (document.getElementById('v9-ctx-banner')) return; // idempotente
+  const banner = document.createElement('div');
+  banner.id = 'v9-ctx-banner';
+  banner.style.cssText = 'position:sticky;top:0;z-index:9999;background:#3dff95;color:#0a0f0c;padding:10px 16px;font-family:var(--mono,"JetBrains Mono",monospace);font-size:12px;font-weight:600;text-align:center;letter-spacing:.04em;border-bottom:1px solid rgba(0,0,0,.1)';
+  banner.innerHTML = 'CADASTRANDO PARA <strong>' + (V9_CTX.proprietario_nome || 'PROPRIETÁRIO') + '</strong> · VIA SÓCIO ' + (V9_CTX.socio_codigo || '');
+  document.body.insertBefore(banner, document.body.firstChild);
+}
+
+function bypassLoginV9() {
+  if (!V9_CTX || !V9_CTX.valido) return;
+  // Token é a credencial · pula OTP, popula D mínimo, vai direto pra step 3.
+  // Caminho A (sócio cadastra) · sócio tem sessão própria mas D.userId aponta pro proprietário.
+  // Caminho B (proprietário recém-OTP) · sessão real virá via bootSessaoLogada (mas guard impede de mexer em D nesse caso).
+  D.userId = V9_CTX.proprietario_id;
+  D.nome = V9_CTX.proprietario_nome || 'Proprietário';
+  D.whatsapp = V9_CTX.proprietario_phone || '';
+  D.userExistente = { id: V9_CTX.proprietario_id, nome: V9_CTX.proprietario_nome };
+  // Sentinela · gate no submeterTese checa V9_CTX antes de exigir accessToken real
+  if (!D.accessToken) D.accessToken = '__v9_ctx_token__';
+  const firstName = (V9_CTX.proprietario_nome || 'Proprietário').split(' ')[0];
+  if ($('#hello-nome')) $('#hello-nome').textContent = firstName;
+  goStep(3);
+  if (typeof iniciarSubSteps === 'function') iniciarSubSteps();
+}
+
+carregarContextoV9();
+
 /* UX 1 v6 · Skip OTP se já há sessão válida em localStorage */
 (async function bootSessaoLogada(){
+  // v9 · Em contexto sócio→terceiro o V9_CTX gerencia o boot · skip o fluxo de sessão local
+  if (V9_CTX) return;
   function parseJwt(token){
     try {
       const p = token.split('.');
