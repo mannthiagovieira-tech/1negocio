@@ -466,7 +466,11 @@
         }
       } catch (e) {
         console.error('[socio-iniciar-cadastro-terceiro] falhou:', e);
-        alert(e.message || 'Erro de conexão. Tenta de novo.');
+        // v9.3 · mensagem amigável diferenciada por caminho · detalhe técnico só no console
+        const msgUser = caminho === 'a'
+          ? 'Não consegui iniciar o preenchimento agora. Tenta de novo em alguns segundos.'
+          : 'Não consegui enviar o link agora. Tenta de novo · ou escolha "Vou preencher agora" pra preencher você mesmo.';
+        alert(msgUser);
         fechar();
       }
     };
