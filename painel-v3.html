@@ -1316,7 +1316,7 @@ table.t .acoes { white-space: nowrap; }
           <div class="nav-item" data-secao="projetos-venda" onclick="mostrarSecao('projetos-venda')"><span class="nav-icon">🏢</span><span class="nav-label">Projetos Venda</span></div>
           <div class="nav-item" data-secao="projetos-compra" onclick="mostrarSecao('projetos-compra')"><span class="nav-icon">💡</span><span class="nav-label">Projetos Compra (teses)</span></div>
           <div class="nav-item" data-secao="socios" onclick="mostrarSecao('socios')"><span class="nav-icon">🎖️</span><span class="nav-label">Sócios</span></div>
-          <div class="nav-item" data-secao="vinculos" onclick="mostrarSecao('vinculos')"><span class="nav-icon">🔗</span><span class="nav-label">Vínculos</span><span class="nav-badge" id="nav-badge-vinculos" style="display:none">0</span></div>
+          <div class="nav-item" onclick="mostrarSecao('aprovacoes');setTimeout(function(){aprTab('vinculos')},50)"><span class="nav-icon">🔗</span><span class="nav-label">Vínculos</span><span class="nav-badge" id="nav-badge-vinculos" style="display:none">0</span></div>
           <div class="nav-item" data-secao="parceiros" onclick="mostrarSecao('parceiros')"><span class="nav-icon">🔗</span><span class="nav-label">Parceiros</span></div>
           <div class="nav-item" data-secao="funis" onclick="mostrarSecao('funis')"><span class="nav-icon">🎯</span><span class="nav-label">Funis</span></div>
           <div class="nav-item" data-secao="calendario" onclick="mostrarSecao('calendario')"><span class="nav-icon">📅</span><span class="nav-label">Calendário</span></div>
@@ -1723,13 +1723,19 @@ table.t .acoes { white-space: nowrap; }
             <div id="do-lista" class="td-lista"><div class="td-loading">carregando...</div></div>
           </div>
 
-          <!-- VINCULOS (stub) -->
+          <!-- VINCULOS · v9.4 · usa funções vinculosInit/Carregar/Acao já existentes (linhas 12589+) -->
           <div id="apr-tab-vinculos" class="apr-tab-content" style="display:none">
-            <div class="apr-stub">
-              <div style="font-size:32px;margin-bottom:10px;opacity:.5">🚧</div>
-              <h3>Em construção</h3>
-              <p>Vínculos de Sócio-Parceiro a aprovar.</p>
-              <a class="td-btn td-btn-secundario" href="/painel-admin.html" target="_blank" style="text-decoration:none">↗ Acessar Painel Admin atual</a>
+            <div style="padding:18px 22px">
+              <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="vinculos-filtros">
+                <button class="btn btn-mini active" data-flt="todos" onclick="vinculosFiltrar('todos')">Todos</button>
+                <button class="btn btn-mini" data-flt="aguardando_aceite_proprietario" onclick="vinculosFiltrar('aguardando_aceite_proprietario')">Aguardando proprietário</button>
+                <button class="btn btn-mini" data-flt="aguardando_admin" onclick="vinculosFiltrar('aguardando_admin')" style="border-color:var(--accent);color:var(--accent)">Aguardando admin</button>
+                <button class="btn btn-mini" data-flt="ativo" onclick="vinculosFiltrar('ativo')">Ativos</button>
+                <button class="btn btn-mini" data-flt="removido" onclick="vinculosFiltrar('removido')">Removidos</button>
+              </div>
+              <div id="vinculos-conteudo">
+                <div class="pa-loading">carregando...</div>
+              </div>
             </div>
           </div>
         </section>
@@ -2492,24 +2498,7 @@ table.t .acoes { white-space: nowrap; }
           </div>
         </section>
 
-        <section id="secao-vinculos" class="secao">
-          <header class="secao-header">
-            <h1 class="secao-titulo">🔗 Vínculos</h1>
-            <p class="secao-subtitulo">Aprovar · rejeitar · revogar vínculos sócio↔tese/negócio · reenviar WhatsApp</p>
-          </header>
-          <div style="padding:18px 22px">
-            <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap" id="vinculos-filtros">
-              <button class="btn btn-mini active" data-flt="todos" onclick="vinculosFiltrar('todos')">Todos</button>
-              <button class="btn btn-mini" data-flt="aguardando_aceite_proprietario" onclick="vinculosFiltrar('aguardando_aceite_proprietario')">Aguardando proprietário</button>
-              <button class="btn btn-mini" data-flt="aguardando_admin" onclick="vinculosFiltrar('aguardando_admin')" style="border-color:var(--accent,#0aa85a);color:var(--accent,#0aa85a)">Aguardando admin</button>
-              <button class="btn btn-mini" data-flt="ativo" onclick="vinculosFiltrar('ativo')">Ativos</button>
-              <button class="btn btn-mini" data-flt="removido" onclick="vinculosFiltrar('removido')">Removidos</button>
-            </div>
-            <div id="vinculos-conteudo">
-              <div class="pa-loading">carregando...</div>
-            </div>
-          </div>
-        </section>
+        <!-- v9.4 · secao-vinculos removida · markup vive em #apr-tab-vinculos (Aprovações > Vínculos) -->
 
         <section id="secao-parceiros" class="secao"><header class="secao-header"><h1 class="secao-titulo">🔗 Parceiros</h1><p class="secao-subtitulo">Parceiros pontuais · sem plano · gerenciados manualmente</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Parceiros pontuais (vinculação manual · contato via WhatsApp).</p><ul><li>Lista com limite de vínculos simultâneos</li><li>Vínculos ativos (negócios · teses)</li><li>Comissões geradas</li><li>Histórico de WhatsApp da 1Negócio com cada um</li></ul></div></section>
 
@@ -4001,7 +3990,7 @@ function mostrarSecao(id) {
     if (id === 'pa-leads')      paLoadLeads();
     if (id === 'pa-transacoes') paLoadTransacoes();
     if (id === 'socios') sociosInit();
-    if (id === 'vinculos') vinculosInit();
+    // v9.4 · vinculosInit é disparado por aprTab('vinculos'), não mais por mostrarSecao
     if (id === 'pa-filiados')   paLoadFiliados();
     if (id === 'pa-agenda')     paLoadAgenda();
     if (id === 'pa-conversas')  paLoadConversas();
@@ -10739,6 +10728,7 @@ function aprTab(t){
   document.getElementById('apr-tab-vinculos').style.display=t==='vinculos'?'':'none';
   if(t==='anuncios'&&!_aprAnuTodos.length)aprLoadAnuncios();
   if(t==='dossies')doInit();
+  if(t==='vinculos')vinculosInit();
 }
 
 function aprovacoesInit(){aprTab('anuncios');}
