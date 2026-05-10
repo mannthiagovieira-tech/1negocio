@@ -56,9 +56,10 @@ serve(async (req) => {
   try { body = await req.json(); } catch { body = {}; }
   const { setor, estado, valor_min, valor_max, limit } = body;
 
+  // v9.8 · usuario_id é puxado APENAS pra calcular is_minha · removido do retorno antes de responder
   let query = adminClient
     .from("teses_investimento")
-    .select("id, codigo, titulo, setores, formas_atuacao, localizacao_tipo, estado, cidade, valor_alvo, observacoes, created_at, status")
+    .select("id, codigo, titulo, setores, formas_atuacao, localizacao_tipo, estado, cidade, valor_alvo, observacoes, created_at, status, usuario_id")
     .eq("status", "ativa")
     .order("created_at", { ascending: false })
     .limit(Math.min(Number(limit) || 100, 200));
@@ -74,9 +75,16 @@ serve(async (req) => {
     return resp(500, { ok: false, erro: "erro_interno" });
   }
 
+  // v9.8 · injeta is_minha e remove usuario_id antes de responder (anonimização)
+  const tesesEnriquecidas = (teses || []).map((t: any) => {
+    const enriched = { ...t, is_minha: t.usuario_id === userData.user!.id };
+    delete enriched.usuario_id;
+    return enriched;
+  });
+
   return resp(200, {
     ok: true,
-    total: teses?.length || 0,
-    teses: teses || [],
+    total: tesesEnriquecidas.length,
+    teses: tesesEnriquecidas,
   });
 });

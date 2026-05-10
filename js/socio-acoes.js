@@ -488,10 +488,11 @@
           <div class="msf-step">
             <h3 class="msf-q">Código da tese ou negócio</h3>
             <p class="msf-hint">Cole o código que o proprietário compartilhou com você</p>
-            <input type="text" class="msf-input" id="msf-codigo" placeholder="T-0053  ou  1N-1149" maxlength="20" value="${_h(s.codigo || '')}" autocomplete="off" />
+            <input type="text" class="msf-input" id="msf-codigo" placeholder="T-0053  ou  1N-T1L1KU2" maxlength="20" value="${_h(s.codigo || '')}" autocomplete="off" />
             <div class="msf-hint" style="margin-top:10px">
               · Tese de comprador → começa com <strong>T-</strong><br>
-              · Negócio à venda → começa com <strong>1N-</strong>
+              · Diagnóstico de negócio → começa com <strong>1N-T</strong><br>
+              <span style="color:var(--ink-3);font-size:11px">(Códigos públicos de anúncio <strong>1N-XXXX</strong> numéricos NÃO são aceitos)</span>
             </div>
             <div class="msf-err" id="msf-codigo-err"></div>
           </div>

@@ -635,12 +635,36 @@
   .card-explorar .card-meta   { font-family: var(--mono, 'JetBrains Mono', monospace); font-size: 11px; color: var(--ink-3, #717171); letter-spacing: .04em; margin-bottom: 4px; }
   .card-explorar .card-desc   { font-size: 13px; color: var(--ink-2, #4a4a4a); line-height: 1.45; margin-top: 6px; }
   .card-explorar .card-valor  { font-family: var(--mono, monospace); font-size: 14px; font-weight: 600; color: var(--accent, #0aa85a); margin-top: 8px; letter-spacing: .02em; }
-  .filter-select {
+  .filter-select, .filter-input {
     background: var(--bg-1, #fff); color: var(--ink, #111);
     border: 1px solid var(--ink-line, #e5e5e3);
-    border-radius: 8px; padding: 8px 12px;
+    border-radius: 8px; padding: 8px 10px;
     font-size: 13px; font-family: var(--sans, system-ui, sans-serif);
-    cursor: pointer;
+    min-width: 140px;
+  }
+  .filter-select { cursor: pointer; }
+  /* v9.8 · barra de filtros + contador + minha-tese highlight */
+  .explorar-filtros {
+    display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px; align-items:flex-end;
+    padding:14px; border:1px solid var(--ink-line, #e5e5e3); border-radius:12px; background:var(--bg-1, #fff);
+  }
+  .filtro-grupo { display:flex; flex-direction:column; gap:4px; min-width:120px; }
+  .filtro-grupo label {
+    font-family:var(--mono, 'JetBrains Mono', monospace); font-size:10.5px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ink-3, #717171);
+  }
+  .filtro-contador {
+    font-family:var(--mono, 'JetBrains Mono', monospace); font-size:11px; color:var(--ink-3, #717171);
+    margin-left:auto; letter-spacing:.04em; align-self:center;
+  }
+  .card-explorar.is-minha {
+    border-color: var(--accent, #0aa85a);
+    box-shadow: 0 0 0 1px var(--accent, #0aa85a);
+  }
+  .card-explorar .badge-minha {
+    display:inline-block; background:var(--accent, #0aa85a); color:var(--accent-ink, #fff);
+    font-family:var(--mono, monospace); font-size:9px; letter-spacing:.1em; text-transform:uppercase;
+    padding:3px 7px; border-radius:4px; margin-bottom:8px; font-weight:700;
   }
 
   .empty-state .cta:hover {
@@ -1565,7 +1589,7 @@
         </div>
       </section>
 
-      <!-- v9.7 · VIEW: EXPLORAR NEGÓCIOS (sócio aprovado · sigilo nível público via anuncios_v2) -->
+      <!-- v9.7+v9.8 · VIEW: EXPLORAR NEGÓCIOS (sócio aprovado · sigilo nível público via anuncios_v2) -->
       <section class="view" data-view="explorar-negocios">
         <div class="view-head">
           <div class="view-head-left">
@@ -1573,12 +1597,57 @@
             <p class="view-sub">Negócios à venda · sigilo nível público (igual qualquer comprador não-NDA).</p>
           </div>
         </div>
+
+        <div id="explorar-negocios-filtros" class="explorar-filtros">
+          <div class="filtro-grupo">
+            <label>Setor</label>
+            <select id="exp-neg-setor" class="filter-select">
+              <option value="">Todos</option>
+              <option value="servicos_empresas">Serviços empresas</option>
+              <option value="varejo">Varejo</option>
+              <option value="saude">Saúde</option>
+              <option value="alimentacao">Alimentação</option>
+              <option value="beleza_estetica">Beleza & estética</option>
+              <option value="educacao">Educação</option>
+              <option value="servicos_locais">Serviços locais</option>
+              <option value="bem_estar">Bem-estar</option>
+              <option value="industria">Indústria</option>
+              <option value="construcao">Construção</option>
+              <option value="hospedagem">Hospedagem</option>
+              <option value="logistica">Logística</option>
+            </select>
+          </div>
+          <div class="filtro-grupo">
+            <label>Estado</label>
+            <select id="exp-neg-estado" class="filter-select">
+              <option value="">Todos</option>
+              <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+              <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+              <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+              <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+              <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+              <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+              <option>SP</option><option>SE</option><option>TO</option>
+            </select>
+          </div>
+          <div class="filtro-grupo">
+            <label>Valor mín (R$)</label>
+            <input type="number" id="exp-neg-valor-min" class="filter-input" placeholder="0">
+          </div>
+          <div class="filtro-grupo">
+            <label>Valor máx (R$)</label>
+            <input type="number" id="exp-neg-valor-max" class="filter-input" placeholder="∞">
+          </div>
+          <button class="btn btn-mini" onclick="_explorarNegociosLimparFiltros()">Limpar filtros</button>
+          <div class="filtro-contador" id="exp-neg-contador"></div>
+        </div>
+
         <div id="explorar-negocios-grid" class="explorar-grid">
           <div class="loading-state">carregando...</div>
         </div>
       </section>
 
-      <!-- v9.7 · VIEW: EXPLORAR TESES (sócio aprovado · dados anonimizados via edge listar-teses-publicas) -->
+      <!-- v9.7+v9.8 · VIEW: EXPLORAR TESES (sócio aprovado · dados anonimizados via edge listar-teses-publicas) -->
       <section class="view" data-view="explorar-teses">
         <div class="view-head">
           <div class="view-head-left">
@@ -1586,6 +1655,51 @@
             <p class="view-sub">Teses de investimento ativas · dados anonimizados (sem identificação do comprador).</p>
           </div>
         </div>
+
+        <div id="explorar-teses-filtros" class="explorar-filtros">
+          <div class="filtro-grupo">
+            <label>Setor</label>
+            <select id="exp-teses-setor" class="filter-select">
+              <option value="">Todos</option>
+              <option value="servicos_empresas">Serviços empresas</option>
+              <option value="varejo">Varejo</option>
+              <option value="saude">Saúde</option>
+              <option value="alimentacao">Alimentação</option>
+              <option value="beleza_estetica">Beleza & estética</option>
+              <option value="educacao">Educação</option>
+              <option value="servicos_locais">Serviços locais</option>
+              <option value="bem_estar">Bem-estar</option>
+              <option value="industria">Indústria</option>
+              <option value="construcao">Construção</option>
+              <option value="hospedagem">Hospedagem</option>
+              <option value="logistica">Logística</option>
+            </select>
+          </div>
+          <div class="filtro-grupo">
+            <label>Estado</label>
+            <select id="exp-teses-estado" class="filter-select">
+              <option value="">Todos</option>
+              <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+              <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+              <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+              <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+              <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+              <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+              <option>SP</option><option>SE</option><option>TO</option>
+            </select>
+          </div>
+          <div class="filtro-grupo">
+            <label>Valor mín (R$)</label>
+            <input type="number" id="exp-teses-valor-min" class="filter-input" placeholder="0">
+          </div>
+          <div class="filtro-grupo">
+            <label>Valor máx (R$)</label>
+            <input type="number" id="exp-teses-valor-max" class="filter-input" placeholder="∞">
+          </div>
+          <button class="btn btn-mini" onclick="_explorarTesesLimparFiltros()">Limpar filtros</button>
+          <div class="filtro-contador" id="exp-teses-contador"></div>
+        </div>
+
         <div id="explorar-teses-grid" class="explorar-grid">
           <div class="loading-state">carregando...</div>
         </div>
@@ -3397,32 +3511,98 @@ init();
     }
     window.addEventListener('1n:session-refreshed', _atualizarLabel);
 
-    // v9.7 · explorar-negocios · grid público de anuncios_v2
+    // ─────────────────────────────────────────────────────
+    // v9.8 · explorar-negocios · cache + filtros + render
+    // anuncios_v2 não tem setor/estado · embed em negocios via PostgREST
+    // ─────────────────────────────────────────────────────
+    let _expNegCache = [];
+    let _expNegFiltradas = [];
+
     async function _carregarExplorarNegocios() {
       const grid = document.getElementById('explorar-negocios-grid');
       if (!grid) return;
       try {
-        const url = SUPABASE_URL + '/rest/v1/anuncios_v2?select=codigo,titulo,descricao_card,valor_pedido,publicado_em&status=eq.publicado&order=publicado_em.desc&limit=100';
+        const url = SUPABASE_URL + '/rest/v1/anuncios_v2?select=codigo,titulo,descricao_card,valor_pedido,publicado_em,negocio:negocios!negocio_id(setor,estado,cidade)&status=eq.publicado&order=publicado_em.desc&limit=200';
         const r = await fetch(url, { headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + SUPABASE_ANON } });
         if (!r.ok) { grid.innerHTML = '<div class="empty-state"><div class="msg">Erro ao carregar · ' + r.status + '</div></div>'; return; }
-        const rows = await r.json();
-        if (!rows.length) { grid.innerHTML = '<div class="empty-state"><div class="msg">Nenhum negócio publicado no momento.</div></div>'; return; }
-        grid.innerHTML = rows.map(function(n){
-          var valor = n.valor_pedido ? 'R$ ' + Number(n.valor_pedido).toLocaleString('pt-BR') : 'a combinar';
-          return '<a href="/negocio.html?codigo=' + encodeURIComponent(n.codigo || '') + '" class="card-explorar" target="_blank" rel="noopener">'
-            + '<div class="card-titulo">' + escapeHtml(n.titulo || 'Negócio') + '</div>'
-            + (n.descricao_card ? '<div class="card-desc">' + escapeHtml(n.descricao_card) + '</div>' : '')
-            + '<div class="card-valor">' + valor + '</div>'
-            + '<div class="card-meta">' + escapeHtml(n.codigo || '') + '</div>'
-            + '</a>';
-        }).join('');
+        _expNegCache = await r.json();
+
+        if (!grid.dataset.filtersBound) {
+          ['exp-neg-setor','exp-neg-estado','exp-neg-valor-min','exp-neg-valor-max'].forEach(function(id){
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', _explorarNegociosAplicarFiltros);
+          });
+          grid.dataset.filtersBound = '1';
+        }
+        _explorarNegociosAplicarFiltros();
       } catch (e) {
         console.error('explorar-negocios falhou:', e);
         grid.innerHTML = '<div class="empty-state"><div class="msg">Erro de conexão</div></div>';
       }
     }
 
-    // v9.7 · explorar-teses · chama edge listar-teses-publicas (gate sócio aprovado)
+    function _explorarNegociosAplicarFiltros() {
+      const setor = document.getElementById('exp-neg-setor')?.value || '';
+      const estado = document.getElementById('exp-neg-estado')?.value || '';
+      const vMin = parseFloat(document.getElementById('exp-neg-valor-min')?.value) || 0;
+      const vMax = parseFloat(document.getElementById('exp-neg-valor-max')?.value) || Infinity;
+
+      _expNegFiltradas = _expNegCache.filter(function(n){
+        const negSetor = n.negocio?.setor || '';
+        const negEstado = n.negocio?.estado || '';
+        if (setor && negSetor !== setor) return false;
+        if (estado && negEstado !== estado) return false;
+        const v = Number(n.valor_pedido) || 0;
+        if (v < vMin || v > vMax) return false;
+        return true;
+      });
+      _explorarNegociosRender();
+    }
+
+    function _explorarNegociosLimparFiltros() {
+      ['exp-neg-setor','exp-neg-estado','exp-neg-valor-min','exp-neg-valor-max'].forEach(function(id){
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      _explorarNegociosAplicarFiltros();
+    }
+
+    function _explorarNegociosRender() {
+      const grid = document.getElementById('explorar-negocios-grid');
+      const contador = document.getElementById('exp-neg-contador');
+      if (!grid) return;
+      if (contador) {
+        contador.textContent = _expNegFiltradas.length === _expNegCache.length
+          ? _expNegCache.length + ' negócios'
+          : _expNegFiltradas.length + ' de ' + _expNegCache.length;
+      }
+      if (!_expNegFiltradas.length) {
+        grid.innerHTML = _expNegCache.length
+          ? '<div class="empty-state"><div class="msg">Nenhum negócio com esses filtros.</div></div>'
+          : '<div class="empty-state"><div class="msg">Nenhum negócio publicado no momento.</div></div>';
+        return;
+      }
+      grid.innerHTML = _expNegFiltradas.map(function(n){
+        const valor = n.valor_pedido ? 'R$ ' + Number(n.valor_pedido).toLocaleString('pt-BR') : 'a combinar';
+        const local = n.negocio
+          ? [n.negocio.cidade, n.negocio.estado].filter(Boolean).join(' / ')
+          : '';
+        return '<a href="/negocio.html?codigo=' + encodeURIComponent(n.codigo || '') + '" class="card-explorar" target="_blank" rel="noopener">'
+          + '<div class="card-titulo">' + escapeHtml(n.titulo || 'Negócio') + '</div>'
+          + (n.descricao_card ? '<div class="card-desc">' + escapeHtml(n.descricao_card) + '</div>' : '')
+          + (local ? '<div class="card-meta">' + escapeHtml(local) + '</div>' : '')
+          + '<div class="card-valor">' + valor + '</div>'
+          + '<div class="card-meta">' + escapeHtml(n.codigo || '') + '</div>'
+          + '</a>';
+      }).join('');
+    }
+
+    // ─────────────────────────────────────────────────────
+    // v9.8 · explorar-teses · cache + filtros + priorização is_minha
+    // ─────────────────────────────────────────────────────
+    let _expTesesCache = [];
+    let _expTesesFiltradas = [];
+
     async function _carregarExplorarTeses() {
       const grid = document.getElementById('explorar-teses-grid');
       if (!grid) return;
@@ -3437,7 +3617,7 @@ init();
             apikey: SUPABASE_ANON,
             Authorization: 'Bearer ' + token
           },
-          body: JSON.stringify({ limit: 100 })
+          body: JSON.stringify({ limit: 200 })
         });
         const j = await r.json().catch(function(){ return {}; });
         if (!r.ok || !j.ok) {
@@ -3448,28 +3628,93 @@ init();
           }
           return;
         }
-        if (!j.teses || !j.teses.length) { grid.innerHTML = '<div class="empty-state"><div class="msg">Nenhuma tese ativa no momento.</div></div>'; return; }
-        grid.innerHTML = j.teses.map(function(t){
-          var setoresStr = (t.setores || []).join(' · ');
-          var local = t.localizacao_tipo === 'cidade'
-            ? (t.cidade || '') + (t.estado ? ' / ' + t.estado : '')
-            : (t.estado || 'Brasil todo');
-          var valor = t.valor_alvo ? 'R$ ' + Number(t.valor_alvo).toLocaleString('pt-BR') : 'a definir';
-          var obs = t.observacoes ? (t.observacoes.length > 200 ? t.observacoes.slice(0, 200) + '...' : t.observacoes) : '';
-          return '<div class="card-explorar" style="cursor:default">'
-            + '<div class="card-titulo">' + escapeHtml(t.titulo || 'Tese de investimento') + '</div>'
-            + '<div class="card-meta">' + escapeHtml(setoresStr || 'setor não informado') + '</div>'
-            + '<div class="card-meta">' + escapeHtml(local) + '</div>'
-            + '<div class="card-valor">' + valor + '</div>'
-            + (obs ? '<div class="card-desc">' + escapeHtml(obs) + '</div>' : '')
-            + '<div class="card-meta" style="margin-top:8px">' + escapeHtml(t.codigo || '') + '</div>'
-            + '</div>';
-        }).join('');
+        _expTesesCache = j.teses || [];
+
+        if (!grid.dataset.filtersBound) {
+          ['exp-teses-setor','exp-teses-estado','exp-teses-valor-min','exp-teses-valor-max'].forEach(function(id){
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', _explorarTesesAplicarFiltros);
+          });
+          grid.dataset.filtersBound = '1';
+        }
+        _explorarTesesAplicarFiltros();
       } catch (e) {
         console.error('explorar-teses falhou:', e);
         grid.innerHTML = '<div class="empty-state"><div class="msg">Erro de conexão</div></div>';
       }
     }
+
+    function _explorarTesesAplicarFiltros() {
+      const setor = document.getElementById('exp-teses-setor')?.value || '';
+      const estado = document.getElementById('exp-teses-estado')?.value || '';
+      const vMin = parseFloat(document.getElementById('exp-teses-valor-min')?.value) || 0;
+      const vMax = parseFloat(document.getElementById('exp-teses-valor-max')?.value) || Infinity;
+
+      _expTesesFiltradas = _expTesesCache.filter(function(t){
+        if (setor && !(t.setores || []).includes(setor)) return false;
+        if (estado && t.estado !== estado) return false;
+        const v = Number(t.valor_alvo) || 0;
+        if (v < vMin || v > vMax) return false;
+        return true;
+      });
+
+      // is_minha primeiro · depois created_at desc
+      _expTesesFiltradas.sort(function(a, b){
+        if (a.is_minha && !b.is_minha) return -1;
+        if (!a.is_minha && b.is_minha) return 1;
+        return new Date(b.created_at) - new Date(a.created_at);
+      });
+
+      _explorarTesesRender();
+    }
+
+    function _explorarTesesLimparFiltros() {
+      ['exp-teses-setor','exp-teses-estado','exp-teses-valor-min','exp-teses-valor-max'].forEach(function(id){
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      _explorarTesesAplicarFiltros();
+    }
+
+    function _explorarTesesRender() {
+      const grid = document.getElementById('explorar-teses-grid');
+      const contador = document.getElementById('exp-teses-contador');
+      if (!grid) return;
+      if (contador) {
+        contador.textContent = _expTesesFiltradas.length === _expTesesCache.length
+          ? _expTesesCache.length + ' teses'
+          : _expTesesFiltradas.length + ' de ' + _expTesesCache.length;
+      }
+      if (!_expTesesFiltradas.length) {
+        grid.innerHTML = _expTesesCache.length
+          ? '<div class="empty-state"><div class="msg">Nenhuma tese com esses filtros.</div></div>'
+          : '<div class="empty-state"><div class="msg">Nenhuma tese ativa no momento.</div></div>';
+        return;
+      }
+      grid.innerHTML = _expTesesFiltradas.map(function(t){
+        const setoresStr = (t.setores || []).join(' · ');
+        const local = t.localizacao_tipo === 'cidade'
+          ? (t.cidade || '') + (t.estado ? ' / ' + t.estado : '')
+          : (t.estado || 'Brasil todo');
+        const valor = t.valor_alvo ? 'R$ ' + Number(t.valor_alvo).toLocaleString('pt-BR') : 'a definir';
+        const obs = t.observacoes ? (t.observacoes.length > 200 ? t.observacoes.slice(0, 200) + '...' : t.observacoes) : '';
+        const minhaClass = t.is_minha ? 'is-minha' : '';
+        const minhaBadge = t.is_minha ? '<div class="badge-minha">Sua tese</div>' : '';
+        return '<div class="card-explorar ' + minhaClass + '" style="cursor:default">'
+          + minhaBadge
+          + '<div class="card-titulo">' + escapeHtml(t.titulo || 'Tese de investimento') + '</div>'
+          + '<div class="card-meta">' + escapeHtml(setoresStr || 'setor não informado') + '</div>'
+          + '<div class="card-meta">' + escapeHtml(local) + '</div>'
+          + '<div class="card-valor">' + valor + '</div>'
+          + (obs ? '<div class="card-desc">' + escapeHtml(obs) + '</div>' : '')
+          + '<div class="card-meta" style="margin-top:8px">' + escapeHtml(t.codigo || '') + '</div>'
+          + '</div>';
+      }).join('');
+    }
+
+    // Expor handlers usados em onclick inline
+    window._explorarNegociosLimparFiltros = _explorarNegociosLimparFiltros;
+    window._explorarTesesLimparFiltros = _explorarTesesLimparFiltros;
   })();
 </script>
 <script>
