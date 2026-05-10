@@ -3450,18 +3450,46 @@ function aplicarHeaderV9() {
 
 function bypassLoginV9() {
   if (!V9_CTX || !V9_CTX.valido) return;
-  // Diagnóstico não tem gate rígido (anônimo é OK · vendedor_id pode ser null).
-  // Só populamos:
-  //   - D.google_user_id (essencial · vira vendedor_id no INSERT em negocios)
-  //   - D.nome_contato   (cosmético · usado em exibições/mensagens)
-  // NÃO populamos D.whatsapp / leadData.whatsapp pra evitar que um eventual
-  // disparo OTP no fluxo mande SMS pro telefone do PROPRIETÁRIO em vez do
-  // SÓCIO logado (caminho A). No caminho B o proprietário já fez OTP antes
-  // de chegar aqui, então o phone dele já está na sessão.
-  if (typeof D !== 'undefined') {
-    D.google_user_id = V9_CTX.proprietario_id;
-    if (!D.nome_contato) D.nome_contato = V9_CTX.proprietario_nome || '';
+  if (typeof D === 'undefined') return;
+
+  // v9.2 · Em V9 o token (?ctx=) já é a credencial · pula T00 (OTP) e
+  // popula as variáveis canônicas que validarCodigo() popularia no fluxo
+  // normal. Em seguida, navega direto pra T-CNPJ (próxima tela após OTP).
+
+  D.google_user_id = V9_CTX.proprietario_id;
+  D.nome_contato = V9_CTX.proprietario_nome || '';
+  D.whatsapp = V9_CTX.proprietario_phone || '';
+  D.lead_whatsapp = V9_CTX.proprietario_phone || '';
+  D.lead_nome = V9_CTX.proprietario_nome || '';
+
+  if (typeof leadData !== 'undefined') {
+    leadData.nome = V9_CTX.proprietario_nome || '';
+    leadData.whatsapp = V9_CTX.proprietario_phone || '';
   }
+
+  // Pré-popula inputs visíveis em T00 (cosmético · user vê dados certos
+  // antes de pular)
+  try {
+    const $w = document.querySelector('#lead-whatsapp');
+    const $n = document.querySelector('#lead-nome');
+    if ($w) $w.value = V9_CTX.proprietario_phone || '';
+    if ($n) $n.value = V9_CTX.proprietario_nome || '';
+  } catch (_e) {}
+
+  // Skip OTP · pula direto pra T-CNPJ (mesma tela que validarCodigo() avança).
+  // Pequeno delay pra garantir que o DOM tá pronto e evitar conflito com
+  // outros boots (ir() é declarada na linha ~4158).
+  setTimeout(() => {
+    try {
+      if (typeof ir === 'function') {
+        ir('t-cnpj');
+      } else {
+        console.warn('[V9] função ir() não disponível ainda · T00 não foi pulada');
+      }
+    } catch (e) {
+      console.error('[V9] erro ao pular T00:', e);
+    }
+  }, 100);
 }
 
 carregarContextoV9();
@@ -8102,24 +8130,26 @@ async function gerarLaudoInstantaneoConfirmado(statusInicial) {
         console.error('[textos-ia] erro ao disparar (não interrompe v1):', errTextos);
       }
 
-      // ── WHATSAPP PÓS-DIAGNÓSTICO ──
+      // ── WHATSAPP PÓS-DIAGNÓSTICO (v9.2 · unificado · vendedor + sócio quando V9) ──
+      // Edge `notificar-pos-laudo` (v9.2) substitui `enviar-whatsapp-laudo`:
+      //  · resolve phone do vendedor a partir de negocios.vendedor_id (não precisa mais passar telefone)
+      //  · detecta vínculo sócio→negócio e envia mensagem combinada (laudo + link aceite) ao vendedor
+      //  · também envia laudo ao sócio no caminho V9
+      //  · cria notificação de aceite via INSERT direto (mensagem unificada · sem duplo WhatsApp)
       try {
-        const telWpp = D.lead_whatsapp || D.whatsapp || '';
-        if (telWpp) {
-          console.log('[WHATSAPP] Enviando notificação para:', telWpp);
-          fetch(`${SUPABASE_URL}/functions/v1/enviar-whatsapp-laudo`, {
+        if (negocioId) {
+          fetch(`${SUPABASE_URL}/functions/v1/notificar-pos-laudo`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer ' + SUPABASE_ANON
             },
             body: JSON.stringify({
-              telefone: telWpp,
+              negocio_id: negocioId,
               nome: D.lead_nome || D.nome_usuario || 'Empresário',
               nome_negocio: D.nome_negocio || 'seu negócio',
               artigo: D.artigo || 'o',
               slug: D.codigo_diagnostico,
-              negocio_id: negocioId,
               dados: {
                 dependencia: D.dependencia,
                 crescimento_pct: D.crescimento_pct,
@@ -8129,14 +8159,16 @@ async function gerarLaudoInstantaneoConfirmado(statusInicial) {
               }
             })
           }).then(r => r.json()).then(res => {
-            console.log('[WHATSAPP] Enviado:', res);
+            console.log('[POS-LAUDO]', res);
           }).catch(e => {
-            console.warn('[WHATSAPP] Erro (não bloqueia):', e);
+            console.warn('[POS-LAUDO] erro (não bloqueia):', e);
           });
         }
       } catch(eWpp) {
-        console.warn('[WHATSAPP] Erro ao preparar envio:', eWpp);
+        console.warn('[POS-LAUDO] catch:', eWpp);
       }
+      // V9.2 · chamada antiga preservada como referência histórica:
+      // fetch(`${SUPABASE_URL}/functions/v1/enviar-whatsapp-laudo`, { ... })
 
       // ── NOTIFICAÇÃO ADMIN (WhatsApp Thiago) ──
       try {
