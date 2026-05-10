@@ -174,6 +174,38 @@ Deno.serve(async (req: Request) => {
              }
 
              if (existingUser) {
+                       // v9 · Detecta e promove ghost user (criado por socio-iniciar-cadastro-terceiro
+                       // com phone_confirm=false · sem senha). Reusa a syntheticPassword determinística
+                       // já calculada acima · o signInWithPassword logo abaixo funciona com ela.
+                       const isGhost = existingUser.raw_user_meta_data?.ghost === true;
+                       if (isGhost) {
+                         const { error: promoErr } = await adminClient.auth.admin.updateUserById(
+                           existingUser.id,
+                           {
+                             phone: phoneComPlus,
+                             phone_confirm: true,
+                             password: syntheticPassword,
+                             user_metadata: {
+                               ...existingUser.raw_user_meta_data,
+                               ghost: false,
+                               promovido_em: new Date().toISOString(),
+                             },
+                           },
+                         );
+                         if (promoErr) {
+                           console.error("[otp-verify] falha ao promover ghost:", promoErr);
+                           // Continua · signInWithPassword decide se há sessão.
+                         } else {
+                           console.log("[otp-verify] ghost promovido:", existingUser.id);
+                           // Reflete localmente pra o spread do update-do-nome
+                           // logo abaixo preservar ghost=false em vez de reverter.
+                           if (existingUser.raw_user_meta_data) {
+                             existingUser.raw_user_meta_data.ghost = false;
+                             existingUser.raw_user_meta_data.promovido_em = new Date().toISOString();
+                           }
+                         }
+                       }
+
                        const currentNome = existingUser.raw_user_meta_data?.nome;
                        const currentLooksLikeName = !!(currentNome
                                    && String(currentNome).trim().length > 1
