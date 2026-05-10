@@ -39,11 +39,16 @@ const TIPOS_VALIDOS = new Set([
   "admin_rejeitou_vinculo",
   "admin_revogou_vinculo",
   "admin_reenviou_whatsapp_vinculo",
+  // V9 matchmaking · admin registra clique em canal de contato pro match
+  "match_contato_wpp_comprador",
+  "match_contato_wpp_vendedor",
+  "match_contato_email_comprador",
 ]);
 
 const ENTIDADE_TIPOS_VALIDOS = new Set([
   "negocio", "tese", "anuncio", "usuario", "socio",
   "vinculo_socio",
+  "match",
 ]);
 
 const corsHeaders = {
