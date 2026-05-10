@@ -198,12 +198,16 @@
   }
 
   // ============================================================
-  // v9 · Iniciar cadastro de tese ou diagnóstico em nome de terceiro
-  // Modal enxuto de 2 steps · phone+nome → caminho A/B → delega pro funil
-  // (cadastre.html?ctx= ou diagnostico.html?ctx=) ou dispara WhatsApp.
+  // v9.1 · Iniciar cadastro de tese ou diagnóstico em nome de terceiro
+  // Modal enxuto · 2 steps reordenados:
+  //   step caminho: A (preencher agora) ou B (mandar link)
+  //   step dados:   phone + nome (auto-preenche nome se phone já existir)
+  // → delega pro funil (cadastre.html?ctx= ou diagnostico.html?ctx=) ou
+  //   dispara WhatsApp.
   // ============================================================
   async function _modalIniciarCadastro(tipo) {
     const tipoLabel = tipo === 'tese' ? 'tese de investimento' : 'diagnóstico de empresa';
+    const tipoLabelGenitivo = tipo === 'tese' ? 'da tese' : 'do diagnóstico';
 
     const overlay = document.createElement('div');
     overlay.className = 'sa-overlay';
@@ -225,7 +229,17 @@
         max-width: 520px; width: 100%;
         padding: 28px;
         font-family: var(--sans, 'Geist', sans-serif);
+        position: relative;
       ">
+        <button id="sa-fechar" aria-label="Fechar" style="
+          position: absolute; top: 14px; right: 14px;
+          background: transparent; color: var(--ink-3);
+          border: none; cursor: pointer;
+          font-size: 22px; line-height: 1;
+          padding: 4px 8px;
+          font-family: var(--sans);
+        ">×</button>
+
         <h2 style="
           font-family: var(--serif, 'Syne', serif);
           font-size: 22px; font-weight: 700;
@@ -235,9 +249,49 @@
         <p style="
           font-size: 13px; color: var(--ink-2, rgba(244,247,244,.72));
           margin: 0 0 24px 0; line-height: 1.5;
-        ">Você vai cadastrar em nome de outra pessoa. Comece informando o telefone e nome do proprietário.</p>
+        ">Você vai cadastrar em nome de outra pessoa.</p>
 
-        <div id="sa-step-1">
+        <div id="sa-step-caminho">
+          <p style="font-size: 13px; color: var(--ink-2); margin: 0 0 16px 0; line-height: 1.5;">
+            Como você quer prosseguir?
+          </p>
+
+          <button class="sa-caminho" data-caminho="a" style="
+            display: block; width: 100%;
+            text-align: left;
+            background: var(--bg-2);
+            color: var(--ink);
+            border: 1px solid var(--line-2);
+            border-radius: 16px;
+            padding: 16px 18px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            font-family: var(--sans);
+          ">
+            <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">Vou preencher agora</div>
+            <div style="font-size: 12px; color: var(--ink-2); line-height: 1.4;">Eu mesmo preencho os dados ${_h(tipoLabelGenitivo)}. O proprietário recebe WhatsApp depois pra confirmar o vínculo.</div>
+          </button>
+
+          <button class="sa-caminho" data-caminho="b" style="
+            display: block; width: 100%;
+            text-align: left;
+            background: var(--bg-2);
+            color: var(--ink);
+            border: 1px solid var(--line-2);
+            border-radius: 16px;
+            padding: 16px 18px;
+            margin-bottom: 4px;
+            cursor: pointer;
+            font-family: var(--sans);
+          ">
+            <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">Mandar link pro proprietário preencher</div>
+            <div style="font-size: 12px; color: var(--ink-2); line-height: 1.4;">O proprietário recebe WhatsApp com link pra preencher pessoalmente.</div>
+          </button>
+        </div>
+
+        <div id="sa-step-dados" style="display:none;">
+          <p id="sa-step-dados-header" style="font-size: 13px; color: var(--ink-2); margin: 0 0 18px 0; line-height: 1.5;"></p>
+
           <label style="display:block; font-size:11px; font-family:var(--mono); text-transform:uppercase; letter-spacing:.08em; color:var(--ink-3); margin-bottom:6px;">Telefone do proprietário (com DDD)</label>
           <input id="sa-phone" type="tel" placeholder="(48) 99999-9999" style="
             width: 100%;
@@ -262,20 +316,24 @@
             padding: 13px 15px;
             font-size: 14px;
             font-family: var(--sans);
-            margin-bottom: 24px;
+            margin-bottom: 4px;
             box-sizing: border-box;
           ">
+          <small id="sa-nome-helper" style="
+            display: block; margin-top: 4px; margin-bottom: 20px;
+            font-size: 11px; font-family: var(--mono); color: var(--ink-3);
+            letter-spacing: .04em; text-transform: uppercase;
+            min-height: 14px;
+          "></small>
 
-          <div style="display:flex; gap:8px; justify-content:flex-end;">
-            <button id="sa-cancelar" style="
-              background: transparent; color: var(--ink-2);
-              border: 1px solid var(--line);
-              border-radius: 999px;
-              padding: 10px 18px;
-              font-size: 13px; font-weight: 600;
+          <div style="display:flex; gap:8px; justify-content:space-between; align-items:center;">
+            <button id="sa-voltar-dados" style="
+              background: transparent; color: var(--ink-3);
+              border: none;
+              font-size: 12px;
               cursor: pointer;
               font-family: var(--sans);
-            ">Cancelar</button>
+            ">← Voltar</button>
             <button id="sa-continuar" style="
               background: var(--accent, #3dff95);
               color: var(--accent-ink, #0a0f0c);
@@ -290,54 +348,6 @@
           </div>
         </div>
 
-        <div id="sa-step-2" style="display:none;">
-          <p style="font-size: 13px; color: var(--ink-2); margin: 0 0 20px 0; line-height: 1.5;">
-            Como você quer prosseguir?
-          </p>
-
-          <button class="sa-caminho" data-caminho="a" style="
-            display: block; width: 100%;
-            text-align: left;
-            background: var(--bg-2);
-            color: var(--ink);
-            border: 1px solid var(--line-2);
-            border-radius: 16px;
-            padding: 16px 18px;
-            margin-bottom: 12px;
-            cursor: pointer;
-            font-family: var(--sans);
-          ">
-            <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">Vou preencher agora</div>
-            <div style="font-size: 12px; color: var(--ink-2); line-height: 1.4;">Eu mesmo preencho os dados. <span id="sa-nome-preview-a"></span> recebe WhatsApp depois pra confirmar o vínculo.</div>
-          </button>
-
-          <button class="sa-caminho" data-caminho="b" style="
-            display: block; width: 100%;
-            text-align: left;
-            background: var(--bg-2);
-            color: var(--ink);
-            border: 1px solid var(--line-2);
-            border-radius: 16px;
-            padding: 16px 18px;
-            margin-bottom: 20px;
-            cursor: pointer;
-            font-family: var(--sans);
-          ">
-            <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">Mandar link pro proprietário preencher</div>
-            <div style="font-size: 12px; color: var(--ink-2); line-height: 1.4;"><span id="sa-nome-preview-b"></span> recebe WhatsApp com link pra preencher pessoalmente.</div>
-          </button>
-
-          <div style="display:flex; justify-content:flex-start;">
-            <button id="sa-voltar" style="
-              background: transparent; color: var(--ink-3);
-              border: none;
-              font-size: 12px;
-              cursor: pointer;
-              font-family: var(--sans);
-            ">← Voltar</button>
-          </div>
-        </div>
-
         <div id="sa-step-loading" style="display:none; text-align:center; padding:30px;">
           <div style="font-size: 13px; color: var(--ink-2);">Iniciando cadastro...</div>
         </div>
@@ -347,68 +357,119 @@
     document.body.appendChild(overlay);
     document.body.style.overflow = 'hidden';
 
+    let caminho = null;
     let phone = '';
     let nome = '';
 
     const $ = (sel) => overlay.querySelector(sel);
     const fechar = () => { document.body.style.overflow = ''; overlay.remove(); };
 
-    $('#sa-cancelar').onclick = fechar;
+    $('#sa-fechar').onclick = fechar;
     overlay.addEventListener('click', (e) => { if (e.target === overlay) fechar(); });
 
-    // Mascara o input de telefone enquanto digita
-    $('#sa-phone').addEventListener('input', (e) => {
-      e.target.value = _maskPhone(e.target.value);
-    });
-    setTimeout(() => $('#sa-phone').focus(), 50);
-
-    $('#sa-continuar').onclick = () => {
-      phone = $('#sa-phone').value.trim();
-      nome = $('#sa-nome').value.trim();
-      if (phone.replace(/\D/g, '').length < 10) { alert('Telefone inválido · digite DDD + número'); return; }
-      if (nome.length < 2) { alert('Nome do proprietário obrigatório'); return; }
-
-      $('#sa-nome-preview-a').textContent = nome;
-      $('#sa-nome-preview-b').textContent = nome;
-      $('#sa-step-1').style.display = 'none';
-      $('#sa-step-2').style.display = 'block';
-    };
-
-    $('#sa-voltar').onclick = () => {
-      $('#sa-step-2').style.display = 'none';
-      $('#sa-step-1').style.display = 'block';
-    };
-
+    // Step caminho · click num card seta caminho e mostra step dados
     overlay.querySelectorAll('.sa-caminho').forEach((btn) => {
-      btn.onclick = async () => {
-        const caminho = btn.dataset.caminho;
-        $('#sa-step-2').style.display = 'none';
-        $('#sa-step-loading').style.display = 'block';
-
-        try {
-          const result = await _apiCall('socio-iniciar-cadastro-terceiro', {
-            tipo,
-            proprietario_phone: phone,
-            proprietario_nome: nome,
-            caminho,
-          });
-
-          // _apiCall throw em ok=false · então se chegou aqui, sucesso.
-          if (caminho === 'a') {
-            // Redireciona pro funil real (cadastre.html?ctx= ou diagnostico.html?ctx=)
-            window.location.href = result.redirect_url;
-          } else {
-            // Caminho B · WhatsApp foi enviado
-            alert(`Link enviado por WhatsApp pra ${nome}. Acompanhe em "Meus vínculos".`);
-            fechar();
-          }
-        } catch (e) {
-          console.error('[socio-iniciar-cadastro-terceiro] falhou:', e);
-          alert(e.message || 'Erro de conexão. Tenta de novo.');
-          fechar();
-        }
+      btn.onclick = () => {
+        caminho = btn.dataset.caminho;
+        const header = $('#sa-step-dados-header');
+        header.textContent = caminho === 'a'
+          ? `Você vai preencher os dados ${tipoLabelGenitivo} de quem?`
+          : 'Pra qual telefone vamos enviar o link?';
+        $('#sa-step-caminho').style.display = 'none';
+        $('#sa-step-dados').style.display = 'block';
+        setTimeout(() => $('#sa-phone').focus(), 50);
       };
     });
+
+    // Voltar pro step caminho · reset
+    $('#sa-voltar-dados').onclick = () => {
+      caminho = null;
+      $('#sa-step-dados').style.display = 'none';
+      $('#sa-step-caminho').style.display = 'block';
+    };
+
+    // Listener no phone input · máscara + lookup com debounce
+    const phoneInput = $('#sa-phone');
+    const nomeInput = $('#sa-nome');
+    const helperEl = $('#sa-nome-helper');
+    let lookupTimer = null;
+    let lookupAtual = '';
+
+    phoneInput.addEventListener('input', (e) => {
+      e.target.value = _maskPhone(e.target.value);
+      const phoneRaw = e.target.value.replace(/\D/g, '');
+
+      // Reset visual quando phone fica curto
+      if (phoneRaw.length < 10) {
+        nomeInput.removeAttribute('readonly');
+        nomeInput.style.opacity = '';
+        if (helperEl) { helperEl.textContent = ''; helperEl.style.color = ''; }
+        lookupAtual = '';
+        return;
+      }
+      if (phoneRaw === lookupAtual) return;
+
+      clearTimeout(lookupTimer);
+      lookupTimer = setTimeout(async () => {
+        lookupAtual = phoneRaw;
+        try {
+          const r = await _apiCall('lookup-proprietario-por-phone', { phone: phoneRaw });
+          if (r.encontrado && r.nome) {
+            nomeInput.value = r.nome;
+            nomeInput.setAttribute('readonly', 'readonly');
+            nomeInput.style.opacity = '0.7';
+            if (helperEl) {
+              helperEl.textContent = 'usuario ja cadastrado · nome auto-preenchido';
+              helperEl.style.color = 'var(--accent, #3dff95)';
+            }
+          } else {
+            nomeInput.removeAttribute('readonly');
+            nomeInput.style.opacity = '';
+            if (helperEl) { helperEl.textContent = ''; helperEl.style.color = ''; }
+          }
+        } catch (_e) {
+          // Lookup falhou silenciosamente · permite digitar nome
+          nomeInput.removeAttribute('readonly');
+          nomeInput.style.opacity = '';
+          if (helperEl) { helperEl.textContent = ''; helperEl.style.color = ''; }
+        }
+      }, 500);
+    });
+
+    // Continuar · valida e dispara
+    $('#sa-continuar').onclick = async () => {
+      phone = phoneInput.value.trim();
+      nome = nomeInput.value.trim();
+      if (phone.replace(/\D/g, '').length < 10) { alert('Telefone inválido · digite DDD + número'); return; }
+      if (nome.length < 2) { alert('Nome do proprietário obrigatório'); return; }
+      if (!caminho) { alert('Escolha o caminho primeiro'); return; }
+
+      $('#sa-step-dados').style.display = 'none';
+      $('#sa-step-loading').style.display = 'block';
+
+      try {
+        const result = await _apiCall('socio-iniciar-cadastro-terceiro', {
+          tipo,
+          proprietario_phone: phone,
+          proprietario_nome: nome,
+          caminho,
+        });
+
+        // _apiCall throw em ok=false · então se chegou aqui, sucesso.
+        if (caminho === 'a') {
+          // Redireciona pro funil real (cadastre.html?ctx= ou diagnostico.html?ctx=)
+          window.location.href = result.redirect_url;
+        } else {
+          // Caminho B · WhatsApp foi enviado
+          alert(`Link enviado por WhatsApp pra ${nome}. Acompanhe em "Meus vínculos".`);
+          fechar();
+        }
+      } catch (e) {
+        console.error('[socio-iniciar-cadastro-terceiro] falhou:', e);
+        alert(e.message || 'Erro de conexão. Tenta de novo.');
+        fechar();
+      }
+    };
   }
 
   function modalCadastrarTese(_opts)        { return _modalIniciarCadastro('tese'); }
