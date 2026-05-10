@@ -27,7 +27,22 @@ export async function findOrCreateGhost(
   const phoneRaw = phoneCom55.replace(/^55/, "");
   const phoneE164 = "+" + phoneCom55;
 
-  async function buscar(): Promise<any | null> {
+  async function buscar(): Promise<{ id: string; raw_user_meta_data: any } | null> {
+    // Tentativa 1 · RPC get_user_by_phone (canônico · strip de não-dígitos
+    // em ambos lados · busca em auth.users.phone direto · O(1) com índice)
+    try {
+      const { data, error } = await adminClient.rpc("get_user_by_phone", {
+        p_phone: phoneE164,
+      });
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return { id: data[0].id, raw_user_meta_data: data[0].raw_user_meta_data };
+      }
+    } catch (_e) {
+      // RPC falhou · cai no fallback
+    }
+
+    // Tentativa 2 · fallback paginado (cobre ghosts antigos sem auth.users.phone,
+    // que tinham só user_metadata.phone)
     for (let page = 1; page <= 5; page++) {
       try {
         const { data, error } = await adminClient.auth.admin.listUsers({
@@ -45,7 +60,7 @@ export async function findOrCreateGhost(
             meta === phoneRaw
           );
         });
-        if (found) return found;
+        if (found) return { id: found.id, raw_user_meta_data: found.user_metadata };
         if (data.users.length < 1000) return null;
       } catch (_e) {
         return null;
