@@ -661,8 +661,10 @@
       const token = sess.token;
 
       const url = SUPABASE_URL + '/rest/v1/vinculos_socio?select=id,codigo,status,origem,tese_id,diagnostico_id,created_at,proprietario_aceitou_em,admin_aprovou_em,tese:teses_investimento(codigo,titulo),diagnostico:negocios!vinculos_socio_diagnostico_id_fkey(codigo,nome)&socio_id=eq.' + encodeURIComponent(socioId) + '&order=created_at.desc&limit=50';
-      // Prefere _af (que já é authFetch · renova token automático em 401)
-      const r = await _af(url, { headers: { 'apikey': token, 'Authorization': 'Bearer ' + token } });
+      // v9.3 · _af (= OneN.auth.authFetch) JÁ injeta apikey (ANON) + Authorization
+      // automaticamente. Headers manuais antes sobrescreviam apikey com o JWT,
+      // causando 401 no gateway. Deixar authFetch cuidar.
+      const r = await _af(url);
       if (!r.ok) { container.textContent = 'Erro ao carregar vínculos: ' + r.status; return; }
       const rows = await r.json();
       if (!rows.length) {
