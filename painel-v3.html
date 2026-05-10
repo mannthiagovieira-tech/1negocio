@@ -12639,6 +12639,14 @@ window.mmSalvarLote = mmSalvarLote;
       cont.innerHTML = '<div class="pa-empty">Erro: ' + escapeHtml(e.message || '?') + '</div>';
     }
   }
+  // v9.6 · transforma display de phone em link wa.me (preserva o HTML interno já formatado)
+  function _vincPhoneLink(p, displayHtml) {
+    const d = String(p || '').replace(/\D/g, '');
+    if (d.length < 10) return displayHtml;
+    const e164 = d.startsWith('55') ? d : ('55' + d);
+    return `<a href="https://wa.me/${e164}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;text-decoration-style:dotted">${displayHtml}</a>`;
+  }
+
   // v9.5 · formatador local de phone (BR · com ou sem 55) usado pelo render de vínculos
   function _vincFormatPhone(p) {
     const d = String(p || '').replace(/\D/g, '');
@@ -12695,15 +12703,25 @@ window.mmSalvarLote = mmSalvarLote;
         'removido': 'removido',
       }[v.status] || v.status;
 
-      let acoes = '';
+      // v9.6 · botão "Ver laudo" pra diagnóstico (laudo-completo.html é canônico).
+      // Tese não tem página standalone · sem botão pra tese (decisão consciente).
+      let verBtn = '';
+      if (tipoVinc === 'diag') {
+        const negocioId = v.diagnostico?.id || v.diagnostico_id;
+        if (negocioId) {
+          verBtn = `<a href="/laudo-completo.html?id=${encodeURIComponent(negocioId)}" target="_blank" rel="noopener" class="btn btn-mini" style="text-decoration:none">👁 Ver laudo</a>`;
+        }
+      }
+
+      let acoes = verBtn;
       if (v.status === 'aguardando_admin') {
-        acoes = `<button class="btn btn-mini" style="background:var(--accent,#0aa85a);border-color:var(--accent,#0aa85a);color:#fff" onclick="vinculosAcao('${v.id}','aprovar')">✓ Aprovar</button>
+        acoes += `<button class="btn btn-mini" style="background:var(--accent,#0aa85a);border-color:var(--accent,#0aa85a);color:#fff" onclick="vinculosAcao('${v.id}','aprovar')">✓ Aprovar</button>
           <button class="btn btn-mini" onclick="vinculosAcao('${v.id}','rejeitar')">✗ Rejeitar</button>`;
       } else if (v.status === 'aguardando_aceite_proprietario') {
         if (podeReenviar) acoes += `<button class="btn btn-mini" onclick="vinculosReenviarWhatsApp('${v.id}')">📤 Reenviar WhatsApp</button> `;
         acoes += `<button class="btn btn-mini" onclick="vinculosAcao('${v.id}','rejeitar')">✗ Cancelar</button>`;
       } else if (v.status === 'ativo') {
-        acoes = `<button class="btn btn-mini" style="border-color:#dc2626;color:#dc2626" onclick="vinculosAcao('${v.id}','revogar')">⊗ Revogar</button>`;
+        acoes += `<button class="btn btn-mini" style="border-color:#dc2626;color:#dc2626" onclick="vinculosAcao('${v.id}','revogar')">⊗ Revogar</button>`;
       }
 
       const motivo = v.removido_motivo ? `<div style="font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-top:6px">Motivo: ${escapeHtml(v.removido_motivo)}</div>` : '';
@@ -12717,11 +12735,11 @@ window.mmSalvarLote = mmSalvarLote;
               <span style="padding:2px 8px;border-radius:999px;background:${statusColor};color:#fff;font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em">${statusLabel}</span>
             </div>
             <div style="font-size:14px;font-weight:600;margin-bottom:2px">${escapeHtml(socioNome)} <span style="color:var(--ink-3);font-family:var(--mono);font-size:11px">(${escapeHtml(socio.codigo || 'S-????')})</span></div>
-            ${socioPhone ? `<div style="font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-bottom:6px">${escapeHtml(_vincFormatPhone(socioPhone))}</div>` : ''}
+            ${socioPhone ? `<div style="font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-bottom:6px">${_vincPhoneLink(socioPhone, escapeHtml(_vincFormatPhone(socioPhone)))}</div>` : ''}
             <div style="font-size:13px;color:var(--ink-2);margin-bottom:4px">${tipoVinc === 'tese' ? '📋' : '🏢'} ${entLabel}</div>
             <div style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">
               Origem · ${escapeHtml(v.origem || '?')}<br>
-              Proprietário · ${escapeHtml(propNome)}${propPhone ? ' · ' + escapeHtml(_vincFormatPhone(propPhone)) : ''}<br>
+              Proprietário · ${escapeHtml(propNome)}${propPhone ? ' · ' + _vincPhoneLink(propPhone, escapeHtml(_vincFormatPhone(propPhone))) : ''}<br>
               WhatsApp · ${whatsappEnviado}<br>
               Criado · ${new Date(v.created_at).toLocaleString('pt-BR')}
               ${v.proprietario_aceitou_em ? '<br>Proprietário aceitou · ' + new Date(v.proprietario_aceitou_em).toLocaleString('pt-BR') : ''}
