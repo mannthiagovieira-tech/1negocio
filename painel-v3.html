@@ -12578,6 +12578,7 @@ window.mmSalvarLote = mmSalvarLote;
   /* ───────── V8 B8.13 SUB-BLOCO D · VÍNCULOS ───────── */
   let _vinculosFiltro = 'todos';
   let _vinculosCache = [];
+  let _vinculosUsuariosMap = {};   // v9.5 · {user_id: {id, nome, whatsapp}}
 
   function vinculosInit() {
     vinculosCarregar();
@@ -12601,30 +12602,81 @@ window.mmSalvarLote = mmSalvarLote;
     if (!cont) return;
     cont.innerHTML = '<div class="pa-loading">carregando...</div>';
     try {
-      let url = SB + '/rest/v1/vinculos_socio?select=*,socio:socios(codigo,dados_cadastro,usuario_id),tese:teses_investimento(codigo,titulo,valor_alvo),diagnostico:negocios!vinculos_socio_diagnostico_id_fkey(id,codigo,nome,setor),notif:notificacoes_proprietario(id,proprietario_phone,whatsapp_enviado_em,status,proprietario_decidiu_em)&order=created_at.desc&limit=500';
+      // v9.5 · embeds em usuarios via FK explícita só funcionam pra negocios.vendedor_id
+      // (única FK declarada em public.usuarios). socios.usuario_id e teses.usuario_id
+      // referenciam auth.users (não exposto), então PostgREST não infere relação.
+      // Solução: query principal traz só os IDs, 2ª query em batch puxa nome/whatsapp.
+      let url = SB + '/rest/v1/vinculos_socio?select=*,socio:socios(codigo,dados_cadastro,usuario_id),tese:teses_investimento(codigo,titulo,valor_alvo,usuario_id,whatsapp),diagnostico:negocios!vinculos_socio_diagnostico_id_fkey(id,codigo,nome,setor,vendedor_id),notif:notificacoes_proprietario(id,proprietario_phone,whatsapp_enviado_em,status,proprietario_decidiu_em)&order=created_at.desc&limit=500';
       if (_vinculosFiltro !== 'todos') url += '&status=eq.' + _vinculosFiltro;
       const r = await fetch(url, { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) } });
       if (!r.ok) { cont.innerHTML = '<div class="pa-empty">Erro ' + r.status + '</div>'; return; }
       const data = await r.json();
+
+      // 2ª query · batch em usuarios pelos ids únicos coletados
+      _vinculosUsuariosMap = {};
+      const userIds = new Set();
+      data.forEach(v => {
+        if (v.socio?.usuario_id) userIds.add(v.socio.usuario_id);
+        if (v.tese?.usuario_id) userIds.add(v.tese.usuario_id);
+        if (v.diagnostico?.vendedor_id) userIds.add(v.diagnostico.vendedor_id);
+      });
+      if (userIds.size > 0) {
+        try {
+          const idsCSV = [...userIds].map(id => '"' + id + '"').join(',');
+          const r2 = await fetch(SB + '/rest/v1/usuarios?select=id,nome,whatsapp&id=in.(' + idsCSV + ')', {
+            headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) }
+          });
+          if (r2.ok) {
+            const users = await r2.json();
+            users.forEach(u => { _vinculosUsuariosMap[u.id] = u; });
+          }
+        } catch (e) { console.warn('[vinculos] batch usuarios falhou:', e); }
+      }
+
       _vinculosCache = data;
       cont.innerHTML = vinculosRenderLista(data);
     } catch (e) {
       cont.innerHTML = '<div class="pa-empty">Erro: ' + escapeHtml(e.message || '?') + '</div>';
     }
   }
+  // v9.5 · formatador local de phone (BR · com ou sem 55) usado pelo render de vínculos
+  function _vincFormatPhone(p) {
+    const d = String(p || '').replace(/\D/g, '');
+    if (d.length === 13 && d.startsWith('55')) return `+55 (${d.slice(2,4)}) ${d.slice(4,9)}-${d.slice(9)}`;
+    if (d.length === 12 && d.startsWith('55')) return `+55 (${d.slice(2,4)}) ${d.slice(4,8)}-${d.slice(8)}`;
+    if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+    if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+    return p;
+  }
+
   function vinculosRenderLista(rows) {
     if (!rows.length) return '<div class="pa-empty">Nenhum vínculo encontrado.</div>';
     return rows.map(v => {
       const socio = v.socio || {};
+      const socioUsuario = (socio.usuario_id && _vinculosUsuariosMap[socio.usuario_id]) || {};
       const dados = socio.dados_cadastro || {};
-      const socioNome = dados.nome || 'Sócio sem nome';
+      const socioNome = socioUsuario.nome || dados.nome || 'Sócio sem nome';
+      const socioPhone = socioUsuario.whatsapp || '';
+
       const tipoVinc = v.tese_id ? 'tese' : 'diag';
       const entLabel = tipoVinc === 'tese'
         ? (v.tese ? `T-${(v.tese.codigo || '').replace(/^T-/, '') || '????'} · ${escapeHtml(v.tese.titulo || 'Tese')}` : 'Tese (?)')
         : (v.diagnostico ? `${escapeHtml(v.diagnostico.codigo || '1N-????')} · ${escapeHtml(v.diagnostico.nome || 'Negócio')}` : 'Negócio (?)');
+
       const notif = Array.isArray(v.notif) && v.notif.length ? v.notif[0] : null;
-      const phone = notif?.proprietario_phone || '';
-      const phoneSuffix = phone ? '****' + phone.slice(-4) : '—';
+
+      // Proprietário · ramifica por tipo de vínculo · resolve via _vinculosUsuariosMap
+      let propNome, propPhone;
+      if (tipoVinc === 'tese') {
+        const propUser = (v.tese?.usuario_id && _vinculosUsuariosMap[v.tese.usuario_id]) || {};
+        propNome = propUser.nome || 'Proprietário';
+        propPhone = propUser.whatsapp || v.tese?.whatsapp || notif?.proprietario_phone || '';
+      } else {
+        const propUser = (v.diagnostico?.vendedor_id && _vinculosUsuariosMap[v.diagnostico.vendedor_id]) || {};
+        propNome = propUser.nome || 'Proprietário';
+        propPhone = propUser.whatsapp || notif?.proprietario_phone || '';
+      }
+
       const whatsappEnviado = notif?.whatsapp_enviado_em
         ? new Date(notif.whatsapp_enviado_em).toLocaleString('pt-BR')
         : 'não enviado';
@@ -12664,10 +12716,12 @@ window.mmSalvarLote = mmSalvarLote;
               <span style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--accent,#0aa85a);font-weight:600">${escapeHtml(v.codigo || 'V-????')}</span>
               <span style="padding:2px 8px;border-radius:999px;background:${statusColor};color:#fff;font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em">${statusLabel}</span>
             </div>
-            <div style="font-size:14px;font-weight:600;margin-bottom:4px">${escapeHtml(socioNome)} <span style="color:var(--ink-3);font-family:var(--mono);font-size:11px">(${escapeHtml(socio.codigo || 'S-????')})</span></div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:2px">${escapeHtml(socioNome)} <span style="color:var(--ink-3);font-family:var(--mono);font-size:11px">(${escapeHtml(socio.codigo || 'S-????')})</span></div>
+            ${socioPhone ? `<div style="font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-bottom:6px">${escapeHtml(_vincFormatPhone(socioPhone))}</div>` : ''}
             <div style="font-size:13px;color:var(--ink-2);margin-bottom:4px">${tipoVinc === 'tese' ? '📋' : '🏢'} ${entLabel}</div>
             <div style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">
-              Origem · ${escapeHtml(v.origem || '?')} · Proprietário ${phoneSuffix}<br>
+              Origem · ${escapeHtml(v.origem || '?')}<br>
+              Proprietário · ${escapeHtml(propNome)}${propPhone ? ' · ' + escapeHtml(_vincFormatPhone(propPhone)) : ''}<br>
               WhatsApp · ${whatsappEnviado}<br>
               Criado · ${new Date(v.created_at).toLocaleString('pt-BR')}
               ${v.proprietario_aceitou_em ? '<br>Proprietário aceitou · ' + new Date(v.proprietario_aceitou_em).toLocaleString('pt-BR') : ''}
