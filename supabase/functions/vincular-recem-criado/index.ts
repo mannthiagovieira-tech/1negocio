@@ -218,27 +218,14 @@ serve(async (req) => {
     .update({ status: "consumido", vinculo_id: novoVinculo.id })
     .eq("id", notif.id);
 
-  // 12) Caminho A · dispara nova notif pro proprietário aceitar
-  if (caminho === "a") {
-    try {
-      await fetch(`${SUPABASE_URL}/functions/v1/criar-notificacao-proprietario`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SERVICE_KEY}`,
-        },
-        body: JSON.stringify({
-          vinculo_id: novoVinculo.id,
-          proprietario_id: notif.proprietario_id,
-          proprietario_phone: notif.proprietario_phone,
-          acao: objeto_tipo === "tese" ? "aceitar_tese" : "aceitar_diagnostico",
-        }),
-      });
-    } catch (e) {
-      console.error("falha disparar notif aceite:", e);
-      // Não bloqueia · vínculo já criado · admin pode reenviar
-    }
-  }
+  // 12) v9.2 · disparo de "aceitar vínculo" MOVIDO pra notificar-pos-laudo.
+  // Razão: proprietário não deve receber pedido de aceite antes de existir
+  // laudo gerado pra ele ver. O frontend (diagnostico.html) chama
+  // notificar-pos-laudo após AVALIADORA_V2.avaliar retornar · essa edge é
+  // que cria a notificação de aceite (INSERT direto) e dispara mensagem
+  // unificada (laudo + link de aceite) num só WhatsApp.
+  // (Caminho B continua sem precisar disparo · proprietário acabou de
+  // preencher pessoalmente · é confirmação implícita.)
 
   // 13) Tracking
   try {
