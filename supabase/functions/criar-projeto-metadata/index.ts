@@ -1,15 +1,9 @@
-// criar-projeto-metadata · v9.10 Módulo 1 (1/3) · 1Negócio
-// Admin cria/reativa projeto_metadata enriquecido + flag negócio como assessorado.
+// criar-projeto-metadata · v9.10.1 simplificada · 1Negócio
+// Admin cria/reativa projeto_metadata MÍNIMO · resto vira inline depois.
 //
-// POST {
-//   negocio_id, motivo_inicio, motivo_detalhe?,
-//   valor_mensal_receita, verba_ads_mensal?,
-//   publico_alvo_descricao, publico_alvo_perfil_compradores?,
-//   meta_abordagens_mensal, meta_abordagens_anual, meta_fechamento_data?,
-//   valor_venda_alvo, comissao_percentual
-// }
+// POST { negocio_id, motivo_inicio, motivo_detalhe? }
 // → 200 { ok, projeto_metadata }
-// → 401 sem_jwt / jwt_invalido · 403 nao_autorizado · 404 negocio_nao_encontrado
+// → 401/403 nao_autorizado · 404 negocio_nao_encontrado
 // → 409 projeto_ativo_existe · 400 params_invalidos
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -52,6 +46,12 @@ async function gateAdmin(req: Request): Promise<{ ok: boolean; admin_id?: string
   return { ok: false };
 }
 
+const MOTIVOS_VALIDOS = new Set([
+  "cliente_pagou_stripe", "cliente_pagou_pix", "cliente_pagou_outro",
+  "cortesia", "piloto_interno", "investimento_proprio",
+  "parceria", "condicao_especial", "outro",
+]);
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, error: "metodo" }, 405);
@@ -62,31 +62,12 @@ Deno.serve(async (req: Request) => {
   let body: any;
   try { body = await req.json(); } catch { return json({ ok: false, error: "json_invalido" }, 400); }
 
-  const {
-    negocio_id,
-    motivo_inicio,
-    motivo_detalhe,
-    valor_mensal_receita,
-    verba_ads_mensal,
-    publico_alvo_descricao,
-    publico_alvo_perfil_compradores,
-    meta_abordagens_mensal,
-    meta_abordagens_anual,
-    meta_fechamento_data,
-    valor_venda_alvo,
-    comissao_percentual,
-  } = body || {};
+  const negocio_id = String(body?.negocio_id || "").trim();
+  const motivo_inicio = String(body?.motivo_inicio || "").trim();
+  const motivo_detalhe = body?.motivo_detalhe != null ? String(body.motivo_detalhe).trim().slice(0, 2000) : null;
 
-  const obrigatorios: Record<string, unknown> = {
-    negocio_id, motivo_inicio, valor_mensal_receita,
-    publico_alvo_descricao, meta_abordagens_mensal, meta_abordagens_anual,
-    valor_venda_alvo, comissao_percentual,
-  };
-  for (const [k, v] of Object.entries(obrigatorios)) {
-    if (v === undefined || v === null || v === "") {
-      return json({ ok: false, error: "params_invalidos", detalhe: `campo obrigatório: ${k}` }, 400);
-    }
-  }
+  if (!negocio_id) return json({ ok: false, error: "params_invalidos", detalhe: "negocio_id" }, 400);
+  if (!MOTIVOS_VALIDOS.has(motivo_inicio)) return json({ ok: false, error: "params_invalidos", detalhe: "motivo_inicio" }, 400);
 
   const { data: negocio } = await adminClient
     .from("negocios").select("id, plano").eq("id", negocio_id).maybeSingle();
@@ -101,31 +82,24 @@ Deno.serve(async (req: Request) => {
 
   await adminClient.from("negocios").update({ plano: "assessorada" }).eq("id", negocio_id);
 
+  const agora = new Date().toISOString();
   const payload: Record<string, unknown> = {
     negocio_id,
     motivo_inicio,
     motivo_detalhe: motivo_detalhe || null,
-    valor_mensal_receita,
-    verba_ads_mensal: verba_ads_mensal ?? null,
-    publico_alvo_descricao,
-    publico_alvo_perfil_compradores: publico_alvo_perfil_compradores || null,
-    meta_abordagens_mensal,
-    meta_abordagens_anual,
-    meta_fechamento_data: meta_fechamento_data || null,
-    valor_venda_alvo,
-    comissao_percentual,
     status: "ativo",
-    updated_at: new Date().toISOString(),
+    updated_at: agora,
   };
 
   let result: any;
   if (metaExistente) {
+    // Reativa · preserva campos já preenchidos (não zera)
     const { data, error } = await adminClient
       .from("projeto_metadata").update(payload).eq("id", metaExistente.id).select().maybeSingle();
     if (error) return json({ ok: false, error: "erro_update", detalhe: error.message }, 500);
     result = data;
   } else {
-    const insertPayload = { ...payload, iniciado_em: new Date().toISOString() };
+    const insertPayload = { ...payload, iniciado_em: agora };
     const { data, error } = await adminClient
       .from("projeto_metadata").insert(insertPayload).select().maybeSingle();
     if (error) return json({ ok: false, error: "erro_insert", detalhe: error.message }, 500);
