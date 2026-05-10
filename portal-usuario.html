@@ -620,6 +620,29 @@
     text-transform: uppercase;
     transition: transform 0.12s, box-shadow 0.18s;
   }
+  /* v9.7 · cards de explorar (negócios públicos · teses anonimizadas) */
+  .explorar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 8px; }
+  .card-explorar {
+    display: block; padding: 16px;
+    background: var(--bg-1, #fff);
+    border: 1px solid var(--ink-line, #e5e5e3);
+    border-radius: 14px;
+    text-decoration: none; color: inherit;
+    transition: border-color .15s, transform .15s;
+  }
+  .card-explorar:hover { border-color: var(--accent, #0aa85a); transform: translateY(-1px); }
+  .card-explorar .card-titulo { font-family: var(--serif, 'Syne', serif); font-size: 16px; font-weight: 700; line-height: 1.3; margin-bottom: 6px; }
+  .card-explorar .card-meta   { font-family: var(--mono, 'JetBrains Mono', monospace); font-size: 11px; color: var(--ink-3, #717171); letter-spacing: .04em; margin-bottom: 4px; }
+  .card-explorar .card-desc   { font-size: 13px; color: var(--ink-2, #4a4a4a); line-height: 1.45; margin-top: 6px; }
+  .card-explorar .card-valor  { font-family: var(--mono, monospace); font-size: 14px; font-weight: 600; color: var(--accent, #0aa85a); margin-top: 8px; letter-spacing: .02em; }
+  .filter-select {
+    background: var(--bg-1, #fff); color: var(--ink, #111);
+    border: 1px solid var(--ink-line, #e5e5e3);
+    border-radius: 8px; padding: 8px 12px;
+    font-size: 13px; font-family: var(--sans, system-ui, sans-serif);
+    cursor: pointer;
+  }
+
   .empty-state .cta:hover {
     transform: translateY(-1px);
     box-shadow: 0 6px 20px var(--accent-line);
@@ -1370,12 +1393,35 @@
         </button>
       </div>
 
+      <!-- v9.7 · grupo "Como sócio" · visível só se socios.status='aprovado' (toggle via _atualizarSidebarSocio) -->
+      <div class="nav-group" id="nav-group-socio" style="display:none">
+        <div class="nav-label">Como sócio · <span id="nav-socio-codigo">S-XXXX</span></div>
+        <button class="nav-item" data-nav="socio" onclick="mostrarView('socio')">
+          <span>Meus vínculos</span>
+        </button>
+        <button class="nav-item" onclick="window.SocioAcoes && SocioAcoes.modalCadastrarTese({})">
+          <span>Cadastrar tese pra alguém</span>
+        </button>
+        <button class="nav-item" onclick="window.SocioAcoes && SocioAcoes.modalCadastrarDiagnostico({})">
+          <span>Cadastrar diagnóstico pra alguém</span>
+        </button>
+        <button class="nav-item" onclick="window.SocioAcoes && SocioAcoes.modalPedirVinculo({})">
+          <span>Pedir vínculo a código existente</span>
+        </button>
+        <button class="nav-item" data-nav="explorar-teses" onclick="mostrarView('explorar-teses')">
+          <span>Explorar teses do portal</span>
+        </button>
+        <button class="nav-item" data-nav="explorar-negocios" onclick="mostrarView('explorar-negocios')">
+          <span>Explorar negócios do portal</span>
+        </button>
+      </div>
+
       <div class="nav-group">
         <div class="nav-label">Conta</div>
         <button class="nav-item" data-nav="perfil" onclick="mostrarView('perfil')">
           <span>Meu perfil</span>
         </button>
-        <button class="nav-item" data-nav="socio" onclick="mostrarView('socio')">
+        <button class="nav-item" data-nav="socio-onboarding" onclick="mostrarView('socio')">
           <span id="nav-socio-label">Tornar-se sócio</span>
         </button>
       </div>
@@ -1516,6 +1562,32 @@
             <div class="profile-label">Celular</div>
             <div class="profile-value-readonly" id="profile-wpp">—</div>
           </div>
+        </div>
+      </section>
+
+      <!-- v9.7 · VIEW: EXPLORAR NEGÓCIOS (sócio aprovado · sigilo nível público via anuncios_v2) -->
+      <section class="view" data-view="explorar-negocios">
+        <div class="view-head">
+          <div class="view-head-left">
+            <h1 class="view-title">Explorar negócios do portal</h1>
+            <p class="view-sub">Negócios à venda · sigilo nível público (igual qualquer comprador não-NDA).</p>
+          </div>
+        </div>
+        <div id="explorar-negocios-grid" class="explorar-grid">
+          <div class="loading-state">carregando...</div>
+        </div>
+      </section>
+
+      <!-- v9.7 · VIEW: EXPLORAR TESES (sócio aprovado · dados anonimizados via edge listar-teses-publicas) -->
+      <section class="view" data-view="explorar-teses">
+        <div class="view-head">
+          <div class="view-head-left">
+            <h1 class="view-title">Explorar teses do portal</h1>
+            <p class="view-sub">Teses de investimento ativas · dados anonimizados (sem identificação do comprador).</p>
+          </div>
+        </div>
+        <div id="explorar-teses-grid" class="explorar-grid">
+          <div class="loading-state">carregando...</div>
         </div>
       </section>
 
@@ -3263,15 +3335,29 @@ init();
 <script src="/js/area-socio-onboarding.js"></script>
 <script src="/js/socio-acoes.js"></script>
 <script>
-  // V8 B7 · render onboarding ao mostrar view socio + atualizar label
+  // V8 B7 + v9.7 · render onboarding ao mostrar view socio · label dinâmico ·
+  // grupo "Como sócio" condicional · lazy-load das 2 views explorar
   (function () {
+    let _loadedExpNeg = false;
+    let _loadedExpTeses = false;
+
     const _origMostrar = window.mostrarView;
     window.mostrarView = function (nome) {
       if (typeof _origMostrar === 'function') _origMostrar(nome);
       if (nome === 'socio' && window.SocioOnboarding) {
         window.SocioOnboarding.render('#socio-container');
       }
+      // v9.7 · lazy-load
+      if (nome === 'explorar-negocios' && !_loadedExpNeg) {
+        _loadedExpNeg = true;
+        _carregarExplorarNegocios();
+      }
+      if (nome === 'explorar-teses' && !_loadedExpTeses) {
+        _loadedExpTeses = true;
+        _carregarExplorarTeses();
+      }
     };
+
     async function _atualizarLabel() {
       try {
         const sess = window.OneN && window.OneN.auth && window.OneN.auth.getSession();
@@ -3281,13 +3367,27 @@ init();
         const arr = await r.json();
         const s = Array.isArray(arr) && arr[0];
         const lbl = document.getElementById('nav-socio-label');
-        if (!lbl) return;
-        if (!s) lbl.textContent = 'Tornar-se sócio';
-        else if (s.status === 'aprovado') lbl.textContent = 'Sócio · ' + (s.codigo || 'S-????');
-        else if (s.status === 'aguardando_aprovacao_doc') lbl.textContent = 'Sócio · em análise';
-        else if (s.status === 'pendente_termo') lbl.textContent = 'Sócio · pendente';
-        else if (s.status === 'suspenso') lbl.textContent = 'Sócio · suspenso';
-        else if (s.status === 'cancelado') lbl.textContent = 'Sócio · cancelado';
+        if (lbl) {
+          if (!s) lbl.textContent = 'Tornar-se sócio';
+          else if (s.status === 'aprovado') lbl.textContent = 'Sócio · ' + (s.codigo || 'S-????');
+          else if (s.status === 'aguardando_aprovacao_doc') lbl.textContent = 'Sócio · em análise';
+          else if (s.status === 'pendente_termo') lbl.textContent = 'Sócio · pendente';
+          else if (s.status === 'suspenso') lbl.textContent = 'Sócio · suspenso';
+          else if (s.status === 'cancelado') lbl.textContent = 'Sócio · cancelado';
+        }
+        // v9.7 · grupo "Como sócio" só quando aprovado
+        const grupo = document.getElementById('nav-group-socio');
+        const codigoEl = document.getElementById('nav-socio-codigo');
+        const itemOnboarding = document.querySelector('[data-nav="socio-onboarding"]');
+        if (s && s.status === 'aprovado') {
+          if (grupo) grupo.style.display = '';
+          if (codigoEl) codigoEl.textContent = s.codigo || 'S-XXXX';
+          // Esconde "Tornar-se sócio" do grupo Conta (já há "Meus vínculos" no grupo Como sócio)
+          if (itemOnboarding) itemOnboarding.style.display = 'none';
+        } else {
+          if (grupo) grupo.style.display = 'none';
+          if (itemOnboarding) itemOnboarding.style.display = '';
+        }
       } catch {}
     }
     if (document.readyState === 'loading') {
@@ -3296,6 +3396,80 @@ init();
       setTimeout(_atualizarLabel, 800);
     }
     window.addEventListener('1n:session-refreshed', _atualizarLabel);
+
+    // v9.7 · explorar-negocios · grid público de anuncios_v2
+    async function _carregarExplorarNegocios() {
+      const grid = document.getElementById('explorar-negocios-grid');
+      if (!grid) return;
+      try {
+        const url = SUPABASE_URL + '/rest/v1/anuncios_v2?select=codigo,titulo,descricao_card,valor_pedido,publicado_em&status=eq.publicado&order=publicado_em.desc&limit=100';
+        const r = await fetch(url, { headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + SUPABASE_ANON } });
+        if (!r.ok) { grid.innerHTML = '<div class="empty-state"><div class="msg">Erro ao carregar · ' + r.status + '</div></div>'; return; }
+        const rows = await r.json();
+        if (!rows.length) { grid.innerHTML = '<div class="empty-state"><div class="msg">Nenhum negócio publicado no momento.</div></div>'; return; }
+        grid.innerHTML = rows.map(function(n){
+          var valor = n.valor_pedido ? 'R$ ' + Number(n.valor_pedido).toLocaleString('pt-BR') : 'a combinar';
+          return '<a href="/negocio.html?codigo=' + encodeURIComponent(n.codigo || '') + '" class="card-explorar" target="_blank" rel="noopener">'
+            + '<div class="card-titulo">' + escapeHtml(n.titulo || 'Negócio') + '</div>'
+            + (n.descricao_card ? '<div class="card-desc">' + escapeHtml(n.descricao_card) + '</div>' : '')
+            + '<div class="card-valor">' + valor + '</div>'
+            + '<div class="card-meta">' + escapeHtml(n.codigo || '') + '</div>'
+            + '</a>';
+        }).join('');
+      } catch (e) {
+        console.error('explorar-negocios falhou:', e);
+        grid.innerHTML = '<div class="empty-state"><div class="msg">Erro de conexão</div></div>';
+      }
+    }
+
+    // v9.7 · explorar-teses · chama edge listar-teses-publicas (gate sócio aprovado)
+    async function _carregarExplorarTeses() {
+      const grid = document.getElementById('explorar-teses-grid');
+      if (!grid) return;
+      try {
+        const sess = window.OneN && window.OneN.auth && window.OneN.auth.getSession();
+        const token = (sess && sess.token) || (function(){ try { return localStorage.getItem('sb_access_token'); } catch(e){ return null; } })();
+        if (!token) { grid.innerHTML = '<div class="empty-state"><div class="msg">Faça login pra explorar.</div></div>'; return; }
+        const r = await fetch(SUPABASE_URL + '/functions/v1/listar-teses-publicas', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON,
+            Authorization: 'Bearer ' + token
+          },
+          body: JSON.stringify({ limit: 100 })
+        });
+        const j = await r.json().catch(function(){ return {}; });
+        if (!r.ok || !j.ok) {
+          if (j.erro === 'nao_eh_socio') {
+            grid.innerHTML = '<div class="empty-state"><div class="msg">Esta visualização é exclusiva pra sócios aprovados.</div></div>';
+          } else {
+            grid.innerHTML = '<div class="empty-state"><div class="msg">Erro ao carregar teses</div></div>';
+          }
+          return;
+        }
+        if (!j.teses || !j.teses.length) { grid.innerHTML = '<div class="empty-state"><div class="msg">Nenhuma tese ativa no momento.</div></div>'; return; }
+        grid.innerHTML = j.teses.map(function(t){
+          var setoresStr = (t.setores || []).join(' · ');
+          var local = t.localizacao_tipo === 'cidade'
+            ? (t.cidade || '') + (t.estado ? ' / ' + t.estado : '')
+            : (t.estado || 'Brasil todo');
+          var valor = t.valor_alvo ? 'R$ ' + Number(t.valor_alvo).toLocaleString('pt-BR') : 'a definir';
+          var obs = t.observacoes ? (t.observacoes.length > 200 ? t.observacoes.slice(0, 200) + '...' : t.observacoes) : '';
+          return '<div class="card-explorar" style="cursor:default">'
+            + '<div class="card-titulo">' + escapeHtml(t.titulo || 'Tese de investimento') + '</div>'
+            + '<div class="card-meta">' + escapeHtml(setoresStr || 'setor não informado') + '</div>'
+            + '<div class="card-meta">' + escapeHtml(local) + '</div>'
+            + '<div class="card-valor">' + valor + '</div>'
+            + (obs ? '<div class="card-desc">' + escapeHtml(obs) + '</div>' : '')
+            + '<div class="card-meta" style="margin-top:8px">' + escapeHtml(t.codigo || '') + '</div>'
+            + '</div>';
+        }).join('');
+      } catch (e) {
+        console.error('explorar-teses falhou:', e);
+        grid.innerHTML = '<div class="empty-state"><div class="msg">Erro de conexão</div></div>';
+      }
+    }
   })();
 </script>
 <script>

@@ -596,31 +596,9 @@
           <p class="aprovado-sub">Cadastre teses ou diagnósticos em nome de quem você assessora. O proprietário recebe um link no WhatsApp pra aceitar o vínculo.</p>
         </div>
 
-        <div class="aprovado-acoes">
-          <button type="button" class="btn-acao" data-acao="cadastrar-tese">
-            <span class="btn-acao-icon" aria-hidden="true">📋</span>
-            <span class="btn-acao-corpo">
-              <span class="btn-acao-titulo">Cadastrar tese pra alguém</span>
-              <span class="btn-acao-sub">Comprador que busca empresa · 8 passos · WhatsApp dispara automático</span>
-            </span>
-          </button>
-
-          <button type="button" class="btn-acao" data-acao="cadastrar-diagnostico">
-            <span class="btn-acao-icon" aria-hidden="true">🏢</span>
-            <span class="btn-acao-corpo">
-              <span class="btn-acao-titulo">Cadastrar diagnóstico pra alguém</span>
-              <span class="btn-acao-sub">Vendedor com empresa pra avaliar · 8 passos · entra na curadoria</span>
-            </span>
-          </button>
-
-          <button type="button" class="btn-acao" data-acao="pedir-vinculo">
-            <span class="btn-acao-icon" aria-hidden="true">🔗</span>
-            <span class="btn-acao-corpo">
-              <span class="btn-acao-titulo">Pedir vínculo a código existente</span>
-              <span class="btn-acao-sub">Vincular-se a uma tese (T-XXXX) ou negócio (1N-XXXX) já cadastrado · proprietário recebe WhatsApp</span>
-            </span>
-          </button>
-        </div>
+        <!-- v9.7 · botões "Cadastrar tese / Cadastrar diagnóstico / Pedir vínculo"
+             migraram pro grupo "Como sócio" no sidebar do portal-usuario.html.
+             Aqui ficam só status + lista de vínculos. -->
 
         <div class="aprovado-vinculos">
           <div class="aprovado-vinculos-titulo">Seus vínculos</div>
@@ -628,21 +606,6 @@
         </div>
       </div>
     `;
-
-    // Wire up botões via SocioAcoes (socio-acoes.js)
-    const root = _root;
-    root.querySelectorAll('[data-acao]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        const acao = e.currentTarget.getAttribute('data-acao');
-        if (!window.SocioAcoes) {
-          console.warn('[area-socio] SocioAcoes não carregado');
-          return;
-        }
-        if (acao === 'cadastrar-tese') window.SocioAcoes.modalCadastrarTese({ socio });
-        else if (acao === 'cadastrar-diagnostico') window.SocioAcoes.modalCadastrarDiagnostico({ socio });
-        else if (acao === 'pedir-vinculo') window.SocioAcoes.modalPedirVinculo({ socio });
-      });
-    });
 
     // V8 B8.13 SUB-BLOCO D · popula "Meus vínculos"
     _carregarMeusVinculos(socio.id);
