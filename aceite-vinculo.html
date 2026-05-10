@@ -190,7 +190,12 @@ main{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:4
 
   if (!token) { renderInvalido('link inválido · sem token'); return; }
 
-  carregar();
+  // v9 · modo=preencher · proprietário foi indicado pelo sócio pra
+  // criar tese/diagnóstico em nome próprio. Em vez de aceitar/recusar
+  // (modo padrão), valida phone via OTP e redireciona pra cadastre.html
+  // ou diagnostico.html com ?ctx=<token>.
+  const modo = params.get('modo');
+  if (modo === 'preencher') { carregarPreencher(); } else { carregar(); }
 
   async function carregar(){
     try {
@@ -322,6 +327,167 @@ main{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:4
         <a href="https://wa.me/5511952136406?text=Ol%C3%A1+%C2%B7+vim+do+aceite-vinculo+da+1Neg%C3%B3cio" target="_blank" rel="noopener" class="cta-outline">Falar com a 1Negócio</a>
       </div>
     `;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // v9 · MODO PREENCHER (caminho B · proprietário cria pessoalmente)
+  // ═══════════════════════════════════════════════════════════
+  let _v9Notif = null; // cache do retorno de consultar-contexto-cadastro
+
+  async function carregarPreencher(){
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/consultar-contexto-cadastro', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': ANON,
+          'Authorization': 'Bearer ' + ANON,
+        },
+        body: JSON.stringify({ ctx_token: token }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.ok) {
+        if (data.erro === 'token_expirado') { renderExpirado({ expira_em: null }); return; }
+        if (data.erro === 'token_consumido') {
+          renderInvalido('Esse cadastro já foi finalizado. Se precisar acessar a empresa/tese cadastrada, entra no seu portal.');
+          return;
+        }
+        renderInvalido(data.mensagem || 'Link inválido ou expirado.');
+        return;
+      }
+      _v9Notif = data;
+      renderModoPreencher(data);
+    } catch (e) {
+      console.error('[v9 carregarPreencher]', e);
+      renderInvalido('erro de conexão · tente novamente');
+    }
+  }
+
+  function renderModoPreencher(notif){
+    const tipoLabel = notif.tipo === 'tese' ? 'tese de investimento' : 'diagnóstico de empresa';
+    const socioLabel = notif.socio_codigo
+      ? (notif.socio_nome ? (_h(notif.socio_nome) + ' · ' + _h(notif.socio_codigo)) : _h(notif.socio_codigo))
+      : 'um sócio 1Negócio';
+    const phone = notif.proprietario_phone || '';
+    const phoneMascarado = phone.length >= 4
+      ? '•'.repeat(Math.max(0, phone.length - 4)) + phone.slice(-4)
+      : '••••';
+
+    container.innerHTML = `
+      <div class="eyebrow">Cadastro indicado · pendente</div>
+      <h1>Você foi indicado por <span class="accent">${socioLabel}</span> pra criar uma ${_h(tipoLabel)} em seu nome.</h1>
+      <p class="editorial">
+        Pra preencher os detalhes, vamos confirmar seu telefone com um código por SMS.
+      </p>
+
+      <div class="resumo">
+        <div class="resumo-titulo">Confirma seu telefone</div>
+        <div class="resumo-row"><div class="resumo-key">SMS pra</div><div class="resumo-val">${_h(phoneMascarado)}</div></div>
+      </div>
+
+      <div id="prefStep1" class="ctas">
+        <button class="cta-primary" id="btn-pref-enviar">Enviar código por SMS</button>
+      </div>
+
+      <div id="prefStep2" style="display:none">
+        <div style="margin:18px 0">
+          <input id="prefOtpCode" type="tel" inputmode="numeric" maxlength="6" placeholder="Código de 6 dígitos"
+            style="width:100%;padding:14px;border:1px solid var(--line-2,#ccc);border-radius:8px;font-family:var(--mono,monospace);font-size:18px;letter-spacing:.2em;text-align:center" />
+        </div>
+        <div class="ctas">
+          <button class="cta-primary" id="btn-pref-validar">Validar e continuar</button>
+        </div>
+        <p class="feedback-msg" id="prefOtpHelp"></p>
+      </div>
+
+      <div id="prefStep3" style="display:none">
+        <p class="editorial">Validado · redirecionando pra preencher...</p>
+      </div>
+
+      <div class="feedback-msg" id="prefFeedback"></div>
+    `;
+
+    document.getElementById('btn-pref-enviar').onclick = enviarOTPPreencher;
+    document.getElementById('btn-pref-validar').onclick = validarOTPPreencher;
+  }
+
+  async function enviarOTPPreencher(){
+    const btn = document.getElementById('btn-pref-enviar');
+    const fb = document.getElementById('prefFeedback');
+    btn.disabled = true; btn.textContent = 'Enviando...';
+    if (fb) fb.textContent = '';
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/otp-send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': ANON,
+          'Authorization': 'Bearer ' + ANON,
+        },
+        body: JSON.stringify({ whatsapp: _v9Notif.proprietario_phone }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.ok === false) {
+        btn.disabled = false; btn.textContent = 'Enviar código por SMS';
+        if (fb) fb.textContent = j.error || j.mensagem || 'Não foi possível enviar agora · tente novamente em alguns segundos.';
+        return;
+      }
+      document.getElementById('prefStep1').style.display = 'none';
+      document.getElementById('prefStep2').style.display = 'block';
+      setTimeout(() => { document.getElementById('prefOtpCode')?.focus(); }, 100);
+    } catch (e) {
+      console.error('[v9 enviarOTP]', e);
+      btn.disabled = false; btn.textContent = 'Enviar código por SMS';
+      if (fb) fb.textContent = 'Erro de rede · tente novamente.';
+    }
+  }
+
+  async function validarOTPPreencher(){
+    const inp = document.getElementById('prefOtpCode');
+    const help = document.getElementById('prefOtpHelp');
+    const btn = document.getElementById('btn-pref-validar');
+    const codigo = String(inp?.value || '').replace(/\D/g, '');
+    if (!/^\d{6}$/.test(codigo)) {
+      if (help) help.textContent = 'Código deve ter 6 dígitos';
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Validando...';
+    if (help) help.textContent = '';
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/otp-verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': ANON,
+          'Authorization': 'Bearer ' + ANON,
+        },
+        body: JSON.stringify({ whatsapp: _v9Notif.proprietario_phone, codigo: codigo }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok || !j.access_token) {
+        btn.disabled = false; btn.textContent = 'Validar e continuar';
+        if (help) help.textContent = j.error || 'Código inválido · tente de novo.';
+        return;
+      }
+      // Sessão criada (proprietário ghost foi promovido pelo otp-verify)
+      try {
+        localStorage.setItem('sb_access_token', j.access_token);
+        if (j.refresh_token) localStorage.setItem('sb_refresh_token', j.refresh_token);
+        if (j.user_id) localStorage.setItem('sb_user_id', j.user_id);
+      } catch (_e) {}
+
+      document.getElementById('prefStep2').style.display = 'none';
+      document.getElementById('prefStep3').style.display = 'block';
+
+      const destino = _v9Notif.tipo === 'tese'
+        ? '/cadastre.html?ctx=' + encodeURIComponent(token)
+        : '/diagnostico.html?ctx=' + encodeURIComponent(token);
+      setTimeout(() => { window.location.href = destino; }, 800);
+    } catch (e) {
+      console.error('[v9 validarOTP]', e);
+      btn.disabled = false; btn.textContent = 'Validar e continuar';
+      if (help) help.textContent = 'Erro de rede · tente de novo.';
+    }
   }
 
   async function decidir(decisao){
