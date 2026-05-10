@@ -3451,17 +3451,16 @@ function aplicarHeaderV9() {
 function bypassLoginV9() {
   if (!V9_CTX || !V9_CTX.valido) return;
   // Diagnóstico não tem gate rígido (anônimo é OK · vendedor_id pode ser null).
-  // Aqui só popula D pra que o INSERT em negocios herde proprietario_id como vendedor_id
-  // e os campos de contato apareçam pré-preenchidos no fluxo do sócio.
-  // O sócio pode editar nome/whatsapp se quiser · não bloqueia.
+  // Só populamos:
+  //   - D.google_user_id (essencial · vira vendedor_id no INSERT em negocios)
+  //   - D.nome_contato   (cosmético · usado em exibições/mensagens)
+  // NÃO populamos D.whatsapp / leadData.whatsapp pra evitar que um eventual
+  // disparo OTP no fluxo mande SMS pro telefone do PROPRIETÁRIO em vez do
+  // SÓCIO logado (caminho A). No caminho B o proprietário já fez OTP antes
+  // de chegar aqui, então o phone dele já está na sessão.
   if (typeof D !== 'undefined') {
     D.google_user_id = V9_CTX.proprietario_id;
     if (!D.nome_contato) D.nome_contato = V9_CTX.proprietario_nome || '';
-    if (!D.whatsapp) D.whatsapp = V9_CTX.proprietario_phone || '';
-  }
-  if (typeof leadData !== 'undefined') {
-    if (!leadData.nome) leadData.nome = V9_CTX.proprietario_nome || '';
-    if (!leadData.whatsapp) leadData.whatsapp = V9_CTX.proprietario_phone || '';
   }
 }
 
