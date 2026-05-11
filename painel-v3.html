@@ -1353,6 +1353,85 @@ table.t .acoes { white-space: nowrap; }
   .performance-row { flex-direction: column; gap: 6px; }
 }
 
+/* v9.14 · Cockpit geral · op-projetos */
+.pj-cockpit-geral {
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.04);
+}
+.pipeline-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pipeline-row span {
+  padding: 6px 12px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  font-size: 12px;
+  font-family: var(--mono);
+  color: var(--ink-2);
+  letter-spacing: .04em;
+}
+.pipeline-row span strong { color: var(--ink); font-weight: 700; }
+.alertas-lista > div {
+  font-size: 13px;
+  padding: 6px 0;
+  color: var(--ink);
+  line-height: 1.5;
+}
+.alertas-lista .ok {
+  color: var(--em);
+  font-weight: 600;
+}
+.reunioes-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 4px;
+}
+.reuniao-item {
+  display: grid;
+  grid-template-columns: 60px 60px 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.reuniao-item:last-child { border-bottom: none; }
+.reuniao-data, .reuniao-hora {
+  font-family: var(--mono);
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.reuniao-cliente {
+  color: var(--ink);
+}
+.reuniao-projeto {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-family: var(--mono);
+}
+.reuniao-item a {
+  color: var(--em);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 12px;
+  font-family: var(--mono);
+}
+.reuniao-item a:hover { text-decoration: underline; }
+@media (max-width: 640px) {
+  .reuniao-item {
+    grid-template-columns: auto auto 1fr;
+    gap: 6px;
+  }
+  .reuniao-projeto, .reuniao-item a { grid-column: 1 / -1; padding-top: 2px; }
+}
+
 </style>
 </head>
 
@@ -2036,6 +2115,7 @@ table.t .acoes { white-space: nowrap; }
               <h1 class="secao-titulo">📊 Projetos · Venda Assessorada</h1>
               <p class="secao-subtitulo">Entregáveis (cliente vê) + tarefas internas (admin) · geração em ondas</p>
             </header>
+            <div id="pj-cockpit-geral-container"></div>
             <div class="td-toolbar">
               <div class="td-filtros">
                 <div class="td-filtro-grupo" id="pj-fil">
@@ -10058,6 +10138,7 @@ async function pgConfirmarRecebimento(){
    Projetos Assessorada · Fase 1 · 2 níveis (entregáveis + tarefas internas)
    ═════════════════════════════════════════════════════════════════════ */
 let _pjLista=[], _pjFiltro='ativos', _pjAbertoId=null, _pjAbertoNeg=null;
+let _pjCockpitGeral=null, _pjCockpitLoading=false;
 let _pjEntregaveis=[], _pjAbaDetalhe='visao', _pjMovimentacoes=[], _pjPoolContatos=[], _pjPoolAbordagens=[], _pjVencimentos=[], _pjEventos=[], _pjAgenda=[];
 let _mvProjetoEditando=null, _mvMovNegId=null, _mvVencNegId=null, _mvVencRecebidoId=null;
 let _pjPoolFiltro='todos', _pjPoolDrawerId=null;
@@ -10085,6 +10166,168 @@ async function pjFetch(){
   _pjLista=items;
   if(!items.length){cont.innerHTML='<div class="td-loading">nenhum negócio encontrado</div>';return;}
   cont.innerHTML=items.map(pjRenderItem).join('');
+  // v9.14 · dispara cockpit geral em paralelo (não bloqueia render da grid)
+  pjCarregarCockpitGeral();
+}
+
+// v9.14 · Cockpit geral · agrega TODOS os projetos ativos
+async function pjCarregarCockpitGeral(){
+  if(_pjCockpitLoading)return;
+  _pjCockpitLoading=true;
+  const cont=document.getElementById('pj-cockpit-geral-container');
+  if(!cont){_pjCockpitLoading=false;return;}
+  cont.innerHTML='<div class="td-loading" style="padding:14px;font-size:12px">Carregando cockpit geral…</div>';
+
+  // Projetos ativos = metadata.status='ativo'
+  const ativos=(_pjLista||[]).filter(p=>{
+    const m=Array.isArray(p.metadata)?p.metadata[0]:p.metadata;
+    return m&&m.status==='ativo';
+  });
+  if(!ativos.length){
+    _pjCockpitGeral={ativos:0};
+    pjRenderCockpitGeral();
+    _pjCockpitLoading=false;
+    return;
+  }
+
+  const negIds=ativos.map(p=>p.id);
+  const inFilter='('+negIds.map(id=>'"'+id+'"').join(',')+')';
+  const hojeIso=new Date().toISOString();
+
+  let pool=[],movs=[],vencs=[],agenda=[];
+  try{
+    const [rPool,rMov,rVenc,rAgenda]=await Promise.all([
+      tplFetch(SB+'/rest/v1/projeto_pool_contatos?negocio_id=in.'+inFilter+'&select=negocio_id,status,proximo_contato_em,updated_at&limit=2000'),
+      tplFetch(SB+'/rest/v1/projeto_movimentacoes?negocio_id=in.'+inFilter+'&select=negocio_id,tipo,valor,data&limit=2000'),
+      tplFetch(SB+'/rest/v1/projeto_vencimentos_status?negocio_id=in.'+inFilter+'&select=negocio_id,tipo,valor,data_prevista,status_computado,dias_atraso&limit=2000'),
+      tplFetch(SB+'/rest/v1/admin_agenda?negocio_id=in.'+inFilter+'&status=not.eq.cancelado&data_reuniao=gte.'+encodeURIComponent(hojeIso)+'&select=negocio_id,data_reuniao,nome_cliente,link_reuniao&order=data_reuniao.asc&limit=20')
+    ]);
+    pool=rPool.ok?await rPool.json():[];
+    movs=rMov.ok?await rMov.json():[];
+    vencs=rVenc.ok?await rVenc.json():[];
+    agenda=rAgenda.ok?await rAgenda.json():[];
+  }catch(e){console.warn('[cockpit-geral]',e);}
+
+  const agora=new Date();
+  const inicioMes=new Date(agora.getFullYear(),agora.getMonth(),1);
+  const seteDiasAtras=new Date(agora.getTime()-7*86400000);
+
+  // Pipeline
+  const pipeline={
+    fechou:pool.filter(c=>c.status==='fechou').length,
+    proposta:pool.filter(c=>c.status==='proposta').length,
+    nda:pool.filter(c=>c.status==='nda').length,
+    qualificado:pool.filter(c=>c.status==='qualificado').length,
+    total_pool:pool.length,
+  };
+
+  // Follow-ups vencidos
+  const followupsVencidos=pool.filter(c=>c.proximo_contato_em&&new Date(c.proximo_contato_em)<agora&&!['fechou','perdeu'].includes(c.status)).length;
+
+  // Financeiro
+  const movsEsseMes=movs.filter(m=>m.data&&new Date(m.data+'T00:00')>=inicioMes);
+  const recebidoMes=movsEsseMes.filter(m=>m.tipo==='entrada').reduce((s,m)=>s+parseFloat(m.valor||0),0);
+  const pagoMes=movsEsseMes.filter(m=>m.tipo==='saida').reduce((s,m)=>s+parseFloat(m.valor||0),0);
+  const vencsAbertos=vencs.filter(v=>v.status_computado==='aberto');
+  const aReceber=vencsAbertos.filter(v=>v.tipo==='entrada').reduce((s,v)=>s+parseFloat(v.valor||0),0);
+  const vencsAtrasados=vencs.filter(v=>v.status_computado==='atrasado');
+  const atrasado=vencsAtrasados.filter(v=>v.tipo==='entrada').reduce((s,v)=>s+parseFloat(v.valor||0),0);
+  const saldoGeral=movs.filter(m=>m.tipo==='entrada').reduce((s,m)=>s+parseFloat(m.valor||0),0)-movs.filter(m=>m.tipo==='saida').reduce((s,m)=>s+parseFloat(m.valor||0),0);
+
+  // Projetos parados (último updated_at do metadata ou created_at do negocio < 7d atrás)
+  const projsParados=ativos.filter(p=>{
+    const m=Array.isArray(p.metadata)?p.metadata[0]:p.metadata;
+    const upd=m?.updated_at||m?.iniciado_em||p.created_at;
+    return upd&&new Date(upd)<seteDiasAtras;
+  });
+
+  _pjCockpitGeral={
+    ativos:ativos.length,
+    pipeline,
+    followupsVencidos,
+    recebidoMes,pagoMes,aReceber,atrasado,saldoGeral,
+    vencsAtrasados:vencsAtrasados.length,
+    projsParados:projsParados.length,
+    projsParadosNomes:projsParados.slice(0,3).map(p=>p.nome||'sem nome'),
+    proximasReunioes:agenda.slice(0,5).map(a=>{
+      const proj=ativos.find(p=>p.id===a.negocio_id);
+      return {data:a.data_reuniao,cliente:a.nome_cliente||(proj?.nome||'sem nome'),link:a.link_reuniao,projeto:proj?.nome||''};
+    }),
+  };
+  _pjCockpitLoading=false;
+  pjRenderCockpitGeral();
+}
+
+function pjRenderCockpitGeral(){
+  const cont=document.getElementById('pj-cockpit-geral-container');
+  if(!cont)return;
+  const d=_pjCockpitGeral;
+  if(!d||d.ativos===0){
+    cont.innerHTML='';
+    return;
+  }
+  const mesesPt=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const agora=new Date();
+  const mesLbl=mesesPt[agora.getMonth()]+'/'+agora.getFullYear();
+
+  // Pipeline · só mostra status com count > 0
+  const pipeParts=[];
+  if(d.pipeline.fechou)pipeParts.push(`<span><strong>${d.pipeline.fechou}</strong> fechou</span>`);
+  if(d.pipeline.proposta)pipeParts.push(`<span><strong>${d.pipeline.proposta}</strong> proposta</span>`);
+  if(d.pipeline.nda)pipeParts.push(`<span><strong>${d.pipeline.nda}</strong> NDA</span>`);
+  if(d.pipeline.qualificado)pipeParts.push(`<span><strong>${d.pipeline.qualificado}</strong> qualificados</span>`);
+  if(d.pipeline.total_pool)pipeParts.push(`<span style="background:var(--surface);border:1px solid var(--line)"><strong>${d.pipeline.total_pool}</strong> pool total</span>`);
+  const pipelineHtml=pipeParts.length?`<div class="pipeline-row">${pipeParts.join('')}</div>`:'<div style="font-size:12px;color:var(--ink-4);font-style:italic">Pool vazio em todos os projetos ativos.</div>';
+
+  // Alertas
+  const alertasItens=[];
+  if(d.followupsVencidos>0)alertasItens.push(`<div>🔔 <strong>${d.followupsVencidos}</strong> follow-up${d.followupsVencidos===1?'':'s'} vencido${d.followupsVencidos===1?'':'s'} no pool</div>`);
+  if(d.vencsAtrasados>0)alertasItens.push(`<div>💸 <strong>${d.vencsAtrasados}</strong> vencimento${d.vencsAtrasados===1?'':'s'} atrasado${d.vencsAtrasados===1?'':'s'} <span style="color:var(--ink-3);font-size:12px">(${pjFmtMoeda(d.atrasado)})</span></div>`);
+  if(d.projsParados>0){
+    const nomesLbl=d.projsParadosNomes.length?' · '+d.projsParadosNomes.map(tdEscape).join(', ')+(d.projsParados>d.projsParadosNomes.length?'…':''):'';
+    alertasItens.push(`<div>🕒 <strong>${d.projsParados}</strong> projeto${d.projsParados===1?'':'s'} sem mexer há 7+ dias<span style="color:var(--ink-3);font-size:12px">${nomesLbl}</span></div>`);
+  }
+  const totalAlertas=alertasItens.length;
+  const alertasHtml=totalAlertas?alertasItens.join(''):'<div class="ok">✓ Tudo em dia</div>';
+
+  // Próximas reuniões
+  const reunioesHtml=d.proximasReunioes.length?d.proximasReunioes.map(r=>{
+    const dt=new Date(r.data);
+    const dStr=dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+    const hStr=dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="reuniao-item">
+      <span class="reuniao-data">${dStr}</span>
+      <span class="reuniao-hora">${hStr}</span>
+      <span class="reuniao-cliente">${tdEscape(r.cliente)}</span>
+      <span class="reuniao-projeto">${r.projeto?'· '+tdEscape(r.projeto):''}</span>
+      ${r.link?`<a href="${tdEscape(r.link)}" target="_blank" rel="noopener">entrar →</a>`:'<span></span>'}
+    </div>`;
+  }).join(''):'<div style="font-size:12px;color:var(--ink-4);font-style:italic;padding:6px 0">Nenhuma reunião agendada.</div>';
+
+  cont.innerHTML=`<div class="pj-cockpit-geral">
+    <h2 class="cockpit-titulo">🎯 Cockpit geral · ${d.ativos} projeto${d.ativos===1?'':'s'} ativo${d.ativos===1?'':'s'}</h2>
+    <div class="cockpit-bloco">
+      <div class="label-mono">PIPELINE</div>
+      ${pipelineHtml}
+    </div>
+    <div class="cockpit-bloco">
+      <div class="label-mono">FINANCEIRO ESTE MÊS · ${mesLbl}</div>
+      <div class="big-numbers-grid">
+        <div class="big-num"><div class="big-num-label">RECEBIDO</div><div class="big-num-valor" style="color:var(--em)">${pjFmtMoeda(d.recebidoMes)}</div></div>
+        <div class="big-num"><div class="big-num-label">A RECEBER</div><div class="big-num-valor">${pjFmtMoeda(d.aReceber)}</div></div>
+        <div class="big-num"><div class="big-num-label">ATRASADO</div><div class="big-num-valor" style="color:#c14">${pjFmtMoeda(d.atrasado)}</div></div>
+        <div class="big-num"><div class="big-num-label">SALDO GERAL</div><div class="big-num-valor" style="color:${d.saldoGeral>=0?'var(--em)':'#c14'}">${pjFmtMoeda(d.saldoGeral)}</div></div>
+      </div>
+    </div>
+    <div class="cockpit-bloco">
+      <div class="label-mono">⚠️ ALERTAS${totalAlertas?' · '+totalAlertas:''}</div>
+      <div class="alertas-lista">${alertasHtml}</div>
+    </div>
+    <div class="cockpit-bloco">
+      <div class="label-mono">PRÓXIMAS REUNIÕES</div>
+      <div class="reunioes-lista">${reunioesHtml}</div>
+    </div>
+  </div>`;
 }
 
 function pjMesAtual(iniciadoEm){if(!iniciadoEm)return 1;const m=Math.floor((Date.now()-new Date(iniciadoEm).getTime())/(30*86400000))+1;return Math.max(1,Math.min(12,m));}
