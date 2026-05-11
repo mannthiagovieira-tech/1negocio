@@ -1432,6 +1432,61 @@ table.t .acoes { white-space: nowrap; }
   .reuniao-projeto, .reuniao-item a { grid-column: 1 / -1; padding-top: 2px; }
 }
 
+/* v9.12 · Gerador de conteúdo · peças */
+.peca-card {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+.peca-card.rascunho { border-left: 3px solid #dca726; }
+.peca-card.aprovada { border-left: 3px solid var(--em); }
+.peca-card img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+}
+.peca-corpo { min-width: 0; }
+.peca-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .06em;
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+.peca-meta .peca-tipo { color: var(--ink-2); font-weight: 600; }
+.peca-meta .peca-ang { color: var(--ink-4); }
+.peca-texto-preview {
+  font-size: 12px;
+  color: var(--ink-2);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.peca-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .peca-card { grid-template-columns: 56px 1fr; }
+  .peca-card img { width: 56px; height: 56px; }
+  .peca-actions { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; padding-top: 4px; }
+}
+
 </style>
 </head>
 
@@ -2350,6 +2405,85 @@ table.t .acoes { white-space: nowrap; }
                 <button class="td-btn td-btn-ghost" onclick="mvFecharRecebido()">Cancelar</button>
                 <button class="td-btn td-btn-primario" id="mv-rec-btn" onclick="mvConfirmarRecebido()">Confirmar recebimento</button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- v9.12 · Modal Gerar peça -->
+        <div id="mv-pc-overlay" class="modal-overlay" style="z-index:1115">
+          <div class="td-modal-box" style="max-width:520px">
+            <div class="td-modal-head">
+              <div class="td-modal-titulo">🎨 Gerar peça de conteúdo</div>
+              <button class="tpl-btn-close" onclick="mvFecharGerarPeca()">×</button>
+            </div>
+            <div class="td-modal-body">
+              <div class="pa-form-group">
+                <label>Tipo de conteúdo *</label>
+                <select class="td-input" id="mv-pc-tipo">
+                  <option value="legenda_solta">📝 Legenda solta</option>
+                  <option value="imagem_unica">🖼 Imagem única + legenda</option>
+                  <option value="roteiro_youtube" disabled>🎥 Roteiro YouTube (em breve · v9.12.1)</option>
+                  <option value="roteiro_story" disabled>⚡ Roteiro story rapidinha (em breve · v9.12.1)</option>
+                  <option value="carrossel" disabled>📑 Carrossel (em breve · v9.12.2)</option>
+                </select>
+              </div>
+              <div style="display:flex;gap:10px">
+                <div class="pa-form-group" style="flex:1">
+                  <label>Ângulo</label>
+                  <select class="td-input" id="mv-pc-angulo">
+                    <option value="surpresa">Surpresa (auto)</option>
+                    <option value="oportunidade">Oportunidade de aquisição</option>
+                    <option value="momento_venda">Momento de venda</option>
+                    <option value="setor_alta">Setor em alta</option>
+                    <option value="localizacao">Localização estratégica</option>
+                    <option value="diferencial">Diferencial operacional</option>
+                    <option value="historia">História do negócio</option>
+                    <option value="provocacao">Provocação</option>
+                    <option value="curadoria">Curadoria 1Negócio</option>
+                  </select>
+                </div>
+                <div class="pa-form-group" style="flex:1">
+                  <label>Tom</label>
+                  <select class="td-input" id="mv-pc-tom">
+                    <option value="editorial">Editorial</option>
+                    <option value="direto">Direto</option>
+                    <option value="convidativo">Convidativo</option>
+                    <option value="provocativo">Provocativo</option>
+                    <option value="pessoal">Pessoal</option>
+                  </select>
+                </div>
+              </div>
+              <div style="font-size:12px;color:var(--ink-3);background:rgba(10,168,90,.06);border:1px solid rgba(10,168,90,.2);border-radius:8px;padding:10px 12px;margin-bottom:14px;line-height:1.5">
+                ℹ️ A peça será gerada como <strong>rascunho</strong>. Você pode revisar e aprovar antes de disponibilizar pro cliente em /meu-anuncio.
+              </div>
+              <div id="mv-pc-erro" style="color:var(--alert);font-size:12px;margin-bottom:8px;display:none"></div>
+              <div class="td-suc-actions">
+                <button class="td-btn td-btn-ghost" onclick="mvFecharGerarPeca()">Cancelar</button>
+                <button class="td-btn td-btn-primario" id="mv-pc-btn" onclick="mvSalvarGerarPeca()">Gerar peça</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- v9.12 · Modal Ver peça -->
+        <div id="mv-pv-overlay" class="modal-overlay" style="z-index:1115">
+          <div class="td-modal-box" style="width:min(95vw,640px);max-height:90vh">
+            <div class="td-modal-head">
+              <div class="td-modal-titulo" id="mv-pv-titulo">Peça</div>
+              <button class="tpl-btn-close" onclick="mvFecharPeca()">×</button>
+            </div>
+            <div class="td-modal-body" style="overflow-y:auto;flex:1">
+              <div id="mv-pv-imagem-wrap"></div>
+              <div class="pa-form-group">
+                <label>TEXTO</label>
+                <textarea class="td-textarea" id="mv-pv-texto" rows="8" style="font-family:var(--sans);font-size:13px;line-height:1.5"></textarea>
+                <small id="mv-pv-info" style="display:block;margin-top:4px;font-size:10px;color:var(--ink-4);font-family:var(--mono)"></small>
+              </div>
+              <div class="pa-form-group" style="margin-bottom:14px">
+                <label>LINK ASSOCIADO</label>
+                <code id="mv-pv-link" style="display:block;padding:8px 10px;background:var(--surface-2);border-radius:8px;font-family:var(--mono);font-size:11px;color:var(--ink-2);word-break:break-all">—</code>
+              </div>
+              <div id="mv-pv-acoes" style="display:flex;flex-wrap:wrap;gap:6px"></div>
             </div>
           </div>
         </div>
@@ -10139,8 +10273,8 @@ async function pgConfirmarRecebimento(){
    ═════════════════════════════════════════════════════════════════════ */
 let _pjLista=[], _pjFiltro='ativos', _pjAbertoId=null, _pjAbertoNeg=null;
 let _pjCockpitGeral=null, _pjCockpitLoading=false;
-let _pjEntregaveis=[], _pjAbaDetalhe='visao', _pjMovimentacoes=[], _pjPoolContatos=[], _pjPoolAbordagens=[], _pjVencimentos=[], _pjEventos=[], _pjAgenda=[];
-let _mvProjetoEditando=null, _mvMovNegId=null, _mvVencNegId=null, _mvVencRecebidoId=null;
+let _pjEntregaveis=[], _pjAbaDetalhe='visao', _pjMovimentacoes=[], _pjPoolContatos=[], _pjPoolAbordagens=[], _pjVencimentos=[], _pjEventos=[], _pjAgenda=[], _pjPecas=[];
+let _mvProjetoEditando=null, _mvMovNegId=null, _mvVencNegId=null, _mvVencRecebidoId=null, _mvGerarPecaNegId=null, _mvPecaAberta=null;
 let _pjPoolFiltro='todos', _pjPoolDrawerId=null;
 
 async function pjInit(){
@@ -10377,7 +10511,8 @@ async function pjAbrirDetalhe(negId){
   const evtUrl=SB+'/rest/v1/eventos_negocio_agregado?negocio_id=eq.'+negId+'&dia=gte.'+_30d+'&select=tipo,dia,total,usuarios_unicos&limit=1000';
   const hojeIso=new Date().toISOString();
   const agendaUrl=SB+'/rest/v1/admin_agenda?negocio_id=eq.'+negId+'&data_reuniao=gte.'+encodeURIComponent(hojeIso)+'&status=not.eq.cancelado&select=id,tipo,status,data_reuniao,link_reuniao,nome_cliente,notas_admin&order=data_reuniao.asc&limit=20';
-  const [rNeg,rMov,rPool,rVenc,rEvt,rAgenda]=await Promise.all([tplFetch(negUrl),tplFetch(movUrl),tplFetch(poolUrl),tplFetch(vencUrl),tplFetch(evtUrl),tplFetch(agendaUrl)]);
+  const pecasUrl=SB+'/rest/v1/pecas_geradas?negocio_id=eq.'+negId+'&status=in.(rascunho,aprovada)&select=*&order=created_at.desc&limit=100';
+  const [rNeg,rMov,rPool,rVenc,rEvt,rAgenda,rPecas]=await Promise.all([tplFetch(negUrl),tplFetch(movUrl),tplFetch(poolUrl),tplFetch(vencUrl),tplFetch(evtUrl),tplFetch(agendaUrl),tplFetch(pecasUrl)]);
   const arr=rNeg.ok?await rNeg.json():[];
   if(!arr.length){document.getElementById('pj-det-corpo').innerHTML='<div class="td-loading">não encontrado</div>';return;}
   _pjAbertoNeg=arr[0];
@@ -10386,6 +10521,7 @@ async function pjAbrirDetalhe(negId){
   _pjVencimentos=rVenc.ok?await rVenc.json():[];
   _pjEventos=rEvt.ok?await rEvt.json():[];
   _pjAgenda=rAgenda.ok?await rAgenda.json():[];
+  _pjPecas=rPecas.ok?await rPecas.json():[];
   _pjEntregaveis=(_pjAbertoNeg.entregaveis||[]).slice().sort((a,b)=>a.ordem-b.ordem);
   _pjEntregaveis.forEach(e=>{e.tarefas=(e.tarefas||[]).slice().sort((a,b)=>a.ordem-b.ordem);});
   pjRenderDetalhe();
@@ -10409,6 +10545,7 @@ function pjRenderDetalhe(){
   html+=pjRenderCabecalho(n,meta);
   html+=pjRenderFinanceiro(n,meta,_pjMovimentacoes||[]);
   html+=pjRenderPool(n,meta,_pjPoolContatos||[]);
+  html+=pjRenderPecas(n,_pjPecas||[]);
   html+=pjRenderVinculo(n,meta);
   html+=`<div class="pj-abas" style="margin-top:18px"><button class="pj-aba ${_pjAbaDetalhe==='visao'?'active':''}" onclick="pjMudarAba('visao')">Visão geral</button><button class="pj-aba ${_pjAbaDetalhe==='entregaveis'?'active':''}" onclick="pjMudarAba('entregaveis')">Entregáveis</button></div>`;
   html+=_pjAbaDetalhe==='visao'?pjRenderVisao(meta,mesAtual):pjRenderEntregaveis();
@@ -10526,6 +10663,150 @@ function pjRenderCockpit(n,meta,mesAtual){
       <div class="proximas-etapas">${proxEtapasItens.join('')}</div>
     </div>
   </div>`;
+}
+
+// v9.12 · Gerador de conteúdo · base
+const PJ_PECAS_TIPO_LBL={legenda_solta:'📝 Legenda',imagem_unica:'🖼 Imagem + legenda',roteiro_youtube:'🎥 Roteiro YouTube',roteiro_story:'⚡ Roteiro story',carrossel:'📑 Carrossel'};
+const PJ_PECAS_ANG_LBL={oportunidade:'oportunidade',momento_venda:'momento venda',setor_alta:'setor em alta',localizacao:'localização',diferencial:'diferencial',historia:'história',provocacao:'provocação',curadoria:'curadoria',surpresa:'surpresa'};
+function pjPecaTexto(p){return (p.texto_editado&&p.texto_editado.trim())||p.texto_gerado||p.texto_principal||'';}
+function pjPecaPreview(p,max){const t=pjPecaTexto(p).replace(/\s+/g,' ').trim();return t.length>max?t.slice(0,max)+'…':t;}
+
+function pjRenderPecas(n,pecas){
+  const aprovadas=pecas.filter(p=>p.status==='aprovada');
+  const rascunhos=pecas.filter(p=>p.status==='rascunho');
+
+  function card(p){
+    const tipo=PJ_PECAS_TIPO_LBL[p.tipo_conteudo]||(p.tipo_conteudo||p.formato||'peça');
+    const data=p.created_at?new Date(p.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}):'—';
+    const preview=pjPecaPreview(p,90);
+    const img=p.imagem_url?`<img src="${tdEscape(p.imagem_url)}" alt="">`:'<div style="width:64px;height:64px;border-radius:8px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--ink-4)">📝</div>';
+    const acoes=p.status==='rascunho'
+      ? `<button class="td-btn td-btn-secundario" style="padding:4px 10px;font-size:11px" onclick="mvAbrirPeca('${p.id}')">Ver</button><button class="td-btn td-btn-primario" style="padding:4px 10px;font-size:11px" onclick="pjAprovarPeca('${p.id}')">Aprovar</button><button class="td-btn td-btn-ghost" style="padding:4px 10px;font-size:11px" onclick="pjArquivarPeca('${p.id}')">Descartar</button>`
+      : `<button class="td-btn td-btn-secundario" style="padding:4px 10px;font-size:11px" onclick="mvAbrirPeca('${p.id}')">Ver</button><button class="td-btn td-btn-ghost" style="padding:4px 10px;font-size:11px" onclick="pjArquivarPeca('${p.id}')">Arquivar</button>`;
+    return `<div class="peca-card ${p.status==='aprovada'?'aprovada':'rascunho'}">
+      ${img}
+      <div class="peca-corpo">
+        <div class="peca-meta"><span class="peca-tipo">${tipo}</span><span class="peca-data">${data}</span>${p.angulo?`<span class="peca-ang">· ${tdEscape(PJ_PECAS_ANG_LBL[p.angulo]||p.angulo)}</span>`:''}</div>
+        <div class="peca-texto-preview">${tdEscape(preview)||'<span style="color:var(--ink-4);font-style:italic">sem texto</span>'}</div>
+      </div>
+      <div class="peca-actions">${acoes}</div>
+    </div>`;
+  }
+
+  const aprovadasHtml=aprovadas.length?aprovadas.map(card).join(''):'<div style="font-size:12px;color:var(--ink-4);font-style:italic;padding:8px 0">Nenhuma peça aprovada ainda. Gere e aprove pra disponibilizar pro cliente.</div>';
+  const rascunhosHtml=rascunhos.length?rascunhos.map(card).join(''):'<div style="font-size:12px;color:var(--ink-4);font-style:italic;padding:8px 0">Nenhum rascunho.</div>';
+
+  return `<div class="pj-pecas" style="background:var(--surface);border:1px solid var(--line-2);border-radius:14px;padding:16px 18px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4)">🎨 Gerador de conteúdo · ${pecas.length} peça${pecas.length===1?'':'s'}</div>
+      <button class="td-btn td-btn-primario" style="padding:5px 12px;font-size:11px" onclick="mvAbrirGerarPeca('${n.id}')">+ Gerar peça</button>
+    </div>
+    <div style="margin-top:8px"><div class="label-mono" style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--em);margin-bottom:6px">✅ Aprovadas · ${aprovadas.length} no repositório</div>${aprovadasHtml}</div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><div class="label-mono" style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--warn);margin-bottom:6px">📝 Rascunhos · ${rascunhos.length} aguardando curadoria</div>${rascunhosHtml}</div>
+  </div>`;
+}
+
+async function mvAbrirGerarPeca(negId){
+  _mvGerarPecaNegId=negId;
+  document.getElementById('mv-pc-tipo').value='legenda_solta';
+  document.getElementById('mv-pc-angulo').value='surpresa';
+  document.getElementById('mv-pc-tom').value='editorial';
+  document.getElementById('mv-pc-erro').style.display='none';
+  document.getElementById('mv-pc-overlay').classList.add('show');
+}
+function mvFecharGerarPeca(){document.getElementById('mv-pc-overlay').classList.remove('show');_mvGerarPecaNegId=null;}
+async function mvSalvarGerarPeca(){
+  const erro=document.getElementById('mv-pc-erro');erro.style.display='none';
+  const negId=_mvGerarPecaNegId;
+  if(!negId){erro.textContent='Negócio não definido.';erro.style.display='block';return;}
+  const tipo_conteudo=document.getElementById('mv-pc-tipo').value;
+  const angulo=document.getElementById('mv-pc-angulo').value;
+  const tom=document.getElementById('mv-pc-tom').value;
+  const btn=document.getElementById('mv-pc-btn');
+  const txt=btn.textContent;btn.disabled=true;btn.textContent='Gerando…';
+  try{
+    const r=await fetch(SB+'/functions/v1/gerar-peca',{method:'POST',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({negocio_id:negId,tipo_conteudo,angulo,tom})});
+    const j=await r.json();
+    if(!j.ok){erro.textContent='Falha: '+(j.error||r.status)+(j.detalhe?' · '+j.detalhe:'');erro.style.display='block';return;}
+    mvFecharGerarPeca();
+    if(_pjAbertoId===negId)pjAbrirDetalhe(negId);
+  }catch(e){erro.textContent='Erro de rede: '+e.message;erro.style.display='block';}
+  finally{btn.disabled=false;btn.textContent=txt;}
+}
+
+async function mvAbrirPeca(pecaId){
+  _mvPecaAberta=pecaId;
+  const p=(_pjPecas||[]).find(x=>x.id===pecaId);
+  if(!p){alert('Peça não encontrada em cache.');return;}
+  const tipo=PJ_PECAS_TIPO_LBL[p.tipo_conteudo]||(p.tipo_conteudo||p.formato||'peça');
+  const statusBadge=p.status==='aprovada'
+    ?'<span style="display:inline-block;padding:2px 8px;border-radius:99px;background:rgba(10,168,90,.1);color:var(--em);font-family:var(--mono);font-size:11px;letter-spacing:.04em">APROVADA</span>'
+    :'<span style="display:inline-block;padding:2px 8px;border-radius:99px;background:rgba(220,167,38,.12);color:#dca726;font-family:var(--mono);font-size:11px;letter-spacing:.04em">RASCUNHO</span>';
+  document.getElementById('mv-pv-titulo').innerHTML=`${tipo} · ${statusBadge}`;
+  document.getElementById('mv-pv-imagem-wrap').innerHTML=p.imagem_url?`<img src="${tdEscape(p.imagem_url)}" alt="" style="max-width:100%;border-radius:12px;margin-bottom:14px">`:'';
+  document.getElementById('mv-pv-texto').value=pjPecaTexto(p);
+  document.getElementById('mv-pv-link').textContent=p.link_associado||'—';
+  const editadoInfo=p.texto_editado&&p.updated_at?`Editado em ${new Date(p.updated_at).toLocaleDateString('pt-BR')}`:'';
+  document.getElementById('mv-pv-info').textContent=editadoInfo;
+  // Acoes
+  let acoesHtml=`<button class="td-btn td-btn-secundario" onclick="pjCopiarTextoPeca()">📋 Copiar texto</button>`;
+  if(p.imagem_url)acoesHtml+=` <a class="td-btn td-btn-secundario" href="${tdEscape(p.imagem_url)}" target="_blank" rel="noopener" download style="text-decoration:none">📥 Baixar imagem</a>`;
+  if(p.status==='rascunho'){
+    acoesHtml+=` <button class="td-btn td-btn-secundario" onclick="pjSalvarEdicaoPeca()">💾 Salvar edição</button>`;
+    acoesHtml+=` <button class="td-btn td-btn-primario" onclick="pjAprovarPecaInline()">✅ Aprovar e disponibilizar</button>`;
+    acoesHtml+=` <button class="td-btn td-btn-ghost" onclick="pjArquivarPecaInline()">🗑 Descartar</button>`;
+  }else if(p.status==='aprovada'){
+    acoesHtml+=` <button class="td-btn td-btn-ghost" onclick="pjArquivarPecaInline()">📦 Arquivar</button>`;
+  }
+  document.getElementById('mv-pv-acoes').innerHTML=acoesHtml;
+  document.getElementById('mv-pv-overlay').classList.add('show');
+}
+function mvFecharPeca(){document.getElementById('mv-pv-overlay').classList.remove('show');_mvPecaAberta=null;}
+
+async function pjCopiarTextoPeca(){
+  const txt=document.getElementById('mv-pv-texto').value;
+  try{await navigator.clipboard.writeText(txt);alert('Texto copiado!');}
+  catch(e){alert('Não consegui copiar · use Ctrl+C.');}
+}
+async function pjSalvarEdicaoPeca(){
+  const pecaId=_mvPecaAberta;if(!pecaId)return;
+  const texto_editado=document.getElementById('mv-pv-texto').value.trim();
+  if(!texto_editado){alert('Texto não pode ficar vazio.');return;}
+  try{
+    const r=await fetch(SB+'/functions/v1/editar-peca-texto',{method:'POST',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify({peca_id:pecaId,texto_editado})});
+    const j=await r.json();
+    if(!j.ok){alert('Falha: '+(j.error||r.status));return;}
+    if(_pjAbertoId)pjAbrirDetalhe(_pjAbertoId);
+  }catch(e){alert('Erro de rede: '+e.message);}
+}
+async function pjAprovarPeca(pecaId){
+  if(!confirm('Aprovar essa peça? Cliente passa a ver no /meu-anuncio.'))return;
+  await pjPecaUpdate('aprovar-peca',{peca_id:pecaId});
+}
+async function pjAprovarPecaInline(){
+  const pecaId=_mvPecaAberta;if(!pecaId)return;
+  const texto_editado=document.getElementById('mv-pv-texto').value.trim();
+  if(!confirm('Aprovar essa peça? Cliente passa a ver no /meu-anuncio.'))return;
+  mvFecharPeca();
+  await pjPecaUpdate('aprovar-peca',{peca_id:pecaId,texto_editado});
+}
+async function pjArquivarPeca(pecaId){
+  if(!confirm('Arquivar essa peça? Sai da lista do projeto.'))return;
+  await pjPecaUpdate('arquivar-peca',{peca_id:pecaId});
+}
+async function pjArquivarPecaInline(){
+  const pecaId=_mvPecaAberta;if(!pecaId)return;
+  if(!confirm('Arquivar essa peça?'))return;
+  mvFecharPeca();
+  await pjPecaUpdate('arquivar-peca',{peca_id:pecaId});
+}
+async function pjPecaUpdate(endpoint,body){
+  try{
+    const r=await fetch(SB+'/functions/v1/'+endpoint,{method:'POST',headers:{apikey:AK,Authorization:'Bearer '+__token,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const j=await r.json();
+    if(!j.ok){alert('Falha: '+(j.error||r.status));return;}
+    if(_pjAbertoId)pjAbrirDetalhe(_pjAbertoId);
+  }catch(e){alert('Erro de rede: '+e.message);}
 }
 
 function pjRenderCabecalho(n,meta){
