@@ -1596,6 +1596,7 @@ table.t .acoes { white-space: nowrap; }
           <div class="nav-item" data-secao="pa-diagnosticos" onclick="mostrarSecao('pa-diagnosticos')"><span class="nav-icon">🩺</span><span class="nav-label">Diagnósticos</span><span id="pd-badge-sidebar" class="pill" style="display:none;background:#3a6ef5;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:6px">—</span></div>
           <div class="nav-item" data-secao="pa-anuncios" onclick="mostrarSecao('pa-anuncios')"><span class="nav-icon">📢</span><span class="nav-label">Anúncios</span><span class="star">⭐</span></div>
           <div class="nav-item" data-secao="pa-teses" onclick="mostrarSecao('pa-teses')"><span class="nav-icon">📋</span><span class="nav-label">Teses</span></div>
+          <div class="nav-item" onclick="ctAbrirModal()" style="padding-left:32px;font-size:11px;font-family:var(--mono);color:var(--accent,#22c55e)"><span class="nav-icon">+</span><span class="nav-label">Criar tese</span></div>
           <div class="nav-item" data-secao="pa-usuarios" onclick="mostrarSecao('pa-usuarios')"><span class="nav-icon">👤</span><span class="nav-label">Usuários</span></div>
           <div class="nav-item" data-secao="socios" onclick="mostrarSecao('socios')"><span class="nav-icon">🎖️</span><span class="nav-label">Sócios</span></div>
           <div class="nav-item" data-secao="parceiros" onclick="mostrarSecao('parceiros')"><span class="nav-icon">🔗</span><span class="nav-label">Parceiros</span></div>
@@ -3867,6 +3868,94 @@ table.t .acoes { white-space: nowrap; }
           </div>
         </div>
 
+        <!-- v9.19 · Modal "Criar tese de investimento" (2 etapas) -->
+        <div class="modal-overlay" id="modal-criar-tese">
+          <div class="modal" style="max-width:720px">
+            <!-- STEP 1 · identificar contato -->
+            <div id="ct-step1">
+              <h3>Nova tese de investimento</h3>
+              <div class="modal-sub">Para qual contato é essa tese?</div>
+              <div class="modal-grupo">
+                <div class="modal-grupo-label">Telefone (WhatsApp · obrigatório)</div>
+                <div style="display:flex;gap:8px">
+                  <input id="ct-tel-input" class="td-input" placeholder="11999999999" style="flex:1" />
+                  <button class="btn" onclick="ctBuscarContato()">Buscar →</button>
+                </div>
+              </div>
+              <div id="ct-tel-result" style="margin:10px 0"></div>
+              <div id="ct-nome-novo-wrap" class="modal-grupo" style="display:none">
+                <div class="modal-grupo-label">Nome completo (obrigatório · contato novo)</div>
+                <input id="ct-nome-novo-input" class="td-input" placeholder="Ex: João Silva" />
+              </div>
+              <div class="modal-actions">
+                <button id="ct-btn-continuar" class="btn" onclick="ctIrParaStep2()" style="display:none">Continuar →</button>
+                <button class="btn btn-ghost" onclick="ctFecharModal()">Cancelar</button>
+              </div>
+            </div>
+
+            <!-- STEP 2 · formulário canônico de tese -->
+            <div id="ct-step2" style="display:none">
+              <h3>Dados da tese</h3>
+              <div class="modal-sub" id="ct-step2-sub">—</div>
+
+              <div class="modal-grupo">
+                <div class="modal-grupo-label">Título (3-200 chars)</div>
+                <input id="ct-titulo" class="td-input" placeholder="Ex: Investimento em rede de petshops" />
+              </div>
+              <div class="modal-grupo">
+                <div class="modal-grupo-label">Descrição curta (3-80 chars · pra IA semântica)</div>
+                <input id="ct-desc-curta" class="td-input" maxlength="80" placeholder="Ex: Petshop com banho e tosa" />
+              </div>
+
+              <div class="modal-grupo">
+                <div class="modal-grupo-label">Setores (1+ · obrigatório)</div>
+                <div id="ct-setores" class="chips"></div>
+              </div>
+
+              <div class="modal-grupo">
+                <div class="modal-grupo-label">Formas de atuação (opcional · filtra)</div>
+                <div id="ct-formas" class="chips"></div>
+              </div>
+
+              <div class="modal-grupo">
+                <div class="modal-grupo-label">Localização</div>
+                <div class="modal-radios" style="display:flex;gap:14px;flex-wrap:wrap">
+                  <label><input type="radio" name="ct-loc" value="brasil_todo" checked onchange="ctLocChange()" /> Brasil todo</label>
+                  <label><input type="radio" name="ct-loc" value="estado" onchange="ctLocChange()" /> Por estado</label>
+                  <label><input type="radio" name="ct-loc" value="cidade" onchange="ctLocChange()" /> Cidade específica</label>
+                </div>
+                <div id="ct-uf-wrap" style="display:none;margin-top:8px">
+                  <select id="ct-estado" class="td-input" style="max-width:120px"></select>
+                </div>
+                <div id="ct-cidade-wrap" style="display:none;margin-top:8px">
+                  <input id="ct-cidade" class="td-input" placeholder="Nome da cidade" />
+                </div>
+              </div>
+
+              <div class="modal-grupo">
+                <div class="modal-grupo-label">Faixa de valor de investimento (R$)</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input id="ct-vmin" type="number" class="td-input" placeholder="Min" min="0" style="flex:1" />
+                  <span style="color:var(--ink-3)">até</span>
+                  <input id="ct-vmax" type="number" class="td-input" placeholder="Max" min="0" style="flex:1" />
+                </div>
+                <small style="color:var(--ink-3);font-family:var(--mono);font-size:10px">valor_alvo numeric (média) + valor_investimento text "min-max" são preenchidos automaticamente</small>
+              </div>
+
+              <div class="modal-grupo">
+                <div class="modal-grupo-label">Descrição adicional (opcional)</div>
+                <textarea id="ct-desc-add" class="td-input" rows="3" maxlength="1000" placeholder="Detalhes extras · diferenciais buscados · etc"></textarea>
+              </div>
+
+              <div class="modal-actions">
+                <button id="ct-btn-salvar" class="btn" onclick="ctSalvar()">💾 Salvar tese</button>
+                <button class="btn btn-ghost" onclick="ctVoltarStep1()">← Voltar</button>
+                <button class="btn btn-ghost" onclick="ctFecharModal()">Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <section id="secao-pa-solicitacoes" class="secao">
           <header class="secao-header">
             <h1 class="secao-titulo">🔔 Solicitações / NDAs</h1>
@@ -4130,7 +4219,11 @@ table.t .acoes { white-space: nowrap; }
                   <div class="bloco-titulo">Cron semanal</div>
                   <div class="bloco-sub" id="mm-ult-exec">Última execução: —</div>
                 </div>
-                <div style="display:flex;gap:10px">
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                  <label style="display:flex;gap:6px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--ink-2);cursor:pointer">
+                    <input type="checkbox" class="toggle-seeds" onchange="ctToggleSeeds(this)" />
+                    Incluir seeds da maquininha
+                  </label>
                   <button id="mm-btn-cron" onclick="mmRodarCron()" style="padding:10px 18px;font-family:var(--sans);font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:#0a1510;background:var(--accent,#3dff95);border:1px solid var(--accent,#3dff95);border-radius:999px;cursor:pointer">Rodar cron agora</button>
                   <button onclick="mmCarregarHeader()" style="padding:10px 14px;font-family:var(--mono);font-size:11px;color:var(--ink-2);background:transparent;border:1px solid var(--line);border-radius:999px;cursor:pointer">Atualizar</button>
                 </div>
@@ -8476,6 +8569,222 @@ async function pdAtualizarBadgeSidebar() {
 }
 
 /* ========================================================================
+   v9.19 · Atalho "+ Criar tese" no sidebar · modal 2 etapas
+   ======================================================================== */
+const CT_SETORES = [
+  ['servicos_empresas','Serviços p/ empresas'],['varejo','Varejo'],['saude','Saúde'],
+  ['alimentacao','Alimentação'],['beleza_estetica','Beleza & estética'],['educacao','Educação'],
+  ['servicos_locais','Serviços locais'],['bem_estar','Bem-estar'],['industria','Indústria'],
+  ['construcao','Construção'],['hospedagem','Hospedagem'],['logistica','Logística'],
+];
+const CT_FORMAS = [
+  ['presta_servico','Presta serviço'],['produz_revende','Produz e revende'],['fabricacao','Fabricação'],
+  ['revenda','Revenda'],['distribuicao','Distribuição'],['vende_governo','Vende governo'],
+  ['saas','SaaS'],['assinatura','Assinatura'],
+];
+const CT_UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'];
+
+let _ctContato = null;        // { id, nome, whatsapp, email } quando achado/criado
+let _ctTelefoneNorm = null;
+let _ctNovoContato = false;
+
+function ctNormalizarTel(raw){
+  const d = (raw||'').replace(/\D/g,'');
+  if (!d) return null;
+  let out = d; if (!out.startsWith('55')) out = '55'+out;
+  if (out.length < 12 || out.length > 13) return null;
+  return out;
+}
+
+function ctAbrirModal(){
+  // reset estado
+  _ctContato = null;
+  _ctTelefoneNorm = null;
+  _ctNovoContato = false;
+  const m = document.getElementById('modal-criar-tese');
+  if (!m) { console.error('[ct] modal não montado'); return; }
+  document.getElementById('ct-step1').style.display = 'block';
+  document.getElementById('ct-step2').style.display = 'none';
+  document.getElementById('ct-tel-input').value = '';
+  document.getElementById('ct-tel-result').innerHTML = '';
+  document.getElementById('ct-nome-novo-wrap').style.display = 'none';
+  document.getElementById('ct-nome-novo-input').value = '';
+  document.getElementById('ct-btn-continuar').style.display = 'none';
+  // Limpa step 2
+  ['ct-titulo','ct-desc-curta','ct-cidade','ct-vmin','ct-vmax','ct-desc-add'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const radBrasil = document.querySelector('input[name="ct-loc"][value="brasil_todo"]');
+  if (radBrasil) radBrasil.checked = true;
+  ctPopularSelects();
+  ctLocChange();
+  m.classList.add('show');
+}
+
+function ctFecharModal(){
+  document.getElementById('modal-criar-tese').classList.remove('show');
+}
+
+async function ctBuscarContato(){
+  const raw = document.getElementById('ct-tel-input').value;
+  const tel = ctNormalizarTel(raw);
+  if (!tel){
+    document.getElementById('ct-tel-result').innerHTML = '<div style="color:#dc2626;font-size:12px">Telefone inválido · use formato com DDD (ex: 11999999999)</div>';
+    return;
+  }
+  _ctTelefoneNorm = tel;
+  document.getElementById('ct-tel-result').innerHTML = '<div style="color:var(--ink-3);font-family:var(--mono);font-size:11px">Buscando...</div>';
+  try {
+    const r = await sbFetch('/rest/v1/usuarios?whatsapp=eq.'+tel+'&select=id,nome,whatsapp,email&limit=1');
+    if (Array.isArray(r) && r.length){
+      _ctContato = r[0];
+      _ctNovoContato = false;
+      document.getElementById('ct-tel-result').innerHTML = `
+        <div style="padding:10px 12px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);border-radius:8px">
+          <div style="color:#22c55e;font-weight:600">✓ Contato encontrado</div>
+          <div style="font-size:13px;margin-top:4px">${escapeHtml(_ctContato.nome)}</div>
+          <div style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">${escapeHtml(tel)}${_ctContato.email?' · '+escapeHtml(_ctContato.email):''}</div>
+        </div>`;
+      document.getElementById('ct-nome-novo-wrap').style.display = 'none';
+      document.getElementById('ct-btn-continuar').style.display = 'inline-block';
+      document.getElementById('ct-btn-continuar').textContent = 'Continuar com este contato →';
+    } else {
+      _ctContato = null;
+      _ctNovoContato = true;
+      document.getElementById('ct-tel-result').innerHTML = `
+        <div style="padding:10px 12px;background:rgba(234,179,8,0.08);border:1px solid rgba(234,179,8,0.3);border-radius:8px">
+          <div style="color:#eab308;font-weight:600">⚠ Contato novo · preencha o nome</div>
+          <div style="font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-top:4px">${escapeHtml(tel)}</div>
+        </div>`;
+      document.getElementById('ct-nome-novo-wrap').style.display = 'block';
+      document.getElementById('ct-btn-continuar').style.display = 'inline-block';
+      document.getElementById('ct-btn-continuar').textContent = 'Cadastrar contato + continuar →';
+    }
+  } catch(e){
+    document.getElementById('ct-tel-result').innerHTML = `<div style="color:#dc2626;font-size:12px">Erro: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function ctIrParaStep2(){
+  if (!_ctTelefoneNorm) { alert('Busque o contato primeiro'); return; }
+  if (_ctNovoContato){
+    const nome = document.getElementById('ct-nome-novo-input').value.trim();
+    if (nome.length < 2) { alert('Nome do contato é obrigatório (mín. 2 caracteres)'); return; }
+    // armazena na memória; usuário só será criado ao salvar (na edge)
+    _ctContato = { id: null, nome, whatsapp: _ctTelefoneNorm, email: null };
+  }
+  // Popula header step 2
+  document.getElementById('ct-step2-sub').textContent = `${_ctContato.nome} · ${_ctTelefoneNorm}` + (_ctNovoContato ? ' · novo contato' : '');
+  document.getElementById('ct-step1').style.display = 'none';
+  document.getElementById('ct-step2').style.display = 'block';
+}
+
+function ctVoltarStep1(){
+  document.getElementById('ct-step1').style.display = 'block';
+  document.getElementById('ct-step2').style.display = 'none';
+}
+
+function ctRenderChips(containerId, opts){
+  const cont = document.getElementById(containerId);
+  if (!cont) return;
+  cont.innerHTML = opts.map(([val,lbl]) =>
+    `<button type="button" class="chip" data-ct-val="${val}" onclick="this.classList.toggle('active')">${lbl}</button>`
+  ).join('');
+}
+
+function ctChipsGet(containerId){
+  return Array.from(document.querySelectorAll(`#${containerId} .chip.active`)).map(c => c.dataset.ctVal);
+}
+
+function ctPopularSelects(){
+  ctRenderChips('ct-setores', CT_SETORES);
+  ctRenderChips('ct-formas', CT_FORMAS);
+  const selUf = document.getElementById('ct-estado');
+  if (selUf && !selUf.children.length){
+    selUf.innerHTML = '<option value="">UF</option>' + CT_UFS.map(u => `<option value="${u}">${u}</option>`).join('');
+  }
+}
+
+function ctLocChange(){
+  const tipo = document.querySelector('input[name="ct-loc"]:checked')?.value || 'brasil_todo';
+  document.getElementById('ct-uf-wrap').style.display = (tipo === 'estado' || tipo === 'cidade') ? 'block' : 'none';
+  document.getElementById('ct-cidade-wrap').style.display = (tipo === 'cidade') ? 'block' : 'none';
+}
+
+async function ctSalvar(){
+  const titulo = document.getElementById('ct-titulo').value.trim();
+  const descricao_curta = document.getElementById('ct-desc-curta').value.trim();
+  const setores = ctChipsGet('ct-setores');
+  const formas_atuacao = ctChipsGet('ct-formas');
+  const localizacao_tipo = document.querySelector('input[name="ct-loc"]:checked')?.value || 'brasil_todo';
+  const estado = document.getElementById('ct-estado').value || null;
+  const cidade = document.getElementById('ct-cidade').value.trim() || null;
+  const valor_min = Number(document.getElementById('ct-vmin').value || 0);
+  const valor_max = Number(document.getElementById('ct-vmax').value || 0);
+  const descricao_adicional = document.getElementById('ct-desc-add').value.trim() || null;
+
+  // Validações leves no front antes de mandar
+  if (titulo.length < 3) { alert('Título obrigatório (mín. 3 chars)'); return; }
+  if (descricao_curta.length < 3 || descricao_curta.length > 80) { alert('Descrição curta: 3-80 chars'); return; }
+  if (!setores.length) { alert('Selecione pelo menos 1 setor'); return; }
+  if (!Number.isFinite(valor_min) || !Number.isFinite(valor_max) || valor_min <= 0 || valor_max <= 0 || valor_min > valor_max) { alert('Faixa de valor inválida (min ≤ max · ambos > 0)'); return; }
+  if (localizacao_tipo === 'estado' && !estado) { alert('Selecione o estado'); return; }
+  if (localizacao_tipo === 'cidade' && (!estado || !cidade)) { alert('Selecione estado e cidade'); return; }
+
+  const btn = document.getElementById('ct-btn-salvar');
+  btn.disabled = true; btn.textContent = 'Salvando...';
+
+  try {
+    const res = await fetch(SB+'/functions/v1/admin-criar-tese-com-contato', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) },
+      body: JSON.stringify({
+        telefone_raw: _ctTelefoneNorm,
+        nome_contato: _ctNovoContato ? _ctContato.nome : undefined,
+        dados_tese: {
+          titulo, descricao_curta, setores,
+          formas_atuacao: formas_atuacao.length ? formas_atuacao : null,
+          localizacao_tipo, estado, cidade,
+          valor_min, valor_max, descricao_adicional,
+        }
+      })
+    });
+    const j = await res.json();
+    if (!j.ok) { alert('Erro: '+(j.error || j.detalhe || 'desconhecido')); return; }
+    const codigo = (j.tese && j.tese.codigo) || (j.tese && j.tese.id ? j.tese.id.slice(0,8) : '—');
+    const nome = j.contato?.nome || _ctContato?.nome || '—';
+    const wppLabel = j.whatsapp_ok ? 'WhatsApp enviado pra '+nome : '⚠ falha ao enviar WhatsApp · envie manualmente';
+    alert('✓ Tese ' + codigo + ' criada · ' + wppLabel);
+    ctFecharModal();
+  } catch(e){
+    alert('Erro: '+(e.message||e));
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Salvar tese';
+  }
+}
+
+/* ========================================================================
+   v9.19 · Toggle "Incluir seeds da maquininha"
+   ======================================================================== */
+function ctIncluirSeeds(){
+  return localStorage.getItem('_admin_incluir_seeds') === 'true';
+}
+function ctFiltroSeeds(){
+  return ctIncluirSeeds() ? '' : '&origem=neq.sintetica';
+}
+function ctToggleSeeds(el){
+  localStorage.setItem('_admin_incluir_seeds', el.checked ? 'true' : 'false');
+  // Sincroniza outros toggles
+  document.querySelectorAll('input.toggle-seeds').forEach(o => { if (o !== el) o.checked = el.checked; });
+  // Reload da seção atual (best-effort)
+  const sec = document.querySelector('.secao[style*="display: block"], .secao:not([style*="display: none"])');
+  const id = sec?.id?.replace(/^secao-/,'') || '';
+  if (id === 'mm-matchmaking' && typeof mmCarregarTab === 'function') mmCarregarTab();
+  if (id === 'pa-teses' && typeof paLoadTeses === 'function') paLoadTeses();
+  if (id === 'op-projetos' && _pjAbertoId) pjAbrirDetalhe(_pjAbertoId);
+}
+
+/* ========================================================================
    INIT
    ======================================================================== */
 function initAfterLogin() {
@@ -10845,7 +11154,8 @@ async function pjAbrirDetalhe(negId){
   const agendaUrl=SB+'/rest/v1/admin_agenda?negocio_id=eq.'+negId+'&data_reuniao=gte.'+encodeURIComponent(hojeIso)+'&status=not.eq.cancelado&select=id,tipo,status,data_reuniao,link_reuniao,nome_cliente,notas_admin&order=data_reuniao.asc&limit=20';
   const pecasUrl=SB+'/rest/v1/pecas_geradas?negocio_id=eq.'+negId+'&status=in.(rascunho,aprovada)&select=*&order=created_at.desc&limit=100';
   // v9.17 · matches IA pra este negócio (com tese embutida via FK · só pendente/validado/contactado)
-  const matchUrl=SB+'/rest/v1/matchmaking_resultados?negocio_id=eq.'+negId+'&status=in.(pendente,validado,liberado,em_negociacao,convertido)&order=score_100.desc.nullslast,criado_em.desc&limit=50&select=id,tese_id,score_100,score_5_10,status,projeto_id,fatores_casados,comprador_nome,comprador_phone,comprador_eh_seed,narrativa_ia,validado_em,contactado_em,criado_em,descoberto_em,visto_pelo_admin_em,tese:teses_investimento!tese_id(id,codigo,titulo,setores,valor_alvo,estado,cidade,localizacao_tipo)';
+  // v9.19 · embed inclui origem da tese pra filtro client-side de seeds (toggle no header)
+  const matchUrl=SB+'/rest/v1/matchmaking_resultados?negocio_id=eq.'+negId+'&status=in.(pendente,validado,liberado,em_negociacao,convertido)&order=score_100.desc.nullslast,criado_em.desc&limit=50&select=id,tese_id,score_100,score_5_10,status,projeto_id,fatores_casados,comprador_nome,comprador_phone,comprador_eh_seed,narrativa_ia,validado_em,contactado_em,criado_em,descoberto_em,visto_pelo_admin_em,tese:teses_investimento!tese_id(id,codigo,titulo,setores,valor_alvo,estado,cidade,localizacao_tipo,origem)';
   const [rNeg,rMov,rPool,rVenc,rEvt,rAgenda,rPecas,rMatch]=await Promise.all([tplFetch(negUrl),tplFetch(movUrl),tplFetch(poolUrl),tplFetch(vencUrl),tplFetch(evtUrl),tplFetch(agendaUrl),tplFetch(pecasUrl),tplFetch(matchUrl)]);
   const arr=rNeg.ok?await rNeg.json():[];
   if(!arr.length){document.getElementById('pj-det-corpo').innerHTML='<div class="td-loading">não encontrado</div>';return;}
@@ -11121,6 +11431,10 @@ function pjMatchEhNovo(m){
 
 function pjRenderMatches(n,meta,matches){
   const projetoId = meta && meta.id ? meta.id : null;
+  // v9.19 · filtra seeds (origem=sintetica) por default · toggle no header reverte
+  if (typeof ctIncluirSeeds === 'function' && !ctIncluirSeeds()){
+    matches = matches.filter(m => !m.tese || m.tese.origem !== 'sintetica');
+  }
   const total = matches.length;
   const novos = matches.filter(pjMatchEhNovo).length;
   const corPorScore = s => s>=80?'#22c55e':s>=60?'#3a6ef5':s>=40?'#eab308':'#9ca3af';
@@ -11211,7 +11525,11 @@ function pjRenderMatches(n,meta,matches){
   return `<div class="bloco" style="margin-top:14px">
     <div class="bloco-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
       <div><div class="bloco-titulo">🤖 Matchmaking IA · <span style="color:var(--ink-3);font-weight:400">${total} match${total===1?'':'es'}</span>${novoTituloPill}</div><div class="bloco-sub">score 0-100 · ordenado decrescente · espelho da ferramenta global · cron semanal quartas 06h BRT</div></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <label style="display:flex;gap:4px;align-items:center;font-family:var(--mono);font-size:10px;color:var(--ink-3);cursor:pointer;margin-right:4px">
+          <input type="checkbox" class="toggle-seeds" onchange="ctToggleSeeds(this)" ${ctIncluirSeeds()?'checked':''} />
+          incluir seeds
+        </label>
         ${btnRodar}
         <a class="btn btn-ghost btn-mini" href="#mm-matchmaking" onclick="mostrarSecao('mm-matchmaking');return false">↗ Global</a>
       </div>
@@ -14387,7 +14705,9 @@ async function mmCarregarTab(){
   const view = _mmModo === 'negocio' ? 'matchmaking_agrupado_por_negocio' : 'matchmaking_agrupado_por_tese';
   cont.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:18px;text-align:center">carregando...</div>';
   try {
-    const url = `${SB}/rest/v1/${view}?select=*&${filtro}&order=top_score.desc.nullslast,total_matches.desc&limit=50`;
+    // v9.19 · filtra seeds (origem=sintetica) por default · toggle no header re-popula
+    const seedFilter = (typeof ctFiltroSeeds === 'function') ? ctFiltroSeeds() : '';
+    const url = `${SB}/rest/v1/${view}?select=*&${filtro}${seedFilter}&order=top_score.desc.nullslast,total_matches.desc&limit=50`;
     const r = await fetch(url, { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
     if (!r.ok) { cont.innerHTML = '<div style="color:#ff7a7a;padding:14px">erro http '+r.status+'</div>'; return; }
     _mmBlocos = await r.json();
