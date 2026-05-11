@@ -1242,6 +1242,117 @@ table.t .acoes { white-space: nowrap; }
   color: var(--ink-3);
 }
 
+/* v9.13 · Cockpit do projeto */
+.pj-cockpit {
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.04);
+}
+.cockpit-titulo {
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 18px;
+  margin: 0 0 12px;
+  letter-spacing: -.02em;
+  color: var(--ink);
+}
+.cockpit-bloco {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.cockpit-bloco:last-child { border-bottom: none; }
+.cockpit-bloco .label-mono {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin-bottom: 10px;
+}
+.cockpit-status > div {
+  font-size: 14px;
+  margin-bottom: 6px;
+  color: var(--ink);
+}
+.cockpit-status > div:last-child { margin-bottom: 0; }
+.big-numbers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+.big-num {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 12px;
+}
+.big-num-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin-bottom: 4px;
+}
+.big-num-valor {
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -.02em;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.big-num-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 3px;
+}
+.cockpit-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cockpit-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--ink);
+  text-decoration: none;
+  transition: all .12s;
+}
+.cockpit-links a:hover {
+  background: var(--surface);
+  border-color: var(--em);
+  color: var(--em);
+}
+.performance-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.performance-row strong { color: var(--ink); font-weight: 700; }
+.proximas-etapas > div {
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: var(--ink);
+  line-height: 1.5;
+}
+.proximas-etapas > div:last-child { margin-bottom: 0; }
+@media (max-width: 640px) {
+  .big-numbers-grid { grid-template-columns: repeat(2, 1fr); }
+  .performance-row { flex-direction: column; gap: 6px; }
+}
+
 </style>
 </head>
 
@@ -9947,7 +10058,7 @@ async function pgConfirmarRecebimento(){
    Projetos Assessorada · Fase 1 · 2 níveis (entregáveis + tarefas internas)
    ═════════════════════════════════════════════════════════════════════ */
 let _pjLista=[], _pjFiltro='ativos', _pjAbertoId=null, _pjAbertoNeg=null;
-let _pjEntregaveis=[], _pjAbaDetalhe='visao', _pjMovimentacoes=[], _pjPoolContatos=[], _pjPoolAbordagens=[], _pjVencimentos=[];
+let _pjEntregaveis=[], _pjAbaDetalhe='visao', _pjMovimentacoes=[], _pjPoolContatos=[], _pjPoolAbordagens=[], _pjVencimentos=[], _pjEventos=[], _pjAgenda=[];
 let _mvProjetoEditando=null, _mvMovNegId=null, _mvVencNegId=null, _mvVencRecebidoId=null;
 let _pjPoolFiltro='todos', _pjPoolDrawerId=null;
 
@@ -10019,13 +10130,19 @@ async function pjAbrirDetalhe(negId){
   const movUrl=SB+'/rest/v1/projeto_movimentacoes?negocio_id=eq.'+negId+'&select=id,tipo,categoria,valor,data,descricao,created_at&order=data.desc&limit=200';
   const poolUrl=SB+'/rest/v1/projeto_pool_contatos?negocio_id=eq.'+negId+'&select=*&order=updated_at.desc&limit=500';
   const vencUrl=SB+'/rest/v1/projeto_vencimentos_status?negocio_id=eq.'+negId+'&select=*&order=data_prevista.asc&limit=500';
-  const [rNeg,rMov,rPool,rVenc]=await Promise.all([tplFetch(negUrl),tplFetch(movUrl),tplFetch(poolUrl),tplFetch(vencUrl)]);
+  const _30d=new Date(Date.now()-30*86400000).toISOString().slice(0,10);
+  const evtUrl=SB+'/rest/v1/eventos_negocio_agregado?negocio_id=eq.'+negId+'&dia=gte.'+_30d+'&select=tipo,dia,total,usuarios_unicos&limit=1000';
+  const hojeIso=new Date().toISOString();
+  const agendaUrl=SB+'/rest/v1/admin_agenda?negocio_id=eq.'+negId+'&data_reuniao=gte.'+encodeURIComponent(hojeIso)+'&status=not.eq.cancelado&select=id,tipo,status,data_reuniao,link_reuniao,nome_cliente,notas_admin&order=data_reuniao.asc&limit=20';
+  const [rNeg,rMov,rPool,rVenc,rEvt,rAgenda]=await Promise.all([tplFetch(negUrl),tplFetch(movUrl),tplFetch(poolUrl),tplFetch(vencUrl),tplFetch(evtUrl),tplFetch(agendaUrl)]);
   const arr=rNeg.ok?await rNeg.json():[];
   if(!arr.length){document.getElementById('pj-det-corpo').innerHTML='<div class="td-loading">não encontrado</div>';return;}
   _pjAbertoNeg=arr[0];
   _pjMovimentacoes=rMov.ok?await rMov.json():[];
   _pjPoolContatos=rPool.ok?await rPool.json():[];
   _pjVencimentos=rVenc.ok?await rVenc.json():[];
+  _pjEventos=rEvt.ok?await rEvt.json():[];
+  _pjAgenda=rAgenda.ok?await rAgenda.json():[];
   _pjEntregaveis=(_pjAbertoNeg.entregaveis||[]).slice().sort((a,b)=>a.ordem-b.ordem);
   _pjEntregaveis.forEach(e=>{e.tarefas=(e.tarefas||[]).slice().sort((a,b)=>a.ordem-b.ordem);});
   pjRenderDetalhe();
@@ -10045,6 +10162,7 @@ function pjRenderDetalhe(){
   document.getElementById('pj-det-sub').innerHTML=`${tdEscape(negLocal)} · Mês ${mesAtual} de 12 · Cliente: ${tdEscape(vend.nome||'—')} · ${tdEscape(vend.whatsapp||'—')} · <strong>${totalConc}/${_pjEntregaveis.length}</strong> entregáveis concluídos`;
   document.getElementById('pj-det-status').textContent=meta?.status||'sem onda';
   let html='';
+  html+=pjRenderCockpit(n,meta,mesAtual);
   html+=pjRenderCabecalho(n,meta);
   html+=pjRenderFinanceiro(n,meta,_pjMovimentacoes||[]);
   html+=pjRenderPool(n,meta,_pjPoolContatos||[]);
@@ -10057,6 +10175,115 @@ function pjRenderDetalhe(){
 const PJ_MOTIVOS={cliente_pagou_stripe:'💳 Cliente pagou (Stripe)',cliente_pagou_pix:'💰 Cliente pagou (Pix)',cliente_pagou_outro:'🧾 Cliente pagou (outro)',cortesia:'🎁 Cortesia',piloto_interno:'🧪 Piloto interno',investimento_proprio:'📊 Investimento próprio',parceria:'🤝 Parceria',condicao_especial:'⭐ Condição especial',outro:'…outro'};
 const PJ_CATEGORIAS={mensalidade_assessorada:'mensalidade',venda_empresa:'venda empresa',ads_meta:'ads Meta',ads_google:'ads Google',ads_outro:'ads outro',comissao_socio:'comissão sócio',taxa_plataforma:'taxa plataforma',reembolso:'reembolso',outro:'outro'};
 function pjFmtMoeda(v){if(v==null||isNaN(v))return '—';return 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+// v9.13 · Cockpit do projeto
+function pjRenderCockpit(n,meta,mesAtual){
+  const negId=n.id;
+  // STATUS AGORA
+  const ents=_pjEntregaveis||[];
+  const ondaAtual=ents.filter(e=>e.status!=='concluido').reduce((max,e)=>Math.max(max,e.mes_relativo||0),0);
+  const emCurso=ents.find(e=>e.status==='em_curso'||e.status==='em_andamento');
+  const proximo=ents.filter(e=>e.status!=='concluido'&&e!==emCurso).sort((a,b)=>{
+    const da=a.data_prevista||'9999-12-31',db=b.data_prevista||'9999-12-31';
+    return da.localeCompare(db);
+  })[0];
+  let statusHtml;
+  if(!ents.length){
+    statusHtml=`<div class="cockpit-status">
+      <div>🚀 Projeto iniciado · onda ainda não gerada</div>
+      <button class="td-btn td-btn-primario" style="margin-top:8px;padding:6px 12px;font-size:12px" onclick="pjIniciar('${negId}')">Gerar primeira onda</button>
+    </div>`;
+  }else{
+    statusHtml=`<div class="cockpit-status">
+      <div>🔄 Onda ${ondaAtual===0?'inicial':'Mês '+ondaAtual}</div>
+      ${emCurso?`<div>⏳ Em andamento: "${tdEscape(emCurso.titulo||'—')}"</div>`:'<div style="color:var(--ink-3)">⏳ Nada em andamento</div>'}
+      ${proximo?`<div>➡️ Próximo: "${tdEscape(proximo.titulo||'—')}"${proximo.data_prevista?` <span style="color:var(--ink-3);font-size:12px">(prev. ${proximo.data_prevista})</span>`:''}</div>`:''}
+    </div>`;
+  }
+
+  // BIG NUMBERS
+  const totalEnts=ents.length;
+  const concEnts=ents.filter(e=>e.status==='concluido').length;
+  const pool=_pjPoolContatos||[];
+  const poolQual=pool.filter(c=>['qualificado','nda','proposta','fechou'].includes(c.status)).length;
+  const movs=_pjMovimentacoes||[];
+  const entradas=movs.filter(m=>m.tipo==='entrada').reduce((s,m)=>s+Number(m.valor||0),0);
+  const saidas=movs.filter(m=>m.tipo==='saida').reduce((s,m)=>s+Number(m.valor||0),0);
+  const saldo=entradas-saidas;
+  const vencs=_pjVencimentos||[];
+  const proxVenc=vencs.filter(v=>v.status_computado==='aberto'||v.status_computado==='atrasado').sort((a,b)=>(a.data_prevista||'').localeCompare(b.data_prevista||''))[0];
+  const bigNumbers=`<div class="big-numbers-grid">
+    <div class="big-num"><div class="big-num-label">MÊS</div><div class="big-num-valor">${mesAtual||'?'} de 12</div></div>
+    <div class="big-num"><div class="big-num-label">ENTREGÁVEIS</div><div class="big-num-valor">${concEnts} de ${totalEnts||0}</div></div>
+    <div class="big-num"><div class="big-num-label">POOL</div><div class="big-num-valor">${pool.length} contato${pool.length===1?'':'s'}</div>${poolQual>0?`<div class="big-num-sub">${poolQual}+ qualificados</div>`:''}</div>
+    <div class="big-num"><div class="big-num-label">SALDO</div><div class="big-num-valor" style="color:${saldo>=0?'var(--em)':'#c14'}">${pjFmtMoeda(saldo)}</div></div>
+    <div class="big-num"><div class="big-num-label">PRÓX. VENCIM.</div><div class="big-num-valor">${proxVenc?proxVenc.data_prevista:'—'}</div>${proxVenc?`<div class="big-num-sub">${pjFmtMoeda(proxVenc.valor)}</div>`:''}</div>
+  </div>`;
+
+  // LINKS RÁPIDOS
+  const tel=(n.vendedor&&n.vendedor.whatsapp)?String(n.vendedor.whatsapp).replace(/\D/g,''):'';
+  const linksHtml=`<div class="cockpit-links">
+    <a href="/laudo-completo.html?id=${negId}" target="_blank" rel="noopener">📄 Ver laudo</a>
+    <a href="/negocio.html?id=${negId}" target="_blank" rel="noopener">🌐 Anúncio público</a>
+    <a href="/meu-anuncio.html?id=${negId}" target="_blank" rel="noopener">📊 Visão cliente</a>
+    ${tel?`<a href="https://wa.me/${tel}" target="_blank" rel="noopener">💬 WhatsApp cliente</a>`:''}
+  </div>`;
+
+  // PERFORMANCE últimos 30 dias
+  const eventos=_pjEventos||[];
+  const sumTipo=(tipos)=>eventos.filter(e=>tipos.includes(e.tipo)).reduce((s,e)=>s+Number(e.total||0),0);
+  const perfViews=sumTipo(['view_card_negocio','view_negocio_detalhe']);
+  const perfCliques=sumTipo(['click_card_negocio']);
+  const perfNdas=sumTipo(['termo_sigilo_assinado','nda_assinado']);
+  const perfSols=sumTipo(['enviar_solicitacao','abrir_modal_solicitar']);
+  const perfHtml=`<div class="performance-row">
+    <span>👁️ <strong>${perfViews}</strong> views</span>
+    <span>🔗 <strong>${perfCliques}</strong> cliques</span>
+    <span>📋 <strong>${perfNdas}</strong> NDAs</span>
+    <span>📨 <strong>${perfSols}</strong> solicitações</span>
+  </div>`;
+
+  // PRÓXIMAS ETAPAS
+  const hojeStr=new Date().toISOString().slice(0,10);
+  const followupsVenc=pool.filter(c=>c.proximo_contato_em&&c.proximo_contato_em<hojeStr&&!['fechou','perdeu'].includes(c.status)).length;
+  const proxReuniao=(_pjAgenda||[])[0];
+  const entregPendOnda=ents.filter(e=>e.mes_relativo===ondaAtual&&!['concluido','cancelado'].includes(e.status)).length;
+  const proxEtapasItens=[];
+  if(followupsVenc>0)proxEtapasItens.push(`<div>🔔 <strong>${followupsVenc}</strong> follow-up${followupsVenc===1?'':'s'} vencido${followupsVenc===1?'':'s'} no pool</div>`);
+  if(proxReuniao){
+    const dt=new Date(proxReuniao.data_reuniao);
+    const dStr=dt.toLocaleDateString('pt-BR')+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    proxEtapasItens.push(`<div>📅 Próxima reunião: <strong>${dStr}</strong>${proxReuniao.nome_cliente?` com ${tdEscape(proxReuniao.nome_cliente)}`:''}${proxReuniao.link_reuniao?` · <a href="${tdEscape(proxReuniao.link_reuniao)}" target="_blank" rel="noopener" style="color:var(--em)">entrar →</a>`:''}</div>`);
+  }else{
+    proxEtapasItens.push(`<div style="color:var(--ink-3)">📅 Nenhuma reunião agendada</div>`);
+  }
+  if(entregPendOnda>0)proxEtapasItens.push(`<div>📦 <strong>${entregPendOnda}</strong> entregáve${entregPendOnda===1?'l pendente':'is pendentes'} esta onda</div>`);
+  if(proxEtapasItens.length===0)proxEtapasItens.push(`<div style="color:var(--ink-3)">✓ Sem pendências imediatas</div>`);
+
+  return `<div class="pj-cockpit">
+    <h2 class="cockpit-titulo">🎯 Cockpit</h2>
+    <div class="cockpit-bloco">
+      <div class="label-mono">STATUS AGORA</div>
+      ${statusHtml}
+    </div>
+    <div class="cockpit-bloco">
+      <div class="label-mono">BIG NUMBERS</div>
+      ${bigNumbers}
+    </div>
+    <div class="cockpit-bloco">
+      <div class="label-mono">LINKS RÁPIDOS</div>
+      ${linksHtml}
+    </div>
+    <div class="cockpit-bloco">
+      <div class="label-mono">PERFORMANCE DO ANÚNCIO · últimos 30 dias</div>
+      ${perfHtml}
+    </div>
+    <div class="cockpit-bloco">
+      <div class="label-mono">PRÓXIMAS ETAPAS</div>
+      <div class="proximas-etapas">${proxEtapasItens.join('')}</div>
+    </div>
+  </div>`;
+}
 
 function pjRenderCabecalho(n,meta){
   if(!meta||!meta.id){
