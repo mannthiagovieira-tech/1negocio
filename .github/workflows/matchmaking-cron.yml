@@ -1,0 +1,24 @@
+name: Matchmaking · cron semanal
+
+# Quarta às 06:00 BRT (09:00 UTC) · roda matchmaking pra todas teses ativas
+# Reusa edge rodar-cron-semanal (V8 B8.13) · upsert em matchmaking_resultados
+# com onConflict tese_id,negocio_id. INSERTs novos ganham descoberto_em=now()
+# automaticamente (default da coluna · v9.17.1). UPDATEs preservam descoberto_em.
+
+on:
+  schedule:
+    - cron: '0 9 * * 3'    # quarta 09:00 UTC = 06:00 BRT
+  workflow_dispatch:       # permite trigger manual via GitHub UI
+
+jobs:
+  rodar-matchmaking-semanal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /functions/v1/rodar-cron-semanal
+        run: |
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            'https://dbijmgqlcrgjlcfrastg.supabase.co/functions/v1/rodar-cron-semanal'
+          echo ""
