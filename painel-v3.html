@@ -893,6 +893,32 @@ table.t .acoes { white-space: nowrap; }
 .pj-progresso-bar{height:8px;background:var(--surface);border-radius:999px;overflow:hidden;margin:8px 0 4px;margin-left:32px;max-width:280px}
 .pj-progresso-bar-fill{height:100%;background:var(--accent);transition:width .3s ease}
 
+/* v9.18 · Layout híbrido com hierarquia · cockpit sticky + pool protagonista + grid 2 colunas */
+.pj-cockpit-sticky{position:sticky;top:0;z-index:5;background:var(--bg);padding-top:6px;margin-bottom:18px;transition:padding .2s}
+.pj-cockpit-sticky.cockpit-compacto{box-shadow:0 4px 12px rgba(0,0,0,.08);border-bottom:1px solid var(--line);padding-bottom:6px}
+.pj-cockpit-sticky.cockpit-compacto .cockpit-bloco{display:none}
+.pj-cockpit-sticky.cockpit-compacto .cockpit-bloco:nth-child(2),.pj-cockpit-sticky.cockpit-compacto .cockpit-bloco:nth-child(3){display:block;padding:6px 0;border-bottom:none}
+.pj-cockpit-sticky.cockpit-compacto .cockpit-bloco .label-mono{display:none}
+.pj-cockpit-sticky.cockpit-compacto .cockpit-titulo{font-size:13px;margin-bottom:4px}
+.pj-detalhe-protagonista{margin-bottom:24px}
+.pj-detalhe-protagonista .bloco-pool-protagonista{border-width:2px;border-color:var(--ink-3,#7a8581);background:var(--surface-2)}
+.pj-detalhe-protagonista .bloco-pool-protagonista .bloco-titulo{font-size:17px;letter-spacing:-.01em}
+.pj-detalhe-grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px;margin-bottom:18px}
+.pj-detalhe-grid-2col .pj-coluna-esquerda,.pj-detalhe-grid-2col .pj-coluna-direita{display:flex;flex-direction:column;gap:14px}
+.pj-coluna-titulo{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-3);margin:0 0 2px 4px}
+/* Ref-card · wrapper compacto que pode expandir on-click */
+.ref-card{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.ref-card-head{display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:none;padding:12px 14px;cursor:pointer;text-align:left;color:inherit;font:inherit}
+.ref-card-head:hover{background:var(--surface-2)}
+.ref-card-titulo{font-family:var(--serif);font-weight:700;font-size:13px;color:var(--ink);white-space:nowrap}
+.ref-card-resumo{flex:1;font-family:var(--mono);font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ref-card-chevron{font-size:10px;color:var(--ink-3);transition:transform .2s;flex-shrink:0}
+.ref-card.expandido .ref-card-chevron{transform:rotate(180deg)}
+.ref-card-body{display:none;border-top:1px solid var(--line);padding:0}
+.ref-card.expandido .ref-card-body{display:block}
+.ref-card-body > .bloco{border:none;border-radius:0;margin:0}
+@media (max-width:1024px){.pj-detalhe-grid-2col{grid-template-columns:1fr}}
+
 /* Fase 1 · entregáveis + tarefas internas + abas */
 .pj-abas{display:flex;gap:4px;background:var(--surface-2);padding:3px;border-radius:999px;margin-bottom:18px;width:fit-content}
 .pj-aba{background:transparent;border:none;color:var(--ink-3);padding:8px 18px;border-radius:999px;cursor:pointer;font-family:var(--serif);font-weight:600;font-size:12px;letter-spacing:.04em;transition:all .15s}
@@ -10851,17 +10877,118 @@ function pjRenderDetalhe(){
   document.getElementById('pj-det-titulo').textContent=negTit;
   document.getElementById('pj-det-sub').innerHTML=`${tdEscape(negLocal)} · Mês ${mesAtual} de 12 · Cliente: ${tdEscape(vend.nome||'—')} · ${tdEscape(vend.whatsapp||'—')} · <strong>${totalConc}/${_pjEntregaveis.length}</strong> entregáveis concluídos`;
   document.getElementById('pj-det-status').textContent=meta?.status||'sem onda';
+  // v9.18 · layout híbrido · cockpit sticky → pool protagonista → grid 2 colunas (ferramentas | referências)
+  const resumoCabecalho = pjResumoCabecalho(n,meta);
+  const resumoFinanc = pjResumoFinanceiro(n,_pjMovimentacoes||[],_pjVencimentos||[]);
+  const resumoEntregaveis = pjResumoEntregaveis(_pjEntregaveis||[]);
+  const resumoVinculo = pjResumoVinculo(n,meta);
+
   let html='';
-  html+=pjRenderCockpit(n,meta,mesAtual);
-  html+=pjRenderCabecalho(n,meta);
-  html+=pjRenderFinanceiro(n,meta,_pjMovimentacoes||[]);
-  html+=pjRenderPool(n,meta,_pjPoolContatos||[]);
-  html+=pjRenderMatches(n,meta,_pjMatches||[]);
-  html+=pjRenderPecas(n,_pjPecas||[]);
-  html+=pjRenderVinculo(n,meta);
+  // Tier 1 · Cockpit sticky (sempre visível, colapsa ao rolar)
+  html+=`<div class="pj-cockpit-sticky">${pjRenderCockpit(n,meta,mesAtual)}</div>`;
+
+  // Tier 2 · Pool protagonista (largura total · destaque visual)
+  html+=`<div class="pj-detalhe-protagonista">${pjMarcarPoolProtagonista(pjRenderPool(n,meta,_pjPoolContatos||[]))}</div>`;
+
+  // Tier 3 · Grid 2 colunas
+  html+=`<div class="pj-detalhe-grid-2col">`;
+    // Esquerda · Ferramentas (alimentam pool · sempre expandidas)
+    html+=`<div class="pj-coluna-esquerda">`;
+    html+=`<div class="pj-coluna-titulo">Ferramentas · alimentam o pool</div>`;
+    html+=pjRenderMatches(n,meta,_pjMatches||[]);
+    html+=pjRenderPecas(n,_pjPecas||[]);
+    html+=`</div>`;
+    // Direita · Referências (consulta · compact-expand)
+    html+=`<div class="pj-coluna-direita">`;
+    html+=`<div class="pj-coluna-titulo">Referências do negócio</div>`;
+    html+=pjRefCard('📋 Cabeçalho', resumoCabecalho, pjRenderCabecalho(n,meta), true);
+    html+=pjRefCard('💰 Financeiro', resumoFinanc, pjRenderFinanceiro(n,meta,_pjMovimentacoes||[]), false);
+    html+=pjRefCard('📦 Entregáveis', resumoEntregaveis, pjRenderEntregaveis ? '' : '', false, 'placeholder');
+    html+=pjRefCard('🤝 Vínculo', resumoVinculo, pjRenderVinculo(n,meta), false);
+    html+=`</div>`;
+  html+=`</div>`;
+
+  // Tier 4 · Abas Visão geral / Entregáveis (full-width abaixo)
   html+=`<div class="pj-abas" style="margin-top:18px"><button class="pj-aba ${_pjAbaDetalhe==='visao'?'active':''}" onclick="pjMudarAba('visao')">Visão geral</button><button class="pj-aba ${_pjAbaDetalhe==='entregaveis'?'active':''}" onclick="pjMudarAba('entregaveis')">Entregáveis</button></div>`;
   html+=_pjAbaDetalhe==='visao'?pjRenderVisao(meta,mesAtual):pjRenderEntregaveis();
+
   document.getElementById('pj-det-corpo').innerHTML=html;
+
+  // v9.18 · listener scroll · compactar cockpit ao rolar > 200px
+  pjSetupCockpitSticky();
+}
+
+// v9.18 · wrappers / helpers do layout híbrido
+
+function pjMarcarPoolProtagonista(html){
+  // Adiciona class bloco-pool-protagonista ao primeiro div.bloco do HTML renderizado por pjRenderPool
+  return html.replace(/^(<div\s+class="bloco)(\s|")/, '$1 bloco-pool-protagonista$2');
+}
+
+function pjRefCard(titulo, resumo, conteudoHtml, defaultExpandido, marker){
+  const cls = 'ref-card' + (defaultExpandido?' expandido':'');
+  const corpo = marker==='placeholder' ? '<div style="padding:14px;color:var(--ink-3);font-family:var(--mono);font-size:11px">Use a aba "Entregáveis" abaixo pra ver detalhes.</div>' : conteudoHtml;
+  return `<div class="${cls}">
+    <button class="ref-card-head" onclick="this.parentElement.classList.toggle('expandido')">
+      <span class="ref-card-titulo">${titulo}</span>
+      <span class="ref-card-resumo">${resumo}</span>
+      <span class="ref-card-chevron">▼</span>
+    </button>
+    <div class="ref-card-body">${corpo}</div>
+  </div>`;
+}
+
+function pjResumoCabecalho(n,meta){
+  const partes = [];
+  if (meta && meta.faturamento_anual) partes.push('Fat anual '+ (typeof fmtFat==='function' ? fmtFat(meta.faturamento_anual) : 'R$ '+meta.faturamento_anual));
+  if (meta && meta.margem_pct != null) partes.push(meta.margem_pct+'% margem');
+  if (meta && meta.preco_pedido_atual) partes.push('venda alvo '+(typeof fmtFat==='function' ? fmtFat(meta.preco_pedido_atual) : 'R$ '+meta.preco_pedido_atual));
+  if (n.setor) partes.push(n.setor);
+  if (n.cidade) partes.push(n.cidade + (n.estado?'/'+n.estado:''));
+  return partes.length ? partes.join(' · ') : 'click pra expandir';
+}
+
+function pjResumoFinanceiro(n,movs,vencs){
+  const entradas = movs.filter(m => m.tipo==='entrada').reduce((s,m)=>s+Number(m.valor||0),0);
+  const saidas = movs.filter(m => m.tipo==='saida').reduce((s,m)=>s+Number(m.valor||0),0);
+  const fmt = v => 'R$ '+Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:0});
+  const partes = [];
+  if (entradas) partes.push('+'+fmt(entradas)+' entradas');
+  if (saidas) partes.push('-'+fmt(saidas)+' saídas');
+  const pendentes = (vencs||[]).filter(v => v.status_computado!=='recebido' && v.data_prevista);
+  if (pendentes.length){
+    const prox = pendentes.sort((a,b)=>String(a.data_prevista).localeCompare(String(b.data_prevista)))[0];
+    if (prox && prox.data_prevista){
+      try { const d=new Date(prox.data_prevista); partes.push('próx vencim '+String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0')); } catch(e){}
+    }
+  }
+  return partes.length ? partes.join(' · ') : 'sem movimentações';
+}
+
+function pjResumoEntregaveis(ents){
+  const total = ents.length;
+  const conc = ents.filter(e => e.status==='concluido').length;
+  const emCurso = ents.find(e => e.status==='em_curso'||e.status==='em_andamento');
+  const partes = [conc+'/'+total+' concluídos'];
+  if (emCurso) partes.push('em curso: '+(emCurso.titulo||'—').slice(0,40));
+  return partes.join(' · ');
+}
+
+function pjResumoVinculo(n,meta){
+  if (n.socio_codigo) return 'Sócio '+n.socio_codigo;
+  if (meta && meta.socio_responsavel) return 'Sócio '+meta.socio_responsavel;
+  return 'sem vínculo de sócio';
+}
+
+let _pjCockpitListener = null;
+function pjSetupCockpitSticky(){
+  if (_pjCockpitListener) return; // só registra uma vez
+  _pjCockpitListener = () => {
+    const el = document.querySelector('.pj-cockpit-sticky');
+    if (!el) return;
+    el.classList.toggle('cockpit-compacto', window.scrollY > 200);
+  };
+  window.addEventListener('scroll', _pjCockpitListener, { passive: true });
 }
 
 const PJ_MOTIVOS={cliente_pagou_stripe:'💳 Cliente pagou (Stripe)',cliente_pagou_pix:'💰 Cliente pagou (Pix)',cliente_pagou_outro:'🧾 Cliente pagou (outro)',cortesia:'🎁 Cortesia',piloto_interno:'🧪 Piloto interno',investimento_proprio:'📊 Investimento próprio',parceria:'🤝 Parceria',condicao_especial:'⭐ Condição especial',outro:'…outro'};
