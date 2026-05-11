@@ -3868,7 +3868,7 @@ table.t .acoes { white-space: nowrap; }
           </div>
         </div>
 
-        <!-- v9.19 · Modal "Criar tese de investimento" (2 etapas) -->
+        <!-- v9.19.1 · Modal "Criar tese de investimento" (2 etapas · padrão visual) -->
         <div class="modal-overlay" id="modal-criar-tese">
           <div class="modal" style="max-width:720px">
             <!-- STEP 1 · identificar contato -->
@@ -3899,51 +3899,50 @@ table.t .acoes { white-space: nowrap; }
               <div class="modal-sub" id="ct-step2-sub">—</div>
 
               <div class="modal-grupo">
-                <div class="modal-grupo-label">Título (3-200 chars)</div>
+                <div class="modal-grupo-label">Título</div>
                 <input id="ct-titulo" class="td-input" placeholder="Ex: Investimento em rede de petshops" />
               </div>
               <div class="modal-grupo">
-                <div class="modal-grupo-label">Descrição curta (3-80 chars · pra IA semântica)</div>
+                <div class="modal-grupo-label">Descrição curta · 3-80 chars · usada pela IA semântica</div>
                 <input id="ct-desc-curta" class="td-input" maxlength="80" placeholder="Ex: Petshop com banho e tosa" />
               </div>
 
               <div class="modal-grupo">
-                <div class="modal-grupo-label">Setores (1+ · obrigatório)</div>
+                <div class="modal-grupo-label">Setores · selecione 1 ou mais</div>
                 <div id="ct-setores" class="chips"></div>
               </div>
 
               <div class="modal-grupo">
-                <div class="modal-grupo-label">Formas de atuação (opcional · filtra)</div>
+                <div class="modal-grupo-label">Formas de atuação · opcional · filtra negócios</div>
                 <div id="ct-formas" class="chips"></div>
               </div>
 
               <div class="modal-grupo">
                 <div class="modal-grupo-label">Localização</div>
-                <div class="modal-radios" style="display:flex;gap:14px;flex-wrap:wrap">
-                  <label><input type="radio" name="ct-loc" value="brasil_todo" checked onchange="ctLocChange()" /> Brasil todo</label>
-                  <label><input type="radio" name="ct-loc" value="estado" onchange="ctLocChange()" /> Por estado</label>
-                  <label><input type="radio" name="ct-loc" value="cidade" onchange="ctLocChange()" /> Cidade específica</label>
+                <div id="ct-loc-chips" class="chips">
+                  <button type="button" class="chip active" data-ct-loc="brasil_todo" onclick="ctLocChip(this)">Brasil todo</button>
+                  <button type="button" class="chip" data-ct-loc="estado" onclick="ctLocChip(this)">Por estado</button>
+                  <button type="button" class="chip" data-ct-loc="cidade" onclick="ctLocChip(this)">Cidade específica</button>
                 </div>
-                <div id="ct-uf-wrap" style="display:none;margin-top:8px">
-                  <select id="ct-estado" class="td-input" style="max-width:120px"></select>
+                <div id="ct-uf-wrap" style="display:none;margin-top:10px">
+                  <select id="ct-estado" class="td-input" style="max-width:140px"></select>
                 </div>
-                <div id="ct-cidade-wrap" style="display:none;margin-top:8px">
+                <div id="ct-cidade-wrap" style="display:none;margin-top:10px">
                   <input id="ct-cidade" class="td-input" placeholder="Nome da cidade" />
                 </div>
               </div>
 
               <div class="modal-grupo">
                 <div class="modal-grupo-label">Faixa de valor de investimento (R$)</div>
-                <div style="display:flex;gap:8px;align-items:center">
-                  <input id="ct-vmin" type="number" class="td-input" placeholder="Min" min="0" style="flex:1" />
-                  <span style="color:var(--ink-3)">até</span>
-                  <input id="ct-vmax" type="number" class="td-input" placeholder="Max" min="0" style="flex:1" />
+                <div style="display:flex;gap:10px;align-items:center">
+                  <input id="ct-vmin" type="number" class="td-input" placeholder="Mínimo" min="0" style="flex:1" />
+                  <span style="color:var(--ink-3);font-family:var(--mono);font-size:11px">até</span>
+                  <input id="ct-vmax" type="number" class="td-input" placeholder="Máximo" min="0" style="flex:1" />
                 </div>
-                <small style="color:var(--ink-3);font-family:var(--mono);font-size:10px">valor_alvo numeric (média) + valor_investimento text "min-max" são preenchidos automaticamente</small>
               </div>
 
               <div class="modal-grupo">
-                <div class="modal-grupo-label">Descrição adicional (opcional)</div>
+                <div class="modal-grupo-label">Descrição adicional · opcional</div>
                 <textarea id="ct-desc-add" class="td-input" rows="3" maxlength="1000" placeholder="Detalhes extras · diferenciais buscados · etc"></textarea>
               </div>
 
@@ -8614,8 +8613,8 @@ function ctAbrirModal(){
   ['ct-titulo','ct-desc-curta','ct-cidade','ct-vmin','ct-vmax','ct-desc-add'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
-  const radBrasil = document.querySelector('input[name="ct-loc"][value="brasil_todo"]');
-  if (radBrasil) radBrasil.checked = true;
+  // Reset chip de localização pro default "Brasil todo"
+  document.querySelectorAll('#ct-loc-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.ctLoc === 'brasil_todo'));
   ctPopularSelects();
   ctLocChange();
   m.classList.add('show');
@@ -8705,8 +8704,20 @@ function ctPopularSelects(){
   }
 }
 
+function ctLocChip(btn){
+  // Marca este e desmarca os outros
+  document.querySelectorAll('#ct-loc-chips .chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  ctLocChange();
+}
+
+function ctLocAtual(){
+  const ativo = document.querySelector('#ct-loc-chips .chip.active');
+  return (ativo && ativo.dataset.ctLoc) || 'brasil_todo';
+}
+
 function ctLocChange(){
-  const tipo = document.querySelector('input[name="ct-loc"]:checked')?.value || 'brasil_todo';
+  const tipo = ctLocAtual();
   document.getElementById('ct-uf-wrap').style.display = (tipo === 'estado' || tipo === 'cidade') ? 'block' : 'none';
   document.getElementById('ct-cidade-wrap').style.display = (tipo === 'cidade') ? 'block' : 'none';
 }
@@ -8716,7 +8727,7 @@ async function ctSalvar(){
   const descricao_curta = document.getElementById('ct-desc-curta').value.trim();
   const setores = ctChipsGet('ct-setores');
   const formas_atuacao = ctChipsGet('ct-formas');
-  const localizacao_tipo = document.querySelector('input[name="ct-loc"]:checked')?.value || 'brasil_todo';
+  const localizacao_tipo = ctLocAtual();
   const estado = document.getElementById('ct-estado').value || null;
   const cidade = document.getElementById('ct-cidade').value.trim() || null;
   const valor_min = Number(document.getElementById('ct-vmin').value || 0);
@@ -8750,7 +8761,18 @@ async function ctSalvar(){
       })
     });
     const j = await res.json();
-    if (!j.ok) { alert('Erro: '+(j.error || j.detalhe || 'desconhecido')); return; }
+    if (!j.ok) {
+      // v9.19.1 · mostra error + detalhe + step + code/hint pro debug
+      const partes = [];
+      if (j.error) partes.push(j.error);
+      if (j.detalhe) partes.push('· '+j.detalhe);
+      if (j.step) partes.push('('+j.step+')');
+      if (j.code) partes.push('code='+j.code);
+      if (j.hint) partes.push('hint='+j.hint);
+      alert('Erro: ' + partes.join(' '));
+      console.error('[ct] erro detalhado:', j);
+      return;
+    }
     const codigo = (j.tese && j.tese.codigo) || (j.tese && j.tese.id ? j.tese.id.slice(0,8) : '—');
     const nome = j.contato?.nome || _ctContato?.nome || '—';
     const wppLabel = j.whatsapp_ok ? 'WhatsApp enviado pra '+nome : '⚠ falha ao enviar WhatsApp · envie manualmente';

@@ -1,8 +1,11 @@
-// admin-criar-tese-com-contato · v9.19 · 1Negócio
+// admin-criar-tese-com-contato · v9.19.1 · 1Negócio
 // Atalho admin pra criar tese: resolve contato (existing por whatsapp OU novo)
 // e cria tese vinculada com estrutura canônica IDÊNTICA aos outros fluxos +
 // preenche AMBOS valor_alvo (numeric) e valor_investimento (text "min-max") +
 // localizacao_tipo explícito · origem='admin'.
+//
+// v9.19.1 · try/catch externo + logs detalhados + retorna {detalhe, code, hint, step}
+// nos erros 500 pra debug · maybeSingle em vez de single pós-INSERT.
 //
 // POST {
 //   telefone_raw,
@@ -125,6 +128,8 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json({ ok: false, error: "metodo" }, 405);
 
+  // v9.19.1 · try/catch externo · captura qualquer exception inesperada e retorna detalhe
+  try {
   const gate = await gateAdmin(req);
   if (!gate.ok) return json({ ok: false, error: "nao_autorizado" }, 403);
 
@@ -177,7 +182,10 @@ Deno.serve(async (req: Request) => {
       .insert({ nome: nome_novo, whatsapp: telefone, tipo: "buy" })
       .select("id, nome, whatsapp, email")
       .single();
-    if (errU || !novo) return json({ ok: false, error: "erro_criar_contato", detalhe: errU?.message }, 500);
+    if (errU || !novo) {
+      console.error("[admin-criar-tese] erro INSERT usuarios:", JSON.stringify(errU));
+      return json({ ok: false, error: "erro_criar_contato", detalhe: errU?.message, code: errU?.code, hint: errU?.hint, step: "insert_usuarios" }, 500);
+    }
     contato = novo;
     novo_contato = true;
   }
@@ -206,12 +214,20 @@ Deno.serve(async (req: Request) => {
     email: contato!.email,
   };
 
+  console.log("[admin-criar-tese] INSERT payload:", JSON.stringify(tesePayload));
   const { data: tese, error: errT } = await adminClient
     .from("teses_investimento")
     .insert(tesePayload)
     .select("id, codigo, titulo, setores, valor_alvo, valor_investimento, estado, cidade, localizacao_tipo, status, origem, created_at")
-    .single();
-  if (errT || !tese) return json({ ok: false, error: "erro_criar_tese", detalhe: errT?.message }, 500);
+    .maybeSingle();
+  if (errT) {
+    console.error("[admin-criar-tese] erro INSERT tese:", JSON.stringify(errT));
+    return json({ ok: false, error: "erro_criar_tese", detalhe: errT.message, code: errT.code, hint: errT.hint, step: "insert_tese" }, 500);
+  }
+  if (!tese) {
+    console.error("[admin-criar-tese] INSERT retornou sem dados (RLS bloqueou SELECT pós-INSERT?)");
+    return json({ ok: false, error: "erro_criar_tese", detalhe: "insert sucesso mas SELECT pós-INSERT vazio · RLS suspeito", step: "select_pos_insert" }, 500);
+  }
 
   // 3. Z-API · notifica contato (não bloqueia se falhar)
   const setoresTxt = setores.map(s => SETOR_LBL[s] || s).join(", ");
@@ -230,4 +246,10 @@ Deno.serve(async (req: Request) => {
   const whatsapp_ok = await enviarWhatsApp(telefone, msg);
 
   return json({ ok: true, contato, tese, novo_contato, whatsapp_ok });
+  } catch (e) {
+    // v9.19.1 · captura QUALQUER exception não tratada · retorna detalhe pro toast
+    const err = e as Error;
+    console.error("[admin-criar-tese] exception não tratada:", err.message, err.stack);
+    return json({ ok: false, error: "excecao_nao_tratada", detalhe: err.message || String(e), step: "catch_externo" }, 500);
+  }
 });
