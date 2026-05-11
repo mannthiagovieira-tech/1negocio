@@ -10579,7 +10579,7 @@ async function pgConfirmarRecebimento(){
    ═════════════════════════════════════════════════════════════════════ */
 let _pjLista=[], _pjFiltro='ativos', _pjAbertoId=null, _pjAbertoNeg=null;
 let _pjCockpitGeral=null, _pjCockpitLoading=false;
-let _pjEntregaveis=[], _pjAbaDetalhe='visao', _pjMovimentacoes=[], _pjPoolContatos=[], _pjPoolAbordagens=[], _pjVencimentos=[], _pjEventos=[], _pjAgenda=[], _pjPecas=[];
+let _pjEntregaveis=[], _pjAbaDetalhe='visao', _pjMovimentacoes=[], _pjPoolContatos=[], _pjPoolAbordagens=[], _pjVencimentos=[], _pjEventos=[], _pjAgenda=[], _pjPecas=[], _pjMatches=[];
 let _mvProjetoEditando=null, _mvMovNegId=null, _mvVencNegId=null, _mvVencRecebidoId=null, _mvGerarPecaNegId=null, _mvPecaAberta=null;
 let _pjPoolFiltro='todos', _pjPoolDrawerId=null;
 
@@ -10818,7 +10818,9 @@ async function pjAbrirDetalhe(negId){
   const hojeIso=new Date().toISOString();
   const agendaUrl=SB+'/rest/v1/admin_agenda?negocio_id=eq.'+negId+'&data_reuniao=gte.'+encodeURIComponent(hojeIso)+'&status=not.eq.cancelado&select=id,tipo,status,data_reuniao,link_reuniao,nome_cliente,notas_admin&order=data_reuniao.asc&limit=20';
   const pecasUrl=SB+'/rest/v1/pecas_geradas?negocio_id=eq.'+negId+'&status=in.(rascunho,aprovada)&select=*&order=created_at.desc&limit=100';
-  const [rNeg,rMov,rPool,rVenc,rEvt,rAgenda,rPecas]=await Promise.all([tplFetch(negUrl),tplFetch(movUrl),tplFetch(poolUrl),tplFetch(vencUrl),tplFetch(evtUrl),tplFetch(agendaUrl),tplFetch(pecasUrl)]);
+  // v9.17 · matches IA pra este negócio (com tese embutida via FK · só pendente/validado/contactado)
+  const matchUrl=SB+'/rest/v1/matchmaking_resultados?negocio_id=eq.'+negId+'&status=in.(pendente,validado,liberado,em_negociacao,convertido)&order=score_100.desc.nullslast,criado_em.desc&limit=50&select=id,tese_id,score_100,score_5_10,status,projeto_id,fatores_casados,comprador_nome,comprador_phone,comprador_eh_seed,narrativa_ia,validado_em,contactado_em,criado_em,tese:teses_investimento!tese_id(id,codigo,titulo,setores,valor_alvo,estado,cidade,localizacao_tipo)';
+  const [rNeg,rMov,rPool,rVenc,rEvt,rAgenda,rPecas,rMatch]=await Promise.all([tplFetch(negUrl),tplFetch(movUrl),tplFetch(poolUrl),tplFetch(vencUrl),tplFetch(evtUrl),tplFetch(agendaUrl),tplFetch(pecasUrl),tplFetch(matchUrl)]);
   const arr=rNeg.ok?await rNeg.json():[];
   if(!arr.length){document.getElementById('pj-det-corpo').innerHTML='<div class="td-loading">não encontrado</div>';return;}
   _pjAbertoNeg=arr[0];
@@ -10828,6 +10830,7 @@ async function pjAbrirDetalhe(negId){
   _pjEventos=rEvt.ok?await rEvt.json():[];
   _pjAgenda=rAgenda.ok?await rAgenda.json():[];
   _pjPecas=rPecas.ok?await rPecas.json():[];
+  _pjMatches=rMatch.ok?await rMatch.json():[];
   _pjEntregaveis=(_pjAbertoNeg.entregaveis||[]).slice().sort((a,b)=>a.ordem-b.ordem);
   _pjEntregaveis.forEach(e=>{e.tarefas=(e.tarefas||[]).slice().sort((a,b)=>a.ordem-b.ordem);});
   pjRenderDetalhe();
@@ -10851,6 +10854,7 @@ function pjRenderDetalhe(){
   html+=pjRenderCabecalho(n,meta);
   html+=pjRenderFinanceiro(n,meta,_pjMovimentacoes||[]);
   html+=pjRenderPool(n,meta,_pjPoolContatos||[]);
+  html+=pjRenderMatches(n,meta,_pjMatches||[]);
   html+=pjRenderPecas(n,_pjPecas||[]);
   html+=pjRenderVinculo(n,meta);
   html+=`<div class="pj-abas" style="margin-top:18px"><button class="pj-aba ${_pjAbaDetalhe==='visao'?'active':''}" onclick="pjMudarAba('visao')">Visão geral</button><button class="pj-aba ${_pjAbaDetalhe==='entregaveis'?'active':''}" onclick="pjMudarAba('entregaveis')">Entregáveis</button></div>`;
@@ -10976,6 +10980,134 @@ const PJ_PECAS_TIPO_LBL={legenda_solta:'📝 Legenda',imagem_unica:'🖼 Imagem 
 const PJ_PECAS_ANG_LBL={oportunidade:'oportunidade',momento_venda:'momento venda',setor_alta:'setor em alta',localizacao:'localização',diferencial:'diferencial',historia:'história',provocacao:'provocação',curadoria:'curadoria',surpresa:'surpresa'};
 function pjPecaTexto(p){return (p.texto_editado&&p.texto_editado.trim())||p.texto_gerado||p.texto_principal||'';}
 function pjPecaPreview(p,max){const t=pjPecaTexto(p).replace(/\s+/g,' ').trim();return t.length>max?t.slice(0,max)+'…':t;}
+
+// v9.17 · bloco Matchmaking IA no detalhe do projeto · espelho da seção global, pré-filtrado por negocio_id
+function pjRenderMatches(n,meta,matches){
+  const projetoId = meta && meta.id ? meta.id : null;
+  const total = matches.length;
+  const corPorScore = s => s>=80?'#22c55e':s>=60?'#3a6ef5':s>=40?'#eab308':'#9ca3af';
+
+  function badgeStatus(m){
+    const s = m.status;
+    if (m.projeto_id && s !== 'rejeitado') return '<span class="pa-badge pa-badge-green">✓ no pool</span>';
+    if (s === 'validado' || s === 'liberado') return '<span class="pa-badge pa-badge-blue">validado</span>';
+    if (s === 'em_negociacao') return '<span class="pa-badge pa-badge-blue">em negociação</span>';
+    if (s === 'convertido') return '<span class="pa-badge pa-badge-green">convertido</span>';
+    return '<span class="pa-badge pa-badge-yellow">pendente</span>';
+  }
+
+  function fatoresChips(m){
+    const f = Array.isArray(m.fatores_casados) ? m.fatores_casados : [];
+    const out = [];
+    const tem = cod => f.some(x => (x && typeof x==='object' ? x.codigo||'' : String(x||'')).startsWith(cod));
+    if (tem('setor')) out.push('<span class="bloco-tag muted" title="setor casa">✓ setor</span>');
+    if (tem('forma')) out.push('<span class="bloco-tag muted" title="forma de atuação casa">✓ forma</span>');
+    if (tem('localizacao')) out.push('<span class="bloco-tag muted" title="localização casa">✓ local</span>');
+    if (tem('ticket')) out.push('<span class="bloco-tag muted" title="ticket casa">✓ ticket</span>');
+    if (tem('ise')) out.push('<span class="bloco-tag muted" title="ISE saudável">✓ ise</span>');
+    return out.join(' ');
+  }
+
+  function card(m){
+    const id = m.id;
+    const score = m.score_100 ?? 0;
+    const tese = m.tese || {};
+    const teseTit = tese.titulo || tese.codigo || '— tese —';
+    const teseValor = tese.valor_alvo ? 'R$ '+Number(tese.valor_alvo).toLocaleString('pt-BR') : '—';
+    const teseLoc = tese.localizacao_tipo==='brasil_todo' ? 'Brasil todo' : ([tese.cidade, tese.estado].filter(Boolean).join('/') || '—');
+    const nome = m.comprador_nome || '— sem nome —';
+    const seedBadge = m.comprador_eh_seed ? ' <span class="pa-badge pa-badge-gray" style="font-size:9px">seed</span>' : '';
+    const pendente = m.status === 'pendente';
+    const validado = ['validado','liberado','em_negociacao','convertido'].includes(m.status);
+    const noPool = !!m.projeto_id;
+    let acoes = '';
+    if (pendente) {
+      acoes = `<button class="btn btn-mini" onclick="pjmmValidar('${id}')" style="background:rgba(34,197,94,.1);color:#22c55e;border:1px solid rgba(34,197,94,.3)">✓ Validar</button>`
+            + ` <button class="btn btn-mini btn-ghost" onclick="pjmmRejeitar('${id}')" style="color:#dc2626;border-color:rgba(220,38,38,.3)">✗ Rejeitar</button>`;
+    } else if (validado && !noPool && projetoId) {
+      acoes = `<button class="btn btn-mini" onclick="pjmmAddPool('${id}','${projetoId}')" style="background:rgba(58,110,245,.1);color:#3a6ef5;border:1px solid rgba(58,110,245,.3)">📥 Adicionar ao Pool</button>`;
+    } else if (validado && !projetoId) {
+      acoes = `<span class="bloco-tag muted" title="projeto ainda não iniciado">crie projeto pra adicionar</span>`;
+    }
+    return `<div class="td-card" style="border-left:3px solid ${corPorScore(score)};padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0">
+          <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:${corPorScore(score)};min-width:46px;text-align:center">${score}<span style="font-size:10px;color:var(--ink-3);font-weight:400">/100</span></div>
+          <div style="min-width:0">
+            <div style="font-weight:600">${tdEscape(nome)}${seedBadge}</div>
+            <div style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">Tese: ${tdEscape(teseTit)} · ${tdEscape(teseLoc)} · ${tdEscape(teseValor)}</div>
+            <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">${fatoresChips(m)}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+          ${badgeStatus(m)}
+          ${acoes}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  let conteudo;
+  if (!total) {
+    const statusNeg = n.status || '—';
+    const isPub = ['publicado','em_negociacao'].includes(statusNeg);
+    conteudo = `<div class="pa-empty" style="padding:18px;text-align:center">
+      Nenhum match encontrado pra este negócio.
+      <br><small style="color:var(--ink-3)">${isPub ? 'O motor roda como cron semanal · novos matches aparecem quando teses compatíveis forem cadastradas.' : 'Status do negócio: <code>'+tdEscape(statusNeg)+'</code> · publica o anúncio pra entrar no universo do motor.'}</small>
+    </div>`;
+  } else {
+    conteudo = matches.map(card).join('');
+  }
+
+  return `<div class="bloco" style="margin-top:14px">
+    <div class="bloco-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <div><div class="bloco-titulo">🤖 Matchmaking IA · <span style="color:var(--ink-3);font-weight:400">${total} match${total===1?'':'es'}</span></div><div class="bloco-sub">score 0-100 · ordenado decrescente · espelho da ferramenta global pré-filtrado por este negócio</div></div>
+      <a class="btn btn-ghost btn-mini" href="#mm-matchmaking" onclick="mostrarSecao('mm-matchmaking');return false">↗ Abrir ferramenta global</a>
+    </div>
+    ${conteudo}
+  </div>`;
+}
+
+// v9.17 · ações reusam padrão do mm* global (PATCH direto) · após mudança, recarrega o detalhe
+async function pjmmValidar(matchId){
+  try {
+    const r = await fetch(SB+'/rest/v1/matchmaking_resultados?id=eq.'+matchId, {
+      method:'PATCH',
+      headers:{ 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer '+(__token||AK), 'Prefer':'return=minimal' },
+      body: JSON.stringify({ status:'validado', validado_em:new Date().toISOString(), atualizado_em:new Date().toISOString() })
+    });
+    if (!r.ok) { alert('Erro ao validar: '+r.status); return; }
+    if (_pjAbertoId) pjAbrirDetalhe(_pjAbertoId);
+  } catch(e){ alert('erro: '+(e.message||e)); }
+}
+
+async function pjmmRejeitar(matchId){
+  const motivo = prompt('Motivo da rejeição (opcional):');
+  if (motivo === null) return;
+  try {
+    const r = await fetch(SB+'/rest/v1/matchmaking_resultados?id=eq.'+matchId, {
+      method:'PATCH',
+      headers:{ 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer '+(__token||AK), 'Prefer':'return=minimal' },
+      body: JSON.stringify({ status:'rejeitado', rejeitado_em:new Date().toISOString(), atualizado_em:new Date().toISOString(), status_motivo: motivo || null })
+    });
+    if (!r.ok) { alert('Erro ao rejeitar: '+r.status); return; }
+    if (_pjAbertoId) pjAbrirDetalhe(_pjAbertoId);
+  } catch(e){ alert('erro: '+(e.message||e)); }
+}
+
+async function pjmmAddPool(matchId, projetoId){
+  if (!matchId || !projetoId) return;
+  try {
+    const res = await fetch(SB+'/functions/v1/match-para-pool', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) },
+      body: JSON.stringify({ match_id: matchId, projeto_id: projetoId })
+    });
+    const j = await res.json();
+    if (!j.ok) { alert('Erro: '+(j.error || j.detalhe || 'desconhecido')); return; }
+    if (_pjAbertoId) pjAbrirDetalhe(_pjAbertoId);
+  } catch(e){ alert('erro: '+(e.message||e)); }
+}
 
 function pjRenderPecas(n,pecas){
   const aprovadas=pecas.filter(p=>p.status==='aprovada');
