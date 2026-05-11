@@ -132,43 +132,70 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: "geracao_falhou", detalhe: String((e as Error).message || e) }, 502);
   }
 
-  // gerar-conteudo-post já inseriu em pecas_geradas com schema legado
-  // (negocio_id, formato, tipo_imagem, tom, texto_principal, hashtags, imagem_dados, tokens_usados, criada_em).
-  // Aqui completamos com as colunas de curadoria.
-
-  const peca_id_gerado = gerado.peca_id;
-  if (!peca_id_gerado) return json({ ok: false, error: "edge_sem_peca_id" }, 500);
-
+  // Extrai conteúdo gerado
   const imgTipo = gerado?.imagem?.tipo;
   const imgConteudo = gerado?.imagem?.conteudo;
   const imagem_url = imgTipo === "url" ? String(imgConteudo) : null;
+  const imagem_dados_legado = imgTipo === "svg" ? String(imgConteudo || "") : null;
   const link_associado = `https://1negocio.com.br/negocio.html?id=${negocio_id}`;
-
   const textoFinal = gerado.texto_principal || "";
   const hashtagsArr = Array.isArray(gerado.hashtags) ? gerado.hashtags : [];
   const textoCompleto = hashtagsArr.length
     ? `${textoFinal}\n\n${hashtagsArr.join(" ")}`
     : textoFinal;
 
-  const { data: peca, error } = await adminClient
+  const camposCuradoria = {
+    tipo_conteudo,
+    status: "rascunho",
+    angulo: gerado.angulo_usado || angulo,
+    texto_gerado: textoCompleto,
+    imagem_url,
+    link_associado,
+    prompt_usado: JSON.stringify({ tipo_conteudo, angulo, tom, formato, tipo_imagem }),
+    metadata: { gerar_resp: { aviso: gerado.aviso, dica_visual: gerado.dica_visual, tokens: gerado.tokens_usados } },
+    created_by_admin_id: gate.admin_id || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const peca_id_gerado = gerado.peca_id;
+
+  // Caminho normal · edge interna populou peca_id · só UPDATE pra adicionar curadoria
+  if (peca_id_gerado) {
+    const { data: peca, error } = await adminClient
+      .from("pecas_geradas")
+      .update(camposCuradoria)
+      .eq("id", peca_id_gerado)
+      .select()
+      .maybeSingle();
+    if (error) return json({ ok: false, error: "erro_update", detalhe: error.message }, 500);
+    if (peca) return json({ ok: true, peca, aviso: gerado.aviso || null });
+    // peça evaporou (deletada entre INSERT e UPDATE? muito raro) · cai pro fallback
+    console.warn("[gerar-peca] peca_id retornado mas UPDATE achou null · vai criar nova");
+  } else {
+    console.warn("[gerar-peca] edge sem peca_id · vai criar manualmente · texto.length=" + textoCompleto.length);
+  }
+
+  // Fallback defensivo · edge não retornou peca_id mas tem conteúdo · INSERT direto via service-role
+  if (!textoCompleto && !imagem_url && !imagem_dados_legado) {
+    return json({ ok: false, error: "edge_sem_conteudo", detalhe: "gerar-conteudo-post não retornou texto nem imagem" }, 502);
+  }
+  const insertPayload: Record<string, unknown> = {
+    negocio_id,
+    formato,
+    tipo_imagem,
+    tom,
+    texto_principal: textoFinal,
+    hashtags: hashtagsArr,
+    imagem_dados: imagem_dados_legado,
+    tokens_usados: gerado.tokens_usados || null,
+    ...camposCuradoria,
+  };
+  const { data: novaPeca, error: errIns } = await adminClient
     .from("pecas_geradas")
-    .update({
-      tipo_conteudo,
-      status: "rascunho",
-      angulo: gerado.angulo_usado || angulo,
-      texto_gerado: textoCompleto,
-      imagem_url,
-      link_associado,
-      prompt_usado: JSON.stringify({ tipo_conteudo, angulo, tom, formato, tipo_imagem }),
-      metadata: { gerar_resp: { aviso: gerado.aviso, dica_visual: gerado.dica_visual, tokens: gerado.tokens_usados } },
-      created_by_admin_id: gate.admin_id || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", peca_id_gerado)
+    .insert(insertPayload)
     .select()
     .maybeSingle();
-
-  if (error) return json({ ok: false, error: "erro_update", detalhe: error.message }, 500);
-
-  return json({ ok: true, peca, aviso: gerado.aviso || null });
+  if (errIns) return json({ ok: false, error: "erro_insert_fallback", detalhe: errIns.message }, 500);
+  if (!novaPeca) return json({ ok: false, error: "erro_insert_fallback", detalhe: "insert retornou null" }, 500);
+  return json({ ok: true, peca: novaPeca, aviso: gerado.aviso || null });
 });
