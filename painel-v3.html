@@ -1567,6 +1567,7 @@ table.t .acoes { white-space: nowrap; }
         <div class="nav-grupo">
           <div class="nav-label">Cadastros · base</div>
           <div class="nav-item" data-secao="pa-negocios" onclick="mostrarSecao('pa-negocios')"><span class="nav-icon">🏢</span><span class="nav-label">Negócios</span></div>
+          <div class="nav-item" data-secao="pa-diagnosticos" onclick="mostrarSecao('pa-diagnosticos')"><span class="nav-icon">🩺</span><span class="nav-label">Diagnósticos</span><span id="pd-badge-sidebar" class="pill" style="display:none;background:#3a6ef5;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:6px">—</span></div>
           <div class="nav-item" data-secao="pa-anuncios" onclick="mostrarSecao('pa-anuncios')"><span class="nav-icon">📢</span><span class="nav-label">Anúncios</span><span class="star">⭐</span></div>
           <div class="nav-item" data-secao="pa-teses" onclick="mostrarSecao('pa-teses')"><span class="nav-icon">📋</span><span class="nav-label">Teses</span></div>
           <div class="nav-item" data-secao="pa-usuarios" onclick="mostrarSecao('pa-usuarios')"><span class="nav-icon">👤</span><span class="nav-label">Usuários</span></div>
@@ -3764,6 +3765,82 @@ table.t .acoes { white-space: nowrap; }
           </div>
         </section>
 
+        <!-- v9.16 · seção Diagnósticos CRM -->
+        <section id="secao-pa-diagnosticos" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">🩺 Diagnósticos</h1>
+            <p class="secao-subtitulo">CRM dos diagnósticos preenchidos · status de contato, dono, notas, pagantes destacados</p>
+          </header>
+          <div class="secao-conteudo">
+            <div class="bloco">
+              <div class="bloco-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+                <div><div class="bloco-titulo">Pipeline de diagnósticos</div><div class="bloco-sub">novos primeiro · filtros por período/status/dono · busca por nome/setor/cidade</div></div>
+                <button class="btn btn-ghost btn-mini" onclick="pdRecarregar()">↻ Atualizar</button>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+                <span class="modal-grupo-label" style="margin:0;align-self:center">Período</span>
+                <button class="chip active" data-pd-per="7"   onclick="pdSetPer(7)">7d</button>
+                <button class="chip"        data-pd-per="30"  onclick="pdSetPer(30)">30d</button>
+                <button class="chip"        data-pd-per="90"  onclick="pdSetPer(90)">90d</button>
+                <button class="chip"        data-pd-per="0"   onclick="pdSetPer(0)">Todos</button>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+                <span class="modal-grupo-label" style="margin:0;align-self:center">Status</span>
+                <button class="chip active" data-pd-st="todos"              onclick="pdSetSt('todos')">Todos</button>
+                <button class="chip" data-pd-st="aguardando_contato"        onclick="pdSetSt('aguardando_contato')">Aguardando</button>
+                <button class="chip" data-pd-st="contactado"                onclick="pdSetSt('contactado')">Contactado</button>
+                <button class="chip" data-pd-st="em_negociacao"             onclick="pdSetSt('em_negociacao')">Em negociação</button>
+                <button class="chip" data-pd-st="cliente_convertido"        onclick="pdSetSt('cliente_convertido')">Convertido</button>
+                <button class="chip" data-pd-st="perdido"                   onclick="pdSetSt('perdido')">Perdido</button>
+                <button class="chip" data-pd-st="sem_interesse"             onclick="pdSetSt('sem_interesse')">Sem interesse</button>
+                <button class="chip" data-pd-st="pagou"                     onclick="pdSetSt('pagou')">💰 Pagou</button>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+                <select id="pd-filtro-dono" class="pa-search-bar" style="margin-bottom:0;min-width:160px;padding:8px 10px" onchange="pdAplicarFiltros()">
+                  <option value="todos">Todos os donos</option>
+                  <option value="sem_dono">— sem dono —</option>
+                </select>
+                <input type="text" id="pd-busca" class="pa-search-bar" style="margin-bottom:0;flex:1" placeholder="🔍 Buscar por nome, setor, cidade, código…" oninput="pdAplicarFiltros()">
+              </div>
+              <div id="pd-resumo" style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-bottom:12px">—</div>
+              <div id="pd-tbl-diagnosticos"><div class="pa-loading">Carregando diagnósticos…</div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- v9.16 · Modal CRM diagnóstico -->
+        <div class="modal-overlay" id="modal-pd-crm">
+          <div class="modal" style="max-width:540px">
+            <h3 id="modal-pd-titulo">Editar diagnóstico</h3>
+            <div class="modal-sub" id="modal-pd-sub">—</div>
+            <div class="modal-grupo">
+              <div class="modal-grupo-label">Status de contato</div>
+              <select id="pd-edit-status" class="td-input">
+                <option value="aguardando_contato">Aguardando contato</option>
+                <option value="contactado">Contactado</option>
+                <option value="em_negociacao">Em negociação</option>
+                <option value="cliente_convertido">Cliente convertido</option>
+                <option value="perdido">Perdido</option>
+                <option value="sem_interesse">Sem interesse</option>
+              </select>
+            </div>
+            <div class="modal-grupo">
+              <div class="modal-grupo-label">Dono</div>
+              <select id="pd-edit-dono" class="td-input">
+                <option value="">— sem dono —</option>
+              </select>
+            </div>
+            <div class="modal-grupo">
+              <div class="modal-grupo-label">Notas</div>
+              <textarea id="pd-edit-notas" class="td-input" rows="5" placeholder="Notas internas sobre o diagnóstico, follow-up, próximos passos…"></textarea>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" onclick="pdSalvarCrm()">💾 Salvar</button>
+              <button class="btn btn-ghost" onclick="document.getElementById('modal-pd-crm').classList.remove('show')">Cancelar</button>
+            </div>
+          </div>
+        </div>
+
         <section id="secao-pa-solicitacoes" class="secao">
           <header class="secao-header">
             <h1 class="secao-titulo">🔔 Solicitações / NDAs</h1>
@@ -4534,6 +4611,7 @@ const SECAO_TITULOS = {
   'docs': {grupo:'SISTEMA', titulo:'Documentação', icone:'📖'},
   // Etapa 1.A · 7 seções migradas do painel-admin
   'pa-anuncios':     {grupo:'ADMIN MIGRADO', titulo:'Anúncios',          icone:'📢'},
+  'pa-diagnosticos': {grupo:'ADMIN MIGRADO', titulo:'Diagnósticos',      icone:'🩺'},
   'pa-solicitacoes': {grupo:'ADMIN MIGRADO', titulo:'Solicitações / NDAs',icone:'🔔'},
   'pa-negocios':     {grupo:'ADMIN MIGRADO', titulo:'Negócios (admin)',  icone:'🏢'},
   'pa-usuarios':   {grupo:'ADMIN MIGRADO', titulo:'Usuários',          icone:'👤'},
@@ -4599,6 +4677,7 @@ function mostrarSecao(id) {
     if (id === 'pa-negocios')     paLoadNegocios();
     if (id === 'pa-solicitacoes') paLoadSolicitacoes();
     if (id === 'pa-anuncios')     paLoadAnuncios();
+    if (id === 'pa-diagnosticos') pdInit();
     // Etapa 2.A · port painel-leads
     if (id === 'pl-crm-google')   plCrmInit();
     // Etapa 2.B
@@ -8168,12 +8247,217 @@ async function gcCarregarHistorico() {
 }
 
 /* ========================================================================
+   v9.16 · Diagnósticos · CRM
+   ======================================================================== */
+let _pdTodos = [], _pdPer = 7, _pdSt = 'todos', _pdAdmins = [], _pdEditId = null;
+
+async function pdInit() {
+  _pdEditId = null;
+  await pdCarregarAdmins();
+  await pdRecarregar();
+}
+
+async function pdCarregarAdmins() {
+  try {
+    const r = await sbFetch('/rest/v1/admins?ativo=eq.true&order=nome.asc&select=id,nome');
+    _pdAdmins = r || [];
+    // Popula select de filtro
+    const selFiltro = document.getElementById('pd-filtro-dono');
+    if (selFiltro) {
+      const optsFixos = '<option value="todos">Todos os donos</option><option value="sem_dono">— sem dono —</option>';
+      const optsAdm = _pdAdmins.map(a => `<option value="${a.id}">${escapeHtml(a.nome || '?')}</option>`).join('');
+      selFiltro.innerHTML = optsFixos + optsAdm;
+    }
+    // Popula select de modal
+    const selEdit = document.getElementById('pd-edit-dono');
+    if (selEdit) {
+      selEdit.innerHTML = '<option value="">— sem dono —</option>' +
+        _pdAdmins.map(a => `<option value="${a.id}">${escapeHtml(a.nome || '?')}</option>`).join('');
+    }
+  } catch(e) {
+    console.warn('[pd] erro carregar admins:', e);
+  }
+}
+
+async function pdRecarregar() {
+  const tbl = document.getElementById('pd-tbl-diagnosticos');
+  if (tbl) tbl.innerHTML = '<div class="pa-loading">Carregando diagnósticos…</div>';
+  try {
+    // Passo 1 · pega negocio_ids com laudo_v2 ativo (mesmo padrão de aprLoadAnuncios)
+    const lr = await sbFetch('/rest/v1/laudos_v2?ativo=eq.true&select=negocio_id&limit=5000');
+    const negV2 = new Set((lr || []).map(l => l.negocio_id).filter(Boolean));
+    if (!negV2.size) {
+      _pdTodos = [];
+      pdAplicarFiltros();
+      return;
+    }
+    // Passo 2 · busca negocios (limite 200) com campos CRM + pagamento
+    const data = await sbFetch(`/rest/v1/negocios?status=eq.em_avaliacao&order=created_at.desc&limit=200&select=id,codigo,codigo_diagnostico,nome,setor,categoria,cidade,estado,faturamento_anual,status,created_at,vendedor_id,plano_comprado,pagamento_aprovado_em,status_contato_diagnostico,notas_diagnostico,dono_diagnostico,contactado_em,contactado_por,dados_json`);
+    _pdTodos = (data || []).filter(n => negV2.has(n.id));
+    // Atualiza badge sidebar (aguardando_contato + últimos 30d)
+    pdAtualizarBadgeSidebar();
+    pdAplicarFiltros();
+  } catch(e) {
+    if (tbl) tbl.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function pdSetPer(d) {
+  _pdPer = d;
+  document.querySelectorAll('[data-pd-per]').forEach(b => b.classList.toggle('active', Number(b.dataset.pdPer) === d));
+  pdAplicarFiltros();
+}
+
+function pdSetSt(s) {
+  _pdSt = s;
+  document.querySelectorAll('[data-pd-st]').forEach(b => b.classList.toggle('active', b.dataset.pdSt === s));
+  pdAplicarFiltros();
+}
+
+function pdAplicarFiltros() {
+  let lista = _pdTodos.slice();
+  // Período
+  if (_pdPer > 0) {
+    const corte = Date.now() - _pdPer * 24 * 3600 * 1000;
+    lista = lista.filter(n => new Date(n.created_at).getTime() >= corte);
+  }
+  // Status contato
+  if (_pdSt === 'pagou') {
+    lista = lista.filter(n => n.plano_comprado || n.pagamento_aprovado_em);
+  } else if (_pdSt !== 'todos') {
+    lista = lista.filter(n => (n.status_contato_diagnostico || 'aguardando_contato') === _pdSt);
+  }
+  // Dono
+  const dono = document.getElementById('pd-filtro-dono')?.value || 'todos';
+  if (dono === 'sem_dono') lista = lista.filter(n => !n.dono_diagnostico);
+  else if (dono !== 'todos') lista = lista.filter(n => n.dono_diagnostico === dono);
+  // Busca
+  const q = (document.getElementById('pd-busca')?.value || '').toLowerCase().trim();
+  if (q) {
+    lista = lista.filter(n =>
+      (n.codigo_diagnostico || '').toLowerCase().includes(q) ||
+      (n.codigo || '').toLowerCase().includes(q) ||
+      (n.nome || '').toLowerCase().includes(q) ||
+      (n.setor || '').toLowerCase().includes(q) ||
+      (n.categoria || '').toLowerCase().includes(q) ||
+      (n.cidade || '').toLowerCase().includes(q)
+    );
+  }
+  pdRender(lista);
+}
+
+function pdRender(lista) {
+  const tbl = document.getElementById('pd-tbl-diagnosticos');
+  const resumo = document.getElementById('pd-resumo');
+  if (resumo) {
+    const pagantes = lista.filter(n => n.plano_comprado || n.pagamento_aprovado_em).length;
+    const aguardando = lista.filter(n => (n.status_contato_diagnostico || 'aguardando_contato') === 'aguardando_contato').length;
+    resumo.innerHTML = `${lista.length} diagnóstico${lista.length === 1 ? '' : 's'} · <strong style="color:#22c55e">${pagantes} pagante${pagantes === 1 ? '' : 's'}</strong> · ${aguardando} aguardando contato`;
+  }
+  if (!lista.length) {
+    tbl.innerHTML = '<div class="pa-empty">Nenhum diagnóstico com esses filtros.</div>';
+    return;
+  }
+  const stLabel = {
+    aguardando_contato: 'aguardando', contactado: 'contactado', em_negociacao: 'em negociação',
+    cliente_convertido: 'convertido', perdido: 'perdido', sem_interesse: 'sem interesse',
+  };
+  const adminMap = new Map(_pdAdmins.map(a => [a.id, a.nome]));
+  const rows = lista.map(n => {
+    const d = n.dados_json || {};
+    const ident = n.codigo_diagnostico || n.codigo || '—';
+    const nomeContato = d.nome_contato || '—';
+    const wpp = (d.whatsapp || '').replace(/\D/g, '');
+    const wppFmt = wpp ? (wpp.startsWith('55') ? wpp : '55' + wpp) : '';
+    const linkWpp = wppFmt ? `https://wa.me/${wppFmt}` : '';
+    const st = n.status_contato_diagnostico || 'aguardando_contato';
+    const pagou = !!(n.plano_comprado || n.pagamento_aprovado_em);
+    const pagouBadge = pagou ? `<span class="pa-badge pa-badge-green" style="margin-left:4px">💰 ${escapeHtml(n.plano_comprado || 'pagou')}</span>` : '';
+    const stBadge = `<span class="pa-badge ${st === 'aguardando_contato' ? 'pa-badge-yellow' : st === 'cliente_convertido' ? 'pa-badge-green' : st === 'perdido' || st === 'sem_interesse' ? 'pa-badge-gray' : 'pa-badge-blue'}">${escapeHtml(stLabel[st] || st)}</span>`;
+    const donoTxt = n.dono_diagnostico ? (adminMap.get(n.dono_diagnostico) || '?') : '—';
+    return `<tr${pagou ? ' style="background:rgba(34,197,94,0.05)"' : ''}>
+      <td style="font-family:var(--mono);font-size:11px;white-space:nowrap"><span class="codigo">${escapeHtml(ident)}</span>${pagouBadge}</td>
+      <td>
+        <div style="font-weight:600">${escapeHtml(n.nome || '—')}</div>
+        <div style="font-size:11px;color:var(--ink-3)">${escapeHtml(nomeContato)} · ${escapeHtml((n.categoria || n.setor || '—'))} · ${escapeHtml((n.cidade || '—') + (n.estado ? '/' + n.estado : ''))}</div>
+      </td>
+      <td class="num">${fmtFat(n.faturamento_anual)}</td>
+      <td>${stBadge}</td>
+      <td style="font-size:11px">${escapeHtml(donoTxt)}</td>
+      <td style="color:var(--ink-3);font-size:11px;white-space:nowrap">${relativeTime(n.created_at)}</td>
+      <td class="acoes" style="white-space:nowrap">
+        <a class="btn btn-ghost btn-mini" href="/laudo-completo.html?id=${n.id}" target="_blank" title="Laudo público">📄</a>
+        <a class="btn btn-ghost btn-mini" href="/laudo-admin.html?id=${n.id}" target="_blank" title="Ficha admin">📋</a>
+        ${linkWpp ? `<a class="btn btn-ghost btn-mini" href="${linkWpp}" target="_blank" title="WhatsApp ${nomeContato}">💬</a>` : '<span class="btn btn-ghost btn-mini" style="opacity:.4" title="sem whatsapp">💬</span>'}
+        <button class="btn btn-ghost btn-mini" onclick="pdAbrirCrm('${n.id}')" title="Editar CRM">✏️</button>
+      </td>
+    </tr>`;
+  }).join('');
+  tbl.innerHTML = `<table class="t"><thead><tr>
+    <th>Código</th><th>Negócio · contato</th><th class="num">Fat. anual</th><th>Status</th><th>Dono</th><th>Criado</th><th class="acoes">Ações</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function pdAbrirCrm(negId) {
+  const n = _pdTodos.find(x => x.id === negId);
+  if (!n) return;
+  _pdEditId = negId;
+  document.getElementById('modal-pd-titulo').textContent = `Editar · ${n.codigo_diagnostico || n.codigo || n.nome || '—'}`;
+  const d = n.dados_json || {};
+  const partes = [n.nome || '—', d.nome_contato, (n.cidade ? `${n.cidade}${n.estado ? '/' + n.estado : ''}` : null)].filter(Boolean);
+  document.getElementById('modal-pd-sub').textContent = partes.join(' · ');
+  document.getElementById('pd-edit-status').value = n.status_contato_diagnostico || 'aguardando_contato';
+  document.getElementById('pd-edit-dono').value = n.dono_diagnostico || '';
+  document.getElementById('pd-edit-notas').value = n.notas_diagnostico || '';
+  document.getElementById('modal-pd-crm').classList.add('show');
+}
+
+async function pdSalvarCrm() {
+  if (!_pdEditId) return;
+  const body = {
+    negocio_id: _pdEditId,
+    status_contato: document.getElementById('pd-edit-status').value,
+    dono_id: document.getElementById('pd-edit-dono').value || null,
+    notas: document.getElementById('pd-edit-notas').value,
+  };
+  try {
+    const res = await fetch(SB + '/functions/v1/atualizar-crm-diagnostico', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'apikey':AK, 'Authorization':'Bearer ' + (__token || AK) },
+      body: JSON.stringify(body),
+    });
+    const j = await res.json();
+    if (!j.ok) { alert('Erro: ' + (j.error || j.detalhe || 'desconhecido')); return; }
+    document.getElementById('modal-pd-crm').classList.remove('show');
+    _pdEditId = null;
+    await pdRecarregar();
+  } catch(e) {
+    alert('Erro: ' + e.message);
+  }
+}
+
+async function pdAtualizarBadgeSidebar() {
+  try {
+    const corte = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+    const r = await sbFetch(`/rest/v1/negocios?status_contato_diagnostico=eq.aguardando_contato&created_at=gte.${corte}&select=id&limit=1000`);
+    const n = (r || []).length;
+    const badge = document.getElementById('pd-badge-sidebar');
+    if (badge) {
+      if (n > 0) { badge.style.display = 'inline-block'; badge.textContent = n; }
+      else { badge.style.display = 'none'; }
+    }
+  } catch(e) { /* silencioso */ }
+}
+
+/* ========================================================================
    INIT
    ======================================================================== */
 function initAfterLogin() {
   // Roteamento por hash
   const hash = window.location.hash.replace('#','') || 'cockpit';
   mostrarSecao(hash);
+  // v9.16 · badge de diagnósticos aguardando contato (carrega independente da seção)
+  if (typeof pdAtualizarBadgeSidebar === 'function') pdAtualizarBadgeSidebar();
 }
 
 window.addEventListener('hashchange', () => {
