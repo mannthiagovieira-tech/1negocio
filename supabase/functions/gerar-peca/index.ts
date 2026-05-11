@@ -80,6 +80,9 @@ Deno.serve(async (req: Request) => {
   const gate = await gateAdmin(req);
   if (!gate.ok) return json({ ok: false, error: "nao_autorizado" }, 403);
 
+  // JWT do admin (necessário pra chamar gerar-conteudo-post que tem verify_jwt=true)
+  const adminAuthHeader = req.headers.get("authorization") || "";
+
   let body: any;
   try { body = await req.json(); } catch { return json({ ok: false, error: "json_invalido" }, 400); }
 
@@ -104,7 +107,7 @@ Deno.serve(async (req: Request) => {
   const { data: negocio } = await adminClient.from("negocios").select("id").eq("id", negocio_id).maybeSingle();
   if (!negocio) return json({ ok: false, error: "negocio_nao_encontrado" }, 404);
 
-  // Chama edge real (gerar-conteudo-post) via service-role
+  // Chama edge real (gerar-conteudo-post · tem verify_jwt=true) repassando JWT do admin
   const { formato, tipo_imagem } = mapearTipo(tipo_conteudo);
   const callBody = {
     negocio_id, formato, tipo_imagem, tom, angulo,
@@ -117,8 +120,7 @@ Deno.serve(async (req: Request) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": adminAuthHeader,
       },
       body: JSON.stringify(callBody),
     });
