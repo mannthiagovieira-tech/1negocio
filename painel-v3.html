@@ -8063,6 +8063,8 @@ async function gerarPeca() {
     pode_localizacao: document.querySelector('input[name="mg-restr"][value="pode_localizacao"]').checked,
     pode_setor: document.querySelector('input[name="mg-restr"][value="pode_setor"]').checked,
   };
+  // v9.12.5 · wrapper exige tipo_conteudo · derivado do tipo_imagem
+  const tipo_conteudo = (tipo_imagem === 'dalle-3') ? 'imagem_unica' : 'legenda_solta';
   document.getElementById('modal-gerar').classList.remove('show');
   document.getElementById('modal-preview').classList.add('show');
   document.getElementById('modal-preview-sub').textContent = 'Gerando peça...';
@@ -8070,24 +8072,43 @@ async function gerarPeca() {
   document.getElementById('preview-texto-block').textContent = 'Aguarde...';
   document.getElementById('preview-hashtags').textContent = '';
   try {
-    const res = await fetch(SB + '/functions/v1/gerar-conteudo-post', {
+    const res = await fetch(SB + '/functions/v1/gerar-peca', {
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':AK,'Authorization':'Bearer '+(__token||AK)},
-      body: JSON.stringify({negocio_id: _gcSelecionado.id, formato, tipo_imagem, tom, angulo, restricoes})
+      body: JSON.stringify({negocio_id: _gcSelecionado.id, tipo_conteudo, formato, tipo_imagem, tom, angulo, restricoes})
     });
     const j = await res.json();
-    if (!j.ok) throw new Error(j.erro || 'Erro desconhecido');
-    _gcUltimaPeca = j;
-    const anguloLbl = j.angulo_usado || angulo;
-    const avisoLbl = j.aviso ? ` · ⚠ ${j.aviso}` : '';
-    document.getElementById('modal-preview-sub').textContent = `${formato} · ${tipo_imagem} · ${tom} · ${anguloLbl} · ${j.tokens_usados || 0} tokens${avisoLbl}`;
-    if (j.imagem.tipo === 'svg') {
-      document.getElementById('preview-imagem').innerHTML = j.imagem.conteudo;
-    } else {
-      document.getElementById('preview-imagem').innerHTML = `<img src="${escapeHtml(j.imagem.conteudo)}" alt="peça gerada">`;
+    if (!j.ok) throw new Error(j.error || j.detalhe || 'Erro desconhecido');
+    const peca = j.peca || {};
+    // Reconstrói texto_principal + hashtags a partir de texto_gerado (split último '\n\n' se for só hashtags)
+    const tg = peca.texto_gerado || '';
+    let texto_principal = tg;
+    let hashtags = [];
+    const idx = tg.lastIndexOf('\n\n');
+    if (idx > 0) {
+      const ultima = tg.slice(idx + 2).trim();
+      const toks = ultima.split(/\s+/).filter(Boolean);
+      if (toks.length && toks.every(t => t.startsWith('#'))) {
+        hashtags = toks;
+        texto_principal = tg.slice(0, idx);
+      }
     }
-    document.getElementById('preview-texto-block').textContent = j.texto_principal || '';
-    document.getElementById('preview-hashtags').textContent = (j.hashtags || []).join(' ');
+    // Reconstrói shape de imagem compatível com copiarTexto/baixarImagem
+    const imagem = peca.imagem_url
+      ? { tipo:'url', conteudo: peca.imagem_url }
+      : { tipo:'svg', conteudo: peca.imagem_dados || '' };
+    _gcUltimaPeca = { peca, texto_principal, hashtags, imagem };
+    const anguloLbl = peca.angulo || angulo;
+    const tokens = (peca.metadata && peca.metadata.gerar_resp && peca.metadata.gerar_resp.tokens) || peca.tokens_usados || 0;
+    const avisoLbl = j.aviso ? ` · ⚠ ${j.aviso}` : '';
+    document.getElementById('modal-preview-sub').textContent = `${formato} · ${tipo_imagem} · ${tom} · ${anguloLbl} · ${tokens} tokens${avisoLbl}`;
+    if (imagem.tipo === 'svg') {
+      document.getElementById('preview-imagem').innerHTML = imagem.conteudo || '<div style="padding:30px;color:var(--ink-3)">— sem imagem —</div>';
+    } else {
+      document.getElementById('preview-imagem').innerHTML = `<img src="${escapeHtml(imagem.conteudo)}" alt="peça gerada">`;
+    }
+    document.getElementById('preview-texto-block').textContent = texto_principal;
+    document.getElementById('preview-hashtags').textContent = hashtags.join(' ');
     gcCarregarHistorico();
   } catch(e) {
     document.getElementById('modal-preview-sub').textContent = 'Erro';

@@ -1,4 +1,4 @@
-// gerar-peca · v9.12 · 1Negócio
+// gerar-peca · v9.12.5 · 1Negócio
 // Wrapper sobre gerar-conteudo-post · 5 tipos de conteúdo (v9.12 implementa 2:
 // legenda_solta e imagem_unica · roteiros/carrossel virão em v9.12.1/2).
 //
@@ -6,9 +6,15 @@
 // (tipo_conteudo, status='rascunho', angulo, texto_gerado, imagem_url,
 // link_associado, created_by_admin_id).
 //
-// POST { negocio_id, tipo_conteudo, angulo?, tom? }
+// POST { negocio_id, tipo_conteudo, angulo?, tom?, formato?, tipo_imagem?, restricoes? }
 // → 200 { ok, peca }
 // → 400/403/404 · erros padronizados
+//
+// v9.12.5 · aceita override de formato (feed-insta/story-insta/post-linkedin),
+// tipo_imagem (html-svg/dalle-3) e restricoes (pode_ise/faturamento/localizacao/setor)
+// — usados pelo gerador admin antigo da seção ✍️ Gerador de Conteúdo, que deixa o
+// admin escolher esses campos. Quando não providos, usa defaults (mapeamento canônico
+// por tipo_conteudo + restrições todas true).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -61,7 +67,11 @@ const ANGULOS_VALIDOS = new Set([
 // Tipos implementados nesta versão
 const TIPOS_IMPLEMENTADOS = new Set(["legenda_solta", "imagem_unica"]);
 
-// Mapeia tipo_conteudo → (formato, tipo_imagem) da edge real
+// Formatos e tipo_imagem aceitos pela edge real (override opcional do mapeamento canônico)
+const FORMATOS_VALIDOS = new Set(["feed-insta", "story-insta", "post-linkedin"]);
+const TIPOS_IMG_VALIDOS = new Set(["html-svg", "dalle-3"]);
+
+// Mapeia tipo_conteudo → (formato, tipo_imagem) da edge real (default · override via params)
 function mapearTipo(tipo_conteudo: string): { formato: string; tipo_imagem: string } {
   switch (tipo_conteudo) {
     case "legenda_solta":
@@ -90,6 +100,9 @@ Deno.serve(async (req: Request) => {
   const tipo_conteudo = String(body?.tipo_conteudo || "").trim();
   const angulo = body?.angulo ? String(body.angulo).trim() : "surpresa";
   const tom = body?.tom ? String(body.tom).trim() : "editorial";
+  const formato_override = body?.formato ? String(body.formato).trim() : null;
+  const tipo_imagem_override = body?.tipo_imagem ? String(body.tipo_imagem).trim() : null;
+  const restricoes_override = (body?.restricoes && typeof body.restricoes === "object") ? body.restricoes : null;
 
   if (!negocio_id) return json({ ok: false, error: "params_invalidos", detalhe: "negocio_id" }, 400);
   if (!tipo_conteudo) return json({ ok: false, error: "params_invalidos", detalhe: "tipo_conteudo" }, 400);
@@ -102,17 +115,23 @@ Deno.serve(async (req: Request) => {
   }
   if (!ANGULOS_VALIDOS.has(angulo)) return json({ ok: false, error: "params_invalidos", detalhe: "angulo inválido" }, 400);
   if (!TONS_VALIDOS.has(tom)) return json({ ok: false, error: "params_invalidos", detalhe: "tom inválido" }, 400);
+  if (formato_override && !FORMATOS_VALIDOS.has(formato_override)) return json({ ok: false, error: "params_invalidos", detalhe: "formato inválido" }, 400);
+  if (tipo_imagem_override && !TIPOS_IMG_VALIDOS.has(tipo_imagem_override)) return json({ ok: false, error: "params_invalidos", detalhe: "tipo_imagem inválido" }, 400);
 
   // Confere negócio existe
   const { data: negocio } = await adminClient.from("negocios").select("id").eq("id", negocio_id).maybeSingle();
   if (!negocio) return json({ ok: false, error: "negocio_nao_encontrado" }, 404);
 
   // Chama edge real (gerar-conteudo-post · tem verify_jwt=true) repassando JWT do admin
-  const { formato, tipo_imagem } = mapearTipo(tipo_conteudo);
-  const callBody = {
-    negocio_id, formato, tipo_imagem, tom, angulo,
-    restricoes: { pode_ise: true, pode_faturamento: true, pode_localizacao: true, pode_setor: true },
-  };
+  // Override de formato/tipo_imagem (gerador admin antigo passa esses · v9.12 op-projetos não passa)
+  const mapped = mapearTipo(tipo_conteudo);
+  const formato = formato_override || mapped.formato;
+  const tipo_imagem = tipo_imagem_override || mapped.tipo_imagem;
+  const restricoes_default = { pode_ise: true, pode_faturamento: true, pode_localizacao: true, pode_setor: true };
+  const restricoes = restricoes_override
+    ? { ...restricoes_default, ...restricoes_override }
+    : restricoes_default;
+  const callBody = { negocio_id, formato, tipo_imagem, tom, angulo, restricoes };
 
   let gerado: any = null;
   try {
