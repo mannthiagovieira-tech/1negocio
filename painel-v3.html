@@ -7780,26 +7780,27 @@ function b1Filtro(f) {
 async function carregarBloco1() {
   document.getElementById('b1-loading').style.display = 'block';
   document.getElementById('b1-tabela').innerHTML = '';
+  // v9.15 · lê diretamente de `negocios` (era anuncios_v2, deixava diagnósticos novos invisíveis)
   let filtroOrigem = '';
   if (_b1Filtro === 'reais') filtroOrigem = '&or=(origem.is.null,origem.neq.maquininha_teste)';
   if (_b1Filtro === 'maquininha') filtroOrigem = '&origem=eq.maquininha_teste';
   try {
-    const data = await sbFetch(`/rest/v1/anuncios_v2?order=criado_em.desc&limit=15${filtroOrigem}&select=id,status,origem,criado_em,negocio:negocios!negocio_id(codigo_diagnostico,setor,categoria,cidade,estado,faturamento_anual)`);
+    const data = await sbFetch(`/rest/v1/negocios?status=eq.em_avaliacao&order=created_at.desc&limit=15${filtroOrigem}&select=id,codigo_diagnostico,codigo,nome,setor,categoria,cidade,estado,faturamento_anual,status,created_at,plano_comprado,pagamento_aprovado_em`);
     document.getElementById('b1-loading').style.display = 'none';
     if (!data.length) {
-      document.getElementById('b1-tabela').innerHTML = '<div class="lista-vazia">— sem negócios novos —</div>';
+      document.getElementById('b1-tabela').innerHTML = '<div class="lista-vazia">— nenhum diagnóstico novo —</div>';
       return;
     }
     let html = '<table class="t"><thead><tr><th>Identificador</th><th>Setor · cidade</th><th class="num">Fat. anual</th><th>Status</th><th>Criado</th><th class="acoes">Ações</th></tr></thead><tbody>';
-    data.forEach(a => {
-      const n = a.negocio || {};
-      const ident = n.codigo_diagnostico || `${n.categoria || n.setor || 'neg'}_${(n.cidade||'br').toLowerCase().replace(/\s+/g,'-')}`;
+    data.forEach(n => {
+      const ident = n.codigo_diagnostico || n.codigo || n.nome || 'neg';
+      const statusLbl = n.plano_comprado ? `💰 ${n.plano_comprado}` : (n.status || '—');
       html += `<tr>
         <td><span class="codigo">${escapeHtml(ident)}</span></td>
         <td>${escapeHtml((n.categoria || n.setor || '—') + ' · ' + (n.cidade || '—') + (n.estado ? '/'+n.estado : ''))}</td>
         <td class="num">${fmtFat(n.faturamento_anual)}</td>
-        <td><span class="bloco-tag muted">${escapeHtml(a.status || '—')}</span></td>
-        <td style="color:var(--ink-3);font-size:12px">${relativeTime(a.criado_em)}</td>
+        <td><span class="bloco-tag ${n.plano_comprado ? 'ok' : 'muted'}">${escapeHtml(statusLbl)}</span></td>
+        <td style="color:var(--ink-3);font-size:12px">${relativeTime(n.created_at)}</td>
         <td class="acoes">
           <button class="btn btn-ghost btn-mini" onclick="alert('Ver ficha em construção')">Ficha</button>
           <button class="btn btn-ghost btn-mini" onclick="alert('Ligar em construção')">📞</button>

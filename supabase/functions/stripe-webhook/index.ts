@@ -6,6 +6,10 @@
 //
 // Auth · Stripe signature header · STRIPE_WEBHOOK_SECRET
 // verify_jwt · false
+//
+// v9.15 · fix admin_agenda.notas_admin (era notas, coluna inexistente) +
+// error-checking nos INSERTs + UPDATE negocios.pagamento_aprovado_em
+// e .plano_comprado em pagamentos one-shot
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@12.0.0?target=deno";
@@ -187,7 +191,7 @@ async function handleOneShotCheckoutCompleted(supabase: any, session: Stripe.Che
   const cliente_nome  = session.customer_details?.name  || "";
   const produto = identificarProduto(session);
 
-  await supabase.from("transacoes").insert({
+  const { error: errTx } = await supabase.from("transacoes").insert({
     tipo: produto.tipo,
     negocio_id,
     valor: produto.valor,
@@ -195,15 +199,25 @@ async function handleOneShotCheckoutCompleted(supabase: any, session: Stripe.Che
     descricao: produto.label,
     referencia: session.id,
   });
+  if (errTx) console.error("[stripe-webhook] erro INSERT transacoes:", errTx.message);
 
-  await supabase.from("admin_agenda").insert({
+  const { error: errAgenda } = await supabase.from("admin_agenda").insert({
     tipo: produto.tipo,
     status: "pendente",
     nome_cliente: cliente_nome,
     email_cliente: cliente_email,
     negocio_id,
-    notas: `Stripe session: ${session.id}`,
+    notas_admin: `Stripe session: ${session.id}`,
   });
+  if (errAgenda) console.error("[stripe-webhook] erro INSERT admin_agenda:", errAgenda.message);
+
+  // v9.15 · atualiza negócio com pagamento aprovado (one-shot: laudo/guiado/avaliacao)
+  if (negocio_id && (produto.tipo === "laudo_99" || produto.tipo === "guiado_588" || produto.tipo === "avaliacao_397")) {
+    const { error: errNeg } = await supabase.from("negocios")
+      .update({ pagamento_aprovado_em: new Date().toISOString(), plano_comprado: produto.tipo })
+      .eq("id", negocio_id);
+    if (errNeg) console.error("[stripe-webhook] erro UPDATE negocios:", errNeg.message);
+  }
 
   const msg =
     `💰 *Novo pagamento!*\n\n` +
