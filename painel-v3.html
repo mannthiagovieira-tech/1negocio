@@ -835,6 +835,20 @@ table.t .acoes { white-space: nowrap; }
 /* v9.19.5 · link WhatsApp clicável (pa-teses, etc) */
 .td-link-wa{color:var(--accent,#22c55e);text-decoration:none;font-family:var(--mono);font-size:10px;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
 .td-link-wa:hover{text-decoration:underline}
+/* v9.19.6 · Progress bar do modal criar tese (3 steps) */
+.ct-progress{display:flex;align-items:center;gap:8px;padding:14px 22px 6px;border-bottom:1px solid var(--line-2);flex-shrink:0}
+.ct-progress-dot{width:24px;height:24px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-3);flex-shrink:0;cursor:default;transition:all .15s}
+.ct-progress-dot.active{background:var(--accent,#22c55e);border-color:var(--accent,#22c55e);color:#fff;box-shadow:0 0 0 3px rgba(34,197,94,.15)}
+.ct-progress-dot.done{background:var(--accent,#22c55e);border-color:var(--accent,#22c55e);color:#fff;cursor:pointer}
+.ct-progress-dot.done:hover{transform:scale(1.08)}
+.ct-progress-line{flex:1;height:2px;background:var(--line-2);border-radius:1px;transition:background .2s}
+.ct-progress-line.done{background:var(--accent,#22c55e)}
+.ct-progress-labels{display:flex;justify-content:space-between;padding:0 22px 12px;border-bottom:1px solid var(--line-2);flex-shrink:0;gap:12px}
+.ct-progress-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);flex:1;text-align:center}
+.ct-progress-label:first-child{text-align:left}
+.ct-progress-label:last-child{text-align:right}
+.ct-progress-label.active{color:var(--ink)}
+.ct-progress-label.done{color:var(--accent,#22c55e)}
 .td-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px;border-bottom:1px solid var(--line-2)}
 .td-modal-titulo{font-family:var(--serif);font-weight:700;font-size:17px;color:var(--ink)}
 .td-modal-body{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:14px}
@@ -3877,15 +3891,36 @@ table.t .acoes { white-space: nowrap; }
         </div>
 
         <!-- v9.19.3 · Modal "Criar tese de investimento" (2 etapas · padrão canônico td-modal-box) -->
+        <!-- v9.19.6 · Modal Criar Tese em 3 steps curtos -->
         <div class="modal-overlay" id="modal-criar-tese" style="z-index:1115">
           <div class="td-modal-box" style="max-width:720px">
 
-            <!-- STEP 1 · identificar contato -->
-            <div id="ct-step1">
-              <div class="td-modal-head">
-                <div class="td-modal-titulo">✨ Nova tese de investimento</div>
-                <button class="tpl-btn-close" onclick="ctFecharModal()">×</button>
+            <!-- Header fixo · comum aos 3 steps -->
+            <div class="td-modal-head">
+              <div class="td-modal-titulo">
+                <span id="ct-titulo-step1">✨ Nova tese · contato</span>
+                <span id="ct-titulo-step2" style="display:none">📋 Nova tese · dados</span>
+                <span id="ct-titulo-step3" style="display:none">📍 Nova tese · local & valor</span>
               </div>
+              <button class="tpl-btn-close" onclick="ctFecharModal()">×</button>
+            </div>
+
+            <!-- Progress bar (3 dots) -->
+            <div class="ct-progress">
+              <div class="ct-progress-dot active" data-ct-step="1" onclick="ctStepIr(1)">1</div>
+              <div class="ct-progress-line" data-ct-line="1-2"></div>
+              <div class="ct-progress-dot" data-ct-step="2" onclick="ctStepIr(2)">2</div>
+              <div class="ct-progress-line" data-ct-line="2-3"></div>
+              <div class="ct-progress-dot" data-ct-step="3" onclick="ctStepIr(3)">3</div>
+            </div>
+            <div class="ct-progress-labels">
+              <span class="ct-progress-label active" data-ct-step="1">Contato</span>
+              <span class="ct-progress-label" data-ct-step="2">Tese</span>
+              <span class="ct-progress-label" data-ct-step="3">Local & valor</span>
+            </div>
+
+            <!-- STEP 1 · contato -->
+            <div id="ct-step1" class="ct-step active">
               <div class="td-modal-body">
                 <div style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-bottom:14px">Para qual contato é essa tese?</div>
 
@@ -3906,17 +3941,13 @@ table.t .acoes { white-space: nowrap; }
 
                 <div class="td-suc-actions">
                   <button class="td-btn td-btn-ghost" onclick="ctFecharModal()">Cancelar</button>
-                  <button id="ct-btn-continuar" class="td-btn td-btn-primario" onclick="ctIrParaStep2()" style="display:none">Continuar →</button>
+                  <button id="ct-btn-continuar" class="td-btn td-btn-primario" onclick="ctIrParaStep2()" style="display:none">Próximo: dados da tese →</button>
                 </div>
               </div>
             </div>
 
-            <!-- STEP 2 · formulário canônico de tese -->
-            <div id="ct-step2" style="display:none">
-              <div class="td-modal-head">
-                <div class="td-modal-titulo">📋 Dados da tese</div>
-                <button class="tpl-btn-close" onclick="ctFecharModal()">×</button>
-              </div>
+            <!-- STEP 2 · dados da tese (título · descrição curta · setores · formas) -->
+            <div id="ct-step2" class="ct-step" style="display:none">
               <div class="td-modal-body">
                 <div id="ct-step2-sub" style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-bottom:14px;padding:8px 10px;background:var(--surface-2);border-radius:8px">—</div>
 
@@ -3935,10 +3966,22 @@ table.t .acoes { white-space: nowrap; }
                   <div id="ct-setores" class="chips" style="margin-top:6px"></div>
                 </div>
 
-                <div class="pa-form-group">
+                <div class="pa-form-group" style="margin-bottom:14px">
                   <label>Formas de atuação <span style="font-weight:400;color:var(--ink-4);font-size:10px">(opcional · filtra negócios)</span></label>
                   <div id="ct-formas" class="chips" style="margin-top:6px"></div>
                 </div>
+
+                <div class="td-suc-actions">
+                  <button class="td-btn td-btn-ghost" onclick="ctStepIr(1)">← Voltar</button>
+                  <button class="td-btn td-btn-primario" onclick="ctIrParaStep3()">Próximo: local & valor →</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- STEP 3 · localização + valor + descrição adicional -->
+            <div id="ct-step3" class="ct-step" style="display:none">
+              <div class="td-modal-body">
+                <div id="ct-step3-sub" style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-bottom:14px;padding:8px 10px;background:var(--surface-2);border-radius:8px">—</div>
 
                 <div class="pa-form-group">
                   <label>Localização *</label>
@@ -3960,18 +4003,17 @@ table.t .acoes { white-space: nowrap; }
                   <div class="pa-form-group" style="flex:1"><label>Valor máximo R$ *</label><input id="ct-vmax" type="number" class="td-input" placeholder="10000000" min="0"></div>
                 </div>
 
-                <div class="pa-form-group" style="margin-bottom:14px">
+                <div class="pa-form-group" style="margin-bottom:10px">
                   <label>Descrição adicional <span style="font-weight:400;color:var(--ink-4);font-size:10px">(opcional)</span></label>
-                  <textarea id="ct-desc-add" class="td-textarea" rows="3" maxlength="1000" placeholder="Detalhes extras · diferenciais buscados · etc"></textarea>
+                  <textarea id="ct-desc-add" class="td-textarea" rows="2" maxlength="1000" placeholder="Detalhes extras · diferenciais buscados · etc"></textarea>
                 </div>
 
                 <div style="font-size:11px;color:var(--ink-4);background:rgba(10,168,90,.08);border:1px solid rgba(10,168,90,.2);border-radius:8px;padding:8px 10px;margin-bottom:14px;line-height:1.4">
-                  ℹ️ Após salvar, o contato recebe WhatsApp com os critérios da tese e link pro portal.
+                  ℹ️ Após salvar, o contato recebe WhatsApp com os critérios da tese.
                 </div>
 
                 <div class="td-suc-actions">
-                  <button class="td-btn td-btn-ghost" onclick="ctVoltarStep1()">← Voltar</button>
-                  <button class="td-btn td-btn-ghost" onclick="ctFecharModal()">Cancelar</button>
+                  <button class="td-btn td-btn-ghost" onclick="ctStepIr(2)">← Voltar</button>
                   <button id="ct-btn-salvar" class="td-btn td-btn-primario" onclick="ctSalvar()">💾 Salvar tese</button>
                 </div>
               </div>
@@ -8673,6 +8715,7 @@ const CT_UFS = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT'
 let _ctContato = null;        // { id, nome, whatsapp, email } quando achado/criado
 let _ctTelefoneNorm = null;
 let _ctNovoContato = false;
+let _ctStep = 1;              // v9.19.6 · 1=contato · 2=tese · 3=local+valor
 
 function ctNormalizarTel(raw){
   const d = (raw||'').replace(/\D/g,'');
@@ -8687,16 +8730,15 @@ function ctAbrirModal(){
   _ctContato = null;
   _ctTelefoneNorm = null;
   _ctNovoContato = false;
+  _ctStep = 1;
   const m = document.getElementById('modal-criar-tese');
   if (!m) { console.error('[ct] modal não montado'); return; }
-  document.getElementById('ct-step1').style.display = 'block';
-  document.getElementById('ct-step2').style.display = 'none';
   document.getElementById('ct-tel-input').value = '';
   document.getElementById('ct-tel-result').innerHTML = '';
   document.getElementById('ct-nome-novo-wrap').style.display = 'none';
   document.getElementById('ct-nome-novo-input').value = '';
   document.getElementById('ct-btn-continuar').style.display = 'none';
-  // Limpa step 2
+  // Limpa steps 2 e 3
   ['ct-titulo','ct-desc-curta','ct-cidade','ct-vmin','ct-vmax','ct-desc-add'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
@@ -8704,7 +8746,72 @@ function ctAbrirModal(){
   document.querySelectorAll('#ct-loc-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.ctLoc === 'brasil_todo'));
   ctPopularSelects();
   ctLocChange();
+  ctStepRender();
   m.classList.add('show');
+}
+
+// v9.19.6 · navegação entre steps
+function ctStepRender(){
+  // Mostra apenas o step atual
+  [1,2,3].forEach(n => {
+    const el = document.getElementById('ct-step'+n);
+    if (el) el.style.display = n === _ctStep ? 'block' : 'none';
+    const tit = document.getElementById('ct-titulo-step'+n);
+    if (tit) tit.style.display = n === _ctStep ? 'inline' : 'none';
+  });
+  // Progress bar · dots
+  document.querySelectorAll('.ct-progress-dot').forEach(d => {
+    const n = Number(d.dataset.ctStep);
+    d.classList.remove('active','done');
+    if (n < _ctStep) d.classList.add('done');
+    else if (n === _ctStep) d.classList.add('active');
+  });
+  // Progress bar · linhas
+  document.querySelectorAll('.ct-progress-line').forEach(l => {
+    const [from] = l.dataset.ctLine.split('-').map(Number);
+    l.classList.toggle('done', from < _ctStep);
+  });
+  // Labels
+  document.querySelectorAll('.ct-progress-label').forEach(lbl => {
+    const n = Number(lbl.dataset.ctStep);
+    lbl.classList.remove('active','done');
+    if (n < _ctStep) lbl.classList.add('done');
+    else if (n === _ctStep) lbl.classList.add('active');
+  });
+  // Scroll body pro topo
+  const body = document.querySelector('#ct-step'+_ctStep+' .td-modal-body');
+  if (body) body.scrollTop = 0;
+}
+
+function ctStepIr(n){
+  if (n === _ctStep) return;
+  // Voltar é sempre permitido · ir pra frente exige validação
+  if (n > _ctStep) {
+    if (_ctStep === 1 && !ctValidarStep1()) return;
+    if (_ctStep === 2 && !ctValidarStep2()) return;
+  }
+  _ctStep = n;
+  ctStepRender();
+}
+
+function ctValidarStep1(){
+  if (!_ctTelefoneNorm) { alert('Busque o contato primeiro'); return false; }
+  if (_ctNovoContato){
+    const nome = document.getElementById('ct-nome-novo-input').value.trim();
+    if (nome.length < 2) { alert('Nome do contato é obrigatório (mín. 2 caracteres)'); return false; }
+    _ctContato = { id: null, nome, whatsapp: _ctTelefoneNorm, email: null };
+  }
+  return true;
+}
+
+function ctValidarStep2(){
+  const titulo = document.getElementById('ct-titulo').value.trim();
+  const descCurta = document.getElementById('ct-desc-curta').value.trim();
+  const setores = ctChipsGet('ct-setores');
+  if (titulo.length < 3) { alert('Título obrigatório (mín. 3 chars)'); return false; }
+  if (descCurta.length < 3 || descCurta.length > 80) { alert('Descrição curta: 3-80 chars'); return false; }
+  if (!setores.length) { alert('Selecione pelo menos 1 setor'); return false; }
+  return true;
 }
 
 function ctFecharModal(){
@@ -8752,23 +8859,26 @@ async function ctBuscarContato(){
 }
 
 function ctIrParaStep2(){
-  if (!_ctTelefoneNorm) { alert('Busque o contato primeiro'); return; }
-  if (_ctNovoContato){
-    const nome = document.getElementById('ct-nome-novo-input').value.trim();
-    if (nome.length < 2) { alert('Nome do contato é obrigatório (mín. 2 caracteres)'); return; }
-    // armazena na memória; usuário só será criado ao salvar (na edge)
-    _ctContato = { id: null, nome, whatsapp: _ctTelefoneNorm, email: null };
-  }
-  // Popula header step 2
-  document.getElementById('ct-step2-sub').textContent = `${_ctContato.nome} · ${_ctTelefoneNorm}` + (_ctNovoContato ? ' · novo contato' : '');
-  document.getElementById('ct-step1').style.display = 'none';
-  document.getElementById('ct-step2').style.display = 'block';
+  if (!ctValidarStep1()) return;
+  // Popula sub-header step 2 com contato
+  document.getElementById('ct-step2-sub').textContent = `Tese para ${_ctContato.nome} · ${_ctTelefoneNorm}` + (_ctNovoContato ? ' · novo contato' : '');
+  _ctStep = 2;
+  ctStepRender();
 }
 
-function ctVoltarStep1(){
-  document.getElementById('ct-step1').style.display = 'block';
-  document.getElementById('ct-step2').style.display = 'none';
+function ctIrParaStep3(){
+  if (!ctValidarStep2()) return;
+  // Popula sub-header step 3 com contato + título
+  const titulo = document.getElementById('ct-titulo').value.trim();
+  document.getElementById('ct-step3-sub').innerHTML =
+    `<strong>${escapeHtml(_ctContato.nome)}</strong> · ${escapeHtml(_ctTelefoneNorm)}` +
+    `<br><span style="color:var(--ink-3)">Título:</span> ${escapeHtml(titulo)}`;
+  _ctStep = 3;
+  ctStepRender();
 }
+
+// v9.19.6 · ctVoltarStep1 mantida pra retro-compat (caso alguma chamada antiga sobreviva)
+function ctVoltarStep1(){ ctStepIr(1); }
 
 function ctRenderChips(containerId, opts){
   const cont = document.getElementById(containerId);
