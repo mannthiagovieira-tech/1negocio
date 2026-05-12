@@ -1,8 +1,9 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-const ZAPI_INSTANCE   = '3F0B96941C16821DCD449E74568994AE';
-const ZAPI_TOKEN      = '0BE4998D03035703BC118D92';
-const ZAPI_CLIENT     = 'F547b97b8e03b4e45a4ac018295d569c1S';
+// v9.21 · Z-API via envs (Supabase secrets) · hardcode antigo revogado causava 403
+const ZAPI_INSTANCE   = Deno.env.get('ZAPI_INSTANCE') ?? '';
+const ZAPI_TOKEN      = Deno.env.get('ZAPI_TOKEN') ?? '';
+const ZAPI_CLIENT     = Deno.env.get('ZAPI_CLIENT_TOKEN') ?? '';
 const THIAGO_PHONE    = '5548999279320';
 const BASE_URL        = 'https://1negocio.com.br';
 
@@ -17,6 +18,14 @@ const MOTIVACAO_MAP: Record<string, string> = {
 };
 
 async function zapiSend(phone: string, message: string) {
+  if (!ZAPI_INSTANCE || !ZAPI_TOKEN || !ZAPI_CLIENT) {
+    console.error('[notificar-diagnostico] envs Z-API ausentes:', {
+      tem_instance: !!ZAPI_INSTANCE,
+      tem_token: !!ZAPI_TOKEN,
+      tem_client: !!ZAPI_CLIENT,
+    });
+    throw new Error('envs Z-API ausentes');
+  }
   const r = await fetch(
     `https://api.z-api.io/instances/${ZAPI_INSTANCE}/token/${ZAPI_TOKEN}/send-text`,
     {
@@ -25,7 +34,11 @@ async function zapiSend(phone: string, message: string) {
       body: JSON.stringify({ phone, message }),
     }
   );
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) {
+    const txt = await r.text();
+    console.error(`[notificar-diagnostico] Z-API falhou: ${r.status} ${txt.slice(0, 200)}`);
+    throw new Error(`Z-API ${r.status}: ${txt.slice(0, 200)}`);
+  }
   return r.json();
 }
 

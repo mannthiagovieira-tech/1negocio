@@ -19,9 +19,10 @@ const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY")!;
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET")!;
 
-const ZAPI_INSTANCE = "3F0B96941C16821DCD449E74568994AE";
-const ZAPI_TOKEN = "0BE4998D03035703BC118D92";
-const ZAPI_CLIENT = "F547b97b8e03b4e45a4ac018295d569c1S";
+// v9.21 · Z-API via envs (Supabase secrets) · hardcode antigo revogado causava 403
+const ZAPI_INSTANCE = Deno.env.get("ZAPI_INSTANCE") ?? "";
+const ZAPI_TOKEN = Deno.env.get("ZAPI_TOKEN") ?? "";
+const ZAPI_CLIENT = Deno.env.get("ZAPI_CLIENT_TOKEN") ?? "";
 const MEU_NUMERO = "5548999279320";
 
 const PRODUTO_LAUDO     = "prod_UA5oy4N5lG3iuU";
@@ -32,6 +33,14 @@ async function enviarWhatsApp(telefone: string, mensagem: string): Promise<boole
   const num = (telefone || "").replace(/\D/g, "");
   if (!num) return false;
   const fone = num.startsWith("55") ? num : "55" + num;
+  if (!ZAPI_INSTANCE || !ZAPI_TOKEN || !ZAPI_CLIENT) {
+    console.error("[stripe-webhook] envs Z-API ausentes:", {
+      tem_instance: !!ZAPI_INSTANCE,
+      tem_token: !!ZAPI_TOKEN,
+      tem_client: !!ZAPI_CLIENT,
+    });
+    return false;
+  }
   try {
     const r = await fetch(
       `https://api.z-api.io/instances/${ZAPI_INSTANCE}/token/${ZAPI_TOKEN}/send-text`,
@@ -41,11 +50,16 @@ async function enviarWhatsApp(telefone: string, mensagem: string): Promise<boole
         body: JSON.stringify({ phone: fone, message: mensagem }),
       }
     );
+    if (!r.ok) {
+      const txt = await r.text();
+      console.error(`[stripe-webhook] Z-API falhou: ${r.status} ${txt.slice(0, 200)}`);
+      return false;
+    }
     const data = await r.json();
     console.log("Z-API:", JSON.stringify(data));
-    return r.ok;
+    return true;
   } catch (e) {
-    console.error("Erro Z-API:", e);
+    console.error("[stripe-webhook] exception Z-API:", e);
     return false;
   }
 }
