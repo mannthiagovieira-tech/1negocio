@@ -826,7 +826,15 @@ table.t .acoes { white-space: nowrap; }
 .td-paginacao .td-pag-atual{font-family:var(--mono);font-size:11px;color:var(--ink-3);padding:7px 12px;letter-spacing:.04em}
 
 /* Modais Novo */
-.td-modal-box{background:var(--surface);border:1px solid var(--line-2);border-radius:18px;width:min(95vw,720px);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.td-modal-box{background:var(--surface);border:1px solid var(--line-2);border-radius:18px;width:min(95vw,720px);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+/* v9.19.5 · garante scroll do corpo + footer sticky (botões sempre acessíveis) */
+.modal-overlay .td-modal-box{max-height:90vh}
+.modal-overlay .td-modal-head{flex-shrink:0;position:sticky;top:0;z-index:2;background:var(--surface)}
+.modal-overlay .td-modal-body{flex:1 1 auto;min-height:0;overflow-y:auto}
+.modal-overlay .td-modal-body .td-suc-actions{position:sticky;bottom:0;background:var(--surface);padding:14px 0 4px;border-top:1px solid var(--line-2);margin-top:6px;z-index:2}
+/* v9.19.5 · link WhatsApp clicável (pa-teses, etc) */
+.td-link-wa{color:var(--accent,#22c55e);text-decoration:none;font-family:var(--mono);font-size:10px;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.td-link-wa:hover{text-decoration:underline}
 .td-modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px;border-bottom:1px solid var(--line-2)}
 .td-modal-titulo{font-family:var(--serif);font-weight:700;font-size:17px;color:var(--ink)}
 .td-modal-body{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:14px}
@@ -5263,6 +5271,11 @@ async function paLoadTeses() {
       const valor = t.valor_alvo ? 'R$ '+Number(t.valor_alvo).toLocaleString('pt-BR',{maximumFractionDigits:0})
         : (t.valor_investimento ? 'R$ '+t.valor_investimento : '—');
       const dt = t.created_at ? new Date(t.created_at).toLocaleDateString('pt-BR') : '—';
+      // v9.19.5 · whatsapp clicável (abre wa.me em nova aba)
+      const wppDigits = (t.whatsapp || '').replace(/\D/g, '');
+      const wppLink = wppDigits.length >= 12
+        ? `<a href="https://wa.me/${wppDigits}" target="_blank" class="td-link-wa" onclick="event.stopPropagation()">💬 ${escapeHtml(t.whatsapp)}</a>`
+        : `<span style="color:var(--ink-3);font-family:var(--mono);font-size:10px">${escapeHtml(t.whatsapp || '—')}</span>`;
       return `<tr>
         <td style="font-family:var(--mono);font-size:11px;white-space:nowrap"><span class="codigo">${escapeHtml(t.codigo || '—')}</span></td>
         <td>
@@ -5274,7 +5287,7 @@ async function paLoadTeses() {
         <td style="font-size:11px;white-space:nowrap">${escapeHtml(valor)}</td>
         <td style="font-size:11px">
           <div>${escapeHtml(t.nome || '—')}</div>
-          <div style="color:var(--ink-3);font-family:var(--mono);font-size:10px">${escapeHtml(t.whatsapp || '')}</div>
+          <div>${wppLink}</div>
         </td>
         <td><span class="pa-badge ${corBadge(t.status)}">${escapeHtml(t.status||'—')}</span></td>
         <td><span class="pa-badge ${corOrigem(t.origem)}">${escapeHtml(t.origem||'—')}</span></td>
