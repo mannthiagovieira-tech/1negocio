@@ -1,4 +1,4 @@
-// admin-criar-tese-com-contato · v9.19.2 · 1Negócio
+// admin-criar-tese-com-contato · v9.19.3 · 1Negócio
 // Atalho admin pra criar tese: resolve contato (existing por whatsapp OU novo)
 // e cria tese vinculada com estrutura canônica IDÊNTICA aos outros fluxos +
 // preenche AMBOS valor_alvo (numeric) e valor_investimento (text "min-max") +
@@ -12,6 +12,13 @@
 // findOrCreateGhostAuth (busca/cria em auth.users) → ensureUsuarioRow espelha em
 // public.usuarios com MESMO id. Antes a edge criava só em public.usuarios e tomava
 // 23503 ao tentar INSERT em teses_investimento.
+//
+// v9.19.3 · Z-API tokens hardcoded estavam revogados (curl retornou 403
+// "Client-Token not allowed"). Padrão canônico do projeto usa env vars
+// (ZAPI_INSTANCE, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN) · alinhado com
+// solicitar-assessorado, chat-ia, cowork-gerar-plano-diario, etc.
+// Edge também retorna agora whatsapp_detalhe explicando o motivo da falha
+// (status HTTP + corpo da resposta Z-API).
 //
 // POST {
 //   telefone_raw,
@@ -35,9 +42,10 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
-const ZAPI_INSTANCE = "3F0B96941C16821DCD449E74568994AE";
-const ZAPI_TOKEN = "0BE4998D03035703BC118D92";
-const ZAPI_CLIENT = "F547b97b8e03b4e45a4ac018295d569c1S";
+// v9.19.3 · Z-API agora vem de env vars (tokens hardcoded estavam revogados)
+const ZAPI_INSTANCE = Deno.env.get("ZAPI_INSTANCE") ?? "";
+const ZAPI_TOKEN = Deno.env.get("ZAPI_TOKEN") ?? "";
+const ZAPI_CLIENT = Deno.env.get("ZAPI_CLIENT_TOKEN") ?? "";
 
 const SETORES_VALIDOS = new Set([
   "servicos_empresas","varejo","saude","alimentacao","beleza_estetica",
@@ -163,20 +171,28 @@ async function ensureUsuarioRow(userId: string, nome: string | null, phoneCom55:
   return (novo || { id: userId, nome: nome || "Contato", whatsapp: phoneCom55, email: null }) as any;
 }
 
-async function enviarWhatsApp(telefone: string, mensagem: string): Promise<boolean> {
+async function enviarWhatsApp(telefone: string, mensagem: string): Promise<{ ok: boolean; detalhe?: string }> {
+  if (!ZAPI_INSTANCE || !ZAPI_TOKEN || !ZAPI_CLIENT) {
+    return { ok: false, detalhe: "envs Z-API ausentes (ZAPI_INSTANCE / ZAPI_TOKEN / ZAPI_CLIENT_TOKEN)" };
+  }
   try {
     const r = await fetch(
       `https://api.z-api.io/instances/${ZAPI_INSTANCE}/token/${ZAPI_TOKEN}/send-text`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json", "client-token": ZAPI_CLIENT },
+        headers: { "Content-Type": "application/json", "Client-Token": ZAPI_CLIENT },
         body: JSON.stringify({ phone: telefone, message: mensagem }),
       }
     );
-    return r.ok;
+    const txt = await r.text();
+    if (!r.ok) {
+      console.error("[admin-criar-tese] Z-API falhou:", r.status, txt);
+      return { ok: false, detalhe: `Z-API ${r.status}: ${txt.slice(0, 200)}` };
+    }
+    return { ok: true };
   } catch (e) {
-    console.error("[admin-criar-tese] Z-API erro:", e);
-    return false;
+    console.error("[admin-criar-tese] Z-API exception:", e);
+    return { ok: false, detalhe: (e as Error).message };
   }
 }
 
@@ -303,9 +319,9 @@ Deno.serve(async (req: Request) => {
     `Acesse seu portal: https://1negocio.com.br/portal-usuario.html\n\n` +
     `Equipe 1Negócio`;
 
-  const whatsapp_ok = await enviarWhatsApp(telefone, msg);
+  const wpp = await enviarWhatsApp(telefone, msg);
 
-  return json({ ok: true, contato, tese, novo_contato, whatsapp_ok });
+  return json({ ok: true, contato, tese, novo_contato, whatsapp_ok: wpp.ok, whatsapp_detalhe: wpp.detalhe || null });
   } catch (e) {
     // v9.19.1 · captura QUALQUER exception não tratada · retorna detalhe pro toast
     const err = e as Error;
