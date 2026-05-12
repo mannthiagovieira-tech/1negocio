@@ -1,4 +1,4 @@
-// admin-criar-tese-com-contato · v9.19.3 · 1Negócio
+// admin-criar-tese-com-contato · v9.19.4 · 1Negócio
 // Atalho admin pra criar tese: resolve contato (existing por whatsapp OU novo)
 // e cria tese vinculada com estrutura canônica IDÊNTICA aos outros fluxos +
 // preenche AMBOS valor_alvo (numeric) e valor_investimento (text "min-max") +
@@ -12,6 +12,14 @@
 // findOrCreateGhostAuth (busca/cria em auth.users) → ensureUsuarioRow espelha em
 // public.usuarios com MESMO id. Antes a edge criava só em public.usuarios e tomava
 // 23503 ao tentar INSERT em teses_investimento.
+//
+// v9.19.4 · findOrCreateAuthUser: trocou listUsers paginated (que falhava
+// silenciosamente em encontrar usuários existentes em auth.users) por RPC
+// SQL direto public.find_auth_user_by_phone (SECURITY DEFINER · trata variantes
+// com/sem 55 e raw_user_meta_data->>'phone'). Mantém createUser como fallback
+// pra contatos novos · captura "already exists" no catch e re-busca via RPC
+// (race protection). Operador estava recebendo "Phone number already registered"
+// pra contato que já existia em auth.users.
 //
 // v9.19.3 · Z-API tokens hardcoded estavam revogados (curl retornou 403
 // "Client-Token not allowed"). Padrão canônico do projeto usa env vars
@@ -121,30 +129,28 @@ function faixaTexto(min: number, max: number): string {
   return `${brl(min)} – ${brl(max)}`;
 }
 
-// v9.19.2 · pattern canônico (cópia de socio-cadastrar-tese · ajustado pro admin)
-// 1. Busca user em auth.users por phone (paginado) · se acha, retorna id
-// 2. Se não acha, cria com auth.admin.createUser({ phone, phone_confirm:false })
-// 3. Retorna user_id que com certeza existe em auth.users → FK em teses passa
-async function findOrCreateAuthUser(phoneCom55: string, nome: string | null): Promise<{ user_id: string | null; novo: boolean; erro?: string }> {
-  const phoneRaw = phoneCom55.replace(/^55/, "");
-  async function buscar(): Promise<any | null> {
-    for (let page = 1; page <= 5; page++) {
-      try {
-        const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
-        if (error || !data?.users?.length) return null;
-        const found = data.users.find((u: any) => {
-          const p = String(u.phone || "").replace(/\D/g, "");
-          const meta = String(u.user_metadata?.phone || "").replace(/\D/g, "");
-          return p === phoneCom55 || p === phoneRaw || meta === phoneCom55 || meta === phoneRaw;
-        });
-        if (found) return found;
-        if (data.users.length < 1000) return null;
-      } catch (e) { console.warn("[admin-criar-tese auth listUsers p", page, "]", (e as Error).message); return null; }
-    }
+// v9.19.4 · busca robusta via RPC SQL em auth.users (não depende de listUsers paginated
+// que falhava silenciosamente em encontrar usuários existentes)
+// 1. Busca via RPC public.find_auth_user_by_phone (SQL direto · trata variantes com/sem 55)
+// 2. Se não acha, cria com auth.admin.createUser
+// 3. Se createUser falha com "already registered", re-busca via RPC (race protection)
+async function buscarAuthPorRpc(phone: string): Promise<string | null> {
+  try {
+    const { data, error } = await adminClient.rpc("find_auth_user_by_phone", { p_phone: phone });
+    if (error) { console.warn("[admin-criar-tese rpc find_auth err]", error.message); return null; }
+    return (data as string) || null;
+  } catch (e) {
+    console.warn("[admin-criar-tese rpc find_auth exception]", (e as Error).message);
     return null;
   }
-  const existing = await buscar();
-  if (existing) return { user_id: existing.id, novo: false };
+}
+
+async function findOrCreateAuthUser(phoneCom55: string, nome: string | null): Promise<{ user_id: string | null; novo: boolean; erro?: string }> {
+  // 1. Busca SQL direta (mais robusta que listUsers paginated)
+  const existingId = await buscarAuthPorRpc(phoneCom55);
+  if (existingId) return { user_id: existingId, novo: false };
+
+  // 2. Não existe · cria via admin API
   try {
     const { data: created, error } = await adminClient.auth.admin.createUser({
       phone: phoneCom55,
@@ -152,10 +158,17 @@ async function findOrCreateAuthUser(phoneCom55: string, nome: string | null): Pr
       user_metadata: { nome: nome || "Contato", admin_cadastrou: true },
     });
     if (!error && created.user?.id) return { user_id: created.user.id, novo: true };
-    console.warn("[admin-criar-tese auth createUser err]", error?.message);
-    const retry = await buscar();
-    if (retry) return { user_id: retry.id, novo: false };
-    return { user_id: null, novo: false, erro: error?.message || "createUser falhou sem detalhe" };
+
+    const errMsg = String(error?.message || "");
+    console.warn("[admin-criar-tese auth createUser err]", errMsg, "code:", error?.code, "status:", error?.status);
+
+    // 3. Fallback · createUser detectou phone_exists (race ou listUsers/rpc desatualizado) · re-busca
+    const lower = errMsg.toLowerCase();
+    if (lower.includes("already") || lower.includes("exists") || error?.code === "phone_exists") {
+      const retryId = await buscarAuthPorRpc(phoneCom55);
+      if (retryId) return { user_id: retryId, novo: false };
+    }
+    return { user_id: null, novo: false, erro: errMsg || "createUser falhou sem detalhe" };
   } catch (e) {
     return { user_id: null, novo: false, erro: (e as Error).message };
   }
