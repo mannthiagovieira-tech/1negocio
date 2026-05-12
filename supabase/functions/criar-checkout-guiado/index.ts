@@ -12,7 +12,9 @@ import Stripe from "https://esm.sh/stripe@12.0.0?target=deno";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY")!;
+// Aceita STRIPE_SECRET_KEY ou STRIPE_API_KEY (alguns projetos usam o nome alternativo).
+// Validação de prefixo abaixo evita usar STRIPE_WEBHOOK_SECRET (whsec_) por engano.
+const STRIPE_SECRET = Deno.env.get("STRIPE_SECRET_KEY") || Deno.env.get("STRIPE_API_KEY") || "";
 
 const SITE_BASE = "https://1negocio.com.br";
 const PRODUTO_GUIADO = "prod_U9xFu2gWXEUOAH";
@@ -34,6 +36,19 @@ function jsonRes(body: any, status = 200) {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return jsonRes({ ok: false, erro: "Method not allowed" }, 405);
+
+  // 0. Valida configuração de STRIPE_SECRET_KEY antes de qualquer side effect.
+  // Se vier vazia ou prefixo errado (ex: whsec_ que é a webhook secret), aborta
+  // sem criar negocio lixo no banco.
+  if (!STRIPE_SECRET || (!STRIPE_SECRET.startsWith("sk_live_") && !STRIPE_SECRET.startsWith("sk_test_"))) {
+    const prefix = STRIPE_SECRET ? STRIPE_SECRET.slice(0, 6) : "(vazio)";
+    console.error(`[criar-checkout-guiado] STRIPE_SECRET_KEY inválida · prefixo: ${prefix}`);
+    return jsonRes({
+      ok: false,
+      erro: "Configuração de pagamento indisponível. Fale com a equipe pra reativar.",
+      erro_debug: `STRIPE_SECRET_KEY prefix inesperado: ${prefix} · esperado sk_live_ ou sk_test_`,
+    }, 503);
+  }
 
   // 1. Valida JWT
   const authHeader = req.headers.get("Authorization") || "";
@@ -143,10 +158,17 @@ Deno.serve(async (req: Request) => {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[criar-checkout-guiado] Stripe session erro:", msg);
     // Marca negócio com observação · não deleta (admin pode retomar)
+    // Sanitiza pra não vazar segredo em notas_admin (msg pode ecoar a key)
+    const safeMsg = msg.replace(/whsec_[A-Za-z0-9]+/g, "whsec_***").replace(/sk_[a-z]+_[A-Za-z0-9]+/g, "sk_***");
     await sb.from("negocios").update({
-      notas_admin: `Stripe Checkout falhou: ${msg.slice(0, 200)} · ${new Date().toISOString()}`,
+      notas_admin: `Stripe Checkout falhou: ${safeMsg.slice(0, 200)} · ${new Date().toISOString()}`,
     }).eq("id", negocio.id);
-    return jsonRes({ ok: false, erro: "Erro ao criar sessão de pagamento" }, 500);
+    return jsonRes({
+      ok: false,
+      erro: "Erro ao criar sessão de pagamento",
+      erro_debug: safeMsg.slice(0, 200),
+      negocio_id: negocio.id,
+    }, 500);
   }
 
   // 7. Persiste stripe_session_id no negócio (não-fatal · webhook vai sobrescrever ao confirmar pagamento)
