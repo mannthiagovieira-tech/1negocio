@@ -835,6 +835,14 @@ table.t .acoes { white-space: nowrap; }
 /* v9.19.5 · link WhatsApp clicável (pa-teses, etc) */
 .td-link-wa{color:var(--accent,#22c55e);text-decoration:none;font-family:var(--mono);font-size:10px;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
 .td-link-wa:hover{text-decoration:underline}
+/* v9.19.7 · Modal detalhe tese · seções com label uppercase mono + value padronizado */
+.dt-section{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line-2)}
+.dt-section .label-mono{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px}
+.dt-section > div:not(.label-mono){font-size:13px;color:var(--ink);line-height:1.4}
+/* v9.19.7 · .ct-step como flex container · permite footer sticky funcionar dentro do step ativo */
+.ct-step{display:none}
+.ct-step.active{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow:hidden}
+.ct-step .td-modal-body{flex:1 1 auto;min-height:0;overflow-y:auto}
 /* v9.19.6 · Progress bar do modal criar tese (3 steps) */
 .ct-progress{display:flex;align-items:center;gap:8px;padding:14px 22px 6px;border-bottom:1px solid var(--line-2);flex-shrink:0}
 .ct-progress-dot{width:24px;height:24px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-3);flex-shrink:0;cursor:default;transition:all .15s}
@@ -3947,7 +3955,7 @@ table.t .acoes { white-space: nowrap; }
             </div>
 
             <!-- STEP 2 · dados da tese (título · descrição curta · setores · formas) -->
-            <div id="ct-step2" class="ct-step" style="display:none">
+            <div id="ct-step2" class="ct-step">
               <div class="td-modal-body">
                 <div id="ct-step2-sub" style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-bottom:14px;padding:8px 10px;background:var(--surface-2);border-radius:8px">—</div>
 
@@ -3979,7 +3987,7 @@ table.t .acoes { white-space: nowrap; }
             </div>
 
             <!-- STEP 3 · localização + valor + descrição adicional -->
-            <div id="ct-step3" class="ct-step" style="display:none">
+            <div id="ct-step3" class="ct-step">
               <div class="td-modal-body">
                 <div id="ct-step3-sub" style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-bottom:14px;padding:8px 10px;background:var(--surface-2);border-radius:8px">—</div>
 
@@ -4016,6 +4024,61 @@ table.t .acoes { white-space: nowrap; }
                   <button class="td-btn td-btn-ghost" onclick="ctStepIr(2)">← Voltar</button>
                   <button id="ct-btn-salvar" class="td-btn td-btn-primario" onclick="ctSalvar()">💾 Salvar tese</button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- v9.19.7 · Modal detalhe da tese (visualização read-only · click na row em pa-teses) -->
+        <div class="modal-overlay" id="modal-detalhe-tese" style="z-index:1115">
+          <div class="td-modal-box" style="max-width:640px">
+            <div class="td-modal-head">
+              <div class="td-modal-titulo">📋 <span id="dt-codigo">—</span></div>
+              <button class="tpl-btn-close" onclick="dtFechar()">×</button>
+            </div>
+            <div class="td-modal-body">
+              <div class="dt-section">
+                <div class="label-mono">DATA DE CRIAÇÃO</div>
+                <div id="dt-criada-em">—</div>
+              </div>
+              <div class="dt-section">
+                <div class="label-mono">TÍTULO</div>
+                <div id="dt-titulo">—</div>
+              </div>
+              <div class="dt-section">
+                <div class="label-mono">DESCRIÇÃO CURTA</div>
+                <div id="dt-descricao">—</div>
+              </div>
+              <div class="dt-section">
+                <div class="label-mono">SETORES</div>
+                <div id="dt-setores">—</div>
+              </div>
+              <div class="dt-section">
+                <div class="label-mono">FORMAS DE ATUAÇÃO</div>
+                <div id="dt-formas">—</div>
+              </div>
+              <div class="dt-section">
+                <div class="label-mono">LOCALIZAÇÃO</div>
+                <div id="dt-local">—</div>
+              </div>
+              <div class="dt-section">
+                <div class="label-mono">VALOR</div>
+                <div id="dt-valor">—</div>
+              </div>
+              <div class="dt-section">
+                <div class="label-mono">CONTATO</div>
+                <div id="dt-contato">—</div>
+              </div>
+              <div class="dt-section">
+                <div class="label-mono">STATUS · ORIGEM</div>
+                <div id="dt-status-origem">—</div>
+              </div>
+              <div class="dt-section" style="border-bottom:none">
+                <div class="label-mono">DESCRIÇÃO ADICIONAL</div>
+                <div id="dt-desc-adicional">—</div>
+              </div>
+              <div class="td-suc-actions">
+                <button class="td-btn td-btn-ghost" onclick="dtFechar()">Fechar</button>
               </div>
             </div>
           </div>
@@ -5280,6 +5343,12 @@ const PA_TESES_SETOR_LBL = {
   servicos_locais:"Serviços locais", bem_estar:"Bem-estar", industria:"Indústria",
   construcao:"Construção", hospedagem:"Hospedagem", logistica:"Logística",
 };
+const PA_TESES_FORMAS_LBL = {
+  presta_servico:"Presta serviço", produz_revende:"Produz e revende", fabricacao:"Fabricação",
+  revenda:"Revenda", distribuicao:"Distribuição", vende_governo:"Vende governo",
+  saas:"SaaS", assinatura:"Assinatura",
+};
+let _paTesesCache = [];   // v9.19.7 · cache pra dtAbrir(teseId) sem refetch
 async function paLoadTeses() {
   const tbl = document.getElementById('pa-tbl-teses');
   if (!tbl) return;
@@ -5294,6 +5363,7 @@ async function paLoadTeses() {
     const r = await fetch(url, { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
     if (!r.ok) { tbl.innerHTML = `<div class="pa-alert pa-alert-danger">Erro HTTP ${r.status}</div>`; return; }
     const data = await r.json();
+    _paTesesCache = data || [];  // v9.19.7 · cache pra dtAbrir lookup por id
     // Atualiza contador no header (se existir)
     const cnt = document.getElementById('pa-teses-count');
     if (cnt) cnt.textContent = data.length;
@@ -5318,7 +5388,7 @@ async function paLoadTeses() {
       const wppLink = wppDigits.length >= 12
         ? `<a href="https://wa.me/${wppDigits}" target="_blank" class="td-link-wa" onclick="event.stopPropagation()">💬 ${escapeHtml(t.whatsapp)}</a>`
         : `<span style="color:var(--ink-3);font-family:var(--mono);font-size:10px">${escapeHtml(t.whatsapp || '—')}</span>`;
-      return `<tr>
+      return `<tr style="cursor:pointer" onclick="dtAbrir('${t.id}')">
         <td style="font-family:var(--mono);font-size:11px;white-space:nowrap"><span class="codigo">${escapeHtml(t.codigo || '—')}</span></td>
         <td>
           <div style="font-weight:600">${escapeHtml(t.titulo || '— sem título —')}</div>
@@ -5342,6 +5412,64 @@ async function paLoadTeses() {
   } catch(e) {
     tbl.innerHTML = `<div class="pa-alert pa-alert-danger">Erro: ${escapeHtml(e.message)}</div>`;
   }
+}
+
+// v9.19.7 · Modal detalhe da tese · abre via click na row em pa-teses
+function dtAbrir(teseId){
+  const t = (_paTesesCache || []).find(x => x.id === teseId);
+  if (!t) { console.warn('[dt] tese não encontrada no cache:', teseId); return; }
+  // Código
+  document.getElementById('dt-codigo').textContent = t.codigo || '—';
+  // Data de criação + relativo
+  let txtDataCompleta = '—';
+  if (t.created_at){
+    try {
+      const d = new Date(t.created_at);
+      const fmt = d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      const dias = Math.floor((Date.now() - d.getTime()) / 86400000);
+      const rel = dias <= 0 ? 'hoje' : dias === 1 ? 'ontem' : `há ${dias} dias`;
+      txtDataCompleta = `${fmt} <span style="color:var(--ink-3);font-family:var(--mono);font-size:11px">· ${rel}</span>`;
+    } catch(e){}
+  }
+  document.getElementById('dt-criada-em').innerHTML = txtDataCompleta;
+  // Título / descrição
+  document.getElementById('dt-titulo').textContent = t.titulo || '— sem título —';
+  document.getElementById('dt-descricao').textContent = t.descricao_curta || '—';
+  // Setores · usa labels pt-BR
+  const setoresLbl = (t.setores || []).map(s => PA_TESES_SETOR_LBL[s] || s).join(', ');
+  document.getElementById('dt-setores').textContent = setoresLbl || '—';
+  // Formas
+  const formasLbl = (t.formas_atuacao || []).map(f => PA_TESES_FORMAS_LBL[f] || f).join(', ');
+  document.getElementById('dt-formas').textContent = formasLbl || '—';
+  // Localização
+  const locTxt = t.localizacao_tipo === 'brasil_todo' ? 'Brasil todo'
+    : t.localizacao_tipo === 'cidade' && t.cidade ? `${t.cidade}/${t.estado || '—'}`
+    : t.localizacao_tipo === 'estado' ? `${t.estado || '—'}`
+    : '—';
+  document.getElementById('dt-local').textContent = locTxt;
+  // Valor · alvo (numeric) + faixa text
+  const valorAlvoTxt = t.valor_alvo ? 'R$ '+Number(t.valor_alvo).toLocaleString('pt-BR',{maximumFractionDigits:0}) : '—';
+  const faixaTxt = t.valor_investimento ? ` (faixa ${t.valor_investimento})` : '';
+  document.getElementById('dt-valor').textContent = valorAlvoTxt + faixaTxt;
+  // Contato com link WhatsApp clicável
+  const wppDigits = (t.whatsapp || '').replace(/\D/g, '');
+  const wppLink = wppDigits.length >= 12
+    ? `<a href="https://wa.me/${wppDigits}" target="_blank" class="td-link-wa">💬 ${escapeHtml(t.whatsapp)}</a>`
+    : (t.whatsapp ? escapeHtml(t.whatsapp) : '—');
+  document.getElementById('dt-contato').innerHTML = `<strong>${escapeHtml(t.nome || '—')}</strong><br>${wppLink}`;
+  // Status + origem (badges color-coded)
+  const corStatus = t.status === 'ativa' ? 'pa-badge-green' : t.status === 'pausada' ? 'pa-badge-yellow' : 'pa-badge-gray';
+  const corOrigem = t.origem === 'admin' ? 'pa-badge-blue' : t.origem === 'sintetica' ? 'pa-badge-gray' : 'pa-badge-green';
+  document.getElementById('dt-status-origem').innerHTML =
+    `<span class="pa-badge ${corStatus}">${escapeHtml(t.status || '—')}</span> · <span class="pa-badge ${corOrigem}">${escapeHtml(t.origem || '—')}</span>`;
+  // Descrição adicional
+  document.getElementById('dt-desc-adicional').textContent = t.descricao_adicional || '—';
+  // Abre modal
+  document.getElementById('modal-detalhe-tese').classList.add('show');
+}
+
+function dtFechar(){
+  document.getElementById('modal-detalhe-tese').classList.remove('show');
 }
 
 /* ========================================================================
@@ -8750,12 +8878,12 @@ function ctAbrirModal(){
   m.classList.add('show');
 }
 
-// v9.19.6 · navegação entre steps
+// v9.19.6 · navegação entre steps (v9.19.7 · classList em vez de style.display)
 function ctStepRender(){
-  // Mostra apenas o step atual
+  // Mostra apenas o step atual via class · permite o CSS de flex/scroll funcionar
   [1,2,3].forEach(n => {
     const el = document.getElementById('ct-step'+n);
-    if (el) el.style.display = n === _ctStep ? 'block' : 'none';
+    if (el) el.classList.toggle('active', n === _ctStep);
     const tit = document.getElementById('ct-titulo-step'+n);
     if (tit) tit.style.display = n === _ctStep ? 'inline' : 'none';
   });
