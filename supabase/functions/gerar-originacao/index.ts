@@ -1,3 +1,9 @@
+// ⚠️ DEPRECATED v9.27 · estrutura V1 substituída
+// Novas edges (V2): originacao-chat-tese · gerar-arquetipos-v2 · executar-leads
+// Schema dessa edge não bate mais com projetos_originacao pós-v9.27 (colunas
+// conteudo/contexto_adicional/etc DROPPED). Manter remoto até v9.30 garantir
+// que nada externo invoca · depois remover.
+//
 // gerar-originacao · v9.24.1
 // Motor de Originação de Compradores · 1 chamada Sonnet 4 com web_search ativo
 // Roda 1x por projeto (cria nova versão a cada chamada).
