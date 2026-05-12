@@ -201,13 +201,46 @@ async function handleSubscriptionDeleted(supabase: any, sub: Stripe.Subscription
 
 async function handleOneShotCheckoutCompleted(supabase: any, session: Stripe.Checkout.Session) {
   const negocio_id    = session.client_reference_id || session.metadata?.negocio_id || null;
+  const usuario_id    = session.metadata?.usuario_id || null;
+  const plano_meta    = session.metadata?.plano || "";
   const cliente_email = session.customer_details?.email || "";
   const cliente_nome  = session.customer_details?.name  || "";
   const produto = identificarProduto(session);
 
+  // v9.27 · lookup auxiliar pra guiado_direto · popula whatsapp_cliente
+  // em admin_agenda e enriquece notificação WhatsApp do operador.
+  let cliente_whatsapp = "";
+  let negocio_nome = session.metadata?.nome_negocio || "";
+  let negocio_cidade = "";
+  let negocio_codigo = "";
+  let cliente_nome_lookup = cliente_nome;
+
+  if (plano_meta === "guiado_direto" && negocio_id) {
+    try {
+      const { data: neg } = await supabase
+        .from("negocios")
+        .select("nome, nome_negocio, cidade, codigo, usuarios(nome, whatsapp, email)")
+        .eq("id", negocio_id)
+        .maybeSingle();
+      if (neg) {
+        negocio_nome = neg.nome_negocio || neg.nome || negocio_nome;
+        negocio_cidade = neg.cidade || "";
+        negocio_codigo = neg.codigo || "";
+        const u = (neg as any).usuarios;
+        if (u) {
+          cliente_whatsapp = u.whatsapp || "";
+          cliente_nome_lookup = u.nome || cliente_nome;
+        }
+      }
+    } catch (e) {
+      console.error("[stripe-webhook] lookup guiado_direto falhou:", e);
+    }
+  }
+
   const { error: errTx } = await supabase.from("transacoes").insert({
     tipo: produto.tipo,
     negocio_id,
+    usuario_id,
     valor: produto.valor,
     status: "pago",
     descricao: produto.label,
@@ -218,28 +251,50 @@ async function handleOneShotCheckoutCompleted(supabase: any, session: Stripe.Che
   const { error: errAgenda } = await supabase.from("admin_agenda").insert({
     tipo: produto.tipo,
     status: "pendente",
-    nome_cliente: cliente_nome,
+    nome_cliente: cliente_nome_lookup,
     email_cliente: cliente_email,
+    whatsapp_cliente: cliente_whatsapp || null,
+    usuario_id,
     negocio_id,
-    notas_admin: `Stripe session: ${session.id}`,
+    pagamento_id: session.id,
+    pagamento_valor: produto.valor,
+    pagamento_status: "pago",
+    notas_admin: `Stripe session: ${session.id}${plano_meta === "guiado_direto" ? " · Plano Guiado direto (sem diagnóstico prévio)" : ""}`,
   });
   if (errAgenda) console.error("[stripe-webhook] erro INSERT admin_agenda:", errAgenda.message);
 
   // v9.15 · atualiza negócio com pagamento aprovado (one-shot: laudo/guiado/avaliacao)
   if (negocio_id && (produto.tipo === "laudo_99" || produto.tipo === "guiado_588" || produto.tipo === "avaliacao_397")) {
     const { error: errNeg } = await supabase.from("negocios")
-      .update({ pagamento_aprovado_em: new Date().toISOString(), plano_comprado: produto.tipo })
+      .update({
+        pagamento_aprovado_em: new Date().toISOString(),
+        plano_comprado: produto.tipo,
+        stripe_session_id: session.id,
+      })
       .eq("id", negocio_id);
     if (errNeg) console.error("[stripe-webhook] erro UPDATE negocios:", errNeg.message);
   }
 
-  const msg =
-    `💰 *Novo pagamento!*\n\n` +
-    `Produto: ${produto.label}\n` +
-    `Cliente: ${cliente_nome || "(sem nome)"}\n` +
-    `Email: ${cliente_email || "(sem email)"}\n` +
-    (negocio_id ? `Negocio: ${negocio_id}\n` : "") +
-    `Session: ${session.id}`;
+  // v9.27 · mensagem WhatsApp formatada quando vier do checkout direto Guiado
+  let msg: string;
+  if (plano_meta === "guiado_direto") {
+    msg =
+      `💰 *R$ 588 PAGO · Plano Guiado*\n\n` +
+      `Cliente: ${cliente_nome_lookup || "(sem nome)"}\n` +
+      `WhatsApp: ${cliente_whatsapp || "(não informado)"}\n` +
+      `Negócio: ${negocio_nome || "(sem nome)"} · ${negocio_cidade || "(sem cidade)"}\n` +
+      `Código: ${negocio_codigo || "(sem código)"}\n\n` +
+      `URL: https://1negocio.com.br/painel-v3.html#negocio/${negocio_id}\n\n` +
+      `➤ Agendar call e preencher dados`;
+  } else {
+    msg =
+      `💰 *Novo pagamento!*\n\n` +
+      `Produto: ${produto.label}\n` +
+      `Cliente: ${cliente_nome || "(sem nome)"}\n` +
+      `Email: ${cliente_email || "(sem email)"}\n` +
+      (negocio_id ? `Negocio: ${negocio_id}\n` : "") +
+      `Session: ${session.id}`;
+  }
   await enviarWhatsApp(MEU_NUMERO, msg);
 
   if (produto.tipo === "laudo_99" && negocio_id) {
