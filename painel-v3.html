@@ -16591,9 +16591,40 @@ function origV2Headers() { return { 'apikey': AK, 'Authorization': 'Bearer ' + o
 
 async function pjOriginacaoV2Fetch(projetoId) {
   try {
-    const data = await sbFetch('/rest/v1/projetos_originacao_atual?projeto_id=eq.' + projetoId + '&order=versao.desc&limit=1');
+    // v9.31.1 · view já tem ORDER BY versao DESC, created_at DESC (desempate determinístico)
+    // pega só a row mais recente · evita inconsistência quando há duplicatas históricas
+    const data = await sbFetch('/rest/v1/projetos_originacao_atual?projeto_id=eq.' + projetoId + '&limit=1');
     return data?.[0] || null;
   } catch (e) { console.error('[origV2Fetch]', e); return null; }
+}
+
+// v9.31.1 · fetch da row exata por id · usado após edge gerar-briefing-tese retornar originacao_id
+async function pjOriginacaoV2FetchById(origId) {
+  try {
+    const data = await sbFetch('/rest/v1/projetos_originacao?id=eq.' + origId + '&limit=1');
+    if (!data?.[0]) return null;
+    // Anexa counts (não vem da tabela raw · só da view) · não-fatal se faltar
+    return data[0];
+  } catch (e) { console.error('[origV2FetchById]', e); return null; }
+}
+
+// v9.31.1 · render direto com objeto orig já em memória (sem fetch · evita race)
+function pjOriginacaoV2RenderDireto(projetoId, orig) {
+  const container = document.getElementById('pj-originacao-' + projetoId);
+  if (!container || !orig) return;
+  _origV2Data = orig;
+  if (orig.fase_atual === 'tese') {
+    if (orig.tese_texto && orig.tese_texto.length > 0) {
+      container.innerHTML = origV3RenderTeseRevisao(orig);
+      return;
+    }
+    if (orig.briefing_jsonb) {
+      container.innerHTML = origV4RenderBriefing(orig);
+      _origV4Briefings[orig.id] = JSON.parse(JSON.stringify(orig.briefing_jsonb));
+      return;
+    }
+    container.innerHTML = origV4RenderEmpty(orig.projeto_id);
+  }
 }
 
 async function pjOriginacaoV2Render(projetoId) {
@@ -16682,7 +16713,15 @@ async function origV4GerarBriefing(projetoId) {
       return;
     }
     origToast('✓ Briefing gerado · revise os campos');
-    pjOriginacaoV2Render(projetoId);
+    // v9.31.1 · fix race: usa response direto da edge (originacao_id + briefing)
+    // em vez de re-fetch da view (que podia retornar row sem briefing se houver duplicatas)
+    const origDireto = await pjOriginacaoV2FetchById(data.originacao_id);
+    if (origDireto && origDireto.briefing_jsonb) {
+      pjOriginacaoV2RenderDireto(projetoId, origDireto);
+    } else {
+      // fallback · render via fetch normal
+      pjOriginacaoV2Render(projetoId);
+    }
   } catch (e) { alert('Erro: ' + e.message); }
 }
 
