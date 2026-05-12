@@ -1643,6 +1643,16 @@ table.t .acoes { white-space: nowrap; }
 .orig-v4-loading .spinner { width: 32px; height: 32px; border: 3px solid var(--line); border-top-color: var(--em); border-radius: 50%; margin: 0 auto 16px; animation: orig-spin-v4 1s linear infinite; }
 @keyframes orig-spin-v4 { to { transform: rotate(360deg); } }
 
+/* v9.33.2 · Fase 3 · revisão de queries de busca por arquétipo */
+.orig-v6-queries { padding: 20px; background: var(--bg-1); border: 1px solid var(--line); border-radius: 12px; }
+.orig-v6-queries > p { color: var(--ink-3); font-size: 13px; margin-bottom: 16px; }
+.orig-v6-arq-queries { padding: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; }
+.orig-v6-arq-queries h4 { margin: 0 0 8px 0; font-size: 14px; color: var(--ink); }
+.orig-v6-canal-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.orig-v6-canal-row label { font-size: 12px; color: var(--ink-3); min-width: 120px; }
+.orig-v6-canal-row input { flex: 1; padding: 6px 10px; background: var(--bg-1); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; color: var(--ink); font-family: var(--mono); }
+.orig-v6-arq-raciocinio { font-size: 11px; color: var(--ink-3); margin-top: 4px; font-style: italic; }
+
 .arquetipo-card-v2 { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 10px; }
 .arquetipo-card-v2 h4 { margin: 0; font-size: 14px; }
 .arquetipo-card-v2 .arq-badges { display: flex; gap: 4px; margin: 6px 0 10px 0; flex-wrap: wrap; }
@@ -16673,9 +16683,14 @@ async function pjOriginacaoV2Render(projetoId) {
       await origV2CarregarArquetipos(orig.id);
       return;
     }
-    if (orig.fase_atual === 'leads' || orig.fase_atual === 'enriquecimento' || orig.fase_atual === 'concluido') {
+    if (orig.fase_atual === 'leads') {
+      // v9.33.2 · Fase 3 · estado inicial (empty ou revisão de queries)
+      await origV6RenderFase(orig, container);
+      return;
+    }
+    if (orig.fase_atual === 'enriquecimento' || orig.fase_atual === 'concluido') {
       container.innerHTML = '<div class="orig-v4-briefing" style="text-align:center"><h4>🎯 Originação · Fase ' + origV2Esc(orig.fase_atual) + '</h4>'
-        + '<p style="padding:14px;color:var(--ink-2)">Implementação em v9.32+ (leads · enriquecimento · pool)</p></div>';
+        + '<p style="padding:14px;color:var(--ink-2)">Implementação em v9.33.3+ (enriquecimento · pool)</p></div>';
       return;
     }
   } catch (e) {
@@ -17664,6 +17679,135 @@ async function origV2FecharArquetipos(origId, projetoId) {
   pjOriginacaoV2Render(projetoId);
 }
 
+/* ════════════════════════════════════════════════════════════
+   v9.33.2 · Fase 3 · queries de busca (origV6)
+   ════════════════════════════════════════════════════════════ */
+
+let _origV6Locks = { gerando: {}, regerando: {} };
+
+async function origV6RenderFase(orig, container) {
+  try {
+    const r = await fetch(SB + '/rest/v1/arquetipos_compradores?originacao_id=eq.' + orig.id + '&status=eq.aprovado&order=ordem.asc&select=id,nome,perfil,queries_busca', {
+      headers: origV2Headers()
+    });
+    if (!r.ok) {
+      container.innerHTML = '<div class="orig-v4-loading" style="background:#fef2f2;border-color:#fca5a5"><p style="color:#991b1b"><strong>Erro ao buscar arquétipos</strong></p><p style="font-size:12px;color:#991b1b">' + r.status + '</p></div>';
+      return;
+    }
+    const arquetipos = await r.json();
+    if (!Array.isArray(arquetipos) || arquetipos.length === 0) {
+      container.innerHTML = '<div class="orig-v4-loading"><h3>🎯 Fase 3 · Busca de Leads</h3><p>Nenhum arquétipo aprovado nesta originação. Volte pra Fase 2 e aprove pelo menos 1 arquétipo.</p></div>';
+      return;
+    }
+    const comQueries = arquetipos.filter(a => a.queries_busca);
+    if (comQueries.length === 0) {
+      container.innerHTML = origV6RenderEmpty(orig.id);
+    } else {
+      container.innerHTML = origV6RenderQueries(orig, comQueries);
+    }
+  } catch (e) {
+    console.error('[origV6RenderFase] exception', e);
+    container.innerHTML = '<div class="orig-v4-loading" style="background:#fef2f2;border-color:#fca5a5"><p style="color:#991b1b"><strong>Erro ao renderizar Fase 3</strong></p><p style="font-size:12px;color:#991b1b">' + (e?.message || 'desconhecido') + '</p></div>';
+  }
+}
+
+function origV6RenderEmpty(origId) {
+  return '<div class="orig-v4-loading" style="background:var(--bg-1);">'
+    + '<h3>🎯 Fase 3 · Busca de Leads</h3>'
+    + '<p style="color:var(--ink-2);margin:8px 0;">Primeiro passo: gerar queries de busca pra cada arquétipo aprovado.</p>'
+    + '<p style="font-size:11px;color:var(--ink-3);margin:8px 0 16px 0;">Custo: ~R$ 0,02 por arquétipo · IA refina templates por canal</p>'
+    + '<button class="orig-v3-send" onclick="origV6GerarQueries(\'' + origId + '\')">🤖 Gerar queries de busca</button>'
+    + '</div>';
+}
+
+function origV6RenderQueries(orig, arquetiposComQueries) {
+  const cards = arquetiposComQueries.map(arq => {
+    const q = arq.queries_busca || {};
+    const nome = origV2Esc(arq.nome || 'sem nome');
+    const gmaps = origV2Esc(q.gmaps_query || '');
+    const fb = origV2Esc(q.fb_keywords || '');
+    const ig = origV2Esc(q.ig_query || '');
+    const raciocinio = q.raciocinio ? '<p class="orig-v6-arq-raciocinio">' + origV2Esc(q.raciocinio) + '</p>' : '';
+    return '<div class="orig-v6-arq-queries">'
+      + '<h4>' + nome + '</h4>'
+      + '<div class="orig-v6-canal-row"><label>🗺️ Google Maps</label><input type="text" value="' + gmaps + '" disabled /></div>'
+      + '<div class="orig-v6-canal-row"><label>📘 Facebook</label><input type="text" value="' + fb + '" disabled /></div>'
+      + '<div class="orig-v6-canal-row"><label>📷 Instagram</label><input type="text" value="' + ig + '" disabled /></div>'
+      + raciocinio
+      + '</div>';
+  }).join('');
+
+  return '<div class="orig-v6-queries">'
+    + '<div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">'
+    + '<h3 style="margin:0;">🔍 Queries de busca · ' + arquetiposComQueries.length + ' arquétipos</h3>'
+    + '<span class="orig-v3-fase-badge">Fase 3/5</span>'
+    + '</div>'
+    + '<p>Revise as queries abaixo. Próximo: rodar busca real nos canais (v9.33.3+).</p>'
+    + cards
+    + '<div class="orig-v4-acoes" style="margin-top:24px;">'
+    + '<button onclick="origV6RegerarQueries(\'' + orig.id + '\')">🔄 Regerar todas</button>'
+    + '<button disabled style="opacity:0.5;cursor:not-allowed;">🚀 Buscar leads (v9.33.3+)</button>'
+    + '</div>'
+    + '</div>';
+}
+
+async function origV6GerarQueries(origId) {
+  if (_origV6Locks.gerando[origId]) {
+    console.log('[origV6] já rodando · ignorando');
+    return;
+  }
+  if (!confirm('Gerar queries de busca pra todos os arquétipos aprovados?\n\nCusto ~R$ 0,02 por arquétipo · 15-30s.')) return;
+
+  _origV6Locks.gerando[origId] = true;
+  const orig = await pjOriginacaoV2FetchById(origId);
+  const projetoId = orig?.projeto_id;
+  const container = projetoId ? document.getElementById('pj-originacao-' + projetoId) : null;
+  if (container) {
+    container.innerHTML = '<div class="orig-v4-loading"><div class="spinner"></div><p>IA gerando queries... 15-30s</p><p style="font-size:11px;color:var(--ink-3);">Não recarregue · não clique de novo</p></div>';
+  }
+
+  try {
+    const r = await fetch(SB + '/functions/v1/gerar-queries-arquetipo', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + origV2Token(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ originacao_id: origId })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data.ok) {
+      alert('Erro: ' + (data.erro || data.detalhe || 'desconhecido'));
+      if (projetoId) pjOriginacaoV2Render(projetoId);
+      return;
+    }
+    origToast('✓ ' + data.arquetipos_processados + ' queries geradas');
+    if (data.erros && data.erros.length) {
+      console.warn('[origV6] erros parciais:', data.erros);
+      alert(data.erros.length + ' arquétipo(s) com erro. Ver console.');
+    }
+    if (projetoId) pjOriginacaoV2Render(projetoId);
+  } catch (e) {
+    alert('Erro: ' + e.message);
+    if (projetoId) pjOriginacaoV2Render(projetoId);
+  } finally {
+    _origV6Locks.gerando[origId] = false;
+  }
+}
+
+async function origV6RegerarQueries(origId) {
+  if (_origV6Locks.regerando[origId]) return;
+  if (!confirm('Regerar TODAS as queries deste projeto?\n\nCusto ~R$ 0,02 por arquétipo.')) return;
+  _origV6Locks.regerando[origId] = true;
+  try {
+    await fetch(SB + '/rest/v1/arquetipos_compradores?originacao_id=eq.' + origId + '&status=eq.aprovado', {
+      method: 'PATCH',
+      headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ queries_busca: null, updated_at: new Date().toISOString() })
+    });
+  } finally {
+    _origV6Locks.regerando[origId] = false;
+  }
+  await origV6GerarQueries(origId);
+}
+
 // Exposição V2 + V3 (revisão tese) + V4 (briefing v9.31)
 window.pjOriginacaoV2Render = pjOriginacaoV2Render;
 window.origV3VoltarChat = origV3VoltarChat;
@@ -17697,6 +17841,12 @@ window.origV2RejeitarArquetipo = origV2RejeitarArquetipo;
 window.origV2EditarArquetipo = origV2EditarArquetipo;
 window.origV2AdicionarManual = origV2AdicionarManual;
 window.origV2FecharArquetipos = origV2FecharArquetipos;
+// v9.33.2 · V6 queries de busca (Fase 3)
+window.origV6GerarQueries = origV6GerarQueries;
+window.origV6RegerarQueries = origV6RegerarQueries;
+window.origV6RenderFase = origV6RenderFase;
+window.origV6RenderEmpty = origV6RenderEmpty;
+window.origV6RenderQueries = origV6RenderQueries;
 </script>
 </body>
 </html>
