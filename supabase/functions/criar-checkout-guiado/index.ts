@@ -144,7 +144,6 @@ Deno.serve(async (req: Request) => {
         },
       }],
       client_reference_id: negocio.id,
-      customer_email: usuario.email || undefined,
       metadata: {
         negocio_id: negocio.id,
         usuario_id: userId,
