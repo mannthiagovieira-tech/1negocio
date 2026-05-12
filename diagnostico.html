@@ -1033,6 +1033,7 @@ input[type=range]#sl-assinatura::-webkit-slider-thumb{
     <label class="inp-lbl">DIGITE SUA CIDADE</label>
     <input class="inp" id="i-cidade" type="text" autocomplete="off" placeholder="Nome da cidade..."
       oninput="D.cidade=this.value;validarT03()" />
+    <button type="button" style="background:none;border:none;color:var(--ink3);font-size:12px;cursor:pointer;padding:6px 0;text-decoration:underline" onclick="esconderEl('c-cidade-texto');mostrarEl('btn-outra-cidade');var i=document.getElementById('i-cidade');if(i)i.value='';D.cidade='';validarT03()">↩ voltar à lista</button>
   </div>
   <div class="inp-wrap" style="margin-top:14px">
     <label class="inp-lbl">BAIRRO OU REGIÃO <span style="color:var(--ink4);font-weight:400">(opcional)</span></label>
@@ -5543,16 +5544,29 @@ function selEstado(el, uf) {
   el.classList.add('sel');
   D.estado = uf;
 
+  // Reset do fallback manual (caso o admin troque de estado)
+  esconderEl('c-cidade-texto');
+  const inp = document.getElementById('i-cidade');
+  if (inp) inp.value = '';
+  D.cidade = '';
+
   // mostra cidades
   const cidades = CIDADES[uf];
-  if(cidades) {
-    const container = document.getElementById('cidades-pills');
-    container.innerHTML = cidades.map(c =>
+  const cContainer = document.getElementById('c-cidades');
+  const cidadesContainer = document.getElementById('cidades-pills');
+  if (cidades && cidades.length) {
+    cidadesContainer.innerHTML = cidades.map(c =>
       `<button class="pill" onclick="selCidade(this,'${c}')">${c}</button>`
     ).join('');
-    document.getElementById('c-cidades').classList.add('open');
+    cContainer.classList.add('open');
+    // fallback "minha cidade não está na lista" sempre disponível
+    mostrarEl('btn-outra-cidade');
   } else {
-    document.getElementById('c-cidades').classList.remove('open');
+    // estado sem cidades hardcoded · abre direto o input de texto
+    if (cidadesContainer) cidadesContainer.innerHTML = '';
+    cContainer.classList.add('open');
+    esconderEl('btn-outra-cidade');
+    mostrarEl('c-cidade-texto');
   }
   validarT03();
 }
