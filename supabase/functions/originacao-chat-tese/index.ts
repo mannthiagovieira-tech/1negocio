@@ -1,3 +1,8 @@
+// ⚠️ DEPRECATED v9.31 · substituída por gerar-briefing-tese +
+// gerar-tese-do-briefing. Operador decidiu trocar chat por briefing
+// inteligente pré-preenchido (UX mais rápida · custo menor).
+// Edge mantida pra histórico de mensagens · não chamada por nenhuma UI ativa.
+//
 // originacao-chat-tese · v9.28
 // Chat conversacional admin↔IA pra construção da tese de investimento
 // (fase 1/5 do Motor de Originação V2)
