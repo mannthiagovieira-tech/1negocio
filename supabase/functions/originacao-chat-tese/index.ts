@@ -47,7 +47,23 @@ Princípios:
 - Lembre que negócios pequenos/médios NÃO atraem fundos grandes
 - Não invente dados · só trabalhe com o que o assessor passou
 - Português brasileiro · tom profissional mas conversacional
-- Respostas curtas (3-6 frases · só estenda quando agregar valor)`;
+- Respostas curtas (3-6 frases · só estenda quando agregar valor)
+
+QUANDO OFERECER GERAR A TESE:
+Conforme a conversa avança, mantenha em mente um contador interno do que você já sabe sobre o negócio:
+- Diferenciais defensáveis (✓ se tem)
+- Momento de mercado relevante (✓ se tem)
+- Modelo econômico/escala (✓ se tem)
+- Risco principal (✓ se tem)
+- Motivo da venda (✓ se tem)
+
+Quando você tiver ao menos 4 desses 5 elementos cobertos com profundidade, encerre sua próxima mensagem com EXATAMENTE este marcador (incluindo as chaves duplas):
+
+{{OFERECER_GERAR_TESE}}
+
+Frontend usa esse marcador pra mostrar botão "Gerar tese agora" pro admin. Antes do marcador, pode fazer pergunta normal · o marcador serve só pra sinalizar "temos contexto suficiente".
+
+Se admin ignorar e continuar conversando, mantenha o marcador nas próximas respostas (uma vez que apareceu, sempre aparece até a tese ser gerada).`;
 
 function buildNegocioBlock(negocio: any): string {
   const partes = [
@@ -138,6 +154,119 @@ serve(async (req) => {
       papel: "sistema",
       conteudo: "Conversa iniciada · construção da tese",
     });
+  }
+
+  // ───── Ação reabrir_tese (v9.30) ─────
+  if (acao === "reabrir_tese") {
+    if (origRow.arquetipos_fechados_em) {
+      return resp(400, { ok: false, erro: "arquetipos_ja_fechados", detalhe: "Não pode reabrir tese após fechar arquétipos" });
+    }
+    const { error } = await adminClient
+      .from("projetos_originacao")
+      .update({ fase_atual: "tese", tese_fechada_em: null, updated_at: new Date().toISOString() })
+      .eq("id", origRow.id);
+    if (error) return resp(500, { ok: false, erro: "erro_reabrir", detalhe: error.message });
+
+    await adminClient.from("originacao_chat_mensagens").insert({
+      originacao_id: origRow.id,
+      papel: "sistema",
+      conteudo: "🔓 Tese reaberta · pode continuar conversa e editar",
+    });
+
+    return resp(200, { ok: true, originacao_id: origRow.id, fase_atual: "tese" });
+  }
+
+  // ───── Ação gerar_tese_pela_ia (v9.30) ─────
+  if (acao === "gerar_tese_pela_ia") {
+    // Busca histórico do chat
+    const { data: historico } = await adminClient
+      .from("originacao_chat_mensagens")
+      .select("papel, conteudo")
+      .eq("originacao_id", origRow.id)
+      .order("created_at", { ascending: true });
+
+    // Busca dados do negócio
+    const { data: pm } = await adminClient
+      .from("projeto_metadata")
+      .select("negocio_id")
+      .eq("id", origRow.projeto_id || projeto_id)
+      .maybeSingle();
+    let negocioRow: any = null;
+    if (pm?.negocio_id) {
+      const { data: n } = await adminClient.from("negocios").select("*").eq("id", pm.negocio_id).maybeSingle();
+      negocioRow = n;
+    }
+    const negocioBlock = negocioRow ? buildNegocioBlock(negocioRow) : "(dados do negócio não encontrados)";
+
+    // Monta histórico em texto
+    const histTexto = (historico || [])
+      .filter(m => m.papel !== "sistema")
+      .map(m => `[${m.papel === "admin" ? "ASSESSOR" : "IA"}]: ${m.conteudo.replace(/\{\{OFERECER_GERAR_TESE\}\}/g, "").trim()}`)
+      .join("\n\n");
+
+    const promptGerar = `DADOS DO NEGÓCIO:\n${negocioBlock}\n\n---\n\nCONVERSA TIDA COM O ASSESSOR:\n\n${histTexto}\n\n---\n\nCom base na conversa acima, redija a TESE DE INVESTIMENTO completa em formato narrativo (não bullet points · não markdown headers).
+
+A tese deve ter 4-6 parágrafos respondendo:
+- O que é o negócio (1 parágrafo)
+- Por que vale a pena comprar agora (diferenciais + momento) (1-2 parágrafos)
+- Riscos principais (1 parágrafo · honesto)
+- Por que o sócio está vendendo (1 parágrafo)
+
+Use linguagem profissional · concreta · sem exageros comerciais.
+Mencione números específicos quando tiver.
+Não invente dados que não foram mencionados na conversa.
+
+Retorne APENAS o texto da tese · nada além.`;
+
+    const inicio = Date.now();
+    try {
+      const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1500,
+          messages: [{ role: "user", content: promptGerar }],
+        }),
+      });
+      if (!claudeResp.ok) {
+        const errTxt = await claudeResp.text();
+        return resp(500, { ok: false, erro: "claude_api_falhou", detalhe: errTxt.slice(0, 500) });
+      }
+      const claudeData = await claudeResp.json();
+      const textBlocks = (claudeData.content || []).filter((b: any) => b.type === "text");
+      const teseGerada = textBlocks.map((b: any) => b.text).join("").trim();
+      if (!teseGerada) return resp(500, { ok: false, erro: "resposta_vazia" });
+
+      // UPDATE só tese_texto · NÃO marca fase_atual='arquetipos' ainda
+      const { error } = await adminClient
+        .from("projetos_originacao")
+        .update({ tese_texto: teseGerada, updated_at: new Date().toISOString() })
+        .eq("id", origRow.id);
+      if (error) return resp(500, { ok: false, erro: "erro_update", detalhe: error.message });
+
+      await adminClient.from("originacao_chat_mensagens").insert({
+        originacao_id: origRow.id,
+        papel: "sistema",
+        conteudo: "✓ Tese redigida pela IA · revise no editor",
+      });
+
+      const usage = claudeData.usage || {};
+      return resp(200, {
+        ok: true,
+        originacao_id: origRow.id,
+        tese_gerada: teseGerada,
+        tokens_in: usage.input_tokens || 0,
+        tokens_out: usage.output_tokens || 0,
+        duracao_ms: Date.now() - inicio,
+      });
+    } catch (e: any) {
+      return resp(500, { ok: false, erro: "exception", detalhe: e.message });
+    }
   }
 
   // ───── Ação fechar_tese ─────
