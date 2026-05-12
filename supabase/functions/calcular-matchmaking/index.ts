@@ -31,6 +31,7 @@ type Tese = {
   setores: string[] | null; formas_atuacao: string[] | null;
   localizacao_tipo: string | null; estado: string | null; cidade: string | null;
   valor_alvo: number | null; usuario_id: string | null; status: string;
+  valor_investimento?: string | null; // v9.20 · faixa "min-max" priorizada sobre valor_alvo
 };
 type Negocio = {
   id: string; codigo?: string | null; nome?: string | null;
@@ -113,6 +114,7 @@ export type ResultadoMatch = {
 };
 
 function calcularScore510(s: number): number {
+  if (s <= 0) return 0;   // v9.20 · ELIMINADO · sinal claro de não-match (antes retornava 5)
   if (s >= 90) return 10;
   if (s >= 80) return 9;
   if (s >= 70) return 8;
@@ -187,19 +189,44 @@ export async function calcularMatchPar(tese: Tese, negocio: Negocio, tagsAdmin: 
     }
   }
 
-  // TICKET (até 10pts · eliminatório ±30%) · V8 B8.13: usa valor_pedido do anúncio
+  // TICKET (até 10pts) · V8 B8.13 usa valor_pedido do anúncio
+  // v9.20 · prioriza valor_investimento 'min-max' (faixa real do investidor) ·
+  // fallback pra valor_alvo ± 30% (compat retroativo · quando valor é número específico)
   let pontosTicket = 0;
-  if (tese.valor_alvo != null && negocio.valor_pedido != null) {
-    const piso = tese.valor_alvo * 0.7;
-    const teto = tese.valor_alvo * 1.3;
-    if (negocio.valor_pedido < piso) return elim(`ticket_baixo:${negocio.valor_pedido}_vs_${tese.valor_alvo}`, fatores);
-    if (negocio.valor_pedido > teto) return elim(`ticket_alto:${negocio.valor_pedido}_vs_${tese.valor_alvo}`, fatores);
-    const distRel = Math.abs(negocio.valor_pedido - tese.valor_alvo) / tese.valor_alvo;
-    const p = Math.round(10 * (1 - Math.min(distRel / 0.30, 1)));
-    if (p > 0) {
-      const prox = Math.round((1 - Math.min(distRel / 0.30, 1)) * 100);
-      pontosTicket = p;
-      fatores.push({ codigo: `ticket_proximidade:${prox}%`, pontos: p });
+  if (negocio.valor_pedido != null) {
+    let piso: number | null = null;
+    let teto: number | null = null;
+    let centro: number | null = null;
+    let origemFaixa: "faixa" | "alvo" = "alvo";
+
+    const m = String((tese as any).valor_investimento || "").match(/^(\d+)-(\d+)$/);
+    if (m) {
+      piso = Number(m[1]);
+      teto = Number(m[2]);
+      centro = (piso + teto) / 2;
+      origemFaixa = "faixa";
+    } else if (tese.valor_alvo != null) {
+      piso = tese.valor_alvo * 0.7;
+      teto = tese.valor_alvo * 1.3;
+      centro = tese.valor_alvo;
+      origemFaixa = "alvo";
+    }
+
+    if (piso !== null && teto !== null && centro !== null) {
+      if (negocio.valor_pedido < piso) {
+        return elim(`ticket_baixo:${negocio.valor_pedido}_min_${piso}`, fatores);
+      }
+      if (negocio.valor_pedido > teto) {
+        return elim(`ticket_alto:${negocio.valor_pedido}_max_${teto}`, fatores);
+      }
+      const meiaLargura = Math.max((teto - piso) / 2, 1);
+      const distRel = Math.abs(negocio.valor_pedido - centro) / meiaLargura;
+      const p = Math.round(10 * (1 - Math.min(distRel, 1)));
+      if (p > 0) {
+        const prox = Math.round((1 - Math.min(distRel, 1)) * 100);
+        pontosTicket = p;
+        fatores.push({ codigo: `ticket_proximidade:${prox}%_${origemFaixa}`, pontos: p });
+      }
     }
   }
 
@@ -316,12 +343,14 @@ async function getValorPedidoAnuncio(negocioId: string): Promise<number | null> 
 }
 
 async function processarParaTese(tese: Tese, salvar: boolean, origem: string, cronExecId?: string | null) {
-  // V8 B8.13 · pré-filtro 2-step:
-  //   passo 1 · busca anúncios publicados (filtra por valor_pedido na janela ±30%)
-  //   passo 2 · puxa negócios desses IDs · aplica filtros adicionais (setor/estado)
-  const valorAlvo = tese.valor_alvo;
-  const piso = valorAlvo != null ? valorAlvo * 0.7 : null;
-  const teto = valorAlvo != null ? valorAlvo * 1.3 : null;
+  // V8 B8.13 · pré-filtro 2-step · v9.20 usa faixa real do investidor quando disponível
+  const mFaixa = String((tese as any).valor_investimento || "").match(/^(\d+)-(\d+)$/);
+  const piso: number | null = mFaixa ? Number(mFaixa[1])
+    : tese.valor_alvo != null ? tese.valor_alvo * 0.7
+    : null;
+  const teto: number | null = mFaixa ? Number(mFaixa[2])
+    : tese.valor_alvo != null ? tese.valor_alvo * 1.3
+    : null;
 
   let anQ = adminClient.from("anuncios_v2").select("negocio_id, valor_pedido").eq("status", "publicado");
   if (piso != null && teto != null) {
