@@ -38,15 +38,17 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return jsonRes({ ok: false, erro: "Method not allowed" }, 405);
 
   // 0. Valida configuração de STRIPE_SECRET_KEY antes de qualquer side effect.
-  // Se vier vazia ou prefixo errado (ex: whsec_ que é a webhook secret), aborta
-  // sem criar negocio lixo no banco.
-  if (!STRIPE_SECRET || (!STRIPE_SECRET.startsWith("sk_live_") && !STRIPE_SECRET.startsWith("sk_test_"))) {
-    const prefix = STRIPE_SECRET ? STRIPE_SECRET.slice(0, 6) : "(vazio)";
+  // Aceita sk_live_/sk_test_ (chave padrão) e rk_live_/rk_test_ (chave restrita ·
+  // Stripe Restricted Key gera Checkout Sessions normalmente). Bloqueia whsec_
+  // (webhook secret) e vazio.
+  const validPrefixes = ["sk_live_", "sk_test_", "rk_live_", "rk_test_"];
+  if (!STRIPE_SECRET || !validPrefixes.some(p => STRIPE_SECRET.startsWith(p))) {
+    const prefix = STRIPE_SECRET ? STRIPE_SECRET.slice(0, 8) : "(vazio)";
     console.error(`[criar-checkout-guiado] STRIPE_SECRET_KEY inválida · prefixo: ${prefix}`);
     return jsonRes({
       ok: false,
       erro: "Configuração de pagamento indisponível. Fale com a equipe pra reativar.",
-      erro_debug: `STRIPE_SECRET_KEY prefix inesperado: ${prefix} · esperado sk_live_ ou sk_test_`,
+      erro_debug: `STRIPE_SECRET_KEY prefix inesperado: ${prefix} · esperado sk_live_ · sk_test_ · rk_live_ · rk_test_`,
     }, 503);
   }
 
