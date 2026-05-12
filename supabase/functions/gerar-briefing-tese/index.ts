@@ -166,7 +166,7 @@ Alcance da operação (escolher 1):
 local · regional · estadual · nacional · digital
 
 Tipos de comprador a buscar (escolher 1+):
-concorrente_direto · antes_cadeia · depois_cadeia · adjacente · investidor_financeiro
+concorrente_direto · antes_cadeia · depois_cadeia · adjacente · clientes_atuais · investidor_financeiro
 
 Alcance geográfico do comprador (escolher 1):
 cidade · raio_30km · raio_100km · estado · regiao · brasil · internacional
@@ -230,23 +230,58 @@ DIFERENCIAIS_ATIVOS (3-5 bullets):
   * '18 anos de operação · marca conhecida no nicho'
 - RUINS (não use): 'Bom atendimento' · 'Time qualificado' · 'Qualidade superior'
 
-SINERGIA (campo crítico · pode ficar vazio se não houver dado):
-- Algum indicador anômalo no laudo? Despesa adm muito alta? Operacional inflada? Comercial gorda?
-- Se sim · um consolidador pode integrar com estrutura dele · cortar custos · subir margem
-- 'indicadores_acima_media': lista bullets de números fora da curva
-- 'ganho_consolidador': 1-2 frases descrevendo como ganharia
-- Se não tiver dado claro · deixe ambos vazios
+SINERGIA (campo crítico · análise quantitativa):
+
+Compare os indicadores do laudo/dados com as MÉDIAS TÍPICAS do setor canônico abaixo. Para cada indicador que estiver 30% OU MAIS acima da média, gere bullet quantificado em 'indicadores_acima_media'.
+
+BENCHMARKS POR SETOR (% sobre receita bruta · referência):
+
+servicos_empresas: despesa_administrativa 10-12% · despesa_operacional 45-55% · despesa_comercial 12-18%
+varejo: despesa_administrativa 5-7% · despesa_operacional 65-75% (CMV alto) · despesa_comercial 10-15%
+saude: despesa_administrativa 10-14% · despesa_operacional 50-60% · despesa_comercial 6-10%
+alimentacao: despesa_administrativa 6-10% · despesa_operacional 55-65% · despesa_comercial 8-12%
+beleza_estetica: despesa_administrativa 8-12% · despesa_operacional 40-55% · despesa_comercial 10-15%
+educacao: despesa_administrativa 12-18% · despesa_operacional 50-60% · despesa_comercial 8-12%
+servicos_locais: despesa_administrativa 8-12% · despesa_operacional 50-60% · despesa_comercial 10-15%
+bem_estar: despesa_administrativa 8-12% · despesa_operacional 45-55% · despesa_comercial 12-18%
+industria: despesa_administrativa 6-10% · despesa_operacional 65-75% (CMV alto) · despesa_comercial 8-12%
+construcao: despesa_administrativa 8-12% · despesa_operacional 65-75% · despesa_comercial 5-10%
+hospedagem: despesa_administrativa 10-14% · despesa_operacional 45-55% · despesa_comercial 8-12%
+logistica: despesa_administrativa 8-12% · despesa_operacional 65-75% (combustível · manutenção) · despesa_comercial 6-10%
+
+REGRAS PARA OS BULLETS:
+
+1. Só gera bullet se diferença for ≥30% acima da média do setor
+2. Cada bullet deve QUANTIFICAR o ganho potencial em R$/ano:
+
+   BOM: 'Despesa administrativa em 22% da receita · ~10pp acima da média do setor varejo (~6-7%) · potencial de redução estimado em R$ 280k/ano integrando estrutura administrativa de um consolidador'
+   RUIM (não gera): 'Despesas administrativas elevadas'
+
+3. Se TODOS os indicadores estiverem dentro das médias, deixe a lista indicadores_acima_media vazia · NÃO invente sinergia.
+
+4. ganho_consolidador: 1-2 frases conectando os indicadores anômalos com o tipo de comprador que mais ganharia integrando.
+   Exemplo: 'Margem comercial de 8% (média 12-15%) somada à estrutura administrativa inchada indica que um concorrente_direto com escala maior cortaria custo fixo e levaria margem operacional pra 18-22% no consolidado.'
+
+5. Se o laudo não tiver breakdown de despesas (apenas faturamento e RO), compare RO/faturamento com margem operacional típica do setor:
+   - servicos_empresas: 15-25% · varejo: 5-12% · saude: 12-20% · alimentacao: 8-15%
+   - beleza_estetica: 18-28% · educacao: 10-20% · servicos_locais: 12-22% · bem_estar: 15-25%
+   - industria: 8-15% · construcao: 5-12% · hospedagem: 12-22% · logistica: 6-12%
+   Se RO está ABAIXO da média do setor mas faturamento é robusto, isso por si só é sinal de oportunidade pra consolidador.
 
 TIPOS DE COMPRADOR (escolha 1+ a buscar):
 - concorrente_direto: outra empresa no mesmo elo da cadeia · mesmo setor · busca consolidação
 - antes_cadeia: quem está ANTES (fornecedor · fabricante · distribuidor) querendo descer pro varejo/serviço final
 - depois_cadeia: quem está DEPOIS (cliente final · canal de revenda · varejo) querendo subir pra produção/distribuição
 - adjacente: atende mesmo cliente com serviço/produto complementar
+- clientes_atuais: cliente B2B que JÁ COMPRA do negócio · conhece a operação por dentro · pode comprar para integrar verticalmente (ex: rede de farmácias compra seu fornecedor de embalagens; restaurante compra padaria que já fornece)
 - investidor_financeiro: PF ou family office sem operação · busca retorno
+
+Pra negócio B2B com base de clientes recorrentes (fornecedor industrial · SaaS · prestador especializado) → SEMPRE considerar clientes_atuais.
 
 Exemplos de raciocínio:
 - padaria → adjacente (cafeteria) · depois_cadeia (distribuidor de panificação) · concorrente_direto (outras padarias)
-- SaaS contábil → concorrente_direto · adjacente (sistema fiscal)
+- SaaS contábil → concorrente_direto · adjacente (sistema fiscal) · clientes_atuais (escritórios contábeis grandes)
+- fornecedor industrial → clientes_atuais (montadoras grandes) · concorrente_direto · antes_cadeia
 
 ALCANCE GEOGRÁFICO:
 - Negócio físico local (padaria · clínica) → cidade ou raio_30km

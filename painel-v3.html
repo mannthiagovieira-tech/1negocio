@@ -16697,9 +16697,14 @@ function origV4RenderEmpty(projetoId) {
     + '</div>';
 }
 
+// v9.32.1 · locks anti-clique-duplo (operador clicou regerar 3x · gastou R$ 0,45)
+const _origV4Locks = { gerando: {}, regerando: {}, aprovando: {}, arqDireto: {} };
+
 async function origV4GerarBriefing(projetoId) {
+  if (_origV4Locks.gerando[projetoId]) { console.log('[origV4GerarBriefing] já em andamento · ignorando'); return; }
+  _origV4Locks.gerando[projetoId] = true;
   const container = document.getElementById('pj-originacao-' + projetoId);
-  if (container) container.innerHTML = '<div class="orig-v4-loading"><div class="spinner"></div><p>IA analisando dados do negócio… 15-30s</p></div>';
+  if (container) container.innerHTML = '<div class="orig-v4-loading"><div class="spinner"></div><p>IA analisando dados do negócio… 15-30s</p><p style="font-size:11px;color:var(--ink-3);margin-top:8px">Não recarregue · não clique de novo</p></div>';
   try {
     const r = await fetch(SB + '/functions/v1/gerar-briefing-tese', {
       method: 'POST',
@@ -16713,16 +16718,14 @@ async function origV4GerarBriefing(projetoId) {
       return;
     }
     origToast('✓ Briefing gerado · revise os campos');
-    // v9.31.1 · fix race: usa response direto da edge (originacao_id + briefing)
-    // em vez de re-fetch da view (que podia retornar row sem briefing se houver duplicatas)
     const origDireto = await pjOriginacaoV2FetchById(data.originacao_id);
     if (origDireto && origDireto.briefing_jsonb) {
       pjOriginacaoV2RenderDireto(projetoId, origDireto);
     } else {
-      // fallback · render via fetch normal
       pjOriginacaoV2Render(projetoId);
     }
   } catch (e) { alert('Erro: ' + e.message); }
+  finally { _origV4Locks.gerando[projetoId] = false; }
 }
 
 function origV4SecaoIdentidade(id, d) {
@@ -16937,6 +16940,7 @@ function origV5SecaoTiposComprador(id, items) {
     ['antes_cadeia','Antes da cadeia','fornecedor · fabricante querendo descer'],
     ['depois_cadeia','Depois da cadeia','cliente · canal · varejo querendo subir'],
     ['adjacente','Adjacente','mesmo cliente · produto complementar'],
+    ['clientes_atuais','Clientes atuais do negócio','já compram · conhecem operação · integração vertical'],
     ['investidor_financeiro','Investidor financeiro','PF ou family office · sem operação']
   ];
   return '<div class="orig-v4-secao">'
@@ -17054,34 +17058,39 @@ function origV5RemoverSinergiaInd(origId, idx) {
 }
 
 async function origV5AprovarEGerarArquetipos(origId) {
+  // v9.32.1 · lock anti-clique-duplo
+  if (_origV4Locks.aprovando[origId]) { console.log('[origV5AprovarEGerar] já em andamento'); return; }
   await origV4SalvarRascunho(origId);
   const b = _origV4Briefings[origId];
   if (!b?.negocio?.setor) { alert('Selecione um setor antes de continuar'); return; }
   if (!b?.tipos_comprador_buscar?.length) { alert('Marque pelo menos 1 tipo de comprador'); return; }
-  if (!confirm('Aprovar briefing e gerar arquétipos? Você poderá editar arquétipos na próxima fase. Custo ~R$ 0,15')) return;
+  if (!confirm('Aprovar briefing e gerar arquétipos? Custo ~R$ 0,30 · 30-60s.')) return;
+
+  _origV4Locks.aprovando[origId] = true;
 
   const orig = await pjOriginacaoV2FetchById(origId);
-  if (!orig) { alert('Originação não encontrada'); return; }
+  if (!orig) { alert('Originação não encontrada'); _origV4Locks.aprovando[origId] = false; return; }
   const projetoId = orig.projeto_id;
 
-  // Avança fase pra arquetipos (sem tese intermediária)
-  await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + origId, {
-    method: 'PATCH',
-    headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
-    body: JSON.stringify({
-      tese_fechada_em: new Date().toISOString(),
-      fase_atual: 'arquetipos',
-      briefing_versao: 'v2_enxuto',
-      updated_at: new Date().toISOString()
-    })
-  });
-
-  origToast('✓ Briefing aprovado · gerando arquétipos');
-  // Loading + chamar gerar-arquetipos-v2 com do_briefing=true
+  // Loading imediato
   const container = document.getElementById('pj-originacao-' + projetoId);
-  if (container) container.innerHTML = '<div class="orig-v4-loading"><div class="spinner"></div><p>IA gerando arquétipos a partir do briefing… 30-60s</p></div>';
+  if (container) container.innerHTML = '<div class="orig-v4-loading"><div class="spinner"></div><p>IA gerando arquétipos a partir do briefing… 30-60s</p><p style="font-size:11px;color:var(--ink-3);margin-top:8px">Não recarregue · não clique de novo</p></div>';
 
   try {
+    // Avança fase pra arquetipos
+    await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + origId, {
+      method: 'PATCH',
+      headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        tese_fechada_em: new Date().toISOString(),
+        fase_atual: 'arquetipos',
+        briefing_versao: 'v2_enxuto',
+        updated_at: new Date().toISOString()
+      })
+    });
+
+    origToast('✓ Briefing aprovado · gerando arquétipos');
+
     const r = await fetch(SB + '/functions/v1/gerar-arquetipos-v2', {
       method: 'POST',
       headers: origV2Headers(),
@@ -17098,17 +17107,22 @@ async function origV5AprovarEGerarArquetipos(origId) {
   } catch (e) {
     alert('Erro: ' + e.message);
     pjOriginacaoV2Render(projetoId);
+  } finally {
+    _origV4Locks.aprovando[origId] = false;
   }
 }
 
 // v9.32 · helper pra gerar arquétipos a partir do briefing (botão na Fase 2 caso ainda não foram gerados)
 async function origV2GerarArquetiposDoBriefing(origId) {
+  // v9.32.1 · lock anti-clique-duplo
+  if (_origV4Locks.arqDireto[origId]) { console.log('[origV2GerarArqDoBriefing] já em andamento'); return; }
   const orig = await pjOriginacaoV2FetchById(origId);
   if (!orig?.briefing_jsonb) { alert('Briefing não encontrado · volte pra Fase 1'); return; }
-  if (!confirm('Gerar arquétipos a partir do briefing? Custo ~R$ 0,15')) return;
+  if (!confirm('Gerar arquétipos a partir do briefing? Custo ~R$ 0,30 · 30-60s.')) return;
 
+  _origV4Locks.arqDireto[origId] = true;
   const container = document.getElementById('pj-originacao-' + orig.projeto_id);
-  if (container) container.innerHTML = '<div class="orig-v4-loading"><div class="spinner"></div><p>IA gerando arquétipos a partir do briefing… 30-60s</p></div>';
+  if (container) container.innerHTML = '<div class="orig-v4-loading"><div class="spinner"></div><p>IA gerando arquétipos a partir do briefing… 30-60s</p><p style="font-size:11px;color:var(--ink-3);margin-top:8px">Não recarregue · não clique de novo</p></div>';
   try {
     const r = await fetch(SB + '/functions/v1/gerar-arquetipos-v2', {
       method: 'POST',
@@ -17126,6 +17140,8 @@ async function origV2GerarArquetiposDoBriefing(origId) {
   } catch (e) {
     alert('Erro: ' + e.message);
     pjOriginacaoV2Render(orig.projeto_id);
+  } finally {
+    _origV4Locks.arqDireto[origId] = false;
   }
 }
 
@@ -17258,14 +17274,33 @@ async function origV4SalvarRascunho(origId) {
 }
 
 async function origV4RegerarBriefing(origId, projetoId) {
-  if (!confirm('Pedir IA pra regerar todo o briefing? Edições não salvas serão perdidas · custo ~R$ 0,15')) return;
-  // Limpa briefing antes de regerar
-  await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + origId, {
-    method: 'PATCH',
-    headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
-    body: JSON.stringify({ briefing_jsonb: null })
+  // v9.32.1 · lock anti-clique-duplo
+  if (_origV4Locks.regerando[origId]) { console.log('[origV4Regerar] já em andamento'); return; }
+  if (!confirm('Regerar todo o briefing? Suas edições serão SUBSTITUÍDAS pela versão da IA · custo ~R$ 0,15.')) return;
+  _origV4Locks.regerando[origId] = true;
+
+  // Desabilita visualmente todos os botões de regerar dessa origem
+  document.querySelectorAll('[onclick*="origV4RegerarBriefing(\'' + origId + '\'"]').forEach((btn) => {
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.style.cursor = 'not-allowed';
+    btn.dataset.labelOriginal = btn.textContent;
+    btn.textContent = '⏳ Regerando…';
   });
-  await origV4GerarBriefing(projetoId);
+
+  try {
+    await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + origId, {
+      method: 'PATCH',
+      headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ briefing_jsonb: null })
+    });
+    await origV4GerarBriefing(projetoId);
+  } catch (e) {
+    alert('Erro ao regerar: ' + e.message);
+  } finally {
+    _origV4Locks.regerando[origId] = false;
+    // Re-render via origV4GerarBriefing já substitui o DOM · botões somem com a re-renderização
+  }
 }
 
 async function origV4GerarTese(origId) {

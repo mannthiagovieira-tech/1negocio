@@ -233,6 +233,7 @@ serve(async (req) => {
       antes_cadeia: "antes_cadeia · fornecedor/fabricante querendo descer",
       depois_cadeia: "depois_cadeia · cliente/canal querendo subir",
       adjacente: "adjacente · mesmo cliente · produto complementar",
+      clientes_atuais: "clientes_atuais · cliente B2B que já compra · integração vertical · conhece operação por dentro",
       investidor_financeiro: "investidor_financeiro · PF ou family office sem operação",
     } as Record<string, string>;
     const tiposBlock = tipos.map((t: string) => `- ${tiposLabels[t] || t}`).join("\n");
@@ -273,7 +274,8 @@ Regras adicionais:
 - Exemplos CONCRETOS (ex: 'Alterdata Software', 'Senior Sistemas') · não genéricos
 - Português brasileiro
 - Use o setor canônico do briefing.negocio.setor sem inventar
-- Aproveite briefing.sinergia.ganho_consolidador na motivação quando aplicável`;
+- Aproveite briefing.sinergia.ganho_consolidador na motivação quando aplicável
+- Se 'clientes_atuais' foi marcado, o arquétipo deve ter motivação DIFERENTE dos outros: já conhece operação · já tem confiança · pode querer eliminar risco de fornecedor único · integração vertical`;
   } else {
     const perfisLabels = (perfis_comprador_desejados || []).map((p: string) => `- ${PERFIS_LABELS[p] || p}`).join("\n");
     systemPrompt = SYSTEM_PROMPT_BASE
