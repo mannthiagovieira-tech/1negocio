@@ -1,6 +1,11 @@
-// gerar-originacao · v9.24
+// gerar-originacao · v9.24.1
 // Motor de Originação de Compradores · 1 chamada Sonnet 4 com web_search ativo
 // Roda 1x por projeto (cria nova versão a cada chamada).
+//
+// v9.24.1 (hardening):
+// - Remove bypass service_role sem verificação de assinatura
+// - Limite de 3 gerações por projeto em janela de 24h
+// - verify_jwt=true no deploy garante dupla validação (Edge Gateway + getUser)
 //
 // Input (POST):
 // {
@@ -219,38 +224,23 @@ serve(async (req) => {
 
   const adminClient = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  // ───── Gate admin ─────
+  // ───── Gate admin (v9.24.1 · sem bypass service_role) ─────
   const authHeader = req.headers.get("Authorization") || "";
   const jwt = authHeader.replace(/^Bearer\s+/i, "");
   if (!jwt) return resp(401, { ok: false, erro: "sem_jwt" });
 
-  // service_role bypass (pra testes server-side)
-  let admin: { id: string } | null = null;
-  try {
-    const [, payloadB64] = jwt.split(".");
-    if (payloadB64) {
-      const b64 = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
-      const padded = b64 + "=".repeat((4 - b64.length % 4) % 4);
-      const payload = JSON.parse(atob(padded));
-      if (payload?.role === "service_role") {
-        admin = { id: "00000000-0000-0000-0000-000000000000" };
-      }
-    }
-  } catch { /* segue fluxo normal */ }
+  // adminClient.auth.getUser(jwt) faz chamada HTTP pra GoTrue · valida assinatura
+  // verify_jwt=true no deploy garante validação dupla (Edge Gateway + esta linha)
+  const { data: userData, error: userErr } = await adminClient.auth.getUser(jwt);
+  if (userErr || !userData?.user) return resp(401, { ok: false, erro: "jwt_invalido" });
 
-  if (!admin) {
-    const { data: userData } = await adminClient.auth.getUser(jwt);
-    if (!userData?.user) return resp(401, { ok: false, erro: "jwt_invalido" });
-
-    const { data: adminRow } = await adminClient
-      .from("admins")
-      .select("id, ativo")
-      .eq("whatsapp", userData.user.phone)
-      .eq("ativo", true)
-      .maybeSingle();
-    if (!adminRow) return resp(403, { ok: false, erro: "nao_admin" });
-    admin = adminRow;
-  }
+  const { data: admin, error: adminErr } = await adminClient
+    .from("admins")
+    .select("id, ativo")
+    .eq("whatsapp", userData.user.phone)
+    .eq("ativo", true)
+    .maybeSingle();
+  if (adminErr || !admin) return resp(403, { ok: false, erro: "nao_admin" });
 
   // ───── Parse body ─────
   let body: any;
@@ -273,6 +263,23 @@ serve(async (req) => {
       ok: false,
       erro: "params_invalidos",
       detalhe: "projeto_id e contexto_adicional são obrigatórios",
+    });
+  }
+
+  // ───── v9.24.1 · Limite 3 gerações/dia por projeto ─────
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count: geracoes24h } = await adminClient
+    .from("projetos_originacao")
+    .select("id", { count: "exact", head: true })
+    .eq("projeto_id", projeto_id)
+    .gte("created_at", cutoff);
+
+  if ((geracoes24h ?? 0) >= 3) {
+    return resp(429, {
+      ok: false,
+      erro: "limite_diario",
+      detalhe: "Limite de 3 gerações por dia atingido para este projeto. Tente novamente em algumas horas.",
+      geracoes_24h: geracoes24h,
     });
   }
 
@@ -319,12 +326,9 @@ serve(async (req) => {
     projeto_id,
     versao: proximaVersao,
     status: "gerando",
+    gerado_por_admin_id: admin.id,
     ...inputs,
   };
-  // só seta gerado_por_admin_id se for um admin real (não bypass service_role)
-  if (admin.id !== "00000000-0000-0000-0000-000000000000") {
-    insertPayload.gerado_por_admin_id = admin.id;
-  }
 
   const { data: origRow, error: errInsert } = await adminClient
     .from("projetos_originacao")
