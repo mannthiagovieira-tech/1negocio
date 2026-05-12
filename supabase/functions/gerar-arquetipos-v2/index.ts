@@ -144,7 +144,7 @@ serve(async (req) => {
   try { body = await req.json(); }
   catch { return resp(400, { ok: false, erro: "json_invalido" }); }
 
-  const { originacao_id, reusar_calibracao } = body;
+  const { originacao_id, reusar_calibracao, do_briefing } = body;
   let { faixa_capacidade_min, faixa_capacidade_max, perfis_comprador_desejados, observacao_escala } = body;
 
   if (!originacao_id) return resp(400, { ok: false, erro: "originacao_id_obrigatorio" });
@@ -159,34 +159,40 @@ serve(async (req) => {
   if (origRow.fase_atual !== "arquetipos") {
     return resp(400, { ok: false, erro: "fase_invalida", detalhe: `Fase atual é '${origRow.fase_atual}' · esperado 'arquetipos'` });
   }
-  if (!origRow.tese_texto) {
-    return resp(400, { ok: false, erro: "tese_nao_fechada", detalhe: "Tese precisa estar fechada antes de gerar arquétipos" });
-  }
 
-  // Reusar calibração ou aplicar nova
-  if (reusar_calibracao) {
-    faixa_capacidade_min = origRow.faixa_capacidade_min;
-    faixa_capacidade_max = origRow.faixa_capacidade_max;
-    perfis_comprador_desejados = origRow.perfis_comprador_desejados;
-    observacao_escala = origRow.observacao_escala;
+  // v9.32 · novo fluxo: usa briefing_jsonb (vocabulário canônico) · sem calibração manual
+  if (do_briefing) {
+    if (!origRow.briefing_jsonb || Object.keys(origRow.briefing_jsonb).length === 0) {
+      return resp(400, { ok: false, erro: "briefing_vazio", detalhe: "Briefing precisa estar preenchido antes" });
+    }
   } else {
-    if (!faixa_capacidade_min || !faixa_capacidade_max || faixa_capacidade_min >= faixa_capacidade_max) {
-      return resp(400, { ok: false, erro: "faixa_invalida" });
+    // Modo legado v9.29-v9.31 (tese_texto + faixa manual)
+    if (!origRow.tese_texto) {
+      return resp(400, { ok: false, erro: "tese_nao_fechada", detalhe: "Tese precisa estar fechada antes de gerar arquétipos · OU passe do_briefing=true" });
     }
-    if (!Array.isArray(perfis_comprador_desejados) || !perfis_comprador_desejados.length) {
-      return resp(400, { ok: false, erro: "perfis_obrigatorios" });
+    if (reusar_calibracao) {
+      faixa_capacidade_min = origRow.faixa_capacidade_min;
+      faixa_capacidade_max = origRow.faixa_capacidade_max;
+      perfis_comprador_desejados = origRow.perfis_comprador_desejados;
+      observacao_escala = origRow.observacao_escala;
+    } else {
+      if (!faixa_capacidade_min || !faixa_capacidade_max || faixa_capacidade_min >= faixa_capacidade_max) {
+        return resp(400, { ok: false, erro: "faixa_invalida" });
+      }
+      if (!Array.isArray(perfis_comprador_desejados) || !perfis_comprador_desejados.length) {
+        return resp(400, { ok: false, erro: "perfis_obrigatorios" });
+      }
+      await adminClient
+        .from("projetos_originacao")
+        .update({
+          faixa_capacidade_min,
+          faixa_capacidade_max,
+          perfis_comprador_desejados,
+          observacao_escala: observacao_escala || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", originacao_id);
     }
-    // Persiste calibração
-    await adminClient
-      .from("projetos_originacao")
-      .update({
-        faixa_capacidade_min,
-        faixa_capacidade_max,
-        perfis_comprador_desejados,
-        observacao_escala: observacao_escala || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", originacao_id);
   }
 
   // Busca negócio
@@ -212,15 +218,72 @@ serve(async (req) => {
     .maybeSingle();
   const offsetOrdem = (ultimaOrdem?.ordem ?? -1) + 1;
 
-  // Monta system prompt
-  const perfisLabels = (perfis_comprador_desejados || []).map((p: string) => `- ${PERFIS_LABELS[p] || p}`).join("\n");
-  const systemPrompt = SYSTEM_PROMPT_BASE
-    .replace("{perfis_permitidos}", perfisLabels)
-    .replace("{observacao_escala}", observacao_escala || "(nenhuma)")
-    .replace("{tese_texto}", origRow.tese_texto)
-    .replace("{negocio_block}", buildNegocioBlock(negocio))
-    .replace("{faixa_min}", String(faixa_capacidade_min))
-    .replace("{faixa_max}", String(faixa_capacidade_max));
+  // Monta system prompt · 2 caminhos:
+  // v9.32 · do_briefing=true → usa briefing_jsonb estruturado (vocabulário canônico)
+  // legado · do_briefing=false → usa tese_texto + faixa manual + perfis antigos
+  let systemPrompt: string;
+  if (do_briefing) {
+    const b = origRow.briefing_jsonb;
+    const valorVenda = b.tamanho?.valor_venda_pedido;
+    const capMin = valorVenda ? Math.round(valorVenda * 0.8) : null;
+    const capMax = valorVenda ? Math.round(valorVenda * 3) : null;
+    const tipos = Array.isArray(b.tipos_comprador_buscar) ? b.tipos_comprador_buscar : [];
+    const tiposLabels = {
+      concorrente_direto: "concorrente_direto · mesma cadeia · busca consolidação",
+      antes_cadeia: "antes_cadeia · fornecedor/fabricante querendo descer",
+      depois_cadeia: "depois_cadeia · cliente/canal querendo subir",
+      adjacente: "adjacente · mesmo cliente · produto complementar",
+      investidor_financeiro: "investidor_financeiro · PF ou family office sem operação",
+    } as Record<string, string>;
+    const tiposBlock = tipos.map((t: string) => `- ${tiposLabels[t] || t}`).join("\n");
+
+    systemPrompt = `Você é especialista sênior em M&A da 1Negócio. Gere 3-7 ARQUÉTIPOS DE COMPRADORES POTENCIAIS para este negócio à venda.
+
+REGRA ABSOLUTA · ESCALA DO COMPRADOR:
+O valor de venda pedido é R$ ${valorVenda ?? "não informado"}.
+Capacidade financeira esperada do comprador: entre R$ ${capMin ?? "?"} e R$ ${capMax ?? "?"} (0.8x a 3x do valor pedido).
+NÃO sugira compradores fora dessa faixa. Multinacionais e fundos grandes NUNCA quando valor pedido é menor que R$ 5M.
+
+TIPOS DE COMPRADOR A BUSCAR (admin selecionou · gere 1-2 arquétipos por tipo):
+${tiposBlock}
+
+Tipos não listados acima NÃO podem aparecer nos arquétipos.
+
+BRIEFING DO NEGÓCIO (vocabulário canônico):
+${JSON.stringify(b, null, 2)}
+
+GERE 3-7 ARQUÉTIPOS no formato JSON estrito (sem markdown · sem texto fora):
+{
+  "arquetipos": [
+    {
+      "nome": "string curta · 3-6 palavras (ex: 'Distribuidora regional do setor X')",
+      "vetor": "horizontal" ou "vertical",
+      "perfil": "descrição detalhada do tipo de comprador · 1-2 frases",
+      "motivacao": "por que esse arquétipo compraria ESTE negócio especificamente · referencie diferenciais ou sinergia do briefing",
+      "capacidade_financeira": "faixa em R$ explícita · dentro de 0.8x a 3x do valor pedido",
+      "exemplos": "2-4 nomes ou tipos concretos respeitando escala · não 'uma empresa do setor'"
+    }
+  ]
+}
+
+Regras adicionais:
+- Mínimo 3 · máximo 7 arquétipos
+- Vetor: horizontal = mesmo setor canônico · vertical = setor adjacente/antes/depois na cadeia
+- Capacidade financeira sempre EXPLÍCITA em R$ · dentro da faixa
+- Exemplos CONCRETOS (ex: 'Alterdata Software', 'Senior Sistemas') · não genéricos
+- Português brasileiro
+- Use o setor canônico do briefing.negocio.setor sem inventar
+- Aproveite briefing.sinergia.ganho_consolidador na motivação quando aplicável`;
+  } else {
+    const perfisLabels = (perfis_comprador_desejados || []).map((p: string) => `- ${PERFIS_LABELS[p] || p}`).join("\n");
+    systemPrompt = SYSTEM_PROMPT_BASE
+      .replace("{perfis_permitidos}", perfisLabels)
+      .replace("{observacao_escala}", observacao_escala || "(nenhuma)")
+      .replace("{tese_texto}", origRow.tese_texto)
+      .replace("{negocio_block}", buildNegocioBlock(negocio))
+      .replace("{faixa_min}", String(faixa_capacidade_min))
+      .replace("{faixa_max}", String(faixa_capacidade_max));
+  }
 
   // Chama Claude (sem web search · ~R$ 0,30)
   const inicio = Date.now();

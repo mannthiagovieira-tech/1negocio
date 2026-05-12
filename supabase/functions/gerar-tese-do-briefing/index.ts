@@ -1,3 +1,8 @@
+// ⚠️ DEPRECATED v9.32 · tese narrativa removida da Originação
+// Originação foca em arquétipos · não em peças de comunicação
+// Se precisar de tese narrativa no futuro · vira ferramenta separada
+// (Anúncios · Propostas) · não bloqueia fluxo de Originação
+//
 // gerar-tese-do-briefing · v9.31
 // Redige tese narrativa profissional a partir do briefing aprovado.
 //

@@ -1,6 +1,8 @@
-// gerar-briefing-tese · v9.31
-// Pré-preenche briefing estruturado do negócio a partir de negocios + laudos_v2 + diagnosticos.
-// Output salvo em projetos_originacao.briefing_jsonb (estrutura 8 seções).
+// gerar-briefing-tese · v9.32 (enxuto · vocabulário canônico)
+// Pré-preenche briefing focado em identificar ARQUÉTIPOS de comprador.
+// Removido em v9.32: tese narrativa · motivo da venda · momento de mercado · riscos
+// Adicionado: sinergia (consolidador) · tipos_comprador_buscar · valor_venda_pedido
+// Output salvo em projetos_originacao.briefing_jsonb (estrutura V2 · 7 seções).
 //
 // POST body: { originacao_id?: uuid, projeto_id: uuid }
 // Output: { ok, originacao_id, briefing, tokens_in, tokens_out, duracao_ms }
@@ -144,52 +146,116 @@ serve(async (req) => {
   const dadosNegocio = buildDadosNegocio(negocio);
   const laudoBlock = buildLaudoBlock(laudo);
 
-  const systemPrompt = `Você é consultor sênior em M&A. Sua tarefa: extrair um BRIEFING ESTRUTURADO do negócio à venda, usando todos os dados disponíveis (laudo · diagnóstico · campos do banco).
+  const systemPrompt = `Você é analista de M&A da 1Negócio · plataforma brasileira de compra e venda de PMEs. Sua tarefa: extrair um BRIEFING ESTRUTURADO do negócio à venda · focado em identificar ARQUÉTIPOS DE COMPRADORES.
 
-Retorne EXCLUSIVAMENTE um JSON com a estrutura abaixo. Não escreva texto fora do JSON. Não invente dados que não foram fornecidos · use null ou string vazia quando não tiver info.
+OBJETIVO ÚNICO: dar à IA da próxima etapa (geração de arquétipos) os inputs necessários pra identificar quem PODE COMPRAR este negócio · onde encontrar essas pessoas/empresas · e como abordá-las.
+
+NÃO escreva tese narrativa. NÃO descreva momento de mercado abstrato. NÃO discuta motivo da venda (irrelevante pra achar comprador).
+
+Retorne EXCLUSIVAMENTE um JSON com a estrutura abaixo. Use null ou string vazia quando não tiver info. Não invente dados.
+
+VOCABULÁRIO CANÔNICO (use exatamente esses valores):
+
+Setores (escolher 1):
+servicos_empresas, varejo, saude, alimentacao, beleza_estetica, educacao, servicos_locais, bem_estar, industria, construcao, hospedagem, logistica
+
+Modelos de operação (escolher 1+):
+presta_servico, produz_revende, fabricacao, revenda, distribuicao, vende_governo, saas, assinatura
+
+Alcance da operação (escolher 1):
+local · regional · estadual · nacional · digital
+
+Tipos de comprador a buscar (escolher 1+):
+concorrente_direto · antes_cadeia · depois_cadeia · adjacente · investidor_financeiro
+
+Alcance geográfico do comprador (escolher 1):
+cidade · raio_30km · raio_100km · estado · regiao · brasil · internacional
 
 ESTRUTURA OBRIGATÓRIA:
 
 {
-  "identidade": {
-    "nome": "<nome do negócio>",
-    "setor": "<setor amplo>",
-    "sub_setor": "<sub-setor específico se identificável>",
+  "negocio": {
+    "setor": "<setor canônico>",
+    "sub_setor": "<nicho específico, ex: 'padaria artesanal' · 'SaaS contábil'>",
+    "modelos_operacao": ["<1+ valores canônicos>"],
     "cidade": "<cidade>",
     "estado": "<UF>",
+    "alcance_operacao": "<canônico>",
+    "fonte_confianca": "alta|media|baixa"
+  },
+  "tamanho": {
+    "faturamento_bruto_anual": <number ou null>,
+    "resultado_operacional_anual": <number ou null>,
+    "margem_operacional_pct": <number 0-100 ou null>,
     "tempo_operacao_anos": <number ou null>,
     "funcionarios": <number ou null>,
+    "valor_venda_pedido": <number ou null>,
     "fonte_confianca": "alta|media|baixa"
   },
-  "economics": {
-    "faturamento_anual": <number ou null>,
-    "ebitda_mensal": <number ou null>,
-    "margem_percentual": <number 0-100 ou null>,
-    "crescimento_3a_percentual": <number ou null>,
-    "recorrencia": "alta|media|baixa",
-    "fonte_confianca": "alta|media|baixa"
+  "diferenciais_ativos": [
+    "<bullet defensável · concreto · não comercial>",
+    "<bullet 2>"
+  ],
+  "sinergia": {
+    "indicadores_acima_media": [
+      "<ex: 'Despesa administrativa representa 22% da receita · acima da média do setor (~12%)'>"
+    ],
+    "ganho_consolidador": "<1-2 frases sobre onde um consolidador ganharia>"
   },
-  "diferenciais": ["<bullet 1>", "<bullet 2>", "<bullet 3>"],
-  "riscos": ["<risco 1>", "<risco 2>"],
-  "momento_mercado": "<2-3 frases sobre por que AGORA é momento favorável>",
-  "motivo_venda": "<aposentadoria|sucessao|cash_out|conflito_socios|pivo|saude|outro>",
-  "motivo_venda_obs": "<string opcional explicando>",
-  "alcance_geografico": "<cidade|raio_30km|raio_100km|estado|regiao|brasil|internacional>",
+  "tipos_comprador_buscar": ["<canônicos · 1-5 valores>"],
+  "alcance_geografico_comprador": "<canônico>",
   "alcance_geografico_justificativa": "<por que esse raio · concreto>",
-  "observacoes_livres": ""
+  "observacao": ""
 }
 
-REGRAS:
-- diferenciais: 3-5 bullets · cada um defensável (não 'temos bom atendimento')
-- riscos: 2-3 bullets · honestos (mercado · operacional · sucessão · etc)
-- momento_mercado: deve ter ângulo concreto (Reforma Tributária · consolidação setorial · escassez de oferta · etc)
-- motivo_venda: infere se possível · senão usa 'outro' e explica em obs
-- alcance_geografico: pensa no tipo de comprador que faz sentido
-  · negócio físico local → cidade ou raio_30km
-  · SaaS/digital → brasil ou internacional
-  · indústria → estado ou regiao
-  · franquia/rede → regiao ou brasil
-- fonte_confianca: 'alta' se dados vieram do laudo · 'media' se inferiu · 'baixa' se chutou
+REGRAS POR SEÇÃO:
+
+NEGÓCIO:
+- Setor: o canônico mais próximo. NUNCA invente setor fora da lista.
+- Sub-setor: específico (ex: 'restaurante japonês' · 'SaaS contábil' · 'distribuidora de bebidas')
+- Modelos de operação: pode marcar múltiplos se o negócio combina (ex: indústria que também distribui)
+
+TAMANHO:
+- faturamento_bruto_anual: do banco (campo fat_anual ou faturamento_anual)
+- resultado_operacional_anual: do laudo (RO ajustado · não EBITDA). Se só tiver EBITDA · use o valor mesmo
+- valor_venda_pedido: o preço da venda. ESSE define capacidade do comprador (não confundir com faturamento).
+
+DIFERENCIAIS_ATIVOS (3-5 bullets):
+- Concretos · defensáveis · o que esse negócio TEM que outros do setor NÃO têm
+- BONS exemplos:
+  * 'Contrato exclusivo com 3 fornecedores'
+  * 'Base de 400 clientes recorrentes com churn < 5% ao mês'
+  * 'Tecnologia proprietária X (registrada)'
+  * 'Imóvel próprio em rua comercial premium · avaliação R$ 800k'
+  * '18 anos de operação · marca conhecida no nicho'
+- RUINS (não use): 'Bom atendimento' · 'Time qualificado' · 'Qualidade superior'
+
+SINERGIA (campo crítico · pode ficar vazio se não houver dado):
+- Algum indicador anômalo no laudo? Despesa adm muito alta? Operacional inflada? Comercial gorda?
+- Se sim · um consolidador pode integrar com estrutura dele · cortar custos · subir margem
+- 'indicadores_acima_media': lista bullets de números fora da curva
+- 'ganho_consolidador': 1-2 frases descrevendo como ganharia
+- Se não tiver dado claro · deixe ambos vazios
+
+TIPOS DE COMPRADOR (escolha 1+ a buscar):
+- concorrente_direto: outra empresa no mesmo elo da cadeia · mesmo setor · busca consolidação
+- antes_cadeia: quem está ANTES (fornecedor · fabricante · distribuidor) querendo descer pro varejo/serviço final
+- depois_cadeia: quem está DEPOIS (cliente final · canal de revenda · varejo) querendo subir pra produção/distribuição
+- adjacente: atende mesmo cliente com serviço/produto complementar
+- investidor_financeiro: PF ou family office sem operação · busca retorno
+
+Exemplos de raciocínio:
+- padaria → adjacente (cafeteria) · depois_cadeia (distribuidor de panificação) · concorrente_direto (outras padarias)
+- SaaS contábil → concorrente_direto · adjacente (sistema fiscal)
+
+ALCANCE GEOGRÁFICO:
+- Negócio físico local (padaria · clínica) → cidade ou raio_30km
+- Indústria → estado ou regiao
+- SaaS/digital → brasil ou internacional
+- Distribuidora → regiao
+- Franquia/rede → brasil
+
+fonte_confianca: 'alta' se dados do laudo · 'media' se inferiu · 'baixa' se chutou
 
 DADOS DO NEGÓCIO:
 ${dadosNegocio}
@@ -235,7 +301,9 @@ Retorne APENAS o JSON.`;
       .update({
         briefing_jsonb: briefing,
         briefing_gerado_em: new Date().toISOString(),
-        alcance_geografico: briefing.alcance_geografico || null,
+        briefing_versao: "v2_enxuto",
+        // v9.32 · alcance_geografico agora vem de alcance_geografico_comprador
+        alcance_geografico: briefing.alcance_geografico_comprador || briefing.alcance_geografico || null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", origRow.id);

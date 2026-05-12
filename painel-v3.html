@@ -16825,6 +16825,7 @@ function origV4SecaoGeografia(id, alcance, justificativa) {
 }
 
 function origV4SecaoObservacoes(id, texto) {
+  // v9.32 · DEAD CODE (mantido pra compat se algo ainda chamar) · use origV5SecaoObservacao
   const esc = String(texto || '').replace(/</g,'&lt;');
   return '<div class="orig-v4-secao">'
     + '<h4>📝 Observações livres</h4>'
@@ -16832,29 +16833,359 @@ function origV4SecaoObservacoes(id, texto) {
     + '</div>';
 }
 
+/* ──── v9.32 · Briefing V5 · funções de seção (vocabulário canônico) ──── */
+
+function origV5SecaoNegocio(id, d) {
+  d = d || {};
+  const confianca = d.fonte_confianca || 'media';
+  const setores = [
+    ['servicos_empresas','Serviços empresas'], ['varejo','Varejo'], ['saude','Saúde'],
+    ['alimentacao','Alimentação'], ['beleza_estetica','Beleza · Estética'], ['educacao','Educação'],
+    ['servicos_locais','Serviços locais'], ['bem_estar','Bem-estar'], ['industria','Indústria'],
+    ['construcao','Construção'], ['hospedagem','Hospedagem'], ['logistica','Logística']
+  ];
+  const modelos = [
+    ['presta_servico','Presta serviço'], ['produz_revende','Produz e revende'], ['fabricacao','Fabricação'],
+    ['revenda','Revenda'], ['distribuicao','Distribuição'], ['vende_governo','Vende ao governo'],
+    ['saas','SaaS'], ['assinatura','Assinatura']
+  ];
+  const alcances = ['local','regional','estadual','nacional','digital'];
+  const modelosSel = d.modelos_operacao || [];
+  const esc = (v) => String(v ?? '').replace(/"/g,'&quot;');
+
+  return '<div class="orig-v4-secao">'
+    + '<h4>🏢 O Negócio <span class="orig-v4-confianca ' + confianca + '">' + confianca + '</span></h4>'
+    + '<div class="orig-v4-row">'
+    + '<div class="orig-v4-campo"><label>Setor (canônico)</label>'
+    + '<select data-path="negocio.setor" onchange="origV4Atualizar(\'' + id + '\', this)">'
+    + setores.map(s => '<option value="' + s[0] + '"' + (d.setor===s[0]?' selected':'') + '>' + s[1] + '</option>').join('')
+    + '</select></div>'
+    + '<div class="orig-v4-campo"><label>Sub-setor / Nicho</label>'
+    + '<input type="text" data-path="negocio.sub_setor" value="' + esc(d.sub_setor) + '" oninput="origV4Atualizar(\'' + id + '\', this)"></div>'
+    + '</div>'
+    + '<div class="orig-v4-campo"><label>Modelos de operação (marque 1+)</label>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">'
+    + modelos.map(m =>
+        '<label style="font-size:12px;display:flex;gap:4px;align-items:center;padding:4px 8px;background:var(--bg);border:1px solid var(--line);border-radius:6px;cursor:pointer">'
+        + '<input type="checkbox" value="' + m[0] + '"' + (modelosSel.includes(m[0])?' checked':'') + ' onchange="origV5ToggleModelo(\'' + id + '\', \'' + m[0] + '\', this.checked)">'
+        + m[1] + '</label>'
+      ).join('')
+    + '</div></div>'
+    + '<div class="orig-v4-row">'
+    + '<div class="orig-v4-campo"><label>Cidade · UF</label>'
+    + '<input type="text" value="' + esc(d.cidade) + (d.estado ? ' ' + esc(d.estado) : '') + '" oninput="origV5AtualizarCidadeUF(\'' + id + '\', this.value)"></div>'
+    + '<div class="orig-v4-campo"><label>Alcance da operação</label>'
+    + '<select data-path="negocio.alcance_operacao" onchange="origV4Atualizar(\'' + id + '\', this)">'
+    + alcances.map(a => '<option value="' + a + '"' + (d.alcance_operacao===a?' selected':'') + '>' + a + '</option>').join('')
+    + '</select></div>'
+    + '</div>'
+    + '</div>';
+}
+
+function origV5SecaoTamanho(id, d) {
+  d = d || {};
+  const confianca = d.fonte_confianca || 'media';
+  return '<div class="orig-v4-secao">'
+    + '<h4>📏 Tamanho e Econômico <span class="orig-v4-confianca ' + confianca + '">' + confianca + '</span></h4>'
+    + '<div class="orig-v4-row">'
+    + '<div class="orig-v4-campo"><label>Faturamento bruto anual (R$)</label>'
+    + '<input type="number" data-path="tamanho.faturamento_bruto_anual" value="' + (d.faturamento_bruto_anual ?? '') + '" oninput="origV4Atualizar(\'' + id + '\', this)"></div>'
+    + '<div class="orig-v4-campo"><label>Resultado operacional anual (R$)</label>'
+    + '<input type="number" data-path="tamanho.resultado_operacional_anual" value="' + (d.resultado_operacional_anual ?? '') + '" oninput="origV4Atualizar(\'' + id + '\', this)"></div>'
+    + '</div>'
+    + '<div class="orig-v4-row">'
+    + '<div class="orig-v4-campo"><label>Margem operacional (%)</label>'
+    + '<input type="number" step="0.1" data-path="tamanho.margem_operacional_pct" value="' + (d.margem_operacional_pct ?? '') + '" oninput="origV4Atualizar(\'' + id + '\', this)"></div>'
+    + '<div class="orig-v4-campo"><label>Funcionários</label>'
+    + '<input type="number" data-path="tamanho.funcionarios" value="' + (d.funcionarios ?? '') + '" oninput="origV4Atualizar(\'' + id + '\', this)"></div>'
+    + '</div>'
+    + '<div class="orig-v4-row">'
+    + '<div class="orig-v4-campo"><label>Tempo de operação (anos)</label>'
+    + '<input type="number" data-path="tamanho.tempo_operacao_anos" value="' + (d.tempo_operacao_anos ?? '') + '" oninput="origV4Atualizar(\'' + id + '\', this)"></div>'
+    + '<div class="orig-v4-campo"><label>Valor de venda pedido (R$) <span style="color:var(--em);font-size:10px;font-family:var(--mono)">← define capacidade do comprador</span></label>'
+    + '<input type="number" data-path="tamanho.valor_venda_pedido" value="' + (d.valor_venda_pedido ?? '') + '" oninput="origV4Atualizar(\'' + id + '\', this)"></div>'
+    + '</div>'
+    + '</div>';
+}
+
+function origV5SecaoSinergia(id, d) {
+  d = d || {};
+  const indicadores = d.indicadores_acima_media || [];
+  const esc = (v) => String(v ?? '').replace(/"/g,'&quot;');
+  return '<div class="orig-v4-secao">'
+    + '<h4>💡 Potencial de Sinergia <span style="font-size:10px;font-weight:400;color:var(--ink-3);text-transform:none;letter-spacing:0">(pode ficar vazio)</span></h4>'
+    + '<p style="font-size:11px;color:var(--ink-3);margin:0 0 10px 0">Indicadores acima da média do setor = oportunidade pra consolidador integrar e melhorar margem</p>'
+    + '<label style="font-size:11px;color:var(--ink-3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em">Indicadores anômalos</label>'
+    + '<div class="orig-v4-bullets-list" id="orig-v4-sinergia_indicadores-' + id + '" style="margin-top:4px">'
+    + indicadores.map((it, idx) =>
+        '<div class="orig-v4-bullet-row">'
+        + '<input type="text" value="' + esc(it) + '" placeholder="ex: Despesa adm 22% (média setor ~12%)" oninput="origV5AtualizarSinergiaInd(\'' + id + '\', ' + idx + ', this.value)">'
+        + '<button onclick="origV5RemoverSinergiaInd(\'' + id + '\', ' + idx + ')">✕</button>'
+        + '</div>'
+      ).join('')
+    + '</div>'
+    + '<button class="orig-v4-bullet-add" onclick="origV5AdicionarSinergiaInd(\'' + id + '\')">+ adicionar indicador</button>'
+    + '<div class="orig-v4-campo" style="margin-top:14px"><label>Onde um consolidador ganharia</label>'
+    + '<textarea data-path="sinergia.ganho_consolidador" rows="2" placeholder="ex: Integrando comercial com base existente · cortando administração duplicada · escala em compra de insumos" oninput="origV4Atualizar(\'' + id + '\', this)">' + String(d.ganho_consolidador||'').replace(/</g,'&lt;') + '</textarea></div>'
+    + '</div>';
+}
+
+function origV5SecaoTiposComprador(id, items) {
+  items = items || [];
+  const tipos = [
+    ['concorrente_direto','Concorrente direto','mesma cadeia · busca consolidação'],
+    ['antes_cadeia','Antes da cadeia','fornecedor · fabricante querendo descer'],
+    ['depois_cadeia','Depois da cadeia','cliente · canal · varejo querendo subir'],
+    ['adjacente','Adjacente','mesmo cliente · produto complementar'],
+    ['investidor_financeiro','Investidor financeiro','PF ou family office · sem operação']
+  ];
+  return '<div class="orig-v4-secao">'
+    + '<h4>🎯 Tipos de comprador a buscar</h4>'
+    + '<p style="font-size:11px;color:var(--ink-3);margin:0 0 10px 0">Marque os perfis que fazem sentido · IA gera arquétipos para cada um</p>'
+    + '<div style="display:flex;flex-direction:column;gap:6px">'
+    + tipos.map(t =>
+        '<label style="display:flex;align-items:flex-start;gap:8px;padding:8px;background:var(--bg);border:1px solid var(--line);border-radius:6px;cursor:pointer">'
+        + '<input type="checkbox" value="' + t[0] + '"' + (items.includes(t[0])?' checked':'') + ' onchange="origV5ToggleTipoComprador(\'' + id + '\', \'' + t[0] + '\', this.checked)" style="margin-top:3px">'
+        + '<div><div style="font-weight:500;font-size:13px">' + t[1] + '</div>'
+        + '<div style="font-size:11px;color:var(--ink-3)">' + t[2] + '</div></div>'
+        + '</label>'
+      ).join('')
+    + '</div>'
+    + '</div>';
+}
+
+function origV5SecaoGeografia(id, alcance, justificativa) {
+  const opcoes = [
+    ['cidade','Só esta cidade'], ['raio_30km','Cidade + raio 30km'],
+    ['raio_100km','Cidade + raio 100km'], ['estado','Estado inteiro'],
+    ['regiao','Região (Sul · Sudeste · etc)'], ['brasil','Brasil todo'],
+    ['internacional','Internacional']
+  ];
+  const justEsc = String(justificativa || '').replace(/</g,'&lt;');
+  return '<div class="orig-v4-secao">'
+    + '<h4>🗺️ Alcance geográfico do comprador</h4>'
+    + '<div class="orig-v4-campo"><label>Onde está o comprador ideal?</label>'
+    + '<select data-path="alcance_geografico_comprador" onchange="origV4Atualizar(\'' + id + '\', this)">'
+    + opcoes.map(o => '<option value="' + o[0] + '"' + (alcance===o[0]?' selected':'') + '>' + o[1] + '</option>').join('')
+    + '</select></div>'
+    + '<div class="orig-v4-campo"><label>Justificativa (opcional)</label>'
+    + '<textarea data-path="alcance_geografico_justificativa" rows="2" oninput="origV4Atualizar(\'' + id + '\', this)">' + justEsc + '</textarea></div>'
+    + '</div>';
+}
+
+function origV5SecaoObservacao(id, texto) {
+  const esc = String(texto || '').replace(/</g,'&lt;');
+  return '<div class="orig-v4-secao">'
+    + '<h4>📝 Observação (opcional)</h4>'
+    + '<div class="orig-v4-campo"><textarea data-path="observacao" rows="3" placeholder="Coisas que você sabe e não estão no laudo · contexto extra" oninput="origV4Atualizar(\'' + id + '\', this)">' + esc + '</textarea></div>'
+    + '</div>';
+}
+
+/* Helpers V5 */
+
+function origV5ToggleModelo(origId, modelo, checked) {
+  const b = _origV4Briefings[origId]; if (!b) return;
+  if (!b.negocio) b.negocio = {};
+  if (!Array.isArray(b.negocio.modelos_operacao)) b.negocio.modelos_operacao = [];
+  const arr = b.negocio.modelos_operacao;
+  if (checked && !arr.includes(modelo)) arr.push(modelo);
+  if (!checked) { const i = arr.indexOf(modelo); if (i >= 0) arr.splice(i, 1); }
+}
+
+function origV5ToggleTipoComprador(origId, tipo, checked) {
+  const b = _origV4Briefings[origId]; if (!b) return;
+  if (!Array.isArray(b.tipos_comprador_buscar)) b.tipos_comprador_buscar = [];
+  const arr = b.tipos_comprador_buscar;
+  if (checked && !arr.includes(tipo)) arr.push(tipo);
+  if (!checked) { const i = arr.indexOf(tipo); if (i >= 0) arr.splice(i, 1); }
+}
+
+function origV5AtualizarCidadeUF(origId, value) {
+  const b = _origV4Briefings[origId]; if (!b) return;
+  if (!b.negocio) b.negocio = {};
+  const parts = value.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    const uf = parts[parts.length - 1];
+    if (uf.length === 2 && uf === uf.toUpperCase()) {
+      b.negocio.estado = uf;
+      b.negocio.cidade = parts.slice(0, -1).join(' ');
+      return;
+    }
+  }
+  b.negocio.cidade = value;
+}
+
+function origV5AtualizarSinergiaInd(origId, idx, value) {
+  const b = _origV4Briefings[origId]; if (!b) return;
+  if (!b.sinergia) b.sinergia = { indicadores_acima_media: [], ganho_consolidador: '' };
+  if (!Array.isArray(b.sinergia.indicadores_acima_media)) b.sinergia.indicadores_acima_media = [];
+  b.sinergia.indicadores_acima_media[idx] = value;
+}
+
+function origV5AdicionarSinergiaInd(origId) {
+  const b = _origV4Briefings[origId]; if (!b) return;
+  if (!b.sinergia) b.sinergia = { indicadores_acima_media: [], ganho_consolidador: '' };
+  if (!Array.isArray(b.sinergia.indicadores_acima_media)) b.sinergia.indicadores_acima_media = [];
+  b.sinergia.indicadores_acima_media.push('');
+  const container = document.getElementById('orig-v4-sinergia_indicadores-' + origId);
+  if (!container) return;
+  const idx = b.sinergia.indicadores_acima_media.length - 1;
+  const div = document.createElement('div');
+  div.className = 'orig-v4-bullet-row';
+  div.innerHTML = '<input type="text" value="" placeholder="ex: Despesa adm 22% (média setor ~12%)" oninput="origV5AtualizarSinergiaInd(\'' + origId + '\', ' + idx + ', this.value)">'
+    + '<button onclick="origV5RemoverSinergiaInd(\'' + origId + '\', ' + idx + ')">✕</button>';
+  container.appendChild(div);
+  div.querySelector('input').focus();
+}
+
+function origV5RemoverSinergiaInd(origId, idx) {
+  const b = _origV4Briefings[origId];
+  if (!b?.sinergia?.indicadores_acima_media) return;
+  b.sinergia.indicadores_acima_media.splice(idx, 1);
+  const container = document.getElementById('orig-v4-sinergia_indicadores-' + origId);
+  if (!container) return;
+  const esc = (v) => String(v ?? '').replace(/"/g,'&quot;');
+  container.innerHTML = b.sinergia.indicadores_acima_media.map((it, i) =>
+    '<div class="orig-v4-bullet-row">'
+    + '<input type="text" value="' + esc(it) + '" placeholder="ex: Despesa adm 22% (média setor ~12%)" oninput="origV5AtualizarSinergiaInd(\'' + origId + '\', ' + i + ', this.value)">'
+    + '<button onclick="origV5RemoverSinergiaInd(\'' + origId + '\', ' + i + ')">✕</button>'
+    + '</div>'
+  ).join('');
+}
+
+async function origV5AprovarEGerarArquetipos(origId) {
+  await origV4SalvarRascunho(origId);
+  const b = _origV4Briefings[origId];
+  if (!b?.negocio?.setor) { alert('Selecione um setor antes de continuar'); return; }
+  if (!b?.tipos_comprador_buscar?.length) { alert('Marque pelo menos 1 tipo de comprador'); return; }
+  if (!confirm('Aprovar briefing e gerar arquétipos? Você poderá editar arquétipos na próxima fase. Custo ~R$ 0,15')) return;
+
+  const orig = await pjOriginacaoV2FetchById(origId);
+  if (!orig) { alert('Originação não encontrada'); return; }
+  const projetoId = orig.projeto_id;
+
+  // Avança fase pra arquetipos (sem tese intermediária)
+  await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + origId, {
+    method: 'PATCH',
+    headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
+    body: JSON.stringify({
+      tese_fechada_em: new Date().toISOString(),
+      fase_atual: 'arquetipos',
+      briefing_versao: 'v2_enxuto',
+      updated_at: new Date().toISOString()
+    })
+  });
+
+  origToast('✓ Briefing aprovado · gerando arquétipos');
+  // Loading + chamar gerar-arquetipos-v2 com do_briefing=true
+  const container = document.getElementById('pj-originacao-' + projetoId);
+  if (container) container.innerHTML = '<div class="orig-v4-loading"><div class="spinner"></div><p>IA gerando arquétipos a partir do briefing… 30-60s</p></div>';
+
+  try {
+    const r = await fetch(SB + '/functions/v1/gerar-arquetipos-v2', {
+      method: 'POST',
+      headers: origV2Headers(),
+      body: JSON.stringify({ originacao_id: origId, do_briefing: true })
+    });
+    const data = await r.json();
+    if (!r.ok || !data.ok) {
+      alert('Erro: ' + (data.erro || 'desconhecido') + ' · ' + (data.detalhe || ''));
+      pjOriginacaoV2Render(projetoId);
+      return;
+    }
+    origToast('✓ ' + data.arquetipos_count + ' arquétipos gerados');
+    pjOriginacaoV2Render(projetoId);
+  } catch (e) {
+    alert('Erro: ' + e.message);
+    pjOriginacaoV2Render(projetoId);
+  }
+}
+
+// v9.32 · helper pra gerar arquétipos a partir do briefing (botão na Fase 2 caso ainda não foram gerados)
+async function origV2GerarArquetiposDoBriefing(origId) {
+  const orig = await pjOriginacaoV2FetchById(origId);
+  if (!orig?.briefing_jsonb) { alert('Briefing não encontrado · volte pra Fase 1'); return; }
+  if (!confirm('Gerar arquétipos a partir do briefing? Custo ~R$ 0,15')) return;
+
+  const container = document.getElementById('pj-originacao-' + orig.projeto_id);
+  if (container) container.innerHTML = '<div class="orig-v4-loading"><div class="spinner"></div><p>IA gerando arquétipos a partir do briefing… 30-60s</p></div>';
+  try {
+    const r = await fetch(SB + '/functions/v1/gerar-arquetipos-v2', {
+      method: 'POST',
+      headers: origV2Headers(),
+      body: JSON.stringify({ originacao_id: origId, do_briefing: true })
+    });
+    const data = await r.json();
+    if (!r.ok || !data.ok) {
+      alert('Erro: ' + (data.erro || 'desconhecido') + ' · ' + (data.detalhe || ''));
+      pjOriginacaoV2Render(orig.projeto_id);
+      return;
+    }
+    origToast('✓ ' + data.arquetipos_count + ' arquétipos gerados');
+    pjOriginacaoV2Render(orig.projeto_id);
+  } catch (e) {
+    alert('Erro: ' + e.message);
+    pjOriginacaoV2Render(orig.projeto_id);
+  }
+}
+
 function origV4RenderBriefing(orig) {
-  const b = orig.briefing_jsonb || {};
+  // v9.32 · briefing enxuto V2 · vocabulário canônico
+  // Auto-migra briefing antigo (v9.31 com identidade/economics) pra estrutura V2
+  const raw = orig.briefing_jsonb || {};
+  const b = origV5MigrarBriefingSeNecessario(raw);
   const id = orig.id;
   return '<div class="orig-v4-briefing">'
     + '<div style="margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
-    + '<h3 style="margin:0">📋 Briefing · Revisar e aprovar</h3>'
-    + '<span class="orig-v3-fase-badge">Fase 1/5</span>'
+    + '<h3 style="margin:0">📋 Briefing · Revisar e gerar arquétipos</h3>'
+    + '<span class="orig-v3-fase-badge">Fase 1/4</span>'
     + '</div>'
-    + origV4SecaoIdentidade(id, b.identidade)
-    + origV4SecaoEconomics(id, b.economics)
-    + origV4RenderBulletsSecao(id, 'diferenciais', 'Diferenciais defensáveis', '✨', b.diferenciais, 'adicionar diferencial')
-    + origV4RenderBulletsSecao(id, 'riscos', 'Riscos principais', '⚠️', b.riscos, 'adicionar risco')
-    + origV4SecaoMomento(id, b.momento_mercado)
-    + origV4SecaoMotivo(id, b.motivo_venda, b.motivo_venda_obs)
-    + origV4SecaoGeografia(id, b.alcance_geografico, b.alcance_geografico_justificativa)
-    + origV4SecaoObservacoes(id, b.observacoes_livres)
+    + origV5SecaoNegocio(id, b.negocio)
+    + origV5SecaoTamanho(id, b.tamanho)
+    + origV4RenderBulletsSecao(id, 'diferenciais_ativos', 'Diferenciais e ativos', '✨', b.diferenciais_ativos, 'adicionar diferencial')
+    + origV5SecaoSinergia(id, b.sinergia)
+    + origV5SecaoTiposComprador(id, b.tipos_comprador_buscar)
+    + origV5SecaoGeografia(id, b.alcance_geografico_comprador, b.alcance_geografico_justificativa)
+    + origV5SecaoObservacao(id, b.observacao)
     + '<div class="orig-v4-acoes">'
     + '<div class="orig-v4-acoes-secundarias">'
-    + '<button onclick="origV4RegerarBriefing(\'' + id + '\', \'' + orig.projeto_id + '\')">🔄 Regerar briefing</button>'
+    + '<button onclick="origV4RegerarBriefing(\'' + id + '\', \'' + orig.projeto_id + '\')">🔄 Regerar IA</button>'
     + '<button onclick="origV4SalvarRascunho(\'' + id + '\')">💾 Salvar rascunho</button>'
     + '</div>'
-    + '<button class="orig-v3-send" onclick="origV4GerarTese(\'' + id + '\')">✓ Briefing aprovado · gerar tese →</button>'
+    + '<button class="orig-v3-send" onclick="origV5AprovarEGerarArquetipos(\'' + id + '\')">✓ Briefing OK · gerar arquétipos →</button>'
     + '</div></div>';
+}
+
+// v9.32 · auto-migra briefing v9.31 (8 seções) pra V2 (7 seções enxutas)
+function origV5MigrarBriefingSeNecessario(raw) {
+  if (raw.negocio || raw.tamanho) return raw; // já é V2
+  const migrado = {
+    negocio: {
+      setor: raw.identidade?.setor || '',
+      sub_setor: raw.identidade?.sub_setor || '',
+      modelos_operacao: [],
+      cidade: raw.identidade?.cidade || '',
+      estado: raw.identidade?.estado || '',
+      alcance_operacao: 'local',
+      fonte_confianca: raw.identidade?.fonte_confianca || 'media'
+    },
+    tamanho: {
+      faturamento_bruto_anual: raw.economics?.faturamento_anual || null,
+      resultado_operacional_anual: raw.economics?.ebitda_mensal ? raw.economics.ebitda_mensal * 12 : null,
+      margem_operacional_pct: raw.economics?.margem_percentual || null,
+      tempo_operacao_anos: raw.identidade?.tempo_operacao_anos || null,
+      funcionarios: raw.identidade?.funcionarios || null,
+      valor_venda_pedido: null,
+      fonte_confianca: raw.economics?.fonte_confianca || 'media'
+    },
+    diferenciais_ativos: raw.diferenciais || [],
+    sinergia: { indicadores_acima_media: [], ganho_consolidador: '' },
+    tipos_comprador_buscar: [],
+    alcance_geografico_comprador: raw.alcance_geografico || 'cidade',
+    alcance_geografico_justificativa: raw.alcance_geografico_justificativa || '',
+    observacao: raw.observacoes_livres || ''
+  };
+  return migrado;
 }
 
 function origV4Atualizar(origId, element) {
@@ -17054,7 +17385,7 @@ function origV2RenderArquetipos(orig) {
           + 'Perfis: ' + origV2Esc((orig.perfis_comprador_desejados || []).join(', ')) + '<br>'
           + (orig.observacao_escala ? '<em>' + origV2Esc(orig.observacao_escala) + '</em>' : '')
           + '</div>'
-        : '<div style="text-align:center;padding:14px"><button class="orig-btn primary" onclick="origV2AbrirEscalaModal(\'' + orig.id + '\')">📐 Calibrar e gerar arquétipos</button></div>'
+        : '<div style="text-align:center;padding:14px"><button class="orig-btn primary" onclick="origV2GerarArquetiposDoBriefing(\'' + orig.id + '\')">🤖 Gerar arquétipos a partir do briefing</button></div>'
       )
     + '<div id="orig-arquetipos-lista-' + orig.id + '"></div>'
     + (calibrado ? (
@@ -17279,6 +17610,15 @@ window.origV4SalvarRascunho = origV4SalvarRascunho;
 window.origV4RegerarBriefing = origV4RegerarBriefing;
 window.origV4GerarTese = origV4GerarTese;
 window.origV2AbrirEscalaModal = origV2AbrirEscalaModal;
+// v9.32 · V5 enxuto + arquétipos do briefing
+window.origV5ToggleModelo = origV5ToggleModelo;
+window.origV5ToggleTipoComprador = origV5ToggleTipoComprador;
+window.origV5AtualizarCidadeUF = origV5AtualizarCidadeUF;
+window.origV5AtualizarSinergiaInd = origV5AtualizarSinergiaInd;
+window.origV5AdicionarSinergiaInd = origV5AdicionarSinergiaInd;
+window.origV5RemoverSinergiaInd = origV5RemoverSinergiaInd;
+window.origV5AprovarEGerarArquetipos = origV5AprovarEGerarArquetipos;
+window.origV2GerarArquetiposDoBriefing = origV2GerarArquetiposDoBriefing;
 window.origV2FecharEscalaModal = origV2FecharEscalaModal;
 window.origV2GerarArquetipos = origV2GerarArquetipos;
 window.origV2GerarMaisArquetipos = origV2GerarMaisArquetipos;
