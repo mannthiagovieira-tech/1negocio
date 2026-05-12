@@ -16609,58 +16609,85 @@ async function pjOriginacaoV2FetchById(origId) {
 }
 
 // v9.31.1 · render direto com objeto orig já em memória (sem fetch · evita race)
+// v9.32.2 · wrap try/catch + fallback (loading nunca trava silenciosamente)
 function pjOriginacaoV2RenderDireto(projetoId, orig) {
-  const container = document.getElementById('pj-originacao-' + projetoId);
-  if (!container || !orig) return;
-  _origV2Data = orig;
-  if (orig.fase_atual === 'tese') {
-    if (orig.tese_texto && orig.tese_texto.length > 0) {
-      container.innerHTML = origV3RenderTeseRevisao(orig);
+  try {
+    const container = document.getElementById('pj-originacao-' + projetoId);
+    if (!container || !orig) {
+      console.warn('[origV2RenderDireto] container ou orig vazio · fallback Render', { projetoId, hasOrig: !!orig });
+      pjOriginacaoV2Render(projetoId);
       return;
     }
-    if (orig.briefing_jsonb) {
-      container.innerHTML = origV4RenderBriefing(orig);
-      _origV4Briefings[orig.id] = JSON.parse(JSON.stringify(orig.briefing_jsonb));
+    _origV2Data = orig;
+    if (orig.fase_atual === 'tese') {
+      if (orig.tese_texto && orig.tese_texto.length > 0) {
+        container.innerHTML = origV3RenderTeseRevisao(orig);
+        return;
+      }
+      if (orig.briefing_jsonb) {
+        container.innerHTML = origV4RenderBriefing(orig);
+        _origV4Briefings[orig.id] = JSON.parse(JSON.stringify(orig.briefing_jsonb));
+        return;
+      }
+      container.innerHTML = origV4RenderEmpty(orig.projeto_id);
       return;
     }
-    container.innerHTML = origV4RenderEmpty(orig.projeto_id);
+    // v9.32.2 · fix bug latente · fase != 'tese' agora delega em vez de silenciar
+    pjOriginacaoV2Render(projetoId);
+  } catch (e) {
+    console.error('[origV2RenderDireto] exception · fallback Render', e);
+    alert('Erro ao renderizar briefing · ' + (e?.message || 'desconhecido') + ' · tentando fallback');
+    pjOriginacaoV2Render(projetoId);
   }
 }
 
 async function pjOriginacaoV2Render(projetoId) {
-  const container = document.getElementById('pj-originacao-' + projetoId);
-  if (!container) return;
+  // v9.32.2 · wrap try/catch · loading nunca trava sem feedback visível
+  try {
+    const container = document.getElementById('pj-originacao-' + projetoId);
+    if (!container) return;
 
-  const orig = await pjOriginacaoV2Fetch(projetoId);
-  _origV2Data = orig;
+    const orig = await pjOriginacaoV2Fetch(projetoId);
+    _origV2Data = orig;
 
-  if (!orig) { container.innerHTML = origV4RenderEmpty(projetoId); return; }
-  if (orig.fase_atual === 'tese') {
-    // v9.31 · sub-fases:
-    // 1. tese_texto preenchida → revisão (origV3RenderTeseRevisao reusado)
-    // 2. briefing_jsonb preenchido → form briefing
-    // 3. nada → empty (botão Gerar briefing)
-    if (orig.tese_texto && orig.tese_texto.length > 0) {
-      container.innerHTML = origV3RenderTeseRevisao(orig);
+    if (!orig) { container.innerHTML = origV4RenderEmpty(projetoId); return; }
+    if (orig.fase_atual === 'tese') {
+      // v9.31 · sub-fases:
+      // 1. tese_texto preenchida → revisão (origV3RenderTeseRevisao reusado)
+      // 2. briefing_jsonb preenchido → form briefing
+      // 3. nada → empty (botão Gerar briefing)
+      if (orig.tese_texto && orig.tese_texto.length > 0) {
+        container.innerHTML = origV3RenderTeseRevisao(orig);
+        return;
+      }
+      if (orig.briefing_jsonb) {
+        container.innerHTML = origV4RenderBriefing(orig);
+        _origV4Briefings[orig.id] = JSON.parse(JSON.stringify(orig.briefing_jsonb));
+        return;
+      }
+      container.innerHTML = origV4RenderEmpty(orig.projeto_id);
       return;
     }
-    if (orig.briefing_jsonb) {
-      container.innerHTML = origV4RenderBriefing(orig);
-      _origV4Briefings[orig.id] = JSON.parse(JSON.stringify(orig.briefing_jsonb));
+    if (orig.fase_atual === 'arquetipos') {
+      container.innerHTML = origV2RenderArquetipos(orig);
+      await origV2CarregarArquetipos(orig.id);
       return;
     }
-    container.innerHTML = origV4RenderEmpty(orig.projeto_id);
-    return;
-  }
-  if (orig.fase_atual === 'arquetipos') {
-    container.innerHTML = origV2RenderArquetipos(orig);
-    await origV2CarregarArquetipos(orig.id);
-    return;
-  }
-  if (orig.fase_atual === 'leads' || orig.fase_atual === 'enriquecimento' || orig.fase_atual === 'concluido') {
-    container.innerHTML = '<div class="orig-v4-briefing" style="text-align:center"><h4>🎯 Originação · Fase ' + origV2Esc(orig.fase_atual) + '</h4>'
-      + '<p style="padding:14px;color:var(--ink-2)">Implementação em v9.32+ (leads · enriquecimento · pool)</p></div>';
-    return;
+    if (orig.fase_atual === 'leads' || orig.fase_atual === 'enriquecimento' || orig.fase_atual === 'concluido') {
+      container.innerHTML = '<div class="orig-v4-briefing" style="text-align:center"><h4>🎯 Originação · Fase ' + origV2Esc(orig.fase_atual) + '</h4>'
+        + '<p style="padding:14px;color:var(--ink-2)">Implementação em v9.32+ (leads · enriquecimento · pool)</p></div>';
+      return;
+    }
+  } catch (e) {
+    console.error('[origV2Render] exception', e);
+    const container = document.getElementById('pj-originacao-' + projetoId);
+    if (container) {
+      container.innerHTML = '<div class="orig-v4-loading" style="background:#fef2f2;border-color:#fca5a5">'
+        + '<p style="color:#991b1b"><strong>Erro ao renderizar briefing</strong></p>'
+        + '<p style="font-size:12px;color:#991b1b;margin-top:4px">' + (e?.message || 'desconhecido') + '</p>'
+        + '<button class="orig-v3-send" style="margin-top:12px" onclick="pjOriginacaoV2Render(\'' + projetoId + '\')">🔄 Tentar de novo</button>'
+        + '</div>';
+    }
   }
 }
 
@@ -16725,7 +16752,15 @@ async function origV4GerarBriefing(projetoId) {
       pjOriginacaoV2Render(projetoId);
     }
   } catch (e) { alert('Erro: ' + e.message); }
-  finally { _origV4Locks.gerando[projetoId] = false; }
+  finally {
+    _origV4Locks.gerando[projetoId] = false;
+    // v9.32.2 · se container ainda mostra loading depois de tudo · força re-render
+    const cont = document.getElementById('pj-originacao-' + projetoId);
+    if (cont && cont.querySelector('.orig-v4-loading')) {
+      console.warn('[origV4GerarBriefing] container ainda em loading · forçando Render');
+      pjOriginacaoV2Render(projetoId);
+    }
+  }
 }
 
 function origV4SecaoIdentidade(id, d) {
