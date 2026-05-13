@@ -36,12 +36,6 @@ const SETOR_MAP: Record<string, string> = {
   logistica: "Logística",
 };
 
-const BP_LABELS: Record<string, { class: string; label: string }> = {
-  positivo: { class: "pos", label: "Balanço positivo" },
-  neutro: { class: "neu", label: "Balanço neutro" },
-  negativo: { class: "neg", label: "Balanço negativo" },
-};
-
 const MESES_PT = [
   "janeiro", "fevereiro", "março", "abril", "maio", "junho",
   "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
@@ -95,10 +89,13 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
-function calcularOrcamento(valor: number) {
+function calcularOrcamento(valor: number, mensalidadeIdealOverride?: number) {
   const minimo = 500;
-  const ideal = Math.max(Math.round((valor * 0.01) / 12), 500);
-  const maximo = Math.round((valor * 0.03) / 12);
+  const idealCalc = Math.max(Math.round((valor * 0.01) / 12), 500);
+  const ideal = mensalidadeIdealOverride && isFinite(mensalidadeIdealOverride) && mensalidadeIdealOverride >= minimo
+    ? Math.round(mensalidadeIdealOverride)
+    : idealCalc;
+  const maximo = Math.max(Math.round((valor * 0.03) / 12), ideal);
   return { minimo, ideal, maximo };
 }
 
@@ -130,18 +127,19 @@ async function gerarNarrativaIA(input: {
   negocio_setor: string;
   faturamento_anual: number;
   margem_operacional: number;
-  situacao_bp: string;
   valor_aproximado: number;
+  cidade?: string;
+  estado?: string;
   obs?: string;
 }): Promise<{ diagnostico: string; por_que_agora: string }> {
   const setorLabel = SETOR_MAP[input.negocio_setor] || input.negocio_setor;
-  const bpLabel = BP_LABELS[input.situacao_bp]?.label || input.situacao_bp;
+  const localizacao = [input.cidade, input.estado].filter(Boolean).join("/");
 
   const userPrompt = `Empresa: ${input.negocio_nome}
 Setor: ${setorLabel}
 Faturamento anual: ${brl(input.faturamento_anual)}
 Margem operacional: ${input.margem_operacional}%
-Balanço patrimonial: ${bpLabel}
+${localizacao ? `Localização: ${localizacao}` : ""}
 Valor pedido pelo dono: ${brl(input.valor_aproximado)}
 ${input.obs ? `Observações do consultor: ${input.obs}` : ""}
 
@@ -219,8 +217,10 @@ serve(async (req) => {
     negocio_setor,
     faturamento_anual,
     margem_operacional,
-    situacao_bp,
     valor_aproximado,
+    mensalidade_ideal,
+    cidade,
+    estado,
     obs,
   } = body || {};
 
@@ -233,13 +233,16 @@ serve(async (req) => {
     return resp(400, { success: false, error: "valor_invalido" });
   }
 
-  const { minimo, ideal, maximo } = calcularOrcamento(valor);
+  const idealOverride = mensalidade_ideal != null ? Number(mensalidade_ideal) : undefined;
+  const { minimo, ideal, maximo } = calcularOrcamento(valor, idealOverride);
   if (maximo < 500) {
     return resp(400, { success: false, error: "valor muito baixo" });
   }
 
-  const bpInfo = BP_LABELS[situacao_bp || "positivo"] || BP_LABELS.positivo;
   const setorLabel = SETOR_MAP[negocio_setor] || negocio_setor;
+  const cidadeStr = (cidade || "").toString().trim();
+  const estadoStr = (estado || "").toString().trim().toUpperCase();
+  const localizacao = [cidadeStr, estadoStr].filter(Boolean).join(estadoStr && cidadeStr ? "/" : "");
 
   try {
     // 1) IA narrativa
@@ -248,8 +251,9 @@ serve(async (req) => {
       negocio_setor,
       faturamento_anual: Number(faturamento_anual) || 0,
       margem_operacional: Number(margem_operacional) || 0,
-      situacao_bp: situacao_bp || "positivo",
       valor_aproximado: valor,
+      cidade: cidadeStr || undefined,
+      estado: estadoStr || undefined,
       obs,
     });
 
@@ -260,6 +264,10 @@ serve(async (req) => {
     const taxaSucesso = valor * 0.05;
     const planoSugerido = ideal <= minimo ? "minimo" : "ideal";
 
+    const statLocalizacao = localizacao
+      ? `<div class="stat"><span class="stat-lbl">Localização</span><span class="stat-val">${escapeHtml(localizacao)}</span></div>`
+      : "";
+
     const replacements: Record<string, string> = {
       "{{DATA_PROPOSTA}}": dataExtenso(hoje),
       "{{DATA_EXPIRACAO}}": dataExtenso(expira),
@@ -268,8 +276,7 @@ serve(async (req) => {
       "{{NEGOCIO_SETOR}}": escapeHtml(setorLabel),
       "{{FATURAMENTO}}": brlShort(Number(faturamento_anual) || 0),
       "{{MARGEM}}": (Number(margem_operacional) || 0) + "%",
-      "{{BP_CLASS}}": bpInfo.class,
-      "{{SITUACAO_BP}}": bpInfo.label,
+      "{{STAT_LOCALIZACAO}}": statLocalizacao,
       "{{VALOR_NEGOCIO}}": brl(valor),
       "{{TAXA_SUCESSO_5PCT}}": brl(taxaSucesso),
       "{{BUDGET_CARDS}}": buildBudgetCards(valor, minimo, ideal, maximo),
@@ -300,6 +307,7 @@ serve(async (req) => {
     const storageUrl = `${SUPABASE_URL}/storage/v1/object/public/propostas/${storagePath}`;
 
     // 4) Insert tabela
+    const telefoneStr = (body?.telefone_proprietario || "").toString().replace(/\D/g, "");
     const { error: errIns } = await admin
       .from("propostas_comerciais")
       .insert({
@@ -308,7 +316,6 @@ serve(async (req) => {
         negocio_setor,
         faturamento_anual: Number(faturamento_anual) || null,
         margem_operacional: Number(margem_operacional) || null,
-        situacao_bp: situacao_bp || null,
         valor_aproximado: valor,
         mensalidade_minimo: minimo,
         mensalidade_ideal: ideal,
@@ -316,6 +323,9 @@ serve(async (req) => {
         plano_sugerido: planoSugerido,
         narrativa_diagnostico: narrativa.diagnostico,
         narrativa_por_que_agora: narrativa.por_que_agora,
+        cidade: cidadeStr || null,
+        estado: estadoStr || null,
+        telefone_proprietario: telefoneStr || null,
         storage_path: storagePath,
         storage_url: storageUrl,
         expires_at: expira.toISOString(),
@@ -330,6 +340,7 @@ serve(async (req) => {
     return resp(500, { success: false, error: "exception_raiz", detalhe: e?.message?.slice(0, 300) });
   }
 });
+
 
 // Template inline (fallback quando readTextFile não disponível no runtime de deploy)
 const TEMPLATE_INLINE = String.raw`
@@ -625,7 +636,7 @@ section{margin-bottom:64px}
     <div class="stat"><span class="stat-lbl">Setor</span><span class="stat-val">{{NEGOCIO_SETOR}}</span></div>
     <div class="stat"><span class="stat-lbl">Faturamento anual</span><span class="stat-val">{{FATURAMENTO}}</span></div>
     <div class="stat"><span class="stat-lbl">Margem operacional</span><span class="stat-val">{{MARGEM}}</span></div>
-    <div class="stat"><span class="stat-lbl">Situação BP</span><span class="stat-val {{BP_CLASS}}">{{SITUACAO_BP}}</span></div>
+    {{STAT_LOCALIZACAO}}
     <div class="stat"><span class="stat-lbl">Valor estimado</span><span class="stat-val acc">{{VALOR_NEGOCIO}}</span></div>
   </div>
 </section>
@@ -802,6 +813,7 @@ section{margin-bottom:64px}
 
     {{BUDGET_CARDS}}
     <div class="budget-note"><strong>Como funciona:</strong> A taxa de sucesso é de <strong>5% sobre o valor de venda</strong> ({{TAXA_SUCESSO_5PCT}} sobre o valor estimado de {{VALOR_NEGOCIO}}). Todo valor mensal pago é abatido diretamente dessa taxa no fechamento. Fidelidade mínima de <strong>3 meses</strong>.</div>
+    <div style="margin-top:10px;padding:10px 14px;background:var(--ac-soft);border:1px solid var(--ac-line);border-radius:8px;font-size:12px;color:var(--ink-2);line-height:1.6"><strong style="color:var(--ink)">O valor mensal é negociável.</strong> Qualquer montante entre o mínimo (R$ 500/mês) e o ideal sugerido pode ser acordado — o que muda é a velocidade e volume da operação. Converse com a equipe.</div>
     <div class="terms-row" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr">
       <div class="term">
         <span class="term-label">Fidelidade mínima</span>

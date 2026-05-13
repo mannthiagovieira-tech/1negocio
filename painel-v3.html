@@ -1863,6 +1863,7 @@ table.t .acoes { white-space: nowrap; }
           <div class="nav-item" data-secao="pa-anuncios" onclick="mostrarSecao('pa-anuncios')"><span class="nav-icon">📢</span><span class="nav-label">Anúncios</span><span class="star">⭐</span></div>
           <div class="nav-item" data-secao="pa-teses" onclick="mostrarSecao('pa-teses')"><span class="nav-icon">📋</span><span class="nav-label">Teses</span></div>
           <div class="nav-item" onclick="ctAbrirModal()" style="padding-left:32px;font-size:11px;font-family:var(--mono);color:var(--accent,#22c55e)"><span class="nav-icon">+</span><span class="nav-label">Criar tese</span></div>
+          <div class="nav-item" data-secao="pa-propostas" onclick="mostrarSecao('pa-propostas')"><span class="nav-icon">📄</span><span class="nav-label">Propostas</span></div>
           <div class="nav-item" data-secao="pa-usuarios" onclick="mostrarSecao('pa-usuarios')"><span class="nav-icon">👤</span><span class="nav-label">Usuários</span></div>
           <div class="nav-item" data-secao="socios" onclick="mostrarSecao('socios')"><span class="nav-icon">🎖️</span><span class="nav-label">Sócios</span></div>
           <div class="nav-item" data-secao="parceiros" onclick="mostrarSecao('parceiros')"><span class="nav-icon">🔗</span><span class="nav-label">Parceiros</span></div>
@@ -2010,6 +2011,7 @@ table.t .acoes { white-space: nowrap; }
               <div class="pa-stat-card"><div class="pa-stat-label">Leads (site + Google)</div><div class="pa-stat-num" id="pa-kpi-leads">—</div></div>
               <div class="pa-stat-card"><div class="pa-stat-label">Transações</div><div class="pa-stat-num" id="pa-kpi-transacoes">—</div></div>
               <div class="pa-stat-card"><div class="pa-stat-label">Filiados</div><div class="pa-stat-num" id="pa-kpi-filiados">—</div></div>
+              <div class="pa-stat-card" style="cursor:pointer" onclick="mostrarSecao('pa-propostas')"><div class="pa-stat-label">Propostas abertas</div><div class="pa-stat-num" id="cock-propostas-abertas">—</div></div>
             </div>
 
             <!-- Bloco 1 · Negócios novos (FUNCIONAL) -->
@@ -4381,6 +4383,595 @@ table.t .acoes { white-space: nowrap; }
         </section>
 
         <!-- ════════════════════════════════════════════════════════════════
+             PROPOSTAS COMERCIAIS · v9.34.6 (Sprint 5)
+             Aba ex-admin-propostas.html · integra Fixes 1-10
+             ════════════════════════════════════════════════════════════════ -->
+        <section id="secao-pa-propostas" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">📄 Propostas Assessoradas</h1>
+            <p class="secao-subtitulo">Propostas geradas com IA + envio curto via /p/:slug</p>
+          </header>
+          <div class="secao-conteudo">
+            <style>
+              #secao-pa-propostas .props-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px}
+              #secao-pa-propostas .props-stat{background:var(--surface);border:1px solid var(--line-2,rgba(255,255,255,.12));border-radius:12px;padding:14px 16px}
+              #secao-pa-propostas .props-stat-lbl{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-4);margin-bottom:6px;display:block}
+              #secao-pa-propostas .props-stat-val{font-family:var(--serif);font-size:20px;font-weight:800;letter-spacing:-.03em}
+              #secao-pa-propostas .props-stat-val.acc{color:var(--accent)}
+              #secao-pa-propostas .props-filtros{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+              #secao-pa-propostas .props-filtro-btn{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:6px 13px;border-radius:999px;border:1px solid var(--line-2,rgba(255,255,255,.12));background:transparent;color:var(--ink-3);cursor:pointer;transition:.12s}
+              #secao-pa-propostas .props-filtro-btn:hover{color:var(--ink-2)}
+              #secao-pa-propostas .props-filtro-btn.active{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+              #secao-pa-propostas .props-actions{display:flex;justify-content:flex-end;margin-bottom:12px}
+              #secao-pa-propostas .props-btn-new{display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:var(--bg);font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border:none;border-radius:999px;padding:10px 20px;cursor:pointer;transition:.15s}
+              #secao-pa-propostas .props-btn-new:hover{transform:translateY(-1px)}
+              #secao-pa-propostas .props-btn-new svg{width:14px;height:14px;stroke:currentColor;stroke-width:2.5;fill:none}
+              #secao-pa-propostas .props-tabela{background:var(--surface);border:1px solid var(--line-2,rgba(255,255,255,.12));border-radius:14px;overflow:hidden}
+              #secao-pa-propostas .props-thead,#secao-pa-propostas .props-tr{display:grid;grid-template-columns:1.7fr 1.1fr 1.1fr .9fr 1.2fr .9fr .9fr;gap:10px;padding:11px 16px;align-items:center}
+              #secao-pa-propostas .props-thead{border-bottom:1px solid var(--line)}
+              #secao-pa-propostas .props-th{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-4)}
+              #secao-pa-propostas .props-tr{border-bottom:1px solid var(--line);transition:.12s}
+              #secao-pa-propostas .props-tr:last-child{border-bottom:none}
+              #secao-pa-propostas .props-tr:hover{background:var(--surface-2,rgba(255,255,255,.02))}
+              #secao-pa-propostas .props-empresa{font-weight:600;font-size:13.5px}
+              #secao-pa-propostas .props-setor{font-family:var(--mono);font-size:10px;color:var(--ink-4)}
+              #secao-pa-propostas .props-valor{font-family:var(--serif);font-size:14px;font-weight:700;letter-spacing:-.02em;color:var(--accent)}
+              #secao-pa-propostas .props-data{font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+              #secao-pa-propostas .props-link{display:flex;align-items:center;gap:6px;min-width:0}
+              #secao-pa-propostas .props-link-txt{font-family:var(--mono);font-size:9.5px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+              #secao-pa-propostas .props-icon-btn{width:26px;height:26px;border-radius:6px;border:1px solid var(--line-2,rgba(255,255,255,.12));background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:.12s;text-decoration:none}
+              #secao-pa-propostas .props-icon-btn:hover{background:var(--accent-soft,rgba(34,197,94,.1));border-color:var(--accent)}
+              #secao-pa-propostas .props-icon-btn svg{width:12px;height:12px;stroke:var(--ink-3);stroke-width:2;fill:none}
+              #secao-pa-propostas .props-icon-btn:hover svg{stroke:var(--accent)}
+              #secao-pa-propostas .props-wapp{color:#25d366;font-size:11px;font-weight:700;font-family:var(--mono);text-decoration:none;padding:4px 10px;border-radius:8px;border:1px solid rgba(37,211,102,.3);background:transparent;display:inline-flex;align-items:center;gap:4px;transition:.12s}
+              #secao-pa-propostas .props-wapp:hover{background:rgba(37,211,102,.1)}
+              #secao-pa-propostas .props-wapp.disabled{color:var(--ink-4);border-color:var(--line);pointer-events:none}
+              #secao-pa-propostas .props-status-sel{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;padding:4px 10px;border-radius:999px;border:1px solid;background:transparent;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;padding-right:22px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,.3)' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 6px center}
+              #secao-pa-propostas .props-status-sel.enviada{border-color:rgba(61,255,149,.3);color:var(--accent)}
+              #secao-pa-propostas .props-status-sel.negociacao{border-color:rgba(245,200,66,.3);color:#f5c842}
+              #secao-pa-propostas .props-status-sel.negada{border-color:rgba(255,107,92,.3);color:#ff6b5c}
+              #secao-pa-propostas .props-status-sel.convertida{border-color:rgba(61,255,149,.5);color:var(--accent);background-color:var(--accent-soft,rgba(34,197,94,.1))}
+              #secao-pa-propostas .props-status-sel.expirada{border-color:var(--line-2,rgba(255,255,255,.12));color:var(--ink-4)}
+              #secao-pa-propostas .props-status-sel option{background:#0e1612;color:var(--ink);font-weight:600}
+              #secao-pa-propostas .props-empty{padding:48px;text-align:center;color:var(--ink-3)}
+              /* MODAL */
+              #secao-pa-propostas .props-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:.2s}
+              #secao-pa-propostas .props-modal-bg.open{opacity:1;pointer-events:all}
+              #secao-pa-propostas .props-modal{background:#0e1612;border:1px solid var(--line-2,rgba(255,255,255,.12));border-radius:20px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;transform:translateY(16px);transition:.2s}
+              #secao-pa-propostas .props-modal-bg.open .props-modal{transform:translateY(0)}
+              #secao-pa-propostas .props-modal-head{padding:24px 24px 0;display:flex;align-items:flex-start;justify-content:space-between}
+              #secao-pa-propostas .props-modal-title{font-family:var(--serif);font-size:20px;font-weight:800;letter-spacing:-.03em}
+              #secao-pa-propostas .props-modal-close{width:32px;height:32px;border-radius:8px;border:1px solid var(--line-2,rgba(255,255,255,.12));background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer}
+              #secao-pa-propostas .props-modal-close svg{width:14px;height:14px;stroke:var(--ink-3);stroke-width:2;fill:none}
+              #secao-pa-propostas .props-tabs{display:flex;gap:4px;margin:20px 24px 0;background:var(--surface);border-radius:10px;padding:4px}
+              #secao-pa-propostas .props-tab{flex:1;padding:8px;text-align:center;font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);border-radius:7px;cursor:pointer;border:none;background:transparent;transition:.12s}
+              #secao-pa-propostas .props-tab.active{background:var(--surface-2,rgba(255,255,255,.02));color:var(--ink);border:1px solid var(--line-2,rgba(255,255,255,.12))}
+              #secao-pa-propostas .props-body{padding:20px 24px 24px}
+              #secao-pa-propostas .props-panel{display:none}
+              #secao-pa-propostas .props-panel.active{display:block}
+              #secao-pa-propostas .props-search-wrap{position:relative;margin-bottom:14px}
+              #secao-pa-propostas .props-search{width:100%;background:var(--surface);border:1px solid var(--line-2,rgba(255,255,255,.12));border-radius:10px;color:var(--ink);font-family:var(--sans);font-size:13.5px;padding:11px 13px 11px 36px;outline:none;transition:.12s}
+              #secao-pa-propostas .props-search:focus{border-color:var(--accent)}
+              #secao-pa-propostas .props-search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--ink-4);stroke-width:2;fill:none}
+              #secao-pa-propostas .props-search-res{background:var(--surface);border:1px solid var(--line-2,rgba(255,255,255,.12));border-radius:10px;overflow:hidden;display:none;max-height:240px;overflow-y:auto;margin-top:4px}
+              #secao-pa-propostas .props-search-res.open{display:block}
+              #secao-pa-propostas .props-sr-item{padding:11px 14px;cursor:pointer;border-bottom:1px solid var(--line);transition:.1s;display:flex;align-items:center;justify-content:space-between}
+              #secao-pa-propostas .props-sr-item:last-child{border-bottom:none}
+              #secao-pa-propostas .props-sr-item:hover{background:var(--surface-2,rgba(255,255,255,.02))}
+              #secao-pa-propostas .props-sr-nome{font-size:13px;font-weight:600;color:var(--ink)}
+              #secao-pa-propostas .props-sr-meta{font-family:var(--mono);font-size:10px;color:var(--ink-4)}
+              #secao-pa-propostas .props-sr-empty{padding:14px;font-size:13px;color:var(--ink-4);text-align:center}
+              #secao-pa-propostas .props-pulled{background:var(--surface);border:1px solid var(--accent);border-radius:10px;padding:14px;margin-bottom:16px;display:none}
+              #secao-pa-propostas .props-pulled.visible{display:block}
+              #secao-pa-propostas .props-pp-title{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;display:block}
+              #secao-pa-propostas .props-pp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+              #secao-pa-propostas .props-pp-item{display:flex;flex-direction:column;gap:2px}
+              #secao-pa-propostas .props-pp-lbl{font-family:var(--mono);font-size:8px;color:var(--ink-4);letter-spacing:.06em;text-transform:uppercase}
+              #secao-pa-propostas .props-pp-val{font-size:12.5px;font-weight:600;color:var(--ink)}
+              #secao-pa-propostas .props-fields{display:flex;flex-direction:column;gap:10px}
+              #secao-pa-propostas .props-row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+              #secao-pa-propostas .props-field{display:flex;flex-direction:column;gap:5px}
+              #secao-pa-propostas .props-field label{font-family:var(--mono);font-size:8.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+              #secao-pa-propostas .props-field input,#secao-pa-propostas .props-field select{width:100%;background:var(--surface);border:1px solid var(--line-2,rgba(255,255,255,.12));border-radius:10px;color:var(--ink);font-family:var(--sans);font-size:13.5px;padding:11px 13px;outline:none;transition:.12s;-webkit-appearance:none}
+              #secao-pa-propostas .props-field input:focus,#secao-pa-propostas .props-field select:focus{border-color:var(--accent)}
+              #secao-pa-propostas .props-field input::placeholder{color:var(--ink-4)}
+              #secao-pa-propostas .props-field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(244,247,244,.4)' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+              #secao-pa-propostas .props-budget{background:var(--surface);border:1px solid var(--line-2,rgba(255,255,255,.12));border-radius:10px;padding:14px;margin-top:8px;display:none}
+              #secao-pa-propostas .props-budget.visible{display:flex;gap:12px}
+              #secao-pa-propostas .props-bp{flex:1;text-align:center}
+              #secao-pa-propostas .props-bp-lbl{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);margin-bottom:4px;display:block}
+              #secao-pa-propostas .props-bp-val{font-family:var(--serif);font-size:16px;font-weight:800}
+              #secao-pa-propostas .props-bp-val.ideal{color:var(--accent)}
+              #secao-pa-propostas .props-bp-div{width:1px;background:var(--line)}
+              #secao-pa-propostas .props-alert{background:rgba(255,107,92,.08);border:1px solid rgba(255,107,92,.25);border-radius:8px;padding:10px 13px;font-size:12px;color:#ff6b5c;margin-top:8px;display:none}
+              #secao-pa-propostas .props-alert.visible{display:block}
+              #secao-pa-propostas .props-footer{padding:0 24px 24px;display:flex;gap:8px}
+              #secao-pa-propostas .props-btn-cancel{flex:1;padding:12px;border-radius:999px;border:1px solid var(--line-2,rgba(255,255,255,.12));background:transparent;color:var(--ink-2);font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer}
+              #secao-pa-propostas .props-btn-submit{flex:2;padding:12px;border-radius:999px;background:var(--accent);color:var(--bg);font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:.15s}
+              #secao-pa-propostas .props-btn-submit:hover:not(:disabled){transform:translateY(-1px)}
+              #secao-pa-propostas .props-btn-submit:disabled{opacity:.5;cursor:not-allowed}
+              #secao-pa-propostas .props-spinner{width:14px;height:14px;border:2px solid var(--bg);border-top-color:transparent;border-radius:50%;animation:propsspin .6s linear infinite}
+              @keyframes propsspin{to{transform:rotate(360deg)}}
+              #secao-pa-propostas .props-result{background:var(--accent-soft,rgba(34,197,94,.1));border:1px solid var(--accent);border-radius:12px;padding:16px 18px;margin:0 24px 20px;display:none}
+              #secao-pa-propostas .props-result.visible{display:block}
+              #secao-pa-propostas .props-result-lbl{font-family:var(--mono);font-size:8.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;display:block}
+              #secao-pa-propostas .props-result-url-row{display:flex;align-items:center;gap:8px}
+              #secao-pa-propostas .props-result-url{flex:1;background:var(--surface);border:1px solid var(--line-2,rgba(255,255,255,.12));border-radius:8px;padding:9px 12px;font-family:var(--mono);font-size:11px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+              #secao-pa-propostas .props-btn-copy{padding:9px 14px;border-radius:8px;background:var(--accent);color:var(--bg);font-family:var(--sans);font-size:11px;font-weight:700;border:none;cursor:pointer}
+              #secao-pa-propostas .props-btn-open{padding:9px 14px;border-radius:8px;border:1px solid var(--line-2,rgba(255,255,255,.12));background:transparent;color:var(--ink-2);font-family:var(--sans);font-size:11px;font-weight:600;cursor:pointer;text-decoration:none}
+            </style>
+
+            <div class="bloco">
+              <div class="props-stats">
+                <div class="props-stat"><span class="props-stat-lbl">Total</span><div class="props-stat-val" id="props-st-total">—</div></div>
+                <div class="props-stat"><span class="props-stat-lbl">Enviadas</span><div class="props-stat-val" id="props-st-env">—</div></div>
+                <div class="props-stat"><span class="props-stat-lbl">Em negociação</span><div class="props-stat-val" id="props-st-neg" style="color:#f5c842">—</div></div>
+                <div class="props-stat"><span class="props-stat-lbl">Convertidas</span><div class="props-stat-val acc" id="props-st-conv">—</div></div>
+                <div class="props-stat"><span class="props-stat-lbl">Negadas</span><div class="props-stat-val" id="props-st-neg2" style="color:#ff6b5c">—</div></div>
+              </div>
+
+              <div class="props-actions">
+                <button class="props-btn-new" onclick="propsAbrirModal()">
+                  <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Gerar nova proposta
+                </button>
+              </div>
+
+              <div class="props-filtros">
+                <button class="props-filtro-btn active" onclick="propsFiltrar(this,'todas')">Todas</button>
+                <button class="props-filtro-btn" onclick="propsFiltrar(this,'enviada')">Enviada</button>
+                <button class="props-filtro-btn" onclick="propsFiltrar(this,'negociacao')">Em negociação</button>
+                <button class="props-filtro-btn" onclick="propsFiltrar(this,'convertida')">Convertida</button>
+                <button class="props-filtro-btn" onclick="propsFiltrar(this,'negada')">Negada</button>
+                <button class="props-filtro-btn" onclick="propsFiltrar(this,'expirada')">Expirada</button>
+              </div>
+
+              <div class="props-tabela">
+                <div class="props-thead">
+                  <div class="props-th">Empresa</div>
+                  <div class="props-th">Mensal sugerido</div>
+                  <div class="props-th">Valor estimado</div>
+                  <div class="props-th">Criada</div>
+                  <div class="props-th">Link</div>
+                  <div class="props-th">WhatsApp</div>
+                  <div class="props-th">Status</div>
+                </div>
+                <div id="props-tbody"><div class="props-empty">Carregando…</div></div>
+              </div>
+            </div>
+
+            <!-- MODAL -->
+            <div class="props-modal-bg" id="props-modal-bg" onclick="propsClickFora(event)">
+              <div class="props-modal" id="props-modal">
+                <div class="props-modal-head">
+                  <div class="props-modal-title">Nova proposta</div>
+                  <button class="props-modal-close" onclick="propsFechar()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                </div>
+                <div class="props-tabs">
+                  <button class="props-tab active" onclick="propsTab(this,'diag')">Por diagnóstico</button>
+                  <button class="props-tab" onclick="propsTab(this,'manual')">Preencher manual</button>
+                </div>
+                <div class="props-result" id="props-result">
+                  <span class="props-result-lbl">✓ Proposta gerada</span>
+                  <div class="props-result-url-row">
+                    <div class="props-result-url" id="props-result-url"></div>
+                    <button class="props-btn-copy" onclick="propsCopiarRes()">Copiar</button>
+                    <a class="props-btn-open" id="props-result-open" href="#" target="_blank">↗</a>
+                  </div>
+                </div>
+                <div class="props-body">
+                  <!-- PANEL: DIAGNÓSTICO -->
+                  <div class="props-panel active" id="props-panel-diag">
+                    <div class="props-search-wrap">
+                      <svg class="props-search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                      <input type="text" class="props-search" id="props-search" placeholder="Buscar por nome do negócio…" oninput="propsBuscar(this.value)" autocomplete="off">
+                      <div class="props-search-res" id="props-search-res"></div>
+                    </div>
+                    <div class="props-pulled" id="props-pulled">
+                      <span class="props-pp-title">Dados do negócio</span>
+                      <div class="props-pp-grid" id="props-pp-grid"></div>
+                    </div>
+                    <div class="props-fields" id="props-diag-fields" style="display:none">
+                      <div class="props-row-2">
+                        <div class="props-field"><label>Nome do proprietário</label><input type="text" id="props-d-prop" placeholder="Ex: João Silva"></div>
+                        <div class="props-field"><label>WhatsApp (opcional)</label><input type="text" id="props-d-tel" placeholder="5548999999999" inputmode="numeric"></div>
+                      </div>
+                      <div class="props-field"><label>Valor estimado (R$)</label><input type="text" id="props-d-valor" placeholder="2.500.000" inputmode="numeric"></div>
+                      <div class="props-row-2">
+                        <div class="props-field"><label>Mensalidade sugerida (R$)</label><input type="text" id="props-d-mens" placeholder="(auto)" inputmode="numeric"></div>
+                        <div class="props-field"><label>Margem operacional (%)</label><input type="text" id="props-d-margem" placeholder="22" inputmode="numeric"></div>
+                      </div>
+                      <div class="props-budget" id="props-d-budget">
+                        <div class="props-bp"><span class="props-bp-lbl">Mínimo</span><div class="props-bp-val" id="props-d-bmin">—</div></div>
+                        <div class="props-bp-div"></div>
+                        <div class="props-bp"><span class="props-bp-lbl">Ideal ★</span><div class="props-bp-val ideal" id="props-d-bideal">—</div></div>
+                        <div class="props-bp-div"></div>
+                        <div class="props-bp"><span class="props-bp-lbl">Máximo</span><div class="props-bp-val" id="props-d-bmax">—</div></div>
+                      </div>
+                      <div class="props-alert" id="props-d-alert"></div>
+                      <div class="props-field"><label>Observações para IA (opcional)</label><input type="text" id="props-d-obs" placeholder="Ex: dono quer aposentar"></div>
+                    </div>
+                  </div>
+
+                  <!-- PANEL: MANUAL -->
+                  <div class="props-panel" id="props-panel-manual">
+                    <div class="props-fields">
+                      <div class="props-row-2">
+                        <div class="props-field"><label>Nome da empresa</label><input type="text" id="props-m-empresa" placeholder="Ex: Padaria Central"></div>
+                        <div class="props-field"><label>Nome do proprietário</label><input type="text" id="props-m-prop" placeholder="Ex: João Silva"></div>
+                      </div>
+                      <div class="props-row-2">
+                        <div class="props-field"><label>WhatsApp do proprietário (opcional)</label><input type="text" id="props-m-tel" placeholder="5548999999999" inputmode="numeric"></div>
+                        <div class="props-field"><label>Setor</label><select id="props-m-setor"><option value="">Selecionar…</option><option value="servicos_empresas">Serviços B2B</option><option value="varejo">Varejo</option><option value="saude">Saúde</option><option value="alimentacao">Alimentação & Café</option><option value="beleza_estetica">Beleza & Estética</option><option value="educacao">Educação</option><option value="servicos_locais">Serviços Locais</option><option value="bem_estar">Bem-estar</option><option value="industria">Indústria</option><option value="construcao">Construção</option><option value="hospedagem">Hospedagem</option><option value="logistica">Logística</option></select></div>
+                      </div>
+                      <div class="props-row-2">
+                        <div class="props-field"><label>Estado (opcional)</label><select id="props-m-uf"><option value="">Selecionar…</option><option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option><option>PR</option><option>PE</option><option>PI</option><option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option><option>SE</option><option>TO</option></select></div>
+                        <div class="props-field"><label>Cidade (opcional)</label><input type="text" id="props-m-cidade" placeholder="Ex: Florianópolis"></div>
+                      </div>
+                      <div class="props-row-2">
+                        <div class="props-field"><label>Faturamento anual (R$)</label><input type="text" id="props-m-fat" placeholder="1.200.000" inputmode="numeric"></div>
+                        <div class="props-field"><label>Margem operacional (%)</label><input type="text" id="props-m-margem" placeholder="22" inputmode="numeric"></div>
+                      </div>
+                      <div class="props-row-2">
+                        <div class="props-field"><label>Valor estimado (R$)</label><input type="text" id="props-m-valor" placeholder="2.500.000" inputmode="numeric"></div>
+                        <div class="props-field"><label>Mensalidade sugerida (R$)</label><input type="text" id="props-m-mens" placeholder="(auto)" inputmode="numeric"></div>
+                      </div>
+                      <div class="props-budget" id="props-m-budget">
+                        <div class="props-bp"><span class="props-bp-lbl">Mínimo</span><div class="props-bp-val" id="props-m-bmin">—</div></div>
+                        <div class="props-bp-div"></div>
+                        <div class="props-bp"><span class="props-bp-lbl">Ideal ★</span><div class="props-bp-val ideal" id="props-m-bideal">—</div></div>
+                        <div class="props-bp-div"></div>
+                        <div class="props-bp"><span class="props-bp-lbl">Máximo</span><div class="props-bp-val" id="props-m-bmax">—</div></div>
+                      </div>
+                      <div class="props-alert" id="props-m-alert"></div>
+                      <div class="props-field"><label>Observações para IA (opcional)</label><input type="text" id="props-m-obs" placeholder="Ex: empresa em expansão"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="props-footer">
+                  <button class="props-btn-cancel" onclick="propsFechar()">Cancelar</button>
+                  <button class="props-btn-submit" id="props-btn-submit" onclick="propsGerar()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    Gerar proposta
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <script>
+            (function(){
+              const SUPABASE_URL_P = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+              const SUPABASE_ANON_P = (typeof SUPABASE_ANON !== 'undefined' && SUPABASE_ANON) || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+              const EDGE_P = SUPABASE_URL_P + '/functions/v1/gerar-proposta-assessorada';
+              const SHORT_P = 'https://1negocio.com.br/p';
+              const H_P = { apikey: SUPABASE_ANON_P, Authorization: 'Bearer ' + SUPABASE_ANON_P };
+              const SETOR_P = { servicos_empresas:'Serviços B2B',varejo:'Varejo',saude:'Saúde',alimentacao:'Alimentação & Café',beleza_estetica:'Beleza & Estética',educacao:'Educação',servicos_locais:'Serviços Locais',bem_estar:'Bem-estar',industria:'Indústria',construcao:'Construção',hospedagem:'Hospedagem',logistica:'Logística' };
+
+              function brlP(v){ return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0,maximumFractionDigits:0}).format(v||0); }
+              function fmtDataP(d){ return new Date(d).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'2-digit'}); }
+              function parseNumP(s){ if(s==null) return 0; const t=String(s).replace(/\./g,'').replace(',','.').replace(/[^0-9.\-]/g,''); return parseFloat(t)||0; }
+              function fmtMilP(v){ if(v==null||v==='') return ''; const n=Math.round(Number(v)); return isFinite(n)? n.toLocaleString('pt-BR') : ''; }
+
+              let filtroP = 'todas';
+              let todasP = [];
+              let negSelP = null;
+              let timeoutP = null;
+
+              window.propsFiltrar = function(btn, status){
+                document.querySelectorAll('#secao-pa-propostas .props-filtro-btn').forEach(b=>b.classList.remove('active'));
+                btn.classList.add('active');
+                filtroP = status;
+                propsRender(status==='todas'? todasP : todasP.filter(p=>p.status===status));
+              };
+
+              window.propsCarregar = async function(){
+                try{
+                  const r = await fetch(SUPABASE_URL_P+'/rest/v1/propostas_comerciais?select=*&order=created_at.desc', { headers: H_P });
+                  const d = await r.json();
+                  todasP = Array.isArray(d)? d : [];
+                  propsRender(todasP);
+                  propsStats(todasP);
+                  // Atualiza badge cockpit (Fix 3)
+                  try { if (typeof propsAtualizarCockpit==='function') propsAtualizarCockpit(); } catch(e){}
+                } catch(e){ document.getElementById('props-tbody').innerHTML = '<div class="props-empty">Erro ao carregar.</div>'; }
+              };
+
+              function propsStats(d){
+                document.getElementById('props-st-total').textContent = d.length;
+                document.getElementById('props-st-env').textContent = d.filter(p=>p.status==='enviada').length;
+                document.getElementById('props-st-neg').textContent = d.filter(p=>p.status==='negociacao').length;
+                document.getElementById('props-st-conv').textContent = d.filter(p=>p.status==='convertida').length;
+                document.getElementById('props-st-neg2').textContent = d.filter(p=>p.status==='negada').length;
+              }
+
+              function propsRender(d){
+                const body = document.getElementById('props-tbody');
+                if (!d.length){ body.innerHTML = '<div class="props-empty">Nenhuma proposta encontrada.</div>'; return; }
+                body.innerHTML = d.map(p=>{
+                  const short = SHORT_P + '/' + p.slug;
+                  const mensal = p.plano_sugerido==='ideal'? p.mensalidade_ideal : p.plano_sugerido==='maximo'? p.mensalidade_maximo : p.mensalidade_minimo;
+                  const tel = (p.telefone_proprietario||'').replace(/\D/g,'');
+                  const wappHtml = tel
+                    ? `<a class="props-wapp" target="_blank" href="https://wa.me/${tel}?text=${encodeURIComponent('Olá, vim falar sobre a proposta da 1Negócio')}">↗ WhatsApp</a>`
+                    : `<span class="props-wapp disabled">—</span>`;
+                  return `<div class="props-tr">
+                    <div><div class="props-empresa">${(p.contato_nome||'—').replace(/</g,'&lt;')}</div><div class="props-setor">${SETOR_P[p.negocio_setor]||p.negocio_setor||''}${p.cidade? ' · '+p.cidade : ''}</div></div>
+                    <div class="props-valor">${brlP(mensal||p.mensalidade_ideal||500)}<span style="font-family:var(--mono);font-size:9px;color:var(--ink-4)">/mês</span></div>
+                    <div class="props-valor" style="color:var(--ink-2)">${brlP(p.valor_aproximado)}</div>
+                    <div class="props-data">${fmtDataP(p.created_at)}</div>
+                    <div class="props-link"><div class="props-link-txt" title="${short}">${short}</div><button class="props-icon-btn" onclick="propsCopiarLink('${short}',this)"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button></div>
+                    <div>${wappHtml}</div>
+                    <div><select class="props-status-sel ${p.status||'enviada'}" onchange="propsStatus('${p.id}',this)">
+                      <option value="enviada" ${p.status==='enviada'?'selected':''}>Enviada</option>
+                      <option value="negociacao" ${p.status==='negociacao'?'selected':''}>Em negociação</option>
+                      <option value="convertida" ${p.status==='convertida'?'selected':''}>Convertida</option>
+                      <option value="negada" ${p.status==='negada'?'selected':''}>Negada</option>
+                      <option value="expirada" ${p.status==='expirada'?'selected':''}>Expirada</option>
+                    </select></div>
+                  </div>`;
+                }).join('');
+              }
+
+              window.propsStatus = async function(id, sel){
+                const v = sel.value;
+                sel.className = 'props-status-sel ' + v;
+                await fetch(SUPABASE_URL_P+'/rest/v1/propostas_comerciais?id=eq.'+id, {
+                  method:'PATCH', headers:{...H_P,'Content-Type':'application/json','Prefer':'return=minimal'},
+                  body: JSON.stringify({status: v})
+                });
+                todasP = todasP.map(p=>p.id===id? {...p, status:v}: p);
+                propsStats(todasP);
+                try { if (typeof propsAtualizarCockpit==='function') propsAtualizarCockpit(); } catch(e){}
+              };
+
+              window.propsCopiarLink = async function(url, btn){
+                await navigator.clipboard.writeText(url);
+                btn.innerHTML = '<svg viewBox="0 0 24 24" stroke="var(--accent)" stroke-width="2" fill="none"><polyline points="20 6 9 17 4 12"/></svg>';
+                setTimeout(()=>{ btn.innerHTML = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>'; }, 2000);
+              };
+              window.propsCopiarRes = async function(){
+                await navigator.clipboard.writeText(document.getElementById('props-result-url').textContent);
+                const b = document.querySelector('#secao-pa-propostas .props-btn-copy'); b.textContent='✓ Copiado!'; setTimeout(()=>b.textContent='Copiar', 2000);
+              };
+
+              window.propsAbrirModal = function(){
+                document.getElementById('props-modal-bg').classList.add('open');
+                document.getElementById('props-result').classList.remove('visible');
+                propsResetForm();
+              };
+              window.propsFechar = function(){ document.getElementById('props-modal-bg').classList.remove('open'); };
+              window.propsClickFora = function(e){ if (e.target.id === 'props-modal-bg') propsFechar(); };
+              window.propsTab = function(btn, tab){
+                document.querySelectorAll('#secao-pa-propostas .props-tab').forEach(t=>t.classList.remove('active'));
+                document.querySelectorAll('#secao-pa-propostas .props-panel').forEach(p=>p.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('props-panel-'+tab).classList.add('active');
+              };
+
+              function propsResetForm(){
+                ['props-search','props-d-prop','props-d-tel','props-d-valor','props-d-mens','props-d-margem','props-d-obs',
+                 'props-m-empresa','props-m-prop','props-m-tel','props-m-fat','props-m-margem','props-m-valor','props-m-mens','props-m-cidade','props-m-obs'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+                ['props-m-setor','props-m-uf'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+                negSelP = null;
+                document.getElementById('props-pulled').classList.remove('visible');
+                document.getElementById('props-diag-fields').style.display = 'none';
+                document.getElementById('props-d-budget').classList.remove('visible');
+                document.getElementById('props-m-budget').classList.remove('visible');
+              }
+
+              // ── BUSCA INTELIGENTE (Fix 4) ──
+              window.propsBuscar = function(q){
+                clearTimeout(timeoutP);
+                const res = document.getElementById('props-search-res');
+                if (q.length < 2){ res.classList.remove('open'); return; }
+                timeoutP = setTimeout(async ()=>{
+                  res.innerHTML = '<div class="props-sr-empty">Buscando…</div>';
+                  res.classList.add('open');
+                  try{
+                    const r = await fetch(
+                      SUPABASE_URL_P+'/rest/v1/negocios?select=id,titulo,setor,faturamento_anual,cidade,estado,vendedor_id&status=neq.seed&titulo=ilike.*'+encodeURIComponent(q)+'*&limit=8',
+                      { headers: H_P }
+                    );
+                    const data = await r.json();
+                    if (!data.length){ res.innerHTML = '<div class="props-sr-empty">Nenhum negócio encontrado</div>'; return; }
+                    res.innerHTML = data.map(n=>{
+                      const meta = [SETOR_P[n.setor]||n.setor||'—', [n.cidade,n.estado].filter(Boolean).join('/'), n.faturamento_anual? brlP(n.faturamento_anual)+'/ano' : ''].filter(Boolean).join(' · ');
+                      return `<div class="props-sr-item" data-n='${JSON.stringify(n).replace(/'/g,"&#39;")}'>
+                        <div><div class="props-sr-nome">${(n.titulo||'—').replace(/</g,'&lt;')}</div><div class="props-sr-meta">${meta}</div></div>
+                        <div class="props-sr-meta" style="flex-shrink:0">${(n.id||'').substring(0,8)}…</div>
+                      </div>`;
+                    }).join('');
+                    res.querySelectorAll('.props-sr-item').forEach(el=>{
+                      el.addEventListener('click', ()=>{
+                        try{ propsSelecionar(JSON.parse(el.getAttribute('data-n').replace(/&#39;/g,"'"))); }catch(e){ console.error(e); }
+                      });
+                    });
+                  }catch(e){ res.innerHTML = '<div class="props-sr-empty">Erro na busca</div>'; }
+                }, 280);
+              };
+
+              async function propsSelecionar(n){
+                negSelP = n;
+                document.getElementById('props-search').value = n.titulo || '';
+                document.getElementById('props-search-res').classList.remove('open');
+                const grid = document.getElementById('props-pp-grid');
+                const loc = [n.cidade,n.estado].filter(Boolean).join('/') || '—';
+                grid.innerHTML = `
+                  <div class="props-pp-item"><span class="props-pp-lbl">Nome</span><span class="props-pp-val">${(n.titulo||'—').replace(/</g,'&lt;')}</span></div>
+                  <div class="props-pp-item"><span class="props-pp-lbl">Setor</span><span class="props-pp-val">${SETOR_P[n.setor]||n.setor||'—'}</span></div>
+                  <div class="props-pp-item"><span class="props-pp-lbl">Localização</span><span class="props-pp-val">${loc}</span></div>
+                  <div class="props-pp-item"><span class="props-pp-lbl">Faturamento</span><span class="props-pp-val">${n.faturamento_anual? brlP(n.faturamento_anual) : '—'}</span></div>`;
+                document.getElementById('props-pulled').classList.add('visible');
+                const f = document.getElementById('props-diag-fields');
+                f.style.display = 'flex'; f.style.flexDirection = 'column'; f.style.gap = '10px';
+
+                // Fix 10: auto-fill telefone do vendedor
+                if (n.vendedor_id){
+                  try{
+                    const r = await fetch(SUPABASE_URL_P+'/rest/v1/usuarios?id=eq.'+n.vendedor_id+'&select=telefone,nome', { headers: H_P });
+                    const u = (await r.json())[0];
+                    if (u){
+                      if (u.telefone) document.getElementById('props-d-tel').value = String(u.telefone).replace(/\D/g,'');
+                      if (u.nome && !document.getElementById('props-d-prop').value) document.getElementById('props-d-prop').value = u.nome;
+                    }
+                  }catch(e){}
+                }
+              }
+
+              // ── FORMATAÇÃO + AUTO-CÁLCULO (Fixes 7+8) ──
+              function attachNum(id, onChange){
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener('input', ()=>{
+                  el.value = el.value.replace(/[^0-9]/g,'');
+                  if (onChange) onChange();
+                });
+                el.addEventListener('blur', ()=>{
+                  const n = parseNumP(el.value);
+                  el.value = n? fmtMilP(n) : '';
+                });
+                el.addEventListener('focus', ()=>{ el.value = el.value.replace(/\./g,''); });
+              }
+              function propsRecalcBudget(mode){
+                const valorEl = document.getElementById(mode==='diag'? 'props-d-valor':'props-m-valor');
+                const mensEl  = document.getElementById(mode==='diag'? 'props-d-mens':'props-m-mens');
+                const budget  = document.getElementById(mode==='diag'? 'props-d-budget':'props-m-budget');
+                const alert   = document.getElementById(mode==='diag'? 'props-d-alert':'props-m-alert');
+                alert.classList.remove('visible');
+                const valor = parseNumP(valorEl.value);
+                if (!valor){ budget.classList.remove('visible'); if (mensEl) mensEl.value=''; return; }
+                const minimo = 500;
+                const idealCalc = Math.max(Math.round(valor*0.01/12), 500);
+                const maximo = Math.max(Math.round(valor*0.03/12), idealCalc);
+                if (maximo < minimo){ budget.classList.remove('visible'); alert.textContent = '⚠ Valor muito baixo para gerar proposta.'; alert.classList.add('visible'); return; }
+                if (mensEl && !mensEl.dataset.touched){ mensEl.value = fmtMilP(idealCalc); }
+                const idealFinal = parseNumP(mensEl?.value) || idealCalc;
+                document.getElementById(mode==='diag'? 'props-d-bmin':'props-m-bmin').textContent = brlP(minimo)+'/mês';
+                document.getElementById(mode==='diag'? 'props-d-bideal':'props-m-bideal').textContent = brlP(idealFinal)+'/mês';
+                document.getElementById(mode==='diag'? 'props-d-bmax':'props-m-bmax').textContent = brlP(maximo)+'/mês';
+                budget.classList.add('visible');
+              }
+
+              // Wire up form numeric inputs
+              setTimeout(()=>{
+                ['props-d-valor','props-d-margem','props-d-mens','props-d-tel',
+                 'props-m-fat','props-m-margem','props-m-valor','props-m-mens','props-m-tel'].forEach(id=>{
+                  const el = document.getElementById(id);
+                  if (!el) return;
+                  if (id.includes('tel')){
+                    el.addEventListener('input', ()=>{ el.value = el.value.replace(/\D/g,''); });
+                    return;
+                  }
+                  if (id.includes('margem')){
+                    el.addEventListener('input', ()=>{ el.value = el.value.replace(/[^0-9.,]/g,''); });
+                    return;
+                  }
+                });
+                attachNum('props-d-valor', ()=>propsRecalcBudget('diag'));
+                attachNum('props-m-valor', ()=>propsRecalcBudget('manual'));
+                attachNum('props-m-fat');
+                const dMens = document.getElementById('props-d-mens');
+                const mMens = document.getElementById('props-m-mens');
+                if (dMens){
+                  attachNum('props-d-mens');
+                  dMens.addEventListener('input', ()=>{ dMens.dataset.touched = '1'; propsRecalcBudget('diag'); });
+                }
+                if (mMens){
+                  attachNum('props-m-mens');
+                  mMens.addEventListener('input', ()=>{ mMens.dataset.touched = '1'; propsRecalcBudget('manual'); });
+                }
+              }, 200);
+
+              // ── GERAR PROPOSTA ──
+              window.propsGerar = async function(){
+                const abaDiag = document.getElementById('props-panel-diag').classList.contains('active');
+                const btn = document.getElementById('props-btn-submit');
+                let payload = {};
+                if (abaDiag){
+                  if (!negSelP){ alert('Selecione um negócio na busca primeiro.'); return; }
+                  const valor = parseNumP(document.getElementById('props-d-valor').value);
+                  const margem = parseNumP(document.getElementById('props-d-margem').value);
+                  const mens = parseNumP(document.getElementById('props-d-mens').value);
+                  if (!valor){ alert('Informe o valor estimado do negócio.'); return; }
+                  if (Math.round(valor*0.03/12) < 500){ alert('Valor muito baixo.'); return; }
+                  payload = {
+                    contato_nome: document.getElementById('props-d-prop').value || negSelP.titulo,
+                    negocio_nome: negSelP.titulo,
+                    negocio_setor: negSelP.setor || 'servicos_empresas',
+                    faturamento_anual: negSelP.faturamento_anual || 0,
+                    margem_operacional: margem || 0,
+                    valor_aproximado: valor,
+                    cidade: negSelP.cidade || null,
+                    estado: negSelP.estado || null,
+                    telefone_proprietario: document.getElementById('props-d-tel').value.replace(/\D/g,'') || null,
+                    mensalidade_ideal: mens || undefined,
+                    obs: document.getElementById('props-d-obs').value,
+                  };
+                } else {
+                  const empresa = document.getElementById('props-m-empresa').value.trim();
+                  const valor = parseNumP(document.getElementById('props-m-valor').value);
+                  const setor = document.getElementById('props-m-setor').value;
+                  if (!empresa){ alert('Preencha o nome da empresa.'); return; }
+                  if (!setor){ alert('Selecione o setor.'); return; }
+                  if (!valor){ alert('Informe o valor estimado.'); return; }
+                  if (Math.round(valor*0.03/12) < 500){ alert('Valor muito baixo.'); return; }
+                  const mens = parseNumP(document.getElementById('props-m-mens').value);
+                  payload = {
+                    contato_nome: document.getElementById('props-m-prop').value || empresa,
+                    negocio_nome: empresa,
+                    negocio_setor: setor,
+                    faturamento_anual: parseNumP(document.getElementById('props-m-fat').value) || 0,
+                    margem_operacional: parseNumP(document.getElementById('props-m-margem').value) || 0,
+                    valor_aproximado: valor,
+                    cidade: document.getElementById('props-m-cidade').value.trim() || null,
+                    estado: document.getElementById('props-m-uf').value || null,
+                    telefone_proprietario: document.getElementById('props-m-tel').value.replace(/\D/g,'') || null,
+                    mensalidade_ideal: mens || undefined,
+                    obs: document.getElementById('props-m-obs').value,
+                  };
+                }
+                btn.disabled = true;
+                btn.innerHTML = '<div class="props-spinner"></div> Gerando com IA…';
+                try{
+                  const r = await fetch(EDGE_P, { method:'POST', headers:{'Content-Type':'application/json',...H_P}, body: JSON.stringify(payload) });
+                  const d = await r.json();
+                  if (!r.ok || !d.success) throw new Error(d.error || 'Erro desconhecido');
+                  const short = SHORT_P + '/' + d.slug;
+                  document.getElementById('props-result-url').textContent = short;
+                  document.getElementById('props-result-open').href = d.url;
+                  document.getElementById('props-result').classList.add('visible');
+                  document.getElementById('props-modal').scrollTop = 0;
+                  await propsCarregar();
+                } catch(e){ alert('Erro ao gerar: ' + e.message); }
+                finally {
+                  btn.disabled = false;
+                  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Gerar proposta';
+                }
+              };
+
+              // Auto-load when section first becomes visible
+              window.propsInitSecao = function(){
+                if (window._propsCarregado) return;
+                window._propsCarregado = true;
+                propsCarregar();
+              };
+
+              // Fix 3 · Atualiza badge no cockpit
+              window.propsAtualizarCockpit = async function(){
+                try{
+                  const r = await fetch(SUPABASE_URL_P+'/rest/v1/propostas_comerciais?select=id&status=in.(enviada,negociacao)', { headers: H_P });
+                  const data = await r.json();
+                  const el = document.getElementById('cock-propostas-abertas');
+                  if (el) el.textContent = Array.isArray(data)? data.length : '—';
+                }catch(e){}
+              };
+              propsAtualizarCockpit();
+            })();
+            </script>
+          </div>
+        </section>
+
+        <!-- ════════════════════════════════════════════════════════════════
              COWORK · Etapa A funcional + H/esqueletos
              ════════════════════════════════════════════════════════════════ -->
 
@@ -5117,6 +5708,7 @@ const SECAO_TITULOS = {
   'pa-agenda':     {grupo:'ADMIN MIGRADO', titulo:'Agenda admin',      icone:'📅'},
   'pa-conversas':  {grupo:'ADMIN MIGRADO', titulo:'Conversas admin',   icone:'💬'},
   'pa-teses':      {grupo:'ADMIN MIGRADO', titulo:'Teses (admin)',     icone:'📋'},
+  'pa-propostas':  {grupo:'CADASTROS · BASE', titulo:'Propostas Assessoradas', icone:'📄'},
   // Etapa 2.A · port painel-leads (prefixo pl-*)
   'pl-crm-google':     {grupo:'LEADS MIGRADO', titulo:'CRM leads_google',     icone:'📇'},
   // Etapa 2.B
@@ -5150,7 +5742,7 @@ function mostrarSecao(id) {
     if (id === 'op-pagamentos') pgInit();
     if (id === 'op-zapi-telefones') zapiInit();
     if (id === 'op-disparador') dispInit();
-    if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); lqInit(); saInit(); cockEntregaveisCarregar(); cockQuentesCarregar(); }
+    if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); lqInit(); saInit(); cockEntregaveisCarregar(); cockQuentesCarregar(); try { propsAtualizarCockpit(); } catch(e){} }
     if (id === 'plano-dia') { cwLoadPlanoFull(); cwLoadPlanoHistorico(); }
     if (id === 'cowork-admin') cwAdmInit();
     if (id === 'triagem-olx') trInit();
@@ -5169,6 +5761,7 @@ function mostrarSecao(id) {
     if (id === 'pa-conversas')  paLoadConversas();
     if (id === 'disparos')      { paLoadDisparos(); dpInit(); }
     if (id === 'pa-teses')      paLoadTeses();
+    if (id === 'pa-propostas')  { try { propsInitSecao(); } catch(e){ console.warn(e); } }
     // Etapa 1.B
     if (id === 'pa-negocios')     paLoadNegocios();
     if (id === 'pa-solicitacoes') paLoadSolicitacoes();
