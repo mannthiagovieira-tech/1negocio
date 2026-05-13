@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Laudo · 1Negócio</title>
+<style>
+  :root { --ink:#0b1220; --ink2:#475569; --ink3:#94a3b8; --bg:#f8fafc; --card:#fff; --border:#e2e8f0; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased; }
+  #status { max-width:760px; margin:80px auto; padding:32px; background:var(--card); border:1px solid var(--border); border-radius:12px; text-align:center; }
+  #status h1 { margin:0 0 12px; font-size:20px; }
+  #status p { margin:0; color:var(--ink2); font-size:14px; line-height:1.5; }
+  #conteudo { display:none; }
+  .spinner { width:32px; height:32px; border:3px solid var(--border); border-top-color:var(--ink); border-radius:50%; animation:spin .8s linear infinite; margin:0 auto 16px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="status">
+  <div class="spinner"></div>
+  <h1>Carregando laudo...</h1>
+  <p>Aguarde alguns instantes.</p>
+</div>
+<div id="conteudo"></div>
+<script>
+const SUPABASE_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+const H = { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY };
+
+function erro(titulo, msg) {
+  document.getElementById('status').innerHTML =
+    '<h1>' + titulo + '</h1><p>' + msg + '</p>';
+}
+
+function uuidValido(s) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
+
+async function buscarLaudo(codigo) {
+  const isUuid = uuidValido(codigo);
+  const filtros = isUuid
+    ? ['id=eq.' + codigo]
+    : ['slug=eq.' + encodeURIComponent(codigo), 'codigo_diagnostico=eq.' + encodeURIComponent(codigo)];
+  for (const f of filtros) {
+    const url = SUPABASE_URL + '/rest/v1/negocios?' + f
+      + '&laudo_html=not.is.null'
+      + '&select=id,slug,nome,laudo_html,created_at'
+      + '&order=created_at.desc'
+      + '&limit=1';
+    const r = await fetch(url, { headers: H });
+    if (!r.ok) continue;
+    const data = await r.json();
+    if (Array.isArray(data) && data.length > 0 && data[0].laudo_html) return data[0];
+  }
+  return null;
+}
+
+(async () => {
+  const params = new URLSearchParams(location.search);
+  const codigo = (params.get('slug') || params.get('id') || params.get('c') || '').trim();
+  if (!codigo) {
+    erro('Link incompleto', 'O parâmetro de identificação do laudo não foi informado.');
+    return;
+  }
+  try {
+    const negocio = await buscarLaudo(codigo);
+    if (!negocio) {
+      erro('Laudo não encontrado', 'Não localizamos um laudo publicado para o código informado.');
+      return;
+    }
+    document.getElementById('status').style.display = 'none';
+    const cont = document.getElementById('conteudo');
+    cont.innerHTML = negocio.laudo_html;
+    cont.style.display = 'block';
+    if (negocio.nome) document.title = 'Laudo · ' + negocio.nome;
+  } catch (e) {
+    erro('Erro ao carregar', 'Tente novamente em alguns instantes. Detalhe: ' + (e.message || 'desconhecido'));
+  }
+})();
+</script>
+</body>
+</html>
