@@ -1,0 +1,864 @@
+// gerar-proposta-assessorada · v9.34.5
+// POST { contato_nome, negocio_nome, negocio_setor, faturamento_anual, margem_operacional,
+//        situacao_bp, valor_aproximado, obs? }
+// 1) Anthropic gera narrativa_diagnostico + narrativa_por_que_agora
+// 2) Calcula orçamento (mínimo/ideal/máximo)
+// 3) Renderiza template HTML
+// 4) Upload Storage propostas/{slug}.html
+// 5) Insert propostas_comerciais
+// 6) Retorna { success, url, slug }
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const SETOR_MAP: Record<string, string> = {
+  servicos_empresas: "Serviços B2B",
+  varejo: "Varejo",
+  saude: "Saúde",
+  alimentacao: "Alimentação & Café",
+  beleza_estetica: "Beleza & Estética",
+  educacao: "Educação",
+  servicos_locais: "Serviços Locais",
+  bem_estar: "Bem-estar",
+  industria: "Indústria",
+  construcao: "Construção",
+  hospedagem: "Hospedagem",
+  logistica: "Logística",
+};
+
+const BP_LABELS: Record<string, { class: string; label: string }> = {
+  positivo: { class: "pos", label: "Balanço positivo" },
+  neutro: { class: "neu", label: "Balanço neutro" },
+  negativo: { class: "neg", label: "Balanço negativo" },
+};
+
+const MESES_PT = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
+
+function resp(status: number, body: Record<string, unknown>) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function brl(v: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.round(v));
+}
+
+function brlShort(v: number): string {
+  v = Math.round(v);
+  if (Math.abs(v) >= 1_000_000) {
+    return "R$ " + (v / 1_000_000).toFixed(1).replace(".", ",") + "M";
+  }
+  if (Math.abs(v) >= 1000) {
+    return "R$ " + Math.round(v / 1000) + "k";
+  }
+  return brl(v);
+}
+
+function dataExtenso(d: Date): string {
+  return `${d.getDate()} de ${MESES_PT[d.getMonth()]} de ${d.getFullYear()}`;
+}
+
+function slugify(s: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
+function escapeHtml(s: string): string {
+  return (s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function calcularOrcamento(valor: number) {
+  const minimo = 500;
+  const ideal = Math.max(Math.round((valor * 0.01) / 12), 500);
+  const maximo = Math.round((valor * 0.03) / 12);
+  return { minimo, ideal, maximo };
+}
+
+function buildBudgetCards(valor: number, minimo: number, ideal: number, maximo: number): string {
+  const taxaSucesso = valor * 0.05;
+  const minTri = minimo * 3;
+  const idealTri = ideal * 3;
+  const taxaFinalMin = taxaSucesso - minTri;
+  const taxaFinalIdeal = taxaSucesso - idealTri;
+
+  // Caso 2 cards: ideal == minimo (500)
+  if (ideal <= minimo) {
+    return `<div class="budget-row" style="grid-template-columns:repeat(2,1fr)">
+      <div class="bcard feat"><span class="btier">Mínimo · Recomendado</span><div class="bval">${brl(minimo)}</div><div class="bper">/mês</div><div class="bdiv"></div><div class="binfo">3 meses → <strong>${brl(minTri)}</strong><br>Taxa de sucesso final: <strong>${brl(taxaFinalMin)}</strong></div></div>
+      <div class="bcard"><span class="btier">Máximo · 3%/12</span><div class="bval">${brl(maximo)}</div><div class="bper">/mês</div><div class="bdiv"></div><div class="binfo">Maior investimento em ferramentas, anúncios e prospecção ativa</div></div>
+    </div>`;
+  }
+
+  // Caso 3 cards: layout normal
+  return `<div class="budget-row">
+      <div class="bcard"><span class="btier">Mínimo</span><div class="bval">${brl(minimo)}</div><div class="bper">/mês</div><div class="bdiv"></div><div class="binfo">3 meses → <strong>${brl(minTri)}</strong><br>Taxa de sucesso final: <strong>${brl(taxaFinalMin)}</strong></div></div>
+      <div class="bcard feat"><span class="btier">Ideal · 1%/12</span><div class="bval">${brl(ideal)}</div><div class="bper">/mês</div><div class="bdiv"></div><div class="binfo">3 meses → <strong>${brl(idealTri)}</strong><br>Taxa de sucesso final: <strong>${brl(taxaFinalIdeal)}</strong></div></div>
+      <div class="bcard"><span class="btier">Máximo · 3%/12</span><div class="bval">${brl(maximo)}</div><div class="bper">/mês</div><div class="bdiv"></div><div class="binfo">Maior investimento em ferramentas, anúncios e prospecção ativa</div></div>
+    </div>`;
+}
+
+async function gerarNarrativaIA(input: {
+  negocio_nome: string;
+  negocio_setor: string;
+  faturamento_anual: number;
+  margem_operacional: number;
+  situacao_bp: string;
+  valor_aproximado: number;
+  obs?: string;
+}): Promise<{ diagnostico: string; por_que_agora: string }> {
+  const setorLabel = SETOR_MAP[input.negocio_setor] || input.negocio_setor;
+  const bpLabel = BP_LABELS[input.situacao_bp]?.label || input.situacao_bp;
+
+  const userPrompt = `Empresa: ${input.negocio_nome}
+Setor: ${setorLabel}
+Faturamento anual: ${brl(input.faturamento_anual)}
+Margem operacional: ${input.margem_operacional}%
+Balanço patrimonial: ${bpLabel}
+Valor pedido pelo dono: ${brl(input.valor_aproximado)}
+${input.obs ? `Observações do consultor: ${input.obs}` : ""}
+
+Gere DOIS parágrafos personalizados, em português brasileiro, tom factual e profissional (não vendedor):
+
+1. "diagnostico" (4-6 frases): explique o que faz ESTE negócio único e atraente para investidores. Cite os números concretos. Comece com o nome do negócio. Tom de análise técnica de M&A.
+
+2. "por_que_agora" (3-4 frases): explique por que vender ESTE negócio AGORA é estratégico. Cite tendência específica do setor ${setorLabel}, janela de mercado, ou contexto macro relevante. Direto e factual.
+
+Responda APENAS com JSON válido neste formato exato (sem markdown, sem prefixo):
+{"diagnostico":"...","por_que_agora":"..."}`;
+
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1200,
+      system: "Você é um analista sênior de M&A escrevendo seção de proposta comercial. Escreve em português brasileiro com tom factual, sem clichês comerciais. Responde sempre apenas com JSON válido.",
+      messages: [{ role: "user", content: userPrompt }],
+    }),
+  });
+
+  if (!r.ok) {
+    const errTxt = await r.text();
+    throw new Error(`anthropic_status_${r.status}: ${errTxt.slice(0, 200)}`);
+  }
+
+  const data = await r.json();
+  const text = (data.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
+
+  // Tenta JSON direto, depois extrai bloco
+  let parsed: any;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error("ia_json_invalido: " + text.slice(0, 200));
+    parsed = JSON.parse(m[0]);
+  }
+
+  if (!parsed?.diagnostico || !parsed?.por_que_agora) {
+    throw new Error("ia_campos_faltando: " + JSON.stringify(parsed).slice(0, 200));
+  }
+  return parsed;
+}
+
+async function carregarTemplate(): Promise<string> {
+  try {
+    const url = new URL("./template.html", import.meta.url);
+    return await Deno.readTextFile(url);
+  } catch {
+    return TEMPLATE_INLINE;
+  }
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return resp(405, { success: false, error: "metodo_invalido" });
+
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return resp(400, { success: false, error: "json_invalido" });
+  }
+
+  const {
+    contato_nome,
+    negocio_nome,
+    negocio_setor,
+    faturamento_anual,
+    margem_operacional,
+    situacao_bp,
+    valor_aproximado,
+    obs,
+  } = body || {};
+
+  if (!contato_nome || !negocio_nome || !negocio_setor || !valor_aproximado) {
+    return resp(400, { success: false, error: "campos_obrigatorios_faltando" });
+  }
+
+  const valor = Number(valor_aproximado);
+  if (!isFinite(valor) || valor <= 0) {
+    return resp(400, { success: false, error: "valor_invalido" });
+  }
+
+  const { minimo, ideal, maximo } = calcularOrcamento(valor);
+  if (maximo < 500) {
+    return resp(400, { success: false, error: "valor muito baixo" });
+  }
+
+  const bpInfo = BP_LABELS[situacao_bp || "positivo"] || BP_LABELS.positivo;
+  const setorLabel = SETOR_MAP[negocio_setor] || negocio_setor;
+
+  try {
+    // 1) IA narrativa
+    const narrativa = await gerarNarrativaIA({
+      negocio_nome,
+      negocio_setor,
+      faturamento_anual: Number(faturamento_anual) || 0,
+      margem_operacional: Number(margem_operacional) || 0,
+      situacao_bp: situacao_bp || "positivo",
+      valor_aproximado: valor,
+      obs,
+    });
+
+    // 2) Render template
+    const template = await carregarTemplate();
+    const hoje = new Date();
+    const expira = new Date(hoje.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const taxaSucesso = valor * 0.05;
+    const planoSugerido = ideal <= minimo ? "minimo" : "ideal";
+
+    const replacements: Record<string, string> = {
+      "{{DATA_PROPOSTA}}": dataExtenso(hoje),
+      "{{DATA_EXPIRACAO}}": dataExtenso(expira),
+      "{{PRIMEIRO_NOME}}": "o " + escapeHtml(negocio_nome),
+      "{{NEGOCIO_NOME}}": escapeHtml(negocio_nome),
+      "{{NEGOCIO_SETOR}}": escapeHtml(setorLabel),
+      "{{FATURAMENTO}}": brlShort(Number(faturamento_anual) || 0),
+      "{{MARGEM}}": (Number(margem_operacional) || 0) + "%",
+      "{{BP_CLASS}}": bpInfo.class,
+      "{{SITUACAO_BP}}": bpInfo.label,
+      "{{VALOR_NEGOCIO}}": brl(valor),
+      "{{TAXA_SUCESSO_5PCT}}": brl(taxaSucesso),
+      "{{BUDGET_CARDS}}": buildBudgetCards(valor, minimo, ideal, maximo),
+      "{{NARRATIVA_DIAGNOSTICO}}": escapeHtml(narrativa.diagnostico),
+      "{{NARRATIVA_POR_QUE_AGORA}}": escapeHtml(narrativa.por_que_agora),
+    };
+
+    let html = template;
+    for (const [k, v] of Object.entries(replacements)) {
+      html = html.split(k).join(v);
+    }
+
+    // 3) Slug + upload Storage
+    const slug = `prop-${slugify(negocio_nome) || "negocio"}-${Date.now().toString(36)}`;
+    const storagePath = `${slug}.html`;
+    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    const { error: errUp } = await admin.storage
+      .from("propostas")
+      .upload(storagePath, new Blob([html], { type: "text/html" }), {
+        contentType: "text/html",
+        upsert: true,
+      });
+    if (errUp) {
+      return resp(500, { success: false, error: "storage_upload_falhou", detalhe: errUp.message });
+    }
+
+    const storageUrl = `${SUPABASE_URL}/storage/v1/object/public/propostas/${storagePath}`;
+
+    // 4) Insert tabela
+    const { error: errIns } = await admin
+      .from("propostas_comerciais")
+      .insert({
+        slug,
+        contato_nome,
+        negocio_setor,
+        faturamento_anual: Number(faturamento_anual) || null,
+        margem_operacional: Number(margem_operacional) || null,
+        situacao_bp: situacao_bp || null,
+        valor_aproximado: valor,
+        mensalidade_minimo: minimo,
+        mensalidade_ideal: ideal,
+        mensalidade_maximo: maximo,
+        plano_sugerido: planoSugerido,
+        narrativa_diagnostico: narrativa.diagnostico,
+        narrativa_por_que_agora: narrativa.por_que_agora,
+        storage_path: storagePath,
+        storage_url: storageUrl,
+        expires_at: expira.toISOString(),
+      });
+    if (errIns) {
+      return resp(500, { success: false, error: "insert_falhou", detalhe: errIns.message });
+    }
+
+    return resp(200, { success: true, slug, url: storageUrl });
+  } catch (e: any) {
+    console.error("[gerar-proposta-assessorada] exception", e);
+    return resp(500, { success: false, error: "exception_raiz", detalhe: e?.message?.slice(0, 300) });
+  }
+});
+
+// Template inline (fallback quando readTextFile não disponível no runtime de deploy)
+const TEMPLATE_INLINE = String.raw`
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Proposta · Venda Assessorada · 1Negócio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef0ec;--surface:#fff;--sf2:#f4f6f2;
+  --ink:#0a1510;--ink-2:rgba(10,21,16,.62);--ink-3:rgba(10,21,16,.4);--ink-4:rgba(10,21,16,.24);
+  --accent:#0aa85a;--accent-2:#077a42;
+  --ac-soft:rgba(10,168,90,.09);--ac-mid:rgba(10,168,90,.18);--ac-line:rgba(10,168,90,.3);
+  --warn:#d18b00;--alert:#c9402e;
+  --serif:'Syne',ui-serif,serif;--sans:'Geist',-apple-system,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --sh-sm:0 1px 4px rgba(10,21,16,.06),0 1px 0 rgba(10,21,16,.03);
+  --sh-md:0 4px 20px rgba(10,21,16,.08),0 1px 0 rgba(10,21,16,.04);
+  --sh-ac:0 6px 28px rgba(10,168,90,.13);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;
+  line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(rgba(10,168,90,.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(10,168,90,.03) 1px,transparent 1px);
+  background-size:52px 52px}
+.page{position:relative;z-index:1;max-width:980px;margin:0 auto;padding:48px 36px 80px}
+section{margin-bottom:64px}
+
+/* TOPBAR */
+.topbar{display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:52px;padding-bottom:20px;border-bottom:1px solid rgba(10,21,16,.09)}
+.logo{font-family:var(--serif);font-size:20px;font-weight:800;letter-spacing:-.03em}
+.logo .one{color:var(--accent)}
+.topbar-pill{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-3);border:1px solid rgba(10,21,16,.12);
+  border-radius:999px;padding:5px 13px}
+
+/* HERO */
+.hero-eyebrow{font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--accent);margin-bottom:14px;display:block}
+.hero-title{font-family:var(--serif);font-size:clamp(28px,4vw,46px);font-weight:800;
+  letter-spacing:-.045em;line-height:1.04;margin-bottom:16px}
+.hero-title em{color:var(--accent);font-style:normal}
+.hero-diag{font-size:15px;color:var(--ink-2);line-height:1.72;
+  border-left:2px solid var(--ac-line);padding-left:16px;margin-bottom:28px}
+.stats-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+  gap:1px;background:rgba(10,21,16,.1);border:1px solid rgba(10,21,16,.1);
+  border-radius:12px;overflow:hidden}
+.stat{background:var(--surface);padding:14px 16px}
+.stat-lbl{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-4);margin-bottom:5px;display:block}
+.stat-val{font-family:var(--serif);font-size:16px;font-weight:700;letter-spacing:-.025em}
+.stat-val.acc{color:var(--accent)}.stat-val.pos{color:var(--accent)}
+.stat-val.neu{color:var(--warn)}.stat-val.neg{color:var(--alert)}
+
+/* SEC LABEL */
+.sec-label{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3);margin-bottom:18px;display:block}
+
+/* MONTH RAIL 12 */
+.month-rail{display:grid;grid-template-columns:repeat(12,1fr);
+  background:var(--surface);border:1px solid rgba(10,21,16,.08);
+  border-radius:10px 10px 0 0;overflow:hidden;box-shadow:var(--sh-sm)}
+.mr{text-align:center;padding:9px 2px;font-family:var(--mono);font-size:8px;
+  font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-4);border-right:1px solid rgba(10,21,16,.06)}
+.mr:last-child{border-right:none}
+.mr.o1{color:rgba(10,21,16,.45);background:rgba(10,21,16,.02)}
+.mr.o2{color:var(--accent);background:rgba(10,168,90,.07)}
+.mr.o3{color:var(--accent-2);background:rgba(10,168,90,.13);font-weight:700}
+.mr.o4{color:var(--ink-4);background:rgba(10,21,16,.01);font-style:italic;opacity:.6}
+
+/* REVISION ROW */
+.rev-rail{display:grid;grid-template-columns:repeat(12,1fr)}
+.rr-empty{height:22px}
+.rr-mark{height:22px;display:flex;align-items:center;justify-content:center;
+  background:var(--accent);font-family:var(--mono);font-size:6.5px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;color:#fff;text-align:center;line-height:1.2}
+
+/* WAVE GRID */
+.wave-grid{display:grid;grid-template-columns:3fr 3fr 3fr 2.2fr;gap:0;
+  border:1px solid rgba(10,21,16,.08);border-top:none;
+  border-radius:0 0 14px 14px;overflow:hidden;box-shadow:var(--sh-sm)}
+.wcard{background:var(--surface);border-right:1px solid rgba(10,21,16,.07);
+  position:relative;transition:all .2s ease}
+.wcard:last-child{border-right:none}
+.wcard.peak{background:linear-gradient(180deg,rgba(10,168,90,.04) 0%,var(--surface) 100%)}
+.wcard.decline{background:var(--sf2)}
+.ghost{position:absolute;right:-8px;top:-16px;font-family:var(--serif);
+  font-size:90px;font-weight:800;letter-spacing:-.06em;
+  color:rgba(10,21,16,.04);line-height:1;pointer-events:none;user-select:none}
+.peak .ghost{color:rgba(10,168,90,.06)}
+.whead{padding:18px 16px 14px;border-bottom:1px solid rgba(10,21,16,.06);position:relative;z-index:1}
+.peak .whead{border-bottom-color:rgba(10,168,90,.12)}
+.wbigicon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;
+  justify-content:center;background:var(--sf2);border:1px solid rgba(10,21,16,.08);margin-bottom:12px}
+.peak .wbigicon{background:var(--ac-soft);border-color:var(--ac-line)}
+.decline .wbigicon{background:rgba(10,21,16,.04);border-color:rgba(10,21,16,.06)}
+.wbigicon svg{width:18px;height:18px;stroke:var(--ink-3);stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.peak .wbigicon svg{stroke:var(--accent)}
+.decline .wbigicon svg{stroke:var(--ink-4)}
+.wtag{font-family:var(--mono);font-size:7.5px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-4);margin-bottom:4px;display:block}
+.peak .wtag{color:var(--accent)}
+.wname{font-family:var(--serif);font-size:13px;font-weight:700;letter-spacing:-.02em;
+  color:var(--ink);line-height:1.25}
+.decline .wname{color:var(--ink-3)}
+.wbody{padding:14px 16px;position:relative;z-index:1}
+.steps{display:flex;flex-direction:column;gap:8px}
+.step{display:flex;align-items:flex-start;gap:8px}
+.sicon{width:22px;height:22px;border-radius:6px;flex-shrink:0;margin-top:1px;
+  background:var(--sf2);border:1px solid rgba(10,21,16,.07);
+  display:flex;align-items:center;justify-content:center}
+.peak .sicon{background:var(--ac-soft);border-color:rgba(10,168,90,.15)}
+.sicon svg{width:11px;height:11px;stroke:var(--ink-3);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.peak .sicon svg{stroke:var(--accent)}
+.stxt{font-size:11.5px;color:var(--ink-2);line-height:1.45}
+.decline .stxt{color:var(--ink-3)}
+.decline-note{margin-top:10px;padding:9px 11px;background:rgba(201,64,46,.06);
+  border:1px solid rgba(201,64,46,.17);border-radius:7px;
+  font-size:10.5px;color:var(--alert);line-height:1.55}
+
+/* PROBABILITY */
+.exp-banner{display:flex;align-items:center;gap:8px;margin-bottom:14px;
+  background:var(--ac-soft);border:1px solid var(--ac-line);
+  border-radius:8px;padding:9px 13px}
+.exp-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0}
+.exp-txt{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--accent-2)}
+.prob-bars{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;
+  align-items:flex-end;height:176px}
+.pbar-wrap{height:100%;display:flex;flex-direction:column;justify-content:flex-end}
+.pbar{border-radius:8px 8px 0 0;position:relative;overflow:hidden;width:100%;flex-shrink:0}
+.pb1{height:8%}.pb2{height:30%}.pb3{height:82%}.pb4{height:14%}.pb5{height:5%}
+.pbb1{background:rgba(10,21,16,.07);border:1px solid rgba(10,21,16,.1);border-bottom:none}
+.pbb2{background:linear-gradient(180deg,rgba(10,168,90,.13) 0%,rgba(10,168,90,.07) 100%);border:1px solid rgba(10,168,90,.2);border-bottom:none}
+.pbb3{background:linear-gradient(180deg,rgba(10,168,90,.22) 0%,rgba(10,168,90,.11) 100%);border:1px solid rgba(10,168,90,.38);border-bottom:none}
+.pbb4{background:rgba(201,64,46,.07);border:1px solid rgba(201,64,46,.18);border-bottom:none}
+.pbb5{background:rgba(201,64,46,.04);border:1px solid rgba(201,64,46,.09);border-bottom:none}
+.pbb3::before{content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(-45deg,rgba(10,168,90,.07) 0,rgba(10,168,90,.07) 2px,transparent 2px,transparent 9px)}
+.pb-peak-lbl{position:absolute;top:8px;left:0;right:0;text-align:center;
+  font-family:var(--mono);font-size:7.5px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--accent-2);z-index:1}
+.prob-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.pcard{background:var(--surface);border:1px solid rgba(10,21,16,.07);
+  border-top:2px solid;border-radius:0 0 8px 8px;padding:11px 10px;box-shadow:var(--sh-sm)}
+.pc1{border-top-color:rgba(10,21,16,.15)}.pc2{border-top-color:rgba(10,168,90,.32)}
+.pc3{border-top-color:var(--accent);box-shadow:var(--sh-ac)}
+.pc4,.pc5{border-top-color:rgba(201,64,46,.35)}
+.pcard-wave{font-family:var(--mono);font-size:7px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-4);margin-bottom:5px;display:block}
+.pc3 .pcard-wave{color:var(--accent)}.pc4 .pcard-wave,.pc5 .pcard-wave{color:var(--alert)}
+.pdots{display:flex;gap:3px;margin-bottom:6px}
+.pd{width:6px;height:6px;border-radius:50%}
+.pd-g{background:var(--accent)}.pd-r{background:var(--alert)}.pd-o{background:rgba(10,21,16,.1)}
+.pcard-status{font-family:var(--serif);font-size:13px;font-weight:800;
+  letter-spacing:-.025em;margin-bottom:4px;line-height:1.1}
+.pc1 .pcard-status{color:rgba(10,21,16,.35)}.pc2 .pcard-status{color:var(--accent)}
+.pc3 .pcard-status{color:var(--accent-2)}.pc4 .pcard-status,.pc5 .pcard-status{color:var(--alert)}
+.pcard-sub{font-size:10px;color:var(--ink-3);line-height:1.5}
+.pc3 .pcard-sub{color:var(--ink-2)}
+
+/* SERVICES */
+.services-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.svc{background:var(--surface);border:1px solid rgba(10,21,16,.08);
+  border-radius:12px;padding:18px 16px;box-shadow:var(--sh-sm)}
+.svc-icon-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.svc-bigicon{width:36px;height:36px;border-radius:9px;background:var(--ac-soft);
+  border:1px solid var(--ac-line);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.svc-bigicon svg{width:17px;height:17px;stroke:var(--accent);stroke-width:1.75;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.svc-title{font-family:var(--serif);font-size:14px;font-weight:700;letter-spacing:-.02em;color:var(--ink)}
+.svc-desc{font-size:12.5px;color:var(--ink-2);line-height:1.65;margin-bottom:10px}
+.svc-tags{display:flex;flex-wrap:wrap;gap:5px}
+.svc-tag{font-family:var(--mono);font-size:7.5px;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--ink-3);background:var(--sf2);
+  border:1px solid rgba(10,21,16,.08);border-radius:4px;padding:2px 7px}
+
+/* PROPOSTA COMERCIAL */
+.bh-title{font-family:var(--serif);font-size:19px;font-weight:800;letter-spacing:-.03em;margin-bottom:4px}
+.bh-sub{font-size:13px;color:var(--ink-3);margin-bottom:22px}
+.budget-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.bcard{background:var(--sf2);border:1px solid rgba(10,21,16,.09);border-radius:12px;padding:18px 16px;position:relative}
+.bcard.feat{background:linear-gradient(180deg,var(--ac-soft) 0%,var(--surface) 100%);
+  border-color:var(--ac-line);box-shadow:var(--sh-ac)}
+.bcard.feat::before{content:'RECOMENDADO';font-family:var(--mono);font-size:7px;
+  font-weight:700;letter-spacing:.08em;color:#fff;background:var(--accent);
+  border-radius:999px;padding:2px 8px;position:absolute;top:0;left:50%;
+  transform:translateX(-50%) translateY(-50%);white-space:nowrap}
+.btier{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-4);margin-bottom:6px;display:block}
+.feat .btier{color:var(--accent)}
+.bval{font-family:var(--serif);font-size:22px;font-weight:800;letter-spacing:-.03em;margin-bottom:1px}
+.feat .bval{color:var(--accent)}
+.bper{font-family:var(--mono);font-size:9.5px;color:var(--ink-4);margin-bottom:12px}
+.bdiv{height:1px;background:rgba(10,21,16,.07);margin-bottom:12px}
+.binfo{font-size:11.5px;color:var(--ink-3);line-height:1.55}.binfo strong{color:var(--ink-2)}
+.budget-note{background:var(--sf2);border:1px solid rgba(10,21,16,.09);
+  border-left:3px solid var(--accent);border-radius:8px;
+  padding:12px 14px;font-size:12.5px;color:var(--ink-2);line-height:1.65;margin-bottom:16px}
+.budget-note strong{color:var(--ink);font-weight:600}
+.terms-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.term{background:var(--surface);border:1px solid rgba(10,21,16,.08);
+  border-radius:10px;padding:14px;box-shadow:var(--sh-sm)}
+.term-label{font-family:var(--mono);font-size:7.5px;font-weight:600;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-4);margin-bottom:5px;display:block}
+.term-value{font-family:var(--serif);font-size:16px;font-weight:700;
+  letter-spacing:-.025em;color:var(--ink);margin-bottom:3px}
+.term-sub{font-size:11px;color:var(--ink-3);line-height:1.45}
+
+/* POR QUE AGORA */
+.pqa-box{background:var(--surface);border:1px solid var(--ac-line);
+  border-radius:14px;padding:24px;box-shadow:var(--sh-ac)}
+.pqa-eyebrow{font-family:var(--mono);font-size:8.5px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--accent);margin-bottom:10px;display:block}
+.pqa-text{font-size:15px;color:var(--ink-2);line-height:1.72}
+
+/* DISCLAIMER */
+.disc{background:var(--surface);border:1px solid rgba(209,139,0,.26);
+  border-left:3px solid var(--warn);border-radius:10px;
+  padding:13px 15px;display:flex;gap:9px;margin-top:14px}
+.disc-txt{font-size:12.5px;color:var(--ink-2);line-height:1.68}
+.disc-txt strong{color:var(--ink);font-weight:600}
+
+/* CTA */
+.cta-box{background:var(--surface);border:1px solid rgba(10,21,16,.09);
+  border-radius:18px;padding:36px 32px;text-align:center;box-shadow:var(--sh-md)}
+.cta-title{font-family:var(--serif);font-size:clamp(20px,3.5vw,30px);font-weight:800;
+  letter-spacing:-.04em;margin-bottom:10px}
+.cta-sub{font-size:14px;color:var(--ink-3);margin-bottom:24px;line-height:1.65}
+.cta-btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);
+  color:#fff;font-family:var(--sans);font-size:13px;font-weight:700;letter-spacing:.03em;
+  text-transform:uppercase;border-radius:999px;padding:14px 28px;
+  text-decoration:none;transition:.15s ease}
+.cta-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(10,168,90,.28)}
+.cta-val{font-family:var(--mono);font-size:9.5px;color:var(--ink-4);
+  letter-spacing:.06em;text-transform:uppercase;margin-top:16px}
+
+/* FOOTER */
+.footer{display:flex;align-items:center;justify-content:space-between;
+  padding-top:20px;border-top:1px solid rgba(10,21,16,.08)}
+.footer-logo{font-family:var(--serif);font-size:15px;font-weight:800;letter-spacing:-.03em}
+.footer-logo .one{color:var(--accent)}
+.footer-txt{font-family:var(--mono);font-size:9px;color:var(--ink-4);
+  letter-spacing:.08em;text-transform:uppercase}
+
+/* ANIMATIONS */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.wcard{animation:fadeUp .4s ease both}
+.wcard:nth-child(1){animation-delay:.06s}.wcard:nth-child(2){animation-delay:.14s}
+.wcard:nth-child(3){animation-delay:.22s}.wcard:nth-child(4){animation-delay:.3s}
+.pbar-wrap{animation:fadeUp .36s ease both}
+.pbar-wrap:nth-child(1){animation-delay:.1s}.pbar-wrap:nth-child(2){animation-delay:.18s}
+.pbar-wrap:nth-child(3){animation-delay:.26s}.pbar-wrap:nth-child(4){animation-delay:.34s}
+.pbar-wrap:nth-child(5){animation-delay:.42s}
+
+@media(max-width:780px){
+  .page{padding:32px 18px 60px}
+  .wave-grid{grid-template-columns:1fr 1fr}
+  .services-grid{grid-template-columns:1fr 1fr}
+  .budget-row,.terms-row{grid-template-columns:1fr}
+  .prob-bars,.prob-cards{grid-template-columns:repeat(3,1fr)}
+  .pbar-wrap:nth-child(n+4),.pcard:nth-child(n+4){display:none}
+}
+@media(max-width:500px){
+  .wave-grid,.services-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="logo"><span class="one">1</span>Negócio</div>
+  <span class="topbar-pill">Proposta confidencial</span>
+</header>
+
+<!-- HERO -->
+<section>
+  <span class="hero-eyebrow">Venda Assessorada · Proposta comercial · {{DATA_PROPOSTA}}</span>
+  <h1 class="hero-title">Levar {{PRIMEIRO_NOME}} ao<br>mercado com <em>estratégia.</em></h1>
+  <p class="hero-diag">{{NARRATIVA_DIAGNOSTICO}}</p>
+  <div class="stats-strip">
+    <div class="stat"><span class="stat-lbl">Setor</span><span class="stat-val">{{NEGOCIO_SETOR}}</span></div>
+    <div class="stat"><span class="stat-lbl">Faturamento anual</span><span class="stat-val">{{FATURAMENTO}}</span></div>
+    <div class="stat"><span class="stat-lbl">Margem operacional</span><span class="stat-val">{{MARGEM}}</span></div>
+    <div class="stat"><span class="stat-lbl">Situação BP</span><span class="stat-val {{BP_CLASS}}">{{SITUACAO_BP}}</span></div>
+    <div class="stat"><span class="stat-lbl">Valor estimado</span><span class="stat-val acc">{{VALOR_NEGOCIO}}</span></div>
+  </div>
+</section>
+
+<!-- CRONOGRAMA -->
+<section>
+  <span class="sec-label">Cronograma · 9 meses de operação</span>
+
+  <div class="month-rail">
+    <div class="mr o1">M1</div><div class="mr o1">M2</div><div class="mr o1">M3</div>
+    <div class="mr o2">M4</div><div class="mr o2">M5</div><div class="mr o2">M6</div>
+    <div class="mr o3">M7</div><div class="mr o3">M8</div><div class="mr o3">M9</div>
+    <div class="mr o4">M10</div><div class="mr o4">M11</div><div class="mr o4">M12</div>
+  </div>
+
+  <!-- TERMÔMETRO DE PROBABILIDADE -->
+  <div style="display:grid;grid-template-columns:repeat(12,1fr);gap:4px;margin-bottom:0;padding:0 0 6px">
+    <!-- M1 -->
+    <div style="height:6px;border-radius:0 0 0 0;background:rgba(10,168,90,.08)"></div>
+    <!-- M2 -->
+    <div style="height:6px;background:rgba(10,168,90,.13)"></div>
+    <!-- M3 -->
+    <div style="height:6px;background:rgba(10,168,90,.2)"></div>
+    <!-- M4 — revisão 1 (marcador sutil) -->
+    <div style="height:6px;background:rgba(10,168,90,.32);position:relative">
+      <div style="position:absolute;top:-14px;left:0;width:1px;height:14px;background:rgba(10,168,90,.4)"></div>
+      <div style="position:absolute;top:-22px;left:-2px;font-family:'JetBrains Mono',monospace;font-size:6.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(10,168,90,.6);white-space:nowrap">↺ R1</div>
+    </div>
+    <!-- M5 -->
+    <div style="height:6px;background:rgba(10,168,90,.48)"></div>
+    <!-- M6 -->
+    <div style="height:6px;background:rgba(10,168,90,.62)"></div>
+    <!-- M7 — revisão 2 -->
+    <div style="height:6px;background:rgba(10,168,90,.78);position:relative">
+      <div style="position:absolute;top:-14px;left:0;width:1px;height:14px;background:rgba(10,168,90,.55)"></div>
+      <div style="position:absolute;top:-22px;left:-2px;font-family:'JetBrains Mono',monospace;font-size:6.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:rgba(10,168,90,.6);white-space:nowrap">↺ R2</div>
+    </div>
+    <!-- M8 -->
+    <div style="height:6px;background:rgba(10,168,90,.9)"></div>
+    <!-- M9 -->
+    <div style="height:6px;background:rgba(10,168,90,1);box-shadow:0 0 6px rgba(10,168,90,.5)"></div>
+    <!-- M10 -->
+    <div style="height:6px;background:rgba(10,168,90,.35)"></div>
+    <!-- M11 -->
+    <div style="height:6px;background:rgba(10,168,90,.15)"></div>
+    <!-- M12 -->
+    <div style="height:6px;border-radius:0;background:rgba(10,168,90,.06)"></div>
+  </div>
+
+  <div class="wave-grid">
+
+    <div class="wcard">
+      <div class="ghost" aria-hidden="true">01</div>
+      <div class="whead">
+        <div class="wbigicon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></div>
+        <span class="wtag">Onda 1 · M1–M3</span>
+        <div class="wname">Preparação e Lançamento</div>
+      </div>
+      <div class="wbody"><div class="steps">
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg></div><span class="stxt">Avaliação e Anúncio</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></div><span class="stxt">Dossiê e materiais de venda</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg></div><span class="stxt">Tese de investimento</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div><span class="stxt">Arquétipos de comprador ideal</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></div><span class="stxt">Levantamento de contatos</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09zM12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/></svg></div><span class="stxt">Go to market (primeiros contatos)</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div><span class="stxt">Primeiras prospecções</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div><span class="stxt">Campanhas e ads</span></div>
+      </div></div>
+    </div>
+
+    <div class="wcard peak">
+      <div class="ghost" aria-hidden="true">02</div>
+      <div class="whead">
+        <div class="wbigicon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></div>
+        <span class="wtag">Onda 2 · M4–M6</span>
+        <div class="wname">Operação Plena e Direcionamento</div>
+      </div>
+      <div class="wbody"><div class="steps">
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><span class="stxt">Análise de performance Onda 1</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div><span class="stxt">Revisão de valor e condições</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg></div><span class="stxt">Refinamento de tese e arquétipos</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></div><span class="stxt">Geração de novos leads</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><span class="stxt">Revisão e ajuste de campanhas</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div><span class="stxt">Conversas qualificadas em curso</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><span class="stxt">Novos compradores no radar</span></div>
+      </div></div>
+    </div>
+
+    <div class="wcard">
+      <div class="ghost" aria-hidden="true">03</div>
+      <div class="whead">
+        <div class="wbigicon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></div>
+        <span class="wtag">Onda 3 · M7–M9</span>
+        <div class="wname">Redirecionamento e Intensidade</div>
+      </div>
+      <div class="wbody"><div class="steps">
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div><span class="stxt">Revisão profunda de estratégia</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M2 20h.01M7 20v-4M12 20v-8M17 20V8M22 4v16"/></svg></div><span class="stxt">Investimento focado vias funcionais</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 012 2v7M11 18H8a2 2 0 01-2-2V9"/></svg></div><span class="stxt">Novos perfis e abordagens</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/></svg></div><span class="stxt">Pipeline de negociações ativo</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><span class="stxt">Qualificação avançada</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><span class="stxt">Assessoria em propostas</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg></div><span class="stxt">Suporte jurídico no closing</span></div>
+      </div></div>
+    </div>
+
+    <div class="wcard decline">
+      <div class="ghost" aria-hidden="true">04</div>
+      <div class="whead">
+        <div class="wbigicon"><svg viewBox="0 0 24 24"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg></div>
+        <span class="wtag">M10–M12 · Se necessário</span>
+        <div class="wname">Intensidade Decrescente</div>
+      </div>
+      <div class="wbody">
+        <div class="steps">
+          <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div><span class="stxt">Revisão de posicionamento</span></div>
+          <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><span class="stxt">Reavaliação de valor e timing</span></div>
+          <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg></div><span class="stxt">Nova estratégia se anterior falhou</span></div>
+        </div>
+        <div class="decline-note">Se chegamos aqui com a mesma estratégia, algo precisa mudar — valor, posicionamento ou timing.</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- PROBABILITY -->
+<section>
+  <span class="sec-label">Expectativa de venda por período</span>
+  <div class="exp-banner">
+    <div class="exp-dot"></div>
+    <span class="exp-txt">Acreditamos que do 4º ao 9º mês é onde a venda acontece — é onde concentramos toda a energia da operação.</span>
+  </div>
+  <div class="prob-bars">
+    <div class="pbar-wrap"><div class="pbar pb1 pbb1"></div></div>
+    <div class="pbar-wrap"><div class="pbar pb2 pbb2"></div></div>
+    <div class="pbar-wrap"><div class="pbar pb3 pbb3"><div class="pb-peak-lbl">esperado</div></div></div>
+    <div class="pbar-wrap"><div class="pbar pb4 pbb4"></div></div>
+    <div class="pbar-wrap"><div class="pbar pb5 pbb5"></div></div>
+  </div>
+  <div class="prob-cards">
+    <div class="pcard pc1"><span class="pcard-wave">Onda 1 · M1–M3</span><div class="pdots"><div class="pd pd-o"></div><div class="pd pd-o"></div><div class="pd pd-o"></div><div class="pd pd-o"></div><div class="pd pd-o"></div></div><div class="pcard-status">Improvável</div><div class="pcard-sub">Fase de estruturação — mercado ainda sendo preparado.</div></div>
+    <div class="pcard pc2"><span class="pcard-wave">Onda 2 · M4–M6</span><div class="pdots"><div class="pd pd-g"></div><div class="pd pd-g"></div><div class="pd pd-o"></div><div class="pd pd-o"></div><div class="pd pd-o"></div></div><div class="pcard-status">Possível</div><div class="pcard-sub">Raro, mas acontece. Pipeline em formação.</div></div>
+    <div class="pcard pc3"><span class="pcard-wave">Onda 3 · M7–M9</span><div class="pdots"><div class="pd pd-g"></div><div class="pd pd-g"></div><div class="pd pd-g"></div><div class="pd pd-g"></div><div class="pd pd-o"></div></div><div class="pcard-status">Provável</div><div class="pcard-sub">Pipeline maduro, duas revisões feitas. Momento esperado de fechamento.</div></div>
+    <div class="pcard pc4"><span class="pcard-wave">M10–M12 · Onda 4</span><div class="pdots"><div class="pd pd-r"></div><div class="pd pd-o"></div><div class="pd pd-o"></div><div class="pd pd-o"></div><div class="pd pd-o"></div></div><div class="pcard-status">Improvável</div><div class="pcard-sub">Com mesma estratégia anterior. Revisão completa necessária.</div></div>
+    <div class="pcard pc5" style="opacity:.55"><span class="pcard-wave">M12+ · Além</span><div class="pdots"><div class="pd pd-o"></div><div class="pd pd-o"></div><div class="pd pd-o"></div><div class="pd pd-o"></div><div class="pd pd-o"></div></div><div class="pcard-status" style="color:rgba(10,21,16,.25)">Decrescente</div><div class="pcard-sub">Mercado perde memória. Reposicionamento profundo.</div></div>
+  </div>
+  <div class="disc"><span style="font-size:14px;flex-shrink:0;line-height:1.4">⚠</span><span class="disc-txt"><strong>Não garantimos venda.</strong> Garantimos operação estruturada, progressiva e honesta. A revisão estratégica entre cada onda é o que separa uma operação que evolui de uma que repete o mesmo erro.</span></div>
+</section>
+
+<!-- O QUE FAZEMOS -->
+<section>
+  <span class="sec-label">O que fazemos — operação completa</span>
+  <div class="services-grid">
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg></div><div class="svc-title">Avaliação e posicionamento</div></div><div class="svc-desc">Avaliação técnica completa pelo método DCF + ISE, tese de investimento e mapeamento de até 7 arquétipos de comprador ideal. Você sabe quanto vale e por quê — com argumentos para defender o preço.</div><div class="svc-tags"><span class="svc-tag">DCF</span><span class="svc-tag">ISE</span><span class="svc-tag">Tese</span><span class="svc-tag">Arquétipos</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></div><div class="svc-title">Geração ativa de leads</div></div><div class="svc-desc">Usamos ferramentas de prospecção estruturada — Google Maps, LinkedIn, bancos de dados B2B, redes sociais — para encontrar empresas e pessoas que se encaixam em cada perfil de comprador. Novos contatos toda semana.</div><div class="svc-tags"><span class="svc-tag">Google Maps</span><span class="svc-tag">LinkedIn</span><span class="svc-tag">B2B</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div><div class="svc-title">Abordagem e prospecção ativa</div></div><div class="svc-desc">Não esperamos o comprador bater na porta. Abordamos diretamente cada contato mapeado com a narrativa certa para cada perfil. Somos especialistas em identificar sinergia e despertar interesse real.</div><div class="svc-tags"><span class="svc-tag">Outreach</span><span class="svc-tag">Sequência</span><span class="svc-tag">Personalizado</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div><div class="svc-title">Gestão de compradores</div></div><div class="svc-desc">Todos os compradores — pelos anúncios, pelo portal ou pela prospecção ativa — são gerenciados por nós. Atendimento sem limite, qualificação e filtragem rigorosa. Só compradores reais chegam até você.</div><div class="svc-tags"><span class="svc-tag">CRM</span><span class="svc-tag">Filtragem</span><span class="svc-tag">Sem limite</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M15 10l4.553-2.069A1 1 0 0121 8.82V15.18a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg></div><div class="svc-title">Conteúdo que vende</div></div><div class="svc-desc">Produzimos roteiros de vídeo, textos para blog e posts para redes sociais apresentando o negócio como oportunidade de investimento — com sigilo preservado. Conteúdo que educa o mercado antes do primeiro contato.</div><div class="svc-tags"><span class="svc-tag">Vídeo</span><span class="svc-tag">Blog</span><span class="svc-tag">Social</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><div class="svc-title">Anúncios segmentados</div></div><div class="svc-desc">Campanhas pagas no Instagram, Facebook e Google direcionadas com precisão para os arquétipos de comprador. O negócio aparece para quem pode e quer comprar — não para o público geral.</div><div class="svc-tags"><span class="svc-tag">Meta Ads</span><span class="svc-tag">Google Ads</span><span class="svc-tag">Segmentado</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div><div class="svc-title">Sigilo e NDA digital</div></div><div class="svc-desc">Nenhum comprador acessa informações sensíveis sem antes assinar NDA digital. Nome, sócios, endereço e dados financeiros só são revelados com sua aprovação explícita. Controle total em cada etapa.</div><div class="svc-tags"><span class="svc-tag">NDA</span><span class="svc-tag">Sigilo</span><span class="svc-tag">Controle</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div><div class="svc-title">Rede de corretores licenciados</div></div><div class="svc-desc">Seu negócio é apresentado à rede 1Negócio de corretores pelo Brasil — profissionais com rede própria de compradores ativos em cada setor e região. Um canal adicional sem custo extra.</div><div class="svc-tags"><span class="svc-tag">Rede nacional</span><span class="svc-tag">Licenciados</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="svc-title">Negociação e suporte jurídico</div></div><div class="svc-desc">Postura resolutiva na mesa — defendemos os interesses do vendedor. Acompanhamos a negociação, assessoramos na avaliação de propostas e damos suporte jurídico completo no closing. Você não fecha sozinho.</div><div class="svc-tags"><span class="svc-tag">Negociação</span><span class="svc-tag">Jurídico</span><span class="svc-tag">Closing</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/><path d="M6 8h.01M9 8h6"/><path d="M6 11h12"/></svg></div><div class="svc-title">Área exclusiva de acompanhamento</div></div><div class="svc-desc">Você tem acesso a uma área exclusiva no seu portal onde acompanha em tempo real tudo que está sendo feito pelo seu negócio — performance de anúncios, número de prospecções realizadas, compradores no pipeline, conversas ativas e conteúdos publicados. Transparência total, sem precisar perguntar.</div><div class="svc-tags"><span class="svc-tag">Tempo real</span><span class="svc-tag">Anúncios</span><span class="svc-tag">Pipeline</span><span class="svc-tag">Prospecções</span></div></div>
+  </div>
+</section>
+
+<!-- PROPOSTA COMERCIAL -->
+<section>
+  <span class="sec-label">Proposta comercial · Proprietário · {{NEGOCIO_NOME}}</span>
+  <div style="background:var(--surface);border:1px solid rgba(10,21,16,.08);border-radius:16px;padding:28px;box-shadow:var(--sh-sm)">
+    <div class="bh-title">Investimento mensal</div>
+    <div class="bh-sub">Calculado sobre o valor estimado do negócio · todo valor pago é abatido da taxa de sucesso no closing</div>
+
+    {{BUDGET_CARDS}}
+    <div class="budget-note"><strong>Como funciona:</strong> A taxa de sucesso é de <strong>5% sobre o valor de venda</strong> ({{TAXA_SUCESSO_5PCT}} sobre o valor estimado de {{VALOR_NEGOCIO}}). Todo valor mensal pago é abatido diretamente dessa taxa no fechamento. Fidelidade mínima de <strong>3 meses</strong>.</div>
+    <div class="terms-row" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr">
+      <div class="term">
+        <span class="term-label">Fidelidade mínima</span>
+        <div class="term-value">3 meses</div>
+        <div class="term-sub">Compromisso mínimo para a primeira onda produzir resultados reais.</div>
+      </div>
+      <div class="term">
+        <span class="term-label">Contrato total</span>
+        <div class="term-value">12 meses</div>
+        <div class="term-sub">Cobertura completa das 3 ondas + margem para intensidade decrescente se necessário.</div>
+      </div>
+      <div class="term" style="border-top:2px solid var(--accent)">
+        <span class="term-label">Impostos e taxas</span>
+        <div class="term-value" style="color:var(--ink-3)">20%</div>
+        <div class="term-sub">Da mensalidade, destinado a impostos e encargos da operação.</div>
+      </div>
+      <div class="term" style="border-top:2px solid var(--accent)">
+        <span class="term-label">Geração de leads e anúncios</span>
+        <div class="term-value" style="color:var(--accent)">40%</div>
+        <div class="term-sub">Direto em ferramentas de prospecção e campanhas pagas pelo seu negócio.</div>
+      </div>
+      <div class="term" style="border-top:2px solid var(--accent)">
+        <span class="term-label">Mão de obra e gestão</span>
+        <div class="term-value" style="color:var(--accent)">40%</div>
+        <div class="term-sub">Estratégia, curadoria, relacionamento e gestão da operação completa.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- POR QUE AGORA -->
+<section>
+  <div class="pqa-box">
+    <span class="pqa-eyebrow">Por que agora</span>
+    <p class="pqa-text">{{NARRATIVA_POR_QUE_AGORA}}</p>
+  </div>
+</section>
+
+<!-- CTA -->
+<section>
+  <div class="cta-box">
+    <div class="cta-title">Pronto para ir ao mercado?</div>
+    <p class="cta-sub">Esta proposta foi construída especificamente para {{PRIMEIRO_NOME}}.<br>O próximo passo é uma conversa de 30 minutos — sem compromisso.</p>
+    <a href="https://wa.me/5548991994080?text=Ol%C3%A1%2C+vim+pela+proposta+da+1Neg%C3%B3cio+e+gostaria+de+conversar+sobre+a+venda+do+meu+neg%C3%B3cio." class="cta-btn" target="_blank" rel="noopener">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.025.507 3.934 1.401 5.604L0 24l6.545-1.38A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.006-1.373l-.36-.214-3.733.786.8-3.647-.235-.374A9.818 9.818 0 012.182 12C2.182 6.575 6.575 2.182 12 2.182c5.424 0 9.818 4.393 9.818 9.818 0 5.424-4.394 9.818-9.818 9.818z"/></svg>
+      Falar no WhatsApp
+    </a>
+    <div class="cta-val">Proposta válida até {{DATA_EXPIRACAO}}</div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-logo"><span class="one">1</span>Negócio</div>
+  <div class="footer-txt">1negocio.com.br · {{DATA_PROPOSTA}}</div>
+</footer>
+
+</div>
+</body>
+</html>
+`;

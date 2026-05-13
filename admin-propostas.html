@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Propostas Assessoradas · Admin 1Negócio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0f0c;--bg-2:#0e1612;--surface:#121a15;--surface-2:#19241d;
+  --line:rgba(255,255,255,.07);--line-2:rgba(255,255,255,.12);
+  --ink:#f4f7f4;--ink-2:rgba(244,247,244,.72);--ink-3:rgba(244,247,244,.48);--ink-4:rgba(244,247,244,.28);
+  --ink-inv:#0a0f0c;
+  --accent:#3dff95;--accent-ink:#0a0f0c;--accent-soft:rgba(61,255,149,.12);--accent-line:rgba(61,255,149,.26);
+  --warn:#f5c842;--alert:#ff6b5c;
+  --serif:'Syne',ui-serif,serif;--sans:'Geist',-apple-system,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;
+  --sh:0 20px 60px rgba(0,0,0,.5);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;
+  line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
+
+/* ── TOPBAR ── */
+.topbar{height:56px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;background:rgba(14,22,18,.85);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+.logo{font-family:var(--serif);font-size:18px;font-weight:800;letter-spacing:-.03em}
+.logo span{color:var(--accent)}
+.topbar-sub{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-4)}
+
+/* ── PAGE ── */
+.page{max-width:1100px;margin:0 auto;padding:36px 24px 80px}
+
+/* ── PAGE HEADER ── */
+.page-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:28px}
+.page-title{font-family:var(--serif);font-size:24px;font-weight:800;letter-spacing:-.03em}
+.page-sub{font-family:var(--mono);font-size:9.5px;font-weight:500;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-4);margin-top:4px}
+.btn-new{display:inline-flex;align-items:center;gap:7px;background:var(--accent);
+  color:var(--accent-ink);font-family:var(--sans);font-size:12px;font-weight:700;
+  letter-spacing:.04em;text-transform:uppercase;border:none;border-radius:999px;
+  padding:10px 20px;cursor:pointer;transition:.15s ease}
+.btn-new:hover{transform:translateY(-1px);box-shadow:0 4px 16px var(--accent-line)}
+.btn-new svg{width:14px;height:14px;stroke:currentColor;stroke-width:2.5;fill:none}
+
+/* ── STATS ── */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:24px}
+.stat-card{background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:14px 16px}
+.sc-label{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-4);margin-bottom:6px;display:block}
+.sc-value{font-family:var(--serif);font-size:20px;font-weight:800;letter-spacing:-.03em}
+.sc-value.acc{color:var(--accent)}
+
+/* ── FILTERS ── */
+.filters{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.filter-btn{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;padding:6px 13px;border-radius:999px;border:1px solid var(--line-2);
+  background:transparent;color:var(--ink-3);cursor:pointer;transition:.12s ease}
+.filter-btn:hover{border-color:var(--line);color:var(--ink-2)}
+.filter-btn.active{background:var(--ink);color:var(--ink-inv);border-color:var(--ink)}
+
+/* ── TABLE ── */
+.table-wrap{background:var(--surface);border:1px solid var(--line-2);border-radius:14px;overflow:hidden}
+.table-head{display:grid;grid-template-columns:2fr 1.2fr 1.2fr 1fr 1.4fr 1fr;
+  padding:10px 18px;border-bottom:1px solid var(--line);gap:12px}
+.th{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-4)}
+.table-body{display:flex;flex-direction:column}
+.table-row{display:grid;grid-template-columns:2fr 1.2fr 1.2fr 1fr 1.4fr 1fr;
+  padding:13px 18px;border-bottom:1px solid var(--line);gap:12px;
+  align-items:center;transition:.12s ease;cursor:default}
+.table-row:last-child{border-bottom:none}
+.table-row:hover{background:var(--surface-2)}
+.tr-empresa{font-weight:600;font-size:13.5px;color:var(--ink)}
+.tr-setor{font-family:var(--mono);font-size:10px;color:var(--ink-4)}
+.tr-valor{font-family:var(--serif);font-size:14px;font-weight:700;letter-spacing:-.02em;color:var(--accent)}
+.tr-data{font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+.tr-link{display:flex;align-items:center;gap:6px}
+.tr-link-text{font-family:var(--mono);font-size:9.5px;color:var(--ink-3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
+.btn-copy-link{width:26px;height:26px;border-radius:6px;border:1px solid var(--line-2);
+  background:transparent;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;flex-shrink:0;transition:.12s ease}
+.btn-copy-link:hover{border-color:var(--accent-line);background:var(--accent-soft)}
+.btn-copy-link svg{width:12px;height:12px;stroke:var(--ink-3);stroke-width:2;fill:none}
+.btn-copy-link:hover svg{stroke:var(--accent)}
+
+/* STATUS SELECT */
+.status-select{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.07em;
+  text-transform:uppercase;padding:4px 10px;border-radius:999px;border:1px solid;
+  background:transparent;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='rgba(244,247,244,.3)' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 6px center;padding-right:22px;}
+.status-select.enviada{border-color:rgba(61,255,149,.3);color:var(--accent)}
+.status-select.negociacao{border-color:rgba(245,200,66,.3);color:var(--warn)}
+.status-select.negada{border-color:rgba(255,107,92,.3);color:var(--alert)}
+.status-select.convertida{border-color:rgba(61,255,149,.5);color:var(--accent);background-color:var(--accent-soft)}
+.status-select.expirada{border-color:var(--line-2);color:var(--ink-4)}
+.status-select option{background:#121a15;color:var(--ink);font-weight:600}
+
+/* EMPTY STATE */
+.empty{padding:48px;text-align:center}
+.empty-icon{width:44px;height:44px;margin:0 auto 14px;border-radius:12px;
+  background:var(--surface-2);border:1px solid var(--line-2);
+  display:flex;align-items:center;justify-content:center}
+.empty-icon svg{width:20px;height:20px;stroke:var(--ink-4);stroke-width:1.6;fill:none}
+.empty-title{font-family:var(--serif);font-size:16px;font-weight:700;color:var(--ink-3);margin-bottom:6px}
+.empty-sub{font-size:13px;color:var(--ink-4)}
+
+/* ── MODAL ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);
+  z-index:100;display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:.2s ease}
+.modal-bg.open{opacity:1;pointer-events:all}
+.modal{background:var(--bg-2,#0e1612);border:1px solid var(--line-2);border-radius:20px;
+  width:100%;max-width:540px;max-height:90vh;overflow-y:auto;
+  box-shadow:var(--sh);transform:translateY(16px);transition:.2s ease}
+.modal-bg.open .modal{transform:translateY(0)}
+
+.modal-head{padding:24px 24px 0;display:flex;align-items:flex-start;justify-content:space-between}
+.modal-title{font-family:var(--serif);font-size:20px;font-weight:800;letter-spacing:-.03em}
+.modal-close{width:32px;height:32px;border-radius:8px;border:1px solid var(--line-2);
+  background:transparent;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;flex-shrink:0;transition:.12s ease}
+.modal-close:hover{background:var(--surface-2);border-color:var(--line)}
+.modal-close svg{width:14px;height:14px;stroke:var(--ink-3);stroke-width:2;fill:none}
+
+/* TABS */
+.tabs{display:flex;gap:4px;margin:20px 24px 0;background:var(--surface);
+  border-radius:10px;padding:4px}
+.tab{flex:1;padding:8px;text-align:center;font-family:var(--mono);font-size:9.5px;
+  font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);
+  border-radius:7px;cursor:pointer;border:none;background:transparent;transition:.12s ease}
+.tab.active{background:var(--surface-2);color:var(--ink);border:1px solid var(--line-2)}
+
+/* MODAL BODY */
+.modal-body{padding:20px 24px 24px}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+/* SEARCH DIAG */
+.search-wrap{position:relative;margin-bottom:14px}
+.search-input{width:100%;background:var(--surface);border:1px solid var(--line-2);
+  border-radius:10px;color:var(--ink);font-family:var(--sans);font-size:13.5px;
+  padding:11px 13px 11px 36px;outline:none;transition:.12s ease}
+.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);
+  width:14px;height:14px;stroke:var(--ink-4);stroke-width:2;fill:none}
+.search-results{background:var(--surface);border:1px solid var(--line-2);border-radius:10px;
+  overflow:hidden;display:none;max-height:200px;overflow-y:auto}
+.search-results.open{display:block}
+.sr-item{padding:11px 14px;cursor:pointer;border-bottom:1px solid var(--line);
+  transition:.1s ease;display:flex;align-items:center;justify-content:space-between}
+.sr-item:last-child{border-bottom:none}
+.sr-item:hover{background:var(--surface-2)}
+.sr-nome{font-size:13px;font-weight:600;color:var(--ink)}
+.sr-meta{font-family:var(--mono);font-size:10px;color:var(--ink-4)}
+.sr-empty{padding:14px;font-size:13px;color:var(--ink-4);text-align:center}
+
+/* PULLED DATA PREVIEW */
+.pulled-preview{background:var(--surface);border:1px solid var(--accent-line);
+  border-radius:10px;padding:14px;margin-bottom:16px;display:none}
+.pulled-preview.visible{display:block}
+.pp-title{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--accent);margin-bottom:10px;display:block}
+.pp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pp-item{display:flex;flex-direction:column;gap:2px}
+.pp-lbl{font-family:var(--mono);font-size:8px;color:var(--ink-4);letter-spacing:.06em;text-transform:uppercase}
+.pp-val{font-size:12.5px;font-weight:600;color:var(--ink)}
+
+/* FORM FIELDS */
+.fields{display:flex;flex-direction:column;gap:10px}
+.field-row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-family:var(--mono);font-size:8.5px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-3)}
+.field input,.field select{width:100%;background:var(--surface);border:1px solid var(--line-2);
+  border-radius:10px;color:var(--ink);font-family:var(--sans);font-size:13.5px;
+  padding:11px 13px;outline:none;transition:.12s ease;-webkit-appearance:none}
+.field input:focus,.field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.field input::placeholder{color:var(--ink-4)}
+.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(244,247,244,.4)' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+
+/* BUDGET PREVIEW */
+.budget-preview{background:var(--surface);border:1px solid var(--line-2);border-radius:10px;
+  padding:14px;margin-top:8px;display:none}
+.budget-preview.visible{display:flex;gap:12px}
+.bp-item{flex:1;text-align:center}
+.bp-label{font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-4);margin-bottom:4px;display:block}
+.bp-val{font-family:var(--serif);font-size:16px;font-weight:800;letter-spacing:-.025em}
+.bp-val.ideal{color:var(--accent)}
+.bp-divider{width:1px;background:var(--line)}
+
+/* ALERTA */
+.alert-box{background:rgba(255,107,92,.08);border:1px solid rgba(255,107,92,.25);
+  border-radius:8px;padding:10px 13px;font-size:12px;color:var(--alert);
+  margin-top:8px;display:none}
+.alert-box.visible{display:block}
+
+/* MODAL FOOTER */
+.modal-footer{padding:0 24px 24px;display:flex;gap:8px}
+.btn-cancel{flex:1;padding:12px;border-radius:999px;border:1px solid var(--line-2);
+  background:transparent;color:var(--ink-2);font-family:var(--sans);font-size:12px;
+  font-weight:600;cursor:pointer;transition:.12s ease}
+.btn-cancel:hover{border-color:var(--line);color:var(--ink)}
+.btn-submit{flex:2;padding:12px;border-radius:999px;background:var(--accent);
+  color:var(--accent-ink);font-family:var(--sans);font-size:12px;font-weight:700;
+  letter-spacing:.04em;text-transform:uppercase;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:7px;transition:.15s ease}
+.btn-submit:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 16px var(--accent-line)}
+.btn-submit:disabled{opacity:.5;cursor:not-allowed}
+.spinner{width:14px;height:14px;border:2px solid var(--accent-ink);border-top-color:transparent;
+  border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* RESULTADO */
+.result-box{background:var(--accent-soft);border:1px solid var(--accent-line);
+  border-radius:12px;padding:16px 18px;margin:0 24px 20px;display:none}
+.result-box.visible{display:block}
+.result-label{font-family:var(--mono);font-size:8.5px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--accent);margin-bottom:10px;display:block}
+.result-url-row{display:flex;align-items:center;gap:8px}
+.result-url{flex:1;background:var(--surface);border:1px solid var(--line-2);
+  border-radius:8px;padding:9px 12px;font-family:var(--mono);font-size:11px;
+  color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn-result-copy{padding:9px 14px;border-radius:8px;background:var(--accent);
+  color:var(--accent-ink);font-family:var(--sans);font-size:11px;font-weight:700;
+  border:none;cursor:pointer;white-space:nowrap;transition:.12s ease}
+.btn-result-copy:hover{opacity:.9}
+.btn-result-open{padding:9px 14px;border-radius:8px;border:1px solid var(--line-2);
+  background:transparent;color:var(--ink-2);font-family:var(--sans);font-size:11px;
+  font-weight:600;cursor:pointer;transition:.12s ease;text-decoration:none;display:inline-flex}
+.btn-result-open:hover{border-color:var(--line);color:var(--ink)}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<nav class="topbar">
+  <div class="logo"><span>1</span>Negócio <span style="color:var(--ink-4);font-size:14px;font-weight:400;margin-left:8px">Admin</span></div>
+  <span class="topbar-sub">Propostas · Venda Assessorada</span>
+</nav>
+
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Propostas Assessoradas</h1>
+      <div class="page-sub">Propostas geradas e enviadas</div>
+    </div>
+    <button class="btn-new" onclick="abrirModal()">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Gerar nova proposta
+    </button>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-row" id="statsRow">
+    <div class="stat-card"><span class="sc-label">Total</span><div class="sc-value" id="stTotal">—</div></div>
+    <div class="stat-card"><span class="sc-label">Enviadas</span><div class="sc-value" id="stEnviadas">—</div></div>
+    <div class="stat-card"><span class="sc-label">Em negociação</span><div class="sc-value" id="stNeg" style="color:var(--warn)">—</div></div>
+    <div class="stat-card"><span class="sc-label">Convertidas</span><div class="sc-value acc" id="stConv">—</div></div>
+    <div class="stat-card"><span class="sc-label">Negadas</span><div class="sc-value" id="stNeg2" style="color:var(--alert)">—</div></div>
+  </div>
+
+  <!-- FILTROS -->
+  <div class="filters">
+    <button class="filter-btn active" onclick="filtrar(this,'todas')">Todas</button>
+    <button class="filter-btn" onclick="filtrar(this,'enviada')">Enviada</button>
+    <button class="filter-btn" onclick="filtrar(this,'negociacao')">Em negociação</button>
+    <button class="filter-btn" onclick="filtrar(this,'convertida')">Convertida</button>
+    <button class="filter-btn" onclick="filtrar(this,'negada')">Negada</button>
+    <button class="filter-btn" onclick="filtrar(this,'expirada')">Expirada</button>
+  </div>
+
+  <!-- TABELA -->
+  <div class="table-wrap">
+    <div class="table-head">
+      <div class="th">Empresa</div>
+      <div class="th">Mensal sugerido</div>
+      <div class="th">Valor estimado</div>
+      <div class="th">Criada em</div>
+      <div class="th">Link</div>
+      <div class="th">Status</div>
+    </div>
+    <div class="table-body" id="tableBody">
+      <div class="empty">
+        <div class="empty-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+        <div class="empty-title">Carregando propostas…</div>
+        <div class="empty-sub">Buscando no banco de dados</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── MODAL ── -->
+<div class="modal-bg" id="modalBg" onclick="fecharModalBg(event)">
+<div class="modal" id="modal">
+
+  <div class="modal-head">
+    <div>
+      <div class="modal-title">Nova proposta</div>
+    </div>
+    <button class="modal-close" onclick="fecharModal()">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="trocarTab(this,'tab-diagnostico')">Por diagnóstico</button>
+    <button class="tab" onclick="trocarTab(this,'tab-manual')">Preencher manual</button>
+  </div>
+
+  <!-- RESULTADO GERADO (aparece após geração) -->
+  <div class="result-box" id="resultBox">
+    <span class="result-label">✓ Proposta gerada com sucesso</span>
+    <div class="result-url-row">
+      <div class="result-url" id="resultUrl"></div>
+      <button class="btn-result-copy" onclick="copiarResultado()">Copiar</button>
+      <a class="btn-result-open" id="resultOpen" href="#" target="_blank">↗</a>
+    </div>
+  </div>
+
+  <!-- TAB: DIAGNÓSTICO -->
+  <div class="modal-body">
+    <div class="tab-panel active" id="tab-diagnostico">
+      <div class="search-wrap">
+        <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" class="search-input" id="searchInput"
+          placeholder="Buscar por nome do negócio ou ID…"
+          oninput="buscarNegocio(this.value)" autocomplete="off">
+        <div class="search-results" id="searchResults"></div>
+      </div>
+
+      <!-- Preview dos dados puxados -->
+      <div class="pulled-preview" id="pulledPreview">
+        <span class="pp-title">Dados do negócio selecionado</span>
+        <div class="pp-grid" id="pulledGrid"></div>
+      </div>
+
+      <!-- Campos adicionais da proposta (sobre o dados puxados) -->
+      <div class="fields" id="diagExtraFields" style="display:none">
+        <div class="field-row-2">
+          <div class="field">
+            <label>Nome do proprietário</label>
+            <input type="text" id="diag_proprietario" placeholder="Ex: João Silva">
+          </div>
+          <div class="field">
+            <label>Valor estimado (R$)</label>
+            <input type="number" id="diag_valor" placeholder="Ex: 2500000" oninput="calcPreview('diag')">
+          </div>
+        </div>
+        <div class="field">
+          <label>Margem operacional (%)</label>
+          <input type="number" id="diag_margem" placeholder="Ex: 22" min="0" max="100">
+        </div>
+        <div class="budget-preview" id="diagBudget">
+          <div class="bp-item"><span class="bp-label">Mínimo</span><div class="bp-val" id="d-min">—</div></div>
+          <div class="bp-divider"></div>
+          <div class="bp-item"><span class="bp-label">Ideal ★</span><div class="bp-val ideal" id="d-ideal">—</div></div>
+          <div class="bp-divider"></div>
+          <div class="bp-item"><span class="bp-label">Máximo</span><div class="bp-val" id="d-max">—</div></div>
+        </div>
+        <div class="alert-box" id="diagAlert"></div>
+      </div>
+
+      <!-- Narrativa opcional -->
+      <div class="field" id="diagNarrRow" style="display:none;margin-top:10px">
+        <label>Observações para a IA gerar narrativa (opcional)</label>
+        <input type="text" id="diag_obs" placeholder="Ex: empresa em expansão, dono quer aposentar…">
+      </div>
+    </div>
+
+    <!-- TAB: MANUAL -->
+    <div class="tab-panel" id="tab-manual">
+      <div class="fields">
+        <div class="field-row-2">
+          <div class="field">
+            <label>Nome da empresa</label>
+            <input type="text" id="m_empresa" placeholder="Ex: Padaria Central">
+          </div>
+          <div class="field">
+            <label>Nome do proprietário</label>
+            <input type="text" id="m_proprietario" placeholder="Ex: João Silva">
+          </div>
+        </div>
+        <div class="field-row-2">
+          <div class="field">
+            <label>Setor</label>
+            <select id="m_setor">
+              <option value="">Selecionar…</option>
+              <option value="servicos_empresas">Serviços B2B</option>
+              <option value="varejo">Varejo</option>
+              <option value="saude">Saúde</option>
+              <option value="alimentacao">Alimentação & Café</option>
+              <option value="beleza_estetica">Beleza & Estética</option>
+              <option value="educacao">Educação</option>
+              <option value="servicos_locais">Serviços Locais</option>
+              <option value="bem_estar">Bem-estar</option>
+              <option value="industria">Indústria</option>
+              <option value="construcao">Construção</option>
+              <option value="hospedagem">Hospedagem</option>
+              <option value="logistica">Logística</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Situação do balanço</label>
+            <select id="m_bp">
+              <option value="">Selecionar…</option>
+              <option value="positivo">Balanço positivo</option>
+              <option value="neutro">Balanço neutro</option>
+              <option value="negativo">Balanço negativo</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row-2">
+          <div class="field">
+            <label>Faturamento anual (R$)</label>
+            <input type="number" id="m_fat" placeholder="Ex: 1200000" min="0">
+          </div>
+          <div class="field">
+            <label>Margem operacional (%)</label>
+            <input type="number" id="m_margem" placeholder="Ex: 22" min="0" max="100">
+          </div>
+        </div>
+        <div class="field">
+          <label>Valor estimado do negócio (R$)</label>
+          <input type="number" id="m_valor" placeholder="Ex: 2500000" min="0" oninput="calcPreview('manual')">
+        </div>
+        <div class="budget-preview" id="manualBudget">
+          <div class="bp-item"><span class="bp-label">Mínimo</span><div class="bp-val" id="m-min">—</div></div>
+          <div class="bp-divider"></div>
+          <div class="bp-item"><span class="bp-label">Ideal ★</span><div class="bp-val ideal" id="m-ideal">—</div></div>
+          <div class="bp-divider"></div>
+          <div class="bp-item"><span class="bp-label">Máximo</span><div class="bp-val" id="m-max">—</div></div>
+        </div>
+        <div class="alert-box" id="manualAlert"></div>
+        <div class="field">
+          <label>Observações para a IA (opcional)</label>
+          <input type="text" id="m_obs" placeholder="Ex: dono quer aposentar, empresa em expansão…">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="modal-footer">
+    <button class="btn-cancel" onclick="fecharModal()">Cancelar</button>
+    <button class="btn-submit" id="btnSubmit" onclick="gerarProposta()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      Gerar proposta
+    </button>
+  </div>
+
+</div>
+</div>
+
+<script>
+const SUPABASE_URL  = 'https://dbijmgqlcrgjlcfrastg.supabase.co'
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA'
+const EDGE_URL      = `${SUPABASE_URL}/functions/v1/gerar-proposta-assessorada`
+const SHORT_BASE    = 'https://1negocio.com.br/p'
+
+const HEADERS = { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${SUPABASE_ANON}` }
+const SETOR_MAP = {
+  servicos_empresas:'Serviços B2B',varejo:'Varejo',saude:'Saúde',
+  alimentacao:'Alimentação & Café',beleza_estetica:'Beleza & Estética',
+  educacao:'Educação',servicos_locais:'Serviços Locais',bem_estar:'Bem-estar',
+  industria:'Indústria',construcao:'Construção',hospedagem:'Hospedagem',logistica:'Logística'
+}
+const STATUS_MAP = {
+  enviada:'enviada', negociacao:'negociacao', negada:'negada',
+  convertida:'convertida', expirada:'expirada'
+}
+
+function brl(v){ return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:0,maximumFractionDigits:0}).format(v) }
+function fmtData(d){ return new Date(d).toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'2-digit'}) }
+
+// ── FILTRO ATIVO ──────────────────────────────────────────────────────────────
+let filtroAtivo = 'todas'
+let todasPropostas = []
+
+function filtrar(btn, status) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'))
+  btn.classList.add('active')
+  filtroAtivo = status
+  renderTable(status === 'todas' ? todasPropostas : todasPropostas.filter(p => p.status === status))
+}
+
+// ── CARREGAR TABELA ───────────────────────────────────────────────────────────
+async function carregarPropostas() {
+  try {
+    const res  = await fetch(`${SUPABASE_URL}/rest/v1/propostas_comerciais?select=*&order=created_at.desc`, { headers: HEADERS })
+    const data = await res.json()
+    todasPropostas = Array.isArray(data) ? data : []
+    renderTable(todasPropostas)
+    renderStats(todasPropostas)
+  } catch { renderEmpty('Erro ao carregar. Verifique a conexão.') }
+}
+
+function renderStats(data) {
+  document.getElementById('stTotal').textContent     = data.length
+  document.getElementById('stEnviadas').textContent  = data.filter(p=>p.status==='enviada').length
+  document.getElementById('stNeg').textContent       = data.filter(p=>p.status==='negociacao').length
+  document.getElementById('stConv').textContent      = data.filter(p=>p.status==='convertida').length
+  document.getElementById('stNeg2').textContent      = data.filter(p=>p.status==='negada').length
+}
+
+function renderTable(data) {
+  const body = document.getElementById('tableBody')
+  if (!data.length) { renderEmpty('Nenhuma proposta encontrada.'); return }
+  body.innerHTML = data.map(p => {
+    const shortUrl = `${SHORT_BASE}/${p.slug}`
+    const mensal   = p.plano_sugerido === 'ideal' ? p.mensalidade_ideal
+                   : p.plano_sugerido === 'maximo' ? p.mensalidade_maximo
+                   : p.mensalidade_minimo
+    return `<div class="table-row">
+      <div>
+        <div class="tr-empresa">${p.contato_nome || '—'}</div>
+        <div class="tr-setor">${SETOR_MAP[p.negocio_setor] || p.negocio_setor}</div>
+      </div>
+      <div class="tr-valor">${brl(mensal || p.mensalidade_ideal || 500)}<span style="font-family:var(--mono);font-size:9px;color:var(--ink-4)">/mês</span></div>
+      <div class="tr-valor" style="color:var(--ink-2)">${brl(p.valor_aproximado)}</div>
+      <div class="tr-data">${fmtData(p.created_at)}</div>
+      <div class="tr-link">
+        <div class="tr-link-text" title="${shortUrl}">${shortUrl}</div>
+        <button class="btn-copy-link" onclick="copiarLink('${shortUrl}',this)" title="Copiar link">
+          <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+        </button>
+      </div>
+      <div>
+        <select class="status-select ${p.status||'enviada'}"
+          onchange="atualizarStatus('${p.id}',this)">
+          <option value="enviada"     ${p.status==='enviada'?'selected':''}>Enviada</option>
+          <option value="negociacao"  ${p.status==='negociacao'?'selected':''}>Em negociação</option>
+          <option value="convertida"  ${p.status==='convertida'?'selected':''}>Convertida</option>
+          <option value="negada"      ${p.status==='negada'?'selected':''}>Negada</option>
+          <option value="expirada"    ${p.status==='expirada'?'selected':''}>Expirada</option>
+        </select>
+      </div>
+    </div>`
+  }).join('')
+}
+
+function renderEmpty(msg) {
+  document.getElementById('tableBody').innerHTML = `<div class="empty">
+    <div class="empty-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+    <div class="empty-title">${msg}</div>
+    <div class="empty-sub">Gere a primeira proposta clicando em "Gerar nova"</div>
+  </div>`
+}
+
+// ── STATUS UPDATE ─────────────────────────────────────────────────────────────
+async function atualizarStatus(id, sel) {
+  const novoStatus = sel.value
+  sel.className = `status-select ${novoStatus}`
+  await fetch(`${SUPABASE_URL}/rest/v1/propostas_comerciais?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: { ...HEADERS, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ status: novoStatus })
+  })
+  todasPropostas = todasPropostas.map(p => p.id === id ? { ...p, status: novoStatus } : p)
+  renderStats(todasPropostas)
+}
+
+// ── COPIAR LINK ───────────────────────────────────────────────────────────────
+async function copiarLink(url, btn) {
+  await navigator.clipboard.writeText(url)
+  btn.innerHTML = '<svg viewBox="0 0 24 24" stroke="var(--accent)" stroke-width="2" fill="none"><polyline points="20 6 9 17 4 12"/></svg>'
+  setTimeout(() => { btn.innerHTML = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>' }, 2000)
+}
+async function copiarResultado() {
+  await navigator.clipboard.writeText(document.getElementById('resultUrl').textContent)
+  const btn = document.querySelector('.btn-result-copy')
+  btn.textContent = '✓ Copiado!'
+  setTimeout(() => btn.textContent = 'Copiar', 2000)
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+function abrirModal() {
+  document.getElementById('modalBg').classList.add('open')
+  document.getElementById('resultBox').classList.remove('visible')
+}
+function fecharModal() { document.getElementById('modalBg').classList.remove('open') }
+function fecharModalBg(e) { if (e.target === document.getElementById('modalBg')) fecharModal() }
+
+function trocarTab(btn, panelId) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'))
+  btn.classList.add('active')
+  document.getElementById(panelId).classList.add('active')
+}
+
+// ── BUSCA DIAGNÓSTICO ─────────────────────────────────────────────────────────
+let buscaTimeout = null
+let negocioSelecionado = null
+
+async function buscarNegocio(q) {
+  clearTimeout(buscaTimeout)
+  const res = document.getElementById('searchResults')
+  if (q.length < 2) { res.classList.remove('open'); return }
+  buscaTimeout = setTimeout(async () => {
+    res.innerHTML = '<div class="sr-empty">Buscando…</div>'
+    res.classList.add('open')
+    try {
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/negocios?select=id,titulo,setor,faturamento_anual,situacao_bp&titulo=ilike.*${encodeURIComponent(q)}*&limit=6`,
+        { headers: HEADERS }
+      )
+      const data = await r.json()
+      if (!data.length) { res.innerHTML = '<div class="sr-empty">Nenhum negócio encontrado</div>'; return }
+      res.innerHTML = data.map(n => `
+        <div class="sr-item" onclick="selecionarNegocio(${JSON.stringify(n).replace(/"/g,'&quot;')})">
+          <div>
+            <div class="sr-nome">${n.titulo || '—'}</div>
+            <div class="sr-meta">${SETOR_MAP[n.setor]||n.setor||'—'} · ${n.faturamento_anual ? brl(n.faturamento_anual)+'/ano' : '—'}</div>
+          </div>
+          <div class="sr-meta" style="flex-shrink:0">${n.id.substring(0,8)}…</div>
+        </div>`).join('')
+    } catch { res.innerHTML = '<div class="sr-empty">Erro na busca</div>' }
+  }, 300)
+}
+
+function selecionarNegocio(n) {
+  negocioSelecionado = n
+  document.getElementById('searchInput').value = n.titulo || ''
+  document.getElementById('searchResults').classList.remove('open')
+  const grid = document.getElementById('pulledGrid')
+  grid.innerHTML = `
+    <div class="pp-item"><span class="pp-lbl">Nome</span><span class="pp-val">${n.titulo||'—'}</span></div>
+    <div class="pp-item"><span class="pp-lbl">Setor</span><span class="pp-val">${SETOR_MAP[n.setor]||n.setor||'—'}</span></div>
+    <div class="pp-item"><span class="pp-lbl">Faturamento</span><span class="pp-val">${n.faturamento_anual?brl(n.faturamento_anual):'—'}</span></div>
+    <div class="pp-item"><span class="pp-lbl">BP</span><span class="pp-val">${n.situacao_bp||'—'}</span></div>`
+  document.getElementById('pulledPreview').classList.add('visible')
+  document.getElementById('diagExtraFields').style.display = 'flex'
+  document.getElementById('diagExtraFields').style.flexDirection = 'column'
+  document.getElementById('diagExtraFields').style.gap = '10px'
+  document.getElementById('diagNarrRow').style.display = 'flex'
+}
+
+// ── ORÇAMENTO PREVIEW ─────────────────────────────────────────────────────────
+function calcPreview(mode) {
+  const valor = parseFloat(mode==='diag'
+    ? document.getElementById('diag_valor').value
+    : document.getElementById('m_valor').value)
+  const alertEl  = document.getElementById(mode==='diag'?'diagAlert':'manualAlert')
+  const budgetEl = document.getElementById(mode==='diag'?'diagBudget':'manualBudget')
+  alertEl.classList.remove('visible')
+  if (!valor || valor <= 0) { budgetEl.classList.remove('visible'); return }
+  const minimo = 500, ideal = Math.max(Math.round(valor*0.01/12),500), maximo = Math.round(valor*0.03/12)
+  if (maximo < minimo) {
+    budgetEl.classList.remove('visible')
+    alertEl.textContent = `⚠ Máximo calculado (${brl(maximo)}) < Mínimo (${brl(minimo)}). Valor muito baixo para gerar proposta.`
+    alertEl.classList.add('visible'); return
+  }
+  const pMin = mode==='diag'?'d-min':'m-min', pId = mode==='diag'?'d-ideal':'m-ideal', pMax = mode==='diag'?'d-max':'m-max'
+  document.getElementById(pMin).textContent  = brl(minimo)+'/mês'
+  document.getElementById(pId).textContent   = brl(ideal)+'/mês'
+  document.getElementById(pMax).textContent  = brl(maximo)+'/mês'
+  budgetEl.classList.add('visible')
+}
+
+// ── GERAR PROPOSTA ─────────────────────────────────────────────────────────────
+async function gerarProposta() {
+  const abaDiag = document.getElementById('tab-diagnostico').classList.contains('active')
+  const btn = document.getElementById('btnSubmit')
+
+  let payload = {}
+  if (abaDiag) {
+    if (!negocioSelecionado) { alert('Selecione um negócio na busca primeiro.'); return }
+    const valor = parseFloat(document.getElementById('diag_valor').value)
+    const margem = parseFloat(document.getElementById('diag_margem').value)
+    if (!valor) { alert('Informe o valor estimado do negócio.'); return }
+    if (Math.round(valor*0.03/12) < 500) { alert('Valor muito baixo para gerar proposta.'); return }
+    payload = {
+      contato_nome:       document.getElementById('diag_proprietario').value || negocioSelecionado.titulo,
+      negocio_nome:       negocioSelecionado.titulo,
+      negocio_setor:      negocioSelecionado.setor || 'servicos_empresas',
+      faturamento_anual:  negocioSelecionado.faturamento_anual || 0,
+      margem_operacional: margem || 0,
+      situacao_bp:        negocioSelecionado.situacao_bp || 'positivo',
+      valor_aproximado:   valor,
+      obs:                document.getElementById('diag_obs').value,
+    }
+  } else {
+    const empresa = document.getElementById('m_empresa').value.trim()
+    const valor   = parseFloat(document.getElementById('m_valor').value)
+    const setor   = document.getElementById('m_setor').value
+    const bp      = document.getElementById('m_bp').value
+    if (!empresa)  { alert('Preencha o nome da empresa.'); return }
+    if (!setor)    { alert('Selecione o setor.'); return }
+    if (!bp)       { alert('Selecione a situação do BP.'); return }
+    if (!valor)    { alert('Informe o valor estimado.'); return }
+    if (Math.round(valor*0.03/12) < 500) { alert('Valor muito baixo para gerar proposta.'); return }
+    payload = {
+      contato_nome:       document.getElementById('m_proprietario').value || empresa,
+      negocio_nome:       empresa,
+      negocio_setor:      setor,
+      faturamento_anual:  parseFloat(document.getElementById('m_fat').value) || 0,
+      margem_operacional: parseFloat(document.getElementById('m_margem').value) || 0,
+      situacao_bp:        bp,
+      valor_aproximado:   valor,
+      obs:                document.getElementById('m_obs').value,
+    }
+  }
+
+  btn.disabled = true
+  btn.innerHTML = '<div class="spinner"></div> Gerando com IA…'
+
+  try {
+    const res  = await fetch(EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON },
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json()
+    if (!res.ok || !data.success) throw new Error(data.error || 'Erro desconhecido')
+
+    const shortUrl = `${SHORT_BASE}/${data.slug}`
+    document.getElementById('resultUrl').textContent = shortUrl
+    document.getElementById('resultOpen').href = data.url
+    document.getElementById('resultBox').classList.add('visible')
+    document.getElementById('modal').scrollTop = 0
+    await carregarPropostas()
+  } catch (e) {
+    alert('Erro ao gerar: ' + e.message)
+  } finally {
+    btn.disabled = false
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Gerar proposta'
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+carregarPropostas()
+</script>
+</body>
+</html>
