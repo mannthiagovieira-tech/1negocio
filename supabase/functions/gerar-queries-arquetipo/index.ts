@@ -1,4 +1,4 @@
-// gerar-queries-arquetipo · v9.33.4
+// gerar-queries-arquetipo · v9.33.7
 // Gera 3 queries de busca (gmaps · facebook · instagram) por arquétipo aprovado.
 // Híbrido: templates fixos + Claude Sonnet refina por canal.
 // v9.33.4 · refino regra (B) · distingue REDE CENTRALIZADA (categoria setorial) de REDE INDEPENDENTE (nome da rede)
@@ -189,14 +189,43 @@ Detecte o TIPO do arquétipo lendo seu nome/perfil. Aplique a regra corresponden
    - ig_query: handle plausível da empresa
    - JUSTIFICATIVA OBRIGATÓRIA no raciocinio: "clientes atuais já são identificáveis · busca por nome real da empresa exemplo"
 
+REGRAS PARA CANAIS NOVOS (v9.33.7):
+
+FB_GRUPOS (Facebook Groups): nomes plausíveis de GRUPOS LOCAIS / SETORIAIS onde arquétipos participam.
+  - 3-5 queries · cada query = busca por nome de grupo
+  - Exemplos pra Bar Boteco BH: "empresários BH" · "empreendedores Belo Horizonte" · "associação bares restaurantes BH" · "gastronomia Belo Horizonte"
+  - Exemplos pra distribuidora bebidas: "distribuidores bebidas MG" · "atacado alimentos Belo Horizonte"
+
+IG_INFLUENCIADORES (hashtags Instagram pra encontrar criadores do nicho):
+  - 3-5 hashtags com '#' explícito · do nicho + cidade
+  - Exemplos pra Bar Boteco BH: "#barsbh" · "#gastronomiabh" · "#vidanoturnabh" · "#cervejabh" · "#restaurantesbh"
+
+IG_CORRETORES (hashtags pra corretores na cidade):
+  - 3-5 hashtags com '#' explícito
+  - Exemplos pra Bar Boteco BH: "#corretorbh" · "#imoveisbh" · "#negociosbh" · "#franquiasbh"
+
+EVENTOS (queries pra busca em Sympla · feiras e encontros setoriais):
+  - 3-5 queries de feiras / festivais / encontros do setor
+  - Exemplos pra Bar Boteco BH: "feira gastronomia BH" · "festival cerveja artesanal MG" · "abrasel" · "encontro empresários bares" · "feira franquias BH"
+
 Retorne EXCLUSIVAMENTE um JSON com este formato:
 
 {
   "gmaps_query": "string · max 100 chars",
   "fb_keywords": "string · max 80 chars",
   "ig_query": "string · max 50 chars",
-  "raciocinio": "1 frase explicando a estratégia"
+  "gmaps": ["string", "string", "..."],
+  "fb_grupos": ["string", "string", "..."],
+  "ig_influenciadores": ["#hashtag", "..."],
+  "ig_corretores": ["#hashtag", "..."],
+  "eventos": ["string", "..."],
+  "raciocinio": "1 frase explicando a estratégia (especialmente para gmaps/fb)"
 }
+
+REGRAS DE TAMANHO:
+- Arrays: 3-5 elementos cada
+- Cada string nos arrays: max 80 chars
+- Use o mesmo raciocínio (B1 vs B2 · investidor PF · etc) ao gerar as queries
 
 NÃO escreva nada fora do JSON.`;
 
@@ -210,9 +239,9 @@ NÃO escreva nada fora do JSON.`;
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 400,
+        max_tokens: 1500,
         system: systemPrompt,
-        messages: [{ role: "user", content: "Gere as 3 queries agora · só JSON válido." }],
+        messages: [{ role: "user", content: "Gere TODAS as queries agora · só JSON válido com todos os campos." }],
       }),
     });
     if (!claudeResp.ok) {
@@ -238,12 +267,29 @@ NÃO escreva nada fora do JSON.`;
       return { ok: false, erro: `query_vazia · gmaps=${!!gmaps} fb=${!!fb} ig=${!!ig}` };
     }
 
+    // v9.33.7 · arrays por canal · usados pelos novos sub-canais sociais e gmaps
+    const arr = (key: string, max: number): string[] => {
+      const raw = parsed[key];
+      if (!Array.isArray(raw)) return [];
+      return raw
+        .map((x: any) => (x == null ? "" : String(x).trim()))
+        .filter((s: string) => s.length > 0)
+        .map((s: string) => s.slice(0, 80))
+        .slice(0, max);
+    };
+
     return {
       ok: true,
       queries: {
         gmaps_query: gmaps.slice(0, 100),
         fb_keywords: fb.slice(0, 80),
         ig_query: ig.slice(0, 50),
+        // v9.33.7 · arrays
+        gmaps: arr("gmaps", 5),
+        fb_grupos: arr("fb_grupos", 5),
+        ig_influenciadores: arr("ig_influenciadores", 5),
+        ig_corretores: arr("ig_corretores", 5),
+        eventos: arr("eventos", 5),
         raciocinio: (parsed.raciocinio || "").toString().trim().slice(0, 300),
         gerado_em: new Date().toISOString(),
       },

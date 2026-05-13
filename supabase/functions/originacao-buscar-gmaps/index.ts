@@ -1,4 +1,4 @@
-// originacao-buscar-gmaps · v9.33.6
+// originacao-buscar-gmaps · v9.33.7 · adiciona tipo='corretores' (queries fixas · categoria corretor_local)
 // Roda Apify compass/crawler-google-places por arquétipo aprovado · EM PARALELO.
 // Lê queries_busca.gmaps_query · insere em originacao_leads_brutos (canal='gmaps' · categoria='comprador_potencial').
 // Custo Apify estimado: ~R$ 0,50 por arquétipo (15 places).
@@ -239,19 +239,18 @@ serve(async (req) => {
 
   let body: any;
   try { body = await req.json(); } catch { return resp(400, { ok: false, erro: "json_invalido" }); }
-  const { originacao_id, arquetipo_id, limite } = body || {};
+  const { originacao_id, arquetipo_id, limite, tipo } = body || {};
   if (!originacao_id) return resp(400, { ok: false, erro: "originacao_id_obrigatorio" });
 
   const limiteN = Math.max(1, Math.min(100, Number(limite) || 15));
-  const limiteFallback = Math.max(5, Math.floor(limiteN / 2)); // metade · mínimo 5
+  const limiteFallback = Math.max(5, Math.floor(limiteN / 2));
+  const modoTipo = (tipo === "corretores") ? "corretores" : "compradores";
 
-  // v9.33.3.1 · FIX B+C · try/finally raiz · sempre libera lock + sempre retorna erro_debug
   let lockSetado = false;
 
   try {
-    // Valida originação
     const { data: orig, error: errOrig } = await adminClient
-      .from("projetos_originacao").select("id, projeto_id, fase_atual, leads_executando_em")
+      .from("projetos_originacao").select("id, projeto_id, fase_atual, leads_executando_em, briefing_jsonb")
       .eq("id", originacao_id).maybeSingle();
     if (errOrig) return resp(500, { ok: false, erro: "fetch_orig_falhou", detalhe: errOrig.message });
     if (!orig) return resp(404, { ok: false, erro: "originacao_nao_encontrada" });
@@ -259,7 +258,100 @@ serve(async (req) => {
       return resp(400, { ok: false, erro: "fase_invalida", detalhe: `fase atual: ${orig.fase_atual} · esperado: leads` });
     }
 
-    // Busca arquétipos aprovados com queries
+    // v9.33.7 · MODO CORRETORES · queries fixas · não usa arquétipos
+    if (modoTipo === "corretores") {
+      const cidade = (orig.briefing_jsonb?.negocio?.cidade || "").trim() || "Brasil";
+      const queries = [
+        `corretora de negócios ${cidade}`,
+        `imobiliária comercial ${cidade}`,
+        `consultor M&A ${cidade}`,
+        `corretor de empresas ${cidade}`,
+      ];
+
+      await adminClient.from("projetos_originacao").update({ leads_executando_em: new Date().toISOString() }).eq("id", originacao_id);
+      lockSetado = true;
+
+      let totalRetornado = 0, inseridos = 0, duplicados = 0;
+      const errosCorretores: any[] = [];
+
+      const resultados = await Promise.all(queries.map(async (q) => {
+        let r = await buscarApify(q, 20, APIFY_TIMEOUT_PRIMARY_MS);
+        if (!r.ok && r.erro && r.erro.startsWith("apify_timeout")) {
+          r = await buscarApify(q, 10, APIFY_TIMEOUT_RETRY_MS);
+        }
+        return { q, r };
+      }));
+
+      for (const { q, r } of resultados) {
+        if (!r.ok) { errosCorretores.push({ query: q, erro: r.erro }); continue; }
+        const items = r.items || [];
+        totalRetornado += items.length;
+        for (const place of items) {
+          const identificador = pickIdentificador(place);
+          if (!identificador) continue;
+          const nome = place.title || place.name || "(sem nome)";
+          const telefone = pickTelefone(place);
+          const endereco = place.address || place.formattedAddress || null;
+          const website = place.website || null;
+          const categoria = place.categoryName || place.category || null;
+
+          const { data: upserted, error: errUp } = await adminClient
+            .from("pool_contatos_global")
+            .upsert({
+              identificador_canonico: identificador,
+              fonte_origem: "apify_gmaps",
+              nome,
+              telefone,
+              website,
+              endereco_completo: endereco,
+              cidade: place.city || cidade,
+              estado: place.state || null,
+              categoria_setorial: "corretor_local",
+              dados_brutos: { ...place, _modo: "corretores", _query: q, _categoria_gmaps: categoria },
+              tags_consolidadas: ["corretor", "local", cidade],
+              last_seen_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "identificador_canonico,fonte_origem" })
+            .select("id")
+            .maybeSingle();
+          if (errUp || !upserted) continue;
+
+          const { error: errUso } = await adminClient
+            .from("pool_contatos_uso")
+            .insert({
+              contato_id: upserted.id,
+              originacao_id,
+              arquetipo_id: null,
+              canal: "corretores_locais",
+              status: "bruto",
+            });
+          if (errUso) {
+            if (errUso.code === "23505") duplicados++;
+          } else inseridos++;
+        }
+      }
+
+      await adminClient.from("projetos_originacao").update({
+        leads_executando_em: null,
+        leads_executados_em: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", originacao_id);
+      lockSetado = false;
+
+      return resp(200, {
+        ok: true,
+        tipo: "corretores",
+        cidade,
+        queries,
+        total_retornado: totalRetornado,
+        inseridos,
+        duplicados,
+        erros: errosCorretores,
+        custo_apify_brl_estimado: 0.50,
+      });
+    }
+
+    // === MODO compradores (default · v9.33.3.x) ===
     let arqQuery = adminClient
       .from("arquetipos_compradores")
       .select("id, nome, queries_busca")

@@ -1,4 +1,4 @@
-// buscar-pool-interno · v9.33.6
+// buscar-pool-interno · v9.33.7 · filtro adicional por tags_consolidadas @> [setor]
 // Busca no banco interno (pool_contatos_global) ANTES de gastar Apify · gratuito.
 // Filtra por cidade do briefing + setor + tags de tipo de arquétipo.
 // Insere uso em pool_contatos_uso com canal='interno'.
@@ -67,11 +67,18 @@ async function buscarParaArquetipo(
       q = q.or(cidadeOr);
     }
 
-    // Match de setor: categoria_setorial OR sub_setor
+    // Match de setor: categoria_setorial OR sub_setor OR tags_consolidadas @> setor
+    // v9.33.7 · tags_consolidadas é jsonb · usamos cs (jsonb contains) via PostgREST
     if (setorSafe || subSetorSafe) {
       const setorOr: string[] = [];
-      if (setorSafe) setorOr.push(`categoria_setorial.ilike.%${setorSafe}%`);
-      if (subSetorSafe) setorOr.push(`categoria_setorial.ilike.%${subSetorSafe}%`);
+      if (setorSafe) {
+        setorOr.push(`categoria_setorial.ilike.%${setorSafe}%`);
+        setorOr.push(`tags_consolidadas.cs.${JSON.stringify([setorSafe])}`);
+      }
+      if (subSetorSafe) {
+        setorOr.push(`categoria_setorial.ilike.%${subSetorSafe}%`);
+        setorOr.push(`tags_consolidadas.cs.${JSON.stringify([subSetorSafe])}`);
+      }
       if (setorOr.length) q = q.or(setorOr.join(","));
     }
 
