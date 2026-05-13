@@ -17874,9 +17874,23 @@ async function origV6BuscarGmaps(origId) {
       headers: { 'Authorization': 'Bearer ' + origV2Token(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ originacao_id: origId, limite: 20 })
     });
-    const data = await r.json().catch(() => ({}));
+    // v9.33.3.1 · captura body raw mesmo se não-JSON (504/502 do gateway retornam HTML/vazio)
+    let data = {};
+    let rawText = '';
+    try {
+      rawText = await r.text();
+      data = JSON.parse(rawText);
+    } catch (_) { /* não-JSON · provavelmente 504/502 do gateway */ }
+
     if (!r.ok) {
-      alert('Erro: ' + (data.erro || data.detalhe || 'desconhecido'));
+      const msg = data.erro_debug || data.erro || data.detalhe || rawText.slice(0, 200) || 'Sem detalhe';
+      const statusHint = r.status === 504
+        ? ' (gateway timeout · Apify lento · tente menos arquétipos por vez ou aguarde)'
+        : r.status === 502
+        ? ' (gateway bad · edge crashou · ver logs)'
+        : '';
+      alert('Erro HTTP ' + r.status + statusHint + '\n\n' + msg);
+      console.error('[origV6BuscarGmaps] erro · status:', r.status, 'body:', rawText.slice(0, 500));
       if (projetoId) pjOriginacaoV2Render(projetoId);
       return;
     }
@@ -17892,7 +17906,8 @@ async function origV6BuscarGmaps(origId) {
 
     if (projetoId) pjOriginacaoV2Render(projetoId);
   } catch (e) {
-    alert('Erro: ' + e.message);
+    alert('Erro fetch: ' + e.message);
+    console.error('[origV6BuscarGmaps] fetch exception', e);
     if (projetoId) pjOriginacaoV2Render(projetoId);
   } finally {
     _origV6LocksBusca[origId] = false;
