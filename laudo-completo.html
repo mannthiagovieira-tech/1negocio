@@ -1912,23 +1912,27 @@ async function init() {
   }
 
   // Resolver negocioId
+  // ?id= pode ser UUID OU slug/codigo (legado · gerar-laudo passa só id=); ?c= e ?slug= sempre são slug/codigo
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   let negocioId = null;
-  if(id) { negocioId = id; }
-  else if(codigo) {
+  const valIdSlug = id && !UUID_RE.test(id) ? id : null;
+  const slugBusca = codigo || valIdSlug;
+  if(id && UUID_RE.test(id)) { negocioId = id; }
+  if(!negocioId && slugBusca) {
     try {
-      const r = await fetch(SUPABASE_URL+'/rest/v1/negocios?slug=eq.'+codigo+'&select=id', {headers:H});
+      const r = await fetch(SUPABASE_URL+'/rest/v1/negocios?slug=eq.'+encodeURIComponent(slugBusca)+'&select=id&limit=1', {headers:H});
       const data = await r.json();
       if(data && data.length > 0) negocioId = data[0].id;
     } catch(e) {}
     if(!negocioId) {
       try {
-        const r = await fetch(SUPABASE_URL+'/rest/v1/negocios?codigo_diagnostico=eq.'+codigo+'&select=id', {headers:H});
+        const r = await fetch(SUPABASE_URL+'/rest/v1/negocios?codigo_diagnostico=eq.'+encodeURIComponent(slugBusca)+'&select=id&limit=1', {headers:H});
         const data = await r.json();
         if(data && data.length > 0) negocioId = data[0].id;
       } catch(e) {}
     }
   }
-  if(!negocioId) { showErro(codigo, id); return; }
+  if(!negocioId) { showErro(slugBusca || codigo, id); return; }
 
   // Buscar calc_json v2 (com retry — skill pode ainda estar salvando)
   for (let tentativa = 0; tentativa < 3; tentativa++) {
