@@ -1,15 +1,19 @@
-// originacao-buscar-gmaps · v9.33.3.1
+// originacao-buscar-gmaps · v9.33.3.2
 // Roda Apify compass/crawler-google-places por arquétipo aprovado · EM PARALELO.
 // Lê queries_busca.gmaps_query · insere em originacao_leads_brutos (canal='gmaps' · categoria='comprador_potencial').
-// Custo Apify estimado: ~R$ 0,50 por arquétipo (20 places).
+// Custo Apify estimado: ~R$ 0,50 por arquétipo (15 places).
+//
+// v9.33.3.2 mudanças:
+// - Default limite 20 → 15 (cabe em 120s em 95% dos casos)
+// - Retry automático em timeout: 1ª tentativa (limite=15 · 120s) → 2ª (limiteFallback ≈ 8 · 90s)
+// - retry_info no response · UI mostra "↳ retry OK"
 //
 // v9.33.3.1 mudanças:
 // - FIX A: Promise.all paralelo (era loop sequencial · 4×35s=140s → 1×35s=40s · evita 504 gateway)
 // - FIX B: try/finally raiz · sempre libera leads_executando_em
 // - FIX C: try/catch raiz · exception retorna 500 com erro_debug + stack
-// - Timeout Apify 180s → 120s · margem dos 150s gateway
 //
-// POST body: { originacao_id: uuid, arquetipo_id?: uuid, limite?: number=20 }
+// POST body: { originacao_id: uuid, arquetipo_id?: uuid, limite?: number=15 }
 // Output: { ok, por_arquetipo[], total_inseridos, custo_apify_brl_estimado }
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -20,7 +24,8 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const APIFY_TOKEN = Deno.env.get("APIFY_TOKEN") || "";
 
 const APIFY_ACTOR = "compass~crawler-google-places";
-const APIFY_TIMEOUT_MS = 120_000; // v9.33.3.1 · margem dos 150s do gateway Supabase
+const APIFY_TIMEOUT_PRIMARY_MS = 120_000; // 1ª tentativa · margem dos 150s do gateway
+const APIFY_TIMEOUT_RETRY_MS = 90_000;    // 2ª tentativa · ainda mais conservador
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,6 +57,7 @@ function pickTelefone(place: any): string | null {
 async function buscarApify(
   gmapsQuery: string,
   limite: number,
+  timeoutMs: number,
 ): Promise<{ ok: boolean; items?: any[]; erro?: string }> {
   const input = {
     searchStringsArray: [gmapsQuery],
@@ -64,7 +70,7 @@ async function buscarApify(
 
   const url = `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${APIFY_TOKEN}`;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), APIFY_TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
 
   try {
     const r = await fetch(url, {
@@ -85,7 +91,7 @@ async function buscarApify(
     return { ok: true, items };
   } catch (e: any) {
     clearTimeout(timer);
-    if (e.name === "AbortError") return { ok: false, erro: `apify_timeout · ${APIFY_TIMEOUT_MS}ms` };
+    if (e.name === "AbortError") return { ok: false, erro: `apify_timeout · ${timeoutMs}ms` };
     return { ok: false, erro: `apify_exception · ${e.message}` };
   }
 }
@@ -95,8 +101,9 @@ async function processarArquetipo(
   originacao_id: string,
   arq: any,
   limite: number,
+  limiteFallback: number,
 ): Promise<any> {
-  const baseStats = {
+  const baseStats: any = {
     arquetipo_id: arq.id,
     nome: arq.nome || "(sem nome)",
     gmaps_query: "",
@@ -112,7 +119,27 @@ async function processarArquetipo(
     }
     baseStats.gmaps_query = gmapsQuery;
 
-    const r = await buscarApify(gmapsQuery, limite);
+    // v9.33.3.2 · retry automático em timeout
+    let r = await buscarApify(gmapsQuery, limite, APIFY_TIMEOUT_PRIMARY_MS);
+    let retryInfo: string | undefined = undefined;
+
+    if (!r.ok && r.erro && r.erro.startsWith("apify_timeout")) {
+      console.log(`[orig-gmaps] timeout em "${arq.nome}" (limite=${limite}) · retry com limite=${limiteFallback}`);
+      const r2 = await buscarApify(gmapsQuery, limiteFallback, APIFY_TIMEOUT_RETRY_MS);
+      if (r2.ok) {
+        retryInfo = `1ª tentativa timeout (limite=${limite}) · retry com limite=${limiteFallback} OK`;
+        r = r2;
+      } else if (r2.erro && r2.erro.startsWith("apify_timeout")) {
+        return {
+          ...baseStats,
+          erro: "apify_timeout_persistente",
+          retry_info: `1ª tentativa timeout (limite=${limite}·120s) · 2ª também (limite=${limiteFallback}·90s)`,
+        };
+      } else {
+        return { ...baseStats, erro: r2.erro, retry_info: `retry após timeout falhou: ${r2.erro}` };
+      }
+    }
+
     if (!r.ok) {
       return { ...baseStats, erro: r.erro };
     }
@@ -153,7 +180,7 @@ async function processarArquetipo(
       }
     }
 
-    return { ...baseStats, inseridos, duplicados };
+    return { ...baseStats, inseridos, duplicados, ...(retryInfo ? { retry_info: retryInfo } : {}) };
   } catch (e: any) {
     return { ...baseStats, erro: `exception_arquetipo · ${e?.message || "sem mensagem"}` };
   }
@@ -185,7 +212,8 @@ serve(async (req) => {
   const { originacao_id, arquetipo_id, limite } = body || {};
   if (!originacao_id) return resp(400, { ok: false, erro: "originacao_id_obrigatorio" });
 
-  const limiteN = Math.max(1, Math.min(100, Number(limite) || 20));
+  const limiteN = Math.max(1, Math.min(100, Number(limite) || 15));
+  const limiteFallback = Math.max(5, Math.floor(limiteN / 2)); // metade · mínimo 5
 
   // v9.33.3.1 · FIX B+C · try/finally raiz · sempre libera lock + sempre retorna erro_debug
   let lockSetado = false;
@@ -226,8 +254,9 @@ serve(async (req) => {
     lockSetado = true;
 
     // v9.33.3.1 · FIX A · paralelizar arquétipos (tempo total = mais lento · não soma)
+    // v9.33.3.2 · passa limiteFallback pra retry automático em timeout
     const porArquetipo = await Promise.all(
-      arquetipos.map((arq) => processarArquetipo(adminClient, originacao_id, arq, limiteN)),
+      arquetipos.map((arq) => processarArquetipo(adminClient, originacao_id, arq, limiteN, limiteFallback)),
     );
 
     // Libera lock + marca conclusão
