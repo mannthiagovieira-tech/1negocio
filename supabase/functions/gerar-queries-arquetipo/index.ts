@@ -1,4 +1,4 @@
-// gerar-queries-arquetipo · v9.33.7
+// gerar-queries-arquetipo · v9.34.1 · Sprint 2 · schema V3 (11 campos: gmaps · gmaps_corretores · 3 sociais · 5 web · lusha_filtros)
 // Gera 3 queries de busca (gmaps · facebook · instagram) por arquétipo aprovado.
 // Híbrido: templates fixos + Claude Sonnet refina por canal.
 // v9.33.4 · refino regra (B) · distingue REDE CENTRALIZADA (categoria setorial) de REDE INDEPENDENTE (nome da rede)
@@ -204,27 +204,60 @@ IG_CORRETORES (hashtags pra corretores na cidade):
   - 3-5 hashtags com '#' explícito
   - Exemplos pra Bar Boteco BH: "#corretorbh" · "#imoveisbh" · "#negociosbh" · "#franquiasbh"
 
-EVENTOS (queries pra busca em Sympla · feiras e encontros setoriais):
-  - 3-5 queries de feiras / festivais / encontros do setor
-  - Exemplos pra Bar Boteco BH: "feira gastronomia BH" · "festival cerveja artesanal MG" · "abrasel" · "encontro empresários bares" · "feira franquias BH"
+EVENTOS · DEPRECATED (substituído por web_eventos em v9.34.1 · pode omitir ou gerar mesmas queries)
+
+REGRAS PARA CANAIS V3 · ARSENAL EXPANDIDO (v9.34.1):
+
+GMAPS_CORRETORES · 3 queries fixas adaptadas pra cidade do negócio (busca de corretores no GMaps):
+  Exemplos: "corretora de negócios ${cidade}" · "imobiliária comercial ${cidade}" · "consultor M&A ${cidade}"
+
+WEB_COMPRADORES · 2-3 queries Google pra encontrar PMEs/grupos compradores do arquétipo:
+  Como se fosse pesquisar no Google · curtas · diretas
+  Exemplos pra Bar Boteco BH: "grupos de restaurantes Belo Horizonte expansão" · "redes bares MG aquisição"
+
+WEB_INFLUENCIADORES · 2-3 queries pra encontrar criadores micro/médio porte do nicho:
+  Exemplos: "influenciador gastronomia Belo Horizonte" · "blogger food service MG"
+
+WEB_EVENTOS · 2-3 queries pra encontrar feiras/encontros próximos 90 dias:
+  Exemplos: "feira gastronomia Belo Horizonte 2026" · "festival cerveja artesanal MG 2026" · "abrasel encontro"
+
+WEB_CORRETORES · 2-3 queries pra corretores de negócios na cidade:
+  Exemplos: "corretor de negócios Belo Horizonte" · "consultor M&A MG"
+
+WEB_PROFISSIONAIS · 2-3 queries pra profissionais do setor com perfil empreendedor:
+  Exemplos: "gerente bar restaurante Belo Horizonte LinkedIn" · "chef que quer abrir negócio MG"
+
+LUSHA_FILTROS · objeto com filtros estruturados pra busca Lusha:
+  - jobTitles: array de cargos · "Owner" · "Founder" · "CEO" · "Sócio" · "Gerente Geral" · "Diretor"
+  - setor: array de setores do negócio (1-3 strings em PT-BR ou EN)
+  - cidade: cidade do briefing (string única)
 
 Retorne EXCLUSIVAMENTE um JSON com este formato:
 
 {
-  "gmaps_query": "string · max 100 chars",
-  "fb_keywords": "string · max 80 chars",
-  "ig_query": "string · max 50 chars",
-  "gmaps": ["string", "string", "..."],
-  "fb_grupos": ["string", "string", "..."],
+  "gmaps_query": "string · max 100 chars (legacy v9.33.4 · manter)",
+  "fb_keywords": "string · max 80 chars (legacy)",
+  "ig_query": "string · max 50 chars (legacy)",
+  "gmaps": ["string", "..."],
+  "gmaps_corretores": ["string", "string", "string"],
+  "fb_grupos": ["string", "..."],
   "ig_influenciadores": ["#hashtag", "..."],
   "ig_corretores": ["#hashtag", "..."],
-  "eventos": ["string", "..."],
-  "raciocinio": "1 frase explicando a estratégia (especialmente para gmaps/fb)"
+  "web_compradores": ["string", "string"],
+  "web_influenciadores": ["string", "string"],
+  "web_eventos": ["string", "string"],
+  "web_corretores": ["string", "string"],
+  "web_profissionais": ["string", "string"],
+  "lusha_filtros": { "jobTitles": ["..."], "setor": ["..."], "cidade": "..." },
+  "raciocinio": "1 frase explicando a estratégia"
 }
 
 REGRAS DE TAMANHO:
-- Arrays: 3-5 elementos cada
+- gmaps · fb_grupos · ig_influenciadores · ig_corretores: 3-5 elementos cada
+- gmaps_corretores: 3 elementos fixos
+- web_*: 2-3 elementos cada (Claude vai fazer web_search depois · não precisa muitas)
 - Cada string nos arrays: max 80 chars
+- lusha_filtros.jobTitles: 3-6 cargos plausíveis
 - Use o mesmo raciocínio (B1 vs B2 · investidor PF · etc) ao gerar as queries
 
 NÃO escreva nada fora do JSON.`;
@@ -239,9 +272,9 @@ NÃO escreva nada fora do JSON.`;
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 1500,
+        max_tokens: 2000,
         system: systemPrompt,
-        messages: [{ role: "user", content: "Gere TODAS as queries agora · só JSON válido com todos os campos." }],
+        messages: [{ role: "user", content: "Gere TODAS as queries agora (todos os 11 campos do schema V3) · só JSON válido." }],
       }),
     });
     if (!claudeResp.ok) {
@@ -278,18 +311,37 @@ NÃO escreva nada fora do JSON.`;
         .slice(0, max);
     };
 
+    // v9.34.1 · lusha_filtros (objeto · não array)
+    const lushaRaw = (parsed.lusha_filtros && typeof parsed.lusha_filtros === "object") ? parsed.lusha_filtros : {};
+    const lushaJobs = Array.isArray(lushaRaw.jobTitles)
+      ? lushaRaw.jobTitles.map((s: any) => String(s).trim().slice(0, 60)).filter(Boolean).slice(0, 6)
+      : [];
+    const lushaSetor = Array.isArray(lushaRaw.setor)
+      ? lushaRaw.setor.map((s: any) => String(s).trim().slice(0, 60)).filter(Boolean).slice(0, 3)
+      : [];
+    const lushaCidade = String(lushaRaw.cidade || "").trim().slice(0, 80);
+
     return {
       ok: true,
       queries: {
         gmaps_query: gmaps.slice(0, 100),
         fb_keywords: fb.slice(0, 80),
         ig_query: ig.slice(0, 50),
-        // v9.33.7 · arrays
+        // v9.33.7 · arrays sociais + gmaps
         gmaps: arr("gmaps", 5),
+        gmaps_corretores: arr("gmaps_corretores", 3),
         fb_grupos: arr("fb_grupos", 5),
         ig_influenciadores: arr("ig_influenciadores", 5),
         ig_corretores: arr("ig_corretores", 5),
         eventos: arr("eventos", 5),
+        // v9.34.1 · arrays web · 2-3 queries (Claude web_search depois expande)
+        web_compradores: arr("web_compradores", 3),
+        web_influenciadores: arr("web_influenciadores", 3),
+        web_eventos: arr("web_eventos", 3),
+        web_corretores: arr("web_corretores", 3),
+        web_profissionais: arr("web_profissionais", 3),
+        // v9.34.1 · objeto lusha_filtros
+        lusha_filtros: { jobTitles: lushaJobs, setor: lushaSetor, cidade: lushaCidade },
         raciocinio: (parsed.raciocinio || "").toString().trim().slice(0, 300),
         gerado_em: new Date().toISOString(),
       },

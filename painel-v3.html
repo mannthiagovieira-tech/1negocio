@@ -17860,6 +17860,13 @@ function origV6RenderQueries(orig, arquetiposComQueries, leadsCount) {
     + '<label style="display:block;font-size:13px;margin:3px 0;cursor:pointer;"><input type="checkbox" id="ch-canal-ig_corretores" onchange="origV6AtualizarEstimativaCanais(\'' + orig.id + '\')"> 📷 IG Corretores · ~R$ ' + custoIgCor.toFixed(2) + ' (' + arqN + ' × ~4 × R$ 0,20)</label>'
     + '<label style="display:block;font-size:13px;margin:3px 0;cursor:pointer;"><input type="checkbox" id="ch-canal-ig_clientes" onchange="origV6AtualizarEstimativaCanais(\'' + orig.id + '\')"> 📷 IG Clientes do negócio · ~R$ ' + custoIgCli.toFixed(2) + ' (precisa @ do negócio)</label>'
     + '<label style="display:block;font-size:13px;margin:3px 0;cursor:pointer;"><input type="checkbox" id="ch-canal-eventos" onchange="origV6AtualizarEstimativaCanais(\'' + orig.id + '\')"> 📅 Eventos (Sympla · gratuito) · ~R$ ' + custoEventos.toFixed(2) + '</label>'
+    // v9.34.1 · 5 canais web Claude
+    + '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);">🌐 Claude web search (Sonnet + web nativo)</div>'
+    + '<label style="display:block;font-size:13px;margin:3px 0;cursor:pointer;"><input type="checkbox" id="ch-canal-web_compradores" onchange="origV6AtualizarEstimativaCanais(\'' + orig.id + '\')"> 🌐 Web · Compradores · ~R$ ' + (arqN * 0.08).toFixed(2) + ' (' + arqN + ' × R$ 0,08)</label>'
+    + '<label style="display:block;font-size:13px;margin:3px 0;cursor:pointer;"><input type="checkbox" id="ch-canal-web_influenciadores" onchange="origV6AtualizarEstimativaCanais(\'' + orig.id + '\')"> 🌐 Web · Influenciadores · ~R$ ' + (arqN * 0.08).toFixed(2) + '</label>'
+    + '<label style="display:block;font-size:13px;margin:3px 0;cursor:pointer;"><input type="checkbox" id="ch-canal-web_eventos" onchange="origV6AtualizarEstimativaCanais(\'' + orig.id + '\')"> 🌐 Web · Eventos · ~R$ ' + (arqN * 0.08).toFixed(2) + '</label>'
+    + '<label style="display:block;font-size:13px;margin:3px 0;cursor:pointer;"><input type="checkbox" id="ch-canal-web_corretores" onchange="origV6AtualizarEstimativaCanais(\'' + orig.id + '\')"> 🌐 Web · Corretores · ~R$ ' + (arqN * 0.08).toFixed(2) + '</label>'
+    + '<label style="display:block;font-size:13px;margin:3px 0;cursor:pointer;"><input type="checkbox" id="ch-canal-web_profissionais" onchange="origV6AtualizarEstimativaCanais(\'' + orig.id + '\')"> 🌐 Web · Profissionais · ~R$ ' + (arqN * 0.08).toFixed(2) + '</label>'
     + '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">'
     + '<label style="font-size:12px;color:var(--ink-3);display:block;margin-bottom:4px;">@ Instagram do negócio (opcional · só usado em IG Clientes)</label>'
     + '<input type="text" id="ch-negocio-instagram" placeholder="ex: barbotecooriginal (sem o @)" style="width:100%;padding:6px 10px;background:var(--bg-1);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:12px;font-family:var(--mono);">'
@@ -17881,14 +17888,15 @@ function origV6RenderQueries(orig, arquetiposComQueries, leadsCount) {
     + '<div class="orig-v4-acoes" style="margin-top:16px;">'
     + '<button onclick="origV6RegerarQueries(\'' + orig.id + '\')">🔄 Regerar todas as queries</button>'
     + '<button class="orig-v3-send" onclick="origV6BuscarTodos(\'' + orig.id + '\')">🚀 Buscar nos canais selecionados</button>'
+    + '<button onclick="origV7GerarListaSemanal(\'' + orig.id + '\')">📋 Gerar lista semanal (score≥70)</button>'
     + '</div>'
     + '</div>';
 }
 
 function origV6AtualizarEstimativaCanais(origId) {
-  // v9.33.7 · 7 canais + corretores_gmaps
+  // v9.34.1 · 8 canais Apify/Sympla + 5 canais Claude Web
   const arqCount = (_origV2Data && _leadsState && _leadsState.arquetipos) ? _leadsState.arquetipos.length : 4;
-  const QPA = 4; // queries médias por arquétipo nos canais sociais
+  const QPA = 4;
   const get = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
   const sel = {
     interno: get('ch-canal-interno'),
@@ -17899,6 +17907,11 @@ function origV6AtualizarEstimativaCanais(origId) {
     ig_corretores: get('ch-canal-ig_corretores'),
     ig_clientes: get('ch-canal-ig_clientes'),
     eventos: get('ch-canal-eventos'),
+    web_compradores: get('ch-canal-web_compradores'),
+    web_influenciadores: get('ch-canal-web_influenciadores'),
+    web_eventos: get('ch-canal-web_eventos'),
+    web_corretores: get('ch-canal-web_corretores'),
+    web_profissionais: get('ch-canal-web_profissionais'),
   };
   const custo = (sel.gmaps ? arqCount * 0.50 : 0)
               + (sel.corretores_gmaps ? 0.50 : 0)
@@ -17906,14 +17919,19 @@ function origV6AtualizarEstimativaCanais(origId) {
               + (sel.ig_influenciadores ? arqCount * QPA * 0.30 : 0)
               + (sel.ig_corretores ? arqCount * QPA * 0.20 : 0)
               + (sel.ig_clientes ? 0.50 : 0)
-              + (sel.eventos ? arqCount * QPA * 0.15 : 0);
+              + (sel.eventos ? arqCount * QPA * 0.15 : 0)
+              + (sel.web_compradores ? arqCount * 0.08 : 0)
+              + (sel.web_influenciadores ? arqCount * 0.08 : 0)
+              + (sel.web_eventos ? arqCount * 0.08 : 0)
+              + (sel.web_corretores ? arqCount * 0.08 : 0)
+              + (sel.web_profissionais ? arqCount * 0.08 : 0);
   const canaisSel = Object.entries(sel).filter(([_, v]) => v).map(([k]) => k);
   const span = document.getElementById('orig-v6-estimativa-' + origId);
   if (span) {
     if (canaisSel.length === 0) {
       span.innerHTML = 'Selecione pelo menos 1 canal.';
     } else {
-      span.innerHTML = 'Custo estimado: <strong>R$ ' + custo.toFixed(2) + '</strong> · ' + canaisSel.length + ' canal(is) · ~2-5 minutos';
+      span.innerHTML = 'Custo estimado: <strong>R$ ' + custo.toFixed(2) + '</strong> · ' + canaisSel.length + ' canal(is) · ~2-5 minutos (sequential)';
     }
   }
 }
@@ -17978,7 +17996,7 @@ async function origV6RegerarQueries(origId) {
 // v9.33.6 · orquestrador no frontend · 4 canais via Promise.all
 let _origV6LocksBusca = {};
 
-// v9.33.7 · 7 canais + corretores_gmaps · rota pra edge + payload customizado
+// v9.34.1 · 13 canais (8 Apify/Sympla + 5 Claude Web) · rota pra edge + payload customizado
 const ORIGV6_CANAL_CONFIG = {
   interno:            { slug: 'buscar-pool-interno',     payload: () => ({}) },
   gmaps:              { slug: 'originacao-buscar-gmaps', payload: () => ({}) },
@@ -17988,6 +18006,11 @@ const ORIGV6_CANAL_CONFIG = {
   ig_corretores:      { slug: 'originacao-buscar-social', payload: () => ({ canal: 'ig_corretores' }) },
   ig_clientes:        { slug: 'originacao-buscar-social', payload: (negocio_ig) => ({ canal: 'ig_clientes', negocio_instagram: negocio_ig }) },
   eventos:            { slug: 'originacao-buscar-social', payload: () => ({ canal: 'eventos' }) },
+  web_compradores:    { slug: 'originacao-buscar-claude-web', payload: () => ({ canal: 'web_compradores' }) },
+  web_influenciadores:{ slug: 'originacao-buscar-claude-web', payload: () => ({ canal: 'web_influenciadores' }) },
+  web_eventos:        { slug: 'originacao-buscar-claude-web', payload: () => ({ canal: 'web_eventos' }) },
+  web_corretores:     { slug: 'originacao-buscar-claude-web', payload: () => ({ canal: 'web_corretores' }) },
+  web_profissionais:  { slug: 'originacao-buscar-claude-web', payload: () => ({ canal: 'web_profissionais' }) },
 };
 
 const ORIGV6_CANAL_LABEL = {
@@ -17999,6 +18022,11 @@ const ORIGV6_CANAL_LABEL = {
   ig_corretores: '📷 IG Corretores',
   ig_clientes: '📷 IG Clientes',
   eventos: '📅 Eventos',
+  web_compradores: '🌐 Web · Compradores',
+  web_influenciadores: '🌐 Web · Influenciadores',
+  web_eventos: '🌐 Web · Eventos',
+  web_corretores: '🌐 Web · Corretores',
+  web_profissionais: '🌐 Web · Profissionais',
 };
 
 async function origV6ChamarCanal(canal, origId, extra) {
@@ -18028,7 +18056,7 @@ async function origV6BuscarTodos(origId) {
     console.log('[origV6BuscarTodos] já rodando');
     return;
   }
-  // v9.33.7 · 7 canais + corretores_gmaps + campo @ IG
+  // v9.34.1 · 13 canais (8 Apify/Sympla + 5 Claude Web) · sequential + progress bar
   const getCh = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
   const canaisSel = [];
   if (getCh('ch-canal-interno')) canaisSel.push('interno');
@@ -18039,6 +18067,11 @@ async function origV6BuscarTodos(origId) {
   if (getCh('ch-canal-ig_corretores')) canaisSel.push('ig_corretores');
   if (getCh('ch-canal-ig_clientes')) canaisSel.push('ig_clientes');
   if (getCh('ch-canal-eventos')) canaisSel.push('eventos');
+  if (getCh('ch-canal-web_compradores')) canaisSel.push('web_compradores');
+  if (getCh('ch-canal-web_influenciadores')) canaisSel.push('web_influenciadores');
+  if (getCh('ch-canal-web_eventos')) canaisSel.push('web_eventos');
+  if (getCh('ch-canal-web_corretores')) canaisSel.push('web_corretores');
+  if (getCh('ch-canal-web_profissionais')) canaisSel.push('web_profissionais');
 
   const negocioIg = (document.getElementById('ch-negocio-instagram')?.value || '').trim().replace(/^@/, '');
 
@@ -18050,41 +18083,62 @@ async function origV6BuscarTodos(origId) {
     if (!confirm('Você marcou "IG Clientes do negócio" mas não informou o @ do negócio.\n\nEsse canal será PULADO (skipped). Continuar?')) return;
   }
 
-  if (!confirm('Buscar leads em ' + canaisSel.length + ' canal(is)?\n\n' + canaisSel.map(c => '• ' + ORIGV6_CANAL_LABEL[c]).join('\n') + '\n\nLeads duplicados são ignorados · canais externos rodam em paralelo · 2-5 minutos.')) return;
+  if (!confirm('Buscar leads em ' + canaisSel.length + ' canal(is)?\n\n' + canaisSel.map(c => '• ' + ORIGV6_CANAL_LABEL[c]).join('\n') + '\n\nLeads duplicados são ignorados · canais rodam SEQUENCIAL com progress bar.')) return;
 
   _origV6LocksBusca[origId] = true;
   const orig = await pjOriginacaoV2FetchById(origId);
   const projetoId = orig?.projeto_id;
   const container = projetoId ? document.getElementById('pj-originacao-' + projetoId) : null;
+
+  // v9.34.1 · Progress UI · 1 linha por canal
   if (container) {
-    container.innerHTML = '<div class="orig-v4-loading">'
-      + '<div class="spinner"></div>'
-      + '<h3>🚀 Buscando em ' + canaisSel.length + ' canal(is)</h3>'
-      + '<p style="font-size:13px;color:var(--ink-2);margin:8px 0;">' + canaisSel.map(c => ORIGV6_CANAL_LABEL[c]).join(' · ') + '</p>'
-      + '<p style="font-size:11px;color:var(--ink-3);">2-5 minutos · não recarregue · canais rodam em paralelo</p>'
+    const linhas = canaisSel.map(c =>
+      '<div id="origV6-prog-' + c + '" style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:13px;">'
+      + '<span style="width:18px;color:var(--ink-3);" data-state="aguardando">⏳</span>'
+      + '<span style="flex:1;">' + ORIGV6_CANAL_LABEL[c] + '</span>'
+      + '<span style="font-size:11px;color:var(--ink-3);font-family:var(--mono);" data-result>aguardando</span>'
+      + '</div>'
+    ).join('');
+    container.innerHTML = '<div class="orig-v4-loading" style="text-align:left;background:var(--bg-1);">'
+      + '<h3 style="text-align:center;margin-bottom:12px;">🚀 Buscando em ' + canaisSel.length + ' canal(is) · sequential</h3>'
+      + '<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;overflow:hidden;">' + linhas + '</div>'
+      + '<p style="font-size:11px;color:var(--ink-3);margin-top:12px;text-align:center;">Não recarregue · canais rodam um por vez</p>'
       + '</div>';
   }
+
+  const setProg = (canal, state, result) => {
+    const row = document.getElementById('origV6-prog-' + canal);
+    if (!row) return;
+    const ico = row.querySelector('[data-state]');
+    const res = row.querySelector('[data-result]');
+    if (state === 'rodando') { if (ico) { ico.textContent = '⏳'; ico.style.color = 'var(--em, #3a7)'; } if (res) res.textContent = 'rodando...'; }
+    if (state === 'ok')      { if (ico) { ico.textContent = '✓';  ico.style.color = '#065f46'; } if (res) res.textContent = result || 'ok'; }
+    if (state === 'erro')    { if (ico) { ico.textContent = '✗';  ico.style.color = '#991b1b'; } if (res) { res.textContent = result || 'erro'; res.style.color = '#991b1b'; } }
+  };
 
   try {
     const por_canal = {};
     let total_inseridos = 0;
     let custo_total = 0;
 
-    // Interno primeiro (sequencial · gratuito · rápido)
-    if (canaisSel.includes('interno')) {
-      const r = await origV6ChamarCanal('interno', origId);
-      por_canal.interno = r;
-      if (r.ok && r.data?.total_inseridos) total_inseridos += r.data.total_inseridos;
-    }
-
-    // Externos em paralelo
-    const externos = canaisSel.filter(c => c !== 'interno');
-    if (externos.length > 0) {
-      const resultados = await Promise.all(externos.map(c => origV6ChamarCanal(c, origId, { negocio_instagram: negocioIg })));
-      for (const r of resultados) {
-        por_canal[r.canal] = r;
-        if (r.ok && r.data?.total_inseridos) total_inseridos += r.data.total_inseridos;
-        if (r.ok && r.data?.custo_apify_brl_estimado) custo_total += r.data.custo_apify_brl_estimado;
+    // v9.34.1 · SEQUENTIAL · canal por canal (controle de orçamento + progress claro)
+    for (const canal of canaisSel) {
+      setProg(canal, 'rodando');
+      const r = await origV6ChamarCanal(canal, origId, { negocio_instagram: negocioIg });
+      por_canal[canal] = r;
+      if (r.ok) {
+        const d = r.data || {};
+        if (d.skipped) {
+          setProg(canal, 'ok', 'pulado · ' + (d.motivo || ''));
+          continue;
+        }
+        const ins = d.total_inseridos ?? d.inseridos ?? 0;
+        const custoCanal = d.custo_apify_brl_estimado ?? d.custo_anthropic_brl_estimado ?? 0;
+        total_inseridos += ins;
+        custo_total += custoCanal;
+        setProg(canal, 'ok', ins + ' inseridos · R$ ' + custoCanal.toFixed(2));
+      } else {
+        setProg(canal, 'erro', (r.erro || 'erro').slice(0, 60));
       }
     }
 
@@ -18184,6 +18238,116 @@ window.origV6VerLeads = origV6VerLeads;
 // v9.33.6 · orquestrador 4 canais
 window.origV6BuscarTodos = origV6BuscarTodos;
 window.origV6AtualizarEstimativaCanais = origV6AtualizarEstimativaCanais;
+
+/* ════════════════════════════════════════════════════════════
+   v9.34.1 · V7 · Lista semanal (Motor V3 Sprint 2)
+   ════════════════════════════════════════════════════════════ */
+let _origV7LocksLista = {};
+
+async function origV7GerarListaSemanal(origId) {
+  if (_origV7LocksLista[origId]) return;
+  if (!confirm('Gerar lista de trabalho desta semana?\n\nAgrega leads com score≥70 e status=novo · Claude gera msg WhatsApp por lead · custo ~R$ 0,30-0,50.')) return;
+  _origV7LocksLista[origId] = true;
+  const orig = await pjOriginacaoV2FetchById(origId);
+  const projetoId = orig?.projeto_id;
+  const container = projetoId ? document.getElementById('pj-originacao-' + projetoId) : null;
+  if (container) {
+    container.innerHTML = '<div class="orig-v4-loading"><div class="spinner"></div><h3>📋 Gerando lista semanal</h3><p style="font-size:13px;color:var(--ink-2);">~20-40s · Claude gerando msgs personalizadas</p></div>';
+  }
+  try {
+    const r = await fetch(SB + '/functions/v1/gerar-lista-semanal', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + origV2Token(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ originacao_id: origId, score_min: 70 }),
+    });
+    let rawText = ''; let data = {};
+    try { rawText = await r.text(); data = JSON.parse(rawText); } catch (_) {}
+    if (!r.ok) {
+      alert('Erro HTTP ' + r.status + '\n\n' + (data.erro_debug || data.erro || rawText.slice(0, 200)));
+      if (projetoId) pjOriginacaoV2Render(projetoId);
+      return;
+    }
+    origToast('✓ Lista gerada · ' + (data.lista?.total || 0) + ' leads');
+    if (container) container.innerHTML = origV7RenderListaSemanal(orig.id, data.lista, data.custo_anthropic_brl_estimado || 0);
+  } catch (e) {
+    alert('Erro fetch: ' + e.message);
+    if (projetoId) pjOriginacaoV2Render(projetoId);
+  } finally {
+    _origV7LocksLista[origId] = false;
+  }
+}
+
+function origV7RenderListaSemanal(origId, lista, custo) {
+  if (!lista) return '<div class="orig-v4-loading"><p>Lista vazia.</p></div>';
+  const totalCats = (lista.compradores?.length || 0) + (lista.corretores?.length || 0) + (lista.eventos?.length || 0) + (lista.influenciadores?.length || 0) + (lista.grupos?.length || 0);
+  const secao = (titulo, icone, items) => {
+    if (!items || items.length === 0) return '';
+    const rows = items.map(it => {
+      const tel = it.telefone || '';
+      const telDigits = tel ? tel.replace(/\D/g, '') : '';
+      const telWa = telDigits && !telDigits.startsWith('55') ? '55' + telDigits : telDigits;
+      const acoesTel = tel
+        ? '<a href="tel:' + leadsEsc(tel) + '" class="lead-acao-btn">📞</a>'
+          + (telWa ? '<a href="https://wa.me/' + telWa + '" target="_blank" rel="noopener" class="lead-acao-btn">💬</a>' : '')
+        : '';
+      const msgBtn = it.mensagem_sugerida
+        ? '<button class="lead-acao-btn" onclick="origV7CopiarMsg(\'' + it.uso_id + '\')">📋 Copiar msg</button>'
+        : '<span style="font-size:11px;color:var(--ink-3);">sem msg</span>';
+      const eventoExtra = (it.data_evento || it.local)
+        ? '<div style="font-size:11px;color:var(--ink-3);margin-top:2px;">' + leadsEsc(it.data_evento || '') + (it.local ? ' · ' + leadsEsc(it.local) : '') + '</div>'
+        : '';
+      const msgArea = it.mensagem_sugerida
+        ? '<textarea id="origV7-msg-' + it.uso_id + '" readonly style="display:none;">' + leadsEsc(it.mensagem_sugerida) + '</textarea>'
+        : '';
+      return '<div style="padding:10px 12px;border-bottom:1px solid var(--line);">'
+        + '<div style="display:flex;gap:10px;align-items:flex-start;">'
+        + '<span class="lead-score-badge ' + leadsScoreClass(it.score) + '">' + (it.score ?? '—') + '</span>'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-weight:600;">' + leadsEsc(it.nome || '?') + '</div>'
+        + '<div style="font-size:11px;color:var(--ink-3);">' + leadsEsc(it.arquetipo_nome || '') + (it.canal_origem ? ' · ' + leadsEsc(it.canal_origem) : '') + (it.cidade ? ' · ' + leadsEsc(it.cidade) : '') + '</div>'
+        + eventoExtra
+        + (it.score_motivo ? '<div style="font-size:11px;color:var(--ink-2);font-style:italic;margin-top:3px;">' + leadsEsc(it.score_motivo) + '</div>' : '')
+        + '</div>'
+        + '<div class="lead-acoes-row" style="margin-top:0;">' + acoesTel + msgBtn + '</div>'
+        + '</div>'
+        + msgArea
+        + '</div>';
+    }).join('');
+    return '<div style="margin-top:14px;">'
+      + '<div style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin-bottom:6px;">' + icone + ' ' + titulo + ' · ' + items.length + '</div>'
+      + '<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;overflow:hidden;">' + rows + '</div>'
+      + '</div>';
+  };
+
+  return '<div class="orig-v6-queries">'
+    + '<div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">'
+    + '<h3 style="margin:0;">📋 Lista semanal · ' + leadsEsc(lista.semana || '?') + '</h3>'
+    + '<span class="orig-v3-fase-badge">Fase 3/5</span>'
+    + '</div>'
+    + '<p style="color:var(--ink-3);font-size:12px;">' + totalCats + ' leads · gerado em ' + new Date(lista.gerada_em).toLocaleString('pt-BR') + ' · custo R$ ' + Number(custo || 0).toFixed(2) + '</p>'
+    + secao('Compradores', '🎯', lista.compradores)
+    + secao('Corretores', '🤝', lista.corretores)
+    + secao('Eventos', '📅', lista.eventos)
+    + secao('Influenciadores', '⭐', lista.influenciadores)
+    + secao('Grupos', '📘', lista.grupos)
+    + '<div class="orig-v4-acoes" style="margin-top:24px;">'
+    + '<button onclick="pjOriginacaoV2Render(\'' + leadsEsc(origId) + '\')">← Voltar pro arsenal</button>'
+    + '<button class="orig-v3-send" onclick="origV7GerarListaSemanal(\'' + origId + '\')">🔄 Regerar lista</button>'
+    + '</div>'
+    + '</div>';
+}
+
+function origV7CopiarMsg(usoId) {
+  const ta = document.getElementById('origV7-msg-' + usoId);
+  if (!ta) return;
+  const txt = ta.value || '';
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => origToast('✓ Mensagem copiada'));
+  else { ta.style.display = ''; ta.select(); document.execCommand('copy'); ta.style.display = 'none'; origToast('✓ Copiada'); }
+}
+
+window.origV7GerarListaSemanal = origV7GerarListaSemanal;
+window.origV7RenderListaSemanal = origV7RenderListaSemanal;
+window.origV7CopiarMsg = origV7CopiarMsg;
 
 /* ════════════════════════════════════════════════════════════
    v9.33.5 · Aba "Leads" no detalhe do projeto
