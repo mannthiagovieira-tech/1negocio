@@ -1,4 +1,4 @@
-// gerar-queries-arquetipo · v9.34.1 · Sprint 2 · schema V3 (11 campos: gmaps · gmaps_corretores · 3 sociais · 5 web · lusha_filtros)
+// gerar-queries-arquetipo · v9.34.2 · Sprint 3 · fix prompt gmaps + web_compradores (queries concretas · não abstratas)
 // Gera 3 queries de busca (gmaps · facebook · instagram) por arquétipo aprovado.
 // Híbrido: templates fixos + Claude Sonnet refina por canal.
 // v9.33.4 · refino regra (B) · distingue REDE CENTRALIZADA (categoria setorial) de REDE INDEPENDENTE (nome da rede)
@@ -97,8 +97,13 @@ TEMPLATES BASE (use como ponto de partida · refine pra ficar mais preciso):
 
 REGRAS PRA REFINAR:
 
-1. GMAPS_QUERY: termo que vai pra busca do Google Maps
-   - DEVE buscar EMPRESAS REAIS (não conceitos abstratos)
+PRINCÍPIO GERAL (v9.34.2): gere queries como o público-alvo REALMENTE BUSCA · não como você o categoriza internamente. Cada query deve ser TESTÁVEL: se você colar essa string no Google Maps ou no Google agora · aparece o tipo de resultado certo? Se a resposta é "não · só categorias abstratas", reescreva.
+
+1. GMAPS_QUERY (legacy · 1 string) / GMAPS (array · v9.33.7):
+   - Gere termos que o PRÓPRIO ESTABELECIMENTO usa pra se descrever no Google Maps · unidades individuais reais · NÃO categorias abstratas
+   - ERRADO: "rede de bares belo horizonte" · "holding gastronômica BH" · "grupo expansão restaurantes BH"
+   - CERTO:  "bar belo horizonte" · "choperia BH" · "boteco centro BH" · "restaurante self service BH"
+   - Use o TIPO do estabelecimento no singular + cidade/bairro
    - Inclui localização baseada no alcance:
      * cidade ou raio_30km → "${cidade}"
      * raio_100km → "${cidade} e região"
@@ -106,8 +111,6 @@ REGRAS PRA REFINAR:
      * regiao → "Sul", "Sudeste", etc
      * brasil → "Brasil" ou cidades maiores
      * internacional → adiciona país relevante
-   - Exemplo BOM: "rede de farmácias em Florianópolis"
-   - Exemplo RUIM: "concorrente farmacêutico" (abstrato)
 
 2. FB_KEYWORDS: termos pra busca interna do Facebook
    - 2-4 palavras-chave separadas por espaço
@@ -211,9 +214,10 @@ REGRAS PARA CANAIS V3 · ARSENAL EXPANDIDO (v9.34.1):
 GMAPS_CORRETORES · 3 queries fixas adaptadas pra cidade do negócio (busca de corretores no GMaps):
   Exemplos: "corretora de negócios ${cidade}" · "imobiliária comercial ${cidade}" · "consultor M&A ${cidade}"
 
-WEB_COMPRADORES · 2-3 queries Google pra encontrar PMEs/grupos compradores do arquétipo:
-  Como se fosse pesquisar no Google · curtas · diretas
-  Exemplos pra Bar Boteco BH: "grupos de restaurantes Belo Horizonte expansão" · "redes bares MG aquisição"
+WEB_COMPRADORES · 2-3 queries curtas como uma PESSOA realmente buscaria no Google · não jargão M&A:
+  - ERRADO: "grupos de restaurantes Belo Horizonte expansão" · "redes bares MG aquisição"
+  - CERTO:  "comprar bar BH" · "negócio à venda alimentação BH" · "oportunidade investimento bar restaurante Belo Horizonte"
+  - Pense em PALAVRAS-CHAVE de transação · não conceitos abstratos
 
 WEB_INFLUENCIADORES · 2-3 queries pra encontrar criadores micro/médio porte do nicho:
   Exemplos: "influenciador gastronomia Belo Horizonte" · "blogger food service MG"

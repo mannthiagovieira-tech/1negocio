@@ -1,4 +1,4 @@
-// originacao-buscar-claude-web · v9.34.1 · Sprint 2 · Motor V3
+// originacao-buscar-claude-web · v9.34.2 · Sprint 3 · canal próprio (sem workaround _canal_origem)
 // 5 sub-canais via Claude Sonnet + web_search nativo (tool web_search_20250305).
 // Atualiza projetos_originacao.gasto_anthropic_mes a cada chamada.
 //
@@ -215,8 +215,7 @@ async function upsertGlobalEUso(
   payload: any,
 ): Promise<"ins" | "dup" | "err"> {
   if (!payload.identificador) return "err";
-  // canal de pool_contatos_uso tem CHECK · todos web_* mapeiam pra 'interno' (sem custo Apify)
-  // canal real fica em dados_brutos._canal_origem
+  // v9.34.2 · canal direto · CHECK agora aceita web_* (fix_canal_web migration)
   const { data: upserted, error: errUp } = await adminClient
     .from("pool_contatos_global")
     .upsert({
@@ -244,7 +243,7 @@ async function upsertGlobalEUso(
       contato_id: upserted.id,
       originacao_id,
       arquetipo_id,
-      canal: "interno", // web_* mapeia pra interno no CHECK · canal real em dados_brutos
+      canal: canal, // v9.34.2 · salva direto (web_compradores, web_eventos, etc)
       status: "novo",
     });
   if (errUso) {

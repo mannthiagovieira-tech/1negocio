@@ -1683,6 +1683,36 @@ table.t .acoes { white-space: nowrap; }
 .lead-status-irrelevante { background: #fee2e2; color: #991b1b; }
 .lead-status-contatado { background: #fef3c7; color: #92400e; }
 .lead-status-respondeu { background: #ede9fe; color: #6d28d9; }
+
+/* v9.34.2 · Kanban Sprint 3 */
+.leads-kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 12px; overflow-y: auto; min-height: 0; flex: 1; }
+.leads-kanban-col { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; min-width: 0; }
+.leads-kanban-col-head { padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+.leads-kanban-col-body { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 80px; }
+.leads-kanban-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; cursor: pointer; transition: background .15s; }
+.leads-kanban-card:hover { background: var(--surface, var(--bg-1)); border-color: var(--ink-3); }
+.leads-kanban-card.selecionado { box-shadow: inset 3px 0 0 var(--em, var(--ink)); background: rgba(61,255,149,0.06); }
+.leads-kanban-card .card-head { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+.leads-kanban-card .card-nome { font-size: 13px; font-weight: 500; color: var(--ink); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leads-kanban-card .card-meta { font-size: 11px; color: var(--ink-3); display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.leads-kanban-card .card-pill { display: inline-block; padding: 1px 6px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); font-size: 10px; color: var(--ink-2); }
+.lead-kanban-vazio { padding: 16px 12px; text-align: center; color: var(--ink-3); font-size: 11px; font-style: italic; }
+
+/* Modal motivo descarte */
+.lead-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1200; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.lead-modal { background: var(--bg-1); border: 1px solid var(--line); border-radius: 12px; padding: 20px; max-width: 480px; width: 100%; box-shadow: 0 12px 40px rgba(0,0,0,0.25); }
+.lead-modal h4 { margin: 0 0 10px 0; font-size: 15px; color: var(--ink); }
+.lead-modal textarea { width: 100%; padding: 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font-size: 13px; font-family: inherit; resize: vertical; min-height: 80px; box-sizing: border-box; }
+.lead-modal-acoes { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
+
+/* Histórico de notas */
+.lead-nota-item { padding: 8px 10px; background: var(--bg-1); border-left: 3px solid var(--line); border-radius: 0 6px 6px 0; margin-bottom: 6px; font-size: 12px; }
+.lead-nota-item .nota-meta { font-size: 10px; color: var(--ink-3); margin-bottom: 4px; font-family: var(--mono); }
+.lead-nota-item .nota-texto { color: var(--ink); white-space: pre-wrap; }
+
+/* Slider score */
+.lead-score-slider { width: 100%; height: 4px; -webkit-appearance: none; background: var(--line); border-radius: 4px; outline: none; }
+
 .lead-score-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; font-family: var(--mono); }
 .lead-score-90 { background: #d1fae5; color: #065f46; }
 .lead-score-70 { background: #ecfccb; color: #4d7c0f; }
@@ -17421,27 +17451,10 @@ async function origV4RegerarBriefing(origId, projetoId) {
   }
 }
 
-async function origV4GerarTese(origId) {
-  await origV4SalvarRascunho(origId);
-  const orig = await pjOriginacaoV2Fetch(_origV2Data?.projeto_id);
-  const projetoId = orig?.projeto_id;
-  const container = document.getElementById('pj-originacao-' + projetoId);
-  if (container) container.innerHTML = '<div class="orig-v4-loading"><div class="spinner"></div><p>IA redigindo a tese a partir do briefing… 15-30s</p></div>';
-  try {
-    const r = await fetch(SB + '/functions/v1/gerar-tese-do-briefing', {
-      method: 'POST',
-      headers: origV2Headers(),
-      body: JSON.stringify({ originacao_id: origId, projeto_id: projetoId })
-    });
-    const data = await r.json();
-    if (!r.ok || !data.ok) {
-      alert('Erro: ' + (data.erro || data.erro_debug || 'desconhecido') + ' · ' + (data.detalhe || ''));
-      pjOriginacaoV2Render(projetoId);
-      return;
-    }
-    origToast('✓ Tese redigida · revise antes de fechar');
-    pjOriginacaoV2Render(projetoId);
-  } catch (e) { alert('Erro: ' + e.message); }
+// v9.34.2 · DEPRECATED · edge gerar-tese-do-briefing deletada (slot liberado pra Motor V3)
+// Substituído pelo agente conversacional Sprint 4 · esta função fica neutralizada
+async function origV4GerarTese(_origId) {
+  alert('Geração de tese narrativa foi descontinuada em v9.34.2.\n\nO briefing V2 enxuto é a fonte canônica · a tese vira agente conversacional na Sprint 4 do Motor V3.');
 }
 
 /* origV3VoltarChat removida em v9.31 · não há mais chat. Substituída por
@@ -17459,13 +17472,16 @@ async function origV3VoltarChat(origId, projetoId) {
   } catch (e) { origToast('✗ ' + e.message, 'error'); }
 }
 
-async function origV3RegerarTese(origId, projetoId) {
-  if (!confirm('Pedir IA redigir tese de novo a partir do briefing? Substitui o texto atual · custo ~R$ 0,10')) return;
+async function origV3RegerarTese(_origId, _projetoId) {
+  // v9.34.2 · DEPRECATED · edge gerar-tese-do-briefing deletada (slot liberado pra Motor V3)
+  alert('Regeração de tese narrativa foi descontinuada em v9.34.2.\n\nO briefing V2 enxuto é a fonte canônica.');
+  return;
+  // Código antigo · mantido como ref histórica · nunca executa
   try {
     const r = await fetch(SB + '/functions/v1/gerar-tese-do-briefing', {
       method: 'POST',
       headers: origV2Headers(),
-      body: JSON.stringify({ originacao_id: origId, projeto_id: projetoId })
+      body: JSON.stringify({ originacao_id: _origId, projeto_id: _projetoId })
     });
     const data = await r.json();
     if (!r.ok || !data.ok) { alert('Erro: ' + (data.erro || 'desconhecido') + ' · ' + (data.detalhe || '')); return; }
@@ -18418,29 +18434,77 @@ function leadsAbaHtml(projetoId) {
     ? '<button class="lead-acao-btn primario" onclick="leadsScorearTodos(\'' + projetoId + '\')">🤖 Scorear ' + semScore + ' leads (~R$ ' + (Math.ceil(semScore / 20) * 0.03).toFixed(2) + ')</button>'
     : '';
 
+  // v9.34.2 · Sprint 3 · kanban com 4 colunas (filtros mantidos)
   return (
     '<div class="leads-aba-container">' +
       '<div class="leads-aba-lista">' +
         '<div class="leads-filtros">' +
           '<input type="search" placeholder="Buscar nome, endereço..." oninput="leadsAplicarFiltro(\'busca\', this.value)">' +
           '<select onchange="leadsAplicarFiltro(\'arquetipo\', this.value)"><option value="">Todos arquétipos</option>' + arqOptions + '</select>' +
-          '<select onchange="leadsAplicarFiltro(\'canal\', this.value)"><option value="">Todos canais</option><option value="interno">🏛️ Interno (pool)</option><option value="gmaps">🗺️ Google Maps</option><option value="facebook">📘 FB (grupos)</option><option value="instagram">📷 IG (influ/cor/clientes)</option><option value="corretores_locais">🤝 Corretores</option></select>' +
-          '<select onchange="leadsAplicarFiltro(\'categoria\', this.value)" title="filtrar por categoria_setorial"><option value="">Todas categorias</option><option value="grupo_setorial">📘 Grupos</option><option value="influenciador">⭐ Influenciadores</option><option value="corretor_local">🤝 Corretores</option><option value="cliente_negocio">💬 Clientes</option><option value="evento_setor">📅 Eventos</option></select>' +
-          '<select onchange="leadsAplicarFiltro(\'status\', this.value)"><option value="">Todos status</option><option value="novo">Novo</option><option value="em_contato">Em contato</option><option value="em_negociacao">Em negociação</option><option value="convertido">Convertido</option><option value="descartado">Descartado</option></select>' +
-          '<select onchange="leadsAplicarFiltro(\'scoreMin\', this.value)"><option value="">Qualquer score</option><option value="90">Score 90+</option><option value="70">Score 70+</option><option value="50">Score 50+</option><option value="30">Score 30+</option></select>' +
+          '<select onchange="leadsAplicarFiltro(\'canal\', this.value)"><option value="">Todos canais</option><option value="interno">🏛️ Interno</option><option value="gmaps">🗺️ Gmaps</option><option value="corretores_locais">🤝 Corretores</option><option value="facebook">📘 FB</option><option value="instagram">📷 IG</option><option value="web_compradores">🌐 Web compradores</option><option value="web_influenciadores">🌐 Web influenc.</option><option value="web_eventos">🌐 Web eventos</option><option value="web_corretores">🌐 Web corretores</option><option value="web_profissionais">🌐 Web profissionais</option></select>' +
+          '<select onchange="leadsAplicarFiltro(\'categoria\', this.value)" title="filtrar por categoria_setorial"><option value="">Todas categorias</option><option value="comprador_potencial">🎯 Comprador potencial</option><option value="grupo_setorial">📘 Grupos</option><option value="influenciador">⭐ Influenciadores</option><option value="corretor_local">🤝 Corretores</option><option value="cliente_negocio">💬 Clientes</option><option value="evento_setor">📅 Eventos</option><option value="profissional_setor">👔 Profissionais</option></select>' +
+          '<input type="number" min="0" max="100" placeholder="Score mín" style="width:80px;padding:6px 8px;background:var(--bg-1);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:12px;font-family:var(--mono);" oninput="leadsAplicarFiltro(\'scoreMin\', this.value)">' +
           scorearBtn +
           '<span class="leads-filtros-counts" id="leads-counts">' + leads.length + ' leads</span>' +
         '</div>' +
-        '<div class="leads-tabela-wrap"><table class="leads-tabela">' +
-          '<thead><tr><th>Score</th><th>Empresa</th><th>Arquétipo</th><th>Canal</th><th>Tel</th><th>Status</th></tr></thead>' +
-          '<tbody id="leads-tbody">' + leadsRowsHtml(leads) + '</tbody>' +
-        '</table></div>' +
+        '<div class="leads-kanban" id="leads-kanban">' + leadsKanbanHtml(leads) + '</div>' +
       '</div>' +
       '<div class="leads-aba-drawer" id="leads-drawer">' +
         '<div style="padding:32px 20px;color:var(--ink-3);text-align:center;font-size:13px;">Selecione um lead pra ver detalhes →</div>' +
       '</div>' +
     '</div>'
   );
+}
+
+// v9.34.2 · 4 colunas (novo · em_contato · em_negociacao · final[convertido+descartado])
+function leadsKanbanHtml(leads) {
+  const cols = [
+    { key: 'novo',           label: '🆕 Novo',           filter: l => (l.status || 'novo') === 'novo' },
+    { key: 'em_contato',     label: '📞 Em contato',     filter: l => l.status === 'em_contato' },
+    { key: 'em_negociacao',  label: '💬 Em negociação',  filter: l => l.status === 'em_negociacao' },
+    { key: 'final',          label: '✓ Convertidos / ✗ Descartados', filter: l => l.status === 'convertido' || l.status === 'descartado' },
+  ];
+  const arqMap = {};
+  _leadsState.arquetipos.forEach(a => { arqMap[a.id] = a.nome; });
+  const canalIcon = {
+    interno: '🏛️', gmaps: '🗺️', facebook: '📘', instagram: '📷', corretores_locais: '🤝',
+    web_compradores: '🌐', web_influenciadores: '🌐', web_eventos: '🌐', web_corretores: '🌐', web_profissionais: '🌐',
+  };
+  return cols.map(col => {
+    const items = leads.filter(col.filter);
+    const cards = items.length === 0
+      ? '<div class="lead-kanban-vazio">vazio</div>'
+      : items.map(l => {
+          const score = l.score_ia;
+          const scoreCls = leadsScoreClass(score);
+          const sel = _leadsState.selecionado === l.id ? ' selecionado' : '';
+          const icon = canalIcon[l.canal] || '';
+          const statusDescartado = l.status === 'descartado';
+          const statusConvertido = l.status === 'convertido';
+          const statusBadge = statusDescartado
+            ? '<span class="lead-status-badge lead-status-descartado">descartado</span>'
+            : statusConvertido
+            ? '<span class="lead-status-badge lead-status-convertido">convertido</span>'
+            : '';
+          return '<div class="leads-kanban-card' + sel + '" data-lead-id="' + l.id + '" onclick="leadsSelecionar(\'' + l.id + '\')">'
+            + '<div class="card-head">'
+            + (score !== null && score !== undefined ? '<span class="lead-score-badge ' + scoreCls + '">' + score + '</span>' : '<span style="font-size:10px;color:var(--ink-3);">—</span>')
+            + '<span class="card-nome">' + leadsEsc(l.nome || 'sem nome') + '</span>'
+            + '</div>'
+            + '<div class="card-meta">'
+            + '<span title="canal">' + icon + '</span>'
+            + (arqMap[l.arquetipo_id] ? '<span class="card-pill">' + leadsEsc(arqMap[l.arquetipo_id]) + '</span>' : '')
+            + (l.telefone ? '<span title="tem telefone">📞</span>' : '')
+            + (l.lusha_enriquecido ? '<span title="enriquecido Lusha">🔍</span>' : '')
+            + statusBadge
+            + '</div>'
+            + '</div>';
+        }).join('');
+    return '<div class="leads-kanban-col">'
+      + '<div class="leads-kanban-col-head"><span>' + col.label + '</span><span style="color:var(--ink);font-family:var(--mono);">' + items.length + '</span></div>'
+      + '<div class="leads-kanban-col-body">' + cards + '</div>'
+      + '</div>';
+  }).join('');
 }
 
 function leadsRowsHtml(leads) {
@@ -18476,6 +18540,7 @@ function leadsAplicarFiltro(campo, valor) {
 }
 
 function leadsRerenderTabela() {
+  // v9.34.2 · re-renderiza kanban (em vez de tabela)
   const f = _leadsState.filtros;
   let filtrados = _leadsState.leads;
   if (f.busca) {
@@ -18485,13 +18550,14 @@ function leadsRerenderTabela() {
   if (f.arquetipo) filtrados = filtrados.filter(l => l.arquetipo_id === f.arquetipo);
   if (f.canal) filtrados = filtrados.filter(l => l.canal === f.canal);
   if (f.categoria) filtrados = filtrados.filter(l => l.categoria_setorial === f.categoria);
+  // status: filtro substituído por kanban (status determina coluna); mantém compat se vier por URL/etc
   if (f.status) filtrados = filtrados.filter(l => (l.status || 'novo') === f.status);
   if (f.scoreMin) {
     const min = parseInt(f.scoreMin, 10);
     filtrados = filtrados.filter(l => typeof l.score_ia === 'number' && l.score_ia >= min);
   }
-  const tbody = document.getElementById('leads-tbody');
-  if (tbody) tbody.innerHTML = leadsRowsHtml(filtrados);
+  const kanban = document.getElementById('leads-kanban');
+  if (kanban) kanban.innerHTML = leadsKanbanHtml(filtrados);
   const counts = document.getElementById('leads-counts');
   if (counts) counts.textContent = filtrados.length + ' de ' + _leadsState.leads.length;
 }
@@ -18500,8 +18566,9 @@ function leadsSelecionar(leadId) {
   _leadsState.selecionado = leadId;
   const lead = _leadsState.leads.find(l => l.id === leadId);
   if (!lead) return;
-  document.querySelectorAll('#leads-tbody tr').forEach(tr => {
-    tr.classList.toggle('selecionado', tr.dataset.leadId === leadId);
+  // v9.34.2 · kanban cards (substitui tabela)
+  document.querySelectorAll('#leads-kanban [data-lead-id]').forEach(card => {
+    card.classList.toggle('selecionado', card.dataset.leadId === leadId);
   });
   const drawer = document.getElementById('leads-drawer');
   if (drawer) drawer.innerHTML = leadsDrawerHtml(lead);
@@ -18553,21 +18620,59 @@ function leadsDrawerHtml(lead) {
       '<div class="lead-drawer-secao"><div class="lead-drawer-label">Endereço</div><div class="lead-drawer-value">' + leadsEsc(d.address || '—') + '</div>' + (enderecoUrl ? '<a href="' + leadsEsc(enderecoUrl) + '" target="_blank" rel="noopener" class="lead-acao-btn" style="margin-top:8px;">🗺️ Abrir Google Maps</a>' : '') + '</div>' +
       websiteHtml +
       categoriaHtml +
-      '<div class="lead-drawer-secao"><div class="lead-drawer-label">Nota interna</div>' +
-        '<textarea id="lead-nota-' + lead.id + '" placeholder="Anotações sobre esse contato..." rows="3" style="width:100%;padding:8px;background:var(--bg-1);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:12px;resize:vertical;font-family:inherit;box-sizing:border-box;">' + leadsEsc(lead.nota_admin || '') + '</textarea>' +
-        '<button class="lead-acao-btn" style="margin-top:6px;" onclick="leadsSalvarNota(\'' + lead.id + '\')">💾 Salvar nota</button>' +
-      '</div>' +
-      // v9.34.0 · status V3 (novo · em_contato · em_negociacao · convertido · descartado)
+      // v9.34.2 · Sprint 3 · histórico de notas (array jsonb)
+      leadsHistoricoNotasHtml(lead) +
+      // v9.34.2 · Sprint 3 · 5 botões status (descartado abre modal motivo)
       '<div class="lead-drawer-secao"><div class="lead-drawer-label">Mudar status</div>' +
         '<div class="lead-acoes-row">' +
+          '<button class="lead-acao-btn" onclick="leadsMudarStatus(\'' + lead.id + '\',\'novo\')">🆕 Novo</button>' +
           '<button class="lead-acao-btn primario" onclick="leadsMudarStatus(\'' + lead.id + '\',\'em_contato\')">📞 Em contato</button>' +
           '<button class="lead-acao-btn" onclick="leadsMudarStatus(\'' + lead.id + '\',\'em_negociacao\')">💬 Em negociação</button>' +
           '<button class="lead-acao-btn primario" onclick="leadsMudarStatus(\'' + lead.id + '\',\'convertido\')">✓ Convertido</button>' +
-          '<button class="lead-acao-btn danger" onclick="leadsMudarStatus(\'' + lead.id + '\',\'descartado\')">✗ Descartado</button>' +
+          '<button class="lead-acao-btn danger" onclick="leadsAbrirModalDescarte(\'' + lead.id + '\')">✗ Descartado</button>' +
         '</div>' +
+        (lead.motivo_descarte ? '<div style="margin-top:8px;font-size:11px;color:var(--ink-3);font-style:italic;">Motivo descarte: ' + leadsEsc(lead.motivo_descarte) + '</div>' : '') +
       '</div>' +
+      // v9.34.2 · Sprint 3 · Lusha enrich (só se faltar tel ou email)
+      leadsLushaSecaoHtml(lead) +
     '</div>'
   );
+}
+
+// v9.34.2 · histórico de notas · array jsonb [{data, texto, autor}]
+function leadsHistoricoNotasHtml(lead) {
+  const notas = Array.isArray(lead.notas) ? lead.notas : [];
+  const listaHtml = notas.length === 0
+    ? '<div style="font-size:11px;color:var(--ink-3);padding:4px 0;">Sem notas ainda.</div>'
+    : notas.slice().reverse().map(n => {
+        const d = n.data ? new Date(n.data) : null;
+        const dStr = d ? d.toLocaleString('pt-BR') : '(sem data)';
+        const autor = n.autor || 'admin';
+        return '<div class="lead-nota-item">'
+          + '<div class="nota-meta">' + leadsEsc(dStr) + ' · ' + leadsEsc(autor) + '</div>'
+          + '<div class="nota-texto">' + leadsEsc(n.texto || '') + '</div>'
+          + '</div>';
+      }).join('');
+  return '<div class="lead-drawer-secao"><div class="lead-drawer-label">Histórico de notas (' + notas.length + ')</div>'
+    + listaHtml
+    + '<textarea id="lead-nova-nota-' + lead.id + '" placeholder="Nova nota (será adicionada ao histórico)" rows="2" style="width:100%;padding:8px;background:var(--bg-1);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:12px;resize:vertical;font-family:inherit;box-sizing:border-box;margin-top:8px;"></textarea>'
+    + '<button class="lead-acao-btn" style="margin-top:6px;" onclick="leadsAdicionarNota(\'' + lead.id + '\')">➕ Adicionar nota</button>'
+    + '</div>';
+}
+
+// v9.34.2 · seção Lusha · só aparece se faltar tel ou email
+function leadsLushaSecaoHtml(lead) {
+  const semTel = !lead.telefone;
+  const semEmail = !lead.email;
+  if (!semTel && !semEmail) return '';
+  if (lead.lusha_enriquecido) {
+    return '<div class="lead-drawer-secao"><div class="lead-drawer-label">🔍 Lusha</div><div style="font-size:11px;color:var(--ink-3);">Já enriquecido · ' + (lead.lusha_creditos_usados || 0) + ' crédito(s) · Lusha não retornou mais dados.</div></div>';
+  }
+  return '<div class="lead-drawer-secao"><div class="lead-drawer-label">🔍 Enriquecer contato</div>'
+    + '<div style="font-size:11px;color:var(--ink-3);margin-bottom:6px;">Sem ' + (semTel && semEmail ? 'telefone nem email' : (semTel ? 'telefone' : 'email')) + '. Usar MCP Lusha · custo ~1-2 créditos.</div>'
+    + '<button class="lead-acao-btn primario" onclick="leadsEnriquecerLusha(\'' + lead.id + '\')">🔍 Buscar contato (Lusha)</button>'
+    + '<div id="lead-lusha-result-' + lead.id + '" style="margin-top:8px;"></div>'
+    + '</div>';
 }
 
 function leadsCopiarTel(tel) {
@@ -18576,9 +18681,10 @@ function leadsCopiarTel(tel) {
 }
 
 async function leadsMudarStatus(leadId, novoStatus) {
-  const update = { status: novoStatus, marcado_em: new Date().toISOString() };
-  if (novoStatus === 'contatado') update.contatado_em = new Date().toISOString();
-  // v9.33.6 · PATCH em pool_contatos_uso (view leads_originacao.id = uso.id)
+  // v9.34.2 · ciclo de vida V3 · marca contatado_em + ultima_atividade
+  const update = { status: novoStatus, marcado_em: new Date().toISOString(), ultima_atividade: new Date().toISOString() };
+  if (novoStatus === 'em_contato') update.contatado_em = new Date().toISOString();
+  // PATCH em pool_contatos_uso (view leads_originacao.id = uso.id)
   const r = await fetch(SB + '/rest/v1/pool_contatos_uso?id=eq.' + leadId, {
     method: 'PATCH',
     headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
@@ -18650,7 +18756,133 @@ async function leadsScorearTodos(projetoId) {
   }
 }
 
-// Exposição v9.33.5
+// v9.34.2 · Sprint 3 · adicionar nota ao array histórico
+async function leadsAdicionarNota(leadId) {
+  const ta = document.getElementById('lead-nova-nota-' + leadId);
+  if (!ta) return;
+  const texto = (ta.value || '').trim();
+  if (!texto) { alert('Digite o texto da nota.'); return; }
+  const lead = _leadsState.leads.find(l => l.id === leadId);
+  const notasAtual = Array.isArray(lead?.notas) ? lead.notas : [];
+  const novaNota = { data: new Date().toISOString(), texto, autor: 'admin' };
+  const notasNova = [...notasAtual, novaNota];
+  const r = await fetch(SB + '/rest/v1/pool_contatos_uso?id=eq.' + leadId, {
+    method: 'PATCH',
+    headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ notas: notasNova, ultima_atividade: new Date().toISOString() }),
+  });
+  if (!r.ok) { alert('Erro ao salvar nota'); return; }
+  if (lead) { lead.notas = notasNova; lead.ultima_atividade = new Date().toISOString(); }
+  ta.value = '';
+  origToast('✓ Nota adicionada');
+  // Re-render drawer
+  if (_leadsState.selecionado === leadId) leadsSelecionar(leadId);
+}
+
+// v9.34.2 · Sprint 3 · modal motivo de descarte
+function leadsAbrirModalDescarte(leadId) {
+  const overlay = document.createElement('div');
+  overlay.className = 'lead-modal-overlay';
+  overlay.id = 'lead-modal-descarte';
+  overlay.innerHTML = ''
+    + '<div class="lead-modal">'
+    + '<h4>✗ Descartar lead</h4>'
+    + '<div style="font-size:12px;color:var(--ink-3);margin-bottom:8px;">Motivo do descarte (obrigatório · vai no histórico):</div>'
+    + '<textarea id="lead-modal-motivo" placeholder="ex: empresa fora do perfil · sem contato · não interessou..."></textarea>'
+    + '<div class="lead-modal-acoes">'
+    + '<button class="lead-acao-btn" onclick="leadsFecharModalDescarte()">Cancelar</button>'
+    + '<button class="lead-acao-btn danger" onclick="leadsConfirmarDescarte(\'' + leadId + '\')">✗ Descartar</button>'
+    + '</div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  setTimeout(() => { const t = document.getElementById('lead-modal-motivo'); if (t) t.focus(); }, 50);
+}
+
+function leadsFecharModalDescarte() {
+  const o = document.getElementById('lead-modal-descarte');
+  if (o) o.remove();
+}
+
+async function leadsConfirmarDescarte(leadId) {
+  const t = document.getElementById('lead-modal-motivo');
+  const motivo = (t?.value || '').trim();
+  if (!motivo) { alert('Informe o motivo.'); return; }
+  const r = await fetch(SB + '/rest/v1/pool_contatos_uso?id=eq.' + leadId, {
+    method: 'PATCH',
+    headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
+    body: JSON.stringify({
+      status: 'descartado',
+      motivo_descarte: motivo,
+      marcado_em: new Date().toISOString(),
+      ultima_atividade: new Date().toISOString(),
+    }),
+  });
+  if (!r.ok) { alert('Erro ao descartar'); return; }
+  const lead = _leadsState.leads.find(l => l.id === leadId);
+  if (lead) {
+    lead.status = 'descartado';
+    lead.motivo_descarte = motivo;
+    lead.marcado_em = new Date().toISOString();
+    lead.ultima_atividade = lead.marcado_em;
+  }
+  leadsFecharModalDescarte();
+  origToast('✓ Lead descartado');
+  leadsRerenderTabela();
+  if (_leadsState.selecionado === leadId) leadsSelecionar(leadId);
+}
+
+// v9.34.2 · Sprint 3 · enriquecer lead via Lusha
+async function leadsEnriquecerLusha(leadId) {
+  const lead = _leadsState.leads.find(l => l.id === leadId);
+  if (!lead) return;
+  const box = document.getElementById('lead-lusha-result-' + leadId);
+  if (box) box.innerHTML = '<div style="font-size:12px;color:var(--ink-3);"><span class="spinner" style="width:14px;height:14px;display:inline-block;vertical-align:middle;border-width:2px;"></span> Buscando dados de contato... ~10-30s</div>';
+  try {
+    const empresa = lead.nome || '';
+    const site = lead.website || '';
+    const cidade = lead.cidade || '';
+    const r = await fetch(SB + '/functions/v1/enriquecer-lead-lusha', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + origV2Token(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uso_id: leadId, nome: lead.nome, empresa, site, cidade }),
+    });
+    let raw = ''; let data = {};
+    try { raw = await r.text(); data = JSON.parse(raw); } catch (_) {}
+    if (!r.ok) {
+      if (box) box.innerHTML = '<div style="font-size:12px;color:var(--alert);">Erro HTTP ' + r.status + ' · ' + leadsEsc(data.erro_debug || data.erro || raw.slice(0, 100)) + '</div>';
+      return;
+    }
+    if (!data.found) {
+      if (box) box.innerHTML = '<div style="font-size:12px;color:var(--ink-3);font-style:italic;">Sem dados disponíveis · ' + leadsEsc(data.motivo || '') + ' · ' + (data.creditos_usados || 0) + ' crédito(s)</div>';
+      if (lead) { lead.lusha_enriquecido = true; lead.lusha_creditos_usados = (lead.lusha_creditos_usados || 0) + (data.creditos_usados || 0); }
+      if (_leadsState.selecionado === leadId) leadsSelecionar(leadId);
+      return;
+    }
+    // found
+    let html = '<div style="background:var(--bg-1);border:1px solid var(--line);border-radius:6px;padding:10px;">';
+    html += '<div style="font-size:12px;color:var(--ink-2);font-weight:600;margin-bottom:6px;">✓ Encontrado · ' + (data.creditos_usados || 0) + ' crédito(s)</div>';
+    if (data.nome) html += '<div style="font-size:12px;"><strong>Nome:</strong> ' + leadsEsc(data.nome) + '</div>';
+    if (data.cargo) html += '<div style="font-size:12px;"><strong>Cargo:</strong> ' + leadsEsc(data.cargo) + '</div>';
+    if (data.telefone) html += '<div style="font-size:12px;"><strong>Telefone:</strong> ' + leadsEsc(data.telefone) + '</div>';
+    if (data.email) html += '<div style="font-size:12px;"><strong>Email:</strong> ' + leadsEsc(data.email) + '</div>';
+    if (data.linkedin) html += '<div style="font-size:12px;"><strong>LinkedIn:</strong> <a href="' + leadsEsc(data.linkedin) + '" target="_blank" rel="noopener">' + leadsEsc(data.linkedin) + '</a></div>';
+    html += '</div>';
+    if (box) box.innerHTML = html;
+    // Atualiza state local
+    if (lead) {
+      if (data.telefone && !lead.telefone) lead.telefone = data.telefone;
+      if (data.email && !lead.email) lead.email = data.email;
+      lead.lusha_enriquecido = true;
+      lead.lusha_creditos_usados = (lead.lusha_creditos_usados || 0) + (data.creditos_usados || 0);
+    }
+    origToast('✓ Lusha enriqueceu');
+    leadsRerenderTabela();
+  } catch (e) {
+    if (box) box.innerHTML = '<div style="font-size:12px;color:var(--alert);">Erro fetch · ' + leadsEsc(e.message) + '</div>';
+  }
+}
+
+// Exposição v9.33.5 + v9.34.2
 window.leadsAbaRenderar = leadsAbaRenderar;
 window.leadsAplicarFiltro = leadsAplicarFiltro;
 window.leadsSelecionar = leadsSelecionar;
@@ -18658,6 +18890,15 @@ window.leadsMudarStatus = leadsMudarStatus;
 window.leadsSalvarNota = leadsSalvarNota;
 window.leadsScorearTodos = leadsScorearTodos;
 window.leadsCopiarTel = leadsCopiarTel;
+// v9.34.2
+window.leadsAdicionarNota = leadsAdicionarNota;
+window.leadsAbrirModalDescarte = leadsAbrirModalDescarte;
+window.leadsFecharModalDescarte = leadsFecharModalDescarte;
+window.leadsConfirmarDescarte = leadsConfirmarDescarte;
+window.leadsEnriquecerLusha = leadsEnriquecerLusha;
+window.leadsKanbanHtml = leadsKanbanHtml;
+window.leadsHistoricoNotasHtml = leadsHistoricoNotasHtml;
+window.leadsLushaSecaoHtml = leadsLushaSecaoHtml;
 </script>
 </body>
 </html>
