@@ -1,6 +1,13 @@
-// scorear-leads-arquetipo · v9.33.5
+// scorear-leads-arquetipo · v9.33.5.2
 // IA classifica leads de uma originação · 0-100 score + motivo + tags estruturadas.
-// Batch de 20 leads por chamada Sonnet (~R$ 0,03) · paralelizado por arquétipo.
+// Batch de 15 leads por chamada Sonnet (~R$ 0,03) · paralelizado por arquétipo.
+//
+// v9.33.5.2 mudanças:
+// - max_tokens 2000 → 4000 (folga pra JSON de 15 leads × ~150 tokens output)
+// - BATCH_SIZE 20 → 15 (output cabe folgado · não trunca)
+// - Retry automático 1x do batch (2s wait) antes de pular
+// - Recuperação via regex match de array JSON parcial
+// - Logs estruturados por batch · erro estruturado em por_arquetipo[].erros[]
 //
 // POST body: { originacao_id: uuid, arquetipo_id?: uuid, forcar?: boolean=false }
 // Output: { ok, leads_scoreados, por_arquetipo[], custo_total_brl }
@@ -12,7 +19,10 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 
-const BATCH_SIZE = 20;
+const BATCH_SIZE = 15;                 // v9.33.5.2 · era 20
+const MAX_TOKENS = 4000;               // v9.33.5.2 · era 2000
+const MAX_RETRY = 2;                   // v9.33.5.2 · 1ª tentativa + 1 retry
+const RETRY_WAIT_MS = 2000;
 const CUSTO_POR_BATCH_BRL = 0.03;
 
 const corsHeaders = {
@@ -46,7 +56,8 @@ async function scorearBatch(
   arq: any,
   briefing: any,
   leadsBatch: any[],
-): Promise<{ ok: boolean; resultados?: any[]; erro?: string }> {
+  ctx: { batchIndex: number; totalBatches: number; tentativa: number },
+): Promise<{ ok: boolean; resultados?: any[]; erro?: string; tokensIn?: number; tokensOut?: number; recuperado?: boolean }> {
   const negocio = briefing?.negocio || {};
   const tamanho = briefing?.tamanho || {};
 
@@ -96,7 +107,7 @@ NÃO escreva nada fora do JSON array.`;
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 2000,
+        max_tokens: MAX_TOKENS,
         system: systemPrompt,
         messages: [{ role: "user", content: "Scoreie agora · só JSON array." }],
       }),
@@ -108,17 +119,43 @@ NÃO escreva nada fora do JSON array.`;
     const claudeData = await claudeResp.json();
     const textBlocks = (claudeData.content || []).filter((b: any) => b.type === "text");
     const fullText = textBlocks.map((b: any) => b.text).join("");
-    let parsed: any;
+    const tokensIn = claudeData?.usage?.input_tokens ?? 0;
+    const tokensOut = claudeData?.usage?.output_tokens ?? 0;
+    const stopReason = claudeData?.stop_reason || "";
+
+    let parsed: any = null;
+    let recuperado = false;
     try {
       const clean = fullText.replace(/```json|```/g, "").trim();
       parsed = JSON.parse(clean);
     } catch (e: any) {
-      return { ok: false, erro: `json_parse_falhou · ${e.message} · raw: ${fullText.slice(0, 200)}` };
+      console.error(`[scorear] PARSE FAIL · arq="${arq.nome}" · batch ${ctx.batchIndex + 1}/${ctx.totalBatches} · tentativa ${ctx.tentativa} · stop_reason=${stopReason} · tokensOut=${tokensOut}`);
+      console.error(`[scorear] raw (head 500):`, fullText.slice(0, 500));
+      console.error(`[scorear] raw (tail 500):`, fullText.slice(-500));
+      console.error(`[scorear] parseErr:`, e.message);
+      // Recuperação · tenta extrair array via regex (greedy match · pega o último ])
+      try {
+        const arrayMatch = fullText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        if (arrayMatch) {
+          parsed = JSON.parse(arrayMatch[0]);
+          recuperado = true;
+          console.log(`[scorear] RECUPERADO via regex · arq="${arq.nome}" · batch ${ctx.batchIndex + 1} · ${parsed.length} leads`);
+        }
+      } catch (_) {
+        // recovery falhou · cai no return de erro
+      }
+      if (!parsed) {
+        return {
+          ok: false,
+          erro: `json_parse_falhou · stop=${stopReason} · tokensOut=${tokensOut} · ${e.message} · raw_head: ${fullText.slice(0, 200)}`,
+          tokensIn, tokensOut,
+        };
+      }
     }
     if (!Array.isArray(parsed)) {
-      return { ok: false, erro: "claude_retornou_nao_array · " + JSON.stringify(parsed).slice(0, 200) };
+      return { ok: false, erro: "claude_retornou_nao_array · " + JSON.stringify(parsed).slice(0, 200), tokensIn, tokensOut };
     }
-    return { ok: true, resultados: parsed };
+    return { ok: true, resultados: parsed, tokensIn, tokensOut, recuperado };
   } catch (e: any) {
     return { ok: false, erro: `exception · ${e.message}` };
   }
@@ -129,25 +166,50 @@ async function scorearArquetipo(
   arq: any,
   briefing: any,
   leads: any[],
-): Promise<{ arquetipo_id: string; nome: string; scoreados: number; batches: number; erros: string[] }> {
-  const erros: string[] = [];
+): Promise<{ arquetipo_id: string; nome: string; scoreados: number; batches: number; erros: any[] }> {
+  const erros: any[] = [];
   let scoreados = 0;
   let batches = 0;
+  const totalBatches = Math.ceil(leads.length / BATCH_SIZE);
 
   for (let i = 0; i < leads.length; i += BATCH_SIZE) {
     const batch = leads.slice(i, i + BATCH_SIZE);
+    const batchIndex = batches;
     batches++;
-    const r = await scorearBatch(arq, briefing, batch);
-    if (!r.ok) {
-      erros.push(`batch ${batches}: ${r.erro}`);
+
+    console.log(`[scorear] arq="${arq.nome}" · batch ${batchIndex + 1}/${totalBatches} · leads=${batch.length}`);
+
+    // v9.33.5.2 · retry loop · 1ª tentativa + 1 retry (2s wait)
+    let result: { ok: boolean; resultados?: any[]; erro?: string; tokensIn?: number; tokensOut?: number; recuperado?: boolean } | null = null;
+    let tentativa = 0;
+    while (tentativa < MAX_RETRY) {
+      tentativa++;
+      result = await scorearBatch(arq, briefing, batch, { batchIndex, totalBatches, tentativa });
+      if (result.ok) break;
+      console.error(`[scorear] arq="${arq.nome}" · batch ${batchIndex + 1} · tentativa ${tentativa} falhou: ${result.erro}`);
+      if (tentativa < MAX_RETRY) {
+        await new Promise((r) => setTimeout(r, RETRY_WAIT_MS));
+      }
+    }
+
+    if (!result || !result.ok) {
+      erros.push({
+        batch: batchIndex + 1,
+        leads_perdidos: batch.length,
+        tentativas: tentativa,
+        erro_final: result?.erro || "sem_resultado",
+      });
       continue;
     }
-    const resultados = r.resultados || [];
-    // Mapa id → result
+
+    console.log(`[scorear] arq="${arq.nome}" · batch ${batchIndex + 1} → ${(result.resultados || []).length} scores · in=${result.tokensIn} · out=${result.tokensOut}${result.recuperado ? " · RECUPERADO" : ""}`);
+
+    const resultados = result.resultados || [];
     const byId: Record<string, any> = {};
     for (const x of resultados) {
       if (x && x.id) byId[x.id] = x;
     }
+    let inseridosBatch = 0;
     for (const lead of batch) {
       const res = byId[lead.id];
       if (!res) continue;
@@ -164,10 +226,14 @@ async function scorearArquetipo(
         })
         .eq("id", lead.id);
       if (errUpd) {
-        erros.push(`update ${lead.id}: ${errUpd.message}`);
+        erros.push({ batch: batchIndex + 1, lead_id: lead.id, erro: `update_falhou · ${errUpd.message}` });
       } else {
         scoreados++;
+        inseridosBatch++;
       }
+    }
+    if (inseridosBatch < batch.length) {
+      console.warn(`[scorear] arq="${arq.nome}" · batch ${batchIndex + 1} · IA retornou ${resultados.length} scores · ${inseridosBatch}/${batch.length} aplicados (ids não bateram?)`);
     }
   }
 
