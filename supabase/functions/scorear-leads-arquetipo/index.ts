@@ -1,4 +1,4 @@
-// scorear-leads-arquetipo · v9.33.5.2
+// scorear-leads-arquetipo · v9.34.0 · Sprint 1 · usa pool_leads_originacao + pool_contatos_uso (resolve débito v9.33.6)
 // IA classifica leads de uma originação · 0-100 score + motivo + tags estruturadas.
 // Batch de 15 leads por chamada Sonnet (~R$ 0,03) · paralelizado por arquétipo.
 //
@@ -216,13 +216,14 @@ async function scorearArquetipo(
       const score = Math.max(0, Math.min(100, Number(res.score) || 0));
       const motivo = (res.motivo || "").toString().slice(0, 200);
       const tags = Array.isArray(res.tags) ? res.tags.map((t: any) => String(t).slice(0, 30)).slice(0, 5) : [];
+      // v9.34.0 · UPDATE em pool_contatos_uso · campo score_motivo (não razao_score legado)
       const { error: errUpd } = await adminClient
-        .from("originacao_leads_brutos")
+        .from("pool_contatos_uso")
         .update({
           score_ia: score,
-          razao_score: motivo,
+          score_motivo: motivo,
           tags_ia: tags,
-          updated_at: new Date().toISOString(),
+          ultima_atividade: new Date().toISOString(),
         })
         .eq("id", lead.id);
       if (errUpd) {
@@ -288,8 +289,10 @@ serve(async (req) => {
     let totalBatches = 0;
 
     for (const arq of arquetipos) {
+      // v9.34.0 · busca da view pool_leads_originacao (uso JOIN global)
+      // id retornado = uso.id · usado depois pra UPDATE em pool_contatos_uso
       let leadsQuery = adminClient
-        .from("originacao_leads_brutos")
+        .from("pool_leads_originacao")
         .select("id, nome, telefone, dados_brutos")
         .eq("originacao_id", originacao_id)
         .eq("arquetipo_id", arq.id);

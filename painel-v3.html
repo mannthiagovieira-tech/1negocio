@@ -1671,6 +1671,13 @@ table.t .acoes { white-space: nowrap; }
 .leads-tabela td .nome-linha { font-weight: 500; color: var(--ink); font-size: 13px; }
 .leads-tabela td .categoria-linha { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
 .lead-status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; font-family: var(--mono); }
+/* v9.34.0 · status V3 (novo · em_contato · em_negociacao · convertido · descartado) */
+.lead-status-novo { background: rgba(150,150,150,0.15); color: var(--ink-3); }
+.lead-status-em_contato { background: #fef3c7; color: #92400e; }
+.lead-status-em_negociacao { background: #ede9fe; color: #6d28d9; }
+.lead-status-convertido { background: #d1fae5; color: #065f46; }
+.lead-status-descartado { background: #fee2e2; color: #991b1b; }
+/* compat legados (caso algum row ainda tenha · não devem após migration) */
 .lead-status-bruto { background: rgba(150,150,150,0.15); color: var(--ink-3); }
 .lead-status-util { background: #d1fae5; color: #065f46; }
 .lead-status-irrelevante { background: #fee2e2; color: #991b1b; }
@@ -18255,7 +18262,7 @@ function leadsAbaHtml(projetoId) {
           '<select onchange="leadsAplicarFiltro(\'arquetipo\', this.value)"><option value="">Todos arquétipos</option>' + arqOptions + '</select>' +
           '<select onchange="leadsAplicarFiltro(\'canal\', this.value)"><option value="">Todos canais</option><option value="interno">🏛️ Interno (pool)</option><option value="gmaps">🗺️ Google Maps</option><option value="facebook">📘 FB (grupos)</option><option value="instagram">📷 IG (influ/cor/clientes)</option><option value="corretores_locais">🤝 Corretores</option></select>' +
           '<select onchange="leadsAplicarFiltro(\'categoria\', this.value)" title="filtrar por categoria_setorial"><option value="">Todas categorias</option><option value="grupo_setorial">📘 Grupos</option><option value="influenciador">⭐ Influenciadores</option><option value="corretor_local">🤝 Corretores</option><option value="cliente_negocio">💬 Clientes</option><option value="evento_setor">📅 Eventos</option></select>' +
-          '<select onchange="leadsAplicarFiltro(\'status\', this.value)"><option value="">Todos status</option><option value="bruto">Bruto</option><option value="util">Útil</option><option value="irrelevante">Irrelevante</option><option value="contatado">Contatado</option><option value="respondeu">Respondeu</option></select>' +
+          '<select onchange="leadsAplicarFiltro(\'status\', this.value)"><option value="">Todos status</option><option value="novo">Novo</option><option value="em_contato">Em contato</option><option value="em_negociacao">Em negociação</option><option value="convertido">Convertido</option><option value="descartado">Descartado</option></select>' +
           '<select onchange="leadsAplicarFiltro(\'scoreMin\', this.value)"><option value="">Qualquer score</option><option value="90">Score 90+</option><option value="70">Score 70+</option><option value="50">Score 50+</option><option value="30">Score 30+</option></select>' +
           scorearBtn +
           '<span class="leads-filtros-counts" id="leads-counts">' + leads.length + ' leads</span>' +
@@ -18282,7 +18289,7 @@ function leadsRowsHtml(leads) {
   return leads.map(l => {
     const score = l.score_ia;
     const scoreCls = leadsScoreClass(score);
-    const status = l.status || 'bruto';
+    const status = l.status || 'novo';
     const icon = canalIcon[l.canal] || '';
     const sel = _leadsState.selecionado === l.id ? ' selecionado' : '';
     const categoria = (l.dados_brutos && (l.dados_brutos.categoryName || l.dados_brutos.category)) || '';
@@ -18314,7 +18321,7 @@ function leadsRerenderTabela() {
   if (f.arquetipo) filtrados = filtrados.filter(l => l.arquetipo_id === f.arquetipo);
   if (f.canal) filtrados = filtrados.filter(l => l.canal === f.canal);
   if (f.categoria) filtrados = filtrados.filter(l => l.categoria_setorial === f.categoria);
-  if (f.status) filtrados = filtrados.filter(l => (l.status || 'bruto') === f.status);
+  if (f.status) filtrados = filtrados.filter(l => (l.status || 'novo') === f.status);
   if (f.scoreMin) {
     const min = parseInt(f.scoreMin, 10);
     filtrados = filtrados.filter(l => typeof l.score_ia === 'number' && l.score_ia >= min);
@@ -18368,7 +18375,7 @@ function leadsDrawerHtml(lead) {
   const categoriaHtml = categoria
     ? '<div class="lead-drawer-secao"><div class="lead-drawer-label">Categoria</div><div class="lead-drawer-value">' + leadsEsc(categoria) + '</div></div>'
     : '';
-  const status = lead.status || 'bruto';
+  const status = lead.status || 'novo';
 
   return (
     '<div class="lead-drawer-header">' +
@@ -18386,12 +18393,13 @@ function leadsDrawerHtml(lead) {
         '<textarea id="lead-nota-' + lead.id + '" placeholder="Anotações sobre esse contato..." rows="3" style="width:100%;padding:8px;background:var(--bg-1);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:12px;resize:vertical;font-family:inherit;box-sizing:border-box;">' + leadsEsc(lead.nota_admin || '') + '</textarea>' +
         '<button class="lead-acao-btn" style="margin-top:6px;" onclick="leadsSalvarNota(\'' + lead.id + '\')">💾 Salvar nota</button>' +
       '</div>' +
+      // v9.34.0 · status V3 (novo · em_contato · em_negociacao · convertido · descartado)
       '<div class="lead-drawer-secao"><div class="lead-drawer-label">Mudar status</div>' +
         '<div class="lead-acoes-row">' +
-          '<button class="lead-acao-btn primario" onclick="leadsMudarStatus(\'' + lead.id + '\',\'util\')">✓ Útil</button>' +
-          '<button class="lead-acao-btn" onclick="leadsMudarStatus(\'' + lead.id + '\',\'contatado\')">📞 Contatado</button>' +
-          '<button class="lead-acao-btn" onclick="leadsMudarStatus(\'' + lead.id + '\',\'respondeu\')">💬 Respondeu</button>' +
-          '<button class="lead-acao-btn danger" onclick="leadsMudarStatus(\'' + lead.id + '\',\'irrelevante\')">✗ Irrelevante</button>' +
+          '<button class="lead-acao-btn primario" onclick="leadsMudarStatus(\'' + lead.id + '\',\'em_contato\')">📞 Em contato</button>' +
+          '<button class="lead-acao-btn" onclick="leadsMudarStatus(\'' + lead.id + '\',\'em_negociacao\')">💬 Em negociação</button>' +
+          '<button class="lead-acao-btn primario" onclick="leadsMudarStatus(\'' + lead.id + '\',\'convertido\')">✓ Convertido</button>' +
+          '<button class="lead-acao-btn danger" onclick="leadsMudarStatus(\'' + lead.id + '\',\'descartado\')">✗ Descartado</button>' +
         '</div>' +
       '</div>' +
     '</div>'
