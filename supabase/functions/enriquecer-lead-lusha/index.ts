@@ -1,4 +1,4 @@
-// enriquecer-lead-lusha · v9.34.2 · Sprint 3 · Motor V3
+// enriquecer-lead-lusha · v9.34.2.1 · fix header anthropic-beta mcp-client-2025-04-04
 // Enriquece um lead específico via Claude + MCP Lusha (busca contato decisor).
 // Atualiza pool_contatos_global (tel/email · só se vazios) + pool_contatos_uso (lusha_enriquecido · créditos).
 //
@@ -61,6 +61,7 @@ OU se nada encontrado:
         "Content-Type": "application/json",
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "mcp-client-2025-04-04",
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
