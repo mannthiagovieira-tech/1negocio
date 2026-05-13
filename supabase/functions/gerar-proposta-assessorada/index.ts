@@ -342,6 +342,7 @@ serve(async (req) => {
 });
 
 
+
 // Template inline (fallback quando readTextFile não disponível no runtime de deploy)
 const TEMPLATE_INLINE = String.raw`
 <!DOCTYPE html>
@@ -357,7 +358,7 @@ const TEMPLATE_INLINE = String.raw`
 :root{
   --bg:#eef0ec;--surface:#fff;--sf2:#f4f6f2;
   --ink:#0a1510;--ink-2:rgba(10,21,16,.62);--ink-3:rgba(10,21,16,.4);--ink-4:rgba(10,21,16,.24);
-  --accent:#0aa85a;--accent-2:#077a42;
+  --accent:#0aa85a;--accent-2:#077a42;--accent-ink:#fff;
   --ac-soft:rgba(10,168,90,.09);--ac-mid:rgba(10,168,90,.18);--ac-line:rgba(10,168,90,.3);
   --warn:#d18b00;--alert:#c9402e;
   --serif:'Syne',ui-serif,serif;--sans:'Geist',-apple-system,sans-serif;
@@ -616,6 +617,58 @@ section{margin-bottom:64px}
 @media(max-width:500px){
   .wave-grid,.services-grid{grid-template-columns:1fr}
 }
+
+/* ── PRINT (Baixar PDF · v9.34.7) ── */
+@media print {
+  .topbar,
+  button,
+  .cta-box,
+  [onclick] { display: none !important }
+
+  body {
+    background: #fff !important;
+    color: #0a1510 !important;
+    font-size: 11px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 18mm 16mm 18mm 16mm;
+  }
+
+  .page { padding: 0 !important; max-width: 100% !important }
+
+  :root {
+    --bg: #ffffff;
+    --surface: #f8f9f7;
+    --sf2: #f2f4f0;
+    --ink: #0a1510;
+    --ink-2: rgba(10,21,16,.65);
+    --ink-3: rgba(10,21,16,.45);
+    --ink-4: rgba(10,21,16,.3);
+    --accent: #0aa85a;
+    --accent-ink: #ffffff;
+    --ac-soft: rgba(10,168,90,.08);
+    --ac-line: rgba(10,168,90,.25);
+  }
+
+  section { page-break-inside: avoid; margin-bottom: 20px !important }
+  .wave-grid { page-break-inside: avoid }
+  .prob-bars, .prob-cards { page-break-inside: avoid }
+  .services-grid { page-break-before: always }
+  .footer { page-break-inside: avoid }
+
+  body::before { display: none !important }
+
+  .wcard, .svc, .pcard, .bcard, .term {
+    box-shadow: none !important;
+    border: 1px solid rgba(10,21,16,.12) !important;
+  }
+
+  .cta-box { border: 1px solid rgba(10,168,90,.3) !important }
+}
 </style>
 </head>
 <body>
@@ -871,6 +924,15 @@ section{margin-bottom:64px}
 </footer>
 
 </div>
+
+<button onclick="window.print()" style="position:fixed;bottom:28px;right:28px;z-index:999;display:flex;align-items:center;gap:8px;background:var(--accent);color:var(--accent-ink);font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border:none;border-radius:999px;padding:12px 22px;cursor:pointer;box-shadow:0 4px 20px var(--ac-line);transition:.15s ease" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+    <polyline points="6 9 6 2 18 2 18 9"/>
+    <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+    <rect x="6" y="14" width="12" height="8"/>
+  </svg>
+  Baixar PDF
+</button>
 </body>
 </html>
 `;
