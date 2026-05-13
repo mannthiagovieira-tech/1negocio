@@ -1,6 +1,7 @@
-// gerar-queries-arquetipo · v9.33.2
+// gerar-queries-arquetipo · v9.33.3
 // Gera 3 queries de busca (gmaps · facebook · instagram) por arquétipo aprovado.
 // Híbrido: templates fixos + Claude Sonnet refina por canal.
+// v9.33.3 · regras específicas por tipo de arquétipo (investidor PF → proxies · rede → marca · etc)
 // Salva em arquetipos_compradores.queries_busca jsonb.
 //
 // POST body: { originacao_id: uuid, arquetipo_id?: uuid }
@@ -119,6 +120,53 @@ REGRAS PRA REFINAR:
    - Foco em BIO/HANDLE de perfis business
    - Exemplo BOM: "farmaciafloripa"
    - Exemplo RUIM: "rede de farmácias em Florianópolis" (longo demais)
+
+REGRAS ESPECÍFICAS POR TIPO DE ARQUÉTIPO:
+
+Detecte o TIPO do arquétipo lendo seu nome/perfil. Aplique a regra correspondente abaixo. Se o arquétipo se enquadrar em mais de um tipo, escolha o mais específico e justifique no raciocínio.
+
+(A) INVESTIDOR PESSOA FÍSICA · INVESTIDOR FINANCEIRO · FAMILY OFFICE · INVESTIDOR ANJO · similar:
+   - gmaps_query DEVE buscar PROXIES (NÃO "investidor PF" direto · não retorna empresas reais):
+     * Tipo 1: family offices → "family office ${cidade}"
+     * Tipo 2: gestoras patrimoniais → "gestora patrimonial ${cidade}", "wealth management ${cidade}"
+     * Tipo 3: holdings → "holding patrimonial ${cidade}"
+     * Escolha o proxy MAIS PLAUSÍVEL baseado nos exemplos nominais do arquétipo
+   - fb_keywords: "family office ${cidade}" ou "investidor anjo ${cidade}"
+   - ig_query: handle relacionado · ex: "familyoffice${cidade}" · "wealth${cidade}"
+   - JUSTIFICATIVA OBRIGATÓRIA no raciocinio: "investidor PF não tem listagem direta · busca via proxies estruturais (family office · gestora · wealth management)"
+
+(B) REDE DE VAREJO · REDE DE FAST FOOD · REDE DE CONVENIÊNCIAS · FRANQUIA · similar:
+   - gmaps_query DEVE usar o NOME COMERCIAL de UMA das marcas dos exemplos nominais (mais provável retornar empresa real):
+     * Pega o exemplo MAIS RELEVANTE de exemplos[]
+     * Formata: "<nome_marca> em ${cidade}"
+     * Ex BOM: "AM/PM em Belo Horizonte"
+     * Ex RUIM: "rede de conveniências fast food em belo horizonte" (genérico demais · GMaps não agrupa redes)
+   - fb_keywords: combina marca + categoria · ex: "AM/PM conveniência"
+   - ig_query: handle plausível da marca · ex: "ampmoficial"
+   - JUSTIFICATIVA OBRIGATÓRIA no raciocinio: "redes não aparecem agrupadas no GMaps · buscar pelo NOME da rede retorna lojas físicas reais"
+
+(C) CONCORRENTE_DIRETO · ADJACENTE:
+   - Mantém estratégia padrão (subsetor + cidade + alcance)
+   - gmaps_query: "${subSetor} em ${cidade}" (ou alcance equivalente)
+
+(D) ANTES_CADEIA (fornecedor · fabricante · distribuidor upstream):
+   - gmaps_query: nome do segmento UPSTREAM + cidade
+     * Pra bar/restaurante → "atacadista alimentos ${cidade}" · "distribuidora bebidas ${cidade}"
+     * Pra farmácia → "distribuidor farmacêutico ${cidade}"
+     * Pra varejo de roupas → "atacadista confecção ${cidade}"
+   - fb_keywords: termos comerciais do segmento upstream
+   - ig_query: handle setorial upstream
+
+(E) DEPOIS_CADEIA (cliente · canal · varejo downstream):
+   - gmaps_query: nome do segmento DOWNSTREAM + cidade
+   - Análogo ao (D) mas no sentido contrário da cadeia
+
+(F) CLIENTES_ATUAIS (B2B · cliente recorrente · integração vertical):
+   - Use os exemplos[] do arquétipo como base (são empresas REAIS que já compram)
+   - gmaps_query: nome de UMA das empresas exemplo + cidade · NÃO buscar categoria genérica
+   - fb_keywords: nome da empresa + categoria
+   - ig_query: handle plausível da empresa
+   - JUSTIFICATIVA OBRIGATÓRIA no raciocinio: "clientes atuais já são identificáveis · busca por nome real da empresa exemplo"
 
 Retorne EXCLUSIVAMENTE um JSON com este formato:
 

@@ -17703,11 +17703,28 @@ async function origV6RenderFase(orig, container) {
     if (comQueries.length === 0) {
       container.innerHTML = origV6RenderEmpty(orig.id);
     } else {
-      container.innerHTML = origV6RenderQueries(orig, comQueries);
+      const leadsCount = await origV6ContarLeads(orig.id);
+      container.innerHTML = origV6RenderQueries(orig, comQueries, leadsCount);
     }
   } catch (e) {
     console.error('[origV6RenderFase] exception', e);
     container.innerHTML = '<div class="orig-v4-loading" style="background:#fef2f2;border-color:#fca5a5"><p style="color:#991b1b"><strong>Erro ao renderizar Fase 3</strong></p><p style="font-size:12px;color:#991b1b">' + (e?.message || 'desconhecido') + '</p></div>';
+  }
+}
+
+async function origV6ContarLeads(origId) {
+  try {
+    const r = await fetch(SB + '/rest/v1/originacao_leads_brutos?originacao_id=eq.' + origId + '&select=canal', {
+      headers: origV2Headers()
+    });
+    if (!r.ok) return { total: 0 };
+    const leads = await r.json();
+    const contagem = { total: Array.isArray(leads) ? leads.length : 0 };
+    (leads || []).forEach(l => { contagem[l.canal] = (contagem[l.canal] || 0) + 1; });
+    return contagem;
+  } catch (e) {
+    console.warn('[origV6ContarLeads]', e);
+    return { total: 0 };
   }
 }
 
@@ -17720,7 +17737,7 @@ function origV6RenderEmpty(origId) {
     + '</div>';
 }
 
-function origV6RenderQueries(orig, arquetiposComQueries) {
+function origV6RenderQueries(orig, arquetiposComQueries, leadsCount) {
   const cards = arquetiposComQueries.map(arq => {
     const q = arq.queries_busca || {};
     const nome = origV2Esc(arq.nome || 'sem nome');
@@ -17737,16 +17754,36 @@ function origV6RenderQueries(orig, arquetiposComQueries) {
       + '</div>';
   }).join('');
 
+  const lc = leadsCount || { total: 0 };
+  let resumoLeads = '';
+  if (lc.total > 0) {
+    resumoLeads = '<div style="margin-top:24px;padding:16px;background:var(--bg);border:1px solid var(--line);border-radius:8px;">'
+      + '<h4 style="margin:0 0 12px 0;font-size:14px;">📊 Leads coletados · ' + lc.total + ' totais</h4>'
+      + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:12px;color:var(--ink-2);">'
+      + '<div>🗺️ Google Maps · ' + (lc.gmaps || 0) + '</div>'
+      + '<div>📘 Facebook · ' + (lc.facebook || 0) + '</div>'
+      + '<div>📷 Instagram · ' + (lc.instagram || 0) + '</div>'
+      + '<div>🤝 Corretores · ' + (lc.corretores_locais || 0) + '</div>'
+      + '</div>'
+      + '<button style="margin-top:12px;" onclick="origV6VerLeads(\'' + orig.id + '\')">Ver leads completos →</button>'
+      + '</div>';
+  }
+
+  const btnBuscarLabel = lc.gmaps > 0
+    ? '🔄 Re-buscar Google Maps (acumula novos)'
+    : '🚀 Buscar leads (Google Maps · 20/arquétipo)';
+
   return '<div class="orig-v6-queries">'
     + '<div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">'
     + '<h3 style="margin:0;">🔍 Queries de busca · ' + arquetiposComQueries.length + ' arquétipos</h3>'
     + '<span class="orig-v3-fase-badge">Fase 3/5</span>'
     + '</div>'
-    + '<p>Revise as queries abaixo. Próximo: rodar busca real nos canais (v9.33.3+).</p>'
+    + '<p>Revise as queries abaixo · click "Buscar leads" pra rodar Google Maps real (Apify).</p>'
     + cards
+    + resumoLeads
     + '<div class="orig-v4-acoes" style="margin-top:24px;">'
-    + '<button onclick="origV6RegerarQueries(\'' + orig.id + '\')">🔄 Regerar todas</button>'
-    + '<button disabled style="opacity:0.5;cursor:not-allowed;">🚀 Buscar leads (v9.33.3+)</button>'
+    + '<button onclick="origV6RegerarQueries(\'' + orig.id + '\')">🔄 Regerar todas as queries</button>'
+    + '<button class="orig-v3-send" onclick="origV6BuscarGmaps(\'' + orig.id + '\')">' + btnBuscarLabel + '</button>'
     + '</div>'
     + '</div>';
 }
@@ -17808,6 +17845,64 @@ async function origV6RegerarQueries(origId) {
   await origV6GerarQueries(origId);
 }
 
+// v9.33.3 · Apify Google Maps real
+let _origV6LocksBusca = {};
+
+async function origV6BuscarGmaps(origId) {
+  if (_origV6LocksBusca[origId]) {
+    console.log('[origV6BuscarGmaps] já rodando');
+    return;
+  }
+  if (!confirm('Disparar busca Google Maps real (Apify)?\n\nCusto estimado ~R$ 0,50 por arquétipo · 2-5 minutos.\n\nLeads duplicados são ignorados automaticamente.')) return;
+
+  _origV6LocksBusca[origId] = true;
+  const orig = await pjOriginacaoV2FetchById(origId);
+  const projetoId = orig?.projeto_id;
+  const container = projetoId ? document.getElementById('pj-originacao-' + projetoId) : null;
+  if (container) {
+    container.innerHTML = '<div class="orig-v4-loading">'
+      + '<div class="spinner"></div>'
+      + '<h3>🗺️ Buscando empresas no Google Maps</h3>'
+      + '<p style="font-size:13px;color:var(--ink-2);margin:8px 0;">N arquétipos × 20 places = leads brutos</p>'
+      + '<p style="font-size:11px;color:var(--ink-3);">2-5 minutos · não recarregue · custo ~R$ 0,50/arquétipo</p>'
+      + '</div>';
+  }
+
+  try {
+    const r = await fetch(SB + '/functions/v1/originacao-buscar-gmaps', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + origV2Token(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ originacao_id: origId, limite: 20 })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      alert('Erro: ' + (data.erro || data.detalhe || 'desconhecido'));
+      if (projetoId) pjOriginacaoV2Render(projetoId);
+      return;
+    }
+    origToast('✓ ' + data.total_inseridos + ' leads encontrados');
+
+    let msg = 'Resultados Google Maps:\n\n';
+    (data.por_arquetipo || []).forEach(a => {
+      const erro = a.erro ? ' · ERRO: ' + a.erro : '';
+      msg += '• ' + a.nome + ': ' + a.inseridos + ' novos · ' + a.total_retornado + ' retornados · ' + a.duplicados + ' duplicados' + erro + '\n';
+    });
+    msg += '\nCusto Apify estimado: R$ ' + (data.custo_apify_brl_estimado || 0).toFixed(2);
+    alert(msg);
+
+    if (projetoId) pjOriginacaoV2Render(projetoId);
+  } catch (e) {
+    alert('Erro: ' + e.message);
+    if (projetoId) pjOriginacaoV2Render(projetoId);
+  } finally {
+    _origV6LocksBusca[origId] = false;
+  }
+}
+
+function origV6VerLeads(origId) {
+  alert('Visualização completa de leads vem em v9.33.4+\n\nPor enquanto consulte direto no banco:\n\nSELECT * FROM originacao_leads_brutos\nWHERE originacao_id = \'' + origId + '\'\nORDER BY created_at DESC;');
+}
+
 // Exposição V2 + V3 (revisão tese) + V4 (briefing v9.31)
 window.pjOriginacaoV2Render = pjOriginacaoV2Render;
 window.origV3VoltarChat = origV3VoltarChat;
@@ -17847,6 +17942,10 @@ window.origV6RegerarQueries = origV6RegerarQueries;
 window.origV6RenderFase = origV6RenderFase;
 window.origV6RenderEmpty = origV6RenderEmpty;
 window.origV6RenderQueries = origV6RenderQueries;
+// v9.33.3 · V6 Apify Google Maps real
+window.origV6BuscarGmaps = origV6BuscarGmaps;
+window.origV6ContarLeads = origV6ContarLeads;
+window.origV6VerLeads = origV6VerLeads;
 </script>
 </body>
 </html>
