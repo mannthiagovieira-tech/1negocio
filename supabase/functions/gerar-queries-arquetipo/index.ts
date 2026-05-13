@@ -1,6 +1,7 @@
-// gerar-queries-arquetipo · v9.33.3
+// gerar-queries-arquetipo · v9.33.4
 // Gera 3 queries de busca (gmaps · facebook · instagram) por arquétipo aprovado.
 // Híbrido: templates fixos + Claude Sonnet refina por canal.
+// v9.33.4 · refino regra (B) · distingue REDE CENTRALIZADA (categoria setorial) de REDE INDEPENDENTE (nome da rede)
 // v9.33.3 · regras específicas por tipo de arquétipo (investidor PF → proxies · rede → marca · etc)
 // Salva em arquetipos_compradores.queries_busca jsonb.
 //
@@ -136,14 +137,34 @@ Detecte o TIPO do arquétipo lendo seu nome/perfil. Aplique a regra corresponden
    - JUSTIFICATIVA OBRIGATÓRIA no raciocinio: "investidor PF não tem listagem direta · busca via proxies estruturais (family office · gestora · wealth management)"
 
 (B) REDE DE VAREJO · REDE DE FAST FOOD · REDE DE CONVENIÊNCIAS · FRANQUIA · similar:
-   - gmaps_query DEVE usar o NOME COMERCIAL de UMA das marcas dos exemplos nominais (mais provável retornar empresa real):
-     * Pega o exemplo MAIS RELEVANTE de exemplos[]
-     * Formata: "<nome_marca> em ${cidade}"
-     * Ex BOM: "AM/PM em Belo Horizonte"
-     * Ex RUIM: "rede de conveniências fast food em belo horizonte" (genérico demais · GMaps não agrupa redes)
-   - fb_keywords: combina marca + categoria · ex: "AM/PM conveniência"
-   - ig_query: handle plausível da marca · ex: "ampmoficial"
-   - JUSTIFICATIVA OBRIGATÓRIA no raciocinio: "redes não aparecem agrupadas no GMaps · buscar pelo NOME da rede retorna lojas físicas reais"
+
+   PRIMEIRO: identifique se os exemplos[] do arquétipo são B1 ou B2.
+
+   Tipo B1 · REDE CENTRALIZADA (marcas dominantes · 1 sede decide tudo):
+     Exemplos: AM/PM (Ipiranga) · BR Mania (Petrobras) · Subway · McDonald's · Madero · redes franqueadoras nacionais.
+     → NÃO usar nome dessas marcas em gmaps_query · retornaria APENAS filiais da própria rede (não-decisoras locais)
+     → USE CATEGORIA SETORIAL + localização:
+       * "lojas de conveniência em ${cidade}"
+       * "redes de fast food em ${cidade}"
+       * "franquias alimentação em ${cidade}"
+     → fb_keywords: "rede conveniência ${cidade}" ou "franquias alimentação"
+     → ig_query: handle genérico setorial (ex: "conveniencias${cidade}")
+
+   Tipo B2 · REDE INDEPENDENTE (grupos locais/regionais autônomos):
+     Exemplos: "Grupo Porcão" · "Rede Vila do Chopp" · "Empório Árabe" · grupos empresariais regionais que operam várias unidades sob 1 CNPJ regional decisor.
+     → PODE usar nome da rede em gmaps_query (cada unidade ainda é da mesma empresa decisora local)
+     → "<nome_rede> em ${cidade}"
+     → fb_keywords: "<nome_rede> grupo"
+     → ig_query: handle da rede
+
+   COMO DECIDIR ENTRE B1 e B2:
+   - Se a marca tem >100 unidades NO BRASIL ou sede em outro estado → B1
+   - Se a marca tem <50 unidades concentradas em 1-2 estados → B2
+   - Se está em dúvida → B1 (categoria setorial · mais seguro · não retorna lixo)
+
+   JUSTIFICATIVA OBRIGATÓRIA no raciocinio:
+   - B1: "Marca centralizada · busca por categoria setorial · evita retornar só filiais"
+   - B2: "Rede independente regional · busca pelo nome capta unidades empresariais decisoras"
 
 (C) CONCORRENTE_DIRETO · ADJACENTE:
    - Mantém estratégia padrão (subsetor + cidade + alcance)
