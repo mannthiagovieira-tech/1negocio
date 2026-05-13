@@ -5311,6 +5311,10 @@ function paBuildPostgRESTQuery(opts) {
   }
   if (typeof opts.limit === 'number') parts.push('limit=' + opts.limit);
   if (typeof opts.offset === 'number') parts.push('offset=' + opts.offset);
+  // v9.34.4 · suporta or PostgREST · opts.or = 'nome.ilike.*x*,whatsapp.ilike.*y*'
+  if (opts.or && typeof opts.or === 'string') {
+    parts.push('or=(' + opts.or + ')');
+  }
   return parts.join('&');
 }
 
@@ -5755,7 +5759,7 @@ async function paLoadNegocios() {
   tbl.innerHTML = '<div class="pa-loading">Carregando...</div>';
   try {
     const r = await paApi('select','negocios',{
-      select:'id,nome,titulo_anuncio,setor,estado,cidade,status,faturamento_anual,preco_pedido,created_at',
+      select:'id,nome,titulo_anuncio,setor,estado,cidade,status,faturamento_anual,preco_pedido,created_at,vendedor_id',
       order:'created_at', ascending:false, limit:500
     });
     _paNegData = r.data || [];
@@ -5817,14 +5821,169 @@ function _paUpdateCounter(inputId, max) {
   if (len > max) ctr.classList.add('alert');
   else if (len > max*0.9) ctr.classList.add('warn');
 }
-function paOpenNegocio(id) {
+// v9.34.4 · estado do lookup vendedor no modal Editar Negócio
+let _paVendedorMatch = null; // { id, nome, whatsapp } ou null
+let _paVendedorLookupTimer = null;
+
+async function paOpenNegocio(id) {
   const neg = _paNegData.find(n => n.id === id);
   if (!neg) return;
   _paEditNeg = neg;
+  _paVendedorMatch = null;
   document.getElementById('modal-pa-neg-title').textContent = neg.titulo_anuncio || neg.nome || 'Editar negócio';
-  document.getElementById('modal-pa-neg-body').innerHTML = PA_NEG_FIELDS.map(f => _paRenderField(f, neg)).join('');
+  const camposHtml = PA_NEG_FIELDS.map(f => _paRenderField(f, neg)).join('');
+  const vendedorHtml = paVendedorSecaoHtml();
+  document.getElementById('modal-pa-neg-body').innerHTML = camposHtml + vendedorHtml;
   document.getElementById('modal-pa-negocio').classList.add('show');
+  // Se já tem vendedor_id · busca e pré-preenche
+  if (neg.vendedor_id) {
+    paVendedorCarregarExistente(neg.vendedor_id);
+  } else {
+    paVendedorAtualizarStatus(null, '(sem proprietário vinculado)');
+  }
 }
+
+function paVendedorSecaoHtml() {
+  return '<div class="pa-form-group" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);">'
+    + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin-bottom:8px;">Proprietário do negócio (vendedor_id)</div>'
+    + '<div class="pa-form-group" style="margin-bottom:8px;">'
+    + '<label style="font-size:12px;color:var(--ink-3);">Buscar por nome ou WhatsApp existente</label>'
+    + '<input id="pa-neg-vendedor-busca" class="td-input" type="text" placeholder="Digite nome ou whatsapp para buscar" oninput="paVendedorBuscar(this.value)">'
+    + '<div id="pa-neg-vendedor-resultados" style="margin-top:4px;"></div>'
+    + '</div>'
+    + '<div class="pa-form-group" style="margin-bottom:8px;">'
+    + '<label style="font-size:12px;color:var(--ink-3);">WhatsApp do proprietário</label>'
+    + '<input id="pa-neg-vendedor-whatsapp" class="td-input" type="tel" placeholder="ex: 11999999999 (DDD + número)" oninput="paVendedorLookupWhatsApp(this.value)">'
+    + '</div>'
+    + '<div class="pa-form-group" style="margin-bottom:8px;">'
+    + '<label style="font-size:12px;color:var(--ink-3);">Nome do proprietário</label>'
+    + '<input id="pa-neg-vendedor-nome" class="td-input" type="text" placeholder="Nome completo">'
+    + '</div>'
+    + '<div id="pa-neg-vendedor-status" style="font-size:11px;color:var(--ink-3);font-family:var(--mono);padding:6px 8px;background:var(--bg-1);border:1px solid var(--line);border-radius:6px;">— informe nome + whatsapp ou busque um existente —</div>'
+    + '</div>';
+}
+
+function paVendedorAtualizarStatus(match, msgPersonalizada) {
+  _paVendedorMatch = match;
+  const el = document.getElementById('pa-neg-vendedor-status');
+  if (!el) return;
+  if (msgPersonalizada) {
+    el.innerHTML = msgPersonalizada;
+    return;
+  }
+  if (match && match.id) {
+    el.innerHTML = '✓ <strong>Vinculado</strong> · usuário existente · id <code>' + escapeHtml(match.id.slice(0, 8)) + '...</code>';
+    el.style.color = '#065f46';
+    el.style.background = '#d1fae5';
+    el.style.borderColor = '#86efac';
+  } else {
+    el.innerHTML = '➕ Será criado novo registro em <code>usuarios</code> ao salvar';
+    el.style.color = '#92400e';
+    el.style.background = '#fef3c7';
+    el.style.borderColor = '#fcd34d';
+  }
+}
+
+async function paVendedorCarregarExistente(vendedorId) {
+  try {
+    const r = await paApi('select', 'usuarios', {
+      select: 'id,nome,whatsapp',
+      match: { id: vendedorId },
+      limit: 1,
+    });
+    const u = Array.isArray(r.data) ? r.data[0] : null;
+    if (u) {
+      document.getElementById('pa-neg-vendedor-whatsapp').value = u.whatsapp || '';
+      document.getElementById('pa-neg-vendedor-nome').value = u.nome || '';
+      paVendedorAtualizarStatus(u);
+    } else {
+      paVendedorAtualizarStatus(null, '⚠️ vendedor_id ' + vendedorId.slice(0, 8) + '... aponta pra usuário não encontrado');
+    }
+  } catch (e) {
+    paVendedorAtualizarStatus(null, '⚠️ erro ao carregar usuário · ' + escapeHtml(e.message));
+  }
+}
+
+function paVendedorLookupWhatsApp(valor) {
+  if (_paVendedorLookupTimer) clearTimeout(_paVendedorLookupTimer);
+  _paVendedorLookupTimer = setTimeout(() => paVendedorFazerLookupWhats(valor), 400);
+}
+
+async function paVendedorFazerLookupWhats(valor) {
+  const whats = (valor || '').replace(/\D/g, '').trim();
+  if (whats.length < 8) {
+    paVendedorAtualizarStatus(null, '— digite WhatsApp completo (min 8 dígitos) —');
+    return;
+  }
+  try {
+    const r = await paApi('select', 'usuarios', {
+      select: 'id,nome,whatsapp',
+      match: { whatsapp: whats },
+      limit: 1,
+    });
+    const u = Array.isArray(r.data) ? r.data[0] : null;
+    if (u) {
+      document.getElementById('pa-neg-vendedor-nome').value = u.nome || '';
+      paVendedorAtualizarStatus(u);
+    } else {
+      paVendedorAtualizarStatus(null);
+    }
+  } catch (e) {
+    paVendedorAtualizarStatus(null, '⚠️ erro lookup · ' + escapeHtml(e.message));
+  }
+}
+
+function paVendedorBuscar(q) {
+  if (_paVendedorLookupTimer) clearTimeout(_paVendedorLookupTimer);
+  _paVendedorLookupTimer = setTimeout(() => paVendedorFazerBusca(q), 400);
+}
+
+async function paVendedorFazerBusca(q) {
+  const termo = (q || '').trim();
+  const box = document.getElementById('pa-neg-vendedor-resultados');
+  if (!box) return;
+  if (termo.length < 3) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div style="font-size:11px;color:var(--ink-3);padding:4px 0;">buscando...</div>';
+  try {
+    const soDigitos = termo.replace(/\D/g, '');
+    const buscaPorWhats = soDigitos.length >= 4;
+    // PostgREST or filter: nome.ilike OR whatsapp.ilike
+    // Sanitize · remove vírgula/parênteses (quebrariam sintaxe do or) · URL-encode termo
+    const termoSanit = termo.replace(/[(),]/g, ' ').trim();
+    const termoEnc = encodeURIComponent(termoSanit);
+    const orParts = ['nome.ilike.*' + termoEnc + '*'];
+    if (buscaPorWhats) orParts.push('whatsapp.ilike.*' + soDigitos + '*');
+    const r = await paApi('select', 'usuarios', {
+      select: 'id,nome,whatsapp,tipo',
+      or: orParts.join(','),
+      limit: 8,
+    });
+    const lista = Array.isArray(r.data) ? r.data : [];
+    if (lista.length === 0) {
+      box.innerHTML = '<div style="font-size:11px;color:var(--ink-3);padding:4px 0;font-style:italic;">Nenhum usuário encontrado</div>';
+      return;
+    }
+    box.innerHTML = lista.map(u =>
+      '<div onclick="paVendedorSelecionar(\'' + u.id + '\',\'' + escapeHtml((u.nome||'').replace(/\\/g,'\\\\').replace(/\x27/g,"\\'")) + '\',\'' + (u.whatsapp || '') + '\')" '
+      + 'style="padding:6px 10px;background:var(--bg-1);border:1px solid var(--line);border-radius:6px;margin-bottom:4px;cursor:pointer;font-size:12px;">'
+      + '<strong>' + escapeHtml(u.nome || '(sem nome)') + '</strong>'
+      + '<span style="color:var(--ink-3);font-family:var(--mono);"> · ' + escapeHtml(u.whatsapp || 's/ wa') + '</span>'
+      + (u.tipo ? '<span style="font-size:10px;color:var(--ink-3);margin-left:6px;">[' + escapeHtml(u.tipo) + ']</span>' : '')
+      + '</div>'
+    ).join('');
+  } catch (e) {
+    box.innerHTML = '<div style="font-size:11px;color:var(--alert);">Erro: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+function paVendedorSelecionar(id, nome, whatsapp) {
+  document.getElementById('pa-neg-vendedor-whatsapp').value = whatsapp || '';
+  document.getElementById('pa-neg-vendedor-nome').value = nome || '';
+  document.getElementById('pa-neg-vendedor-busca').value = '';
+  document.getElementById('pa-neg-vendedor-resultados').innerHTML = '';
+  paVendedorAtualizarStatus({ id, nome, whatsapp });
+}
+
 async function paSaveNegocio() {
   if (!_paEditNeg) return;
   const data = {};
@@ -5840,11 +5999,72 @@ async function paSaveNegocio() {
     if (!data.preco_pedido || data.preco_pedido <= 0) { alert('Para publicar é preciso definir o "Valor de venda".'); return; }
   }
   if (data.titulo_anuncio && data.titulo_anuncio.length > 60) { alert('O título do anúncio não pode passar de 60 caracteres.'); return; }
+
+  // v9.34.4 · resolve vendedor_id antes do update (lookup ou insert em usuarios)
+  try {
+    const vendedorId = await paVendedorResolverId();
+    if (vendedorId !== undefined) data.vendedor_id = vendedorId; // undefined = não tocar (deixa como estava)
+  } catch (e) {
+    alert('Erro ao resolver proprietário: ' + e.message);
+    return;
+  }
+
   try {
     await paApi('update','negocios',{match:{id:_paEditNeg.id}}, data);
     document.getElementById('modal-pa-negocio').classList.remove('show');
     paLoadNegocios();
   } catch(e) { alert('Erro ao salvar: ' + e.message); }
+}
+
+// Retorna:
+//   string uuid · usar como vendedor_id
+//   null      · operador limpou os campos · setar vendedor_id=null
+//   undefined · nada relevante mudou · não tocar em vendedor_id
+async function paVendedorResolverId() {
+  const whatsEl = document.getElementById('pa-neg-vendedor-whatsapp');
+  const nomeEl = document.getElementById('pa-neg-vendedor-nome');
+  if (!whatsEl || !nomeEl) return undefined;
+  const whats = (whatsEl.value || '').replace(/\D/g, '').trim();
+  const nome = (nomeEl.value || '').trim();
+
+  // Match já confirmado · usa direto (operador selecionou ou lookup encontrou)
+  if (_paVendedorMatch && _paVendedorMatch.id) {
+    return _paVendedorMatch.id;
+  }
+
+  // Ambos vazios + não havia vendedor original · não toca
+  if (!whats && !nome && !_paEditNeg.vendedor_id) return undefined;
+
+  // Ambos vazios + havia vendedor · entender como "remover vínculo"
+  if (!whats && !nome && _paEditNeg.vendedor_id) {
+    if (!confirm('Remover vínculo com proprietário atual? (vendedor_id ficará null)')) {
+      throw new Error('cancelado pelo admin');
+    }
+    return null;
+  }
+
+  if (!whats) throw new Error('WhatsApp obrigatório (digite ou busque)');
+  if (whats.length < 8) throw new Error('WhatsApp inválido (min 8 dígitos)');
+  if (!nome) throw new Error('Nome obrigatório quando whatsapp é novo');
+
+  // Re-confere se whats já existe (mais seguro que confiar no _paVendedorMatch)
+  const r = await paApi('select', 'usuarios', {
+    select: 'id,nome,whatsapp',
+    match: { whatsapp: whats },
+    limit: 1,
+  });
+  const exist = Array.isArray(r.data) ? r.data[0] : null;
+  if (exist) return exist.id;
+
+  // Insert novo · tipo 'sell' (enum user_type aceita só 'sell'/'buy')
+  const insertRes = await paApi('insert', 'usuarios', {}, {
+    nome,
+    whatsapp: whats,
+    tipo: 'sell',
+  });
+  const novo = Array.isArray(insertRes.data) ? insertRes.data[0] : insertRes.data;
+  if (!novo || !novo.id) throw new Error('insert usuarios não retornou id');
+  return novo.id;
 }
 
 // ---- pa-solicitacoes · 5 tabs + 4 ações + zapi-relay ----
