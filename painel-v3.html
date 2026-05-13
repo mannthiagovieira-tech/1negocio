@@ -17775,7 +17775,7 @@ async function origV6RenderFase(orig, container) {
 
 async function origV6ContarLeads(origId) {
   try {
-    const r = await fetch(SB + '/rest/v1/originacao_leads_brutos?originacao_id=eq.' + origId + '&select=canal', {
+    const r = await fetch(SB + '/rest/v1/pool_leads_originacao?originacao_id=eq.' + origId + '&select=canal', {
       headers: origV2Headers()
     });
     if (!r.ok) return { total: 0 };
@@ -17820,7 +17820,8 @@ function origV6RenderQueries(orig, arquetiposComQueries, leadsCount) {
   if (lc.total > 0) {
     resumoLeads = '<div style="margin-top:24px;padding:16px;background:var(--bg);border:1px solid var(--line);border-radius:8px;">'
       + '<h4 style="margin:0 0 12px 0;font-size:14px;">📊 Leads coletados · ' + lc.total + ' totais</h4>'
-      + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;font-size:12px;color:var(--ink-2);">'
+      + '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;font-size:12px;color:var(--ink-2);">'
+      + '<div>🏛️ Interno · ' + (lc.interno || 0) + '</div>'
       + '<div>🗺️ Google Maps · ' + (lc.gmaps || 0) + '</div>'
       + '<div>📘 Facebook · ' + (lc.facebook || 0) + '</div>'
       + '<div>📷 Instagram · ' + (lc.instagram || 0) + '</div>'
@@ -17830,23 +17831,56 @@ function origV6RenderQueries(orig, arquetiposComQueries, leadsCount) {
       + '</div>';
   }
 
-  const btnBuscarLabel = lc.gmaps > 0
-    ? '🔄 Re-buscar Google Maps (acumula novos)'
-    : '🚀 Buscar leads (Google Maps · 20/arquétipo)';
+  // v9.33.6 · checkbox group de canais · custo estimado dinâmico
+  const checkboxesCanais = ''
+    + '<div class="orig-v6-canais-box" style="margin-top:16px;padding:12px 14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;">'
+    + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin-bottom:8px;">Canais de busca</div>'
+    + '<label style="display:block;font-size:13px;margin:3px 0;cursor:pointer;"><input type="checkbox" id="ch-canal-interno" checked onchange="origV6AtualizarEstimativaCanais(\'' + orig.id + '\')"> 🏛️ Banco interno (gratuito · pool reutilizável)</label>'
+    + '<label style="display:block;font-size:13px;margin:3px 0;cursor:pointer;"><input type="checkbox" id="ch-canal-gmaps" checked onchange="origV6AtualizarEstimativaCanais(\'' + orig.id + '\')"> 🗺️ Google Maps · ~R$ 2,00 (' + arquetiposComQueries.length + ' × R$ 0,50)</label>'
+    + '<label style="display:block;font-size:13px;margin:3px 0;cursor:pointer;"><input type="checkbox" id="ch-canal-facebook" checked onchange="origV6AtualizarEstimativaCanais(\'' + orig.id + '\')"> 📘 Facebook · ~R$ ' + (arquetiposComQueries.length * 0.80).toFixed(2) + ' (' + arquetiposComQueries.length + ' × R$ 0,80)</label>'
+    + '<label style="display:block;font-size:13px;margin:3px 0;cursor:pointer;"><input type="checkbox" id="ch-canal-instagram" checked onchange="origV6AtualizarEstimativaCanais(\'' + orig.id + '\')"> 📷 Instagram · ~R$ ' + (arquetiposComQueries.length * 0.70).toFixed(2) + ' (' + arquetiposComQueries.length + ' × R$ 0,70)</label>'
+    + '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-2);">'
+    + '<span id="orig-v6-estimativa-' + orig.id + '">Custo estimado: <strong>R$ ' + (arquetiposComQueries.length * 2.00).toFixed(2) + '</strong> · tempo: ~2-5 minutos</span>'
+    + '</div>'
+    + '</div>';
 
   return '<div class="orig-v6-queries">'
     + '<div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">'
     + '<h3 style="margin:0;">🔍 Queries de busca · ' + arquetiposComQueries.length + ' arquétipos</h3>'
     + '<span class="orig-v3-fase-badge">Fase 3/5</span>'
     + '</div>'
-    + '<p>Revise as queries abaixo · click "Buscar leads" pra rodar Google Maps real (Apify).</p>'
+    + '<p>Revise as queries abaixo · selecione canais e click "Buscar" pra rodar Apify (FB · IG · Gmaps) + pool interno.</p>'
     + cards
     + resumoLeads
-    + '<div class="orig-v4-acoes" style="margin-top:24px;">'
+    + checkboxesCanais
+    + '<div class="orig-v4-acoes" style="margin-top:16px;">'
     + '<button onclick="origV6RegerarQueries(\'' + orig.id + '\')">🔄 Regerar todas as queries</button>'
-    + '<button class="orig-v3-send" onclick="origV6BuscarGmaps(\'' + orig.id + '\')">' + btnBuscarLabel + '</button>'
+    + '<button class="orig-v3-send" onclick="origV6BuscarTodos(\'' + orig.id + '\')">🚀 Buscar nos canais selecionados</button>'
     + '</div>'
     + '</div>';
+}
+
+function origV6AtualizarEstimativaCanais(origId) {
+  const arqCount = (_origV2Data && _leadsState && _leadsState.arquetipos) ? _leadsState.arquetipos.length : 4;
+  const get = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
+  const sel = {
+    interno: get('ch-canal-interno'),
+    gmaps: get('ch-canal-gmaps'),
+    facebook: get('ch-canal-facebook'),
+    instagram: get('ch-canal-instagram'),
+  };
+  const custo = (sel.gmaps ? arqCount * 0.50 : 0)
+              + (sel.facebook ? arqCount * 0.80 : 0)
+              + (sel.instagram ? arqCount * 0.70 : 0);
+  const canaisSel = Object.entries(sel).filter(([_, v]) => v).map(([k]) => k);
+  const span = document.getElementById('orig-v6-estimativa-' + origId);
+  if (span) {
+    if (canaisSel.length === 0) {
+      span.innerHTML = 'Selecione pelo menos 1 canal.';
+    } else {
+      span.innerHTML = 'Custo estimado: <strong>R$ ' + custo.toFixed(2) + '</strong> · ' + canaisSel.length + ' canal(is) · ~2-5 minutos';
+    }
+  }
 }
 
 async function origV6GerarQueries(origId) {
@@ -17906,15 +17940,63 @@ async function origV6RegerarQueries(origId) {
   await origV6GerarQueries(origId);
 }
 
-// v9.33.3 · Apify Google Maps real
+// v9.33.6 · orquestrador no frontend · 4 canais via Promise.all
 let _origV6LocksBusca = {};
 
-async function origV6BuscarGmaps(origId) {
+const ORIGV6_CANAL_EDGE = {
+  interno: 'buscar-pool-interno',
+  gmaps: 'originacao-buscar-gmaps',
+  facebook: 'originacao-buscar-facebook',
+  instagram: 'originacao-buscar-instagram',
+};
+
+const ORIGV6_CANAL_LABEL = {
+  interno: '🏛️ Interno',
+  gmaps: '🗺️ Google Maps',
+  facebook: '📘 Facebook',
+  instagram: '📷 Instagram',
+};
+
+async function origV6ChamarCanal(canal, origId) {
+  const slug = ORIGV6_CANAL_EDGE[canal];
+  if (!slug) return { canal, ok: false, erro: 'canal_invalido' };
+  try {
+    const r = await fetch(SB + '/functions/v1/' + slug, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + origV2Token(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ originacao_id: origId }),
+    });
+    let rawText = ''; let data = {};
+    try { rawText = await r.text(); data = JSON.parse(rawText); } catch (_) {}
+    if (!r.ok) {
+      const msg = data.erro_debug || data.erro || data.detalhe || rawText.slice(0, 200) || 'Sem detalhe';
+      return { canal, ok: false, erro: 'HTTP ' + r.status + ' · ' + msg, status: r.status };
+    }
+    return { canal, ok: true, data };
+  } catch (e) {
+    return { canal, ok: false, erro: 'fetch exception · ' + e.message };
+  }
+}
+
+async function origV6BuscarTodos(origId) {
   if (_origV6LocksBusca[origId]) {
-    console.log('[origV6BuscarGmaps] já rodando');
+    console.log('[origV6BuscarTodos] já rodando');
     return;
   }
-  if (!confirm('Disparar busca Google Maps real (Apify)?\n\nCusto estimado ~R$ 0,50 por arquétipo · 2-5 minutos.\n\nLeads duplicados são ignorados automaticamente.')) return;
+  // Lê checkboxes
+  const getCh = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
+  const canaisSel = [];
+  if (getCh('ch-canal-interno')) canaisSel.push('interno');
+  if (getCh('ch-canal-gmaps')) canaisSel.push('gmaps');
+  if (getCh('ch-canal-facebook')) canaisSel.push('facebook');
+  if (getCh('ch-canal-instagram')) canaisSel.push('instagram');
+
+  if (canaisSel.length === 0) {
+    alert('Selecione pelo menos 1 canal.');
+    return;
+  }
+
+  if (!confirm('Buscar leads em ' + canaisSel.length + ' canal(is)?\n\n' + canaisSel.map(c => '• ' + ORIGV6_CANAL_LABEL[c]).join('\n') + '\n\nLeads duplicados são ignorados · 2-5 minutos.')) return;
 
   _origV6LocksBusca[origId] = true;
   const orig = await pjOriginacaoV2FetchById(origId);
@@ -17923,62 +18005,76 @@ async function origV6BuscarGmaps(origId) {
   if (container) {
     container.innerHTML = '<div class="orig-v4-loading">'
       + '<div class="spinner"></div>'
-      + '<h3>🗺️ Buscando empresas no Google Maps</h3>'
-      + '<p style="font-size:13px;color:var(--ink-2);margin:8px 0;">N arquétipos × 20 places = leads brutos</p>'
-      + '<p style="font-size:11px;color:var(--ink-3);">2-5 minutos · não recarregue · custo ~R$ 0,50/arquétipo</p>'
+      + '<h3>🚀 Buscando em ' + canaisSel.length + ' canal(is)</h3>'
+      + '<p style="font-size:13px;color:var(--ink-2);margin:8px 0;">' + canaisSel.map(c => ORIGV6_CANAL_LABEL[c]).join(' · ') + '</p>'
+      + '<p style="font-size:11px;color:var(--ink-3);">2-5 minutos · não recarregue · canais rodam em paralelo</p>'
       + '</div>';
   }
 
   try {
-    const r = await fetch(SB + '/functions/v1/originacao-buscar-gmaps', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + origV2Token(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ originacao_id: origId, limite: 20 })
-    });
-    // v9.33.3.1 · captura body raw mesmo se não-JSON (504/502 do gateway retornam HTML/vazio)
-    let data = {};
-    let rawText = '';
-    try {
-      rawText = await r.text();
-      data = JSON.parse(rawText);
-    } catch (_) { /* não-JSON · provavelmente 504/502 do gateway */ }
+    // Interno sempre primeiro (rápido · gratuito) · externos em paralelo
+    const por_canal = {};
+    let total_inseridos = 0;
+    let custo_total = 0;
 
-    if (!r.ok) {
-      const msg = data.erro_debug || data.erro || data.detalhe || rawText.slice(0, 200) || 'Sem detalhe';
-      const statusHint = r.status === 504
-        ? ' (gateway timeout · Apify lento · tente menos arquétipos por vez ou aguarde)'
-        : r.status === 502
-        ? ' (gateway bad · edge crashou · ver logs)'
-        : '';
-      alert('Erro HTTP ' + r.status + statusHint + '\n\n' + msg);
-      console.error('[origV6BuscarGmaps] erro · status:', r.status, 'body:', rawText.slice(0, 500));
-      if (projetoId) pjOriginacaoV2Render(projetoId);
-      return;
+    if (canaisSel.includes('interno')) {
+      const r = await origV6ChamarCanal('interno', origId);
+      por_canal.interno = r;
+      if (r.ok && r.data?.total_inseridos) total_inseridos += r.data.total_inseridos;
     }
-    origToast('✓ ' + data.total_inseridos + ' leads encontrados');
 
-    let msg = 'Resultados Google Maps:\n\n';
-    (data.por_arquetipo || []).forEach(a => {
-      const erro = a.erro ? ' · ERRO: ' + a.erro : '';
-      msg += '• ' + a.nome + ': ' + a.inseridos + ' novos · ' + a.total_retornado + ' retornados · ' + a.duplicados + ' duplicados' + erro;
-      if (a.retry_info) msg += '\n   ↳ ' + a.retry_info;
-      msg += '\n';
-    });
-    msg += '\nCusto Apify estimado: R$ ' + (data.custo_apify_brl_estimado || 0).toFixed(2);
+    const externos = canaisSel.filter(c => c !== 'interno');
+    if (externos.length > 0) {
+      const resultados = await Promise.all(externos.map(c => origV6ChamarCanal(c, origId)));
+      for (const r of resultados) {
+        por_canal[r.canal] = r;
+        if (r.ok && r.data?.total_inseridos) total_inseridos += r.data.total_inseridos;
+        if (r.ok && r.data?.custo_apify_brl_estimado) custo_total += r.data.custo_apify_brl_estimado;
+      }
+    }
+
+    origToast('✓ ' + total_inseridos + ' leads novos');
+
+    let msg = 'Resultados por canal:\n\n';
+    for (const canal of canaisSel) {
+      const r = por_canal[canal];
+      const label = ORIGV6_CANAL_LABEL[canal];
+      if (!r || !r.ok) {
+        msg += label + ': ❌ ' + (r?.erro || 'sem retorno') + '\n';
+        continue;
+      }
+      const d = r.data || {};
+      if (canal === 'interno') {
+        msg += label + ': ' + (d.total_inseridos || 0) + ' inseridos · ' + (d.total_encontrados || 0) + ' candidatos\n';
+      } else {
+        msg += label + ': ' + (d.total_inseridos || 0) + ' inseridos (custo R$ ' + (d.custo_apify_brl_estimado || 0).toFixed(2) + ')\n';
+        (d.por_arquetipo || []).forEach(a => {
+          if (a.erro) msg += '   · ' + a.nome + ': ERRO ' + a.erro + '\n';
+        });
+      }
+    }
+    msg += '\nTotal inseridos: ' + total_inseridos + ' · Custo Apify estimado: R$ ' + custo_total.toFixed(2);
     alert(msg);
 
     if (projetoId) pjOriginacaoV2Render(projetoId);
   } catch (e) {
     alert('Erro fetch: ' + e.message);
-    console.error('[origV6BuscarGmaps] fetch exception', e);
+    console.error('[origV6BuscarTodos] fetch exception', e);
     if (projetoId) pjOriginacaoV2Render(projetoId);
   } finally {
     _origV6LocksBusca[origId] = false;
   }
 }
 
-function origV6VerLeads(origId) {
-  alert('Visualização completa de leads vem em v9.33.4+\n\nPor enquanto consulte direto no banco:\n\nSELECT * FROM originacao_leads_brutos\nWHERE originacao_id = \'' + origId + '\'\nORDER BY created_at DESC;');
+// Compat: mantém origV6BuscarGmaps como alias por enquanto (chama orquestrador só com gmaps)
+async function origV6BuscarGmaps(origId) {
+  // Marca temporariamente checkboxes pra usar a função nova
+  return origV6BuscarTodos(origId);
+}
+
+function origV6VerLeads(_origId) {
+  // v9.33.5+ · UI completa de leads disponível na aba "Leads" do detalhe do projeto
+  alert('Abra a aba "Leads" no detalhe do projeto pra ver · filtrar · contactar todos os leads coletados.');
 }
 
 // Exposição V2 + V3 (revisão tese) + V4 (briefing v9.31)
@@ -18024,6 +18120,9 @@ window.origV6RenderQueries = origV6RenderQueries;
 window.origV6BuscarGmaps = origV6BuscarGmaps;
 window.origV6ContarLeads = origV6ContarLeads;
 window.origV6VerLeads = origV6VerLeads;
+// v9.33.6 · orquestrador 4 canais
+window.origV6BuscarTodos = origV6BuscarTodos;
+window.origV6AtualizarEstimativaCanais = origV6AtualizarEstimativaCanais;
 
 /* ════════════════════════════════════════════════════════════
    v9.33.5 · Aba "Leads" no detalhe do projeto
@@ -18065,7 +18164,7 @@ async function leadsAbaRenderar(projetoId) {
 
     // 2) Busca leads + arquétipos em paralelo
     const [leadsResp, arqResp] = await Promise.all([
-      fetch(SB + '/rest/v1/originacao_leads_brutos?originacao_id=eq.' + orig.id + '&select=*&order=score_ia.desc.nullslast,created_at.desc', { headers: origV2Headers() }),
+      fetch(SB + '/rest/v1/pool_leads_originacao?originacao_id=eq.' + orig.id + '&select=*&order=score_ia.desc.nullslast,visto_em.desc', { headers: origV2Headers() }),
       fetch(SB + '/rest/v1/arquetipos_compradores?originacao_id=eq.' + orig.id + '&status=eq.aprovado&select=id,nome&order=ordem.asc', { headers: origV2Headers() }),
     ]);
     const leads = leadsResp.ok ? await leadsResp.json() : [];
@@ -18100,7 +18199,7 @@ function leadsAbaHtml(projetoId) {
         '<div class="leads-filtros">' +
           '<input type="search" placeholder="Buscar nome, endereço..." oninput="leadsAplicarFiltro(\'busca\', this.value)">' +
           '<select onchange="leadsAplicarFiltro(\'arquetipo\', this.value)"><option value="">Todos arquétipos</option>' + arqOptions + '</select>' +
-          '<select onchange="leadsAplicarFiltro(\'canal\', this.value)"><option value="">Todos canais</option><option value="gmaps">Google Maps</option><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="corretores_locais">Corretores</option></select>' +
+          '<select onchange="leadsAplicarFiltro(\'canal\', this.value)"><option value="">Todos canais</option><option value="interno">🏛️ Interno (pool)</option><option value="gmaps">🗺️ Google Maps</option><option value="facebook">📘 Facebook</option><option value="instagram">📷 Instagram</option><option value="corretores_locais">🤝 Corretores</option></select>' +
           '<select onchange="leadsAplicarFiltro(\'status\', this.value)"><option value="">Todos status</option><option value="bruto">Bruto</option><option value="util">Útil</option><option value="irrelevante">Irrelevante</option><option value="contatado">Contatado</option><option value="respondeu">Respondeu</option></select>' +
           '<select onchange="leadsAplicarFiltro(\'scoreMin\', this.value)"><option value="">Qualquer score</option><option value="90">Score 90+</option><option value="70">Score 70+</option><option value="50">Score 50+</option><option value="30">Score 30+</option></select>' +
           scorearBtn +
@@ -18124,7 +18223,7 @@ function leadsRowsHtml(leads) {
   }
   const arqMap = {};
   _leadsState.arquetipos.forEach(a => { arqMap[a.id] = a.nome; });
-  const canalIcon = { gmaps: '🗺️', facebook: '📘', instagram: '📷', corretores_locais: '🤝' };
+  const canalIcon = { interno: '🏛️', gmaps: '🗺️', facebook: '📘', instagram: '📷', corretores_locais: '🤝' };
   return leads.map(l => {
     const score = l.score_ia;
     const scoreCls = leadsScoreClass(score);
@@ -18193,8 +18292,9 @@ function leadsDrawerHtml(lead) {
   const tagsHtml = (lead.tags_ia && Array.isArray(lead.tags_ia) && lead.tags_ia.length > 0)
     ? '<div class="lead-drawer-secao"><div class="lead-drawer-label">Tags IA</div><div style="margin-top:4px;">' + lead.tags_ia.map(t => '<span class="lead-tag">' + leadsEsc(t) + '</span>').join('') + '</div></div>'
     : '';
-  const motivoHtml = lead.razao_score
-    ? '<div class="lead-drawer-secao"><div class="lead-drawer-label">Motivo do score (IA)</div><div class="lead-drawer-value" style="font-style:italic;color:var(--ink-2);">' + leadsEsc(lead.razao_score) + '</div></div>'
+  const motivoTxt = lead.score_motivo || lead.razao_score; // v9.33.6 view expõe score_motivo · fallback retrocompat
+  const motivoHtml = motivoTxt
+    ? '<div class="lead-drawer-secao"><div class="lead-drawer-label">Motivo do score (IA)</div><div class="lead-drawer-value" style="font-style:italic;color:var(--ink-2);">' + leadsEsc(motivoTxt) + '</div></div>'
     : '';
   const telSecao = tel
     ? '<div class="lead-drawer-value" style="font-family:var(--mono);margin-bottom:8px;">' + leadsEsc(tel) + '</div>'
@@ -18248,9 +18348,10 @@ function leadsCopiarTel(tel) {
 }
 
 async function leadsMudarStatus(leadId, novoStatus) {
-  const update = { status: novoStatus, marcado_em: new Date().toISOString(), updated_at: new Date().toISOString() };
+  const update = { status: novoStatus, marcado_em: new Date().toISOString() };
   if (novoStatus === 'contatado') update.contatado_em = new Date().toISOString();
-  const r = await fetch(SB + '/rest/v1/originacao_leads_brutos?id=eq.' + leadId, {
+  // v9.33.6 · PATCH em pool_contatos_uso (view leads_originacao.id = uso.id)
+  const r = await fetch(SB + '/rest/v1/pool_contatos_uso?id=eq.' + leadId, {
     method: 'PATCH',
     headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
     body: JSON.stringify(update),
@@ -18271,10 +18372,11 @@ async function leadsSalvarNota(leadId) {
   const ta = document.getElementById('lead-nota-' + leadId);
   if (!ta) return;
   const nota = ta.value;
-  const r = await fetch(SB + '/rest/v1/originacao_leads_brutos?id=eq.' + leadId, {
+  // v9.33.6 · PATCH em pool_contatos_uso
+  const r = await fetch(SB + '/rest/v1/pool_contatos_uso?id=eq.' + leadId, {
     method: 'PATCH',
     headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
-    body: JSON.stringify({ nota_admin: nota, updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ nota_admin: nota }),
   });
   if (!r.ok) { alert('Erro ao salvar nota'); return; }
   const lead = _leadsState.leads.find(l => l.id === leadId);
