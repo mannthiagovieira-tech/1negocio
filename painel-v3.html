@@ -81,9 +81,37 @@ body { min-height: 100vh; overflow-x: hidden; }
 .app-grid {
   display: grid; grid-template-columns: 260px 1fr;
   min-height: 100vh;
+  transition: grid-template-columns .2s ease;
 }
+/* v9.34.6 · sidebar recolhível */
+.app-grid.sidebar-collapsed { grid-template-columns: 56px 1fr; }
+.app-grid.sidebar-collapsed .sidebar-logo span:not(.mark) { display: none; }
+.app-grid.sidebar-collapsed .sidebar-logo { justify-content: center; }
+.app-grid.sidebar-collapsed .theme-toggle { display: none; }
+.app-grid.sidebar-collapsed .nav-group-label,
+.app-grid.sidebar-collapsed .nav-label,
+.app-grid.sidebar-collapsed .star,
+.app-grid.sidebar-collapsed .legacy-divider,
+.app-grid.sidebar-collapsed .legacy-link span:not(.nav-icon),
+.app-grid.sidebar-collapsed .pill,
+.app-grid.sidebar-collapsed .nav-grupo-ferramentas .nav-label { display: none; }
+.app-grid.sidebar-collapsed .nav-item,
+.app-grid.sidebar-collapsed .legacy-link { justify-content: center; padding-left: 0; padding-right: 0; gap: 0; }
+.app-grid.sidebar-collapsed .nav-item .nav-icon { opacity: 1; font-size: 16px; }
+.app-grid.sidebar-collapsed .sidebar-foot .user-info span:not(.dot) { display: none; }
+.app-grid.sidebar-collapsed .btn-logout { display: none; }
+.btn-sidebar-toggle {
+  background: transparent; border: 1px solid var(--line);
+  color: var(--ink-3); width: 28px; height: 28px;
+  border-radius: 6px; cursor: pointer; display: flex; align-items: center;
+  justify-content: center; font-size: 14px; padding: 0; transition: all .15s;
+}
+.btn-sidebar-toggle:hover { color: var(--ink); border-color: var(--ink-3); }
+.app-grid.sidebar-collapsed .btn-sidebar-toggle { font-size: 16px; }
 @media (max-width: 768px) {
   .app-grid { grid-template-columns: 1fr; }
+  .app-grid.sidebar-collapsed { grid-template-columns: 1fr; }
+  .btn-sidebar-toggle { display: none; }
 }
 
 /* ========================================================================
@@ -1814,12 +1842,13 @@ table.t .acoes { white-space: nowrap; }
      ======================================================================== -->
 <div id="main-app">
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar(false)"></div>
-  <div class="app-grid">
+  <div class="app-grid" id="app-grid">
 
     <!-- ──────────── SIDEBAR ──────────── -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-head">
-        <a href="/" class="sidebar-logo" aria-label="1Negócio · página inicial" style="text-decoration:none;color:inherit"><span class="mark">1</span>Negócio</a>
+        <a href="/" class="sidebar-logo" aria-label="1Negócio · página inicial" style="text-decoration:none;color:inherit"><span class="mark">1</span><span>Negócio</span></a>
+        <button class="btn-sidebar-toggle" onclick="toggleSidebarCollapsed()" title="Recolher sidebar (⌘B)">⫷</button>
       </div>
 
       <div class="theme-toggle">
@@ -5817,6 +5846,33 @@ function toggleSidebar(open) {
   sb.classList.toggle('open', open);
   ov.classList.toggle('show', open);
 }
+
+// v9.34.6 · sidebar recolhível (collapse desktop · localStorage persiste)
+function toggleSidebarCollapsed(force) {
+  const grid = document.getElementById('app-grid');
+  if (!grid) return;
+  const current = grid.classList.contains('sidebar-collapsed');
+  const next = (typeof force === 'boolean') ? force : !current;
+  grid.classList.toggle('sidebar-collapsed', next);
+  try { localStorage.setItem('sidebar_collapsed', next ? '1' : '0'); } catch(_){}
+  const btn = document.querySelector('.btn-sidebar-toggle');
+  if (btn) btn.textContent = next ? '⫸' : '⫷';
+}
+(function restoreSidebarCollapsed(){
+  try {
+    if (localStorage.getItem('sidebar_collapsed') === '1') {
+      const apply = () => { toggleSidebarCollapsed(true); };
+      if (document.readyState !== 'loading') apply();
+      else document.addEventListener('DOMContentLoaded', apply);
+    }
+  } catch(_){}
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      toggleSidebarCollapsed();
+    }
+  });
+})();
 
 /* ========================================================================
    FAB + Cmd+K
@@ -18664,11 +18720,15 @@ async function origV6RenderFase(orig, container) {
       container.innerHTML = origV6RenderEmpty(orig.id);
     } else {
       const leadsCount = await origV6ContarLeads(orig.id);
-      container.innerHTML = origV6RenderQueries(orig, comQueries, leadsCount);
-      // v9.34.4 Sprint 5 b2 · auto-puxar CNPJ do negócio (Parte 1)
-      origV6PassoBAutoCnpj(orig.id).catch(e => console.warn('[passoB auto cnpj]', e));
-      // v9.34.5 Sprint 6 · matriz de controle (carrega async)
-      origV9CarregarMatriz(orig, comQueries).catch(e => console.warn('[origV9 matriz]', e));
+      // v9.34.6 · página simplificada com pool + fontes compactas (arsenal vai pro modal)
+      window._origV346OrigCache = window._origV346OrigCache || {};
+      window._origV346ArqCache = window._origV346ArqCache || {};
+      window._origV346LeadsCache = window._origV346LeadsCache || {};
+      window._origV346OrigCache[orig.id] = orig;
+      window._origV346ArqCache[orig.id] = comQueries;
+      window._origV346LeadsCache[orig.id] = leadsCount;
+      container.innerHTML = origV346PaginaProjeto(orig, comQueries, leadsCount);
+      origV346CarregarFontes(orig.id).catch(e => console.warn('[v346 fontes]', e));
     }
   } catch (e) {
     console.error('[origV6RenderFase] exception', e);
@@ -19230,6 +19290,416 @@ async function origV6PassoBSalvar(origId){
   } catch (e){
     if (status) status.textContent = '✗ erro';
     alert('Erro ao salvar Passo B: ' + (e?.message||'desconhecido'));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v9.34.6 · Reorganização UX · página projeto simplificada + modal arsenal
+// ═══════════════════════════════════════════════════════════════════════
+
+function origV346PaginaProjeto(orig, arquetipos, leadsCount){
+  const total = leadsCount?.total || 0;
+  const novos = leadsCount?.novo || 0;
+  const alertaPool = novos < 5
+    ? '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#92400e;display:flex;align-items:center;justify-content:space-between"><span>⚠️ Pool com poucos leads novos (' + novos + '). Considere rodar o arsenal.</span><button onclick="origV346AbrirArsenal(\'' + orig.id + '\')" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer">Abrir arsenal →</button></div>'
+    : '';
+  return ''
+    + '<style>'
+    + '.v346-pool{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px}'
+    + '.v346-pool-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}'
+    + '.v346-pool-head h3{margin:0;font-size:15px}'
+    + '.v346-pool-head .sub{font-size:11px;color:var(--ink-3);margin-top:2px}'
+    + '.v346-pool-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}'
+    + '.v346-pool-actions button{background:var(--surface);border:1px solid var(--line);color:var(--ink-2);padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-family:var(--sans)}'
+    + '.v346-pool-actions button:hover{border-color:var(--accent,#22c55e);color:var(--accent,#22c55e)}'
+    + '.v346-pool-actions .primario{background:var(--accent,#22c55e);color:#fff;border-color:var(--accent,#22c55e)}'
+    + '.v346-pool-actions .badge-ok{background:#dcfce7;color:#16a34a;border:1px solid #86efac;padding:3px 10px;border-radius:999px;font-family:var(--mono);font-size:10px}'
+    + '.v346-fontes{margin-top:12px;border-top:1px dashed var(--line);padding-top:12px}'
+    + '.v346-fontes-titulo{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);margin-bottom:8px}'
+    + '.v346-fonte-row{display:grid;grid-template-columns:1.4fr 1fr 140px;gap:10px;align-items:center;padding:8px 10px;font-size:12px;border-bottom:1px solid var(--line)}'
+    + '.v346-fonte-row:last-child{border-bottom:none}'
+    + '.v346-fonte-row .label{color:var(--ink-2)}'
+    + '.v346-fonte-row .stat{color:var(--ink-3);font-family:var(--mono);font-size:11px}'
+    + '.v346-fonte-row button{background:var(--accent,#22c55e);color:#fff;border:none;padding:5px 12px;border-radius:5px;font-size:11px;cursor:pointer;font-family:var(--mono);width:100%}'
+    + '.v346-fonte-row button.sec{background:var(--surface);color:var(--ink-2);border:1px solid var(--line)}'
+    + '.v346-fonte-row button.sec:hover{border-color:var(--accent,#22c55e);color:var(--accent,#22c55e)}'
+    + '.v346-fonte-row .empty{color:var(--ink-4);font-size:10px;text-align:center;font-family:var(--mono)}'
+    + '</style>'
+    + '<div class="v346-pool">'
+    + '<div class="v346-pool-head">'
+    + '<div><h3>Pool de potenciais compradores</h3><div class="sub">' + total + ' contatos no projeto</div></div>'
+    + '<div class="v346-pool-actions" id="v346-pool-actions-' + orig.id + '">'
+    + '<button onclick="origV346ListaSemanal(\'' + orig.id + '\')">📋 Gerar lista semanal</button>'
+    + '<button onclick="origV346AbrirContatoModal(\'' + orig.id + '\')">+ Adicionar contato</button>'
+    + '</div>'
+    + '</div>'
+    + alertaPool
+    + '<div id="v346-kanban-' + orig.id + '">'
+    + '<div style="padding:14px;background:var(--surface);border:1px dashed var(--line);border-radius:8px;color:var(--ink-3);font-size:12px;text-align:center">Carregando kanban…</div>'
+    + '</div>'
+    + '<div class="v346-fontes">'
+    + '<div class="v346-fontes-titulo">Fontes do pool</div>'
+    + '<div id="v346-fontes-list-' + orig.id + '"></div>'
+    + '</div>'
+    + '</div>';
+}
+
+async function origV346CarregarFontes(origId){
+  // Carrega contadores das fontes + kanban
+  const orig = window._origV346OrigCache[origId];
+  const lc = window._origV346LeadsCache[origId] || { total: 0 };
+  const arqs = window._origV346ArqCache[origId] || [];
+
+  // Verifica lista semanal existente
+  try {
+    const rL = await fetch(SB + '/rest/v1/originacao_lista_semanal?originacao_id=eq.' + origId + '&select=gerado_em&order=gerado_em.desc&limit=1', { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) } });
+    if (rL.ok){
+      const arr = await rL.json();
+      if (Array.isArray(arr) && arr[0]){
+        const data = new Date(arr[0].gerado_em).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        const acts = document.getElementById('v346-pool-actions-' + origId);
+        if (acts){
+          acts.innerHTML = '<span class="badge-ok">Lista gerada em ' + data + '</span>'
+            + '<button onclick="origV346VerListaSemanal(\'' + origId + '\')">Ver lista</button>'
+            + '<button onclick="origV346AbrirContatoModal(\'' + origId + '\')">+ Adicionar contato</button>';
+        }
+      }
+    }
+  } catch (_){}
+
+  // Conta fontes
+  const fontes = {
+    matchmaking: 0,
+    arsenal: lc.total || 0,
+    manual: 0,
+    ndas: 0,
+  };
+  try {
+    const rM = await fetch(SB + '/rest/v1/matchmaking_resultados?originacao_id=eq.' + origId + '&select=id&limit=1000', { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Prefer': 'count=exact' } });
+    const cr = rM.headers.get('content-range') || ''; const m = cr.match(/\/(\d+)$/);
+    if (m) fontes.matchmaking = parseInt(m[1], 10);
+  } catch (_){}
+  try {
+    const rU = await fetch(SB + '/rest/v1/pool_contatos_uso?originacao_id=eq.' + origId + '&canal=eq.manual&select=id&limit=1000', { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Prefer': 'count=exact' } });
+    const cr = rU.headers.get('content-range') || ''; const m = cr.match(/\/(\d+)$/);
+    if (m) fontes.manual = parseInt(m[1], 10);
+  } catch (_){}
+  try {
+    const rN = await fetch(SB + '/rest/v1/nda_assinaturas?originacao_id=eq.' + origId + '&select=id&limit=1000', { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Prefer': 'count=exact' } });
+    const cr = rN.headers.get('content-range') || ''; const m = cr.match(/\/(\d+)$/);
+    if (m) fontes.ndas = parseInt(m[1], 10);
+  } catch (_){}
+
+  const fL = document.getElementById('v346-fontes-list-' + origId);
+  if (fL){
+    fL.innerHTML = ''
+      + '<div class="v346-fonte-row"><span class="label">🤖 Matchmaking</span><span class="stat">' + fontes.matchmaking + ' matches</span><button class="sec" onclick="origV346RodarMatchmaking(\'' + origId + '\')">▶ Rodar agora</button></div>'
+      + '<div class="v346-fonte-row"><span class="label">🏛️ Arsenal</span><span class="stat">' + fontes.arsenal + ' leads</span><button onclick="origV346AbrirArsenal(\'' + origId + '\')">Abrir arsenal →</button></div>'
+      + '<div class="v346-fonte-row"><span class="label">✍️ Manual</span><span class="stat">' + fontes.manual + ' contatos</span><button class="sec" onclick="origV346AbrirContatoModal(\'' + origId + '\')">+ Adicionar</button></div>'
+      + '<div class="v346-fonte-row"><span class="label">📋 NDAs</span><span class="stat">' + fontes.ndas + ' assinados</span><span class="empty">—</span></div>';
+  }
+
+  // Carrega kanban (usa view pool_leads_originacao se existir · senão pool_contatos_uso)
+  try {
+    const rK = await fetch(SB + '/rest/v1/pool_leads_originacao?originacao_id=eq.' + origId + '&select=*&order=score_total.desc.nullslast&limit=500', { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) } });
+    if (rK.ok){
+      const leads = await rK.json();
+      const kanH = (typeof leadsKanbanHtml === 'function') ? leadsKanbanHtml(leads || []) : '<div style="padding:14px;color:var(--ink-3);font-size:12px;text-align:center">Kanban indisponível</div>';
+      const kc = document.getElementById('v346-kanban-' + origId);
+      if (kc) kc.innerHTML = kanH;
+    }
+  } catch (e){
+    const kc = document.getElementById('v346-kanban-' + origId);
+    if (kc) kc.innerHTML = '<div style="padding:14px;color:var(--alert,#dc2626);font-size:12px">Erro ao carregar leads: ' + (e?.message||'') + '</div>';
+  }
+}
+
+async function origV346ListaSemanal(origId){
+  if (!confirm('Gerar nova lista semanal com base nos leads atuais (score ≥ 70)?')) return;
+  try { await origV7GerarListaSemanal(origId); } catch (e){ alert('Erro: ' + (e?.message || '')); }
+  origV346CarregarFontes(origId);
+}
+async function origV346VerListaSemanal(origId){
+  try { await origV7GerarListaSemanal(origId); } catch (e){ alert('Erro: ' + (e?.message || '')); }
+}
+async function origV346RodarMatchmaking(origId){
+  alert('Matchmaking IA: use a aba dedicada (sidebar) pra rodar com configuração completa.');
+}
+
+// ═══════ Modal arsenal · 6 abas ═══════
+function origV346AbrirArsenal(origId){
+  let overlay = document.getElementById('v346-arsenal-overlay');
+  if (!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'v346-arsenal-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9998;display:flex;align-items:center;justify-content:center;padding:2.5vh 2.5vw;';
+    overlay.onclick = (e) => { if (e.target === overlay) origV346FecharArsenal(); };
+    document.body.appendChild(overlay);
+  }
+  const orig = window._origV346OrigCache[origId];
+  if (!orig){ alert('Projeto não carregado · recarregue a página.'); return; }
+  const arqs = window._origV346ArqCache[origId] || [];
+  const tabSalvo = (() => { try { return localStorage.getItem('arsenal_aba_' + origId) || 'setup'; } catch(_) { return 'setup'; } })();
+  overlay.innerHTML = ''
+    + '<style>'
+    + '.v346-modal{background:var(--bg);border-radius:12px;width:95vw;height:95vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--line)}'
+    + '.v346-modal-head{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--surface)}'
+    + '.v346-modal-head h2{margin:0;font-size:16px}'
+    + '.v346-modal-head .x{background:transparent;border:1px solid var(--line);color:var(--ink-3);width:32px;height:32px;border-radius:6px;cursor:pointer;font-size:16px}'
+    + '.v346-modal-tabs{display:flex;gap:2px;background:var(--surface);border-bottom:1px solid var(--line);padding:0 12px;overflow-x:auto}'
+    + '.v346-modal-tab{padding:10px 16px;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:12px;color:var(--ink-3);font-family:var(--mono);letter-spacing:.05em;white-space:nowrap;transition:all .12s}'
+    + '.v346-modal-tab:hover{color:var(--ink-2)}'
+    + '.v346-modal-tab.active{color:var(--accent,#22c55e);border-bottom-color:var(--accent,#22c55e)}'
+    + '.v346-modal-tab .breve{color:var(--ink-4);font-size:9px;margin-left:4px}'
+    + '.v346-modal-body{flex:1;overflow-y:auto;padding:18px 20px;background:var(--bg)}'
+    + '.v346-aba-placeholder{background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:48px 24px;text-align:center;color:var(--ink-3)}'
+    + '.v346-aba-placeholder .ico{font-size:40px;margin-bottom:14px;opacity:.5}'
+    + '.v346-aba-placeholder h3{margin:0 0 8px;font-size:16px;color:var(--ink-2)}'
+    + '.v346-aba-placeholder p{margin:0;font-size:13px;line-height:1.6;max-width:520px;margin:0 auto}'
+    + '</style>'
+    + '<div class="v346-modal">'
+    + '<div class="v346-modal-head">'
+    + '<div><h2>Arsenal · ' + origV2Esc(orig.nome || 'projeto') + '</h2></div>'
+    + '<button class="x" onclick="origV346FecharArsenal()">×</button>'
+    + '</div>'
+    + '<div class="v346-modal-tabs" id="v346-tabs-' + origId + '">'
+    + '<button class="v346-modal-tab" data-tab="setup" onclick="origV346TrocarAba(\'' + origId + '\',\'setup\')">Setup</button>'
+    + '<button class="v346-modal-tab" data-tab="passoA" onclick="origV346TrocarAba(\'' + origId + '\',\'passoA\')">Passo A · Queries</button>'
+    + '<button class="v346-modal-tab" data-tab="passoB" onclick="origV346TrocarAba(\'' + origId + '\',\'passoB\')">Passo B · Config</button>'
+    + '<button class="v346-modal-tab" data-tab="passoC" onclick="origV346TrocarAba(\'' + origId + '\',\'passoC\')">Passo C · Matriz</button>'
+    + '<button class="v346-modal-tab" data-tab="conteudo" onclick="origV346TrocarAba(\'' + origId + '\',\'conteudo\')">Conteúdo<span class="breve">em breve</span></button>'
+    + '<button class="v346-modal-tab" data-tab="ads" onclick="origV346TrocarAba(\'' + origId + '\',\'ads\')">Ads<span class="breve">em breve</span></button>'
+    + '</div>'
+    + '<div class="v346-modal-body" id="v346-body-' + origId + '"></div>'
+    + '</div>';
+  origV346TrocarAba(origId, tabSalvo);
+}
+
+function origV346FecharArsenal(){
+  const o = document.getElementById('v346-arsenal-overlay');
+  if (o) o.remove();
+}
+
+function origV346TrocarAba(origId, aba){
+  try { localStorage.setItem('arsenal_aba_' + origId, aba); } catch(_){}
+  const tabs = document.getElementById('v346-tabs-' + origId);
+  if (tabs) tabs.querySelectorAll('.v346-modal-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === aba));
+  const body = document.getElementById('v346-body-' + origId);
+  if (!body) return;
+  const orig = window._origV346OrigCache[origId];
+  const arqs = window._origV346ArqCache[origId] || [];
+  const leadsCount = window._origV346LeadsCache[origId] || { total: 0 };
+
+  if (aba === 'setup'){
+    body.innerHTML = origV346AbaSetup(orig, arqs);
+  } else if (aba === 'passoA'){
+    body.innerHTML = origV346AbaPassoA(orig, arqs);
+  } else if (aba === 'passoB'){
+    body.innerHTML = origV346AbaPassoB(orig);
+    // Auto-puxar CNPJ ao abrir Passo B (mesmo comportamento da renderização da página antes do refactor)
+    origV6PassoBAutoCnpj(orig.id).catch(()=>{});
+  } else if (aba === 'passoC'){
+    body.innerHTML = origV346AbaPassoC(orig, arqs, leadsCount);
+    origV9CarregarMatriz(orig, arqs).catch(()=>{});
+  } else if (aba === 'conteudo'){
+    body.innerHTML = '<div class="v346-aba-placeholder"><div class="ico">✍️</div><h3>Gerador de conteúdo · Em breve</h3><p>Roteiros de vídeo · posts · blog · carrossel · legendas gerados a partir da tese e dos arquétipos do projeto.</p></div>';
+  } else if (aba === 'ads'){
+    body.innerHTML = '<div class="v346-aba-placeholder"><div class="ico">📣</div><h3>Criador de anúncios · Em breve</h3><p>Campanhas META + Google Ads criadas automaticamente a partir dos arquétipos e do conteúdo gerado.</p></div>';
+  }
+}
+
+// Aba Setup: tese + arquétipos + ambientação
+function origV346AbaSetup(orig, arqs){
+  const tese = orig.tese_jsonb || null;
+  let teseHtml;
+  if (tese){
+    const fields = [
+      ['Diferencial competitivo', tese.diferencial_competitivo],
+      ['Dependência do dono', tese.dependencia_dono],
+      ['Perfil comprador ideal', tese.perfil_comprador_ideal],
+      ['Justificativa de preço', tese.justificativa_preco],
+    ].filter(([_,v]) => v).map(([k,v]) => '<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px">' + k + '</div><div style="font-size:12.5px;color:var(--ink-2);line-height:1.55">' + origV2Esc(v) + '</div></div>').join('');
+    const riscos = Array.isArray(tese.riscos_principais) ? '<div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px">Riscos principais</div><ul style="margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.6">' + tese.riscos_principais.map(r => '<li>' + origV2Esc(r) + '</li>').join('') + '</ul></div>' : '';
+    teseHtml = '<div style="background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><strong>Tese · v' + (tese._versao || orig.tese_versao || 1) + '</strong><button onclick="origV346AbrirChatTeseInline(\'' + orig.id + '\')" style="background:var(--surface);border:1px solid var(--line);color:var(--ink-2);padding:5px 10px;border-radius:5px;font-size:11px;cursor:pointer">✏ Editar tese</button></div>' + fields + riscos + '</div>';
+  } else {
+    teseHtml = '<div style="background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:24px;text-align:center"><p style="margin:0 0 12px;color:var(--ink-3);font-size:13px">Tese de investimento ainda não definida.</p><button onclick="origV346AbrirChatTeseInline(\'' + orig.id + '\')" style="background:var(--accent,#22c55e);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">🤖 Iniciar agente de tese</button></div>';
+  }
+
+  const arqHtml = arqs.length
+    ? '<div style="display:flex;flex-direction:column;gap:8px">' + arqs.map(a => '<div style="background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center"><div><strong style="font-size:13px">' + origV2Esc(a.nome || 'sem nome') + '</strong><div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + origV2Esc((a.perfil || '').slice(0,140)) + '</div></div><span style="font-family:var(--mono);font-size:10px;color:var(--accent,#22c55e);background:var(--accent-soft,rgba(34,197,94,.1));padding:3px 8px;border-radius:999px">aprovado</span></div>').join('') + '</div>'
+    : '<div style="background:var(--surface);border:1px dashed var(--line);border-radius:8px;padding:20px;text-align:center;color:var(--ink-3);font-size:12px">Nenhum arquétipo aprovado.</div>';
+
+  return ''
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">'
+    + '<div><h3 style="margin:0 0 10px;font-size:14px">Tese de investimento</h3>' + teseHtml + '</div>'
+    + '<div><h3 style="margin:0 0 10px;font-size:14px">Arquétipos aprovados</h3>' + arqHtml + '<div style="margin-top:10px"><button onclick="origV2GerarArquetipos(\'' + orig.id + '\')" style="background:var(--surface);border:1px solid var(--line);color:var(--ink-2);padding:6px 12px;border-radius:5px;font-size:11px;cursor:pointer;margin-right:6px">🤖 Gerar mais arquétipos</button></div></div>'
+    + '</div>'
+    + '<div class="v346-aba-placeholder" style="padding:24px"><div class="ico">📍</div><h3>Ambientação dos arquétipos · Em breve</h3><p>Definir onde cada arquétipo frequenta · clube · associação · evento · canal específico para targeting de busca refinado.</p></div>';
+}
+
+function origV346AbrirChatTeseInline(origId){
+  // Reusa o chat existente (origV8AbrirChatTese) · fecha o modal antes (chat tem layout próprio)
+  origV346FecharArsenal();
+  if (typeof origV8AbrirChatTese === 'function'){
+    origV8AbrirChatTese(origId);
+  } else {
+    alert('Chat de tese indisponível · função origV8AbrirChatTese não encontrada.');
+  }
+}
+
+// Aba Passo A · cards de queries por arquétipo (extrai do origV6RenderQueries)
+function origV346AbaPassoA(orig, arquetipos){
+  const arrToStr = (a) => Array.isArray(a) ? a.join(', ') : '';
+  const cards = arquetipos.map(arq => {
+    const q = arq.queries_busca || {};
+    const nome = origV2Esc(arq.nome || 'sem nome');
+    const gmaps = origV2Esc(q.gmaps_query || (Array.isArray(q.gmaps) ? q.gmaps[0] : '') || '');
+    const fb = origV2Esc(q.fb_keywords || (Array.isArray(q.fb_grupos) ? q.fb_grupos[0] : '') || '');
+    const ig = origV2Esc(q.ig_query || (Array.isArray(q.ig_influenciadores) ? q.ig_influenciadores[0] : '') || '');
+    const wc = origV2Esc(arrToStr(q.web_compradores));
+    const wi = origV2Esc(arrToStr(q.web_influenciadores));
+    const we = origV2Esc(arrToStr(q.web_eventos));
+    const wp = origV2Esc(arrToStr(q.web_profissionais));
+    const helpers = '<div style="display:flex;gap:4px;margin:4px 0 8px;flex-wrap:wrap;font-family:var(--mono);font-size:10px"><span style="color:var(--ink-4)">helpers:</span>'
+      + '<button type="button" class="orig-v6-helper-btn" onclick="origV6InsertHelper(\'qA-' + arq.id + '\',\'[cidade]\')">+[cidade]</button>'
+      + '<button type="button" class="orig-v6-helper-btn" onclick="origV6InsertHelper(\'qA-' + arq.id + '\',\'[setor]\')">+[setor]</button>'
+      + '<button type="button" class="orig-v6-helper-btn" onclick="origV6InsertHelper(\'qA-' + arq.id + '\',\'[bairro]\')">+[bairro]</button></div>';
+    const webHint = '<div style="font-size:10px;color:var(--ink-4);font-family:var(--mono);margin:-4px 0 4px 0">↑ separe múltiplas queries por vírgula</div>';
+    return '<div class="orig-v6-arq-queries" data-arq-id="' + arq.id + '">'
+      + '<h4>' + nome + '</h4>'
+      + '<div class="orig-v6-canal-row"><label>🗺️ Google Maps</label><input type="text" id="qA-' + arq.id + '-gmaps" value="' + gmaps + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" /></div>'
+      + '<div class="orig-v6-canal-row"><label>📘 Facebook Grupos</label><input type="text" id="qA-' + arq.id + '-fb" value="' + fb + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" /></div>'
+      + '<div class="orig-v6-canal-row"><label>📷 Instagram Influenciadores</label><input type="text" id="qA-' + arq.id + '-ig" value="' + ig + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" onblur="origV6IgSanitize(\'qA-' + arq.id + '-ig\')" /></div>'
+      + '<div class="orig-v6-canal-row"><label>🌐 Web · Compradores</label><input type="text" id="qA-' + arq.id + '-webc" value="' + wc + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" /></div>' + webHint
+      + '<div class="orig-v6-canal-row"><label>🌐 Web · Influenciadores</label><input type="text" id="qA-' + arq.id + '-webi" value="' + wi + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" /></div>' + webHint
+      + '<div class="orig-v6-canal-row"><label>🌐 Web · Eventos</label><input type="text" id="qA-' + arq.id + '-webe" value="' + we + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" /></div>' + webHint
+      + '<div class="orig-v6-canal-row"><label>🌐 Web · Profissionais</label><input type="text" id="qA-' + arq.id + '-webp" value="' + wp + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" /></div>' + webHint
+      + helpers
+      + '<div style="display:flex;justify-content:flex-end;gap:6px"><span id="qA-' + arq.id + '-status" style="font-size:10px;color:var(--ink-4)"></span><button type="button" class="orig-v6-helper-btn" onclick="origV6SalvarQueriesArq(\'' + arq.id + '\')" style="background:var(--accent,#22c55e);color:#fff;border-color:var(--accent,#22c55e)">💾 Salvar arquétipo</button></div>'
+      + (q.raciocinio ? '<p class="orig-v6-arq-raciocinio">' + origV2Esc(q.raciocinio) + '</p>' : '')
+      + '</div>';
+  }).join('');
+  return '<style>'
+    + '.orig-v6-helper-btn{background:var(--bg);border:1px solid var(--line);color:var(--ink-3);padding:2px 8px;border-radius:4px;cursor:pointer;font-size:10px;font-family:var(--mono);transition:.12s}'
+    + '.orig-v6-helper-btn:hover{background:var(--surface);border-color:var(--ink-3);color:var(--ink)}'
+    + '</style>'
+    + '<p style="margin:0 0 14px;color:var(--ink-3);font-size:13px">Revise/edite as queries de busca por arquétipo. Helpers <code>[cidade]</code>/<code>[setor]</code>/<code>[bairro]</code> inserem placeholders no input focado. Instagram é sanitizado on-blur.</p>'
+    + cards
+    + '<div style="margin-top:14px"><button onclick="origV6RegerarQueries(\'' + orig.id + '\')" style="background:var(--surface);border:1px solid var(--line);color:var(--ink-2);padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer">🔄 Regerar todas as queries (IA)</button></div>';
+}
+
+// Aba Passo B · reutiliza origV6PassoBHtml
+function origV346AbaPassoB(orig){
+  if (typeof origV6PassoBHtml === 'function') return origV6PassoBHtml(orig);
+  return '<div>Passo B indisponível</div>';
+}
+
+// Aba Passo C · matriz origV9 + arsenal clássico (preservado)
+function origV346AbaPassoC(orig, arquetipos, leadsCount){
+  const lc = leadsCount || { total: 0 };
+  let resumoLeads = '';
+  if (lc.total > 0){
+    resumoLeads = '<div style="margin-top:24px;padding:16px;background:var(--bg);border:1px solid var(--line);border-radius:8px"><h4 style="margin:0 0 12px 0;font-size:14px">📊 Leads coletados · ' + lc.total + ' totais</h4>'
+      + '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;font-size:12px;color:var(--ink-2)">'
+      + '<div>🏛️ Interno · ' + (lc.interno || 0) + '</div>'
+      + '<div>🗺️ GMaps · ' + (lc.gmaps || 0) + '</div>'
+      + '<div>📘 Facebook · ' + (lc.facebook || 0) + '</div>'
+      + '<div>📷 Instagram · ' + (lc.instagram || 0) + '</div>'
+      + '<div>🤝 Corretores · ' + (lc.corretores_locais || 0) + '</div>'
+      + '</div></div>';
+  }
+  return '<p style="margin:0 0 14px;color:var(--ink-3);font-size:13px">Matriz de controle · cada célula é uma execução individual (arquétipo × canal ou projeto × canal). Estados: pendente / rodando / concluído / erro.</p>'
+    + '<div id="orig-v9-matriz-' + orig.id + '"><div style="padding:14px;background:var(--bg);border:1px dashed var(--line);border-radius:8px;font-size:12px;color:var(--ink-3)">Carregando matriz…</div></div>'
+    + resumoLeads;
+}
+
+// ═══════ Mini-modal · adicionar contato manual ═══════
+function origV346AbrirContatoModal(origId){
+  let overlay = document.getElementById('v346-contato-overlay');
+  if (overlay) overlay.remove();
+  overlay = document.createElement('div');
+  overlay.id = 'v346-contato-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  const arqs = window._origV346ArqCache[origId] || [];
+  overlay.innerHTML = ''
+    + '<div style="background:var(--bg);border-radius:10px;width:100%;max-width:440px;border:1px solid var(--line);overflow:hidden">'
+    + '<div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between"><strong>Adicionar contato manual</strong><button onclick="document.getElementById(\'v346-contato-overlay\').remove()" style="background:transparent;border:none;font-size:20px;cursor:pointer;color:var(--ink-3)">×</button></div>'
+    + '<div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">'
+    + '<div><label style="display:block;font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Nome *</label><input type="text" id="v346-c-nome" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:13px;padding:8px 10px" /></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+    + '<div><label style="display:block;font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Empresa</label><input type="text" id="v346-c-empresa" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:13px;padding:8px 10px" /></div>'
+    + '<div><label style="display:block;font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Cidade</label><input type="text" id="v346-c-cidade" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:13px;padding:8px 10px" /></div>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+    + '<div><label style="display:block;font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Telefone</label><input type="text" id="v346-c-tel" placeholder="(11) 99999-9999" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:13px;padding:8px 10px" /></div>'
+    + '<div><label style="display:block;font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Email</label><input type="email" id="v346-c-email" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:13px;padding:8px 10px" /></div>'
+    + '</div>'
+    + '<div><label style="display:block;font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Arquétipo</label><select id="v346-c-arq" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:13px;padding:8px 10px"><option value="">— sem arquétipo —</option>' + arqs.map(a => '<option value="' + a.id + '">' + origV2Esc(a.nome || 'sem nome') + '</option>').join('') + '</select></div>'
+    + '<div><label style="display:block;font-family:var(--mono);font-size:9px;color:var(--ink-4);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Nota inicial</label><textarea id="v346-c-nota" rows="2" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:13px;padding:8px 10px;resize:vertical"></textarea></div>'
+    + '</div>'
+    + '<div style="padding:12px 16px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px"><button onclick="document.getElementById(\'v346-contato-overlay\').remove()" style="background:var(--surface);border:1px solid var(--line);color:var(--ink-2);padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer">Cancelar</button><button onclick="origV346SalvarContato(\'' + origId + '\')" id="v346-c-save" style="background:var(--accent,#22c55e);color:#fff;border:none;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Salvar contato</button></div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  setTimeout(()=>document.getElementById('v346-c-nome')?.focus(), 100);
+}
+
+async function origV346SalvarContato(origId){
+  const v = (id) => (document.getElementById(id)?.value || '').trim();
+  const nome = v('v346-c-nome');
+  const empresa = v('v346-c-empresa');
+  const cidade = v('v346-c-cidade');
+  const tel = v('v346-c-tel').replace(/\D/g,'');
+  const email = v('v346-c-email').toLowerCase();
+  const arqId = v('v346-c-arq');
+  const nota = v('v346-c-nota');
+  if (!nome){ alert('Nome é obrigatório.'); return; }
+  if (!tel && !email){ alert('Informe pelo menos telefone OU email.'); return; }
+  const identificador = tel || email;
+  const btn = document.getElementById('v346-c-save');
+  if (btn){ btn.disabled = true; btn.textContent = '⏳ salvando…'; }
+  try {
+    const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type':'application/json', 'Prefer':'return=representation,resolution=merge-duplicates' };
+    // 1. UPSERT pool_contatos_global
+    const globalBody = {
+      identificador_canonico: identificador,
+      fonte_origem: 'manual_admin',
+      nome,
+      telefone: tel || null,
+      email: email || null,
+      cidade: cidade || null,
+      categoria_setorial: 'comprador_potencial',
+      tags_consolidadas: ['manual', empresa].filter(Boolean),
+      dados_brutos: { empresa: empresa || null, nota: nota || null, _origem_form: 'painel_v3_v9.34.6' },
+      last_seen_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const rG = await fetch(SB + '/rest/v1/pool_contatos_global?on_conflict=identificador_canonico,fonte_origem', {
+      method:'POST', headers, body: JSON.stringify(globalBody)
+    });
+    if (!rG.ok){ const t = await rG.text(); throw new Error('Erro pool_global: ' + t.slice(0,150)); }
+    const gArr = await rG.json();
+    const contatoId = (Array.isArray(gArr) ? gArr[0]?.id : gArr?.id);
+    if (!contatoId) throw new Error('Sem contato_id retornado');
+    // 2. INSERT pool_contatos_uso (idempotente · ignora se já existe)
+    const usoBody = {
+      contato_id: contatoId,
+      originacao_id: origId,
+      arquetipo_id: arqId || null,
+      canal: 'manual',
+      status: 'novo',
+      observacao: nota || null,
+    };
+    const rU = await fetch(SB + '/rest/v1/pool_contatos_uso', {
+      method:'POST', headers: { ...headers, 'Prefer':'return=minimal' }, body: JSON.stringify(usoBody)
+    });
+    if (!rU.ok && rU.status !== 409){ const t = await rU.text(); console.warn('uso insert', t.slice(0,150)); }
+    document.getElementById('v346-contato-overlay').remove();
+    // Re-render fontes + kanban
+    origV346CarregarFontes(origId);
+  } catch (e){
+    alert('Erro: ' + (e?.message || ''));
+    if (btn){ btn.disabled = false; btn.textContent = 'Salvar contato'; }
   }
 }
 
