@@ -12673,59 +12673,269 @@ function pjRenderDetalhe(){
   const resumoEntregaveis = pjResumoEntregaveis(_pjEntregaveis||[]);
   const resumoVinculo = pjResumoVinculo(n,meta);
 
+  // v9.34.7 · redesenho proporcional · header 60px + 4 stats + pool protagonista + toolbar + coluna direita
   let html='';
-  // Tier 1 · Cockpit sticky (sempre visível, colapsa ao rolar)
-  html+=`<div class="pj-cockpit-sticky">${pjRenderCockpit(n,meta,mesAtual)}</div>`;
+  html += pjV347RenderDetalhe(n, meta, mesAtual, { resumoCabecalho, resumoFinanc, resumoEntregaveis, resumoVinculo });
+  document.getElementById('pj-det-corpo').innerHTML = html;
 
-  // Tier 2 · Pool protagonista (largura total · destaque visual)
-  html+=`<div class="pj-detalhe-protagonista">${pjMarcarPoolProtagonista(pjRenderPool(n,meta,_pjPoolContatos||[]))}</div>`;
+  // Render async · 4 stats + kanban + originação V2 stub
+  if (meta && meta.id) {
+    pjV347RenderStats(n, meta).catch(e => console.warn('[v347 stats]', e));
+    pjV347RenderPool(n, meta).catch(e => console.warn('[v347 pool]', e));
+    pjOriginacaoV2Render(meta.id);
+  }
+}
 
-  // Tier 3 · Grid 2 colunas
-  html+=`<div class="pj-detalhe-grid-2col">`;
-    // Esquerda · Ferramentas (alimentam pool · sempre expandidas)
-    html+=`<div class="pj-coluna-esquerda">`;
-    html+=`<div class="pj-coluna-titulo">Ferramentas · alimentam o pool</div>`;
-    html+=pjRenderMatches(n,meta,_pjMatches||[]);
-    // v9.27 · UI V1 desativada · V2 vem em v9.28+ (chat tese · arquétipos · leads)
-    if (meta && meta.id) html+=`<div id="pj-originacao-${meta.id}"></div>`;
-    html+=pjRenderPecas(n,_pjPecas||[]);
-    html+=`</div>`;
-    // Direita · Referências (consulta · compact-expand)
-    html+=`<div class="pj-coluna-direita">`;
-    html+=`<div class="pj-coluna-titulo">Referências do negócio</div>`;
-    html+=pjRefCard('📋 Cabeçalho', resumoCabecalho, pjRenderCabecalho(n,meta), true);
-    html+=pjRefCard('💰 Financeiro', resumoFinanc, pjRenderFinanceiro(n,meta,_pjMovimentacoes||[]), false);
-    html+=pjRefCard('📦 Entregáveis', resumoEntregaveis, pjRenderEntregaveis ? '' : '', false, 'placeholder');
-    html+=pjRefCard('🤝 Vínculo', resumoVinculo, pjRenderVinculo(n,meta), false);
-    html+=`</div>`;
-  html+=`</div>`;
+// ═══════════════════════════════════════════════════════════════════════
+// v9.34.7 · pjV347 · novo layout proporcional da página do projeto
+// ═══════════════════════════════════════════════════════════════════════
 
-  // Tier 4 · Abas Visão geral / Entregáveis / Leads (v9.33.5)
+function pjV347RenderDetalhe(n, meta, mesAtual, refs){
+  const negocioNome = origV2Esc(n.nome || '—');
+  const negLocal = origV2Esc((n.cidade || '—') + '/' + (n.estado || '—'));
+  const status = origV2Esc(meta?.status || 'sem onda');
+  const vend = n.vendedor || {};
   const temProj = !!(meta && meta.id);
-  const abaLeadsBtn = temProj ? `<button class="pj-aba ${_pjAbaDetalhe==='leads'?'active':''}" onclick="pjMudarAba('leads')">Leads</button>` : '';
-  html+=`<div class="pj-abas" style="margin-top:18px"><button class="pj-aba ${_pjAbaDetalhe==='visao'?'active':''}" onclick="pjMudarAba('visao')">Visão geral</button><button class="pj-aba ${_pjAbaDetalhe==='entregaveis'?'active':''}" onclick="pjMudarAba('entregaveis')">Entregáveis</button>${abaLeadsBtn}</div>`;
-  if (_pjAbaDetalhe === 'visao') {
-    html += pjRenderVisao(meta, mesAtual);
-  } else if (_pjAbaDetalhe === 'entregaveis') {
-    html += pjRenderEntregaveis();
-  } else if (_pjAbaDetalhe === 'leads' && temProj) {
-    html += '<div id="pj-aba-leads-' + meta.id + '" style="margin-top:14px;"><div class="leads-aba-vazio"><div class="orig-v4-loading" style="background:transparent;border:0;padding:0;"><div class="spinner"></div><p>Carregando leads...</p></div></div></div>';
-  } else {
-    html += pjRenderVisao(meta, mesAtual);
+
+  // Header compacto (60px · uma linha)
+  const header = ''
+    + '<div class="pj-v347-header">'
+    + '<div class="pj-v347-header-info">'
+    + '<strong>' + negocioNome + '</strong>'
+    + '<span class="sep">·</span>'
+    + '<span>' + negLocal + '</span>'
+    + '<span class="sep">·</span>'
+    + '<span>Mês ' + mesAtual + '/12</span>'
+    + '<span class="sep">·</span>'
+    + '<span class="pj-v347-status status-' + status.toLowerCase().replace(/\s+/g,'_') + '">' + status.toUpperCase() + '</span>'
+    + '</div>'
+    + '<div class="pj-v347-header-acoes">'
+    + '<button class="btn-mini" onclick="pjV347AbrirVisaoCliente(\'' + (n.id||'') + '\')">Ver como cliente →</button>'
+    + '</div>'
+    + '</div>';
+
+  // 4 stats (placeholders · populados async por pjV347RenderStats)
+  const stats = '<div class="pj-v347-stats">'
+    + '<div class="pj-v347-stat" id="pj-v347-st-novos"><span class="lbl">Leads novos</span><div class="val">—</div></div>'
+    + '<div class="pj-v347-stat" id="pj-v347-st-contato"><span class="lbl">Em contato</span><div class="val">—</div></div>'
+    + '<div class="pj-v347-stat" id="pj-v347-st-abordados"><span class="lbl">Abordados (semana)</span><div class="val">—</div></div>'
+    + '<div class="pj-v347-stat" id="pj-v347-st-saldo"><span class="lbl">Saldo</span><div class="val">R$ 0,00</div></div>'
+    + '</div>';
+
+  // Pool protagonista (kanban grande + fontes em linha + alerta)
+  const poolBloco = ''
+    + '<div class="pj-v347-pool">'
+    + '<div class="pj-v347-pool-head">'
+    + '<div><strong>Pool de leads</strong><span id="pj-v347-pool-count" style="margin-left:8px;color:var(--ink-3);font-size:12px">…</span></div>'
+    + '<div class="pj-v347-pool-acoes" id="pj-v347-pool-acoes">'
+    + (temProj ? '<button class="btn-mini" onclick="origV346ListaSemanal(\'' + meta.id + '\')">📋 Lista semanal</button>' : '')
+    + (temProj ? '<button class="btn-mini" onclick="origV346AbrirContatoModal(\'' + meta.id + '\')">+ Adicionar</button>' : '')
+    + '<span id="pj-v347-fontes-inline" style="margin-left:14px;font-family:var(--mono);font-size:11px;color:var(--ink-3)">…</span>'
+    + '</div>'
+    + '</div>'
+    + '<div id="pj-v347-pool-alerta"></div>'
+    + '<div id="pj-v347-kanban" class="pj-v347-kanban-wrap"><div class="pj-v347-empty">Carregando pool…</div></div>'
+    + '</div>';
+
+  // Toolbar
+  const toolbar = ''
+    + '<div class="pj-v347-toolbar">'
+    + (temProj ? '<button class="pj-v347-tool" onclick="origV346AbrirArsenal(\'' + meta.id + '\')">🎯 Arsenal</button>' : '')
+    + (temProj ? '<button class="pj-v347-tool" onclick="pjV347AbrirCockpit(\'' + meta.id + '\')">📊 Cockpit</button>' : '')
+    + (temProj ? '<button class="pj-v347-tool" onclick="pjV347AbrirMatchmaking(\'' + meta.id + '\')">🤖 Matchmaking</button>' : '')
+    + '<button class="pj-v347-tool desativado" disabled title="em breve">✍️ Conteúdo</button>'
+    + '<button class="pj-v347-tool desativado" disabled title="em breve">📣 Ads</button>'
+    + '<button class="pj-v347-tool" onclick="pjV347AbrirFinanceiro(\'' + (n.id||'') + '\')">💰 Financeiro</button>'
+    + '<button class="pj-v347-tool" onclick="pjV347AbrirEntregaveis()">📋 Entregáveis</button>'
+    + '<button class="pj-v347-tool" onclick="pjV347AbrirConfig(\'' + (n.id||'') + '\')">⚙️ Config</button>'
+    + '</div>';
+
+  // Coluna direita (referências · mantida)
+  const direita = ''
+    + '<div class="pj-coluna-direita pj-v347-direita">'
+    + '<div class="pj-coluna-titulo">Referências do negócio</div>'
+    + pjRefCard('📋 Cabeçalho', refs.resumoCabecalho, pjRenderCabecalho(n, meta), true)
+    + pjRefCard('💰 Financeiro', refs.resumoFinanc, pjRenderFinanceiro(n, meta, _pjMovimentacoes||[]), false)
+    + pjRefCard('📦 Entregáveis', refs.resumoEntregaveis, '', false, 'placeholder')
+    + pjRefCard('🤝 Vínculo', refs.resumoVinculo, pjRenderVinculo(n, meta), false)
+    + '</div>';
+
+  return ''
+    + '<style>'
+    + '.pj-v347-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-bottom:14px;min-height:48px;max-height:60px}'
+    + '.pj-v347-header-info{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}'
+    + '.pj-v347-header-info strong{font-size:14px}'
+    + '.pj-v347-header-info .sep{color:var(--ink-4)}'
+    + '.pj-v347-status{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.05em;padding:2px 8px;border-radius:999px;background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border:1px solid var(--accent-line,rgba(34,197,94,.3))}'
+    + '.pj-v347-header-acoes button{background:var(--accent,#22c55e);color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer}'
+    + '.pj-v347-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}'
+    + '.pj-v347-stat{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}'
+    + '.pj-v347-stat .lbl{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);display:block;margin-bottom:4px}'
+    + '.pj-v347-stat .val{font-family:var(--serif);font-size:22px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}'
+    + '.pj-v347-pool{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}'
+    + '.pj-v347-pool-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}'
+    + '.pj-v347-pool-acoes{display:flex;align-items:center;gap:6px;flex-wrap:wrap}'
+    + '.pj-v347-pool-acoes button{background:var(--surface);border:1px solid var(--line);color:var(--ink-2);padding:5px 10px;border-radius:5px;font-size:11px;cursor:pointer}'
+    + '.pj-v347-pool-acoes button:hover{border-color:var(--accent,#22c55e);color:var(--accent,#22c55e)}'
+    + '.pj-v347-kanban-wrap{min-height:200px}'
+    + '.pj-v347-empty{padding:32px 16px;text-align:center;color:var(--ink-3);font-size:13px;background:var(--surface);border:1px dashed var(--line);border-radius:8px}'
+    + '.pj-v347-toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding:8px 10px;background:var(--surface);border:1px solid var(--line);border-radius:8px}'
+    + '.pj-v347-tool{background:var(--bg);border:1px solid var(--line);color:var(--ink-2);padding:7px 13px;border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--sans);font-weight:500;transition:.12s}'
+    + '.pj-v347-tool:hover:not(.desativado){border-color:var(--accent,#22c55e);color:var(--accent,#22c55e)}'
+    + '.pj-v347-tool.desativado{opacity:.5;cursor:not-allowed}'
+    + '.pj-v347-pool-alerta:not(:empty){margin-bottom:10px}'
+    + '@media(max-width:980px){.pj-v347-stats{grid-template-columns:repeat(2,1fr)}}'
+    + '</style>'
+    + header
+    + stats
+    + poolBloco
+    + toolbar
+    + '<div class="pj-detalhe-grid-2col" style="grid-template-columns:1fr 360px">'
+    + '<div></div>'  // espaço futuro · pode ter notas etc
+    + direita
+    + '</div>';
+}
+
+async function pjV347RenderStats(n, meta){
+  if (!meta?.id) return;
+  // Conta leads em pool_contatos_uso pela originação (se houver) OR _pjPoolContatos
+  let novos=0, contato=0, abordadosSemana=0;
+  try {
+    // Tenta originacao via projeto_metadata
+    const rO = await fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + meta.id + '&select=id&order=created_at.desc&limit=1', { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
+    const arrO = await rO.json();
+    const origId = arrO && arrO[0] && arrO[0].id;
+    if (origId){
+      const r = await fetch(SB + '/rest/v1/pool_contatos_uso?originacao_id=eq.' + origId + '&select=status,created_at&limit=10000', { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
+      const arr = await r.json();
+      const seteDias = Date.now() - 7*86400000;
+      (arr||[]).forEach(c => {
+        const s = (c.status||'').toLowerCase();
+        if (s === 'novo' || s === 'frio') novos++;
+        if (s === 'contatado' || s === 'respondeu' || s === 'em_negociacao') contato++;
+        if (c.created_at && new Date(c.created_at).getTime() > seteDias && s !== 'novo' && s !== 'frio') abordadosSemana++;
+      });
+    }
+  } catch (_){}
+  const set = (id, v) => { const el = document.querySelector('#' + id + ' .val'); if (el) el.textContent = v; };
+  set('pj-v347-st-novos', novos);
+  set('pj-v347-st-contato', contato);
+  set('pj-v347-st-abordados', abordadosSemana);
+  // Saldo: usa _pjMovimentacoes existente · resumo financeiro
+  try {
+    const saldo = (_pjMovimentacoes||[]).reduce((s, m) => s + (Number(m.valor)||0) * (m.tipo === 'saida' ? -1 : 1), 0);
+    set('pj-v347-st-saldo', 'R$ ' + (saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}));
+  } catch (_) { set('pj-v347-st-saldo', 'R$ 0,00'); }
+}
+
+async function pjV347RenderPool(n, meta){
+  if (!meta?.id) return;
+  const cont = document.getElementById('pj-v347-kanban');
+  const acoes = document.getElementById('pj-v347-fontes-inline');
+  const alerta = document.getElementById('pj-v347-pool-alerta');
+  const countEl = document.getElementById('pj-v347-pool-count');
+  try {
+    // Origem · projetos_originacao deste projeto
+    const rO = await fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + meta.id + '&select=id&order=created_at.desc&limit=1', { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
+    const arrO = await rO.json();
+    const origId = arrO && arrO[0] && arrO[0].id;
+    if (!origId){
+      if (cont) cont.innerHTML = '<div class="pj-v347-empty"><div style="margin-bottom:8px">Projeto sem originação ativa.</div><div style="font-size:11px;color:var(--ink-4)">Configure tese e arquétipos no <button class="btn-mini" onclick="alert(\'Use a aba Visão geral · botão Iniciar originação\')">Arsenal</button></div></div>';
+      if (countEl) countEl.textContent = '· sem originação';
+      return;
+    }
+    // Pool leads via view
+    const r = await fetch(SB + '/rest/v1/pool_leads_originacao?originacao_id=eq.' + origId + '&select=*&order=score_total.desc.nullslast&limit=500', { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
+    if (!r.ok){
+      const t = await r.text();
+      if (cont) cont.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Erro ao buscar leads: HTTP ' + r.status + ' · ' + origV2Esc(t.slice(0,100)) + '</div>';
+      return;
+    }
+    const leads = await r.json();
+    if (countEl) countEl.textContent = '· ' + (leads.length || 0) + ' contatos';
+    // Conta fontes em paralelo
+    const fontes = await pjV347ContarFontes(origId, leads);
+    if (acoes){
+      acoes.textContent = 'Fontes: 🤖 ' + fontes.matchmaking + '  🏛️ ' + fontes.arsenal + '  ✍️ ' + fontes.manual + '  📋 ' + fontes.ndas;
+    }
+    // Alerta pool esvaziando
+    const novos = (leads || []).filter(l => (l.status||'').toLowerCase() === 'novo').length;
+    if (alerta){
+      alerta.innerHTML = novos < 5
+        ? '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400e;display:flex;align-items:center;justify-content:space-between"><span>⚠️ Pool com poucos leads novos (' + novos + ').</span><button class="btn-mini" onclick="origV346AbrirArsenal(\'' + origId + '\')" style="background:#f59e0b;color:#fff;border:none">Abrir arsenal →</button></div>'
+        : '';
+    }
+    // Cache pra modal arsenal
+    window._origV346OrigCache = window._origV346OrigCache || {};
+    window._origV346LeadsCache = window._origV346LeadsCache || {};
+    window._origV346OrigCache[origId] = { id: origId, nome: n.nome, briefing_jsonb: null, tese_jsonb: null };
+    window._origV346LeadsCache[origId] = { total: leads.length };
+    // Kanban via leadsKanbanHtml (4 colunas)
+    if (cont){
+      if (!leads.length){
+        cont.innerHTML = '<div class="pj-v347-empty"><div style="font-size:14px;margin-bottom:8px">Pool ainda sem leads.</div><button class="btn-mini" onclick="origV346AbrirArsenal(\'' + origId + '\')" style="background:var(--accent,#22c55e);color:#fff;border:none;padding:8px 14px;font-size:12px">🎯 Abrir arsenal →</button><div style="font-size:11px;color:var(--ink-4);margin-top:12px">Configure queries e rode os canais pra começar a buscar.</div></div>';
+      } else if (typeof leadsKanbanHtml === 'function'){
+        cont.innerHTML = leadsKanbanHtml(leads);
+      } else {
+        cont.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">leadsKanbanHtml não disponível</div>';
+      }
+    }
+  } catch (e){
+    if (cont) cont.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Erro: ' + origV2Esc(e?.message || '') + '</div>';
   }
+}
 
-  document.getElementById('pj-det-corpo').innerHTML=html;
+async function pjV347ContarFontes(origId, leads){
+  const fontes = { matchmaking: 0, arsenal: (leads||[]).length, manual: 0, ndas: 0 };
+  try {
+    const r = await fetch(SB + '/rest/v1/pool_contatos_uso?originacao_id=eq.' + origId + '&canal=eq.manual&select=id&limit=1000', { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK), 'Prefer':'count=exact' } });
+    const cr = r.headers.get('content-range') || ''; const m = cr.match(/\/(\d+)$/);
+    if (m){ fontes.manual = parseInt(m[1], 10); fontes.arsenal = Math.max(0, fontes.arsenal - fontes.manual); }
+  } catch (_){}
+  return fontes;
+}
 
-  // v9.33.5 · render async da aba Leads (depois que o DOM existe)
-  if (_pjAbaDetalhe === 'leads' && temProj) {
-    leadsAbaRenderar(meta.id);
-  }
+// Modais lightweight pra ferramentas do toolbar
+function pjV347OverlayGenerico(titulo, htmlBody){
+  let overlay = document.getElementById('pj-v347-overlay');
+  if (overlay) overlay.remove();
+  overlay = document.createElement('div');
+  overlay.id = 'pj-v347-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9998;display:flex;align-items:center;justify-content:center;padding:2.5vh 2.5vw';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = '<div style="background:var(--bg);border-radius:12px;width:95vw;height:90vh;display:flex;flex-direction:column;border:1px solid var(--line);overflow:hidden">'
+    + '<div style="padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--surface)"><strong>' + titulo + '</strong><button onclick="document.getElementById(\'pj-v347-overlay\').remove()" style="background:transparent;border:1px solid var(--line);color:var(--ink-3);width:32px;height:32px;border-radius:6px;cursor:pointer;font-size:16px">×</button></div>'
+    + '<div style="flex:1;overflow-y:auto;padding:18px 20px">' + htmlBody + '</div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+}
 
-  // v9.18 · listener scroll · compactar cockpit ao rolar > 200px
-  pjSetupCockpitSticky();
-
-  // v9.28 · render async do bloco Originação V2 (chat tese · arquétipos · leads)
-  if (meta && meta.id) pjOriginacaoV2Render(meta.id);
+function pjV347AbrirCockpit(projId){
+  const n = _pjAbertoNeg; if (!n) return;
+  const meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
+  const mesAtual = pjMesAtual(meta?.iniciado_em);
+  pjV347OverlayGenerico('📊 Cockpit do projeto', pjRenderCockpit(n, meta, mesAtual));
+}
+function pjV347AbrirMatchmaking(projId){
+  const n = _pjAbertoNeg; if (!n) return;
+  const meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
+  pjV347OverlayGenerico('🤖 Matchmaking IA', pjRenderMatches(n, meta, _pjMatches || []));
+}
+function pjV347AbrirFinanceiro(negId){
+  const n = _pjAbertoNeg; if (!n) return;
+  const meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
+  pjV347OverlayGenerico('💰 Financeiro do projeto', pjRenderFinanceiro(n, meta, _pjMovimentacoes || []));
+}
+function pjV347AbrirEntregaveis(){
+  pjV347OverlayGenerico('📋 Entregáveis do mês', pjRenderEntregaveis ? pjRenderEntregaveis() : '<p>Indisponível</p>');
+}
+function pjV347AbrirConfig(negId){
+  const n = _pjAbertoNeg; if (!n) return;
+  const meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
+  pjV347OverlayGenerico('⚙️ Configuração do projeto', pjRenderVinculo(n, meta));
+}
+function pjV347AbrirVisaoCliente(negId){
+  if (negId) window.open('/negocio.html?id=' + negId, '_blank');
 }
 
 // v9.18 · wrappers / helpers do layout híbrido
@@ -19439,7 +19649,14 @@ function origV346AbrirArsenal(origId){
   const orig = window._origV346OrigCache[origId];
   if (!orig){ alert('Projeto não carregado · recarregue a página.'); return; }
   const arqs = window._origV346ArqCache[origId] || [];
-  const tabSalvo = (() => { try { return localStorage.getItem('arsenal_aba_' + origId) || 'setup'; } catch(_) { return 'setup'; } })();
+  // v9.34.7 · default: Passo C se já tem arquétipos · Setup se não tem
+  const tabSalvo = (() => {
+    try {
+      const salvo = localStorage.getItem('arsenal_aba_' + origId);
+      if (salvo) return salvo;
+      return (arqs && arqs.length > 0) ? 'passoC' : 'setup';
+    } catch(_) { return (arqs && arqs.length > 0) ? 'passoC' : 'setup'; }
+  })();
   overlay.innerHTML = ''
     + '<style>'
     + '.v346-modal{background:var(--bg);border-radius:12px;width:95vw;height:95vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--line)}'
