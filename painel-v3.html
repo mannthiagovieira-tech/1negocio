@@ -12772,7 +12772,17 @@ function pjV347RenderDetalhe(n, meta, mesAtual, refs){
     + '.pj-v347-pool-acoes{display:flex;align-items:center;gap:6px;flex-wrap:wrap}'
     + '.pj-v347-pool-acoes button{background:var(--surface);border:1px solid var(--line);color:var(--ink-2);padding:5px 10px;border-radius:5px;font-size:11px;cursor:pointer}'
     + '.pj-v347-pool-acoes button:hover{border-color:var(--accent,#22c55e);color:var(--accent,#22c55e)}'
-    + '.pj-v347-kanban-wrap{min-height:200px}'
+    + '.pj-v347-kanban-wrap{min-height:200px;width:100%;overflow:visible}'
+    /* v9.34.7.2 · overrides do .leads-kanban pra funcionar fora do contexto flex original */
+    + '.pj-v347-kanban-wrap .leads-kanban{display:grid !important;grid-template-columns:repeat(4,minmax(0,1fr)) !important;gap:12px;padding:0;overflow:visible;height:auto;min-height:0;width:100%}'
+    + '.pj-v347-kanban-wrap .leads-kanban-col{min-height:200px;max-height:60vh;overflow:hidden}'
+    + '.pj-v347-kanban-wrap .leads-kanban-col-body{padding:6px;gap:5px}'
+    + '.pj-v347-kanban-wrap .leads-kanban-card{padding:6px 9px}'
+    + '.pj-v347-kanban-wrap .leads-kanban-card .card-head{margin-bottom:2px}'
+    + '.pj-v347-kanban-wrap .leads-kanban-card .card-nome{font-size:12.5px}'
+    + '.pj-v347-kanban-wrap .leads-kanban-card .card-meta{font-size:10.5px;gap:4px}'
+    + '@media(max-width:980px){.pj-v347-kanban-wrap .leads-kanban{grid-template-columns:repeat(2,minmax(0,1fr)) !important}}'
+    + '@media(max-width:600px){.pj-v347-kanban-wrap .leads-kanban{grid-template-columns:1fr !important}}'
     + '.pj-v347-empty{padding:32px 16px;text-align:center;color:var(--ink-3);font-size:13px;background:var(--surface);border:1px dashed var(--line);border-radius:8px}'
     + '.pj-v347-toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding:8px 10px;background:var(--surface);border:1px solid var(--line);border-radius:8px}'
     + '.pj-v347-tool{background:var(--bg);border:1px solid var(--line);color:var(--ink-2);padding:7px 13px;border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--sans);font-weight:500;transition:.12s}'
@@ -12791,36 +12801,34 @@ function pjV347RenderDetalhe(n, meta, mesAtual, refs){
     + '</div>';
 }
 
+// v9.34.7.2 · stats agora inicializa com saldo + fica pendente pros leads (preenchido por pjV347AtualizarStatsComLeads)
 async function pjV347RenderStats(n, meta){
-  if (!meta?.id) return;
-  // Conta leads em pool_contatos_uso pela originação (se houver) OR _pjPoolContatos
-  let novos=0, contato=0, abordadosSemana=0;
-  try {
-    // Tenta originacao via projeto_metadata
-    const rO = await fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + meta.id + '&select=id&order=created_at.desc&limit=1', { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
-    const arrO = await rO.json();
-    const origId = arrO && arrO[0] && arrO[0].id;
-    if (origId){
-      const r = await fetch(SB + '/rest/v1/pool_contatos_uso?originacao_id=eq.' + origId + '&select=status,created_at&limit=10000', { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
-      const arr = await r.json();
-      const seteDias = Date.now() - 7*86400000;
-      (arr||[]).forEach(c => {
-        const s = (c.status||'').toLowerCase();
-        if (s === 'novo' || s === 'frio') novos++;
-        if (s === 'contatado' || s === 'respondeu' || s === 'em_negociacao') contato++;
-        if (c.created_at && new Date(c.created_at).getTime() > seteDias && s !== 'novo' && s !== 'frio') abordadosSemana++;
-      });
-    }
-  } catch (_){}
   const set = (id, v) => { const el = document.querySelector('#' + id + ' .val'); if (el) el.textContent = v; };
-  set('pj-v347-st-novos', novos);
-  set('pj-v347-st-contato', contato);
-  set('pj-v347-st-abordados', abordadosSemana);
-  // Saldo: usa _pjMovimentacoes existente · resumo financeiro
+  // Saldo: usa _pjMovimentacoes (já carregado por pjFetch · síncrono)
   try {
     const saldo = (_pjMovimentacoes||[]).reduce((s, m) => s + (Number(m.valor)||0) * (m.tipo === 'saida' ? -1 : 1), 0);
     set('pj-v347-st-saldo', 'R$ ' + (saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}));
   } catch (_) { set('pj-v347-st-saldo', 'R$ 0,00'); }
+  // Leads novos/contato/abordados são populados via pjV347AtualizarStatsComLeads dentro de pjV347RenderPool (mesma fonte de dados do kanban · evita race + inconsistência)
+}
+
+// Recebe array de leads (mesmo formato do leadsKanbanHtml · vindo de pool_leads_originacao)
+function pjV347AtualizarStatsComLeads(leads){
+  const set = (id, v) => { const el = document.querySelector('#' + id + ' .val'); if (el) el.textContent = v; };
+  let novos=0, contato=0, abordadosSemana=0;
+  const seteDias = Date.now() - 7*86400000;
+  (leads || []).forEach(c => {
+    const s = (c.status||'novo').toLowerCase();
+    // Status V3: novo · em_contato · em_negociacao · convertido · descartado
+    // Legacy: frio · contatado · respondeu · qualificado · nda · proposta · fechou · perdeu
+    if (s === 'novo' || s === 'frio') novos++;
+    if (s === 'em_contato' || s === 'contatado' || s === 'respondeu' || s === 'em_negociacao' || s === 'qualificado' || s === 'nda' || s === 'proposta') contato++;
+    const baseTs = c.contatado_em || c.marcado_em || c.ultima_atividade;
+    if (baseTs && new Date(baseTs).getTime() > seteDias && s !== 'novo' && s !== 'frio') abordadosSemana++;
+  });
+  set('pj-v347-st-novos', novos);
+  set('pj-v347-st-contato', contato);
+  set('pj-v347-st-abordados', abordadosSemana);
 }
 
 // v9.34.7.1 · helper retry visível pra erros do pool
@@ -12868,6 +12876,8 @@ async function pjV347RenderPool(n, meta){
     }
     const leads = await r.json();
     if (countEl) countEl.textContent = '· ' + (leads.length || 0) + ' contatos';
+    // v9.34.7.2 · alimenta stats com mesma fonte do kanban (evita race + inconsistência)
+    pjV347AtualizarStatsComLeads(leads);
     // Conta fontes em paralelo
     const fontes = await pjV347ContarFontes(origId, leads);
     if (acoes){
