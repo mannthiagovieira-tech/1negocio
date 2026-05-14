@@ -117,7 +117,7 @@ function buildBudgetCards(valor: number, minimo: number, ideal: number, maximo: 
   // Caso 3 cards: layout normal
   return `<div class="budget-row">
       <div class="bcard"><span class="btier">Mínimo</span><div class="bval">${brl(minimo)}</div><div class="bper">/mês</div><div class="bdiv"></div><div class="binfo">3 meses → <strong>${brl(minTri)}</strong><br>Taxa de sucesso final: <strong>${brl(taxaFinalMin)}</strong></div></div>
-      <div class="bcard feat"><span class="btier">Ideal · 1%/12</span><div class="bval">${brl(ideal)}</div><div class="bper">/mês</div><div class="bdiv"></div><div class="binfo">3 meses → <strong>${brl(idealTri)}</strong><br>Taxa de sucesso final: <strong>${brl(taxaFinalIdeal)}</strong></div></div>
+      <div class="bcard feat"><span class="btier">Ideal · 1%/12</span><div class="bval">${brl(ideal)}</div><div class="bper">/mês</div><div class="bsub-recomendado">Recomendado · negociável até o mínimo</div><div class="bdiv"></div><div class="binfo">3 meses → <strong>${brl(idealTri)}</strong><br>Taxa de sucesso final: <strong>${brl(taxaFinalIdeal)}</strong></div></div>
       <div class="bcard"><span class="btier">Máximo · 3%/12</span><div class="bval">${brl(maximo)}</div><div class="bper">/mês</div><div class="bdiv"></div><div class="binfo">Maior investimento em ferramentas, anúncios e prospecção ativa</div></div>
     </div>`;
 }
@@ -301,12 +301,17 @@ serve(async (req) => {
       ? `<div class="stat"><span class="stat-lbl">Localização</span><span class="stat-val">${escapeHtml(localizacao)}</span></div>`
       : "";
 
+    // v9.34.8 · slug gerado ANTES do replacements (precisa pro Open Graph meta og:url)
+    const slug = `prop-${slugify(negocio_nome) || "negocio"}-${Date.now().toString(36)}`;
+    const storagePath = `${slug}.html`;
+
     const replacements: Record<string, string> = {
       "{{DATA_PROPOSTA}}": dataExtenso(hoje),
       "{{DATA_EXPIRACAO}}": dataExtenso(expira),
       "{{PRIMEIRO_NOME}}": artigo + " " + escapeHtml(negocio_nome),
       "{{ARTIGO}}": artigo,
       "{{NEGOCIO_NOME}}": escapeHtml(negocio_nome),
+      "{{SLUG}}": slug,
       "{{NEGOCIO_SETOR}}": escapeHtml(setorLabel),
       "{{FATURAMENTO}}": brlShort(Number(faturamento_anual) || 0),
       "{{MARGEM}}": (Number(margem_operacional) || 0) + "%",
@@ -323,9 +328,7 @@ serve(async (req) => {
       html = html.split(k).join(v);
     }
 
-    // 3) Slug + upload Storage
-    const slug = `prop-${slugify(negocio_nome) || "negocio"}-${Date.now().toString(36)}`;
-    const storagePath = `${slug}.html`;
+    // 3) Upload Storage (slug + storagePath já gerados acima)
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
     const { error: errUp } = await admin.storage
@@ -379,6 +382,7 @@ serve(async (req) => {
 
 
 
+
 // Template inline (fallback quando readTextFile não disponível no runtime de deploy)
 const TEMPLATE_INLINE = String.raw`
 <!DOCTYPE html>
@@ -386,7 +390,13 @@ const TEMPLATE_INLINE = String.raw`
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Proposta · Venda Assessorada · 1Negócio</title>
+<title>{{NEGOCIO_NOME}} · Proposta Venda Assessorada · 1Negócio</title>
+<meta property="og:title" content="{{NEGOCIO_NOME}} · Proposta Venda Assessorada · 1Negócio">
+<meta property="og:description" content="Proposta comercial personalizada para {{NEGOCIO_NOME}}. Clique para visualizar.">
+<meta property="og:image" content="https://1negocio.com.br/og-image.png">
+<meta property="og:url" content="https://1negocio.com.br/p/{{SLUG}}">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -469,11 +479,13 @@ section{margin-bottom:64px}
 .wave-grid{display:grid;grid-template-columns:3fr 3fr 3fr 2.2fr;gap:0;
   border:1px solid rgba(10,21,16,.08);border-top:none;
   border-radius:0 0 14px 14px;overflow:hidden;box-shadow:var(--sh-sm)}
+/* v9.34.8 · sombras/visual uniformes entre 4 cards · só peak tem destaque (gradient + borda accent) */
 .wcard{background:var(--surface);border-right:1px solid rgba(10,21,16,.07);
-  position:relative;transition:all .2s ease}
+  position:relative;transition:all .2s ease;box-shadow:var(--sh-sm)}
 .wcard:last-child{border-right:none}
-.wcard.peak{background:linear-gradient(180deg,rgba(10,168,90,.04) 0%,var(--surface) 100%)}
-.wcard.decline{background:var(--sf2)}
+.wcard.peak{background:linear-gradient(180deg,rgba(10,168,90,.04) 0%,var(--surface) 100%);
+  box-shadow:var(--sh-ac);border:1px solid var(--ac-line)}
+.wcard.decline{background:var(--surface)}
 .ghost{position:absolute;right:-8px;top:-16px;font-family:var(--serif);
   font-size:90px;font-weight:800;letter-spacing:-.06em;
   color:rgba(10,21,16,.04);line-height:1;pointer-events:none;user-select:none}
@@ -579,7 +591,9 @@ section{margin-bottom:64px}
   text-transform:uppercase;color:var(--ink-4);margin-bottom:6px;display:block}
 .feat .btier{color:var(--accent)}
 .bval{font-family:var(--serif);font-size:22px;font-weight:800;letter-spacing:-.03em;margin-bottom:1px}
-.feat .bval{color:var(--accent)}
+.feat .bval{color:var(--accent);font-size:32px}
+/* v9.34.8 · subtítulo destacado no card ideal */
+.bcard.feat .bsub-recomendado{font-family:var(--mono);font-size:8.5px;color:var(--accent);letter-spacing:.08em;text-transform:uppercase;margin-top:4px}
 .bper{font-family:var(--mono);font-size:9.5px;color:var(--ink-4);margin-bottom:12px}
 .bdiv{height:1px;background:rgba(10,21,16,.07);margin-bottom:12px}
 .binfo{font-size:11.5px;color:var(--ink-3);line-height:1.55}.binfo strong{color:var(--ink-2)}
@@ -730,6 +744,23 @@ section{margin-bottom:64px}
   </div>
 </section>
 
+<!-- O QUE FAZEMOS -->
+<section>
+  <span class="sec-label">O que fazemos — operação completa</span>
+  <div class="services-grid">
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg></div><div class="svc-title">Avaliação e posicionamento</div></div><div class="svc-desc">Avaliação técnica completa pelo método DCF + ISE, tese de investimento e mapeamento de até 7 arquétipos de comprador ideal. Você sabe quanto vale e por quê — com argumentos para defender o preço.</div><div class="svc-tags"><span class="svc-tag">DCF</span><span class="svc-tag">ISE</span><span class="svc-tag">Tese</span><span class="svc-tag">Arquétipos</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></div><div class="svc-title">Geração ativa de leads</div></div><div class="svc-desc">Usamos ferramentas de prospecção estruturada — Google Maps, LinkedIn, bancos de dados B2B, redes sociais — para encontrar empresas e pessoas que se encaixam em cada perfil de comprador. Novos contatos toda semana.</div><div class="svc-tags"><span class="svc-tag">Google Maps</span><span class="svc-tag">LinkedIn</span><span class="svc-tag">B2B</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div><div class="svc-title">Abordagem e prospecção ativa</div></div><div class="svc-desc">Não esperamos o comprador bater na porta. Abordamos diretamente cada contato mapeado com a narrativa certa para cada perfil. Somos especialistas em identificar sinergia e despertar interesse real.</div><div class="svc-tags"><span class="svc-tag">Outreach</span><span class="svc-tag">Sequência</span><span class="svc-tag">Personalizado</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div><div class="svc-title">Gestão de compradores</div></div><div class="svc-desc">Todos os compradores — pelos anúncios, pelo portal ou pela prospecção ativa — são gerenciados por nós. Atendimento sem limite, qualificação e filtragem rigorosa. Só compradores reais chegam até você.</div><div class="svc-tags"><span class="svc-tag">CRM</span><span class="svc-tag">Filtragem</span><span class="svc-tag">Sem limite</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M15 10l4.553-2.069A1 1 0 0121 8.82V15.18a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg></div><div class="svc-title">Conteúdo que vende</div></div><div class="svc-desc">Produzimos roteiros de vídeo, textos para blog e posts para redes sociais apresentando o negócio como oportunidade de investimento — com sigilo preservado. Conteúdo que educa o mercado antes do primeiro contato.</div><div class="svc-tags"><span class="svc-tag">Vídeo</span><span class="svc-tag">Blog</span><span class="svc-tag">Social</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><div class="svc-title">Anúncios segmentados</div></div><div class="svc-desc">Campanhas pagas no Instagram, Facebook e Google direcionadas com precisão para os arquétipos de comprador. O negócio aparece para quem pode e quer comprar — não para o público geral.</div><div class="svc-tags"><span class="svc-tag">Meta Ads</span><span class="svc-tag">Google Ads</span><span class="svc-tag">Segmentado</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div><div class="svc-title">Sigilo e NDA digital</div></div><div class="svc-desc">Nenhum comprador acessa informações sensíveis sem antes assinar NDA digital. Nome, sócios, endereço e dados financeiros só são revelados com sua aprovação explícita. Controle total em cada etapa.</div><div class="svc-tags"><span class="svc-tag">NDA</span><span class="svc-tag">Sigilo</span><span class="svc-tag">Controle</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div><div class="svc-title">Rede de corretores licenciados</div></div><div class="svc-desc">Seu negócio é apresentado à rede 1Negócio de corretores pelo Brasil — profissionais com rede própria de compradores ativos em cada setor e região. Um canal adicional sem custo extra.</div><div class="svc-tags"><span class="svc-tag">Rede nacional</span><span class="svc-tag">Licenciados</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="svc-title">Negociação e suporte jurídico</div></div><div class="svc-desc">Postura resolutiva na mesa — defendemos os interesses do vendedor. Acompanhamos a negociação, assessoramos na avaliação de propostas e damos suporte jurídico completo no closing. Você não fecha sozinho.</div><div class="svc-tags"><span class="svc-tag">Negociação</span><span class="svc-tag">Jurídico</span><span class="svc-tag">Closing</span></div></div>
+    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/><path d="M6 8h.01M9 8h6"/><path d="M6 11h12"/></svg></div><div class="svc-title">Área exclusiva de acompanhamento</div></div><div class="svc-desc">Você tem acesso a uma área exclusiva no seu portal onde acompanha em tempo real tudo que está sendo feito pelo seu negócio — performance de anúncios, número de prospecções realizadas, compradores no pipeline, conversas ativas e conteúdos publicados. Transparência total, sem precisar perguntar.</div><div class="svc-tags"><span class="svc-tag">Tempo real</span><span class="svc-tag">Anúncios</span><span class="svc-tag">Pipeline</span><span class="svc-tag">Prospecções</span></div></div>
+  </div>
+</section>
+
 <!-- CRONOGRAMA -->
 <section>
   <span class="sec-label">Cronograma · 9 meses de operação</span>
@@ -786,6 +817,7 @@ section{margin-bottom:64px}
       </div>
       <div class="wbody"><div class="steps">
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg></div><span class="stxt">Avaliação e Anúncio</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div><span class="stxt">Relatório de upsides — ações de melhoria de valor pré-venda</span></div>
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></div><span class="stxt">Dossiê e materiais de venda</span></div>
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg></div><span class="stxt">Tese de investimento</span></div>
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div><span class="stxt">Arquétipos de comprador ideal</span></div>
@@ -813,6 +845,7 @@ section{margin-bottom:64px}
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div><span class="stxt">Conversas qualificadas em curso</span></div>
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><span class="stxt">Novos compradores no radar</span></div>
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div><span class="stxt"><strong>Reunião trimestral · análise e realinhamento</strong></span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div><span class="stxt">Acompanhamento de evolução dos upsides</span></div>
       </div></div>
     </div>
 
@@ -832,6 +865,7 @@ section{margin-bottom:64px}
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><span class="stxt">Assessoria em propostas</span></div>
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg></div><span class="stxt">Suporte jurídico no closing</span></div>
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div><span class="stxt"><strong>Reunião trimestral · análise e realinhamento</strong></span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div><span class="stxt">Acompanhamento de evolução dos upsides</span></div>
       </div></div>
     </div>
 
@@ -879,23 +913,6 @@ section{margin-bottom:64px}
   <div class="disc"><span style="font-size:14px;flex-shrink:0;line-height:1.4">⚠</span><span class="disc-txt"><strong>Não garantimos venda.</strong> Garantimos operação estruturada, progressiva e honesta. A revisão estratégica entre cada onda é o que separa uma operação que evolui de uma que repete o mesmo erro.</span></div>
 </section>
 
-<!-- O QUE FAZEMOS -->
-<section>
-  <span class="sec-label">O que fazemos — operação completa</span>
-  <div class="services-grid">
-    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg></div><div class="svc-title">Avaliação e posicionamento</div></div><div class="svc-desc">Avaliação técnica completa pelo método DCF + ISE, tese de investimento e mapeamento de até 7 arquétipos de comprador ideal. Você sabe quanto vale e por quê — com argumentos para defender o preço.</div><div class="svc-tags"><span class="svc-tag">DCF</span><span class="svc-tag">ISE</span><span class="svc-tag">Tese</span><span class="svc-tag">Arquétipos</span></div></div>
-    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></div><div class="svc-title">Geração ativa de leads</div></div><div class="svc-desc">Usamos ferramentas de prospecção estruturada — Google Maps, LinkedIn, bancos de dados B2B, redes sociais — para encontrar empresas e pessoas que se encaixam em cada perfil de comprador. Novos contatos toda semana.</div><div class="svc-tags"><span class="svc-tag">Google Maps</span><span class="svc-tag">LinkedIn</span><span class="svc-tag">B2B</span></div></div>
-    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div><div class="svc-title">Abordagem e prospecção ativa</div></div><div class="svc-desc">Não esperamos o comprador bater na porta. Abordamos diretamente cada contato mapeado com a narrativa certa para cada perfil. Somos especialistas em identificar sinergia e despertar interesse real.</div><div class="svc-tags"><span class="svc-tag">Outreach</span><span class="svc-tag">Sequência</span><span class="svc-tag">Personalizado</span></div></div>
-    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div><div class="svc-title">Gestão de compradores</div></div><div class="svc-desc">Todos os compradores — pelos anúncios, pelo portal ou pela prospecção ativa — são gerenciados por nós. Atendimento sem limite, qualificação e filtragem rigorosa. Só compradores reais chegam até você.</div><div class="svc-tags"><span class="svc-tag">CRM</span><span class="svc-tag">Filtragem</span><span class="svc-tag">Sem limite</span></div></div>
-    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M15 10l4.553-2.069A1 1 0 0121 8.82V15.18a1 1 0 01-1.447.89L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg></div><div class="svc-title">Conteúdo que vende</div></div><div class="svc-desc">Produzimos roteiros de vídeo, textos para blog e posts para redes sociais apresentando o negócio como oportunidade de investimento — com sigilo preservado. Conteúdo que educa o mercado antes do primeiro contato.</div><div class="svc-tags"><span class="svc-tag">Vídeo</span><span class="svc-tag">Blog</span><span class="svc-tag">Social</span></div></div>
-    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><div class="svc-title">Anúncios segmentados</div></div><div class="svc-desc">Campanhas pagas no Instagram, Facebook e Google direcionadas com precisão para os arquétipos de comprador. O negócio aparece para quem pode e quer comprar — não para o público geral.</div><div class="svc-tags"><span class="svc-tag">Meta Ads</span><span class="svc-tag">Google Ads</span><span class="svc-tag">Segmentado</span></div></div>
-    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div><div class="svc-title">Sigilo e NDA digital</div></div><div class="svc-desc">Nenhum comprador acessa informações sensíveis sem antes assinar NDA digital. Nome, sócios, endereço e dados financeiros só são revelados com sua aprovação explícita. Controle total em cada etapa.</div><div class="svc-tags"><span class="svc-tag">NDA</span><span class="svc-tag">Sigilo</span><span class="svc-tag">Controle</span></div></div>
-    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div><div class="svc-title">Rede de corretores licenciados</div></div><div class="svc-desc">Seu negócio é apresentado à rede 1Negócio de corretores pelo Brasil — profissionais com rede própria de compradores ativos em cada setor e região. Um canal adicional sem custo extra.</div><div class="svc-tags"><span class="svc-tag">Rede nacional</span><span class="svc-tag">Licenciados</span></div></div>
-    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div class="svc-title">Negociação e suporte jurídico</div></div><div class="svc-desc">Postura resolutiva na mesa — defendemos os interesses do vendedor. Acompanhamos a negociação, assessoramos na avaliação de propostas e damos suporte jurídico completo no closing. Você não fecha sozinho.</div><div class="svc-tags"><span class="svc-tag">Negociação</span><span class="svc-tag">Jurídico</span><span class="svc-tag">Closing</span></div></div>
-    <div class="svc"><div class="svc-icon-row"><div class="svc-bigicon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/><path d="M6 8h.01M9 8h6"/><path d="M6 11h12"/></svg></div><div class="svc-title">Área exclusiva de acompanhamento</div></div><div class="svc-desc">Você tem acesso a uma área exclusiva no seu portal onde acompanha em tempo real tudo que está sendo feito pelo seu negócio — performance de anúncios, número de prospecções realizadas, compradores no pipeline, conversas ativas e conteúdos publicados. Transparência total, sem precisar perguntar.</div><div class="svc-tags"><span class="svc-tag">Tempo real</span><span class="svc-tag">Anúncios</span><span class="svc-tag">Pipeline</span><span class="svc-tag">Prospecções</span></div></div>
-  </div>
-</section>
-
 <!-- PROPOSTA COMERCIAL -->
 <section>
   <span class="sec-label">Proposta comercial · Proprietário · {{NEGOCIO_NOME}}</span>
@@ -903,6 +920,15 @@ section{margin-bottom:64px}
     <div class="bh-title">Investimento mensal</div>
     <div style="display:inline-flex;align-items:center;gap:6px;margin-bottom:4px"><span style="font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);background:var(--ac-soft);border:1px solid var(--ac-line);border-radius:999px;padding:3px 9px">Negociável</span><span style="font-family:var(--mono);font-size:9px;color:var(--ink-3)">qualquer valor entre o mínimo e o ideal pode ser acordado</span></div>
     <div class="bh-sub">Calculado sobre o valor estimado do negócio · todo valor pago é abatido da taxa de sucesso no closing</div>
+
+    <!-- v9.34.8 · destaque 5% taxa de sucesso -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;padding:16px 20px;background:var(--ac-soft);border:1px solid var(--ac-line);border-radius:12px">
+      <div style="font-family:var(--serif);font-size:36px;font-weight:800;letter-spacing:-.04em;color:var(--accent);line-height:1">5%</div>
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--ink)">Taxa de sucesso sobre o valor de venda</div>
+        <div style="font-size:12px;color:var(--ink-3);margin-top:2px">Só cobramos quando a venda acontece. Todo valor mensal pago é abatido desta taxa no fechamento.</div>
+      </div>
+    </div>
 
     {{BUDGET_CARDS}}
     <div class="budget-note"><strong>Como funciona:</strong> A taxa de sucesso é de <strong>5% sobre o valor de venda</strong> ({{TAXA_SUCESSO_5PCT}} sobre o valor estimado de {{VALOR_NEGOCIO}}). Todo valor mensal pago é abatido diretamente dessa taxa no fechamento. Fidelidade mínima de <strong>3 meses</strong>.</div>
@@ -925,15 +951,72 @@ section{margin-bottom:64px}
       </div>
       <div class="term" style="border-top:2px solid var(--accent)">
         <span class="term-label">Geração de leads e anúncios</span>
-        <div class="term-value" style="color:var(--accent)">40%</div>
+        <div class="term-value" style="color:var(--accent)">50%</div>
         <div class="term-sub">Direto em ferramentas de prospecção e campanhas pagas pelo seu negócio.</div>
       </div>
       <div class="term" style="border-top:2px solid var(--accent)">
         <span class="term-label">Mão de obra e gestão</span>
-        <div class="term-value" style="color:var(--accent)">40%</div>
+        <div class="term-value" style="color:var(--accent)">30%</div>
         <div class="term-sub">Estratégia, curadoria, relacionamento e gestão da operação completa.</div>
       </div>
     </div>
+
+    <!-- v9.34.8 · Distribuição da receita no fechamento -->
+    <div style="margin-top:14px;background:var(--sf2);border:1px solid rgba(10,21,16,.08);border-radius:12px;padding:18px 20px">
+      <div style="font-family:var(--mono);font-size:8.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-4);margin-bottom:14px">Como a receita é distribuída no fechamento</div>
+      <div style="font-size:13px;color:var(--ink-2);line-height:1.7;margin-bottom:12px">
+        Da taxa de 5% sobre o valor de venda, subtraímos os valores mensais já pagos e os impostos. O valor líquido resultante é distribuído entre todos os profissionais envolvidos no processo:
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        <div style="background:var(--surface);border:1px solid var(--ac-line);border-radius:10px;padding:14px;text-align:center">
+          <div style="font-family:var(--serif);font-size:24px;font-weight:800;color:var(--accent);letter-spacing:-.03em">40%</div>
+          <div style="font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);margin-top:4px">Parceiro originador</div>
+          <div style="font-size:11px;color:var(--ink-3);margin-top:4px;line-height:1.4">Responsável pelo negócio e pelo vendedor</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--ac-line);border-radius:10px;padding:14px;text-align:center">
+          <div style="font-family:var(--serif);font-size:24px;font-weight:800;color:var(--accent);letter-spacing:-.03em">40%</div>
+          <div style="font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);margin-top:4px">Parceiro comprador</div>
+          <div style="font-size:11px;color:var(--ink-3);margin-top:4px;line-height:1.4">Quem trouxe e qualificou o comprador</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid rgba(10,21,16,.1);border-radius:10px;padding:14px;text-align:center">
+          <div style="font-family:var(--serif);font-size:24px;font-weight:800;color:var(--ink-3);letter-spacing:-.03em">20%</div>
+          <div style="font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);margin-top:4px">Plataforma 1Negócio</div>
+          <div style="font-size:11px;color:var(--ink-3);margin-top:4px;line-height:1.4">Infraestrutura, tecnologia e operação</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- v9.34.8 · Planos alternativos · Gratuito / Guiado -->
+<section>
+  <span class="sec-label">Se este não for o seu momento ainda, considere</span>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="background:var(--surface);border:1px solid rgba(10,21,16,.08);border-radius:14px;padding:22px;box-shadow:var(--sh-sm)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-family:var(--serif);font-size:17px;font-weight:800;letter-spacing:-.025em">Plano Gratuito</div>
+        <div style="font-family:var(--serif);font-size:20px;font-weight:800;color:var(--accent)">R$ 0</div>
+      </div>
+      <div style="font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin-bottom:10px">10% taxa de sucesso</div>
+      <div style="font-size:12px;color:var(--ink-3);line-height:1.6;margin-bottom:14px">Avaliação totalmente autônoma. Publicação curada pela equipe. Rede de vendedores autorizados. Atendimento reativo de interessados. Suporte em negociação e fechamento.</div>
+      <div style="background:var(--ac-soft);border:1px solid var(--ac-line);border-radius:8px;padding:9px 12px;font-size:11.5px;color:var(--ink-2)"><strong style="color:var(--ink)">Recomendado para:</strong> Empresas que já sabem o valor do negócio e querem visibilidade imediata sem investimento mensal.</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid rgba(10,21,16,.08);border-radius:14px;padding:22px;box-shadow:var(--sh-sm)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-family:var(--serif);font-size:17px;font-weight:800;letter-spacing:-.025em">Plano Guiado</div>
+        <div style="font-family:var(--serif);font-size:20px;font-weight:800;color:var(--ink)">R$ 588</div>
+      </div>
+      <div style="font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-bottom:10px">+ 5% taxa de sucesso</div>
+      <div style="font-size:12px;color:var(--ink-3);line-height:1.6;margin-bottom:14px">Avaliação feita por consultor em reunião — você não preenche nada. Publicação na rede de vendedores autorizados. Atendimento reativo. Suporte em negociação e fechamento. Sem exclusividade. <strong style="color:var(--ink-2)">Bônus: laudo completo em PDF.</strong></div>
+      <div style="background:var(--ac-soft);border:1px solid var(--ac-line);border-radius:8px;padding:9px 12px;font-size:11.5px;color:var(--ink-2)"><strong style="color:var(--ink)">Recomendado para:</strong> Donos que querem apoio na avaliação mas preferem gestão independente da venda, sem compromisso mensal.</div>
+    </div>
+  </div>
+  <div style="margin-top:14px;text-align:center;padding:20px;background:var(--sf2);border-radius:12px;border:1px solid rgba(10,21,16,.08)">
+    <div style="font-size:14px;color:var(--ink-2);margin-bottom:14px">Independente de qual seja o seu caminho, estamos aqui.</div>
+    <a href="https://wa.me/5511952136406?text=Ol%C3%A1%2C+vim+pela+proposta+da+1Neg%C3%B3cio+e+gostaria+de+conversar." target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:var(--accent-ink);font-family:var(--sans);font-size:13px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-radius:999px;padding:13px 26px;text-decoration:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.025.507 3.934 1.401 5.604L0 24l6.545-1.38A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.006-1.373l-.36-.214-3.733.786.8-3.647-.235-.374A9.818 9.818 0 012.182 12C2.182 6.575 6.575 2.182 12 2.182c5.424 0 9.818 4.393 9.818 9.818 0 5.424-4.394 9.818-9.818 9.818z"/></svg>
+      Falar com a equipe
+    </a>
   </div>
 </section>
 
@@ -950,7 +1033,7 @@ section{margin-bottom:64px}
   <div class="cta-box">
     <div class="cta-title">Pronto para ir ao mercado?</div>
     <p class="cta-sub">Esta proposta foi construída especificamente para {{ARTIGO}} {{NEGOCIO_NOME}}.<br>O próximo passo é uma conversa de 30 minutos — sem compromisso.</p>
-    <a href="https://wa.me/5548991994080?text=Ol%C3%A1%2C+vim+pela+proposta+da+1Neg%C3%B3cio+e+gostaria+de+conversar+sobre+a+venda+do+meu+neg%C3%B3cio." class="cta-btn" target="_blank" rel="noopener">
+    <a href="https://wa.me/5511952136406?text=Ol%C3%A1%2C+vim+pela+proposta+da+1Neg%C3%B3cio+e+gostaria+de+conversar+sobre+a+venda+do+meu+neg%C3%B3cio." class="cta-btn" target="_blank" rel="noopener">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.025.507 3.934 1.401 5.604L0 24l6.545-1.38A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.006-1.373l-.36-.214-3.733.786.8-3.647-.235-.374A9.818 9.818 0 012.182 12C2.182 6.575 6.575 2.182 12 2.182c5.424 0 9.818 4.393 9.818 9.818 0 5.424-4.394 9.818-9.818 9.818z"/></svg>
       Falar no WhatsApp
     </a>
