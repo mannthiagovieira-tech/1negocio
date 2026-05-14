@@ -338,10 +338,18 @@ serve(async (req) => {
     if (errArq) return resp(500, { ok: false, erro: "fetch_arquetipos_falhou", detalhe: errArq.message });
     if (!arquetipos || arquetipos.length === 0) return resp(400, { ok: false, erro: "nenhum_arquetipo_com_queries" });
 
+    // v9.34.4 Sprint 5 b2 · queries_override (Passo B do painel) tem prioridade pro canal
+    const queriesOverride = Array.isArray(body?.queries_override)
+      ? body.queries_override.map((q: any) => String(q).trim()).filter(Boolean)
+      : [];
+
     // Sequencial (Claude web pode demorar 30-60s · paralelo arriscaria rate limit)
     const porArquetipo: any[] = [];
     for (const arq of arquetipos) {
-      const r = await processarArquetipo(adminClient, originacao_id, canal, arq, orig.briefing_jsonb);
+      const arqEfetivo = queriesOverride.length > 0
+        ? { ...arq, queries_busca: { ...(arq.queries_busca || {}), [canal]: queriesOverride } }
+        : arq;
+      const r = await processarArquetipo(adminClient, originacao_id, canal, arqEfetivo, orig.briefing_jsonb);
       porArquetipo.push(r);
     }
 

@@ -433,14 +433,22 @@ serve(async (req) => {
     if (errArq) return resp(500, { ok: false, erro: "fetch_arquetipos_falhou", detalhe: errArq.message });
     if (!arquetipos || arquetipos.length === 0) return resp(400, { ok: false, erro: "nenhum_arquetipo_aprovado" });
 
+    // v9.34.4 Sprint 5 b2 · queries_override (Passo B) injeta queries no campo do canal
+    const queriesOverride = Array.isArray(body?.queries_override)
+      ? body.queries_override.map((q: any) => String(q).trim()).filter(Boolean)
+      : [];
+    const arquetiposEfetivos = queriesOverride.length > 0
+      ? arquetipos.map((a: any) => ({ ...a, queries_busca: { ...(a.queries_busca || {}), [canal]: queriesOverride } }))
+      : arquetipos;
+
     let porArquetipo: any[];
     switch (canal) {
       case "fb_grupos":
-        porArquetipo = await rodarFbGrupos(adminClient, originacao_id, arquetipos, orig.briefing_jsonb);
+        porArquetipo = await rodarFbGrupos(adminClient, originacao_id, arquetiposEfetivos, orig.briefing_jsonb);
         break;
       case "ig_influenciadores":
       case "ig_corretores":
-        porArquetipo = await rodarIgHashtag(adminClient, originacao_id, arquetipos, orig.briefing_jsonb, canal);
+        porArquetipo = await rodarIgHashtag(adminClient, originacao_id, arquetiposEfetivos, orig.briefing_jsonb, canal);
         break;
       case "ig_clientes":
         porArquetipo = await rodarIgClientes(adminClient, originacao_id, arquetipos, orig.briefing_jsonb, negocio_instagram);

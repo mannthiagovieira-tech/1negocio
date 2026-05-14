@@ -259,9 +259,13 @@ serve(async (req) => {
     }
 
     // v9.33.7 · MODO CORRETORES · queries fixas · não usa arquétipos
+    // v9.34.4 Sprint 5 b2 · aceita queries_override (Passo B) com prioridade
     if (modoTipo === "corretores") {
       const cidade = (orig.briefing_jsonb?.negocio?.cidade || "").trim() || "Brasil";
-      const queries = [
+      const overrideArr = Array.isArray(body?.queries_override)
+        ? body.queries_override.map((q: any) => String(q).trim()).filter(Boolean)
+        : [];
+      const queries = overrideArr.length > 0 ? overrideArr : [
         `corretora de negócios ${cidade}`,
         `imobiliária comercial ${cidade}`,
         `consultor M&A ${cidade}`,

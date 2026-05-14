@@ -18645,12 +18645,28 @@ async function origV6RenderFase(orig, container) {
       container.innerHTML = '<div class="orig-v4-loading"><h3>🎯 Fase 3 · Busca de Leads</h3><p>Nenhum arquétipo aprovado nesta originação. Volte pra Fase 2 e aprove pelo menos 1 arquétipo.</p></div>';
       return;
     }
+    // v9.34.4 Sprint 5 b2 · gate verificação de queries antes do Passo A
+    // critério "tem queries": gmaps_query string OU fb_grupos array OU web_compradores array
+    const temQueries = (a) => {
+      const q = a?.queries_busca || {};
+      return (typeof q.gmaps_query === 'string' && q.gmaps_query.trim().length > 0)
+          || (Array.isArray(q.fb_grupos) && q.fb_grupos.length > 0)
+          || (Array.isArray(q.web_compradores) && q.web_compradores.length > 0);
+    };
+    const semQueries = arquetipos.filter(a => !temQueries(a));
+    if (semQueries.length > 0 && arquetipos.length > 0) {
+      // Renderiza tela intermediária + dispara geração
+      await origV6GateGerarQueries(orig, container, arquetipos, semQueries);
+      return;
+    }
     const comQueries = arquetipos.filter(a => a.queries_busca);
     if (comQueries.length === 0) {
       container.innerHTML = origV6RenderEmpty(orig.id);
     } else {
       const leadsCount = await origV6ContarLeads(orig.id);
       container.innerHTML = origV6RenderQueries(orig, comQueries, leadsCount);
+      // v9.34.4 Sprint 5 b2 · auto-puxar CNPJ do negócio (Parte 1)
+      origV6PassoBAutoCnpj(orig.id).catch(e => console.warn('[passoB auto cnpj]', e));
     }
   } catch (e) {
     console.error('[origV6RenderFase] exception', e);
@@ -18799,6 +18815,75 @@ function origV6RenderQueries(orig, arquetiposComQueries, leadsCount) {
     + '</div>';
 }
 
+// ═══════ Sprint 5 batch 2 · gate verificação queries antes do Passo A ═══════
+async function origV6GateGerarQueries(orig, container, arquetipos, semQueries){
+  const linhaArq = (a, statusTxt) => '<div style="font-family:var(--mono);font-size:12px;margin:4px 0;color:var(--ink-2)">⏳ ' + origV2Esc(a.nome || 'sem nome') + ' · <span id="gate-' + a.id + '">' + statusTxt + '</span></div>';
+  let html = '<div class="orig-v4-loading" style="padding:24px"><h3 style="margin:0 0 4px">Gerando queries de busca</h3>'
+    + '<p style="font-size:12px;color:var(--ink-3);margin:0 0 12px">Os arquétipos abaixo ainda não têm queries geradas. Gerando automaticamente antes de continuar…</p>';
+  for (let i=0; i<arquetipos.length; i++){
+    const a = arquetipos[i];
+    const status = semQueries.find(x => x.id === a.id) ? (i === 0 ? 'rodando…' : 'aguardando') : '✓';
+    html += linhaArq(a, status);
+  }
+  html += '<p style="font-size:11px;color:var(--ink-4);margin-top:12px">~30-60s por arquétipo · custo ~R$ 0,02 cada</p></div>';
+  container.innerHTML = html;
+  // Sequencial por arquétipo missing
+  for (let i=0; i<semQueries.length; i++){
+    const a = semQueries[i];
+    const span = document.getElementById('gate-' + a.id);
+    if (span) span.textContent = 'rodando…';
+    try {
+      const r = await fetch(SB + '/functions/v1/gerar-queries-arquetipo', {
+        method:'POST',
+        headers:{'Authorization':'Bearer '+origV2Token(),'Content-Type':'application/json'},
+        body: JSON.stringify({ originacao_id: orig.id, arquetipo_id: a.id })
+      });
+      const d = await r.json().catch(()=>({}));
+      if (!r.ok || !d.ok){
+        if (span) span.textContent = '✗ ' + (d.erro || ('HTTP ' + r.status));
+      } else {
+        if (span) span.textContent = '✓';
+      }
+    } catch (e){
+      if (span) span.textContent = '✗ exception';
+    }
+  }
+  // Após gerar todos · re-render Passo A normal
+  await origV6RenderFase(orig, container);
+}
+
+// ═══════ Sprint 5 batch 2 · auto-puxar CNPJ do negócio (Parte 1) ═══════
+async function origV6PassoBAutoCnpj(origId){
+  // Só roda se o input CNPJ tá vazio (não sobrescreve edição do user)
+  const el = document.getElementById('pb-cnpj-' + origId);
+  if (!el || (el.value && el.value.trim())) return;
+  try {
+    // Resolve projeto_id e depois negocio.cnpj
+    const r1 = await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + origId + '&select=projeto_id', { headers: origV2Headers() });
+    const a1 = await r1.json();
+    const projId = a1 && a1[0] && a1[0].projeto_id;
+    if (!projId) return;
+    const r2 = await fetch(SB + '/rest/v1/projeto_metadata?id=eq.' + projId + '&select=negocio_id', { headers: origV2Headers() });
+    const a2 = await r2.json();
+    const negId = a2 && a2[0] && a2[0].negocio_id;
+    if (!negId) return;
+    const r3 = await fetch(SB + '/rest/v1/negocios?id=eq.' + negId + '&select=cnpj', { headers: origV2Headers() });
+    const a3 = await r3.json();
+    const cnpj = a3 && a3[0] && a3[0].cnpj;
+    if (!cnpj) return;
+    const cnpjLimpo = String(cnpj).replace(/\D/g,'');
+    if (cnpjLimpo.length !== 14) return;
+    el.value = cnpjLimpo;
+    const info = document.getElementById('pb-cnpj-info-' + origId);
+    if (info) info.innerHTML = '<span style="color:var(--accent,#22c55e)">✓ CNPJ puxado do cadastro do negócio</span>';
+    // Auto-trigger lookup só se ainda não há CNAEs salvos (evita re-chamar CNPJ.ws toda vez)
+    const cache = _origV6PassoBCache[origId];
+    if (cache && (!cache.cnaes || cache.cnaes.length === 0)){
+      origV6PassoBLookupCnpj(origId).catch(e => console.warn('[passoB auto lookup]', e));
+    }
+  } catch (e){ /* silent · auto-pull não bloqueia UI */ }
+}
+
 // ═══════ Sprint 5 · Passo A · helpers/editor de queries ═══════
 function origV6InsertHelper(idPrefix, token){
   const ids = ['-gmaps','-fb','-ig'];
@@ -18881,6 +18966,9 @@ function origV6PassoBHtml(orig){
       : (cidadeSlug ? ['#corretor' + cidadeSlug, '#imoveis' + cidadeSlug] : []),
     eventos_selecionados: Array.isArray(cfg.eventos_selecionados) ? [...cfg.eventos_selecionados] : [],
   };
+  // cache de sugeridos persistidos (pra reidratar checkboxes)
+  window._origV6Sugeridos = window._origV6Sugeridos || {};
+  if (Array.isArray(cfg.eventos_sugeridos)) window._origV6Sugeridos[orig.id] = cfg.eventos_sugeridos;
 
   return '<div class="orig-v6-passob">'
     + '<h3>Passo B · CNAE real + queries de corretor + eventos</h3>'
@@ -18918,7 +19006,10 @@ function origV6PassoBHtml(orig){
     + '</div>'
 
     + '<div class="pb-block">'
-    + '<label>Eventos selecionados (manual · um por linha · "Nome | Data | Cidade")</label>'
+    + '<label>Eventos · sugestões IA + manual</label>'
+    + '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px"><button type="button" class="orig-v6-helper-btn" onclick="origV6PassoBSugerirEventos(\'' + orig.id + '\')" style="padding:6px 12px">🤖 Sugerir eventos com IA · ~R$ 0,10</button><span id="pb-ev-sug-status-' + orig.id + '" style="font-size:10px;color:var(--ink-4)"></span></div>'
+    + '<div id="pb-ev-sugeridos-' + orig.id + '">' + origV6PassoBSugeridosHtml(orig.busca_config_jsonb?.eventos_sugeridos || [], _origV6PassoBCache[orig.id].eventos_selecionados, orig.id) + '</div>'
+    + '<div style="margin-top:8px;font-size:11px;color:var(--ink-3)">Manual · adicionar evento ("Nome | Data | Cidade"):</div>'
     + '<div id="pb-eventos-' + orig.id + '">' + origV6PassoBEventosHtml(_origV6PassoBCache[orig.id].eventos_selecionados, orig.id) + '</div>'
     + '<div style="display:flex;gap:6px;margin-top:6px"><input type="text" id="pb-ev-add-' + orig.id + '" placeholder="Ex: Feira do Empreendedor | 2026-08-12 | São Paulo" style="flex:1" /><button type="button" class="orig-v6-helper-btn" onclick="origV6PassoBAddEvento(\'' + orig.id + '\')">+</button></div>'
     + '</div>'
@@ -18978,6 +19069,56 @@ function origV6PassoBDirty(origId){
   const s = document.getElementById('pb-status-' + origId);
   if (s) s.textContent = '● não salvo';
 }
+function origV6PassoBSugeridosHtml(sugeridos, selecionados, origId){
+  if (!sugeridos || !sugeridos.length) return '<div style="font-size:11px;color:var(--ink-4);font-style:italic">Clique "Sugerir eventos" pra IA buscar eventos do setor + cidade.</div>';
+  const isSelecionado = (sug) => (selecionados || []).some(s => (s.nome||'').toLowerCase() === (sug.nome||'').toLowerCase());
+  return sugeridos.map((e, i) => {
+    const sel = isSelecionado(e);
+    return '<div style="display:flex;align-items:flex-start;gap:8px;padding:8px;margin:4px 0;background:' + (sel?'var(--accent-soft,rgba(34,197,94,.08))':'var(--surface)') + ';border:1px solid ' + (sel?'var(--accent,#22c55e)':'var(--line)') + ';border-radius:6px">'
+      + '<input type="checkbox" id="pb-sug-' + origId + '-' + i + '" ' + (sel?'checked':'') + ' onchange="origV6PassoBToggleSugerido(\'' + origId + '\',' + i + ',this.checked)" style="margin-top:2px"/>'
+      + '<div style="flex:1;font-size:12px"><div style="font-weight:600">' + origV2Esc(e.nome||'') + (e.tipo==='nacional'?'<span style="margin-left:6px;padding:1px 6px;background:var(--ac-soft,rgba(34,197,94,.1));border:1px solid var(--ac-line,rgba(34,197,94,.3));border-radius:999px;font-size:9px;font-family:var(--mono);color:var(--accent,#22c55e)">nacional</span>':'') + '</div>'
+      + '<div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + origV2Esc(e.data||'') + ' · ' + origV2Esc(e.cidade||'') + (e.url?' · <a href="'+origV2Esc(e.url)+'" target="_blank" style="color:var(--accent,#22c55e)">link</a>':'') + '</div>'
+      + (e.relevancia?'<div style="font-size:10px;color:var(--ink-4);margin-top:3px;font-style:italic">' + origV2Esc(e.relevancia) + '</div>':'')
+      + '</div></div>';
+  }).join('');
+}
+function origV6PassoBToggleSugerido(origId, idx, checked){
+  // _origV6PassoBCache não tem sugeridos · vou usar window cache temporário no DOM
+  const sug = window._origV6Sugeridos && window._origV6Sugeridos[origId] && window._origV6Sugeridos[origId][idx];
+  if (!sug) return;
+  const cache = _origV6PassoBCache[origId];
+  const existsIdx = (cache.eventos_selecionados || []).findIndex(s => (s.nome||'').toLowerCase() === (sug.nome||'').toLowerCase());
+  if (checked && existsIdx === -1){
+    cache.eventos_selecionados.push({ nome: sug.nome, data: sug.data || null, cidade: sug.cidade || null, url: sug.url || null });
+  } else if (!checked && existsIdx >= 0){
+    cache.eventos_selecionados.splice(existsIdx, 1);
+  }
+  document.getElementById('pb-eventos-' + origId).innerHTML = origV6PassoBEventosHtml(cache.eventos_selecionados, origId);
+  origV6PassoBDirty(origId);
+}
+async function origV6PassoBSugerirEventos(origId){
+  const status = document.getElementById('pb-ev-sug-status-' + origId);
+  if (status) status.textContent = '⏳ buscando eventos…';
+  try {
+    const r = await fetch(SB + '/functions/v1/sugerir-eventos-gtm', {
+      method:'POST',
+      headers:{'Authorization':'Bearer '+origV2Token(),'Content-Type':'application/json'},
+      body: JSON.stringify({ originacao_id: origId })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok){
+      if (status) status.textContent = '✗ ' + (d.erro || ('HTTP ' + r.status));
+      return;
+    }
+    window._origV6Sugeridos = window._origV6Sugeridos || {};
+    window._origV6Sugeridos[origId] = d.eventos || [];
+    document.getElementById('pb-ev-sugeridos-' + origId).innerHTML = origV6PassoBSugeridosHtml(d.eventos || [], _origV6PassoBCache[origId].eventos_selecionados, origId);
+    if (status) status.textContent = '✓ ' + (d.eventos?.length || 0) + ' eventos · marque os relevantes';
+  } catch (e){
+    if (status) status.textContent = '✗ ' + (e?.message || 'erro');
+  }
+}
+
 async function origV6PassoBLookupCnpj(origId){
   const el = document.getElementById('pb-cnpj-' + origId);
   const cnpj = (el.value||'').replace(/\D/g,'');
@@ -19178,6 +19319,17 @@ async function origV6ChamarCanal(canal, origId, extra) {
   if (!cfg) return { canal, ok: false, erro: 'canal_invalido' };
   try {
     const payload = Object.assign({ originacao_id: origId }, cfg.payload(extra?.negocio_instagram));
+    // v9.34.4 Sprint 5 b2 · injeta queries_override do Passo B (busca_config_jsonb) pros canais corretor
+    const cfgPB = (extra && extra.busca_config) || _origV6PassoBCache[origId] || null;
+    if (cfgPB) {
+      if (canal === 'corretores_gmaps' && Array.isArray(cfgPB.queries_corretores_gmaps) && cfgPB.queries_corretores_gmaps.length) {
+        payload.queries_override = cfgPB.queries_corretores_gmaps;
+      } else if (canal === 'web_corretores' && Array.isArray(cfgPB.queries_corretores_web) && cfgPB.queries_corretores_web.length) {
+        payload.queries_override = cfgPB.queries_corretores_web;
+      } else if (canal === 'ig_corretores' && Array.isArray(cfgPB.queries_ig_corretores) && cfgPB.queries_ig_corretores.length) {
+        payload.queries_override = cfgPB.queries_ig_corretores;
+      }
+    }
     const r = await fetch(SB + '/functions/v1/' + cfg.slug, {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + origV2Token(), 'Content-Type': 'application/json' },
