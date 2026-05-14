@@ -2512,18 +2512,13 @@ table.t .acoes { white-space: nowrap; }
           <!-- Detalhe (state quando admin abre projeto) -->
           <div id="pj-detalhe" style="display:none">
             <button class="td-btn td-btn-ghost" onclick="pjVoltarLista()" style="margin-bottom:14px">← Voltar pra Projetos</button>
-            <div style="background:var(--surface-2);border:1px solid var(--line-2);border-radius:14px;padding:18px 20px;margin-bottom:18px">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
-                <div>
-                  <div style="font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4);margin-bottom:4px">Projeto</div>
-                  <div id="pj-det-titulo" style="font-family:var(--serif);font-weight:800;font-size:22px;color:var(--ink);line-height:1.15">—</div>
-                  <div id="pj-det-sub" style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:6px;line-height:1.6">—</div>
-                </div>
-                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-                  <span class="td-status s-aprovado"><span class="td-status-dot"></span><span id="pj-det-status">—</span></span>
-                  <button class="td-btn td-btn-secundario" onclick="pjAbrirComoCliente()">Ver como cliente vê →</button>
-                </div>
+            <!-- v9.34.7.1 · header externo escondido · header compacto vive dentro do pj-det-corpo (pjV347RenderDetalhe) -->
+            <div id="pj-det-header-externo" style="display:none">
+              <div>
+                <div id="pj-det-titulo">—</div>
+                <div id="pj-det-sub">—</div>
               </div>
+              <span id="pj-det-status">—</span>
             </div>
             <div id="pj-det-corpo"></div>
           </div>
@@ -12828,27 +12823,47 @@ async function pjV347RenderStats(n, meta){
   } catch (_) { set('pj-v347-st-saldo', 'R$ 0,00'); }
 }
 
+// v9.34.7.1 · helper retry visível pra erros do pool
+function pjV347ErroBox(cont, mensagem, detalhe){
+  if (!cont) return;
+  cont.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626;background:#fef2f2;border:1px solid #fca5a5">'
+    + '<div style="font-size:14px;margin-bottom:6px;font-weight:600">⚠ ' + origV2Esc(mensagem) + '</div>'
+    + (detalhe ? '<div style="font-size:11px;color:#7f1d1d;font-family:var(--mono);margin-bottom:14px;word-break:break-word">' + origV2Esc(detalhe) + '</div>' : '')
+    + '<button class="btn-mini" onclick="pjV347Retry()" style="background:#dc2626;color:#fff;border:none;padding:6px 14px;font-size:12px;cursor:pointer">↻ Tentar novamente</button>'
+    + '</div>';
+}
+function pjV347Retry(){
+  const n = _pjAbertoNeg; if (!n) return;
+  const meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
+  pjV347RenderPool(n, meta).catch(e => console.warn('[v347 retry pool]', e));
+  pjV347RenderStats(n, meta).catch(e => console.warn('[v347 retry stats]', e));
+}
+
 async function pjV347RenderPool(n, meta){
   if (!meta?.id) return;
   const cont = document.getElementById('pj-v347-kanban');
   const acoes = document.getElementById('pj-v347-fontes-inline');
   const alerta = document.getElementById('pj-v347-pool-alerta');
   const countEl = document.getElementById('pj-v347-pool-count');
+  // Loading explícito
+  if (cont) cont.innerHTML = '<div class="pj-v347-empty">⏳ Carregando pool…</div>';
   try {
     // Origem · projetos_originacao deste projeto
     const rO = await fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + meta.id + '&select=id&order=created_at.desc&limit=1', { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
+    if (!rO.ok){ pjV347ErroBox(cont, 'Erro ao buscar originação', 'HTTP ' + rO.status); if (countEl) countEl.textContent = '· erro'; return; }
     const arrO = await rO.json();
     const origId = arrO && arrO[0] && arrO[0].id;
     if (!origId){
-      if (cont) cont.innerHTML = '<div class="pj-v347-empty"><div style="margin-bottom:8px">Projeto sem originação ativa.</div><div style="font-size:11px;color:var(--ink-4)">Configure tese e arquétipos no <button class="btn-mini" onclick="alert(\'Use a aba Visão geral · botão Iniciar originação\')">Arsenal</button></div></div>';
+      if (cont) cont.innerHTML = '<div class="pj-v347-empty"><div style="margin-bottom:8px;font-size:14px">Projeto sem originação ativa.</div><div style="font-size:11px;color:var(--ink-4);margin-bottom:12px">Configure tese e arquétipos antes de buscar leads.</div></div>';
       if (countEl) countEl.textContent = '· sem originação';
       return;
     }
     // Pool leads via view
-    const r = await fetch(SB + '/rest/v1/pool_leads_originacao?originacao_id=eq.' + origId + '&select=*&order=score_total.desc.nullslast&limit=500', { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
+    const r = await fetch(SB + '/rest/v1/pool_leads_originacao?originacao_id=eq.' + origId + '&select=*&order=score_ia.desc.nullslast&limit=500', { headers:{ 'apikey':AK, 'Authorization':'Bearer '+(__token||AK) } });
     if (!r.ok){
       const t = await r.text();
-      if (cont) cont.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Erro ao buscar leads: HTTP ' + r.status + ' · ' + origV2Esc(t.slice(0,100)) + '</div>';
+      pjV347ErroBox(cont, 'Erro ao buscar leads', 'HTTP ' + r.status + ' · ' + t.slice(0,200));
+      if (countEl) countEl.textContent = '· erro';
       return;
     }
     const leads = await r.json();
@@ -12881,7 +12896,7 @@ async function pjV347RenderPool(n, meta){
       }
     }
   } catch (e){
-    if (cont) cont.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Erro: ' + origV2Esc(e?.message || '') + '</div>';
+    pjV347ErroBox(cont, 'Erro inesperado ao carregar pool', e?.message || 'exception');
   }
 }
 
@@ -19611,7 +19626,7 @@ async function origV346CarregarFontes(origId){
 
   // Carrega kanban (usa view pool_leads_originacao se existir · senão pool_contatos_uso)
   try {
-    const rK = await fetch(SB + '/rest/v1/pool_leads_originacao?originacao_id=eq.' + origId + '&select=*&order=score_total.desc.nullslast&limit=500', { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) } });
+    const rK = await fetch(SB + '/rest/v1/pool_leads_originacao?originacao_id=eq.' + origId + '&select=*&order=score_ia.desc.nullslast&limit=500', { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) } });
     if (rK.ok){
       const leads = await rK.json();
       const kanH = (typeof leadsKanbanHtml === 'function') ? leadsKanbanHtml(leads || []) : '<div style="padding:14px;color:var(--ink-3);font-size:12px;text-align:center">Kanban indisponível</div>';
@@ -20259,7 +20274,7 @@ async function origV9AbrirRevisao(buscaId){
   const busca = arr && arr[0];
   if (!busca){ alert('Busca não encontrada'); return; }
   // Pega leads no pool_contatos_uso pra essa originação · canal · arquétipo
-  let url = SB + '/rest/v1/pool_contatos_uso?originacao_id=eq.' + busca.originacao_id + '&canal=eq.' + encodeURIComponent(busca.canal) + '&select=id,canal,arquetipo_id,score_total,contato:pool_contatos_global(id,nome,telefone,email,cidade,estado)&order=score_total.desc.nullslast&limit=200';
+  let url = SB + '/rest/v1/pool_contatos_uso?originacao_id=eq.' + busca.originacao_id + '&canal=eq.' + encodeURIComponent(busca.canal) + '&select=id,canal,arquetipo_id,score_ia,contato:pool_contatos_global(id,nome,telefone,email,cidade,estado)&order=score_ia.desc.nullslast&limit=200';
   if (busca.arquetipo_id) url += '&arquetipo_id=eq.' + busca.arquetipo_id;
   const lr = await fetch(url, { headers });
   const usos = await lr.json();
@@ -20274,7 +20289,7 @@ async function origV9AbrirRevisao(buscaId){
     const c = u.contato || {};
     const tel = c.telefone ? ' · ' + origV2Esc(c.telefone) : '';
     const loc = c.cidade ? ' · ' + origV2Esc(c.cidade) + (c.estado ? '/' + origV2Esc(c.estado) : '') : '';
-    const score = u.score_total != null ? '<span style="color:var(--ink-3);font-family:var(--mono);font-size:10px;margin-left:6px">score ' + Math.round(u.score_total) + '</span>' : '';
+    const score = u.score_ia != null ? '<span style="color:var(--ink-3);font-family:var(--mono);font-size:10px;margin-left:6px">score ' + Math.round(u.score_ia) + '</span>' : '';
     return '<div style="padding:8px 10px;border-bottom:1px solid var(--line);font-size:12px"><strong>' + origV2Esc(c.nome||'(sem nome)') + '</strong>' + tel + loc + score + '</div>';
   }).join('');
   overlay.innerHTML = '<div style="background:var(--surface,#fff);max-width:720px;max-height:80vh;width:100%;border-radius:10px;display:flex;flex-direction:column;overflow:hidden">'
