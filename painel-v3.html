@@ -18700,27 +18700,46 @@ function origV6RenderEmpty(origId) {
 }
 
 function origV6RenderQueries(orig, arquetiposComQueries, leadsCount) {
-  // v9.34.4 · Sprint 5 · Passo A · queries editáveis + helpers + validação IG
+  // v9.34.4 · Sprint 5 batch 3 · Passo A com 7 campos editáveis por arquétipo
+  // 3 strings legadas: gmaps_query · fb_keywords · ig_query
+  // 4 arrays web_*: vírgula-separados na UI · array no jsonb
+  // Compat: lê gmaps_query OR gmaps[0]; idem fb_keywords/fb_grupos[0], ig_query/ig_influenciadores[0]
+  const arrToStr = (a) => Array.isArray(a) ? a.join(', ') : '';
   const cards = arquetiposComQueries.map(arq => {
     const q = arq.queries_busca || {};
     const nome = origV2Esc(arq.nome || 'sem nome');
-    const gmaps = origV2Esc(q.gmaps_query || '');
-    const fb = origV2Esc(q.fb_keywords || '');
-    const ig = origV2Esc(q.ig_query || '');
+    // Strings legadas com fallback pro array[0] novo
+    const gmaps = origV2Esc(q.gmaps_query || (Array.isArray(q.gmaps) ? q.gmaps[0] : '') || '');
+    const fb = origV2Esc(q.fb_keywords || (Array.isArray(q.fb_grupos) ? q.fb_grupos[0] : '') || '');
+    const ig = origV2Esc(q.ig_query || (Array.isArray(q.ig_influenciadores) ? q.ig_influenciadores[0] : '') || '');
+    // Arrays web_* (string vírgula-separada)
+    const wc = origV2Esc(arrToStr(q.web_compradores));
+    const wi = origV2Esc(arrToStr(q.web_influenciadores));
+    const we = origV2Esc(arrToStr(q.web_eventos));
+    const wp = origV2Esc(arrToStr(q.web_profissionais));
     const raciocinio = q.raciocinio ? '<p class="orig-v6-arq-raciocinio">' + origV2Esc(q.raciocinio) + '</p>' : '';
     const helpers = '<div style="display:flex;gap:4px;margin:4px 0 8px;flex-wrap:wrap;font-family:var(--mono);font-size:10px">'
-      + '<span style="color:var(--ink-4)">helpers:</span>'
+      + '<span style="color:var(--ink-4)">helpers (insere no campo focado):</span>'
       + '<button type="button" class="orig-v6-helper-btn" onclick="origV6InsertHelper(\'qA-' + arq.id + '\',\'[cidade]\')">+[cidade]</button>'
       + '<button type="button" class="orig-v6-helper-btn" onclick="origV6InsertHelper(\'qA-' + arq.id + '\',\'[setor]\')">+[setor]</button>'
       + '<button type="button" class="orig-v6-helper-btn" onclick="origV6InsertHelper(\'qA-' + arq.id + '\',\'[bairro]\')">+[bairro]</button>'
       + '</div>';
+    const webHint = '<div style="font-size:10px;color:var(--ink-4);font-family:var(--mono);margin:-4px 0 4px 0">↑ separe múltiplas queries por vírgula · cada uma roda uma busca</div>';
     return '<div class="orig-v6-arq-queries" data-arq-id="' + arq.id + '">'
       + '<h4>' + nome + '</h4>'
       + '<div class="orig-v6-canal-row"><label>🗺️ Google Maps</label><input type="text" id="qA-' + arq.id + '-gmaps" data-canal="gmaps_query" value="' + gmaps + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" /></div>'
-      + '<div class="orig-v6-canal-row"><label>📘 Facebook</label><input type="text" id="qA-' + arq.id + '-fb" data-canal="fb_keywords" value="' + fb + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" /></div>'
-      + '<div class="orig-v6-canal-row"><label>📷 Instagram (hashtags · vírgula)</label><input type="text" id="qA-' + arq.id + '-ig" data-canal="ig_query" value="' + ig + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" onblur="origV6IgSanitize(\'qA-' + arq.id + '-ig\')" /></div>'
+      + '<div class="orig-v6-canal-row"><label>📘 Facebook Grupos</label><input type="text" id="qA-' + arq.id + '-fb" data-canal="fb_keywords" value="' + fb + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" /></div>'
+      + '<div class="orig-v6-canal-row"><label>📷 Instagram Influenciadores</label><input type="text" id="qA-' + arq.id + '-ig" data-canal="ig_query" value="' + ig + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" onblur="origV6IgSanitize(\'qA-' + arq.id + '-ig\')" /></div>'
+      + '<div class="orig-v6-canal-row"><label>🌐 Web · Compradores</label><input type="text" id="qA-' + arq.id + '-webc" data-canal="web_compradores" data-tipo="array" value="' + wc + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" placeholder="ex: distribuidora bebidas SP, atacadista zona leste, ..." /></div>'
+      + webHint
+      + '<div class="orig-v6-canal-row"><label>🌐 Web · Influenciadores</label><input type="text" id="qA-' + arq.id + '-webi" data-canal="web_influenciadores" data-tipo="array" value="' + wi + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" placeholder="ex: chef influencer gastronomia, criador conteúdo bar, ..." /></div>'
+      + webHint
+      + '<div class="orig-v6-canal-row"><label>🌐 Web · Eventos</label><input type="text" id="qA-' + arq.id + '-webe" data-canal="web_eventos" data-tipo="array" value="' + we + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" placeholder="ex: feira de bares SP, encontro empreendedores food service, ..." /></div>'
+      + webHint
+      + '<div class="orig-v6-canal-row"><label>🌐 Web · Profissionais</label><input type="text" id="qA-' + arq.id + '-webp" data-canal="web_profissionais" data-tipo="array" value="' + wp + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" placeholder="ex: gerente alimentação linkedin, consultor M&A varejo, ..." /></div>'
+      + webHint
       + helpers
-      + '<div style="display:flex;justify-content:flex-end;gap:6px"><span id="qA-' + arq.id + '-status" style="font-size:10px;color:var(--ink-4)"></span><button type="button" class="orig-v6-helper-btn" onclick="origV6SalvarQueriesArq(\'' + arq.id + '\')" style="background:var(--accent,#22c55e);color:#fff;border-color:var(--accent,#22c55e)">💾 Salvar</button></div>'
+      + '<div style="display:flex;justify-content:flex-end;gap:6px"><span id="qA-' + arq.id + '-status" style="font-size:10px;color:var(--ink-4)"></span><button type="button" class="orig-v6-helper-btn" onclick="origV6SalvarQueriesArq(\'' + arq.id + '\')" style="background:var(--accent,#22c55e);color:#fff;border-color:var(--accent,#22c55e)">💾 Salvar arquétipo</button></div>'
       + raciocinio
       + '</div>';
   }).join('');
@@ -18885,10 +18904,11 @@ async function origV6PassoBAutoCnpj(origId){
 }
 
 // ═══════ Sprint 5 · Passo A · helpers/editor de queries ═══════
+// batch 3 · 7 campos por arquétipo
+const ORIGV6_QA_SUFIXOS = ['-gmaps','-fb','-ig','-webc','-webi','-webe','-webp'];
 function origV6InsertHelper(idPrefix, token){
-  const ids = ['-gmaps','-fb','-ig'];
   let target = null;
-  for (const sfx of ids){
+  for (const sfx of ORIGV6_QA_SUFIXOS){
     const el = document.getElementById(idPrefix + sfx);
     if (el && document.activeElement === el){ target = el; break; }
   }
@@ -18921,19 +18941,53 @@ function origV6IgSanitize(inputId){
 }
 async function origV6SalvarQueriesArq(arqId){
   const status = document.getElementById('qA-' + arqId + '-status');
-  const gmaps = document.getElementById('qA-' + arqId + '-gmaps')?.value || '';
-  const fb = document.getElementById('qA-' + arqId + '-fb')?.value || '';
-  const ig = document.getElementById('qA-' + arqId + '-ig')?.value || '';
+  // Helper · vírgula-separado → array dedup
+  const parseArr = (s) => {
+    if (!s) return [];
+    const out = [];
+    const seen = new Set();
+    for (const t of s.split(',')){
+      const t2 = t.trim();
+      if (!t2) continue;
+      const k = t2.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(t2);
+    }
+    return out;
+  };
+  const val = (sfx) => (document.getElementById('qA-' + arqId + sfx)?.value || '').trim();
+  // 3 campos string legados
+  const gmaps = val('-gmaps');
+  const fb    = val('-fb');
+  const ig    = val('-ig');
+  // 4 campos array web_*
+  const webc  = parseArr(val('-webc'));
+  const webi  = parseArr(val('-webi'));
+  const webe  = parseArr(val('-webe'));
+  const webp  = parseArr(val('-webp'));
+
   if (status) status.textContent = '⏳ salvando…';
   try {
-    // Lê queries_busca atual pra fazer merge (preserva raciocinio e outros campos)
-    const cur = await paBuildPostgRESTQuery
-      ? null : null; // sentinela · usaremos fetch direto abaixo
     const headers = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + (__token || SUPABASE_ANON), 'Content-Type':'application/json', 'Prefer':'return=representation' };
+    // GET queries_busca atual pra fazer merge (preserva raciocinio · lusha_filtros · gmaps_corretores · ig_corretores · web_corretores · eventos · gerado_em)
     const rGet = await fetch(SUPABASE_URL + '/rest/v1/arquetipos_compradores?id=eq.' + arqId + '&select=queries_busca', { headers });
     const arr = await rGet.json();
     const qAtual = (arr && arr[0] && arr[0].queries_busca) || {};
-    const merged = { ...qAtual, gmaps_query: gmaps.trim(), fb_keywords: fb.trim(), ig_query: ig.trim() };
+    // Merge cuidadoso: 7 campos editados sobrescrevem; resto preservado
+    const merged = {
+      ...qAtual,
+      gmaps_query: gmaps,
+      // Mantém compat com a chave `gmaps` (array) que algumas edges leem
+      gmaps: gmaps ? [gmaps] : (Array.isArray(qAtual.gmaps) ? qAtual.gmaps : []),
+      fb_keywords: fb,
+      ig_query: ig,
+      web_compradores: webc,
+      web_influenciadores: webi,
+      web_eventos: webe,
+      web_profissionais: webp,
+      _editado_em: new Date().toISOString(),
+    };
     const rPatch = await fetch(SUPABASE_URL + '/rest/v1/arquetipos_compradores?id=eq.' + arqId, {
       method: 'PATCH', headers, body: JSON.stringify({ queries_busca: merged })
     });
