@@ -18684,6 +18684,7 @@ function origV6RenderEmpty(origId) {
 }
 
 function origV6RenderQueries(orig, arquetiposComQueries, leadsCount) {
+  // v9.34.4 · Sprint 5 · Passo A · queries editáveis + helpers + validação IG
   const cards = arquetiposComQueries.map(arq => {
     const q = arq.queries_busca || {};
     const nome = origV2Esc(arq.nome || 'sem nome');
@@ -18691,11 +18692,19 @@ function origV6RenderQueries(orig, arquetiposComQueries, leadsCount) {
     const fb = origV2Esc(q.fb_keywords || '');
     const ig = origV2Esc(q.ig_query || '');
     const raciocinio = q.raciocinio ? '<p class="orig-v6-arq-raciocinio">' + origV2Esc(q.raciocinio) + '</p>' : '';
-    return '<div class="orig-v6-arq-queries">'
+    const helpers = '<div style="display:flex;gap:4px;margin:4px 0 8px;flex-wrap:wrap;font-family:var(--mono);font-size:10px">'
+      + '<span style="color:var(--ink-4)">helpers:</span>'
+      + '<button type="button" class="orig-v6-helper-btn" onclick="origV6InsertHelper(\'qA-' + arq.id + '\',\'[cidade]\')">+[cidade]</button>'
+      + '<button type="button" class="orig-v6-helper-btn" onclick="origV6InsertHelper(\'qA-' + arq.id + '\',\'[setor]\')">+[setor]</button>'
+      + '<button type="button" class="orig-v6-helper-btn" onclick="origV6InsertHelper(\'qA-' + arq.id + '\',\'[bairro]\')">+[bairro]</button>'
+      + '</div>';
+    return '<div class="orig-v6-arq-queries" data-arq-id="' + arq.id + '">'
       + '<h4>' + nome + '</h4>'
-      + '<div class="orig-v6-canal-row"><label>🗺️ Google Maps</label><input type="text" value="' + gmaps + '" disabled /></div>'
-      + '<div class="orig-v6-canal-row"><label>📘 Facebook</label><input type="text" value="' + fb + '" disabled /></div>'
-      + '<div class="orig-v6-canal-row"><label>📷 Instagram</label><input type="text" value="' + ig + '" disabled /></div>'
+      + '<div class="orig-v6-canal-row"><label>🗺️ Google Maps</label><input type="text" id="qA-' + arq.id + '-gmaps" data-canal="gmaps_query" value="' + gmaps + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" /></div>'
+      + '<div class="orig-v6-canal-row"><label>📘 Facebook</label><input type="text" id="qA-' + arq.id + '-fb" data-canal="fb_keywords" value="' + fb + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" /></div>'
+      + '<div class="orig-v6-canal-row"><label>📷 Instagram (hashtags · vírgula)</label><input type="text" id="qA-' + arq.id + '-ig" data-canal="ig_query" value="' + ig + '" oninput="origV6QueryDirty(\'' + arq.id + '\')" onblur="origV6IgSanitize(\'qA-' + arq.id + '-ig\')" /></div>'
+      + helpers
+      + '<div style="display:flex;justify-content:flex-end;gap:6px"><span id="qA-' + arq.id + '-status" style="font-size:10px;color:var(--ink-4)"></span><button type="button" class="orig-v6-helper-btn" onclick="origV6SalvarQueriesArq(\'' + arq.id + '\')" style="background:var(--accent,#22c55e);color:#fff;border-color:var(--accent,#22c55e)">💾 Salvar</button></div>'
       + raciocinio
       + '</div>';
   }).join('');
@@ -18756,12 +18765,30 @@ function origV6RenderQueries(orig, arquetiposComQueries, leadsCount) {
     + '</div>';
 
   return '<div class="orig-v6-queries">'
+    + '<style>'
+    + '.orig-v6-helper-btn{background:var(--bg);border:1px solid var(--line);color:var(--ink-3);padding:2px 8px;border-radius:4px;cursor:pointer;font-size:10px;font-family:var(--mono);transition:.12s}'
+    + '.orig-v6-helper-btn:hover{background:var(--surface);border-color:var(--ink-3);color:var(--ink)}'
+    + '.orig-v6-passob{margin-top:20px;padding:14px 16px;background:var(--bg);border:1px solid var(--line);border-radius:8px}'
+    + '.orig-v6-passob h3{margin:0 0 4px;font-size:14px}'
+    + '.orig-v6-passob .pb-sub{font-size:11px;color:var(--ink-3);margin-bottom:14px}'
+    + '.orig-v6-passob .pb-block{margin-bottom:14px;padding-bottom:14px;border-bottom:1px dashed var(--line)}'
+    + '.orig-v6-passob .pb-block:last-child{border-bottom:none}'
+    + '.orig-v6-passob label{display:block;font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}'
+    + '.orig-v6-passob input[type=text]{width:100%;padding:8px 10px;background:var(--bg-1,#0e1612);border:1px solid var(--line);border-radius:6px;color:var(--ink);font-size:12px;font-family:var(--mono)}'
+    + '.orig-v6-passob input:focus{border-color:var(--accent,#22c55e);outline:none}'
+    + '.orig-v6-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;margin:3px 4px 0 0;background:var(--surface);border:1px solid var(--line);border-radius:999px;font-size:11px;font-family:var(--mono)}'
+    + '.orig-v6-tag .x{cursor:pointer;color:var(--ink-4);font-weight:bold}'
+    + '.orig-v6-tag .x:hover{color:#ef4444}'
+    + '</style>'
     + '<div style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">'
     + '<h3 style="margin:0;">🔍 Queries de busca · ' + arquetiposComQueries.length + ' arquétipos</h3>'
     + '<span class="orig-v3-fase-badge">Fase 3/5</span>'
     + '</div>'
-    + '<p>Revise as queries abaixo · selecione canais e click "Buscar" pra rodar Apify (FB · IG · Gmaps) + pool interno.</p>'
+    + '<div style="font-size:11px;font-family:var(--mono);color:var(--ink-3);margin-bottom:8px">Passo A · Queries por arquétipo</div>'
+    + '<p style="margin-top:0">Revise/edite as queries abaixo · helpers `[cidade]`/`[setor]`/`[bairro]` inserem placeholders · IG é sanitizado on-blur.</p>'
     + cards
+    + origV6PassoBHtml(orig)
+    + '<div style="font-size:11px;font-family:var(--mono);color:var(--ink-3);margin:14px 0 8px">Passo C · Arsenal de canais</div>'
     + resumoLeads
     + checkboxesCanais
     + '<div class="orig-v4-acoes" style="margin-top:16px;">'
@@ -18770,6 +18797,241 @@ function origV6RenderQueries(orig, arquetiposComQueries, leadsCount) {
     + '<button onclick="origV7GerarListaSemanal(\'' + orig.id + '\')">📋 Gerar lista semanal (score≥70)</button>'
     + '</div>'
     + '</div>';
+}
+
+// ═══════ Sprint 5 · Passo A · helpers/editor de queries ═══════
+function origV6InsertHelper(idPrefix, token){
+  const ids = ['-gmaps','-fb','-ig'];
+  let target = null;
+  for (const sfx of ids){
+    const el = document.getElementById(idPrefix + sfx);
+    if (el && document.activeElement === el){ target = el; break; }
+  }
+  if (!target) target = document.getElementById(idPrefix + '-gmaps');
+  if (!target) return;
+  const pos = target.selectionStart || target.value.length;
+  const v = target.value;
+  target.value = v.slice(0, pos) + token + v.slice(target.selectionEnd || pos);
+  target.focus();
+  origV6QueryDirty(idPrefix.replace(/^qA-/,''));
+}
+function origV6QueryDirty(arqId){
+  const s = document.getElementById('qA-' + arqId + '-status');
+  if (s) s.textContent = '● não salvo';
+}
+function origV6IgSanitize(inputId){
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  // Tags IG: alfanumérico + underscore · separados por vírgula · prefixo # opcional
+  const raw = (el.value || '').split(',').map(t => {
+    let t2 = t.trim().toLowerCase();
+    if (!t2) return '';
+    t2 = t2.replace(/^[#@]+/,'');
+    t2 = t2.normalize('NFD').replace(/\p{Diacritic}/gu,'');
+    t2 = t2.replace(/[^a-z0-9_]/g,'');
+    return t2 ? '#' + t2 : '';
+  }).filter(Boolean);
+  const dedup = Array.from(new Set(raw));
+  el.value = dedup.join(', ');
+}
+async function origV6SalvarQueriesArq(arqId){
+  const status = document.getElementById('qA-' + arqId + '-status');
+  const gmaps = document.getElementById('qA-' + arqId + '-gmaps')?.value || '';
+  const fb = document.getElementById('qA-' + arqId + '-fb')?.value || '';
+  const ig = document.getElementById('qA-' + arqId + '-ig')?.value || '';
+  if (status) status.textContent = '⏳ salvando…';
+  try {
+    // Lê queries_busca atual pra fazer merge (preserva raciocinio e outros campos)
+    const cur = await paBuildPostgRESTQuery
+      ? null : null; // sentinela · usaremos fetch direto abaixo
+    const headers = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + (__token || SUPABASE_ANON), 'Content-Type':'application/json', 'Prefer':'return=representation' };
+    const rGet = await fetch(SUPABASE_URL + '/rest/v1/arquetipos_compradores?id=eq.' + arqId + '&select=queries_busca', { headers });
+    const arr = await rGet.json();
+    const qAtual = (arr && arr[0] && arr[0].queries_busca) || {};
+    const merged = { ...qAtual, gmaps_query: gmaps.trim(), fb_keywords: fb.trim(), ig_query: ig.trim() };
+    const rPatch = await fetch(SUPABASE_URL + '/rest/v1/arquetipos_compradores?id=eq.' + arqId, {
+      method: 'PATCH', headers, body: JSON.stringify({ queries_busca: merged })
+    });
+    if (!rPatch.ok){ const t = await rPatch.text(); throw new Error('HTTP ' + rPatch.status + ' · ' + t.slice(0,100)); }
+    if (status){ status.textContent = '✓ salvo'; setTimeout(()=>{ if (status.textContent==='✓ salvo') status.textContent=''; }, 2400); }
+  } catch (e){
+    if (status) status.textContent = '✗ erro';
+    alert('Erro ao salvar queries: ' + (e?.message || 'desconhecido'));
+  }
+}
+
+// ═══════ Sprint 5 · Passo B · CNPJ + CNAEs + corretores auto + eventos ═══════
+const _origV6PassoBCache = {}; // origId → { cnpj, cnaes, queries_*, eventos }
+
+function origV6PassoBHtml(orig){
+  const cidade = (orig.briefing_jsonb?.negocio?.cidade || '').trim();
+  const cidadeSlug = cidade.normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().replace(/\s+/g,'');
+  const cfg = orig.busca_config_jsonb || {};
+  _origV6PassoBCache[orig.id] = {
+    cnpj: cfg.cnpj_referencia || '',
+    cnaes: Array.isArray(cfg.cnaes) ? [...cfg.cnaes] : [],
+    queries_corretores_gmaps: Array.isArray(cfg.queries_corretores_gmaps) && cfg.queries_corretores_gmaps.length
+      ? [...cfg.queries_corretores_gmaps]
+      : (cidade ? ['corretor de negócios ' + cidade, 'consultor M&A ' + cidade, 'imobiliária comercial ' + cidade] : []),
+    queries_corretores_web: Array.isArray(cfg.queries_corretores_web) && cfg.queries_corretores_web.length
+      ? [...cfg.queries_corretores_web]
+      : (cidade ? ['corretor de negócios ' + cidade, 'consultor M&A ' + cidade] : []),
+    queries_ig_corretores: Array.isArray(cfg.queries_ig_corretores) && cfg.queries_ig_corretores.length
+      ? [...cfg.queries_ig_corretores]
+      : (cidadeSlug ? ['#corretor' + cidadeSlug, '#imoveis' + cidadeSlug] : []),
+    eventos_selecionados: Array.isArray(cfg.eventos_selecionados) ? [...cfg.eventos_selecionados] : [],
+  };
+
+  return '<div class="orig-v6-passob">'
+    + '<h3>Passo B · CNAE real + queries de corretor + eventos</h3>'
+    + '<div class="pb-sub">CNAEs reais do CNPJ têm prioridade sobre o mapeamento fixo por setor. Queries de corretor são auto-geradas a partir da cidade (' + (cidade||'briefing sem cidade') + ').</div>'
+
+    + '<div class="pb-block">'
+    + '<label>CNPJ de referência (opcional)</label>'
+    + '<div style="display:flex;gap:6px"><input type="text" id="pb-cnpj-' + orig.id + '" value="' + origV2Esc(cfg.cnpj_referencia||'') + '" placeholder="00.000.000/0000-00" style="flex:1" />'
+    + '<button type="button" class="orig-v6-helper-btn" style="padding:6px 12px" onclick="origV6PassoBLookupCnpj(\'' + orig.id + '\')">🔍 Consultar CNAEs</button></div>'
+    + '<div id="pb-cnpj-info-' + orig.id + '" style="font-size:11px;color:var(--ink-3);margin-top:6px"></div>'
+    + '</div>'
+
+    + '<div class="pb-block">'
+    + '<label>CNAEs ativos · prioridade 1 na edge originacao-buscar-cnae (fallback: mapeamento por setor)</label>'
+    + '<div id="pb-cnaes-' + orig.id + '">' + origV6PassoBTagsHtml(_origV6PassoBCache[orig.id].cnaes, 'cnaes', orig.id) + '</div>'
+    + '<div style="display:flex;gap:6px;margin-top:6px"><input type="text" id="pb-cnae-add-' + orig.id + '" placeholder="ex: 5611201 · só dígitos" style="flex:1" /><button type="button" class="orig-v6-helper-btn" onclick="origV6PassoBAddTag(\'' + orig.id + '\',\'cnaes\',\'pb-cnae-add-' + orig.id + '\',{onlyDigits:true,min:7,max:7})">+</button></div>'
+    + '</div>'
+
+    + '<div class="pb-block">'
+    + '<label>Queries de corretor · Google Maps</label>'
+    + '<div id="pb-cor-gm-' + orig.id + '">' + origV6PassoBTagsHtml(_origV6PassoBCache[orig.id].queries_corretores_gmaps, 'queries_corretores_gmaps', orig.id) + '</div>'
+    + '<div style="display:flex;gap:6px;margin-top:6px"><input type="text" id="pb-cor-gm-add-' + orig.id + '" placeholder="ex: corretor de negócios São Paulo" style="flex:1" /><button type="button" class="orig-v6-helper-btn" onclick="origV6PassoBAddTag(\'' + orig.id + '\',\'queries_corretores_gmaps\',\'pb-cor-gm-add-' + orig.id + '\')">+</button></div>'
+    + '</div>'
+
+    + '<div class="pb-block">'
+    + '<label>Queries de corretor · Web (Claude)</label>'
+    + '<div id="pb-cor-web-' + orig.id + '">' + origV6PassoBTagsHtml(_origV6PassoBCache[orig.id].queries_corretores_web, 'queries_corretores_web', orig.id) + '</div>'
+    + '<div style="display:flex;gap:6px;margin-top:6px"><input type="text" id="pb-cor-web-add-' + orig.id + '" placeholder="ex: consultor M&A São Paulo" style="flex:1" /><button type="button" class="orig-v6-helper-btn" onclick="origV6PassoBAddTag(\'' + orig.id + '\',\'queries_corretores_web\',\'pb-cor-web-add-' + orig.id + '\')">+</button></div>'
+    + '</div>'
+
+    + '<div class="pb-block">'
+    + '<label>Hashtags de corretor · Instagram</label>'
+    + '<div id="pb-cor-ig-' + orig.id + '">' + origV6PassoBTagsHtml(_origV6PassoBCache[orig.id].queries_ig_corretores, 'queries_ig_corretores', orig.id) + '</div>'
+    + '<div style="display:flex;gap:6px;margin-top:6px"><input type="text" id="pb-cor-ig-add-' + orig.id + '" placeholder="ex: #corretorsaopaulo" style="flex:1" /><button type="button" class="orig-v6-helper-btn" onclick="origV6PassoBAddTag(\'' + orig.id + '\',\'queries_ig_corretores\',\'pb-cor-ig-add-' + orig.id + '\',{isHashtag:true})">+</button></div>'
+    + '</div>'
+
+    + '<div class="pb-block">'
+    + '<label>Eventos selecionados (manual · um por linha · "Nome | Data | Cidade")</label>'
+    + '<div id="pb-eventos-' + orig.id + '">' + origV6PassoBEventosHtml(_origV6PassoBCache[orig.id].eventos_selecionados, orig.id) + '</div>'
+    + '<div style="display:flex;gap:6px;margin-top:6px"><input type="text" id="pb-ev-add-' + orig.id + '" placeholder="Ex: Feira do Empreendedor | 2026-08-12 | São Paulo" style="flex:1" /><button type="button" class="orig-v6-helper-btn" onclick="origV6PassoBAddEvento(\'' + orig.id + '\')">+</button></div>'
+    + '</div>'
+
+    + '<div style="display:flex;justify-content:flex-end;gap:6px"><span id="pb-status-' + orig.id + '" style="font-size:10px;color:var(--ink-4);align-self:center"></span><button type="button" class="orig-v6-helper-btn" onclick="origV6PassoBSalvar(\'' + orig.id + '\')" style="background:var(--accent,#22c55e);color:#fff;border-color:var(--accent,#22c55e)">💾 Salvar Passo B</button></div>'
+    + '</div>';
+}
+function origV6PassoBTagsHtml(arr, campo, origId){
+  if (!arr || !arr.length) return '<span style="font-size:11px;color:var(--ink-4)">vazio · use o campo abaixo pra adicionar</span>';
+  return arr.map((v,i) => '<span class="orig-v6-tag">' + origV2Esc(v) + '<span class="x" onclick="origV6PassoBRemTag(\'' + origId + '\',\'' + campo + '\',' + i + ')">×</span></span>').join('');
+}
+function origV6PassoBEventosHtml(arr, origId){
+  if (!arr || !arr.length) return '<span style="font-size:11px;color:var(--ink-4)">vazio</span>';
+  return arr.map((e,i) => '<div style="font-size:11px;font-family:var(--mono);margin:3px 0;color:var(--ink-2)">• ' + origV2Esc(e.nome||'') + (e.data?' · ' + origV2Esc(e.data):'') + (e.cidade?' · ' + origV2Esc(e.cidade):'') + ' <span style="cursor:pointer;color:var(--ink-4)" onclick="origV6PassoBRemEvento(\'' + origId + '\',' + i + ')">×</span></div>').join('');
+}
+function origV6PassoBAddTag(origId, campo, inputId, opts){
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  let v = (el.value || '').trim();
+  if (!v) return;
+  if (opts?.onlyDigits) v = v.replace(/\D/g,'');
+  if (opts?.min && v.length < opts.min){ alert('Mínimo ' + opts.min + ' dígitos'); return; }
+  if (opts?.max && v.length > opts.max) v = v.slice(0, opts.max);
+  if (opts?.isHashtag){
+    v = v.toLowerCase().replace(/^[#@]+/,'').normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/[^a-z0-9_]/g,'');
+    if (!v) return;
+    v = '#' + v;
+  }
+  const cache = _origV6PassoBCache[origId];
+  if (!cache[campo].includes(v)) cache[campo].push(v);
+  el.value = '';
+  document.getElementById('pb-' + (campo==='cnaes'?'cnaes':campo==='queries_corretores_gmaps'?'cor-gm':campo==='queries_corretores_web'?'cor-web':'cor-ig') + '-' + origId).innerHTML = origV6PassoBTagsHtml(cache[campo], campo, origId);
+  origV6PassoBDirty(origId);
+}
+function origV6PassoBRemTag(origId, campo, idx){
+  const cache = _origV6PassoBCache[origId];
+  cache[campo].splice(idx,1);
+  document.getElementById('pb-' + (campo==='cnaes'?'cnaes':campo==='queries_corretores_gmaps'?'cor-gm':campo==='queries_corretores_web'?'cor-web':'cor-ig') + '-' + origId).innerHTML = origV6PassoBTagsHtml(cache[campo], campo, origId);
+  origV6PassoBDirty(origId);
+}
+function origV6PassoBAddEvento(origId){
+  const el = document.getElementById('pb-ev-add-' + origId);
+  const v = (el.value||'').trim();
+  if (!v) return;
+  const parts = v.split('|').map(s=>s.trim());
+  _origV6PassoBCache[origId].eventos_selecionados.push({ nome: parts[0]||v, data: parts[1]||null, cidade: parts[2]||null });
+  el.value = '';
+  document.getElementById('pb-eventos-' + origId).innerHTML = origV6PassoBEventosHtml(_origV6PassoBCache[origId].eventos_selecionados, origId);
+  origV6PassoBDirty(origId);
+}
+function origV6PassoBRemEvento(origId, idx){
+  _origV6PassoBCache[origId].eventos_selecionados.splice(idx,1);
+  document.getElementById('pb-eventos-' + origId).innerHTML = origV6PassoBEventosHtml(_origV6PassoBCache[origId].eventos_selecionados, origId);
+  origV6PassoBDirty(origId);
+}
+function origV6PassoBDirty(origId){
+  const s = document.getElementById('pb-status-' + origId);
+  if (s) s.textContent = '● não salvo';
+}
+async function origV6PassoBLookupCnpj(origId){
+  const el = document.getElementById('pb-cnpj-' + origId);
+  const cnpj = (el.value||'').replace(/\D/g,'');
+  const info = document.getElementById('pb-cnpj-info-' + origId);
+  if (cnpj.length !== 14){ info.textContent = '⚠ CNPJ precisa ter 14 dígitos'; return; }
+  info.textContent = '⏳ consultando CNPJ.ws…';
+  try {
+    const r = await fetch(SUPABASE_URL + '/functions/v1/originacao-buscar-cnae', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer ' + (__token || SUPABASE_ANON)},
+      body: JSON.stringify({ cnpj_lookup: cnpj })
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok){ info.textContent = '✗ ' + (d.erro || ('HTTP ' + r.status)); return; }
+    el.value = d.cnpj || cnpj;
+    const novos = [];
+    if (d.cnae_principal?.codigo) novos.push(d.cnae_principal.codigo);
+    (d.cnaes_secundarios||[]).forEach(c => { if (c.codigo) novos.push(c.codigo); });
+    const cache = _origV6PassoBCache[origId];
+    cache.cnpj = d.cnpj || cnpj;
+    novos.forEach(c => { if (!cache.cnaes.includes(c)) cache.cnaes.push(c); });
+    document.getElementById('pb-cnaes-' + origId).innerHTML = origV6PassoBTagsHtml(cache.cnaes, 'cnaes', origId);
+    info.innerHTML = '✓ ' + origV2Esc(d.razao_social || '') + ' · ' + novos.length + ' CNAEs adicionados';
+    origV6PassoBDirty(origId);
+  } catch (e){ info.textContent = '✗ ' + (e?.message||'erro'); }
+}
+async function origV6PassoBSalvar(origId){
+  const cache = _origV6PassoBCache[origId];
+  cache.cnpj = (document.getElementById('pb-cnpj-' + origId)?.value||'').replace(/\D/g,'') || cache.cnpj || null;
+  const status = document.getElementById('pb-status-' + origId);
+  if (status) status.textContent = '⏳ salvando…';
+  try {
+    const body = {
+      busca_config_jsonb: {
+        cnpj_referencia: cache.cnpj || null,
+        cnaes: cache.cnaes,
+        queries_corretores_gmaps: cache.queries_corretores_gmaps,
+        queries_corretores_web: cache.queries_corretores_web,
+        queries_ig_corretores: cache.queries_ig_corretores,
+        eventos_selecionados: cache.eventos_selecionados,
+        _atualizado_em: new Date().toISOString(),
+      }
+    };
+    const r = await fetch(SUPABASE_URL + '/rest/v1/projetos_originacao?id=eq.' + origId, {
+      method:'PATCH',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer ' + (__token || SUPABASE_ANON),'Prefer':'return=minimal'},
+      body: JSON.stringify(body)
+    });
+    if (!r.ok){ throw new Error('HTTP ' + r.status + ' · ' + (await r.text()).slice(0,100)); }
+    if (status){ status.textContent = '✓ Passo B salvo'; setTimeout(()=>{ if (status.textContent==='✓ Passo B salvo') status.textContent=''; }, 2400); }
+  } catch (e){
+    if (status) status.textContent = '✗ erro';
+    alert('Erro ao salvar Passo B: ' + (e?.message||'desconhecido'));
+  }
 }
 
 function origV6AtualizarEstimativaCanais(origId) {
@@ -19541,7 +19803,7 @@ function leadsLushaSecaoHtml(lead) {
     + badgeEnriquecido
     + '<div style="font-size:11px;color:var(--ink-3);margin-bottom:8px;">Encontrar sócio/proprietário com contato direto (não o tel da recepção).</div>'
     + '<button class="lead-acao-btn primario" style="margin-bottom:6px;display:block;width:100%;text-align:left;" onclick="leadsEnriquecerLusha(\'' + lead.id + '\')">🔍 Buscar decisor (Lusha)</button>'
-    + '<button class="lead-acao-btn" style="margin-bottom:6px;display:block;width:100%;text-align:left;opacity:0.55;cursor:not-allowed;" disabled title="Aguardando credenciais — em breve">📋 Buscar via Assertiva</button>'
+    + '<button class="lead-acao-btn" style="margin-bottom:6px;display:block;width:100%;text-align:left;background:#1a73e8;color:#fff;border:1px solid #1565c0;cursor:not-allowed;" disabled title="Aguardando credenciais — em breve">📋 Buscar via Assertiva</button>'
     + '<div style="font-size:10px;color:var(--ink-3);font-style:italic;margin-top:4px;">Assertiva: aguardando credenciais</div>'
     + '<div id="lead-lusha-result-' + lead.id + '" style="margin-top:8px;"></div>'
     + '</div>';

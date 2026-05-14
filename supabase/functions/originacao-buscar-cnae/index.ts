@@ -1,9 +1,13 @@
-// originacao-buscar-cnae · v9.34.3 · Sprint 4 · Motor V3
+// originacao-buscar-cnae · v9.34.4 · Sprint 5 · Motor V3
 // Busca empresas via CNPJ.ws filtrando por CNAE + município (Receita Federal).
 // Gratuito · sem auth · rate limit 3 req/min (20s entre cada CNAE).
 //
-// POST body: { originacao_id: uuid }
-// Output: { ok, total_inseridos, total_retornado, por_cnae[], custo_brl: 0 }
+// MODO 1 (busca padrão) · POST { originacao_id }
+//   Prioridade CNAEs: busca_config_jsonb.cnaes > CNAE_POR_SETOR[setor]
+//   Output: { ok, total_inseridos, total_retornado, por_cnae[], custo_brl: 0, fonte_cnaes }
+//
+// MODO 2 (lookup CNPJ → CNAEs · sem persistir) · POST { cnpj_lookup: "XX.XXX.XXX/0001-XX" }
+//   Output: { ok, cnpj, razao_social, cnae_principal: {codigo,descricao}, cnaes_secundarios: [...] }
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -146,12 +150,46 @@ serve(async (req) => {
 
   let body: any;
   try { body = await req.json(); } catch { return resp(400, { ok: false, erro: "json_invalido" }); }
+
+  // ────── MODO 2 · LOOKUP CNPJ → CNAEs (Sprint 5 · Passo B) ──────
+  if (body?.cnpj_lookup) {
+    const cnpjLimpo = String(body.cnpj_lookup).replace(/\D/g, "");
+    if (cnpjLimpo.length !== 14) return resp(400, { ok: false, erro: "cnpj_invalido" });
+    try {
+      const r = await fetch(`https://www.cnpj.ws/cnpj/v1/${cnpjLimpo}`, {
+        headers: { "Accept": "application/json", "User-Agent": "1Negocio/v9.34.4" },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (r.status === 429) return resp(429, { ok: false, erro: "cnpj_ws_rate_limit_429" });
+      if (!r.ok) return resp(500, { ok: false, erro: `cnpj_ws_status_${r.status}` });
+      const data = await r.json();
+      const est = data?.estabelecimento || {};
+      const principal = est.atividade_principal || est.cnae_principal || {};
+      const secundarios = est.atividades_secundarias || [];
+      return resp(200, {
+        ok: true,
+        cnpj: data?.cnpj || cnpjLimpo,
+        razao_social: data?.razao_social || null,
+        cnae_principal: principal?.id || principal?.codigo
+          ? { codigo: String(principal.id || principal.codigo).replace(/\D/g, ""), descricao: principal.descricao || null }
+          : null,
+        cnaes_secundarios: secundarios.map((a: any) => ({
+          codigo: String(a.id || a.codigo || "").replace(/\D/g, ""),
+          descricao: a.descricao || null,
+        })).filter((a: any) => a.codigo),
+      });
+    } catch (e: any) {
+      return resp(500, { ok: false, erro: "cnpj_lookup_exception", detalhe: e?.message?.slice(0, 200) });
+    }
+  }
+
+  // ────── MODO 1 · BUSCA NORMAL ──────
   const { originacao_id } = body || {};
   if (!originacao_id) return resp(400, { ok: false, erro: "originacao_id_obrigatorio" });
 
   try {
     const { data: orig } = await adminClient
-      .from("projetos_originacao").select("id, fase_atual, briefing_jsonb")
+      .from("projetos_originacao").select("id, fase_atual, briefing_jsonb, busca_config_jsonb")
       .eq("id", originacao_id).maybeSingle();
     if (!orig) return resp(404, { ok: false, erro: "originacao_nao_encontrada" });
     if (orig.fase_atual !== "leads") return resp(400, { ok: false, erro: "fase_invalida", detalhe: `fase: ${orig.fase_atual}` });
@@ -160,12 +198,18 @@ serve(async (req) => {
     const setor = (negocio.setor || "").toLowerCase().trim();
     const cidade = (negocio.cidade || "").toLowerCase().trim();
 
-    const cnaes = CNAE_POR_SETOR[setor];
+    // PRIORIDADE 1: CNAEs configurados no Passo B (busca_config_jsonb.cnaes)
+    // PRIORIDADE 2: mapeamento fixo CNAE_POR_SETOR (fallback)
+    const cnaesConfig = Array.isArray(orig.busca_config_jsonb?.cnaes)
+      ? orig.busca_config_jsonb.cnaes.map((c: any) => String(c).replace(/\D/g, "")).filter(Boolean)
+      : [];
+    const cnaes = cnaesConfig.length > 0 ? cnaesConfig : CNAE_POR_SETOR[setor];
+    const fonteCnaes = cnaesConfig.length > 0 ? "busca_config_jsonb" : "mapeamento_fixo_setor";
     if (!cnaes || cnaes.length === 0) {
       return resp(400, {
         ok: false,
         erro: "setor_sem_mapeamento_cnae",
-        detalhe: `setor '${setor}' não mapeado · setores suportados: ${Object.keys(CNAE_POR_SETOR).join(", ")}`,
+        detalhe: `setor '${setor}' não mapeado · setores suportados: ${Object.keys(CNAE_POR_SETOR).join(", ")} · OU configure CNAEs no Passo B`,
       });
     }
     const codIbge = COD_IBGE_POR_CIDADE[cidade];
@@ -268,6 +312,7 @@ serve(async (req) => {
       cidade,
       cod_ibge: codIbge,
       cnaes_usados: cnaes,
+      fonte_cnaes: fonteCnaes,
       por_cnae: porCnae,
       total_retornado: totalRetornado,
       total_inseridos: totalInseridos,
