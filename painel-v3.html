@@ -5629,6 +5629,7 @@ async function loginVerify() {
     document.getElementById('user-nome').textContent = j.admin_nome || 'Admin';
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-app').style.display = 'block';
+    iniciarRefreshTimer();
     initAfterLogin();
   } catch(e) { loginMsg('Erro de rede: ' + e.message); }
 }
@@ -5640,6 +5641,15 @@ function loginBack() {
 function logout() {
   localStorage.removeItem('1n_admin_session');
   location.reload();
+}
+
+// v9.34.9 · timer proactive · refresh JWT a cada 45min (TTL default Supabase = 1h)
+let _adminRefreshTimer = null;
+function iniciarRefreshTimer(){
+  if (_adminRefreshTimer) return;
+  _adminRefreshTimer = setInterval(() => {
+    if (__token) refreshAdminToken().catch(() => {});
+  }, 45 * 60 * 1000);
 }
 
 // Refresh access_token usando refresh_token (Supabase Auth)
@@ -5683,6 +5693,7 @@ async function restaurarSessao() {
     document.getElementById('user-nome').textContent = s.admin_nome || 'Admin';
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('main-app').style.display = 'block';
+    iniciarRefreshTimer();
     return true;
   } catch(e) { return false; }
 }
@@ -5951,13 +5962,18 @@ function registrarAtendimento(userId) {
 }
 
 async function sbFetch(path, opts = {}) {
-  const headers = {
+  const buildHeaders = () => ({
     'apikey': AK,
     'Authorization': 'Bearer ' + (__token || AK),
     'Content-Type': 'application/json',
     ...(opts.headers || {})
-  };
-  const res = await fetch(SB + path, { ...opts, headers });
+  });
+  let res = await fetch(SB + path, { ...opts, headers: buildHeaders() });
+  // v9.34.9 · auto-refresh em 401 (JWT expired) · uma tentativa
+  if (res.status === 401 && __token) {
+    const ok = await refreshAdminToken();
+    if (ok) res = await fetch(SB + path, { ...opts, headers: buildHeaders() });
+  }
   if (!res.ok) throw new Error(`${path} ${res.status}: ${await res.text().catch(()=>'')}`);
   return res.json();
 }
@@ -5995,12 +6011,18 @@ async function paApi(action, table, query = {}, data = null) {
   const qs = paBuildPostgRESTQuery(query);
   const body = { action, table, query: qs };
   if (data) body.data = data;
-  const res = await fetch(PA_EDGE, {
+  const doFetch = () => fetch(PA_EDGE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + __token },
     body: JSON.stringify(body)
   });
-  if (res.status === 401) { logout(); throw new Error('Sessão expirada'); }
+  let res = await doFetch();
+  // v9.34.9 · auto-refresh em 401 antes de fazer logout · uma tentativa
+  if (res.status === 401) {
+    const ok = await refreshAdminToken();
+    if (ok) res = await doFetch();
+    if (res.status === 401) { logout(); throw new Error('Sessão expirada'); }
+  }
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || ('admin-api ' + res.status));
   return { data: json };
