@@ -18667,6 +18667,8 @@ async function origV6RenderFase(orig, container) {
       container.innerHTML = origV6RenderQueries(orig, comQueries, leadsCount);
       // v9.34.4 Sprint 5 b2 · auto-puxar CNPJ do negócio (Parte 1)
       origV6PassoBAutoCnpj(orig.id).catch(e => console.warn('[passoB auto cnpj]', e));
+      // v9.34.5 Sprint 6 · matriz de controle (carrega async)
+      origV9CarregarMatriz(orig, comQueries).catch(e => console.warn('[origV9 matriz]', e));
     }
   } catch (e) {
     console.error('[origV6RenderFase] exception', e);
@@ -18823,7 +18825,9 @@ function origV6RenderQueries(orig, arquetiposComQueries, leadsCount) {
     + '<p style="margin-top:0">Revise/edite as queries abaixo · helpers `[cidade]`/`[setor]`/`[bairro]` inserem placeholders · IG é sanitizado on-blur.</p>'
     + cards
     + origV6PassoBHtml(orig)
-    + '<div style="font-size:11px;font-family:var(--mono);color:var(--ink-3);margin:14px 0 8px">Passo C · Arsenal de canais</div>'
+    + '<div style="font-size:11px;font-family:var(--mono);color:var(--ink-3);margin:14px 0 8px">Passo C · Matriz de controle (v9.34.5 · Sprint 6)</div>'
+    + '<div id="orig-v9-matriz-' + orig.id + '"><div style="padding:14px;background:var(--bg);border:1px dashed var(--line);border-radius:8px;font-size:12px;color:var(--ink-3)">Carregando matriz de busca…</div></div>'
+    + '<div style="font-size:11px;font-family:var(--mono);color:var(--ink-3);margin:14px 0 8px">Arsenal clássico (legacy · fallback)</div>'
     + resumoLeads
     + checkboxesCanais
     + '<div class="orig-v4-acoes" style="margin-top:16px;">'
@@ -18969,9 +18973,9 @@ async function origV6SalvarQueriesArq(arqId){
 
   if (status) status.textContent = '⏳ salvando…';
   try {
-    const headers = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + (__token || SUPABASE_ANON), 'Content-Type':'application/json', 'Prefer':'return=representation' };
+    const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type':'application/json', 'Prefer':'return=representation' };
     // GET queries_busca atual pra fazer merge (preserva raciocinio · lusha_filtros · gmaps_corretores · ig_corretores · web_corretores · eventos · gerado_em)
-    const rGet = await fetch(SUPABASE_URL + '/rest/v1/arquetipos_compradores?id=eq.' + arqId + '&select=queries_busca', { headers });
+    const rGet = await fetch(SB + '/rest/v1/arquetipos_compradores?id=eq.' + arqId + '&select=queries_busca', { headers });
     const arr = await rGet.json();
     const qAtual = (arr && arr[0] && arr[0].queries_busca) || {};
     // Merge cuidadoso: 7 campos editados sobrescrevem; resto preservado
@@ -18988,7 +18992,7 @@ async function origV6SalvarQueriesArq(arqId){
       web_profissionais: webp,
       _editado_em: new Date().toISOString(),
     };
-    const rPatch = await fetch(SUPABASE_URL + '/rest/v1/arquetipos_compradores?id=eq.' + arqId, {
+    const rPatch = await fetch(SB + '/rest/v1/arquetipos_compradores?id=eq.' + arqId, {
       method: 'PATCH', headers, body: JSON.stringify({ queries_busca: merged })
     });
     if (!rPatch.ok){ const t = await rPatch.text(); throw new Error('HTTP ' + rPatch.status + ' · ' + t.slice(0,100)); }
@@ -19180,9 +19184,9 @@ async function origV6PassoBLookupCnpj(origId){
   if (cnpj.length !== 14){ info.textContent = '⚠ CNPJ precisa ter 14 dígitos'; return; }
   info.textContent = '⏳ consultando CNPJ.ws…';
   try {
-    const r = await fetch(SUPABASE_URL + '/functions/v1/originacao-buscar-cnae', {
+    const r = await fetch(SB + '/functions/v1/originacao-buscar-cnae', {
       method:'POST',
-      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer ' + (__token || SUPABASE_ANON)},
+      headers:{'Content-Type':'application/json','apikey':AK,'Authorization':'Bearer ' + (__token || AK)},
       body: JSON.stringify({ cnpj_lookup: cnpj })
     });
     const d = await r.json();
@@ -19216,9 +19220,9 @@ async function origV6PassoBSalvar(origId){
         _atualizado_em: new Date().toISOString(),
       }
     };
-    const r = await fetch(SUPABASE_URL + '/rest/v1/projetos_originacao?id=eq.' + origId, {
+    const r = await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + origId, {
       method:'PATCH',
-      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':'Bearer ' + (__token || SUPABASE_ANON),'Prefer':'return=minimal'},
+      headers:{'Content-Type':'application/json','apikey':AK,'Authorization':'Bearer ' + (__token || AK),'Prefer':'return=minimal'},
       body: JSON.stringify(body)
     });
     if (!r.ok){ throw new Error('HTTP ' + r.status + ' · ' + (await r.text()).slice(0,100)); }
@@ -19227,6 +19231,373 @@ async function origV6PassoBSalvar(origId){
     if (status) status.textContent = '✗ erro';
     alert('Erro ao salvar Passo B: ' + (e?.message||'desconhecido'));
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Sprint 6 · Matriz de controle Fase 3 (origV9)
+// Layout: linhas de arquétipo × colunas de canal (gmaps/fb/web/ig)
+// + linhas de projeto no rodapé (cnae · associações · corretores · banco interno)
+// ═══════════════════════════════════════════════════════════════════════
+
+const ORIGV9_COLUNAS_ARQ = [
+  { canal: 'gmaps',              label: '🗺️ GMaps',  desc: 'Google Maps' },
+  { canal: 'fb_grupos',          label: '📘 FB',     desc: 'FB Grupos' },
+  { canal: 'web_compradores',    label: '🌐 Web',    desc: 'Claude web · compradores' },
+  { canal: 'ig_influenciadores', label: '📷 IG',     desc: 'Instagram influenciadores' },
+];
+const ORIGV9_LINHAS_PROJETO = [
+  { canal: 'interno',            label: '🏛️ Banco interno',   desc: 'Pool global filtrado · gratuito', cor: 'pool' },
+  { canal: 'receita_federal',    label: '🏛️ CNAE Receita',    desc: 'CNPJ.ws · gratuito',              cor: 'cnae' },
+  { canal: 'associacoes',        label: '🤝 Associações',     desc: 'Claude web · ~R$ 0,10',           cor: 'web' },
+  { canal: 'corretores_gmaps',   label: '🤝 Corretores GMaps', desc: 'Apify · R$ 0,50',                cor: 'apify' },
+  { canal: 'web_corretores',     label: '🤝 Corretores Web',  desc: 'Claude web · ~R$ 0,08',           cor: 'web' },
+  { canal: 'ig_corretores',      label: '🤝 Corretores IG',   desc: 'Apify · ~R$ 0,20',                cor: 'apify' },
+];
+
+const _origV9Buscas = {}; // origId → array de rows originacao_buscas
+
+async function origV9CarregarMatriz(orig, arquetipos){
+  const cont = document.getElementById('orig-v9-matriz-' + orig.id);
+  if (!cont) return;
+  try {
+    const r = await fetch(SB + '/rest/v1/originacao_buscas?originacao_id=eq.' + orig.id + '&select=*&order=created_at.asc', {
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) }
+    });
+    const buscas = await r.json();
+    _origV9Buscas[orig.id] = Array.isArray(buscas) ? buscas : [];
+    cont.innerHTML = origV9MatrizHtml(orig, arquetipos, _origV9Buscas[orig.id]);
+  } catch (e){
+    cont.innerHTML = '<div style="padding:14px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#991b1b;font-size:12px">⚠ Erro ao carregar matriz: ' + (e?.message||'') + '</div>';
+  }
+}
+
+function origV9Celula(buscas, arqId, canal){
+  return (buscas || []).find(b =>
+    b.canal === canal &&
+    ((arqId === null && !b.arquetipo_id) || b.arquetipo_id === arqId)
+  );
+}
+
+function origV9CelulaHtml(orig, arqId, canal){
+  const buscas = _origV9Buscas[orig.id] || [];
+  const cel = origV9Celula(buscas, arqId, canal);
+  const arqKey = arqId || 'PROJ';
+  const idBtn = 'v9-cel-' + orig.id + '-' + arqKey + '-' + canal;
+  if (!cel){
+    return '<button id="' + idBtn + '" class="orig-v9-cel pendente" onclick="origV9RodarCelula(\'' + orig.id + '\',' + (arqId ? "'" + arqId + "'" : 'null') + ',\'' + canal + '\')" title="rodar">▷ rodar</button>';
+  }
+  if (cel.status === 'rodando') return '<button id="' + idBtn + '" class="orig-v9-cel rodando" disabled>⏳ ...</button>';
+  if (cel.status === 'erro')    return '<button id="' + idBtn + '" class="orig-v9-cel erro" onclick="origV9RodarCelula(\'' + orig.id + '\',' + (arqId ? "'" + arqId + "'" : 'null') + ',\'' + canal + '\')" title="' + origV2Esc(cel.erro_msg||'erro · clique pra retentar') + '">✕ erro</button>';
+  if (cel.status === 'concluido') return '<button id="' + idBtn + '" class="orig-v9-cel concluido" onclick="origV9AbrirRevisao(\'' + cel.id + '\')" title="ver leads">✓ ' + (cel.leads_encontrados||0) + '</button>';
+  return '<button id="' + idBtn + '" class="orig-v9-cel pendente" onclick="origV9RodarCelula(\'' + orig.id + '\',' + (arqId ? "'" + arqId + "'" : 'null') + ',\'' + canal + '\')">▷ rodar</button>';
+}
+
+function origV9MatrizHtml(orig, arquetipos, buscas){
+  const totalLeads = (buscas || []).reduce((s, b) => s + (b.leads_encontrados || 0), 0);
+  const totalCusto = (buscas || []).reduce((s, b) => s + Number(b.custo_brl || 0), 0);
+  const totalBuscas = (buscas || []).filter(b => b.status === 'concluido').length;
+  const pendentes = arquetipos.length * ORIGV9_COLUNAS_ARQ.length + ORIGV9_LINHAS_PROJETO.length - (buscas || []).filter(b => b.status !== 'pendente').length;
+
+  // Header com resumo + ações
+  let html = '<style>'
+    + '.orig-v9-wrap{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;font-family:var(--mono);font-size:12px}'
+    + '.orig-v9-resumo{display:flex;gap:14px;font-size:11px;color:var(--ink-3);margin-bottom:10px;flex-wrap:wrap}'
+    + '.orig-v9-resumo strong{color:var(--ink-2);font-weight:600}'
+    + '.orig-v9-actions{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}'
+    + '.orig-v9-actions button{padding:6px 12px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);font-size:11px;cursor:pointer;font-family:var(--mono)}'
+    + '.orig-v9-actions button:hover{border-color:var(--accent,#22c55e);color:var(--accent,#22c55e)}'
+    + '.orig-v9-actions .primario{background:var(--accent,#22c55e);color:#fff;border-color:var(--accent,#22c55e)}'
+    + '.orig-v9-table{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:11px}'
+    + '.orig-v9-th,.orig-v9-td{background:var(--bg);padding:8px;text-align:center}'
+    + '.orig-v9-th{font-weight:600;color:var(--ink-3);text-transform:uppercase;font-size:9px;letter-spacing:.06em}'
+    + '.orig-v9-td.linha{text-align:left;font-size:11.5px;color:var(--ink-2);font-family:var(--sans)}'
+    + '.orig-v9-td.linha small{display:block;color:var(--ink-4);font-size:9.5px;margin-top:2px}'
+    + '.orig-v9-cel{width:100%;padding:5px 8px;border-radius:5px;font-size:10.5px;font-family:var(--mono);cursor:pointer;border:1px solid transparent;background:transparent;transition:.1s}'
+    + '.orig-v9-cel.pendente{color:var(--ink-3);border-color:var(--line)}'
+    + '.orig-v9-cel.pendente:hover{color:var(--ink);border-color:var(--ink-3)}'
+    + '.orig-v9-cel.rodando{color:#3b82f6;border-color:#bfdbfe;background:#eff6ff;cursor:wait}'
+    + '.orig-v9-cel.concluido{color:#16a34a;border-color:#86efac;background:#f0fdf4;font-weight:600}'
+    + '.orig-v9-cel.concluido:hover{background:#dcfce7}'
+    + '.orig-v9-cel.erro{color:#dc2626;border-color:#fca5a5;background:#fef2f2}'
+    + '.orig-v9-cel.erro:hover{background:#fee2e2}'
+    + '.orig-v9-cel.desativado{color:var(--ink-4);border-color:transparent;cursor:default}'
+    + '.orig-v9-projfooter{margin-top:10px;display:flex;flex-direction:column;gap:1px;border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:11px}'
+    + '.orig-v9-projrow{display:grid;grid-template-columns:1.5fr 1fr 110px;gap:1px;background:var(--line)}'
+    + '.orig-v9-projrow > div{background:var(--bg);padding:8px 10px}'
+    + '.orig-v9-projrow .pn{font-family:var(--sans);color:var(--ink-2)}'
+    + '.orig-v9-projrow .pn small{display:block;color:var(--ink-4);font-size:9.5px;margin-top:2px}'
+    + '</style>';
+  html += '<div class="orig-v9-wrap">';
+  html += '<div class="orig-v9-resumo">'
+    + '<span><strong>' + totalLeads + '</strong> leads encontrados</span>'
+    + '<span><strong>' + totalBuscas + '</strong> buscas concluídas</span>'
+    + '<span><strong>R$ ' + totalCusto.toFixed(2) + '</strong> gasto</span>'
+    + '<span style="color:var(--ink-4)">· ' + pendentes + ' células pendentes</span>'
+    + '</div>';
+  html += '<div class="orig-v9-actions">'
+    + '<button class="primario" onclick="origV9RodarTodos(\'' + orig.id + '\')">▶ rodar todos pendentes</button>'
+    + ORIGV9_COLUNAS_ARQ.map(c => '<button onclick="origV9RodarColuna(\'' + orig.id + '\',\'' + c.canal + '\')">rodar coluna ' + c.label + '</button>').join('')
+    + '<button onclick="origV9CarregarMatriz(_origV9OrigCache[\'' + orig.id + '\'], _origV9ArqCache[\'' + orig.id + '\'])">↻ atualizar</button>'
+    + '</div>';
+
+  // cache pra refresh
+  window._origV9OrigCache = window._origV9OrigCache || {};
+  window._origV9ArqCache = window._origV9ArqCache || {};
+  window._origV9OrigCache[orig.id] = orig;
+  window._origV9ArqCache[orig.id] = arquetipos;
+
+  // Tabela arquétipo × canal
+  const cols = ORIGV9_COLUNAS_ARQ.length;
+  const gridCols = '1.6fr ' + ORIGV9_COLUNAS_ARQ.map(()=> '1fr').join(' ');
+  html += '<div class="orig-v9-table" style="grid-template-columns:' + gridCols + '">';
+  html += '<div class="orig-v9-th">Arquétipo</div>';
+  ORIGV9_COLUNAS_ARQ.forEach(c => { html += '<div class="orig-v9-th" title="' + origV2Esc(c.desc) + '">' + c.label + '</div>'; });
+  arquetipos.forEach(arq => {
+    html += '<div class="orig-v9-td linha"><strong>' + origV2Esc(arq.nome || 'sem nome') + '</strong><small>' + origV2Esc((arq.perfil||'').slice(0,60)) + '</small></div>';
+    ORIGV9_COLUNAS_ARQ.forEach(c => {
+      html += '<div class="orig-v9-td">' + origV9CelulaHtml(orig, arq.id, c.canal) + '</div>';
+    });
+  });
+  html += '</div>';
+
+  // Linhas de projeto (rodapé)
+  html += '<div class="orig-v9-projfooter">';
+  ORIGV9_LINHAS_PROJETO.forEach(l => {
+    const buscaProj = origV9Celula(buscas, null, l.canal);
+    const statusTxt = !buscaProj ? '— não rodado' :
+      buscaProj.status === 'rodando' ? '⏳ rodando…' :
+      buscaProj.status === 'erro' ? '✕ erro · ' + origV2Esc((buscaProj.erro_msg||'').slice(0,80)) :
+      buscaProj.status === 'concluido' ? '✓ ' + (buscaProj.leads_encontrados||0) + ' leads · R$ ' + Number(buscaProj.custo_brl||0).toFixed(2) :
+      '— ' + buscaProj.status;
+    html += '<div class="orig-v9-projrow">'
+      + '<div class="pn"><strong>' + l.label + '</strong><small>' + origV2Esc(l.desc) + '</small></div>'
+      + '<div style="color:var(--ink-3);align-self:center">' + statusTxt + '</div>'
+      + '<div>' + origV9CelulaHtml(orig, null, l.canal) + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  html += '</div>';
+  return html;
+}
+
+// ═══════ origV9 · ações ═══════
+
+async function origV9UpsertBusca(origId, arqId, canal, patch){
+  // PATCH se já existe (por unique constraint), senão INSERT.
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type':'application/json', 'Prefer':'return=representation,resolution=merge-duplicates' };
+  const body = {
+    originacao_id: origId,
+    arquetipo_id: arqId || null,
+    canal,
+    ...patch,
+    updated_at: new Date().toISOString(),
+  };
+  const r = await fetch(SB + '/rest/v1/originacao_buscas?on_conflict=originacao_id,arquetipo_id,canal', {
+    method:'POST', headers, body: JSON.stringify(body)
+  });
+  if (!r.ok){
+    // fallback · busca por chave composta e PATCH
+    const buscas = _origV9Buscas[origId] || [];
+    const existente = buscas.find(b => b.canal === canal && ((arqId === null && !b.arquetipo_id) || b.arquetipo_id === arqId));
+    if (existente){
+      const r2 = await fetch(SB + '/rest/v1/originacao_buscas?id=eq.' + existente.id, {
+        method:'PATCH', headers, body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() })
+      });
+      if (r2.ok){ const a2 = await r2.json(); return a2[0]; }
+    }
+    throw new Error('upsert HTTP ' + r.status);
+  }
+  const arr = await r.json();
+  return Array.isArray(arr) ? arr[0] : arr;
+}
+
+async function origV9ContarLeadsCanal(origId, arqId, canal){
+  // Conta leads em pool_contatos_uso filtrando por originacao + arquetipo + canal
+  let url = SB + '/rest/v1/pool_contatos_uso?originacao_id=eq.' + origId + '&canal=eq.' + encodeURIComponent(canal) + '&select=id&limit=10000';
+  if (arqId) url += '&arquetipo_id=eq.' + arqId;
+  const r = await fetch(url, { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Prefer': 'count=exact' } });
+  // Pega count do header
+  const cr = r.headers.get('content-range') || '';
+  const m = cr.match(/\/(\d+)$/);
+  if (m) return parseInt(m[1], 10) || 0;
+  const arr = await r.json();
+  return Array.isArray(arr) ? arr.length : 0;
+}
+
+async function origV9RodarCelula(origId, arqId, canal){
+  // 1) Marca rodando
+  const cellId = 'v9-cel-' + origId + '-' + (arqId || 'PROJ') + '-' + canal;
+  const btn = document.getElementById(cellId);
+  if (btn){ btn.disabled = true; btn.className = 'orig-v9-cel rodando'; btn.textContent = '⏳ ...'; }
+  try { await origV9UpsertBusca(origId, arqId, canal, { status: 'rodando', erro_msg: null }); } catch (_){}
+
+  // 2) Dispara o canal correspondente reusando origV6ChamarCanal · injeta arquetipo_id quando relevante
+  try {
+    const extra = { busca_config: _origV6PassoBCache[origId] };
+    // Adiciona arquetipo_id ao payload nos canais que aceitam
+    const result = await origV9ExecutarCanal(origId, arqId, canal, extra);
+    if (!result.ok){
+      const msg = result.erro || 'erro desconhecido';
+      await origV9UpsertBusca(origId, arqId, canal, { status:'erro', erro_msg: msg, rodado_em: new Date().toISOString() });
+      origV9CarregarMatriz(_origV9OrigCache[origId], _origV9ArqCache[origId]);
+      return { ok:false, erro: msg };
+    }
+    // 3) Contagem real de leads_encontrados via pool_contatos_uso
+    const n = await origV9ContarLeadsCanal(origId, arqId, canal).catch(()=>0);
+    const custo = Number(result.data?.custo_brl || result.data?.custo_anthropic_brl_estimado || result.data?.custo_apify_brl_estimado || result.data?.custo_estimado_brl || 0);
+    await origV9UpsertBusca(origId, arqId, canal, {
+      status:'concluido',
+      leads_encontrados: n,
+      leads_aprovados: n, // batch 1 · auto-aprovado (igual ao flow atual)
+      custo_brl: custo,
+      resultado_jsonb: result.data || null,
+      rodado_em: new Date().toISOString(),
+      aprovado_em: new Date().toISOString(),
+    });
+    origV9CarregarMatriz(_origV9OrigCache[origId], _origV9ArqCache[origId]);
+    return { ok:true, leads: n };
+  } catch (e){
+    await origV9UpsertBusca(origId, arqId, canal, { status:'erro', erro_msg: e?.message || 'exception', rodado_em: new Date().toISOString() });
+    origV9CarregarMatriz(_origV9OrigCache[origId], _origV9ArqCache[origId]);
+    return { ok:false, erro: e?.message || 'exception' };
+  }
+}
+
+async function origV9ExecutarCanal(origId, arqId, canal, extra){
+  // Wrapper que ajusta payload por canal + chama edge correta
+  // Mapeamento de canais matriz → edges existentes
+  const negocioIg = document.getElementById('ch-negocio-instagram')?.value || '';
+  const cfgPB = (extra && extra.busca_config) || _origV6PassoBCache[origId] || null;
+
+  let slug, payload;
+  switch (canal){
+    case 'gmaps':
+      slug = 'originacao-buscar-gmaps';
+      payload = { originacao_id: origId, ...(arqId ? { arquetipo_id: arqId } : {}) };
+      break;
+    case 'fb_grupos':
+      slug = 'originacao-buscar-social';
+      payload = { originacao_id: origId, canal: 'fb_grupos', ...(arqId ? { arquetipo_id: arqId } : {}) };
+      break;
+    case 'web_compradores':
+      slug = 'originacao-buscar-claude-web';
+      payload = { originacao_id: origId, canal: 'web_compradores', ...(arqId ? { arquetipo_id: arqId } : {}) };
+      break;
+    case 'ig_influenciadores':
+      slug = 'originacao-buscar-social';
+      payload = { originacao_id: origId, canal: 'ig_influenciadores', ...(arqId ? { arquetipo_id: arqId } : {}) };
+      break;
+    case 'interno':
+      slug = 'buscar-pool-interno';
+      payload = { originacao_id: origId };
+      break;
+    case 'receita_federal':
+      slug = 'originacao-buscar-cnae';
+      payload = { originacao_id: origId };
+      break;
+    case 'associacoes':
+      slug = 'originacao-buscar-associacoes';
+      payload = { originacao_id: origId };
+      break;
+    case 'corretores_gmaps':
+      slug = 'originacao-buscar-gmaps';
+      payload = { originacao_id: origId, tipo: 'corretores' };
+      if (cfgPB?.queries_corretores_gmaps?.length) payload.queries_override = cfgPB.queries_corretores_gmaps;
+      break;
+    case 'web_corretores':
+      slug = 'originacao-buscar-claude-web';
+      payload = { originacao_id: origId, canal: 'web_corretores' };
+      if (cfgPB?.queries_corretores_web?.length) payload.queries_override = cfgPB.queries_corretores_web;
+      break;
+    case 'ig_corretores':
+      slug = 'originacao-buscar-social';
+      payload = { originacao_id: origId, canal: 'ig_corretores' };
+      if (cfgPB?.queries_ig_corretores?.length) payload.queries_override = cfgPB.queries_ig_corretores;
+      break;
+    default:
+      return { ok:false, erro: 'canal_nao_suportado · ' + canal };
+  }
+  try {
+    const r = await fetch(SB + '/functions/v1/' + slug, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer ' + (__token || AK)},
+      body: JSON.stringify(payload)
+    });
+    let rawText = ''; let data = {};
+    try { rawText = await r.text(); data = JSON.parse(rawText); } catch (_){}
+    if (!r.ok || data.ok === false){
+      const msg = data.erro_debug || data.erro || data.detalhe || rawText.slice(0,200) || ('HTTP ' + r.status);
+      return { ok:false, erro: msg };
+    }
+    return { ok:true, data };
+  } catch (e){
+    return { ok:false, erro: 'fetch exception · ' + (e?.message||'') };
+  }
+}
+
+async function origV9RodarColuna(origId, canal){
+  const arquetipos = _origV9ArqCache[origId] || [];
+  if (!arquetipos.length) return;
+  for (const arq of arquetipos){
+    await origV9RodarCelula(origId, arq.id, canal);
+  }
+}
+
+async function origV9RodarTodos(origId){
+  if (!confirm('Roda TODAS as células pendentes? Pode levar vários minutos e gerar custo.')) return;
+  const arquetipos = _origV9ArqCache[origId] || [];
+  // por arquétipo · cada canal arq
+  for (const arq of arquetipos){
+    for (const c of ORIGV9_COLUNAS_ARQ){
+      const cel = origV9Celula(_origV9Buscas[origId], arq.id, c.canal);
+      if (!cel || cel.status === 'pendente' || cel.status === 'erro'){
+        await origV9RodarCelula(origId, arq.id, c.canal);
+      }
+    }
+  }
+  // projetos
+  for (const l of ORIGV9_LINHAS_PROJETO){
+    const cel = origV9Celula(_origV9Buscas[origId], null, l.canal);
+    if (!cel || cel.status === 'pendente' || cel.status === 'erro'){
+      await origV9RodarCelula(origId, null, l.canal);
+    }
+  }
+}
+
+async function origV9AbrirRevisao(buscaId){
+  // Modal read-only com leads aprovados da busca · batch 1 (aprovação seletiva no próximo batch)
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+  const r = await fetch(SB + '/rest/v1/originacao_buscas?id=eq.' + buscaId + '&select=*', { headers });
+  const arr = await r.json();
+  const busca = arr && arr[0];
+  if (!busca){ alert('Busca não encontrada'); return; }
+  // Pega leads no pool_contatos_uso pra essa originação · canal · arquétipo
+  let url = SB + '/rest/v1/pool_contatos_uso?originacao_id=eq.' + busca.originacao_id + '&canal=eq.' + encodeURIComponent(busca.canal) + '&select=id,canal,arquetipo_id,score_total,contato:pool_contatos_global(id,nome,telefone,email,cidade,estado)&order=score_total.desc.nullslast&limit=200';
+  if (busca.arquetipo_id) url += '&arquetipo_id=eq.' + busca.arquetipo_id;
+  const lr = await fetch(url, { headers });
+  const usos = await lr.json();
+  const overlay = document.getElementById('orig-v9-revisao') || (() => {
+    const d = document.createElement('div');
+    d.id = 'orig-v9-revisao';
+    d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+    document.body.appendChild(d);
+    return d;
+  })();
+  const linhas = (Array.isArray(usos) ? usos : []).map(u => {
+    const c = u.contato || {};
+    const tel = c.telefone ? ' · ' + origV2Esc(c.telefone) : '';
+    const loc = c.cidade ? ' · ' + origV2Esc(c.cidade) + (c.estado ? '/' + origV2Esc(c.estado) : '') : '';
+    const score = u.score_total != null ? '<span style="color:var(--ink-3);font-family:var(--mono);font-size:10px;margin-left:6px">score ' + Math.round(u.score_total) + '</span>' : '';
+    return '<div style="padding:8px 10px;border-bottom:1px solid var(--line);font-size:12px"><strong>' + origV2Esc(c.nome||'(sem nome)') + '</strong>' + tel + loc + score + '</div>';
+  }).join('');
+  overlay.innerHTML = '<div style="background:var(--surface,#fff);max-width:720px;max-height:80vh;width:100%;border-radius:10px;display:flex;flex-direction:column;overflow:hidden">'
+    + '<div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">'
+    + '<div><strong>Revisão · ' + origV2Esc(busca.canal) + '</strong><div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + (busca.leads_encontrados||0) + ' leads encontrados · ' + (busca.leads_aprovados||0) + ' aprovados</div></div>'
+    + '<button onclick="document.getElementById(\'orig-v9-revisao\').remove()" style="border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--ink-3)">×</button>'
+    + '</div>'
+    + '<div style="overflow-y:auto;flex:1">' + (linhas || '<div style="padding:24px;text-align:center;color:var(--ink-3)">Nenhum lead persistido em pool_contatos_uso pra essa célula ainda.</div>') + '</div>'
+    + '<div style="padding:10px 16px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-3);font-family:var(--mono)">Aprovação seletiva chega no próximo batch · por agora todos os leads já vão direto pro pool de uso.</div>'
+    + '</div>';
 }
 
 function origV6AtualizarEstimativaCanais(origId) {
