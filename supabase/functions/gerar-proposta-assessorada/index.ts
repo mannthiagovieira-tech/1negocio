@@ -25,7 +25,7 @@ const SETOR_MAP: Record<string, string> = {
   servicos_empresas: "Serviços B2B",
   varejo: "Varejo",
   saude: "Saúde",
-  alimentacao: "Alimentação & Café",
+  alimentacao: "Alimentação",
   beleza_estetica: "Beleza & Estética",
   educacao: "Educação",
   servicos_locais: "Serviços Locais",
@@ -125,17 +125,33 @@ function buildBudgetCards(valor: number, minimo: number, ideal: number, maximo: 
 async function gerarNarrativaIA(input: {
   negocio_nome: string;
   negocio_setor: string;
+  artigo: string;
   faturamento_anual: number;
   margem_operacional: number;
   valor_aproximado: number;
   cidade?: string;
   estado?: string;
   obs?: string;
-}): Promise<{ diagnostico: string; por_que_agora: string }> {
+  apenas?: "diagnostico" | "por_que_agora" | "ambos";
+}): Promise<{ diagnostico?: string; por_que_agora?: string }> {
   const setorLabel = SETOR_MAP[input.negocio_setor] || input.negocio_setor;
   const localizacao = [input.cidade, input.estado].filter(Boolean).join("/");
+  const apenas = input.apenas || "ambos";
+  const referenciaNome = `${input.artigo} ${input.negocio_nome}`;
+
+  const instr1 = `1. "diagnostico" (4-6 frases): explique o que faz ESTE negócio único e atraente para investidores. Cite os números concretos. Comece referenciando como "${referenciaNome}" (ex.: "${referenciaNome} é..."). Tom de análise técnica de M&A.`;
+  const instr2 = `2. "por_que_agora" (3-4 frases): explique por que vender ESTE negócio AGORA é estratégico. Cite tendência específica do setor ${setorLabel}, janela de mercado, ou contexto macro relevante. Direto e factual.`;
+
+  const instrucoes = apenas === "diagnostico" ? instr1
+    : apenas === "por_que_agora" ? instr2
+    : `${instr1}\n\n${instr2}`;
+
+  const jsonShape = apenas === "diagnostico" ? `{"diagnostico":"..."}`
+    : apenas === "por_que_agora" ? `{"por_que_agora":"..."}`
+    : `{"diagnostico":"...","por_que_agora":"..."}`;
 
   const userPrompt = `Empresa: ${input.negocio_nome}
+Artigo gramatical: ${input.artigo} (use "${referenciaNome}" ao referenciar)
 Setor: ${setorLabel}
 Faturamento anual: ${brl(input.faturamento_anual)}
 Margem operacional: ${input.margem_operacional}%
@@ -143,14 +159,12 @@ ${localizacao ? `Localização: ${localizacao}` : ""}
 Valor pedido pelo dono: ${brl(input.valor_aproximado)}
 ${input.obs ? `Observações do consultor: ${input.obs}` : ""}
 
-Gere DOIS parágrafos personalizados, em português brasileiro, tom factual e profissional (não vendedor):
+Gere ${apenas === "ambos" ? "DOIS parágrafos personalizados" : "UM parágrafo personalizado"}, em português brasileiro, tom factual e profissional (não vendedor):
 
-1. "diagnostico" (4-6 frases): explique o que faz ESTE negócio único e atraente para investidores. Cite os números concretos. Comece com o nome do negócio. Tom de análise técnica de M&A.
-
-2. "por_que_agora" (3-4 frases): explique por que vender ESTE negócio AGORA é estratégico. Cite tendência específica do setor ${setorLabel}, janela de mercado, ou contexto macro relevante. Direto e factual.
+${instrucoes}
 
 Responda APENAS com JSON válido neste formato exato (sem markdown, sem prefixo):
-{"diagnostico":"...","por_que_agora":"..."}`;
+${jsonShape}`;
 
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -185,7 +199,9 @@ Responda APENAS com JSON válido neste formato exato (sem markdown, sem prefixo)
     parsed = JSON.parse(m[0]);
   }
 
-  if (!parsed?.diagnostico || !parsed?.por_que_agora) {
+  const precisaDiag = apenas === "ambos" || apenas === "diagnostico";
+  const precisaAgora = apenas === "ambos" || apenas === "por_que_agora";
+  if ((precisaDiag && !parsed?.diagnostico) || (precisaAgora && !parsed?.por_que_agora)) {
     throw new Error("ia_campos_faltando: " + JSON.stringify(parsed).slice(0, 200));
   }
   return parsed;
@@ -222,6 +238,9 @@ serve(async (req) => {
     cidade,
     estado,
     obs,
+    artigo: artigoRaw,
+    narrativa_diagnostico: narrDiagOverride,
+    narrativa_por_que_agora: narrAgoraOverride,
   } = body || {};
 
   if (!contato_nome || !negocio_nome || !negocio_setor || !valor_aproximado) {
@@ -243,19 +262,33 @@ serve(async (req) => {
   const cidadeStr = (cidade || "").toString().trim();
   const estadoStr = (estado || "").toString().trim().toUpperCase();
   const localizacao = [cidadeStr, estadoStr].filter(Boolean).join(estadoStr && cidadeStr ? "/" : "");
+  const artigo = (artigoRaw === "a" ? "a" : "o");
+  const narrDiagStr = (narrDiagOverride || "").toString().trim();
+  const narrAgoraStr = (narrAgoraOverride || "").toString().trim();
 
   try {
-    // 1) IA narrativa
-    const narrativa = await gerarNarrativaIA({
-      negocio_nome,
-      negocio_setor,
-      faturamento_anual: Number(faturamento_anual) || 0,
-      margem_operacional: Number(margem_operacional) || 0,
-      valor_aproximado: valor,
-      cidade: cidadeStr || undefined,
-      estado: estadoStr || undefined,
-      obs,
-    });
+    // 1) IA narrativa · só gera o que não veio do admin
+    let diagnostico = narrDiagStr;
+    let por_que_agora = narrAgoraStr;
+    const precisaDiag = !diagnostico;
+    const precisaAgora = !por_que_agora;
+    if (precisaDiag || precisaAgora) {
+      const apenas = precisaDiag && precisaAgora ? "ambos" : precisaDiag ? "diagnostico" : "por_que_agora";
+      const narrativa = await gerarNarrativaIA({
+        negocio_nome,
+        negocio_setor,
+        artigo,
+        faturamento_anual: Number(faturamento_anual) || 0,
+        margem_operacional: Number(margem_operacional) || 0,
+        valor_aproximado: valor,
+        cidade: cidadeStr || undefined,
+        estado: estadoStr || undefined,
+        obs,
+        apenas,
+      });
+      if (precisaDiag) diagnostico = narrativa.diagnostico || "";
+      if (precisaAgora) por_que_agora = narrativa.por_que_agora || "";
+    }
 
     // 2) Render template
     const template = await carregarTemplate();
@@ -271,7 +304,8 @@ serve(async (req) => {
     const replacements: Record<string, string> = {
       "{{DATA_PROPOSTA}}": dataExtenso(hoje),
       "{{DATA_EXPIRACAO}}": dataExtenso(expira),
-      "{{PRIMEIRO_NOME}}": "o " + escapeHtml(negocio_nome),
+      "{{PRIMEIRO_NOME}}": artigo + " " + escapeHtml(negocio_nome),
+      "{{ARTIGO}}": artigo,
       "{{NEGOCIO_NOME}}": escapeHtml(negocio_nome),
       "{{NEGOCIO_SETOR}}": escapeHtml(setorLabel),
       "{{FATURAMENTO}}": brlShort(Number(faturamento_anual) || 0),
@@ -280,8 +314,8 @@ serve(async (req) => {
       "{{VALOR_NEGOCIO}}": brl(valor),
       "{{TAXA_SUCESSO_5PCT}}": brl(taxaSucesso),
       "{{BUDGET_CARDS}}": buildBudgetCards(valor, minimo, ideal, maximo),
-      "{{NARRATIVA_DIAGNOSTICO}}": escapeHtml(narrativa.diagnostico),
-      "{{NARRATIVA_POR_QUE_AGORA}}": escapeHtml(narrativa.por_que_agora),
+      "{{NARRATIVA_DIAGNOSTICO}}": escapeHtml(diagnostico),
+      "{{NARRATIVA_POR_QUE_AGORA}}": escapeHtml(por_que_agora),
     };
 
     let html = template;
@@ -321,11 +355,12 @@ serve(async (req) => {
         mensalidade_ideal: ideal,
         mensalidade_maximo: maximo,
         plano_sugerido: planoSugerido,
-        narrativa_diagnostico: narrativa.diagnostico,
-        narrativa_por_que_agora: narrativa.por_que_agora,
+        narrativa_diagnostico: diagnostico,
+        narrativa_por_que_agora: por_que_agora,
         cidade: cidadeStr || null,
         estado: estadoStr || null,
         telefone_proprietario: telefoneStr || null,
+        artigo,
         storage_path: storagePath,
         storage_url: storageUrl,
         expires_at: expira.toISOString(),
@@ -340,6 +375,7 @@ serve(async (req) => {
     return resp(500, { success: false, error: "exception_raiz", detalhe: e?.message?.slice(0, 300) });
   }
 });
+
 
 
 
@@ -683,7 +719,7 @@ section{margin-bottom:64px}
 <!-- HERO -->
 <section>
   <span class="hero-eyebrow">Venda Assessorada · Proposta comercial · {{DATA_PROPOSTA}}</span>
-  <h1 class="hero-title">Levar {{PRIMEIRO_NOME}} ao<br>mercado com <em>estratégia.</em></h1>
+  <h1 class="hero-title">Levar {{ARTIGO}} {{NEGOCIO_NOME}} ao<br>mercado com <em>estratégia.</em></h1>
   <p class="hero-diag">{{NARRATIVA_DIAGNOSTICO}}</p>
   <div class="stats-strip">
     <div class="stat"><span class="stat-lbl">Setor</span><span class="stat-val">{{NEGOCIO_SETOR}}</span></div>
@@ -757,6 +793,7 @@ section{margin-bottom:64px}
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09zM12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/></svg></div><span class="stxt">Go to market (primeiros contatos)</span></div>
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div><span class="stxt">Primeiras prospecções</span></div>
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div><span class="stxt">Campanhas e ads</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div><span class="stxt"><strong>Reunião de encerramento e revisão de rota</strong></span></div>
       </div></div>
     </div>
 
@@ -775,6 +812,7 @@ section{margin-bottom:64px}
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><span class="stxt">Revisão e ajuste de campanhas</span></div>
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div><span class="stxt">Conversas qualificadas em curso</span></div>
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div><span class="stxt">Novos compradores no radar</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div><span class="stxt"><strong>Reunião trimestral · análise e realinhamento</strong></span></div>
       </div></div>
     </div>
 
@@ -793,6 +831,7 @@ section{margin-bottom:64px}
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><span class="stxt">Qualificação avançada</span></div>
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><span class="stxt">Assessoria em propostas</span></div>
         <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg></div><span class="stxt">Suporte jurídico no closing</span></div>
+        <div class="step"><div class="sicon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div><span class="stxt"><strong>Reunião trimestral · análise e realinhamento</strong></span></div>
       </div></div>
     </div>
 
@@ -862,6 +901,7 @@ section{margin-bottom:64px}
   <span class="sec-label">Proposta comercial · Proprietário · {{NEGOCIO_NOME}}</span>
   <div style="background:var(--surface);border:1px solid rgba(10,21,16,.08);border-radius:16px;padding:28px;box-shadow:var(--sh-sm)">
     <div class="bh-title">Investimento mensal</div>
+    <div style="display:inline-flex;align-items:center;gap:6px;margin-bottom:4px"><span style="font-family:var(--mono);font-size:8px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);background:var(--ac-soft);border:1px solid var(--ac-line);border-radius:999px;padding:3px 9px">Negociável</span><span style="font-family:var(--mono);font-size:9px;color:var(--ink-3)">qualquer valor entre o mínimo e o ideal pode ser acordado</span></div>
     <div class="bh-sub">Calculado sobre o valor estimado do negócio · todo valor pago é abatido da taxa de sucesso no closing</div>
 
     {{BUDGET_CARDS}}
@@ -909,7 +949,7 @@ section{margin-bottom:64px}
 <section>
   <div class="cta-box">
     <div class="cta-title">Pronto para ir ao mercado?</div>
-    <p class="cta-sub">Esta proposta foi construída especificamente para {{PRIMEIRO_NOME}}.<br>O próximo passo é uma conversa de 30 minutos — sem compromisso.</p>
+    <p class="cta-sub">Esta proposta foi construída especificamente para {{ARTIGO}} {{NEGOCIO_NOME}}.<br>O próximo passo é uma conversa de 30 minutos — sem compromisso.</p>
     <a href="https://wa.me/5548991994080?text=Ol%C3%A1%2C+vim+pela+proposta+da+1Neg%C3%B3cio+e+gostaria+de+conversar+sobre+a+venda+do+meu+neg%C3%B3cio." class="cta-btn" target="_blank" rel="noopener">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.025.507 3.934 1.401 5.604L0 24l6.545-1.38A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.006-1.373l-.36-.214-3.733.786.8-3.647-.235-.374A9.818 9.818 0 012.182 12C2.182 6.575 6.575 2.182 12 2.182c5.424 0 9.818 4.393 9.818 9.818 0 5.424-4.394 9.818-9.818 9.818z"/></svg>
       Falar no WhatsApp
