@@ -12963,12 +12963,81 @@ function pjV347OverlayGenerico(titulo, htmlBody){
   document.body.appendChild(overlay);
 }
 
-function pjV347AbrirCockpit(projId){
+async function pjV347AbrirCockpit(projId){
   const n = _pjAbertoNeg; if (!n) return;
   const meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
   const mesAtual = pjMesAtual(meta?.iniciado_em);
-  pjV347OverlayGenerico('📊 Cockpit do projeto', pjRenderCockpit(n, meta, mesAtual));
+  // v9.35.0 · P8 · carrega sugestões do dono em paralelo
+  let sugestoes = [];
+  if (meta?.id) {
+    try {
+      const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+      const r = await fetch(SB + '/rest/v1/projeto_sugestoes_dono?projeto_metadata_id=eq.' + meta.id + '&order=created_at.desc&limit=30', { headers });
+      sugestoes = r.ok ? await r.json() : [];
+    } catch (_) {}
+  }
+  const cockpitHtml = pjRenderCockpit(n, meta, mesAtual);
+  const sugHtml = pjV347RenderSugestoesDono(meta?.id, sugestoes, n);
+  pjV347OverlayGenerico('📊 Cockpit do projeto', cockpitHtml + sugHtml);
 }
+
+// ───────────────────────────────────────────────────────────────────
+// v9.35.0 · P8 · Sugestões para o dono (eventos · grupos · associações)
+// ───────────────────────────────────────────────────────────────────
+function pjV347RenderSugestoesDono(metaId, sugestoes, n){
+  if (!metaId) return '';
+  if (!sugestoes || sugestoes.length === 0) {
+    return `<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:14px;margin-top:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Sugestões para o dono</div>
+      <div style="font-size:13px;color:var(--ink-3);margin-bottom:12px">Lugares para o dono frequentar e encontrar potenciais compradores naturalmente.</div>
+      <button onclick="pjV347GerarSugestoesDono('${metaId}','${n?.id||''}')" style="background:rgba(34,197,94,.1);color:var(--em,#22c55e);border:1px solid var(--em,#22c55e);border-radius:6px;padding:8px 14px;font-size:12px;cursor:pointer;font-weight:500">🤖 Gerar sugestões com IA · ~R$ 0,10</button>
+    </div>`;
+  }
+  const eventos = sugestoes.filter(s => s.tipo === 'evento');
+  const grupos = sugestoes.filter(s => s.tipo === 'grupo');
+  const assoc = sugestoes.filter(s => s.tipo === 'associacao');
+  const renderItem = (s, ico) => `<div style="padding:8px;background:var(--bg);border-radius:6px;margin-bottom:4px;font-size:12px">
+    <div style="font-weight:500">${ico} ${tdEscape(s.nome||'')}</div>
+    ${(s.cidade || s.plataforma) ? `<div style="color:var(--ink-3);font-size:11px">${tdEscape(s.cidade||s.plataforma||'')}</div>` : ''}
+    ${s.motivo ? `<div style="color:var(--ink-2);font-size:11px;margin-top:3px">${tdEscape(s.motivo)}</div>` : ''}
+    ${s.url ? `<a href="${tdEscape(s.url)}" target="_blank" rel="noopener" style="color:var(--em,#22c55e);font-size:10px">abrir →</a>` : ''}
+  </div>`;
+  return `<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:14px;margin-top:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em">Sugestões para o dono · ${sugestoes.length} itens</div>
+      <button onclick="pjV347GerarSugestoesDono('${metaId}','${n?.id||''}')" style="background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;color:var(--ink-3)">🔄 Regerar</button>
+    </div>
+    ${eventos.length > 0 ? `<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">📅 Eventos para ir</div>${eventos.map(e => renderItem(e, '📅')).join('')}</div>` : ''}
+    ${grupos.length > 0 ? `<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">👥 Grupos para entrar</div>${grupos.map(g => renderItem(g, '👥')).join('')}</div>` : ''}
+    ${assoc.length > 0 ? `<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">🤝 Associações</div>${assoc.map(a => renderItem(a, '🤝')).join('')}</div>` : ''}
+  </div>`;
+}
+
+async function pjV347GerarSugestoesDono(metaId, negId){
+  if (!metaId) { alert('meta_id ausente'); return; }
+  if (!confirm('Gerar sugestões para o dono usando IA com web_search? Custo estimado ~R$ 0,10.')) return;
+  origToast && origToast('⏳ Gerando sugestões · pode levar 30s...');
+  try {
+    // Busca originacao_id deste projeto
+    const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+    const rO = await fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + metaId + '&select=id&order=created_at.desc&limit=1', { headers });
+    const arrO = rO.ok ? await rO.json() : [];
+    const origId = arrO[0]?.id || null;
+
+    const r = await fetch(SB + '/functions/v1/gerar-sugestoes-dono', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projeto_metadata_id: metaId, originacao_id: origId }),
+    });
+    const data = await r.json();
+    if (!r.ok || !data.ok) { alert('Erro: ' + (data.erro || ('HTTP ' + r.status)) + (data.detalhe ? ' · ' + data.detalhe : '')); return; }
+    origToast && origToast('✓ ' + data.total + ' sugestões geradas');
+    pjV347AbrirCockpit(negId);
+  } catch (e) { alert('Erro fetch: ' + e.message); }
+}
+
+window.pjV347RenderSugestoesDono = pjV347RenderSugestoesDono;
+window.pjV347GerarSugestoesDono = pjV347GerarSugestoesDono;
 function pjV347AbrirMatchmaking(projId){
   const n = _pjAbertoNeg; if (!n) return;
   const meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
