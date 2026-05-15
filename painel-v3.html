@@ -12977,19 +12977,327 @@ function pjV347AbrirMatchmaking(projId){
 function pjV347AbrirFinanceiro(negId){
   const n = _pjAbertoNeg; if (!n) return;
   const meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
-  pjV347OverlayGenerico('💰 Financeiro do projeto', pjRenderFinanceiro(n, meta, _pjMovimentacoes || []));
+  pjV347OverlayGenerico('💰 Financeiro do projeto', pjV347RenderFinanceiro(n, meta, _pjMovimentacoes || []));
 }
-function pjV347AbrirEntregaveis(){
-  pjV347OverlayGenerico('📋 Entregáveis do mês', pjRenderEntregaveis ? pjRenderEntregaveis() : '<p>Indisponível</p>');
+async function pjV347AbrirEntregaveis(){
+  const n = _pjAbertoNeg; if (!n) { pjV347OverlayGenerico('📋 Entregáveis', '<p>Sem projeto aberto</p>'); return; }
+  const meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
+  if (!meta?.id) { pjV347OverlayGenerico('📋 Entregáveis', '<p>Sem meta vinculada</p>'); return; }
+  // carrega ondas + atividades
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+  const [rOnda, rAtv] = await Promise.all([
+    fetch(SB + '/rest/v1/projeto_ondas?projeto_metadata_id=eq.' + meta.id + '&order=numero_onda', { headers }),
+    fetch(SB + '/rest/v1/projeto_atividades?projeto_metadata_id=eq.' + meta.id + '&order=ordem', { headers }),
+  ]);
+  const ondas = rOnda.ok ? await rOnda.json() : [];
+  const atvs = rAtv.ok ? await rAtv.json() : [];
+  pjV347OverlayGenerico('📋 Cronograma de ondas', pjV347RenderEntregaveis(meta, atvs, ondas));
 }
-function pjV347AbrirConfig(negId){
+async function pjV347AbrirConfig(negId){
   const n = _pjAbertoNeg; if (!n) return;
   const meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
-  pjV347OverlayGenerico('⚙️ Configuração do projeto', pjRenderVinculo(n, meta));
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+  let assessores = [];
+  if (meta?.id) {
+    try {
+      const r = await fetch(SB + '/rest/v1/projeto_assessores?projeto_metadata_id=eq.' + meta.id + '&ativo=eq.true&select=id,nome,cargo&order=criado_em.desc', { headers });
+      assessores = r.ok ? await r.json() : [];
+    } catch (_) {}
+  }
+  const html = pjRenderVinculo(n, meta) + pjV347RenderConfigAssessores(meta?.id, assessores);
+  pjV347OverlayGenerico('⚙️ Configuração do projeto', html);
 }
 function pjV347AbrirVisaoCliente(negId){
   if (negId) window.open('/negocio.html?id=' + negId, '_blank');
 }
+
+// ───────────────────────────────────────────────────────────────────
+// v9.35.0 · P6 · Financeiro completo (config mensal + markup + comissão)
+// ───────────────────────────────────────────────────────────────────
+function pjV347RenderFinanceiro(n, meta, movs){
+  const mensal = parseFloat(meta?.receita_mensal || 0);
+  const percAds = parseFloat(meta?.perc_ads || 30);
+  const percLeads = parseFloat(meta?.perc_leads || 16);
+  const percConteudo = parseFloat(meta?.perc_conteudo || 10);
+  const percMargem = 100 - percAds - percLeads - percConteudo;
+
+  const fmt = (v) => 'R$ ' + (v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const valorAds = mensal * percAds / 100;
+  const valorLeads = mensal * percLeads / 100;
+  const valorConteudo = mensal * percConteudo / 100;
+  const valorMargem = mensal * percMargem / 100;
+
+  const markupLead = parseFloat(meta?.markup_lead_cobrado || 5);
+  const markupConteudo = parseFloat(meta?.markup_conteudo_cobrado || 10);
+
+  const vendaAlvo = parseFloat(meta?.valor_venda_alvo || 0);
+  const comissaoPerc = parseFloat(meta?.comissao_percentual || 5);
+  const comissaoTotal = vendaAlvo * comissaoPerc / 100;
+  const mensalidadesPagas = (movs||[]).filter(m => m.tipo === 'entrada').reduce((s, m) => s + parseFloat(m.valor || 0), 0);
+  const comissaoLiquida = Math.max(0, comissaoTotal - mensalidadesPagas);
+
+  const ultimas = (movs||[]).slice(0,10).map(m => {
+    const sinal = m.tipo === 'entrada' ? '+' : '−';
+    const cor = m.tipo === 'entrada' ? 'var(--em, #22c55e)' : '#c14';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">
+      <div><div style="font-size:13px">${tdEscape(m.descricao || m.categoria || 'Movimentação')}</div><div style="font-size:11px;color:var(--ink-3)">${m.data || ''}</div></div>
+      <div style="text-align:right"><div style="font-size:13px;font-weight:600;color:${cor}">${sinal} ${fmt(parseFloat(m.valor||0))}</div><div style="font-size:10px;color:var(--ink-3)">${m.tipo}</div></div>
+    </div>`;
+  }).join('');
+
+  return `<div style="display:flex;flex-direction:column;gap:14px;padding:4px">
+    <h3 style="font-size:15px;font-weight:600;color:var(--ink);margin:0">Financeiro · ${tdEscape(meta?.nome_negocio || n?.nome || 'Projeto')}</h3>
+
+    <div style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Configuração mensal</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <div style="font-size:11px;color:var(--ink-3);margin-bottom:4px">Mensalidade</div>
+          <div style="font-size:18px;font-weight:700;color:var(--em, #22c55e)">${fmt(mensal)}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--ink-3);margin-bottom:4px">Distribuição</div>
+          <div style="font-size:12px;line-height:1.7">
+            Ads: <b>${fmt(valorAds)} (${percAds}%)</b><br>
+            Leads: <b>${fmt(valorLeads)} (${percLeads}%)</b><br>
+            Conteúdo: <b>${fmt(valorConteudo)} (${percConteudo}%)</b><br>
+            Margem 1N: <b style="color:var(--em, #22c55e)">${fmt(valorMargem)} (${percMargem.toFixed(0)}%)</b>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+        <div style="font-size:11px;color:var(--ink-3);margin-bottom:8px">Markup por serviço</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+          <div>Lead cobrado: <b>${fmt(markupLead)}/lead</b></div>
+          <div>Conteúdo cobrado: <b>${fmt(markupConteudo)}/peça</b></div>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <button onclick="pjV347EditarFinanceiro('${meta?.id||''}')" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:5px 12px;font-size:11px;cursor:pointer;color:var(--ink-2)">✏️ Editar configuração</button>
+      </div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Projeção de comissão</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div><div style="font-size:11px;color:var(--ink-3)">Venda alvo</div><div style="font-size:15px;font-weight:600">${vendaAlvo>0?'R$ '+(vendaAlvo/1000).toFixed(0)+'k':'—'}</div></div>
+        <div><div style="font-size:11px;color:var(--ink-3)">Comissão (${comissaoPerc}%)</div><div style="font-size:15px;font-weight:600">${comissaoTotal>0?'R$ '+(comissaoTotal/1000).toFixed(1)+'k':'—'}</div></div>
+        <div><div style="font-size:11px;color:var(--ink-3)">Já recebido</div><div style="font-size:15px;font-weight:600;color:var(--em, #22c55e)">${fmt(mensalidadesPagas)}</div></div>
+      </div>
+      <div style="margin-top:12px;padding:10px;background:rgba(34,197,94,.08);border-radius:6px">
+        <div style="font-size:11px;color:var(--ink-3)">Comissão líquida estimada</div>
+        <div style="font-size:20px;font-weight:700;color:var(--em, #22c55e)">${comissaoLiquida>0?'R$ '+(comissaoLiquida/1000).toFixed(1)+'k':'—'}</div>
+      </div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em">Mensalidades · últimas 10</div>
+        <button onclick="mvAbrirMovimentacao('${n?.id||''}')" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:5px 12px;font-size:11px;cursor:pointer;color:var(--ink-2)">+ Movimentação</button>
+      </div>
+      ${ultimas || '<div style="color:var(--ink-3);font-size:13px">Nenhuma movimentação registrada</div>'}
+    </div>
+  </div>`;
+}
+
+async function pjV347EditarFinanceiro(metaId){
+  if (!metaId) { alert('meta_id ausente'); return; }
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+  const r = await fetch(SB + '/rest/v1/projeto_metadata?id=eq.' + metaId + '&select=receita_mensal,perc_ads,perc_leads,perc_conteudo,markup_lead_cobrado,markup_conteudo_cobrado,meta_contatos_mes', { headers });
+  const arr = r.ok ? await r.json() : [];
+  const m = arr[0] || {};
+  const valStr = (v) => v != null ? String(v) : '';
+  const novo = {
+    receita_mensal: prompt('Mensalidade R$:', valStr(m.receita_mensal)),
+    perc_ads: prompt('% Ads:', valStr(m.perc_ads||30)),
+    perc_leads: prompt('% Leads:', valStr(m.perc_leads||16)),
+    perc_conteudo: prompt('% Conteúdo:', valStr(m.perc_conteudo||10)),
+    markup_lead_cobrado: prompt('Markup R$/lead:', valStr(m.markup_lead_cobrado||5)),
+    markup_conteudo_cobrado: prompt('Markup R$/peça:', valStr(m.markup_conteudo_cobrado||10)),
+    meta_contatos_mes: prompt('Meta contatos/mês:', valStr(m.meta_contatos_mes||20)),
+  };
+  // Filtra cancelados (prompt retorna null) e converte
+  const patch = {};
+  Object.entries(novo).forEach(([k,v]) => { if (v != null && v !== '') patch[k] = isNaN(Number(v)) ? v : Number(v); });
+  if (Object.keys(patch).length === 0) return;
+  const upd = await fetch(SB + '/rest/v1/projeto_metadata?id=eq.' + metaId, {
+    method: 'PATCH',
+    headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify(patch),
+  });
+  if (!upd.ok) { alert('Erro ao salvar (HTTP ' + upd.status + ')'); return; }
+  origToast && origToast('✓ Configuração financeira atualizada');
+  pjV347AbrirFinanceiro();
+}
+
+// ───────────────────────────────────────────────────────────────────
+// v9.35.0 · P7 · Cronograma de ondas (substitui pjRenderEntregaveis · novas tabelas)
+// ───────────────────────────────────────────────────────────────────
+function pjV347RenderEntregaveis(meta, atividades, ondas){
+  const ondasAtivas = ondas || [];
+  if (ondasAtivas.length === 0) {
+    return `<div style="padding:24px;text-align:center">
+      <div style="font-size:32px;margin-bottom:12px">📅</div>
+      <div style="font-size:15px;font-weight:500;margin-bottom:8px">Projeto sem data de início definida</div>
+      <div style="font-size:13px;color:var(--ink-3);margin-bottom:16px">Defina a data de início para ativar a Onda 1 e criar o cronograma automaticamente.</div>
+      <div style="display:flex;gap:8px;justify-content:center;align-items:center">
+        <input type="date" id="pj-data-inicio-${meta?.id}" value="${new Date().toISOString().slice(0,10)}" style="background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:8px 12px;color:var(--ink);font-size:13px">
+        <button onclick="pjV347DefinirDataInicio('${meta?.id}')" style="background:var(--em,#22c55e);color:#000;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">Ativar Onda 1</button>
+      </div>
+    </div>`;
+  }
+
+  const ondaAtual = ondasAtivas.find(o => o.status === 'ativa') || ondasAtivas[0];
+  const atvsOnda = (atividades||[]).filter(a => a.onda_id === ondaAtual?.id).sort((a, b) => (a.ordem||0) - (b.ordem||0));
+  const concluidas = atvsOnda.filter(a => a.concluida).length;
+  const total = atvsOnda.length;
+  const hoje = new Date();
+
+  return `<div style="display:flex;flex-direction:column;gap:14px;padding:4px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3 style="font-size:15px;font-weight:600;margin:0">Onda ${ondaAtual?.numero_onda || 1} · ${concluidas}/${total} concluídas</h3>
+      <div style="font-size:12px;color:var(--ink-3)">${ondaAtual?.data_inicio || ''} → ${ondaAtual?.data_fim || ''}</div>
+    </div>
+    <div style="background:var(--surface);border-radius:6px;overflow:hidden;height:6px"><div style="background:var(--em,#22c55e);height:100%;width:${total > 0 ? (concluidas/total*100).toFixed(0) : 0}%;transition:width .3s"></div></div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${atvsOnda.map(a => {
+        const vencida = !a.concluida && a.prazo && new Date(a.prazo) < hoje;
+        const cor = a.concluida ? 'var(--em,#22c55e)' : vencida ? '#c14' : 'var(--ink-3)';
+        const bg = a.concluida ? 'rgba(34,197,94,.08)' : vencida ? 'rgba(255,107,92,.08)' : 'var(--surface)';
+        const prazoTxt = a.prazo ? new Date(a.prazo + 'T00:00').toLocaleDateString('pt-BR') : '';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:${bg};border-radius:8px;border:1px solid var(--line)">
+          <button onclick="pjV347ToggleAtividade('${a.id}', ${!a.concluida})" style="width:20px;height:20px;border-radius:50%;border:2px solid ${cor};background:${a.concluida ? 'var(--em,#22c55e)' : 'transparent'};cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-size:11px;padding:0">${a.concluida ? '✓' : ''}</button>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500;color:${a.concluida ? 'var(--ink-3)' : 'var(--ink)'};text-decoration:${a.concluida ? 'line-through' : 'none'}">
+              ${tdEscape(a.titulo)} ${a.visivel_cliente ? '<span style="font-size:10px;color:var(--em,#22c55e);margin-left:6px">● cliente</span>' : ''}
+            </div>
+            ${prazoTxt ? `<div style="font-size:11px;color:${vencida ? '#c14' : 'var(--ink-3)'}">${vencida ? '⚠️ Venceu em ' : ''}${prazoTxt}</div>` : ''}
+          </div>
+          <span style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--bg);color:var(--ink-3)">${a.tipo}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+async function pjV347DefinirDataInicio(metaId){
+  const input = document.getElementById('pj-data-inicio-' + metaId);
+  const dataInicio = input?.value;
+  if (!dataInicio) { alert('Selecione uma data de início'); return; }
+  const dataFim = new Date(dataInicio + 'T00:00');
+  dataFim.setDate(dataFim.getDate() + 90);
+  const dataFimStr = dataFim.toISOString().split('T')[0];
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' };
+
+  const r1 = await fetch(SB + '/rest/v1/projeto_ondas', {
+    method: 'POST',
+    headers: { ...headers, 'Prefer': 'return=representation' },
+    body: JSON.stringify({ projeto_metadata_id: metaId, numero_onda: 1, data_inicio: dataInicio, data_fim: dataFimStr, status: 'ativa' }),
+  });
+  if (!r1.ok) { alert('Erro ao criar onda (HTTP ' + r1.status + ')'); return; }
+  const ondas = await r1.json();
+  const ondaId = ondas[0]?.id;
+  if (!ondaId) { alert('Onda não retornada'); return; }
+
+  const ATIVIDADES = [
+    { titulo: 'Diagnóstico recebido e revisado', tipo: 'gerencial', dias: 7, visivel_cliente: false, ordem: 1 },
+    { titulo: 'Avaliação técnica refinada', tipo: 'gerencial', dias: 10, visivel_cliente: false, ordem: 2 },
+    { titulo: 'Tese de investimento definida', tipo: 'gerencial', dias: 14, visivel_cliente: false, ordem: 3 },
+    { titulo: 'Arquétipos e ambientação definidos', tipo: 'gerencial', dias: 14, visivel_cliente: false, ordem: 4 },
+    { titulo: 'Arsenal configurado e rodado', tipo: 'gerencial', dias: 20, visivel_cliente: false, ordem: 5 },
+    { titulo: 'Material visual e textual produzido', tipo: 'entrega', dias: 20, visivel_cliente: true, ordem: 6 },
+    { titulo: 'Aprovação do material com cliente', tipo: 'entrega', dias: 22, visivel_cliente: true, ordem: 7 },
+    { titulo: 'Anúncio publicado na 1Negócio', tipo: 'entrega', dias: 25, visivel_cliente: true, ordem: 8 },
+    { titulo: 'Anúncios Meta criados (Feed + Stories)', tipo: 'entrega', dias: 28, visivel_cliente: true, ordem: 9 },
+    { titulo: 'Primeira lista aprovada (60 contatos)', tipo: 'gerencial', dias: 35, visivel_cliente: false, ordem: 10 },
+    { titulo: 'Primeira leva: 20 contatos abordados', tipo: 'entrega', dias: 40, visivel_cliente: true, ordem: 11 },
+    { titulo: 'Relatório do primeiro mês', tipo: 'entrega', dias: 45, visivel_cliente: true, ordem: 12 },
+  ];
+  const inicio = new Date(dataInicio + 'T00:00');
+  const atvsInsert = ATIVIDADES.map(a => {
+    const prazo = new Date(inicio);
+    prazo.setDate(prazo.getDate() + a.dias);
+    return { titulo: a.titulo, tipo: a.tipo, ordem: a.ordem, visivel_cliente: a.visivel_cliente, onda_id: ondaId, projeto_metadata_id: metaId, prazo: prazo.toISOString().split('T')[0], dias_offset: a.dias };
+  });
+  const r2 = await fetch(SB + '/rest/v1/projeto_atividades', { method: 'POST', headers, body: JSON.stringify(atvsInsert) });
+  if (!r2.ok) { alert('Erro ao inserir atividades (HTTP ' + r2.status + ')'); return; }
+
+  await fetch(SB + '/rest/v1/projeto_metadata?id=eq.' + metaId, {
+    method: 'PATCH',
+    headers: { ...headers, 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ data_inicio_projeto: dataInicio }),
+  });
+
+  origToast && origToast('✓ Onda 1 ativada · 12 atividades criadas');
+  pjV347AbrirEntregaveis();
+}
+
+async function pjV347ToggleAtividade(atvId, marcarConcluida){
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+  const patch = marcarConcluida
+    ? { concluida: true, concluida_em: new Date().toISOString() }
+    : { concluida: false, concluida_em: null };
+  await fetch(SB + '/rest/v1/projeto_atividades?id=eq.' + atvId, { method: 'PATCH', headers, body: JSON.stringify(patch) });
+  pjV347AbrirEntregaveis();
+}
+
+// ───────────────────────────────────────────────────────────────────
+// v9.35.0 · P9 · Config assessores
+// ───────────────────────────────────────────────────────────────────
+function pjV347RenderConfigAssessores(metaId, assessores){
+  if (!metaId) return '';
+  const lista = (assessores || []).map(a => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--bg);border-radius:6px;margin-bottom:6px">
+      <div>
+        <div style="font-size:13px;font-weight:500">${tdEscape(a.nome)}</div>
+        <div style="font-size:11px;color:var(--ink-3)">${tdEscape(a.cargo || 'Assessor')}</div>
+      </div>
+      <button onclick="pjV347RemoverAssessor('${a.id}','${metaId}')" style="background:transparent;border:1px solid #c14;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;color:#c14">Remover</button>
+    </div>`).join('');
+  return `<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:14px;margin-top:14px">
+    <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Assessores responsáveis</div>
+    ${lista || '<div style="font-size:13px;color:var(--ink-3);margin-bottom:12px">Nenhum assessor vinculado</div>'}
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <input id="pj-assessor-nome-${metaId}" placeholder="Nome do assessor" style="flex:1;min-width:160px;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:13px">
+      <select id="pj-assessor-cargo-${metaId}" style="background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:13px">
+        <option value="Assessor">Assessor</option>
+        <option value="Coordenador">Coordenador</option>
+        <option value="Supervisor">Supervisor</option>
+      </select>
+      <button onclick="pjV347AdicionarAssessor('${metaId}')" style="background:var(--em,#22c55e);color:#000;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">+ Vincular</button>
+    </div>
+  </div>`;
+}
+
+async function pjV347AdicionarAssessor(metaId){
+  const nome = document.getElementById('pj-assessor-nome-' + metaId)?.value?.trim();
+  const cargo = document.getElementById('pj-assessor-cargo-' + metaId)?.value || 'Assessor';
+  if (!nome) { alert('Informe o nome'); return; }
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' };
+  const r = await fetch(SB + '/rest/v1/projeto_assessores', { method: 'POST', headers, body: JSON.stringify({ projeto_metadata_id: metaId, nome, cargo, ativo: true }) });
+  if (!r.ok) { alert('Erro: HTTP ' + r.status); return; }
+  origToast && origToast('✓ ' + nome + ' vinculado');
+  pjV347AbrirConfig();
+}
+
+async function pjV347RemoverAssessor(assessorId, metaId){
+  if (!confirm('Remover este assessor?')) return;
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+  await fetch(SB + '/rest/v1/projeto_assessores?id=eq.' + assessorId, { method: 'PATCH', headers, body: JSON.stringify({ ativo: false }) });
+  origToast && origToast('Assessor removido');
+  pjV347AbrirConfig();
+}
+
+window.pjV347RenderFinanceiro = pjV347RenderFinanceiro;
+window.pjV347EditarFinanceiro = pjV347EditarFinanceiro;
+window.pjV347RenderEntregaveis = pjV347RenderEntregaveis;
+window.pjV347DefinirDataInicio = pjV347DefinirDataInicio;
+window.pjV347ToggleAtividade = pjV347ToggleAtividade;
+window.pjV347RenderConfigAssessores = pjV347RenderConfigAssessores;
+window.pjV347AdicionarAssessor = pjV347AdicionarAssessor;
+window.pjV347RemoverAssessor = pjV347RemoverAssessor;
+window.pjV347AbrirEntregaveis = pjV347AbrirEntregaveis;
+window.pjV347AbrirConfig = pjV347AbrirConfig;
 
 // v9.18 · wrappers / helpers do layout híbrido
 
