@@ -12712,9 +12712,9 @@ function pjV347RenderDetalhe(n, meta, mesAtual, refs){
   const vend = n.vendedor || {};
   const temProj = !!(meta && meta.id);
 
-  // Header compacto (60px · uma linha)
+  // Header compacto (60px · uma linha) · data-neg-id e data-meta-id como fallback DOM
   const header = ''
-    + '<div class="pj-v347-header">'
+    + '<div class="pj-v347-header" data-neg-id="' + (n.id || '') + '" data-meta-id="' + (meta?.id || '') + '">'
     + '<div class="pj-v347-header-info">'
     + '<strong>' + negocioNome + '</strong>'
     + '<span class="sep">·</span>'
@@ -12737,9 +12737,9 @@ function pjV347RenderDetalhe(n, meta, mesAtual, refs){
     + '<div class="pj-v347-stat" id="pj-v347-st-saldo"><span class="lbl">Saldo</span><div class="val">R$ 0,00</div></div>'
     + '</div>';
 
-  // Pool protagonista (kanban grande + fontes em linha + alerta)
+  // Pool protagonista (kanban grande + fontes em linha + alerta) · v9.35.x · wrapper para switchable
   const poolBloco = ''
-    + '<div class="pj-v347-pool">'
+    + '<div class="pj-v347-pool" id="pj-v347-pool-bloco">'
     + '<div class="pj-v347-pool-head">'
     + '<div><strong>Pool de leads</strong><span id="pj-v347-pool-count" style="margin-left:8px;color:var(--ink-3);font-size:12px">…</span></div>'
     + '<div class="pj-v347-pool-acoes" id="pj-v347-pool-acoes">'
@@ -12750,19 +12750,21 @@ function pjV347RenderDetalhe(n, meta, mesAtual, refs){
     + '</div>'
     + '<div id="pj-v347-pool-alerta"></div>'
     + '<div id="pj-v347-kanban" class="pj-v347-kanban-wrap"><div class="pj-v347-empty">Carregando pool…</div></div>'
-    + '</div>';
+    + '</div>'
+    + '<div id="pj-v347-aba-content"></div>'; // v9.35.x · conteúdo da aba ativa (vazio quando Cockpit)
 
-  // Toolbar
+  // Toolbar · v9.35.x · pjV347SetAba para Cockpit/Matchmaking/Financeiro/Entregáveis/Config (inline)
+  // Arsenal mantém modal (fluxo pesado · 95vw)
   const toolbar = ''
     + '<div class="pj-v347-toolbar">'
-    + (temProj ? '<button class="pj-v347-tool" onclick="origV346AbrirArsenal(\'' + meta.id + '\')">🎯 Arsenal</button>' : '')
-    + (temProj ? '<button class="pj-v347-tool" onclick="pjV347AbrirCockpit(\'' + meta.id + '\')">📊 Cockpit</button>' : '')
-    + (temProj ? '<button class="pj-v347-tool" onclick="pjV347AbrirMatchmaking(\'' + meta.id + '\')">🤖 Matchmaking</button>' : '')
+    + (temProj ? '<button class="pj-v347-tool" data-aba="arsenal" onclick="origV346AbrirArsenal(\'' + meta.id + '\')">🎯 Arsenal</button>' : '')
+    + (temProj ? '<button class="pj-v347-tool ativo" data-aba="cockpit" onclick="pjV347SetAba(\'cockpit\')">📊 Cockpit</button>' : '')
+    + (temProj ? '<button class="pj-v347-tool" data-aba="matchmaking" onclick="pjV347SetAba(\'matchmaking\')">🤖 Matchmaking</button>' : '')
     + '<button class="pj-v347-tool desativado" disabled title="em breve">✍️ Conteúdo</button>'
     + '<button class="pj-v347-tool desativado" disabled title="em breve">📣 Ads</button>'
-    + '<button class="pj-v347-tool" onclick="pjV347AbrirFinanceiro(\'' + (n.id||'') + '\')">💰 Financeiro</button>'
-    + '<button class="pj-v347-tool" onclick="pjV347AbrirEntregaveis()">📋 Entregáveis</button>'
-    + '<button class="pj-v347-tool" onclick="pjV347AbrirConfig(\'' + (n.id||'') + '\')">⚙️ Config</button>'
+    + '<button class="pj-v347-tool" data-aba="financeiro" onclick="pjV347SetAba(\'financeiro\')">💰 Financeiro</button>'
+    + '<button class="pj-v347-tool" data-aba="entregaveis" onclick="pjV347SetAba(\'entregaveis\')">📋 Entregáveis</button>'
+    + '<button class="pj-v347-tool" data-aba="config" onclick="pjV347SetAba(\'config\')">⚙️ Config</button>'
     + '</div>';
 
   // Coluna direita (referências · mantida)
@@ -12800,13 +12802,17 @@ function pjV347RenderDetalhe(n, meta, mesAtual, refs){
     + '.pj-v347-tool{background:var(--bg);border:1px solid var(--line);color:var(--ink-2);padding:7px 13px;border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--sans);font-weight:500;transition:.12s}'
     + '.pj-v347-tool:hover:not(.desativado){border-color:var(--accent,#22c55e);color:var(--accent,#22c55e)}'
     + '.pj-v347-tool.desativado{opacity:.5;cursor:not-allowed}'
+    + '.pj-v347-tool.ativo{background:var(--accent,#22c55e);color:#000;border-color:var(--accent,#22c55e);font-weight:600}'
+    + '.pj-v347-tool.ativo:hover{color:#000}'
     + '.pj-v347-pool-alerta:not(:empty){margin-bottom:10px}'
+    + '#pj-v347-aba-content:empty{display:none}'
+    + '#pj-v347-aba-content{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}'
     + '@media(max-width:980px){.pj-v347-stats{grid-template-columns:repeat(2,1fr)}}'
     + '</style>'
     + header
     + stats
-    + poolBloco
     + toolbar
+    + poolBloco
     + '<div class="pj-detalhe-grid-2col" style="grid-template-columns:1fr 360px">'
     + '<div></div>'  // espaço futuro · pode ter notas etc
     + direita
@@ -12906,6 +12912,8 @@ async function pjV347RenderPool(n, meta){
     if (countEl) countEl.textContent = '· ' + (leads.length || 0) + ' contatos';
     // v9.34.7.2 · alimenta stats com mesma fonte do kanban (evita race + inconsistência)
     pjV347AtualizarStatsComLeads(leads);
+    // v9.35.x · cache para leadsSelecionar (sem #leads-drawer no contexto do projeto)
+    window._pjV347LeadsCache = (leads || []).reduce((m, l) => { const k = l.id || l.uso_id; if (k) m[k] = l; return m; }, {});
     // Conta fontes em paralelo
     const fontes = await pjV347ContarFontes(origId, leads);
     if (acoes){
@@ -13035,6 +13043,96 @@ async function pjV347GerarSugestoesDono(metaId, negId){
     pjV347AbrirCockpit(negId);
   } catch (e) { alert('Erro fetch: ' + e.message); }
 }
+
+// ───────────────────────────────────────────────────────────────────
+// v9.35.x · pjV347SetAba · switch inline entre cockpit/matchmaking/financeiro/entregaveis/config
+// Cockpit = view default com kanban. Outras abas substituem o pool pelo conteúdo da aba.
+// Resolve _pjAbertoNeg via fallback DOM ([data-neg-id]) se estiver null.
+// ───────────────────────────────────────────────────────────────────
+async function pjV347ResolverNeg(){
+  if (window._pjAbertoNeg) return window._pjAbertoNeg;
+  // Fallback 1: _pjAbertoId ainda preservado
+  const idDoState = window._pjAbertoId;
+  const idDoDom = document.querySelector('[data-neg-id]')?.getAttribute('data-neg-id');
+  const negId = idDoState || idDoDom;
+  if (!negId) return null;
+  // Re-fetch · usa pjAbrirDetalhe se disponível, senão fetch direto
+  try {
+    if (typeof pjAbrirDetalhe === 'function'){
+      await pjAbrirDetalhe(negId);
+      return window._pjAbertoNeg;
+    }
+    const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+    const r = await fetch(SB + '/rest/v1/negocios?id=eq.' + negId + '&select=id,nome,cidade,estado,plano,socio_codigo,metadata:projeto_metadata(*)', { headers });
+    const arr = r.ok ? await r.json() : [];
+    if (arr[0]){ window._pjAbertoNeg = arr[0]; window._pjAbertoId = negId; return arr[0]; }
+  } catch (_) {}
+  return null;
+}
+
+async function pjV347SetAba(aba){
+  const n = await pjV347ResolverNeg();
+  if (!n){ alert('Projeto não carregado · recarregue a página.'); return; }
+  const meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
+
+  // Visual de aba ativa
+  document.querySelectorAll('.pj-v347-tool').forEach(b => b.classList.remove('ativo'));
+  const btn = document.querySelector('.pj-v347-tool[data-aba="' + aba + '"]');
+  if (btn) btn.classList.add('ativo');
+
+  const poolBloco = document.getElementById('pj-v347-pool-bloco');
+  const abaArea = document.getElementById('pj-v347-aba-content');
+  if (!abaArea){ return; }
+
+  // Cockpit = pool view default · restaura kanban
+  if (aba === 'cockpit' || aba === 'pool'){
+    if (poolBloco) poolBloco.style.display = '';
+    abaArea.innerHTML = '';
+    return;
+  }
+
+  // Demais abas: esconde pool + carrega conteúdo inline
+  if (poolBloco) poolBloco.style.display = 'none';
+  abaArea.innerHTML = '<div class="pj-v347-empty">⏳ Carregando ' + aba + '…</div>';
+
+  try {
+    let html = '';
+    const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+    if (aba === 'matchmaking'){
+      html = typeof pjRenderMatches === 'function' ? pjRenderMatches(n, meta, window._pjMatches || []) : '<div class="pj-v347-empty">Matchmaking indisponível</div>';
+    } else if (aba === 'financeiro'){
+      html = pjV347RenderFinanceiro(n, meta, window._pjMovimentacoes || []);
+    } else if (aba === 'entregaveis'){
+      if (!meta?.id){ html = '<div class="pj-v347-empty">Sem meta vinculada</div>'; }
+      else {
+        const [rO, rA] = await Promise.all([
+          fetch(SB + '/rest/v1/projeto_ondas?projeto_metadata_id=eq.' + meta.id + '&order=numero_onda', { headers }),
+          fetch(SB + '/rest/v1/projeto_atividades?projeto_metadata_id=eq.' + meta.id + '&order=ordem', { headers }),
+        ]);
+        const ondas = rO.ok ? await rO.json() : [];
+        const atvs  = rA.ok ? await rA.json() : [];
+        html = pjV347RenderEntregaveis(meta, atvs, ondas);
+      }
+    } else if (aba === 'config'){
+      let assessores = [];
+      if (meta?.id){
+        const r = await fetch(SB + '/rest/v1/projeto_assessores?projeto_metadata_id=eq.' + meta.id + '&ativo=eq.true&select=id,nome,cargo&order=criado_em.desc', { headers });
+        assessores = r.ok ? await r.json() : [];
+      }
+      const vinc = typeof pjRenderVinculo === 'function' ? pjRenderVinculo(n, meta) : '';
+      html = vinc + pjV347RenderConfigAssessores(meta?.id, assessores);
+    } else {
+      html = '<div class="pj-v347-empty">Aba desconhecida: ' + aba + '</div>';
+    }
+    abaArea.innerHTML = html;
+  } catch (e){
+    abaArea.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Erro: ' + (e?.message || 'desconhecido') + '</div>';
+  }
+}
+
+window.pjV347SetAba = pjV347SetAba;
+window.pjV347ResolverNeg = pjV347ResolverNeg;
+
 
 window.pjV347RenderSugestoesDono = pjV347RenderSugestoesDono;
 window.pjV347GerarSugestoesDono = pjV347GerarSugestoesDono;
@@ -13196,7 +13294,7 @@ async function pjV347EditarFinanceiro(metaId){
   });
   if (!upd.ok) { alert('Erro ao salvar (HTTP ' + upd.status + ')'); return; }
   origToast && origToast('✓ Configuração financeira atualizada');
-  pjV347AbrirFinanceiro();
+  pjV347SetAba("financeiro");
 }
 
 // ───────────────────────────────────────────────────────────────────
@@ -13298,7 +13396,7 @@ async function pjV347DefinirDataInicio(metaId){
   });
 
   origToast && origToast('✓ Onda 1 ativada · 12 atividades criadas');
-  pjV347AbrirEntregaveis();
+  pjV347SetAba("entregaveis");
 }
 
 async function pjV347ToggleAtividade(atvId, marcarConcluida){
@@ -13307,7 +13405,7 @@ async function pjV347ToggleAtividade(atvId, marcarConcluida){
     ? { concluida: true, concluida_em: new Date().toISOString() }
     : { concluida: false, concluida_em: null };
   await fetch(SB + '/rest/v1/projeto_atividades?id=eq.' + atvId, { method: 'PATCH', headers, body: JSON.stringify(patch) });
-  pjV347AbrirEntregaveis();
+  pjV347SetAba("entregaveis");
 }
 
 // ───────────────────────────────────────────────────────────────────
@@ -13346,7 +13444,7 @@ async function pjV347AdicionarAssessor(metaId){
   const r = await fetch(SB + '/rest/v1/projeto_assessores', { method: 'POST', headers, body: JSON.stringify({ projeto_metadata_id: metaId, nome, cargo, ativo: true }) });
   if (!r.ok) { alert('Erro: HTTP ' + r.status); return; }
   origToast && origToast('✓ ' + nome + ' vinculado');
-  pjV347AbrirConfig();
+  pjV347SetAba("config");
 }
 
 async function pjV347RemoverAssessor(assessorId, metaId){
@@ -13354,7 +13452,7 @@ async function pjV347RemoverAssessor(assessorId, metaId){
   const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
   await fetch(SB + '/rest/v1/projeto_assessores?id=eq.' + assessorId, { method: 'PATCH', headers, body: JSON.stringify({ ativo: false }) });
   origToast && origToast('Assessor removido');
-  pjV347AbrirConfig();
+  pjV347SetAba("config");
 }
 
 window.pjV347RenderFinanceiro = pjV347RenderFinanceiro;
@@ -21395,7 +21493,7 @@ function leadsKanbanHtml(leads) {
       + '<span style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em">' + col.label + '</span>'
       + '<span style="font-size:11px;font-weight:700;color:#aaa;background:#222;padding:2px 6px;border-radius:10px">' + leadsCol.length + '</span>'
       + '</div>'
-      + '<div style="padding:6px;display:flex;flex-direction:column;gap:5px;max-height:400px;overflow-y:auto">'
+      + '<div style="padding:6px;display:flex;flex-direction:column;gap:5px;max-height:420px;overflow-y:auto">'
       + cards
       + '</div>'
       + '</div>'
@@ -21505,16 +21603,39 @@ function leadsRerenderTabela() {
   if (counts) counts.textContent = filtrados.length + ' de ' + _leadsState.leads.length;
 }
 
-function leadsSelecionar(leadId) {
-  _leadsState.selecionado = leadId;
-  const lead = _leadsState.leads.find(l => l.id === leadId);
+function leadsSelecionar(leadId, contatoId) {
+  if (typeof _leadsState !== 'undefined') _leadsState.selecionado = leadId;
+  // v9.35.x · cache lookup também (project kanban não popula _leadsState.leads)
+  let lead = null;
+  if (typeof _leadsState !== 'undefined' && Array.isArray(_leadsState.leads)){
+    lead = _leadsState.leads.find(l => l.id === leadId);
+  }
+  if (!lead && window._pjV347LeadsCache){
+    lead = window._pjV347LeadsCache[leadId];
+  }
   if (!lead) return;
-  // v9.34.2 · kanban cards (substitui tabela)
-  document.querySelectorAll('#leads-kanban [data-lead-id]').forEach(card => {
+  // marca card selecionado em qualquer kanban presente
+  document.querySelectorAll('[data-lead-id]').forEach(card => {
     card.classList.toggle('selecionado', card.dataset.leadId === leadId);
   });
   const drawer = document.getElementById('leads-drawer');
-  if (drawer) drawer.innerHTML = leadsDrawerHtml(lead);
+  if (drawer){
+    drawer.innerHTML = leadsDrawerHtml(lead);
+    return;
+  }
+  // v9.35.x · fallback overlay quando não tem drawer (kanban no contexto do projeto)
+  let overlay = document.getElementById('pj-lead-popup');
+  if (!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'pj-lead-popup';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;display:flex;align-items:flex-start;justify-content:flex-end;padding:0';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = '<div style="background:var(--bg,#0a0a0a);width:420px;max-width:95vw;height:100vh;overflow-y:auto;border-left:1px solid var(--line);padding:14px 16px;position:relative">'
+    + '<button onclick="document.getElementById(\'pj-lead-popup\').remove()" style="position:absolute;top:8px;right:10px;background:transparent;border:none;color:var(--ink-3);font-size:22px;cursor:pointer;line-height:1">×</button>'
+    + leadsDrawerHtml(lead)
+    + '</div>';
 }
 
 function leadsDrawerHtml(lead) {
