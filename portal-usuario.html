@@ -1487,6 +1487,9 @@
         </div>
 
         <div id="painel-acoes-container"></div>
+
+        <!-- v9.37.0 · Seção Venda Assessorada (renderizada por puVerificarAssessorada se aplicável) -->
+        <div id="pu-assessorada-host"></div>
       </section>
 
       <!-- VIEW: MEUS NEGÓCIOS -->
@@ -1926,6 +1929,10 @@ function entrarNoPortal() {
   $('inp-nome-edit').value = session.nome || '';
   $('profile-wpp').textContent = formatFone(session.whatsapp);
   carregarTudo();
+  // v9.37.0 · detecta projeto assessorado e injeta visão do vendedor
+  if (typeof puVerificarAssessorada === 'function') {
+    puVerificarAssessorada().catch(e => console.warn('[pu assessorada]', e));
+  }
 }
 
 // ==================== ETAPA G — Portal v2 (sidebar + views) ====================
@@ -3344,6 +3351,490 @@ document.addEventListener('keydown', (e) => {
   }
   if (t.id === 'inp-otp' && t.value.length === 6) validarCodigo();
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// v9.37.0 · Portal do Cliente · Visão do Vendedor em Venda Assessorada
+// Detecta projeto_metadata ativo do usuário logado e renderiza 6 abas
+// ═══════════════════════════════════════════════════════════════════════
+
+async function puVerificarAssessorada(){
+  if (!session?.user_id || !session?.token) return;
+  const host = document.getElementById('pu-assessorada-host');
+  if (!host) return;
+  const headers = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token };
+  try {
+    // 1) Procura negócio do usuário com projeto_metadata vinculado (Venda Assessorada)
+    const r = await fetch(SUPABASE_URL + '/rest/v1/negocios?vendedor_id=eq.' + session.user_id
+      + '&select=id,nome,cidade,estado,setor,categoria,preco_pedido,avaliacao_min,avaliacao_max,score_saude,status,metadata:projeto_metadata(*)'
+      + '&order=created_at.desc&limit=10', { headers });
+    if (!r.ok) return;
+    const negs = await r.json();
+    // Acha o primeiro com metadata (projeto assessorado)
+    const negComMeta = (negs || []).find(n => Array.isArray(n.metadata) ? n.metadata.length > 0 : !!n.metadata);
+    if (!negComMeta) { host.innerHTML = ''; return; }
+
+    const meta = Array.isArray(negComMeta.metadata) ? negComMeta.metadata[0] : negComMeta.metadata;
+    window._puNegocioAtual = negComMeta;
+    window._puMetaAtual = meta;
+    window._puOrigIdAtual = null;
+
+    // 2) Resolve originacao_id pra estratégia/prospecção
+    if (meta?.id) {
+      try {
+        const rO = await fetch(SUPABASE_URL + '/rest/v1/projetos_originacao?projeto_id=eq.' + meta.id + '&select=id&order=created_at.desc&limit=1', { headers });
+        const arr = rO.ok ? await rO.json() : [];
+        window._puOrigIdAtual = arr?.[0]?.id || null;
+      } catch (_) {}
+    }
+
+    // 3) Renderiza a seção
+    host.innerHTML = puRenderVendedorAssessorado(negComMeta, meta);
+
+    // 4) Carrega aba salva (default: cockpit)
+    let abaDefault = 'cockpit';
+    try { abaDefault = localStorage.getItem('pu_aba_assessorada') || 'cockpit'; } catch (_) {}
+    puSetAba(abaDefault);
+
+    // 5) Stats do header (em paralelo)
+    if (window._puOrigIdAtual) puCarregarStatsHeader(window._puOrigIdAtual);
+    if (negComMeta?.id) puCarregarStatNdas(negComMeta.id);
+  } catch (e) {
+    console.warn('[puVerificarAssessorada]', e);
+    if (host) host.innerHTML = '';
+  }
+}
+
+function puRenderVendedorAssessorado(negocio, meta){
+  const nomeNeg = negocio?.nome || 'Seu negócio';
+  const local = (negocio?.cidade || '') + (negocio?.estado ? '/' + negocio.estado : '');
+  const desde = meta?.data_inicio_projeto ? ' · Desde ' + new Date(meta.data_inicio_projeto).toLocaleDateString('pt-BR') : '';
+  const LABELS = ['🎯 Cockpit','🧠 Estratégia','👥 Prospecção','💰 Financeiro','✍️ Conteúdo','📁 Dataroom'];
+  const ABAS = ['cockpit','estrategia','prospeccao','financeiro','conteudo','dataroom'];
+  const tabs = ABAS.map((aba, i) =>
+    '<button onclick="puSetAba(\'' + aba + '\')" id="pu-tab-' + aba + '" '
+    + 'style="background:' + (i === 0 ? 'var(--accent,#22c55e)' : 'var(--surface)') + ';color:' + (i === 0 ? '#000' : 'var(--ink-2)') + ';border:1px solid ' + (i === 0 ? 'var(--accent,#22c55e)' : 'var(--line-2,var(--line))') + ';border-radius:999px;padding:6px 14px;font-size:12px;font-weight:' + (i === 0 ? '600' : '400') + ';cursor:pointer;white-space:nowrap;transition:all .15s">'
+    + LABELS[i] + '</button>'
+  ).join('');
+
+  return ''
+    + '<div id="secao-assessorada" style="margin:24px 0 0 0">'
+    +   '<div style="background:var(--surface);border:1px solid var(--line-2,var(--line));border-radius:16px;padding:20px;margin-bottom:16px">'
+    +     '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">'
+    +       '<div>'
+    +         '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Venda Assessorada · Em operação</div>'
+    +         '<div style="font-family:var(--serif);font-size:20px;font-weight:700">' + puEsc(nomeNeg) + '</div>'
+    +         '<div style="font-size:12px;color:var(--ink-3);margin-top:2px">' + puEsc(local) + puEsc(desde) + '</div>'
+    +       '</div>'
+    +       '<span style="background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600">● ATIVO</span>'
+    +     '</div>'
+    +     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-radius:8px;overflow:hidden;margin-top:16px">'
+    +       '<div style="background:var(--surface);padding:12px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Contatos feitos</div><div id="pu-stat-contatos" style="font-family:var(--serif);font-size:20px;font-weight:700">—</div></div>'
+    +       '<div style="background:var(--surface);padding:12px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Em conversa</div><div id="pu-stat-conversa" style="font-family:var(--serif);font-size:20px;font-weight:700">—</div></div>'
+    +       '<div style="background:var(--surface);padding:12px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">NDAs assinados</div><div id="pu-stat-ndas" style="font-family:var(--serif);font-size:20px;font-weight:700">—</div></div>'
+    +       '<div style="background:var(--surface);padding:12px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Em negociação</div><div id="pu-stat-negociacao" style="font-family:var(--serif);font-size:20px;font-weight:700">—</div></div>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div style="display:flex;gap:4px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px">' + tabs + '</div>'
+    +   '<div id="pu-aba-conteudo" style="background:var(--surface);border:1px solid var(--line-2,var(--line));border-radius:16px;padding:20px;min-height:300px">'
+    +     '<div style="text-align:center;color:var(--ink-3);padding:40px">Carregando...</div>'
+    +   '</div>'
+    + '</div>';
+}
+
+function puEsc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function puSetAba(aba){
+  ['cockpit','estrategia','prospeccao','financeiro','conteudo','dataroom'].forEach(a => {
+    const btn = document.getElementById('pu-tab-' + a);
+    if (!btn) return;
+    const ativo = a === aba;
+    btn.style.background = ativo ? 'var(--accent,#22c55e)' : 'var(--surface)';
+    btn.style.color = ativo ? '#000' : 'var(--ink-2)';
+    btn.style.borderColor = ativo ? 'var(--accent,#22c55e)' : 'var(--line-2,var(--line))';
+    btn.style.fontWeight = ativo ? '600' : '400';
+  });
+  const cont = document.getElementById('pu-aba-conteudo');
+  if (!cont) return;
+  const meta = window._puMetaAtual;
+  const negocio = window._puNegocioAtual;
+  const origId = window._puOrigIdAtual;
+  switch (aba) {
+    case 'cockpit':     cont.innerHTML = puRenderCockpit(meta, negocio); puCarregarCockpit(meta, origId); break;
+    case 'estrategia':  cont.innerHTML = puRenderEstrategia(meta, origId); puCarregarEstrategia(origId); break;
+    case 'prospeccao':  cont.innerHTML = puRenderProspeccao(origId); puCarregarProspeccao(origId); break;
+    case 'financeiro':  cont.innerHTML = puRenderFinanceiro(meta); puCarregarFinanceiro(meta); break;
+    case 'conteudo':    cont.innerHTML = puRenderConteudo(meta, origId); break;
+    case 'dataroom':    cont.innerHTML = puRenderDataroom(meta); puCarregarDataroom(meta); break;
+    default:            cont.innerHTML = puRenderCockpit(meta, negocio); puCarregarCockpit(meta, origId);
+  }
+  try { localStorage.setItem('pu_aba_assessorada', aba); } catch (_) {}
+}
+
+// ─── Aba Cockpit ───────────────────────────────────────────
+function puRenderCockpit(meta, negocio){
+  const negId = negocio?.id || '';
+  return ''
+    + '<div style="display:flex;flex-direction:column;gap:16px">'
+    +   '<div style="font-family:var(--serif);font-size:17px;font-weight:700">🎯 Cockpit</div>'
+    +   '<div id="pu-cockpit-onda" style="background:var(--bg);border-radius:10px;padding:14px;border:1px solid var(--line)"><div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">STATUS ATUAL</div><div style="font-size:13px;color:var(--ink-2)">Carregando...</div></div>'
+    +   '<div><div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Próximas etapas</div><div id="pu-cockpit-etapas" style="display:flex;flex-direction:column;gap:6px"><div style="color:var(--ink-3);font-size:13px">Carregando...</div></div></div>'
+    +   '<div><div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Links</div><div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +     '<a href="/negocio.html?id=' + puEsc(negId) + '" target="_blank" rel="noopener" style="background:transparent;border:1px solid var(--line-2,var(--line));border-radius:6px;padding:6px 12px;font-size:12px;color:var(--ink-2);text-decoration:none">🌐 Ver anúncio público</a>'
+    +     '<a href="/laudo-completo.html?id=' + puEsc(negId) + '" target="_blank" rel="noopener" style="background:transparent;border:1px solid var(--line-2,var(--line));border-radius:6px;padding:6px 12px;font-size:12px;color:var(--ink-2);text-decoration:none">📄 Ver laudo</a>'
+    +   '</div></div>'
+    +   '<div id="pu-cockpit-assessor" style="background:var(--bg);border-radius:10px;padding:14px;border:1px solid var(--line)"><div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">ASSESSOR RESPONSÁVEL</div><div style="font-size:13px;color:var(--ink-2)">Carregando...</div></div>'
+    + '</div>';
+}
+
+async function puCarregarCockpit(meta, origId){
+  if (!meta?.id) return;
+  const headers = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token };
+  // Onda
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/projeto_ondas?projeto_metadata_id=eq.' + meta.id + '&status=eq.ativa&select=*&order=numero_onda.desc&limit=1', { headers });
+    const ondas = r.ok ? await r.json() : [];
+    const onda = ondas?.[0];
+    const el = document.getElementById('pu-cockpit-onda');
+    if (el) {
+      if (onda) {
+        const di = onda.data_inicio ? new Date(onda.data_inicio + 'T00:00').toLocaleDateString('pt-BR') : '';
+        const df = onda.data_fim ? new Date(onda.data_fim + 'T00:00').toLocaleDateString('pt-BR') : '';
+        el.innerHTML = '<div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">STATUS ATUAL</div>'
+          + '<div style="font-size:14px;font-weight:600">Onda ' + onda.numero_onda + ' · Em operação</div>'
+          + '<div style="font-size:12px;color:var(--ink-3);margin-top:2px">' + di + ' → ' + df + '</div>';
+      } else {
+        el.innerHTML = '<div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">STATUS ATUAL</div><div style="font-size:13px;color:var(--ink-2)">Projeto em configuração</div>';
+      }
+    }
+  } catch (_) {}
+  // Etapas visíveis ao cliente
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/projeto_atividades?projeto_metadata_id=eq.' + meta.id + '&concluida=eq.false&visivel_cliente=eq.true&order=prazo.asc&limit=5', { headers });
+    const ativs = r.ok ? await r.json() : [];
+    const el = document.getElementById('pu-cockpit-etapas');
+    if (el) {
+      if (!ativs.length) {
+        el.innerHTML = '<div style="color:var(--ink-3);font-size:13px">Nenhuma etapa pendente.</div>';
+      } else {
+        el.innerHTML = ativs.map(a => {
+          const prazo = a.prazo ? new Date(a.prazo + 'T00:00').toLocaleDateString('pt-BR') : '—';
+          const vencida = a.prazo && new Date(a.prazo + 'T00:00') < new Date();
+          const cor = vencida ? 'var(--alert,#ff6b5c)' : 'var(--ink-3)';
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:6px">'
+            + '<span style="font-size:13px;color:' + (vencida ? 'var(--alert,#ff6b5c)' : 'var(--ink)') + '">○ ' + puEsc(a.titulo || '') + '</span>'
+            + '<span style="font-size:11px;color:' + cor + '">' + prazo + '</span>'
+            + '</div>';
+        }).join('');
+      }
+    }
+  } catch (_) {}
+  // Assessor
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/projeto_assessores?projeto_metadata_id=eq.' + meta.id + '&ativo=eq.true&select=nome,cargo&order=criado_em.desc&limit=1', { headers });
+    const assesores = r.ok ? await r.json() : [];
+    const el = document.getElementById('pu-cockpit-assessor');
+    if (el) {
+      if (assesores?.[0]) {
+        el.innerHTML = '<div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">ASSESSOR RESPONSÁVEL</div>'
+          + '<div style="font-size:14px;font-weight:600">' + puEsc(assesores[0].nome) + '</div>'
+          + '<div style="font-size:11px;color:var(--ink-3)">' + puEsc(assesores[0].cargo || 'Assessor') + '</div>';
+      } else {
+        el.innerHTML = '<div style="font-size:11px;color:var(--ink-3);margin-bottom:6px">ASSESSOR RESPONSÁVEL</div><div style="font-size:13px;color:var(--ink-2)">A definir</div>';
+      }
+    }
+  } catch (_) {}
+}
+
+// ─── Aba Estratégia ─────────────────────────────────────────
+function puRenderEstrategia(meta, origId){
+  return ''
+    + '<div style="display:flex;flex-direction:column;gap:16px">'
+    +   '<div style="font-family:var(--serif);font-size:17px;font-weight:700">🧠 Estratégia</div>'
+    +   '<div style="font-size:13px;color:var(--ink-3)">Nossa estratégia para vender seu negócio — definida em conjunto com o assessor.</div>'
+    +   '<div><div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Tese de Investimento</div><div id="pu-tese-content" style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;font-size:13px;line-height:1.6;color:var(--ink-2)">Carregando...</div></div>'
+    +   '<div><div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Perfis de comprador ideal</div><div id="pu-arquetipos-list" style="display:flex;flex-direction:column;gap:8px"><div style="color:var(--ink-3);font-size:13px">Carregando...</div></div></div>'
+    + '</div>';
+}
+
+async function puCarregarEstrategia(origId){
+  if (!origId) {
+    const el1 = document.getElementById('pu-tese-content'); if (el1) el1.innerHTML = '<span style="color:var(--ink-3)">Originação ainda não vinculada.</span>';
+    const el2 = document.getElementById('pu-arquetipos-list'); if (el2) el2.innerHTML = '<div style="color:var(--ink-3);font-size:13px">Aguardando configuração.</div>';
+    return;
+  }
+  const headers = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token };
+  // Tese
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/projetos_originacao?id=eq.' + origId + '&select=tese_jsonb', { headers });
+    const data = r.ok ? await r.json() : [];
+    const tese = data?.[0]?.tese_jsonb;
+    const el = document.getElementById('pu-tese-content');
+    if (el) {
+      if (tese && Object.keys(tese).length > 0) {
+        const linhas = [];
+        if (tese.diferencial_competitivo) linhas.push('<div style="margin-bottom:10px"><b>Diferencial:</b> ' + puEsc(tese.diferencial_competitivo) + '</div>');
+        if (tese.perfil_comprador_ideal) linhas.push('<div style="margin-bottom:10px"><b>Perfil ideal do comprador:</b> ' + puEsc(tese.perfil_comprador_ideal) + '</div>');
+        if (tese.justificativa_preco) linhas.push('<div style="margin-bottom:10px"><b>Justificativa do preço:</b> ' + puEsc(tese.justificativa_preco) + '</div>');
+        if (Array.isArray(tese.riscos_principais) && tese.riscos_principais.length) {
+          linhas.push('<div><b>Pontos de atenção:</b> ' + tese.riscos_principais.map(puEsc).join(' · ') + '</div>');
+        }
+        el.innerHTML = linhas.length ? linhas.join('') : '<span style="color:var(--ink-3)">Tese em elaboração.</span>';
+      } else {
+        el.innerHTML = '<span style="color:var(--ink-3)">Tese em elaboração pelo assessor.</span>';
+      }
+    }
+  } catch (_) {}
+  // Arquétipos
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/arquetipos_compradores?originacao_id=eq.' + origId + '&status=eq.aprovado&select=nome,vetor,tipo,motivacao', { headers });
+    const arqs = r.ok ? await r.json() : [];
+    const el = document.getElementById('pu-arquetipos-list');
+    if (el) {
+      if (!arqs?.length) {
+        el.innerHTML = '<div style="color:var(--ink-3);font-size:13px">Arquétipos em elaboração.</div>';
+      } else {
+        el.innerHTML = arqs.map(a => '<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px">'
+          + '<div style="font-size:13px;font-weight:600;margin-bottom:4px">' + puEsc(a.nome || '?') + '</div>'
+          + '<div style="font-size:12px;color:var(--ink-3)">' + puEsc(a.vetor || a.motivacao || a.tipo || '') + '</div>'
+          + '</div>').join('');
+      }
+    }
+  } catch (_) {}
+}
+
+// ─── Aba Prospecção ─────────────────────────────────────────
+function puRenderProspeccao(origId){
+  return ''
+    + '<div style="display:flex;flex-direction:column;gap:16px">'
+    +   '<div style="font-family:var(--serif);font-size:17px;font-weight:700">👥 Prospecção</div>'
+    +   '<div style="font-size:13px;color:var(--ink-3)">Acompanhe o andamento das abordagens — contatos preservados por sigilo.</div>'
+    +   '<div><div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Funil atual</div>'
+    +     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'
+    +       puFunilCelula('Identificados','pu-funil-novos')
+    +       + puFunilCelula('Abordados','pu-funil-contato')
+    +       + puFunilCelula('Em conversa','pu-funil-conversa')
+    +       + puFunilCelula('Em negociação','pu-funil-negociacao')
+    +     + '</div>'
+    +   '</div>'
+    +   '<div><div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Acumulado total</div><div id="pu-acumulado" style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:13px;color:var(--ink-2)">Carregando...</div></div>'
+    +   '<div><div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Principais objeções dos que declinaram</div><div id="pu-objecoes" style="display:flex;flex-direction:column;gap:6px"><div style="color:var(--ink-3);font-size:13px">Carregando...</div></div></div>'
+    + '</div>';
+}
+
+function puFunilCelula(label, id){
+  return '<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;text-align:center"><div style="font-size:10px;color:var(--ink-3);margin-bottom:6px">' + label + '</div><div id="' + id + '" style="font-family:var(--serif);font-size:22px;font-weight:700">—</div></div>';
+}
+
+async function puCarregarProspeccao(origId){
+  if (!origId) return;
+  const headers = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token };
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/pool_contatos_uso?originacao_id=eq.' + origId + '&select=status,motivo_descarte&limit=1000', { headers });
+    const leads = r.ok ? await r.json() : [];
+    const novos = leads.filter(l => !l.status || l.status === 'novo').length;
+    const contato = leads.filter(l => ['em_contato','contatado'].includes(l.status)).length;
+    const conversa = leads.filter(l => l.status === 'respondeu').length;
+    const negociacao = leads.filter(l => l.status === 'em_negociacao').length;
+    const descartados = leads.filter(l => l.status === 'descartado');
+
+    const setTxt = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    setTxt('pu-funil-novos', novos);
+    setTxt('pu-funil-contato', contato);
+    setTxt('pu-funil-conversa', conversa);
+    setTxt('pu-funil-negociacao', negociacao);
+
+    const elAc = document.getElementById('pu-acumulado');
+    if (elAc) elAc.innerHTML = 'Total no pool: <b>' + leads.length + '</b> contatos · <b>' + (contato + conversa + negociacao) + '</b> abordados · <b>' + negociacao + '</b> em negociação';
+
+    const elObj = document.getElementById('pu-objecoes');
+    if (elObj) {
+      const mc = {};
+      descartados.forEach(l => { if (l.motivo_descarte) mc[l.motivo_descarte] = (mc[l.motivo_descarte] || 0) + 1; });
+      const motivos = Object.entries(mc).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      if (!motivos.length) {
+        elObj.innerHTML = '<div style="color:var(--ink-3);font-size:13px">Nenhum declínio registrado ainda.</div>';
+      } else {
+        elObj.innerHTML = motivos.map(([m, c]) => '<div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-radius:6px;font-size:12px"><span>' + puEsc(m) + '</span><span style="color:var(--ink-3)">' + c + '×</span></div>').join('');
+      }
+    }
+    // Espelha no header
+    setTxt('pu-stat-contatos', contato + conversa + negociacao);
+    setTxt('pu-stat-conversa', conversa);
+    setTxt('pu-stat-negociacao', negociacao);
+  } catch (_) {}
+}
+
+async function puCarregarStatsHeader(origId){
+  // chamado mesmo quando a aba ativa não é prospecção; popula apenas as 4 métricas do topo
+  if (!origId) return;
+  const headers = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token };
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/pool_contatos_uso?originacao_id=eq.' + origId + '&select=status&limit=1000', { headers });
+    const leads = r.ok ? await r.json() : [];
+    const contato = leads.filter(l => ['em_contato','contatado'].includes(l.status)).length;
+    const conversa = leads.filter(l => l.status === 'respondeu').length;
+    const negociacao = leads.filter(l => l.status === 'em_negociacao').length;
+    const setTxt = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    setTxt('pu-stat-contatos', contato + conversa + negociacao);
+    setTxt('pu-stat-conversa', conversa);
+    setTxt('pu-stat-negociacao', negociacao);
+  } catch (_) {}
+}
+
+async function puCarregarStatNdas(negId){
+  if (!negId) return;
+  const headers = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token };
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/nda_assinaturas?negocio_id=eq.' + negId + '&select=id', { headers });
+    const ndas = r.ok ? await r.json() : [];
+    const el = document.getElementById('pu-stat-ndas');
+    if (el) el.textContent = ndas?.length || 0;
+  } catch (_) {}
+}
+
+// ─── Aba Financeiro ─────────────────────────────────────────
+function puRenderFinanceiro(meta){
+  const mensal = parseFloat(meta?.receita_mensal || 0);
+  const vendaAlvo = parseFloat(meta?.valor_venda_alvo || meta?.venda_alvo || 0);
+  const comissaoPerc = parseFloat(meta?.comissao_percentual || 5);
+  const comissaoTotal = vendaAlvo * comissaoPerc / 100;
+  const fmt = (v) => 'R$ ' + (v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return ''
+    + '<div style="display:flex;flex-direction:column;gap:16px">'
+    +   '<div style="font-family:var(--serif);font-size:17px;font-weight:700">💰 Financeiro</div>'
+    +   '<div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px">'
+    +     '<div style="font-size:11px;color:var(--ink-3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">Mensalidades</div>'
+    +     '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+    +       '<div><div style="font-size:13px;color:var(--ink-2)">Valor mensal acordado</div><div style="font-family:var(--serif);font-size:22px;font-weight:700">' + fmt(mensal) + '</div></div>'
+    +       '<div id="pu-fin-status-pag" style="font-size:12px;color:var(--ink-3)">Carregando...</div>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px">'
+    +     '<div style="font-size:11px;color:var(--ink-3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">Comissão de sucesso</div>'
+    +     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">'
+    +       '<div><div style="font-size:11px;color:var(--ink-3)">Taxa (' + comissaoPerc + '% sobre venda)</div><div style="font-family:var(--serif);font-size:18px;font-weight:700">' + (comissaoTotal > 0 ? 'R$ ' + (comissaoTotal / 1000).toFixed(0) + 'k' : '—') + '</div></div>'
+    +       '<div><div style="font-size:11px;color:var(--ink-3)">Crédito acumulado</div><div id="pu-fin-credito" style="font-family:var(--serif);font-size:18px;font-weight:700;color:var(--accent,#22c55e)">—</div></div>'
+    +     '</div>'
+    +     '<div id="pu-fin-liquida" style="background:var(--accent-soft,rgba(34,197,94,.1));border-radius:8px;padding:10px">'
+    +       '<div style="font-size:11px;color:var(--ink-3)">Comissão líquida estimada</div>'
+    +       '<div style="font-family:var(--serif);font-size:20px;font-weight:700;color:var(--accent,#22c55e)">Calculando...</div>'
+    +     '</div>'
+    +     '<div style="font-size:11px;color:var(--ink-3);margin-top:10px;line-height:1.5">Cada mensalidade paga abate diretamente da comissão de sucesso no fechamento. Quanto mais rápido a venda, menos você paga no total.</div>'
+    +   '</div>'
+    + '</div>';
+}
+
+async function puCarregarFinanceiro(meta){
+  if (!meta?.id) return;
+  const headers = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token };
+  try {
+    // Mesma fonte do painel-v3 (projeto_movimentacoes / negocio_id) — fallback graceful se tabela 'transacoes' não existir
+    let movs = [];
+    if (window._puNegocioAtual?.id) {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/projeto_movimentacoes?negocio_id=eq.' + window._puNegocioAtual.id + '&tipo=eq.entrada&select=valor', { headers });
+      if (r.ok) movs = await r.json();
+    }
+    const totalPago = (movs || []).reduce((s, m) => s + parseFloat(m.valor || 0), 0);
+    const vendaAlvo = parseFloat(meta?.valor_venda_alvo || meta?.venda_alvo || 0);
+    const comissaoPerc = parseFloat(meta?.comissao_percentual || 5);
+    const comissaoTotal = vendaAlvo * comissaoPerc / 100;
+    const liquida = Math.max(0, comissaoTotal - totalPago);
+    const fmt = (v) => 'R$ ' + (v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const elC = document.getElementById('pu-fin-credito'); if (elC) elC.textContent = fmt(totalPago);
+    const elL = document.getElementById('pu-fin-liquida');
+    if (elL) elL.innerHTML = '<div style="font-size:11px;color:var(--ink-3)">Comissão líquida estimada</div><div style="font-family:var(--serif);font-size:20px;font-weight:700;color:var(--accent,#22c55e)">' + (liquida > 0 ? 'R$ ' + (liquida / 1000).toFixed(1) + 'k' : '—') + '</div>';
+    const elS = document.getElementById('pu-fin-status-pag'); if (elS) elS.textContent = (movs?.length || 0) + ' parcelas pagas';
+  } catch (_) {}
+}
+
+// ─── Aba Conteúdo ───────────────────────────────────────────
+function puRenderConteudo(meta, origId){
+  return ''
+    + '<div style="display:flex;flex-direction:column;gap:16px">'
+    +   '<div style="font-family:var(--serif);font-size:17px;font-weight:700">✍️ Conteúdo</div>'
+    +   '<div style="font-size:13px;color:var(--ink-3)">Materiais aprovados pelo assessor para você usar onde quiser.</div>'
+    +   '<div style="text-align:center;padding:40px 20px;color:var(--ink-3)">'
+    +     '<div style="font-size:32px;margin-bottom:12px">✍️</div>'
+    +     '<div style="font-size:14px;font-weight:500;margin-bottom:6px">Conteúdo em produção</div>'
+    +     '<div style="font-size:12px;line-height:1.5">Seu assessor está preparando materiais sobre seu negócio.<br>Quando aprovados, aparecerão aqui para você copiar e repostar.</div>'
+    +   '</div>'
+    + '</div>';
+}
+
+// ─── Aba Dataroom ───────────────────────────────────────────
+function puRenderDataroom(meta){
+  const metaId = meta?.id || '';
+  return ''
+    + '<div style="display:flex;flex-direction:column;gap:16px">'
+    +   '<div style="font-family:var(--serif);font-size:17px;font-weight:700">📁 Dataroom</div>'
+    +   '<div style="font-size:13px;color:var(--ink-3)">Documentos do seu negócio — organizados e disponíveis para compradores qualificados (com NDA).</div>'
+    +   '<div><div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Documentos enviados</div><div id="pu-dataroom-list" style="display:flex;flex-direction:column;gap:6px"><div style="color:var(--ink-3);font-size:13px">Carregando...</div></div></div>'
+    +   '<div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px">'
+    +     '<div style="font-size:13px;font-weight:500;margin-bottom:8px">Enviar documento</div>'
+    +     '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+    +       '<select id="pu-doc-categoria" style="background:var(--surface);border:1px solid var(--line-2,var(--line));border-radius:6px;padding:7px 10px;color:var(--ink);font-size:13px"><option value="societario">Societário</option><option value="financeiro">Financeiro</option><option value="operacional">Operacional</option><option value="fotos">Fotos</option><option value="laudos">Laudos</option><option value="outros">Outros</option></select>'
+    +       '<input type="file" id="pu-doc-file" style="display:none" onchange="puEnviarDocumento(\'' + puEsc(metaId) + '\')" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx">'
+    +       '<button onclick="document.getElementById(\'pu-doc-file\').click()" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">📎 Selecionar arquivo</button>'
+    +     '</div>'
+    +     '<div style="font-size:11px;color:var(--ink-3);margin-top:8px">Formatos: PDF · JPG · PNG · XLSX · DOCX</div>'
+    +   '</div>'
+    + '</div>';
+}
+
+async function puCarregarDataroom(meta){
+  if (!meta?.id) return;
+  const headers = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token };
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/projeto_dataroom?projeto_metadata_id=eq.' + meta.id + '&select=*&order=created_at.desc', { headers });
+    const docs = r.ok ? await r.json() : [];
+    const el = document.getElementById('pu-dataroom-list');
+    if (!el) return;
+    if (!docs?.length) { el.innerHTML = '<div style="color:var(--ink-3);font-size:13px">Nenhum documento enviado ainda.</div>'; return; }
+    const COR = { pendente: '#d4a017', enviado: 'var(--ink-3)', aprovado: 'var(--accent,#22c55e)', rejeitado: 'var(--alert,#ff6b5c)' };
+    const LBL = { pendente: 'Pendente', enviado: 'Enviado', aprovado: 'Aprovado', rejeitado: 'Rejeitado' };
+    el.innerHTML = docs.map(d => '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:8px">'
+      + '<div><div style="font-size:13px;font-weight:500">' + puEsc(d.nome || '?') + '</div><div style="font-size:11px;color:var(--ink-3)">' + puEsc(d.categoria || '') + '</div></div>'
+      + '<span style="font-size:11px;font-weight:600;color:' + (COR[d.status] || 'var(--ink-3)') + '">' + puEsc(LBL[d.status] || d.status || '') + '</span>'
+      + '</div>').join('');
+  } catch (_) {}
+}
+
+async function puEnviarDocumento(metaId){
+  const fileEl = document.getElementById('pu-doc-file');
+  const file = fileEl?.files?.[0];
+  const categoria = document.getElementById('pu-doc-categoria')?.value || 'outros';
+  if (!file || !metaId) return;
+  try {
+    const safeName = file.name.replace(/[^\w.\-]/g, '_');
+    const path = metaId + '/' + Date.now() + '_' + safeName;
+    const upRes = await fetch(SUPABASE_URL + '/storage/v1/object/dataroom/' + path, {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'false' },
+      body: file
+    });
+    if (!upRes.ok) {
+      const errTxt = await upRes.text();
+      alert('Erro ao enviar (HTTP ' + upRes.status + '). Detalhe: ' + errTxt.slice(0, 200));
+      return;
+    }
+    const publicUrl = SUPABASE_URL + '/storage/v1/object/dataroom/' + path;
+    await fetch(SUPABASE_URL + '/rest/v1/projeto_dataroom', {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ projeto_metadata_id: metaId, nome: file.name, categoria, url: publicUrl, tamanho_bytes: file.size, mime_type: file.type || null, status: 'enviado' })
+    });
+    if (fileEl) fileEl.value = '';
+    alert('✓ Documento enviado!');
+    puCarregarDataroom({ id: metaId });
+  } catch (e) {
+    alert('Erro: ' + (e && e.message ? e.message : 'desconhecido'));
+  }
+}
+
+// Expose for inline onclick / external calls
+window.puVerificarAssessorada = puVerificarAssessorada;
+window.puSetAba = puSetAba;
+window.puEnviarDocumento = puEnviarDocumento;
 
 init();
 </script>
