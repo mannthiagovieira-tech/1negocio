@@ -1507,19 +1507,25 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: errMsg, status: anthropicRes.status }, anthropicRes.status);
     }
 
-    const data = JSON.parse(rawText);
+    let data = JSON.parse(rawText);
 
-    // Detecta se Claude chamou alguma ferramenta
-    const toolUseBlock = data.content?.find((c: any) => c.type === 'tool_use');
+    // v9.36.1.1 · loop de tool-use (max 3 iterações) para suportar cascata
+    // Antes: só tratava 1 tool · se Claude pedisse 2ª tool na resposta, finalReply='' e frontend mostrava fallback
+    const MAX_TOOL_ITERATIONS = 3;
+    const toolsCalled: string[] = [];
+    let valuationResult: any = null;
+    let conversaMessages: any[] = messages.slice();
+    let ultimoUsage: any = data.usage;
 
-    if (toolUseBlock) {
+    for (let iter = 0; iter < MAX_TOOL_ITERATIONS; iter++) {
+      const toolUseBlock = data.content?.find((c: any) => c.type === 'tool_use');
+      if (!toolUseBlock) break; // Claude já retornou texto · sai do loop
+
       let toolResult: any;
-      let isValuation = false;
-
       if (toolUseBlock.name === 'calcular_valuation_rapido') {
         const dadosColetados = toolUseBlock.input;
         toolResult = await calcularValuationRapido(dadosColetados);
-        isValuation = true;
+        valuationResult = toolResult;
         await persistirAvaliacao(lead_id, dadosColetados, toolResult, messages, pagina_origem, usuarioLogado);
       } else if (toolUseBlock.name === 'buscar_negocios') {
         toolResult = await buscarNegocios(toolUseBlock.input);
@@ -1536,51 +1542,50 @@ Deno.serve(async (req: Request) => {
       } else {
         toolResult = { erro: 'Tool desconhecida: ' + toolUseBlock.name };
       }
+      toolsCalled.push(toolUseBlock.name);
 
-      const messagesComTool = [
-        ...messages,
+      conversaMessages = [
+        ...conversaMessages,
         { role: 'assistant', content: data.content },
-        {
-          role: 'user',
-          content: [{
-            type: 'tool_result',
-            tool_use_id: toolUseBlock.id,
-            content: JSON.stringify(toolResult)
-          }]
-        }
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseBlock.id, content: JSON.stringify(toolResult) }] },
       ];
 
-      const segundoCall = await fetch('https://api.anthropic.com/v1/messages', {
+      const proximaCall = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: MAX_TOKENS,
-          system: systemFinal,
-          tools: TOOLS,
-          messages: messagesComTool,
-        }),
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: MODEL, max_tokens: MAX_TOKENS, system: systemFinal, tools: TOOLS, messages: conversaMessages }),
       });
-
-      const segundoData = await segundoCall.json();
-      const finalReply = segundoData.content?.find((c: any) => c.type === 'text')?.text || '';
-
-      return jsonResponse({
-        reply: finalReply,
-        usage: segundoData.usage,
-        valuation: isValuation ? toolResult : null,
-        tool_called: true,
-        tool_name: toolUseBlock.name
-      });
+      const proximaRaw = await proximaCall.text();
+      if (!proximaCall.ok) {
+        // Propaga erro da Anthropic (antes: silenciosamente retornava reply vazio)
+        console.error('[chat-ia tool iter ' + (iter + 1) + '] Anthropic ' + proximaCall.status + ': ' + proximaRaw.slice(0, 300));
+        let errMsg = proximaRaw;
+        try { errMsg = JSON.parse(proximaRaw)?.error?.message || proximaRaw; } catch (_) {}
+        return jsonResponse({ error: errMsg, status: proximaCall.status, tool_iter: iter + 1 }, proximaCall.status);
+      }
+      data = JSON.parse(proximaRaw);
+      ultimoUsage = data.usage;
     }
 
-    // Resposta normal sem tool
-    const reply = data.content?.find((c: any) => c.type === 'text')?.text || '';
-    return jsonResponse({ reply, usage: data.usage, tool_called: false });
+    // Extrai texto final · concatena TODOS os blocos de texto (no caso raro de Claude retornar múltiplos)
+    let reply = (data.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text).join('\n').trim();
+
+    // Se ainda vazio (ex: stop_reason='tool_use' após maxIterations, ou só thinking blocks)
+    // logga e retorna fallback útil para o frontend (não a string vazia que dispara mensagem genérica)
+    if (!reply) {
+      console.warn('[chat-ia] reply vazio · stop_reason=' + (data.stop_reason || '?') + ' · tools_called=' + JSON.stringify(toolsCalled));
+      reply = 'Desculpa, perdi o fio aqui. Pode reformular sua pergunta de outro jeito?';
+    }
+
+    return jsonResponse({
+      reply,
+      usage: ultimoUsage,
+      valuation: valuationResult,
+      tool_called: toolsCalled.length > 0,
+      tool_name: toolsCalled[0] || null,
+      tools_called: toolsCalled, // v9.36.1.1 · expõe lista completa
+      stop_reason: data.stop_reason || null,
+    });
 
   } catch (e) {
     console.error('Erro no chat-ia:', e);
