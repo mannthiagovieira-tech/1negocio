@@ -12824,23 +12824,39 @@ async function pjV347RenderStats(n, meta){
   // Leads novos/contato/abordados são populados via pjV347AtualizarStatsComLeads dentro de pjV347RenderPool (mesma fonte de dados do kanban · evita race + inconsistência)
 }
 
-// Recebe array de leads (mesmo formato do leadsKanbanHtml · vindo de pool_leads_originacao)
+// v9.35.0 · Stats coerentes com 4 colunas do kanban · mesma fonte de dados (pool_leads_originacao)
 function pjV347AtualizarStatsComLeads(leads){
+  if (!leads || !Array.isArray(leads)) return;
   const set = (id, v) => { const el = document.querySelector('#' + id + ' .val'); if (el) el.textContent = v; };
-  let novos=0, contato=0, abordadosSemana=0;
-  const seteDias = Date.now() - 7*86400000;
-  (leads || []).forEach(c => {
-    const s = (c.status||'novo').toLowerCase();
-    // Status V3: novo · em_contato · em_negociacao · convertido · descartado
-    // Legacy: frio · contatado · respondeu · qualificado · nda · proposta · fechou · perdeu
-    if (s === 'novo' || s === 'frio') novos++;
-    if (s === 'em_contato' || s === 'contatado' || s === 'respondeu' || s === 'em_negociacao' || s === 'qualificado' || s === 'nda' || s === 'proposta') contato++;
-    const baseTs = c.contatado_em || c.marcado_em || c.ultima_atividade;
-    if (baseTs && new Date(baseTs).getTime() > seteDias && s !== 'novo' && s !== 'frio') abordadosSemana++;
-  });
+
+  const novos = leads.filter(l => {
+    const s = (l.status || '').toLowerCase().trim();
+    return !s || s === 'novo' || s === 'bruto' || s === 'frio';
+  }).length;
+
+  const emContato = leads.filter(l => {
+    const s = (l.status || '').toLowerCase().trim();
+    return s === 'em_contato' || s === 'contatado';
+  }).length;
+
+  const seteDiasAtras = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const abordadosSemana = leads.filter(l => {
+    const baseTs = l.contatado_em || l.marcado_em || l.ultima_atividade;
+    if (!baseTs) return false;
+    const data = new Date(baseTs);
+    const s = (l.status || '').toLowerCase().trim();
+    return data >= seteDiasAtras && s !== 'novo' && s !== 'bruto' && s !== 'frio' && s !== '';
+  }).length;
+
   set('pj-v347-st-novos', novos);
-  set('pj-v347-st-contato', contato);
+  set('pj-v347-st-contato', emContato);
   set('pj-v347-st-abordados', abordadosSemana);
+
+  // Compat: se exista DOM com IDs alternativos (pj-stat-*) também atualiza
+  const setAlt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setAlt('pj-stat-novos', novos);
+  setAlt('pj-stat-contato', emContato);
+  setAlt('pj-stat-semana', abordadosSemana);
 }
 
 // v9.34.7.1 · helper retry visível pra erros do pool
