@@ -1713,10 +1713,8 @@ table.t .acoes { white-space: nowrap; }
 .lead-status-respondeu { background: #ede9fe; color: #6d28d9; }
 
 /* v9.34.2 · Kanban Sprint 3 */
-.leads-kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 12px; overflow-y: auto; min-height: 0; flex: 1; }
-.leads-kanban-col { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; min-width: 0; }
-.leads-kanban-col-head { padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
-.leads-kanban-col-body { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 80px; }
+/* v9.35.0 · layout via table inline (em leadsKanbanHtml) · regras .leads-kanban removidas */
+.leads-kanban { width: 100%; overflow-x: auto; }
 .leads-kanban-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; cursor: pointer; transition: background .15s; }
 .leads-kanban-card:hover { background: var(--surface, var(--bg-1)); border-color: var(--ink-3); }
 .leads-kanban-card.selecionado { box-shadow: inset 3px 0 0 var(--em, var(--ink)); background: rgba(61,255,149,0.06); }
@@ -12794,17 +12792,9 @@ function pjV347RenderDetalhe(n, meta, mesAtual, refs){
     + '.pj-v347-pool-acoes{display:flex;align-items:center;gap:6px;flex-wrap:wrap}'
     + '.pj-v347-pool-acoes button{background:var(--surface);border:1px solid var(--line);color:var(--ink-2);padding:5px 10px;border-radius:5px;font-size:11px;cursor:pointer}'
     + '.pj-v347-pool-acoes button:hover{border-color:var(--accent,#22c55e);color:var(--accent,#22c55e)}'
-    + '.pj-v347-kanban-wrap{min-height:200px;width:100%;overflow:visible}'
-    /* v9.34.7.2 · overrides do .leads-kanban pra funcionar fora do contexto flex original */
-    + '.pj-v347-kanban-wrap .leads-kanban{display:grid !important;grid-template-columns:repeat(4,minmax(0,1fr)) !important;gap:12px;padding:0;overflow:visible;height:auto;min-height:0;width:100%}'
-    + '.pj-v347-kanban-wrap .leads-kanban-col{min-height:200px;max-height:60vh;overflow:hidden}'
-    + '.pj-v347-kanban-wrap .leads-kanban-col-body{padding:6px;gap:5px}'
+    + '.pj-v347-kanban-wrap{min-height:200px;width:100%;overflow-x:auto}'
+    /* v9.35.0 · overrides removidos · layout via table inline imune a CSS externo */
     + '.pj-v347-kanban-wrap .leads-kanban-card{padding:6px 9px}'
-    + '.pj-v347-kanban-wrap .leads-kanban-card .card-head{margin-bottom:2px}'
-    + '.pj-v347-kanban-wrap .leads-kanban-card .card-nome{font-size:12.5px}'
-    + '.pj-v347-kanban-wrap .leads-kanban-card .card-meta{font-size:10.5px;gap:4px}'
-    + '@media(max-width:980px){.pj-v347-kanban-wrap .leads-kanban{grid-template-columns:repeat(2,minmax(0,1fr)) !important}}'
-    + '@media(max-width:600px){.pj-v347-kanban-wrap .leads-kanban{grid-template-columns:1fr !important}}'
     + '.pj-v347-empty{padding:32px 16px;text-align:center;color:var(--ink-3);font-size:13px;background:var(--surface);border:1px dashed var(--line);border-radius:8px}'
     + '.pj-v347-toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding:8px 10px;background:var(--surface);border:1px solid var(--line);border-radius:8px}'
     + '.pj-v347-tool{background:var(--bg);border:1px solid var(--line);color:var(--ink-2);padding:7px 13px;border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--sans);font-weight:500;transition:.12s}'
@@ -20887,7 +20877,7 @@ function leadsAbaHtml(projetoId) {
           scorearBtn +
           '<span class="leads-filtros-counts" id="leads-counts">' + leads.length + ' leads</span>' +
         '</div>' +
-        '<div class="leads-kanban" id="leads-kanban">' + leadsKanbanHtml(leads) + '</div>' +
+        '<div id="leads-kanban" style="width:100%;overflow-x:auto">' + leadsKanbanHtml(leads) + '</div>' +
       '</div>' +
       '<div class="leads-aba-drawer" id="leads-drawer">' +
         '<div style="padding:32px 20px;color:var(--ink-3);text-align:center;font-size:13px;">Selecione um lead pra ver detalhes →</div>' +
@@ -20896,56 +20886,84 @@ function leadsAbaHtml(projetoId) {
   );
 }
 
-// v9.34.2 · 4 colunas (novo · em_contato · em_negociacao · final[convertido+descartado])
+// v9.35.0 · table layout · imune a CSS externo · 4 colunas garantidas em qualquer container
 function leadsKanbanHtml(leads) {
-  const cols = [
-    { key: 'novo',           label: '🆕 Novo',           filter: l => (l.status || 'novo') === 'novo' },
-    { key: 'em_contato',     label: '📞 Em contato',     filter: l => l.status === 'em_contato' },
-    { key: 'em_negociacao',  label: '💬 Em negociação',  filter: l => l.status === 'em_negociacao' },
-    { key: 'final',          label: '✓ Convertidos / ✗ Descartados', filter: l => l.status === 'convertido' || l.status === 'descartado' },
+  const COLS = [
+    { key: 'novo',           label: '🆕 Novo',            statuses: ['novo', null, undefined, '', 'frio', 'bruto'],                cor: '#1a2a1a' },
+    { key: 'em_contato',     label: '📞 Em contato',      statuses: ['em_contato', 'contatado'],                                    cor: '#1a1a2a' },
+    { key: 'em_negociacao',  label: '💬 Em negociação',   statuses: ['em_negociacao', 'em_negociação', 'util', 'qualificado', 'nda', 'proposta'], cor: '#2a1a1a' },
+    { key: 'final',          label: '✓ / ✗ Final',         statuses: ['convertido', 'descartado', 'respondeu', 'irrelevante', 'fechou', 'perdeu'], cor: '#1a1a1a' }
   ];
-  const arqMap = {};
-  _leadsState.arquetipos.forEach(a => { arqMap[a.id] = a.nome; });
-  const canalIcon = {
-    interno: '🏛️', gmaps: '🗺️', facebook: '📘', instagram: '📷', corretores_locais: '🤝',
-    receita_federal: '🏛️',
-    web_compradores: '🌐', web_influenciadores: '🌐', web_eventos: '🌐', web_corretores: '🌐', web_profissionais: '🌐',
-  };
-  return cols.map(col => {
-    const items = leads.filter(col.filter);
-    const cards = items.length === 0
-      ? '<div class="lead-kanban-vazio">vazio</div>'
-      : items.map(l => {
-          const score = l.score_ia;
-          const scoreCls = leadsScoreClass(score);
-          const sel = _leadsState.selecionado === l.id ? ' selecionado' : '';
-          const icon = canalIcon[l.canal] || '';
-          const statusDescartado = l.status === 'descartado';
-          const statusConvertido = l.status === 'convertido';
-          const statusBadge = statusDescartado
-            ? '<span class="lead-status-badge lead-status-descartado">descartado</span>'
-            : statusConvertido
-            ? '<span class="lead-status-badge lead-status-convertido">convertido</span>'
-            : '';
-          return '<div class="leads-kanban-card' + sel + '" data-lead-id="' + l.id + '" onclick="leadsSelecionar(\'' + l.id + '\')">'
-            + '<div class="card-head">'
-            + (score !== null && score !== undefined ? '<span class="lead-score-badge ' + scoreCls + '">' + score + '</span>' : '<span style="font-size:10px;color:var(--ink-3);">—</span>')
-            + '<span class="card-nome">' + leadsEsc(l.nome || 'sem nome') + '</span>'
-            + '</div>'
-            + '<div class="card-meta">'
-            + '<span title="canal">' + icon + '</span>'
-            + (arqMap[l.arquetipo_id] ? '<span class="card-pill">' + leadsEsc(arqMap[l.arquetipo_id]) + '</span>' : '')
-            + (l.telefone ? '<span title="tem telefone">📞</span>' : '')
-            + (l.lusha_enriquecido ? '<span title="enriquecido Lusha">🔍</span>' : '')
-            + statusBadge
-            + '</div>'
-            + '</div>';
-        }).join('');
-    return '<div class="leads-kanban-col">'
-      + '<div class="leads-kanban-col-head"><span>' + col.label + '</span><span style="color:var(--ink);font-family:var(--mono);">' + items.length + '</span></div>'
-      + '<div class="leads-kanban-col-body">' + cards + '</div>'
-      + '</div>';
+
+  const tds = COLS.map(col => {
+    const leadsCol = (leads || []).filter(l => {
+      const s = (l.status || '').toLowerCase().trim();
+      return col.statuses.some(cs => cs === null ? (!s || s === '') : cs === s);
+    });
+
+    const cards = leadsCol.length === 0
+      ? '<div style="padding:16px 12px;color:#555;font-size:12px;text-align:center;font-style:italic">vazio</div>'
+      : leadsCol.map(l => leadsKanbanCardHtml(l)).join('');
+
+    return '<td style="width:25%;vertical-align:top;padding:0 4px 0 0">'
+      + '<div style="background:' + col.cor + ';border-radius:8px;overflow:hidden;border:1px solid #2a2a2a">'
+      + '<div style="padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #2a2a2a">'
+      + '<span style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em">' + col.label + '</span>'
+      + '<span style="font-size:11px;font-weight:700;color:#aaa;background:#222;padding:2px 6px;border-radius:10px">' + leadsCol.length + '</span>'
+      + '</div>'
+      + '<div style="padding:6px;display:flex;flex-direction:column;gap:5px;max-height:65vh;overflow-y:auto">'
+      + cards
+      + '</div>'
+      + '</div>'
+      + '</td>';
   }).join('');
+
+  return '<table style="width:100%;border-collapse:collapse;table-layout:fixed;border-spacing:0"><tbody><tr style="vertical-align:top">' + tds + '</tr></tbody></table>';
+}
+
+function leadsKanbanCardHtml(l) {
+  const score = l.score_ia || l.score_total || 0;
+  const scoreCor = score >= 80 ? '#22c55e' : score >= 60 ? '#f59e0b' : '#6b7280';
+  const nome = leadsEsc((l.nome || 'Sem nome')).substring(0, 28);
+  const arqNome = (typeof _leadsState !== 'undefined' && _leadsState.arquetipos)
+    ? ((_leadsState.arquetipos.find(a => a.id === l.arquetipo_id) || {}).nome || l.arquetipo_nome || '')
+    : (l.arquetipo_nome || '');
+  const arq = leadsEsc(arqNome).substring(0, 20);
+
+  const CANAL_ICONS = {
+    gmaps: '🗺️', facebook: '📘', instagram: '📷', interno: '🏛️',
+    manual: '✍️', matchmaking: '🤖', nda: '📋', web_compradores: '🌐',
+    web_influenciadores: '🌐', web_eventos: '🌐', web_corretores: '🌐',
+    web_profissionais: '🌐', receita_federal: '🏛️', associacoes: '🤝',
+    corretores_locais: '🤝'
+  };
+  const canalIcon = CANAL_ICONS[l.canal] || '📌';
+
+  const badgeNda = (l.fonte_origem === 'nda' || l.canal === 'nda')
+    ? '<span style="background:#7c3aed;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700">NDA</span>' : '';
+  const badgeMatch = l.canal === 'matchmaking'
+    ? '<span style="background:#0891b2;color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700">MATCH</span>' : '';
+  const temTel = l.telefone
+    ? '<span style="font-size:11px;color:#555" title="' + leadsEsc(l.telefone) + '">📞</span>' : '';
+
+  const idArg = leadsEsc(l.id || l.uso_id || '');
+  const contatoArg = leadsEsc(l.contato_id || '');
+  const sel = (typeof _leadsState !== 'undefined' && _leadsState.selecionado === l.id) ? ' selecionado' : '';
+
+  return '<div class="leads-kanban-card' + sel + '" data-lead-id="' + idArg + '" onclick="leadsSelecionar(\'' + idArg + '\',\'' + contatoArg + '\')"'
+    + ' style="background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;cursor:pointer;transition:border-color .15s"'
+    + ' onmouseover="this.style.borderColor=\'#3a3a3a\'" onmouseout="this.style.borderColor=\'#2a2a2a\'">'
+    + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
+    + '<span style="background:' + scoreCor + ';color:#000;font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;min-width:24px;text-align:center">' + (score || '—') + '</span>'
+    + '<span style="font-size:12px;font-weight:500;color:#e5e5e5;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + nome + '</span>'
+    + temTel
+    + '</div>'
+    + '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">'
+    + '<span style="font-size:10px;color:#666">' + canalIcon + '</span>'
+    + (arq ? '<span style="font-size:10px;color:#555;background:#1a1a1a;padding:1px 5px;border-radius:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">' + arq + '</span>' : '')
+    + badgeNda + badgeMatch
+    + '</div>'
+    + '</div>';
 }
 
 function leadsRowsHtml(leads) {
