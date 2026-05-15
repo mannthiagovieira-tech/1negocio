@@ -12698,11 +12698,12 @@ function pjRenderDetalhe(){
   html += pjV347RenderDetalhe(n, meta, mesAtual, { resumoCabecalho, resumoFinanc, resumoEntregaveis, resumoVinculo });
   document.getElementById('pj-det-corpo').innerHTML = html;
 
-  // Render async · 4 stats + kanban + originação V2 stub
+  // Render async · 4 stats + kanban + originação V2 stub + cockpit fixo v9.36.0
   if (meta && meta.id) {
     pjV347RenderStats(n, meta).catch(e => console.warn('[v347 stats]', e));
     pjV347RenderPool(n, meta).catch(e => console.warn('[v347 pool]', e));
     pjOriginacaoV2Render(meta.id);
+    if (typeof pjV347CarregarCockpitFixo === 'function') pjV347CarregarCockpitFixo(n, meta).catch(e => console.warn('[v347 cockpit]', e));
   }
 }
 
@@ -12710,136 +12711,147 @@ function pjRenderDetalhe(){
 // v9.34.7 · pjV347 · novo layout proporcional da página do projeto
 // ═══════════════════════════════════════════════════════════════════════
 
+// v9.36.0 · Redesenho: header + 4 stats + cockpit fixo + área central (kanban) + sidebar direito (nav + copilot)
 function pjV347RenderDetalhe(n, meta, mesAtual, refs){
-  // v9.35.x · garante mirror global mesmo se chamado por outro path
   window._pjAbertoNeg = n;
   window._pjAbertoMeta = meta || null;
+  window._pjAbertoMesAtual = mesAtual;
   if (n?.id) window._pjAbertoId = n.id;
-  const negocioNome = origV2Esc(n.nome || '—');
-  const negLocal = origV2Esc((n.cidade || '—') + '/' + (n.estado || '—'));
-  const status = origV2Esc(meta?.status || 'sem onda');
-  const vend = n.vendedor || {};
-  const temProj = !!(meta && meta.id);
 
-  // Header compacto (60px · uma linha) · data-neg-id e data-meta-id como fallback DOM
+  const negId   = n?.id || '';
+  const metaId  = meta?.id || '';
+  const negocioNome = origV2Esc(n?.nome || 'Projeto');
+  const localTxt    = origV2Esc((n?.cidade || '—') + (n?.estado ? '/' + n.estado : ''));
+  const statusTxt   = origV2Esc(meta?.status || 'ATIVO');
+
+  const css = ''
+    + '<style>'
+    + '#pj-v347-root{display:flex;flex-direction:column;min-height:calc(100vh - 140px);gap:0}'
+    + '.pjv-header{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface)}'
+    + '.pjv-header h1{margin:0;font-family:var(--serif);font-size:18px;font-weight:700;cursor:pointer}'
+    + '.pjv-header h1:hover{color:var(--accent,#22c55e)}'
+    + '.pjv-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);flex-shrink:0}'
+    + '.pjv-stat{background:var(--bg);padding:12px 16px}'
+    + '.pjv-stat-lbl{font-size:10px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}'
+    + '.pjv-stat-val{font-family:var(--serif);font-size:24px;font-weight:700;color:var(--ink)}'
+    + '.pjv-cockpit{padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line);flex-shrink:0}'
+    + '.pjv-cockpit-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}'
+    + '.pjv-cockpit-row a{color:var(--ink-3);border:1px solid var(--line-2);border-radius:4px;padding:3px 8px;text-decoration:none;font-size:11px}'
+    + '.pjv-cockpit-row a:hover{color:var(--accent,#22c55e);border-color:var(--accent,#22c55e)}'
+    + '.pjv-body{display:flex;flex:1;min-height:520px;border-top:1px solid var(--line)}'
+    + '.pjv-central{flex:1;overflow-y:auto;padding:16px;min-width:0;background:var(--bg)}'
+    + '.pjv-sidebar{width:240px;flex-shrink:0;border-left:1px solid var(--line);display:flex;flex-direction:column;background:var(--surface);transition:width .2s ease}'
+    + '.pjv-sidebar.recolhido{width:48px}'
+    + '.pjv-sidebar.recolhido .pjv-side-desc{display:none}'
+    + '.pjv-sidebar.recolhido .pjv-side-label{display:none}'
+    + '.pjv-side-itens{flex:1;overflow-y:auto}'
+    + '.pjv-side-item{padding:10px 12px;cursor:pointer;border-left:3px solid transparent;transition:background .15s}'
+    + '.pjv-side-item:hover{background:var(--bg)}'
+    + '.pjv-side-item.ativo{background:var(--accent-soft,rgba(34,197,94,.1));border-left-color:var(--accent,#22c55e)}'
+    + '.pjv-side-item.ativo .pjv-side-label{color:var(--accent,#22c55e);font-weight:600}'
+    + '.pjv-side-item.disabled{opacity:.5;cursor:default}'
+    + '.pjv-side-item.disabled:hover{background:transparent}'
+    + '.pjv-side-icon{font-size:16px;margin-right:8px;vertical-align:middle}'
+    + '.pjv-side-label{font-size:13px;color:var(--ink)}'
+    + '.pjv-side-desc{font-size:10px;color:var(--ink-4);margin-top:2px;margin-left:24px}'
+    + '.pjv-side-tag{font-size:9px;color:var(--ink-4);border:1px solid var(--line);border-radius:3px;padding:1px 4px;margin-left:6px;vertical-align:middle}'
+    + '.pjv-copilot{border-top:1px solid var(--line);background:var(--surface)}'
+    + '.pjv-pool-bloco{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:0}'
+    + '.pjv-pool-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}'
+    + '.pj-v347-kanban-wrap{min-height:200px;width:100%;overflow-x:auto}'
+    + '.pj-v347-kanban-wrap .leads-kanban-card{padding:6px 9px}'
+    + '.pj-v347-empty{padding:32px 16px;text-align:center;color:var(--ink-3);font-size:13px;background:var(--surface);border:1px dashed var(--line);border-radius:8px}'
+    + '@media(max-width:980px){.pjv-stats{grid-template-columns:repeat(2,1fr)} .pjv-sidebar{width:200px}}'
+    + '</style>';
+
   const header = ''
-    + '<div class="pj-v347-header" data-neg-id="' + (n.id || '') + '" data-meta-id="' + (meta?.id || '') + '">'
-    + '<div class="pj-v347-header-info">'
-    + '<strong>' + negocioNome + '</strong>'
-    + '<span class="sep">·</span>'
-    + '<span>' + negLocal + '</span>'
-    + '<span class="sep">·</span>'
-    + '<span>Mês ' + mesAtual + '/12</span>'
-    + '<span class="sep">·</span>'
-    + '<span class="pj-v347-status status-' + status.toLowerCase().replace(/\s+/g,'_') + '">' + status.toUpperCase() + '</span>'
-    + '</div>'
-    + '<div class="pj-v347-header-acoes">'
-    + '<button class="btn-mini" onclick="pjV347AbrirVisaoCliente(\'' + (n.id||'') + '\')">Ver como cliente →</button>'
-    + '</div>'
+    + '<div class="pjv-header">'
+    +   '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+    +     '<h1 onclick="pjV347SetAba(\'kanban\',\'' + negId + '\')" title="Voltar ao pool de leads">' + negocioNome + '</h1>'
+    +     '<span style="font-size:12px;color:var(--ink-3)">' + localTxt + '</span>'
+    +     '<span style="font-size:12px;color:var(--ink-3)">Mês ' + (mesAtual || 1) + '/12</span>'
+    +     '<span style="background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600">' + statusTxt.toUpperCase() + '</span>'
+    +   '</div>'
+    +   '<a href="javascript:void(0)" onclick="pjVerComoCliente(\'' + negId + '\')" style="background:var(--accent,#22c55e);color:#000;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:600;text-decoration:none">Ver como cliente →</a>'
     + '</div>';
 
-  // 4 stats (placeholders · populados async por pjV347RenderStats)
-  const stats = '<div class="pj-v347-stats">'
-    + '<div class="pj-v347-stat" id="pj-v347-st-novos"><span class="lbl">Leads novos</span><div class="val">—</div></div>'
-    + '<div class="pj-v347-stat" id="pj-v347-st-contato"><span class="lbl">Em contato</span><div class="val">—</div></div>'
-    + '<div class="pj-v347-stat" id="pj-v347-st-abordados"><span class="lbl">Abordados (semana)</span><div class="val">—</div></div>'
-    + '<div class="pj-v347-stat" id="pj-v347-st-saldo"><span class="lbl">Saldo</span><div class="val">R$ 0,00</div></div>'
+  const stats = ''
+    + '<div class="pjv-stats">'
+    +   '<div class="pjv-stat" id="pj-v347-st-novos"><div class="pjv-stat-lbl">Leads novos</div><div class="pjv-stat-val val" id="pj-stat-novos">—</div></div>'
+    +   '<div class="pjv-stat" id="pj-v347-st-contato"><div class="pjv-stat-lbl">Em contato</div><div class="pjv-stat-val val" id="pj-stat-contato">—</div></div>'
+    +   '<div class="pjv-stat" id="pj-v347-st-abordados"><div class="pjv-stat-lbl">Abordados (semana)</div><div class="pjv-stat-val val" id="pj-stat-semana">—</div></div>'
+    +   '<div class="pjv-stat" id="pj-v347-st-saldo"><div class="pjv-stat-lbl">Saldo</div><div class="pjv-stat-val val" id="pj-stat-saldo">R$ 0,00</div></div>'
     + '</div>';
 
-  // Pool protagonista (kanban grande + fontes em linha + alerta) · v9.35.x · wrapper para switchable
-  const poolBloco = ''
-    + '<div class="pj-v347-pool" id="pj-v347-pool-bloco">'
-    + '<div class="pj-v347-pool-head">'
-    + '<div><strong>Pool de leads</strong><span id="pj-v347-pool-count" style="margin-left:8px;color:var(--ink-3);font-size:12px">…</span></div>'
-    + '<div class="pj-v347-pool-acoes" id="pj-v347-pool-acoes">'
-    + (temProj ? '<button class="btn-mini" onclick="origV346ListaSemanal(\'' + meta.id + '\')">📋 Lista semanal</button>' : '')
-    + (temProj ? '<button class="btn-mini" onclick="origV346AbrirContatoModal(\'' + meta.id + '\')">+ Adicionar</button>' : '')
-    + '<span id="pj-v347-fontes-inline" style="margin-left:14px;font-family:var(--mono);font-size:11px;color:var(--ink-3)">…</span>'
-    + '</div>'
-    + '</div>'
-    + '<div id="pj-v347-pool-alerta"></div>'
-    + '<div id="pj-v347-kanban" class="pj-v347-kanban-wrap"><div class="pj-v347-empty">Carregando pool…</div></div>'
-    + '</div>'
-    + '<div id="pj-v347-aba-content"></div>'; // v9.35.x · conteúdo da aba ativa (vazio quando Cockpit)
-
-  // Toolbar · v9.35.x · pjV347SetAba para Cockpit/Matchmaking/Financeiro/Entregáveis/Config (inline)
-  // Arsenal mantém modal (fluxo pesado · 95vw)
-  const toolbar = ''
-    + '<div class="pj-v347-toolbar">'
-    + (temProj ? '<button class="pj-v347-tool" data-aba="arsenal" onclick="origV346AbrirArsenal(\'' + meta.id + '\')">🎯 Arsenal</button>' : '')
-    + (temProj ? '<button class="pj-v347-tool ativo" data-aba="cockpit" onclick="pjV347SetAba(\'cockpit\')">📊 Cockpit</button>' : '')
-    + (temProj ? '<button class="pj-v347-tool" data-aba="matchmaking" onclick="pjV347SetAba(\'matchmaking\')">🤖 Matchmaking</button>' : '')
-    + '<button class="pj-v347-tool desativado" disabled title="em breve">✍️ Conteúdo</button>'
-    + '<button class="pj-v347-tool desativado" disabled title="em breve">📣 Ads</button>'
-    + '<button class="pj-v347-tool" data-aba="financeiro" onclick="pjV347SetAba(\'financeiro\')">💰 Financeiro</button>'
-    + '<button class="pj-v347-tool" data-aba="entregaveis" onclick="pjV347SetAba(\'entregaveis\')">📋 Entregáveis</button>'
-    + '<button class="pj-v347-tool" data-aba="config" onclick="pjV347SetAba(\'config\')">⚙️ Config</button>'
+  const cockpit = ''
+    + '<div class="pjv-cockpit">'
+    +   '<div class="pjv-cockpit-row">'
+    +     '<span style="font-size:11px;color:var(--ink-3)">Onda</span><span id="pj-cockpit-onda" style="font-size:12px;font-weight:600">—</span>'
+    +     '<span id="pj-cockpit-proxima" style="font-size:11px;color:var(--ink-3)">…</span>'
+    +     '<span id="pj-cockpit-alertas"></span>'
+    +     '<span style="margin-left:auto;display:flex;gap:6px">'
+    +       '<a href="/laudo-completo.html?id=' + negId + '" target="_blank" rel="noopener">📄 Laudo</a>'
+    +       '<a href="/negocio.html?id=' + negId + '" target="_blank" rel="noopener">🌐 Anúncio</a>'
+    +       '<a href="javascript:void(0)" onclick="pjVerComoCliente(\'' + negId + '\')">👁️ Cliente</a>'
+    +       '<a href="javascript:void(0)" onclick="pjV347AbrirLaudos(\'' + negId + '\')" style="color:var(--accent,#22c55e);border-color:var(--accent-line,rgba(34,197,94,.3))">📋 Todos laudos</a>'
+    +     '</span>'
+    +   '</div>'
     + '</div>';
 
-  // Coluna direita (referências) · classe simplificada para evitar conflito com .pj-detalhe-grid-2col legado
-  const direita = ''
-    + '<div class="pj-v347-direita" style="display:flex;flex-direction:column;gap:14px;min-width:0">'
-    + '<div class="pj-coluna-titulo">Referências do negócio</div>'
-    + pjRefCard('📋 Cabeçalho', refs.resumoCabecalho, pjRenderCabecalho(n, meta), true)
-    + pjRefCard('💰 Financeiro', refs.resumoFinanc, pjRenderFinanceiro(n, meta, _pjMovimentacoes||[]), false)
-    + pjRefCard('📦 Entregáveis', refs.resumoEntregaveis, '', false, 'placeholder')
-    + pjRefCard('🤝 Vínculo', refs.resumoVinculo, pjRenderVinculo(n, meta), false)
+  const central = ''
+    + '<div class="pjv-central" id="pj-v347-area-central">'
+    +   '<div id="pj-v347-conteudo-principal">' + pjV347PoolBlocoHtml(n, meta) + '</div>'
+    + '</div>';
+
+  const sidebarRec = (function(){ try { return localStorage.getItem('pj_sidebar_direito') === 'recolhido'; } catch(_) { return false; } })();
+  const sidebar = ''
+    + '<div class="pjv-sidebar' + (sidebarRec ? ' recolhido' : '') + '" id="pj-v347-sidebar-direito">'
+    +   '<div style="padding:6px 8px;border-bottom:1px solid var(--line);display:flex;justify-content:flex-end">'
+    +     '<button onclick="pjV347ToggleSidebar()" title="Recolher/Expandir" style="background:none;border:none;cursor:pointer;color:var(--ink-3);font-size:14px;padding:2px 4px">⫸</button>'
+    +   '</div>'
+    +   '<div class="pjv-side-itens">' + pjV347SidebarItens(n, meta, 'kanban') + '</div>'
+    +   '<div class="pjv-copilot" id="pj-v347-copilot">' + pjV347CopilotHtml(n, meta) + '</div>'
     + '</div>';
 
   return ''
-    + '<style>'
-    + '.pj-v347-header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-bottom:14px;min-height:48px;max-height:60px}'
-    + '.pj-v347-header-info{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}'
-    + '.pj-v347-header-info strong{font-size:14px}'
-    + '.pj-v347-header-info .sep{color:var(--ink-4)}'
-    + '.pj-v347-status{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.05em;padding:2px 8px;border-radius:999px;background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border:1px solid var(--accent-line,rgba(34,197,94,.3))}'
-    + '.pj-v347-header-acoes button{background:var(--accent,#22c55e);color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer}'
-    + '.pj-v347-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}'
-    + '.pj-v347-stat{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}'
-    + '.pj-v347-stat .lbl{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4);display:block;margin-bottom:4px}'
-    + '.pj-v347-stat .val{font-family:var(--serif);font-size:22px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}'
-    + '.pj-v347-pool{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}'
-    + '.pj-v347-pool-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}'
-    + '.pj-v347-pool-acoes{display:flex;align-items:center;gap:6px;flex-wrap:wrap}'
-    + '.pj-v347-pool-acoes button{background:var(--surface);border:1px solid var(--line);color:var(--ink-2);padding:5px 10px;border-radius:5px;font-size:11px;cursor:pointer}'
-    + '.pj-v347-pool-acoes button:hover{border-color:var(--accent,#22c55e);color:var(--accent,#22c55e)}'
-    + '.pj-v347-kanban-wrap{min-height:200px;width:100%;overflow-x:auto}'
-    /* v9.35.0 · overrides removidos · layout via table inline imune a CSS externo */
-    + '.pj-v347-kanban-wrap .leads-kanban-card{padding:6px 9px}'
-    + '.pj-v347-empty{padding:32px 16px;text-align:center;color:var(--ink-3);font-size:13px;background:var(--surface);border:1px dashed var(--line);border-radius:8px}'
-    + '.pj-v347-toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding:8px 10px;background:var(--surface);border:1px solid var(--line);border-radius:8px}'
-    + '.pj-v347-tool{background:var(--bg);border:1px solid var(--line);color:var(--ink-2);padding:7px 13px;border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--sans);font-weight:500;transition:.12s}'
-    + '.pj-v347-tool:hover:not(.desativado){border-color:var(--accent,#22c55e);color:var(--accent,#22c55e)}'
-    + '.pj-v347-tool.desativado{opacity:.5;cursor:not-allowed}'
-    + '.pj-v347-tool.ativo{background:var(--accent,#22c55e);color:#000;border-color:var(--accent,#22c55e);font-weight:600}'
-    + '.pj-v347-tool.ativo:hover{color:#000}'
-    + '.pj-v347-pool-alerta:not(:empty){margin-bottom:10px}'
-    + '#pj-v347-aba-content:empty{display:none}'
-    + '#pj-v347-aba-content{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}'
-    + '.pj-v347-grid{display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start}'
-    + '@media(max-width:1100px){.pj-v347-grid{grid-template-columns:1fr}}'
-    + '@media(max-width:980px){.pj-v347-stats{grid-template-columns:repeat(2,1fr)}}'
-    + '</style>'
-    + header
-    + stats
-    + '<div class="pj-v347-grid" style="display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start">'
-    +   '<div class="pj-v347-grid-esq" style="min-width:0">'
-    +     toolbar
-    +     poolBloco
+    + css
+    + '<div id="pj-v347-root" data-neg-id="' + negId + '" data-meta-id="' + metaId + '">'
+    +   header
+    +   stats
+    +   cockpit
+    +   '<div class="pjv-body">' + central + sidebar + '</div>'
+    + '</div>';
+}
+
+// v9.36.0 · Helper: pool/kanban como string HTML (preserva IDs antigos para compat com pjV347RenderPool)
+function pjV347PoolBlocoHtml(n, meta){
+  const temProj = !!(meta && meta.id);
+  return ''
+    + '<div class="pjv-pool-bloco" id="pj-v347-pool-bloco">'
+    +   '<div class="pjv-pool-head">'
+    +     '<div><strong>Pool de leads</strong> <span id="pj-v347-pool-count" style="margin-left:8px;color:var(--ink-3);font-size:12px">…</span></div>'
+    +     '<div id="pj-v347-pool-acoes" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+    +       (temProj ? '<button class="btn-mini" onclick="origV346ListaSemanal(\'' + meta.id + '\')">📋 Lista semanal</button>' : '')
+    +       (temProj ? '<button class="btn-mini" onclick="origV346AbrirContatoModal(\'' + meta.id + '\')">+ Adicionar</button>' : '')
+    +       '<span id="pj-v347-fontes-inline" style="margin-left:14px;font-family:var(--mono);font-size:11px;color:var(--ink-3)">…</span>'
+    +     '</div>'
     +   '</div>'
-    +   direita
+    +   '<div id="pj-v347-pool-alerta"></div>'
+    +   '<div id="pj-v347-kanban" class="pj-v347-kanban-wrap"><div class="pj-v347-empty">Carregando pool…</div></div>'
+    +   '<div id="pj-v347-aba-content" style="display:none"></div>'
     + '</div>';
 }
 
 // v9.34.7.2 · stats agora inicializa com saldo + fica pendente pros leads (preenchido por pjV347AtualizarStatsComLeads)
 async function pjV347RenderStats(n, meta){
   const set = (id, v) => { const el = document.querySelector('#' + id + ' .val'); if (el) el.textContent = v; };
-  // Saldo: usa _pjMovimentacoes (já carregado por pjFetch · síncrono)
+  const setById = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   try {
     const saldo = (_pjMovimentacoes||[]).reduce((s, m) => s + (Number(m.valor)||0) * (m.tipo === 'saida' ? -1 : 1), 0);
-    set('pj-v347-st-saldo', 'R$ ' + (saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}));
-  } catch (_) { set('pj-v347-st-saldo', 'R$ 0,00'); }
-  // Leads novos/contato/abordados são populados via pjV347AtualizarStatsComLeads dentro de pjV347RenderPool (mesma fonte de dados do kanban · evita race + inconsistência)
+    const txt = 'R$ ' + (saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    set('pj-v347-st-saldo', txt);
+    setById('pj-stat-saldo', txt); // v9.36.0 · ID novo do layout redesenhado
+  } catch (_) { set('pj-v347-st-saldo', 'R$ 0,00'); setById('pj-stat-saldo', 'R$ 0,00'); }
 }
 
 // v9.35.0 · Stats coerentes com 4 colunas do kanban · mesma fonte de dados (pool_leads_originacao)
@@ -13086,40 +13098,58 @@ async function pjV347ResolverNeg(){
   return null;
 }
 
-async function pjV347SetAba(aba){
-  const n = await pjV347ResolverNeg();
+// v9.36.0 · pjV347SetAba renderiza no #pj-v347-conteudo-principal (área central) e marca item no sidebar direito
+async function pjV347SetAba(aba, negIdHint){
+  let n = window._pjAbertoNeg;
+  let meta = window._pjAbertoMeta;
+  if (!n){
+    n = await pjV347ResolverNeg();
+    if (n) meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
+  }
+  if (!n){
+    const domId = document.getElementById('pj-v347-root')?.dataset?.negId || negIdHint;
+    if (domId && typeof pjAbrirDetalhe === 'function'){
+      await pjAbrirDetalhe(domId);
+      n = window._pjAbertoNeg;
+      meta = window._pjAbertoMeta;
+    }
+  }
   if (!n){ alert('Projeto não carregado · recarregue a página.'); return; }
-  const meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
+  if (!meta) meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
 
-  // Visual de aba ativa
-  document.querySelectorAll('.pj-v347-tool').forEach(b => b.classList.remove('ativo'));
-  const btn = document.querySelector('.pj-v347-tool[data-aba="' + aba + '"]');
-  if (btn) btn.classList.add('ativo');
+  // Marca item ativo no sidebar direito
+  document.querySelectorAll('#pj-v347-sidebar-direito .pjv-side-item').forEach(el => el.classList.remove('ativo'));
+  const ativo = document.querySelector('#pj-v347-sidebar-direito .pjv-side-item[data-aba="' + aba + '"]');
+  if (ativo) ativo.classList.add('ativo');
 
-  const poolBloco = document.getElementById('pj-v347-pool-bloco');
-  const abaArea = document.getElementById('pj-v347-aba-content');
-  if (!abaArea){ return; }
+  try { localStorage.setItem('projeto_aba_' + (n.id || ''), aba); } catch(_) {}
 
-  // Cockpit = pool view default · restaura kanban
-  if (aba === 'cockpit' || aba === 'pool'){
-    if (poolBloco) poolBloco.style.display = '';
-    abaArea.innerHTML = '';
+  const cont = document.getElementById('pj-v347-conteudo-principal');
+  if (!cont) return;
+
+  if (aba === 'kanban' || aba === 'cockpit' || aba === 'pool'){
+    cont.innerHTML = pjV347PoolBlocoHtml(n, meta);
+    if (typeof pjV347RenderPool === 'function') pjV347RenderPool(n, meta).catch(()=>{});
     return;
   }
 
-  // Demais abas: esconde pool + carrega conteúdo inline
-  if (poolBloco) poolBloco.style.display = 'none';
-  abaArea.innerHTML = '<div class="pj-v347-empty">⏳ Carregando ' + aba + '…</div>';
+  cont.innerHTML = '<div class="pj-v347-empty">⏳ Carregando ' + aba + '…</div>';
 
   try {
-    let html = '';
     const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
-    if (aba === 'matchmaking'){
-      html = typeof pjRenderMatches === 'function' ? pjRenderMatches(n, meta, window._pjMatches || []) : '<div class="pj-v347-empty">Matchmaking indisponível</div>';
+    if (aba === 'inteligencia'){
+      cont.innerHTML = pjV347RenderInteligencia(n, meta);
+      // dispara o chat existente · origV8AbrirChatTese resolve o origId pelo meta.id
+      if (typeof pjV347MontarInteligencia === 'function') pjV347MontarInteligencia(n, meta);
+    } else if (aba === 'arsenal'){
+      cont.innerHTML = pjV347ArsenalInlineHtml(n, meta);
+      pjV347EnsureArsenalCache(meta?.id, n).catch(()=>{});
+    } else if (aba === 'matchmaking'){
+      cont.innerHTML = typeof pjRenderMatches === 'function' ? pjRenderMatches(n, meta, window._pjMatches || []) : '<div class="pj-v347-empty">Matchmaking indisponível</div>';
     } else if (aba === 'financeiro'){
-      html = pjV347RenderFinanceiro(n, meta, window._pjMovimentacoes || []);
+      cont.innerHTML = pjV347RenderFinanceiro(n, meta, window._pjMovimentacoes || []);
     } else if (aba === 'entregaveis'){
-      if (!meta?.id){ html = '<div class="pj-v347-empty">Sem meta vinculada</div>'; }
+      if (!meta?.id){ cont.innerHTML = '<div class="pj-v347-empty">Sem meta vinculada</div>'; }
       else {
         const [rO, rA] = await Promise.all([
           fetch(SB + '/rest/v1/projeto_ondas?projeto_metadata_id=eq.' + meta.id + '&order=numero_onda', { headers }),
@@ -13127,7 +13157,7 @@ async function pjV347SetAba(aba){
         ]);
         const ondas = rO.ok ? await rO.json() : [];
         const atvs  = rA.ok ? await rA.json() : [];
-        html = pjV347RenderEntregaveis(meta, atvs, ondas);
+        cont.innerHTML = pjV347RenderEntregaveis(meta, atvs, ondas);
       }
     } else if (aba === 'config'){
       let assessores = [];
@@ -13136,18 +13166,311 @@ async function pjV347SetAba(aba){
         assessores = r.ok ? await r.json() : [];
       }
       const vinc = typeof pjRenderVinculo === 'function' ? pjRenderVinculo(n, meta) : '';
-      html = vinc + pjV347RenderConfigAssessores(meta?.id, assessores);
+      cont.innerHTML = vinc + pjV347RenderConfigAssessores(meta?.id, assessores);
+    } else if (aba === 'conteudo' || aba === 'ads' || aba === 'dataroom'){
+      cont.innerHTML = pjV347PlaceholderEmBreve(aba);
     } else {
-      html = '<div class="pj-v347-empty">Aba desconhecida: ' + aba + '</div>';
+      cont.innerHTML = '<div class="pj-v347-empty">Aba desconhecida: ' + aba + '</div>';
     }
-    abaArea.innerHTML = html;
   } catch (e){
-    abaArea.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Erro: ' + (e?.message || 'desconhecido') + '</div>';
+    cont.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Erro: ' + (e?.message || 'desconhecido') + '</div>';
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// v9.36.0 · Helpers do novo layout
+// ─────────────────────────────────────────────────────────────
+function pjV347SidebarItens(n, meta, abaAtiva){
+  const negId = n?.id || '';
+  const ITENS = [
+    { key:'inteligencia', icon:'🧠', label:'Inteligência', desc:'Tese · Arquétipos · Ambientação' },
+    { key:'arsenal',      icon:'🎯', label:'Arsenal',      desc:'Queries · Matriz · Buscas' },
+    { key:'conteudo',     icon:'✍️', label:'Conteúdo',     desc:'Roteiros · Posts · Imagens', tag:'em breve' },
+    { key:'ads',          icon:'📣', label:'Ads',          desc:'META + Google Ads',          tag:'em breve' },
+    { key:'dataroom',     icon:'📁', label:'Dataroom',     desc:'Documentos · Fotos · NDAs',  tag:'em breve' },
+    { key:'financeiro',   icon:'💰', label:'Financeiro',   desc:'Mensalidades · Comissão' },
+    { key:'entregaveis',  icon:'📋', label:'Entregáveis',  desc:'Cronograma · Ondas · Prazos' },
+    { key:'config',       icon:'⚙️', label:'Config',       desc:'Assessor · Sócio · Configs' },
+  ];
+  return ITENS.map(it => {
+    const cls = (it.tag ? 'pjv-side-item disabled' : 'pjv-side-item') + (it.key === abaAtiva ? ' ativo' : '');
+    const onclick = it.tag ? '' : ' onclick="pjV347SetAba(\'' + it.key + '\',\'' + negId + '\')"';
+    return '<div class="' + cls + '" data-aba="' + it.key + '"' + onclick + '>'
+      +   '<div><span class="pjv-side-icon">' + it.icon + '</span><span class="pjv-side-label">' + it.label + '</span>'
+      +     (it.tag ? '<span class="pjv-side-tag">' + it.tag + '</span>' : '')
+      +   '</div>'
+      +   '<div class="pjv-side-desc">' + it.desc + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function pjV347PlaceholderEmBreve(aba){
+  const INFO = {
+    conteudo: { icon:'✍️', titulo:'Gerador de Conteúdo', desc:'Um agente IA marketeiro que conhece todo o negócio, a tese e os arquétipos. Gera roteiros de vídeo, posts, blog, carrosséis e imagens. Dono acessa pelo portal.',
+      itens:['Agente marketeiro via chat','Roteiros · posts · blog · carrossel','Imagens via DALL-E','Aprovação antes de liberar','Custo por peça contabilizado'] },
+    ads: { icon:'📣', titulo:'Campanhas de Ads', desc:'Criação e gestão de campanhas META e Google Ads diretamente pelo painel via MCP. Leads de anúncios entram no kanban automaticamente.',
+      itens:['Criação META + Google','Orçamento integrado ao financeiro','Leads no kanban automaticamente','Performance no cockpit e portal','Meta de CPL por campanha'] },
+    dataroom: { icon:'📁', titulo:'Dataroom', desc:'Repositório central de documentos e fotos. Admin solicita, cliente faz upload pelo portal e compradores qualificados (NDA) recebem acesso controlado.',
+      itens:['Checklist de documentos','Upload pelo portal do cliente','Categorias: societário · financeiro · operacional · fotos · laudos','Acesso liberado por NDA','Log de quem acessou e quando'] },
+  };
+  const info = INFO[aba] || { icon:'🚧', titulo:aba, desc:'Em construção', itens:[] };
+  return '<div style="max-width:600px;margin:0 auto;padding:40px 20px">'
+    + '<div style="text-align:center;margin-bottom:32px">'
+    +   '<div style="font-size:48px;margin-bottom:16px">' + info.icon + '</div>'
+    +   '<div style="font-family:var(--serif);font-size:22px;font-weight:700;margin-bottom:8px">' + info.titulo + '</div>'
+    +   '<div style="font-size:14px;color:var(--ink-2);line-height:1.6">' + info.desc + '</div>'
+    + '</div>'
+    + '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:20px">'
+    +   '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">O que terá quando for lançado</div>'
+    +   info.itens.map(i => '<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px"><span style="color:var(--accent,#22c55e);font-size:14px;flex-shrink:0">✓</span><span style="font-size:13px;color:var(--ink-2)">' + i + '</span></div>').join('')
+    + '</div>'
+    + '<div style="text-align:center;margin-top:24px"><span style="font-size:12px;color:var(--ink-4);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 14px">🚧 Em desenvolvimento</span></div>'
+    + '</div>';
+}
+
+function pjV347RenderInteligencia(n, meta){
+  const metaId = meta?.id || '';
+  return ''
+    + '<div style="display:flex;flex-direction:column;gap:14px">'
+    +   '<div><div style="font-family:var(--serif);font-size:18px;font-weight:700">🧠 Inteligência</div>'
+    +     '<div style="font-size:12px;color:var(--ink-3);margin-top:2px">Tese · Arquétipos · Ambientação · Estratégia</div></div>'
+    +   '<div id="pj-inteligencia-host-' + metaId + '" style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:14px;min-height:480px"></div>'
+    + '</div>';
+}
+
+// Resolve originacao_id a partir de meta.id e dispara o chat origV8 dentro do host
+async function pjV347MontarInteligencia(n, meta){
+  const host = document.getElementById('pj-inteligencia-host-' + (meta?.id || ''));
+  if (!host) return;
+  host.innerHTML = '<div class="pj-v347-empty">⏳ Carregando originação…</div>';
+  try {
+    const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+    const r = await fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + (meta?.id || '') + '&select=id&order=created_at.desc&limit=1', { headers });
+    const arr = r.ok ? await r.json() : [];
+    const origId = arr[0]?.id;
+    if (!origId){ host.innerHTML = '<div class="pj-v347-empty">Originação não encontrada para este projeto. Configure uma na aba Arsenal.</div>'; return; }
+    // origV8 escreve no #pj-originacao-{projetoId} · injetamos um wrapper com esse ID
+    host.innerHTML = '<div id="pj-originacao-' + (meta?.id || '') + '"></div>';
+    if (typeof origV8AbrirChatTese === 'function') await origV8AbrirChatTese(origId);
+    else host.innerHTML = '<div class="pj-v347-empty">Chat de tese indisponível neste build.</div>';
+  } catch(e){ host.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Erro: ' + (e?.message || 'desconhecido') + '</div>'; }
+}
+
+// Arsenal inline: preview compacto + botão para modal completo (fluxo pesado já existente)
+async function pjV347EnsureArsenalCache(metaId, n){
+  if (!metaId) return;
+  try {
+    const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+    const r = await fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + metaId + '&select=*&order=created_at.desc&limit=1', { headers });
+    const arr = r.ok ? await r.json() : [];
+    if (!arr[0]) return;
+    window._origV346OrigCache = window._origV346OrigCache || {};
+    window._origV346ArqCache  = window._origV346ArqCache  || {};
+    window._origV346OrigCache[arr[0].id] = arr[0];
+    const rA = await fetch(SB + '/rest/v1/arquetipos_compradores?originacao_id=eq.' + arr[0].id + '&order=created_at.desc&limit=50', { headers });
+    const arqs = rA.ok ? await rA.json() : [];
+    window._origV346ArqCache[arr[0].id] = arqs;
+    // atualiza preview
+    const prev = document.getElementById('pj-arsenal-preview');
+    if (prev){
+      prev.innerHTML = '<div style="font-size:12px;color:var(--ink-2)">'
+        + (arqs.length || 0) + ' arquétipos · '
+        + (arr[0].tese_jsonb ? 'tese definida' : 'tese pendente')
+        + '</div>';
+    }
+  } catch(_){ /* silencioso */ }
+}
+
+function pjV347ArsenalInlineHtml(n, meta){
+  const metaId = meta?.id || '';
+  return ''
+    + '<div style="display:flex;flex-direction:column;gap:14px">'
+    +   '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+    +     '<div><div style="font-family:var(--serif);font-size:18px;font-weight:700">🎯 Arsenal</div>'
+    +       '<div style="font-size:12px;color:var(--ink-3);margin-top:2px">Queries · Matriz de buscas · Aprovação de leads</div></div>'
+    +     '<button onclick="origV346AbrirArsenal(\'' + metaId + '\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">Abrir arsenal completo →</button>'
+    +   '</div>'
+    +   '<div id="pj-arsenal-preview" style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:14px;font-size:13px;color:var(--ink-3)">Carregando preview…</div>'
+    + '</div>';
+}
+
+// Sidebar toggle
+function pjV347ToggleSidebar(){
+  const sb = document.getElementById('pj-v347-sidebar-direito');
+  if (!sb) return;
+  const recolhido = sb.classList.toggle('recolhido');
+  try { localStorage.setItem('pj_sidebar_direito', recolhido ? 'recolhido' : 'expandido'); } catch(_){}
+}
+
+// Drawer do lead via card click
+function pjV347AbrirDrawerLead(usoId, contatoId){
+  if (typeof leadsSelecionar === 'function'){ try { leadsSelecionar(usoId, contatoId); return; } catch(_){} }
+  // fallback: cache global ou fetch
+  const cache = window._pjV347LeadsCache || {};
+  const lead = cache[usoId];
+  if (lead) return pjV347MostrarDrawer(lead);
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+  fetch(SB + '/rest/v1/pool_contatos_uso?id=eq.' + usoId + '&select=*,contato:pool_contatos_global(*)', { headers })
+    .then(r => r.json()).then(arr => { if (arr && arr[0]) pjV347MostrarDrawer(arr[0]); });
+}
+function pjV347MostrarDrawer(lead){
+  if (typeof leadsDrawerHtml === 'function'){
+    const html = leadsDrawerHtml(lead);
+    let overlay = document.getElementById('pj-lead-popup');
+    if (!overlay){
+      overlay = document.createElement('div');
+      overlay.id = 'pj-lead-popup';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;display:flex;align-items:flex-start;justify-content:flex-end';
+      overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+      document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = '<div style="background:var(--bg,#0a0a0a);width:420px;max-width:95vw;height:100vh;overflow-y:auto;border-left:1px solid var(--line);padding:14px 16px;position:relative">'
+      + '<button onclick="document.getElementById(\'pj-lead-popup\').remove()" style="position:absolute;top:8px;right:10px;background:transparent;border:none;color:var(--ink-3);font-size:22px;cursor:pointer;line-height:1">×</button>'
+      + html
+      + '</div>';
+    return;
+  }
+  alert('Lead: ' + (lead.nome || '(sem nome)') + '\nStatus: ' + (lead.status || '—'));
+}
+
+// Cockpit fixo · status da onda + próxima entrega + alertas
+async function pjV347CarregarCockpitFixo(n, meta){
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+  // Onda
+  try {
+    if (meta?.id){
+      const r = await fetch(SB + '/rest/v1/projeto_ondas?projeto_metadata_id=eq.' + meta.id + '&status=eq.ativa&order=numero_onda.desc&limit=1', { headers });
+      const ondas = r.ok ? await r.json() : [];
+      const onda = ondas[0];
+      const elOnda = document.getElementById('pj-cockpit-onda');
+      if (elOnda) elOnda.textContent = onda ? ('Onda ' + onda.numero_onda + ' · ' + (onda.data_inicio||'?') + ' → ' + (onda.data_fim||'?')) : 'Sem onda ativa';
+    }
+  } catch(_){}
+  // Próxima entrega
+  try {
+    if (meta?.id){
+      const r = await fetch(SB + '/rest/v1/projeto_atividades?projeto_metadata_id=eq.' + meta.id + '&concluida=eq.false&visivel_cliente=eq.true&order=prazo.asc&limit=1', { headers });
+      const arr = r.ok ? await r.json() : [];
+      const prox = arr[0];
+      const el = document.getElementById('pj-cockpit-proxima');
+      if (el){
+        if (prox){
+          const prazo = prox.prazo ? new Date(prox.prazo + 'T00:00').toLocaleDateString('pt-BR') : '—';
+          const venc = prox.prazo && new Date(prox.prazo) < new Date();
+          el.innerHTML = '<span style="color:' + (venc ? 'var(--alert,#ff6b5c)' : 'var(--ink-3)') + '">' + (venc ? '⚠️ ' : '') + 'Próxima: <b>' + (prox.titulo||'?') + '</b> · ' + prazo + '</span>';
+        } else { el.textContent = 'Sem entregas pendentes'; }
+      }
+    }
+  } catch(_){}
+  // Alertas (pool esvaziando)
+  try {
+    const cache = window._pjV347LeadsCache || {};
+    const novos = Object.values(cache).filter(l => !l.status || l.status === 'novo').length;
+    const el = document.getElementById('pj-cockpit-alertas');
+    if (el && novos < 5) el.innerHTML = '<span style="background:rgba(245,200,66,.15);color:#d4a017;border:1px solid rgba(245,200,66,.3);border-radius:4px;padding:2px 8px;font-size:11px">⚠️ Pool esvaziando (' + novos + ' novos)</span>';
+  } catch(_){}
+}
+
+// "Ver como cliente" + "Todos laudos"
+function pjVerComoCliente(negId){
+  if (typeof pjV347AbrirVisaoCliente === 'function') return pjV347AbrirVisaoCliente(negId);
+  if (negId) window.open('/negocio.html?id=' + negId, '_blank');
+}
+function pjV347AbrirLaudos(negId){
+  if (!negId){ alert('negId ausente'); return; }
+  window.open('/admin-laudos.html?negocio=' + negId, '_blank');
+}
+
+// IA Copilot · routes via chat-proxy edge (força claude-haiku-4-5)
+function pjV347CopilotHtml(n, meta){
+  const negId = n?.id || '';
+  return ''
+    + '<div style="display:flex;flex-direction:column">'
+    +   '<div style="padding:8px 12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="pjV347ToggleCopilot(\'' + negId + '\')">'
+    +     '<div style="display:flex;align-items:center;gap:6px"><span style="font-size:14px">🤖</span><span style="font-size:12px;font-weight:600">IA Copilot</span></div>'
+    +     '<span id="pj-copilot-toggle-' + negId + '" style="font-size:12px;color:var(--ink-3)">▲</span>'
+    +   '</div>'
+    +   '<div id="pj-copilot-body-' + negId + '" style="display:flex;flex-direction:column">'
+    +     '<div id="pj-copilot-msgs-' + negId + '" style="height:160px;overflow-y:auto;padding:8px;background:var(--bg);display:flex;flex-direction:column;gap:6px;font-size:12px">'
+    +       '<div style="color:var(--ink-3);text-align:center;padding:20px 8px;line-height:1.4">Pergunte sobre o negócio.<br><span style="font-size:10px">Ex: "Qual o faturamento?" · "Quais os riscos?"</span></div>'
+    +     '</div>'
+    +     '<div style="padding:6px;border-top:1px solid var(--line);display:flex;gap:4px">'
+    +       '<input id="pj-copilot-input-' + negId + '" placeholder="Perguntar..." style="flex:1;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:5px 8px;color:var(--ink);font-size:12px" onkeydown="if(event.key===\'Enter\')pjV347CopilotEnviar(\'' + negId + '\')">'
+    +       '<button onclick="pjV347CopilotEnviar(\'' + negId + '\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer">→</button>'
+    +     '</div>'
+    +   '</div>'
+    + '</div>';
+}
+
+async function pjV347CopilotEnviar(negId){
+  const n = window._pjAbertoNeg;
+  const meta = window._pjAbertoMeta;
+  const input = document.getElementById('pj-copilot-input-' + negId);
+  const msgs = document.getElementById('pj-copilot-msgs-' + negId);
+  const pergunta = input?.value?.trim();
+  if (!pergunta || !msgs) return;
+  input.value = '';
+  msgs.innerHTML += '<div style="text-align:right"><span style="background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border-radius:6px;padding:4px 8px;display:inline-block;max-width:90%">' + origV2Esc(pergunta) + '</span></div>';
+  msgs.innerHTML += '<div id="pj-copilot-thinking-' + negId + '" style="color:var(--ink-3);font-style:italic">Pensando…</div>';
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const briefing = JSON.stringify({
+      nome: n?.nome, setor: n?.setor, cidade: n?.cidade, estado: n?.estado,
+      valor_pedido: n?.valor_pedido, descricao: n?.descricao,
+      receita_mensal: meta?.receita_mensal, valor_venda_alvo: meta?.valor_venda_alvo,
+      status: meta?.status, mes_atual: window._pjAbertoMesAtual
+    });
+    const r = await fetch(SB + '/functions/v1/chat-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (__token || AK) },
+      body: JSON.stringify({
+        max_tokens: 500,
+        system: 'Você é um copiloto sênior especializado neste negócio. Responda perguntas sobre ele de forma direta, em 2-3 frases. Tom profissional, factual, sem floreio. Dados do negócio (JSON): ' + briefing,
+        messages: [{ role: 'user', content: pergunta }]
+      })
+    });
+    const data = await r.json();
+    const resposta = data?.content?.[0]?.text || data?.error || 'Sem resposta.';
+    document.getElementById('pj-copilot-thinking-' + negId)?.remove();
+    msgs.innerHTML += '<div><span style="background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:4px 8px;display:inline-block;max-width:95%;line-height:1.4">' + origV2Esc(resposta) + '</span></div>';
+    msgs.scrollTop = msgs.scrollHeight;
+  } catch(e){
+    document.getElementById('pj-copilot-thinking-' + negId)?.remove();
+    msgs.innerHTML += '<div style="color:var(--alert,#ff6b5c);font-size:11px">Erro: ' + (e?.message || 'fetch') + '</div>';
+  }
+}
+function pjV347ToggleCopilot(negId){
+  const body = document.getElementById('pj-copilot-body-' + negId);
+  const toggle = document.getElementById('pj-copilot-toggle-' + negId);
+  if (!body) return;
+  const hidden = body.style.display === 'none';
+  body.style.display = hidden ? 'flex' : 'none';
+  if (toggle) toggle.textContent = hidden ? '▲' : '▼';
+}
+
+// Alias e exposições globais
+function pjAbrirNeg(id){ if (typeof pjAbrirDetalhe === 'function') return pjAbrirDetalhe(id); }
+
 window.pjV347SetAba = pjV347SetAba;
 window.pjV347ResolverNeg = pjV347ResolverNeg;
+window.pjV347PoolBlocoHtml = pjV347PoolBlocoHtml;
+window.pjV347SidebarItens = pjV347SidebarItens;
+window.pjV347PlaceholderEmBreve = pjV347PlaceholderEmBreve;
+window.pjV347RenderInteligencia = pjV347RenderInteligencia;
+window.pjV347MontarInteligencia = pjV347MontarInteligencia;
+window.pjV347EnsureArsenalCache = pjV347EnsureArsenalCache;
+window.pjV347ArsenalInlineHtml = pjV347ArsenalInlineHtml;
+window.pjV347ToggleSidebar = pjV347ToggleSidebar;
+window.pjV347AbrirDrawerLead = pjV347AbrirDrawerLead;
+window.pjV347MostrarDrawer = pjV347MostrarDrawer;
+window.pjV347CarregarCockpitFixo = pjV347CarregarCockpitFixo;
+window.pjVerComoCliente = pjVerComoCliente;
+window.pjV347AbrirLaudos = pjV347AbrirLaudos;
+window.pjV347CopilotHtml = pjV347CopilotHtml;
+window.pjV347CopilotEnviar = pjV347CopilotEnviar;
+window.pjV347ToggleCopilot = pjV347ToggleCopilot;
+window.pjAbrirNeg = pjAbrirNeg;
 
 
 window.pjV347RenderSugestoesDono = pjV347RenderSugestoesDono;
@@ -21548,7 +21871,7 @@ function leadsKanbanCardHtml(l) {
   const contatoArg = leadsEsc(l.contato_id || '');
   const sel = (typeof _leadsState !== 'undefined' && _leadsState.selecionado === l.id) ? ' selecionado' : '';
 
-  return '<div class="leads-kanban-card' + sel + '" data-lead-id="' + idArg + '" onclick="leadsSelecionar(\'' + idArg + '\',\'' + contatoArg + '\')"'
+  return '<div class="leads-kanban-card' + sel + '" data-lead-id="' + idArg + '" onclick="pjV347AbrirDrawerLead(\'' + idArg + '\',\'' + contatoArg + '\')"'
     + ' style="background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;cursor:pointer;transition:border-color .15s"'
     + ' onmouseover="this.style.borderColor=\'#3a3a3a\'" onmouseout="this.style.borderColor=\'#2a2a2a\'">'
     + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
