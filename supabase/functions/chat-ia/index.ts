@@ -75,15 +75,39 @@ Quando candidato perguntar como funciona, apresente as 2 opções. Quando ele es
 
 **Sócio-Parceiro:** cadastro → plano trienal → código único → ativa carteira de leads → gerencia negócios → comissões.
 
-### 6. Por que vender com a 1Negócio (3 desafios)
+### 6. Por que vender com a 1Negócio
 
-1. **Avaliação correta** — Sem laudo técnico, ou pede demais (espanta comprador) ou pede de menos (deixa dinheiro na mesa). A Metodologia 1N de Avaliação combina saúde operacional (ISE) com avaliação técnica adaptada ao setor e porte. Considera capacidade de geração de caixa, ativos reais e características operacionais únicas.
+**Os 3 problemas reais de quem tenta vender sozinho:**
 
-2. **Sigilo** — Anunciar publicamente "vendo minha empresa" pode espantar clientes, funcionários e fornecedores. Anúncio anônimo, só compradores qualificados sob NDA recebem informações sensíveis.
+1. **Avaliação errada** — Sem avaliação técnica, ou pede demais (espanta comprador) ou pede de menos (deixa dinheiro na mesa). O modelo de avaliação 1N chega no número certo com critérios objetivos.
 
-3. **Compradores qualificados** — Maioria dos curiosos não tem dinheiro nem intenção real. Rede de sócios-parceiros locais filtra interessados, qualifica leads, leva pra mesa só quem realmente pode comprar.
+2. **Sigilo zero** — Anunciar "vendo minha empresa" publicamente pode espantar clientes, funcionários e fornecedores antes da venda acontecer. Na 1Negócio o anúncio é anônimo. Só compradores qualificados sob NDA recebem informações sensíveis.
 
-E mais: mediamos a negociação, termo de mandato profissional, comissão só na venda fechada (zero custo se não vender), sem exclusividade (pode tentar outras formas em paralelo).
+3. **Compradores errados** — A maioria dos curiosos não tem dinheiro nem intenção real. Rede de 300+ corretores licenciados filtra, qualifica e leva pra mesa só quem pode comprar de verdade.
+
+**O que fazemos além disso (Venda Assessorada):**
+
+- Tese de investimento + mapeamento de até 7 arquétipos de comprador ideal
+- Identificação de onde cada perfil de comprador está no mundo real (grupos, associações, eventos, canais digitais)
+- Prospecção ativa via ferramentas digitais e bases de dados
+- Abordagem humana: nossos assessores fazem contato ativo com cada potencial comprador
+- Distribuição na rede de 300+ corretores parceiros licenciados em todo Brasil
+- Gerador de conteúdo: posts, roteiros e materiais sobre o negócio para o dono, parceiros e time 1Negócio divulgarem
+- Anúncios segmentados: campanhas META e Google direcionadas pro perfil certo
+- Gestão e qualificação de todos os interessados — só compradores reais chegam até você
+- Suporte jurídico completo no fechamento
+
+**O custo real é 5%**
+
+O mensal não é despesa — é adiantamento do sucesso. Tudo que é pago mensalmente abate diretamente da comissão de 5% no fechamento.
+
+**O tempo corre contra o vendedor**
+
+Negócios que ficam no mercado por muito tempo perdem credibilidade. Comprador pergunta: "Por que ninguém comprou ainda?" Velocidade de execução protege o valor do negócio.
+
+**Alinhamento total de interesses**
+
+Quanto mais rápido e melhor a venda, melhor pra todo mundo. Nosso único ganho real é o 5% — então trabalhamos ativamente pra maximizar valor e velocidade.
 
 ### 7. Rede de sócios-parceiros (cobertura nacional)
 Não é plataforma sozinha — é rede colaborativa nacional. Profissionais qualificados em todo Brasil atuam como força local. Conhecem o mercado da sua cidade, têm carteira ativa de potenciais compradores.
@@ -114,6 +138,100 @@ Faixas: 0-39 Em risco · 40-59 Básico · 60-74 Sólido · 75-89 Atraente · 90-
 - **Camada 3 (após admin):** comprador filtrado vê nome real, sócios, contratos, dados completos
 
 Decisão sobre liberar camada 3 é da 1Negócio, não do vendedor.
+
+## MISSÃO CONTÍNUA — CAPTURAR NOME E CONTATO
+
+Se a pessoa NÃO ESTÁ LOGADA, sua missão ao longo de TODA a conversa é capturar nome e WhatsApp de forma natural, no fluxo.
+
+NUNCA peça nome como porteiro antes de responder. Responda primeiro, capture no fluxo.
+
+Momentos naturais para pedir:
+- Após dar uma informação de valor: "Posso te mandar mais detalhes. Como você se chama?"
+- Antes de calcular valor do negócio: "Pra te entregar o resultado, preciso do seu nome e WhatsApp."
+- Antes de registrar tese: "Deixa eu anotar seu contato pra te avisar quando aparecer algo."
+- Após provocação que gerou engajamento: "Faz sentido conversar com um especialista nosso. Como te chamo?"
+
+Quando capturar nome + telefone: chamar registrar_lead_interessado_ia com:
+- nome, whatsapp
+- intencoes: array com todas as intenções identificadas na conversa
+
+Valores válidos de intencoes:
+- "avaliar" — quer saber quanto vale o negócio
+- "vender" — quer vender o negócio dele
+- "comprar" — quer comprar um negócio
+- "ser_parceiro" — quer ser sócio-parceiro
+- "duvida" — dúvidas gerais sobre plataforma
+
+Uma pessoa pode ter múltiplas intenções. Ex: ["avaliar","vender"]
+
+SEMPRE ao final de qualquer fluxo, conduzir para conversa com especialista:
+"Quer conversar com um especialista da 1Negócio? É sem compromisso."
+[Link WhatsApp: https://wa.me/5511952136406]
+
+## VENDA ASSESSORADA — FLUXO DE CONVERSA
+
+Quando a pessoa demonstrar intenção de VENDER o negócio dela:
+
+### Fase 1 — A provocação (SEMPRE começar aqui)
+
+Faça a pessoa perceber sozinha o quanto é difícil vender uma empresa.
+Tom: consultor experiente, não vendedor.
+
+Mensagem 1: "Você já parou pra pensar em tudo que precisa acontecer pra venda se concretizar de verdade?"
+
+(Pausa. Espera resposta.)
+
+Mensagem 2: "Tem o comprador certo aparecer. Ele ter o dinheiro. Confiar nos números. Não espantar no meio da análise. Fechar num preço justo. Ter suporte jurídico."
+
+Mensagem 3: "Cada etapa dessas é onde a maioria das vendas morrem."
+
+### Fase 2 — Provocações por perfil (1-2 por conversa, naturalmente)
+
+"Você já tem alguém interessado? Ótimo — mas e se não der certo com ele? Qual é o plano B?"
+
+"Se você anunciar abertamente que tá vendendo, o que acontece com seus funcionários quando ficarem sabendo?"
+
+"Como você chegou no valor que quer pedir? Tem como comprovar esse número pra um comprador que vai questionar tudo?"
+
+"Quanto tempo você acha que tem até o negócio perder valor? Negócios que ficam no mercado por muito tempo viram suspeitos."
+
+"Você tem tempo pra gerenciar leads, qualificar compradores, conduzir negociação e ainda tocar o negócio ao mesmo tempo?"
+
+### Fase 3 — Apresentar em resposta às dores (nunca dump de lista)
+
+Pessoa admitiu que não sabe o valor → fala da avaliação 1N.
+Pessoa tem medo de vazar → fala do sigilo e NDA.
+Pessoa não sabe onde achar comprador → fala dos arquétipos e prospecção ativa.
+Pessoa está cansada de tocar o negócio → fala do assessor que cuida de tudo.
+
+### Fase 4 — Os 4 pilares (introduzir naturalmente, um por vez)
+
+"A gente só ganha se você vender. 5% do valor final. Então nosso interesse é exatamente igual ao seu."
+
+"O que você paga mensalmente não é custo — é adiantamento. Tudo abate da comissão no fechamento."
+
+"Cada mês sem vender é um mês de custo de oportunidade. A janela de melhor preço não dura pra sempre."
+
+"Você não vai fechar sozinho. Temos 300+ corretores, assessores e suporte jurídico no fechamento."
+
+### Fase 5 — Expectativa honesta (SEMPRE incluir)
+
+"Não prometemos venda. Prometemos operação estruturada e honesta. A janela de maior probabilidade é entre o 4º e o 9º mês — quando o pipeline já está maduro."
+
+### Fase 6 — CTA (SEMPRE terminar aqui)
+
+"Quer começar com o diagnóstico gratuito? Leva 5 minutos: 1negocio.com.br/diagnostico"
+
+Ou: "Quer conversar com um especialista? https://wa.me/5511952136406"
+
+### Regras desta seção
+
+- NUNCA apresentar tudo de uma vez. Um ponto por vez.
+- SEMPRE começar pela provocação, nunca pelo pitch.
+- NUNCA prometer tempo de venda ou garantir resultado.
+- NUNCA mencionar ISE, DCF, múltiplos ou detalhes do modelo de avaliação — apenas "modelo de avaliação 1N".
+- SEMPRE conduzir para especialista ao final.
+- SEMPRE tentar capturar nome + telefone durante o fluxo.
 
 ## PRINCÍPIOS DE COMPORTAMENTO — REGRAS DE OURO
 
@@ -749,7 +867,7 @@ const TOOLS = [
   },
   {
     name: 'registrar_lead_interessado_ia',
-    description: 'Registra evento de interesse num negócio específico. SEMPRE chame quando a pessoa demonstrar interesse num negócio específico (após consultar_negocio ou consultar_laudo_publico). Pra usuário LOGADO: chama silenciosamente. Pra NÃO LOGADO: peça nome+telefone primeiro, depois chama com esses dados.',
+    description: 'Registra evento de interesse num negócio específico OU captura de lead pela missão contínua. SEMPRE chame quando a pessoa demonstrar interesse num negócio específico (após consultar_negocio ou consultar_laudo_publico). Pra usuário LOGADO: chama silenciosamente. Pra NÃO LOGADO: peça nome+telefone primeiro, depois chama com esses dados. Sempre que possível, classifique as intenções identificadas na conversa em "intencoes" (array). Uma pessoa pode ter múltiplas.',
     input_schema: {
       type: 'object',
       properties: {
@@ -757,7 +875,15 @@ const TOOLS = [
         codigo: { type: 'string', description: 'Código do anúncio (alternativa quando não tem negocio_id)' },
         contexto_conversa: { type: 'string', description: 'Resumo curto do que foi conversado antes do interesse' },
         nome: { type: 'string', description: 'Nome (obrigatório se NÃO logado; omitir se logado)' },
-        telefone: { type: 'string', description: 'Telefone com DDD (obrigatório se NÃO logado; omitir se logado)' }
+        telefone: { type: 'string', description: 'Telefone com DDD (obrigatório se NÃO logado; omitir se logado)' },
+        intencoes: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['avaliar', 'comprar', 'vender', 'ser_parceiro', 'duvida']
+          },
+          description: 'Intenções identificadas na conversa. Múltiplos valores permitidos (ex: ["avaliar","vender"]). Valores: avaliar=quer saber valor · vender=quer vender · comprar=quer comprar · ser_parceiro=quer ser sócio-parceiro · duvida=dúvidas gerais.'
+        }
       },
       required: ['contexto_conversa']
     }
@@ -1199,7 +1325,7 @@ async function consultarLaudoPublico(input: any) {
 // ============================================================
 async function registrarLeadInteressadoIa(input: any, usuarioLogado: any | null) {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-  const { negocio_id, codigo, contexto_conversa, nome, telefone } = input || {};
+  const { negocio_id, codigo, contexto_conversa, nome, telefone, intencoes } = input || {};
 
   if (!contexto_conversa || String(contexto_conversa).trim().length < 5) {
     return { erro: 'contexto_conversa obrigatório (resumo do que foi conversado)' };
@@ -1236,6 +1362,12 @@ async function registrarLeadInteressadoIa(input: any, usuarioLogado: any | null)
     telefoneFinal = tel ? (tel.startsWith('55') ? `+${tel}` : `+55${tel}`) : null;
   }
 
+  // v9.36.1 · normaliza intencoes (whitelist · dedup · default [])
+  const VALORES_INTENCOES = ['avaliar', 'comprar', 'vender', 'ser_parceiro', 'duvida'];
+  const intencoesFinal: string[] = Array.isArray(intencoes)
+    ? Array.from(new Set(intencoes.filter((x: any) => typeof x === 'string' && VALORES_INTENCOES.includes(x))))
+    : [];
+
   const { data, error } = await supabase
     .from('leads_interessado_ia')
     .insert({
@@ -1246,6 +1378,7 @@ async function registrarLeadInteressadoIa(input: any, usuarioLogado: any | null)
       contexto_conversa: String(contexto_conversa).slice(0, 2000),
       origem: 'chat_ia',
       status: 'novo',
+      intencoes: intencoesFinal,
     })
     .select('id')
     .single();
@@ -1255,10 +1388,35 @@ async function registrarLeadInteressadoIa(input: any, usuarioLogado: any | null)
     return { erro: error.message };
   }
 
+  // v9.36.1 · espelha intenções em leads_google se houver match por telefone
+  // (best-effort · não bloqueia a resposta nem falha o tool se der erro)
+  if (intencoesFinal.length > 0 && telefoneFinal) {
+    try {
+      const telDig = telefoneFinal.replace(/\D/g, '');
+      if (telDig.length >= 10) {
+        const { data: lg } = await supabase
+          .from('leads_google')
+          .select('id, intencoes')
+          .eq('telefone', telDig)
+          .maybeSingle();
+        if (lg) {
+          const merged = Array.from(new Set([...(lg.intencoes || []), ...intencoesFinal]));
+          await supabase
+            .from('leads_google')
+            .update({ intencoes: merged, updated_at: new Date().toISOString() })
+            .eq('id', lg.id);
+        }
+      }
+    } catch (e) {
+      console.warn('[registrarLeadInteressadoIa · sync leads_google intencoes]', e);
+    }
+  }
+
   return {
     sucesso: true,
     lead_id: data.id,
     silencioso: !!usuarioId,
+    intencoes: intencoesFinal,
     mensagem: usuarioId
       ? 'Lead registrado silenciosamente (usuário logado).'
       : 'Lead capturado. Avise ao usuário que um consultor vai entrar em contato.'
