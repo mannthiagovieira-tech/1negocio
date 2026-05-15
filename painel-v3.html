@@ -20305,14 +20305,13 @@ async function origV9RodarTodos(origId){
 }
 
 async function origV9AbrirRevisao(buscaId){
-  // Modal read-only com leads aprovados da busca · batch 1 (aprovação seletiva no próximo batch)
+  // v9.35.0 · modal com checkboxes + botão Aprovar selecionados (chama edge aprovar-leads-busca)
   const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
   const r = await fetch(SB + '/rest/v1/originacao_buscas?id=eq.' + buscaId + '&select=*', { headers });
   const arr = await r.json();
   const busca = arr && arr[0];
   if (!busca){ alert('Busca não encontrada'); return; }
-  // Pega leads no pool_contatos_uso pra essa originação · canal · arquétipo
-  let url = SB + '/rest/v1/pool_contatos_uso?originacao_id=eq.' + busca.originacao_id + '&canal=eq.' + encodeURIComponent(busca.canal) + '&select=id,canal,arquetipo_id,score_ia,contato:pool_contatos_global(id,nome,telefone,email,cidade,estado)&order=score_ia.desc.nullslast&limit=200';
+  let url = SB + '/rest/v1/pool_contatos_uso?originacao_id=eq.' + busca.originacao_id + '&canal=eq.' + encodeURIComponent(busca.canal) + '&select=id,contato_id,canal,arquetipo_id,score_ia,status,contato:pool_contatos_global(id,nome,telefone,email,cidade,estado)&order=score_ia.desc.nullslast&limit=200';
   if (busca.arquetipo_id) url += '&arquetipo_id=eq.' + busca.arquetipo_id;
   const lr = await fetch(url, { headers });
   const usos = await lr.json();
@@ -20323,22 +20322,79 @@ async function origV9AbrirRevisao(buscaId){
     document.body.appendChild(d);
     return d;
   })();
-  const linhas = (Array.isArray(usos) ? usos : []).map(u => {
+  const lista = Array.isArray(usos) ? usos : [];
+  window._origV9RevisaoItens = lista; // exposto pra select/deselect all
+  const linhas = lista.map(u => {
     const c = u.contato || {};
     const tel = c.telefone ? ' · ' + origV2Esc(c.telefone) : '';
     const loc = c.cidade ? ' · ' + origV2Esc(c.cidade) + (c.estado ? '/' + origV2Esc(c.estado) : '') : '';
     const score = u.score_ia != null ? '<span style="color:var(--ink-3);font-family:var(--mono);font-size:10px;margin-left:6px">score ' + Math.round(u.score_ia) + '</span>' : '';
-    return '<div style="padding:8px 10px;border-bottom:1px solid var(--line);font-size:12px"><strong>' + origV2Esc(c.nome||'(sem nome)') + '</strong>' + tel + loc + score + '</div>';
+    const status = u.status ? '<span style="font-size:10px;color:var(--ink-3);margin-left:6px;padding:1px 5px;background:var(--bg);border-radius:3px">' + origV2Esc(u.status) + '</span>' : '';
+    return '<label style="padding:8px 10px;border-bottom:1px solid var(--line);font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer">'
+      + '<input type="checkbox" class="orig-v9-rev-cb" data-contato-id="' + origV2Esc(u.contato_id||'') + '" />'
+      + '<span style="flex:1"><strong>' + origV2Esc(c.nome||'(sem nome)') + '</strong>' + tel + loc + score + status + '</span>'
+      + '</label>';
   }).join('');
-  overlay.innerHTML = '<div style="background:var(--surface,#fff);max-width:720px;max-height:80vh;width:100%;border-radius:10px;display:flex;flex-direction:column;overflow:hidden">'
+  overlay.innerHTML = '<div style="background:var(--surface,#fff);max-width:720px;max-height:85vh;width:100%;border-radius:10px;display:flex;flex-direction:column;overflow:hidden">'
     + '<div style="padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">'
-    + '<div><strong>Revisão · ' + origV2Esc(busca.canal) + '</strong><div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + (busca.leads_encontrados||0) + ' leads encontrados · ' + (busca.leads_aprovados||0) + ' aprovados</div></div>'
+    + '<div><strong>Revisão · ' + origV2Esc(busca.canal) + '</strong><div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + (busca.leads_encontrados||0) + ' encontrados · ' + (busca.leads_aprovados||0) + ' aprovados · <span id="orig-v9-rev-count">0</span> selecionados</div></div>'
     + '<button onclick="document.getElementById(\'orig-v9-revisao\').remove()" style="border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--ink-3)">×</button>'
     + '</div>'
-    + '<div style="overflow-y:auto;flex:1">' + (linhas || '<div style="padding:24px;text-align:center;color:var(--ink-3)">Nenhum lead persistido em pool_contatos_uso pra essa célula ainda.</div>') + '</div>'
-    + '<div style="padding:10px 16px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-3);font-family:var(--mono)">Aprovação seletiva chega no próximo batch · por agora todos os leads já vão direto pro pool de uso.</div>'
+    + '<div id="orig-v9-rev-lista" style="overflow-y:auto;flex:1">' + (linhas || '<div style="padding:24px;text-align:center;color:var(--ink-3)">Nenhum lead persistido em pool_contatos_uso.</div>') + '</div>'
+    + '<div style="padding:10px 16px;border-top:1px solid var(--line);display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">'
+    + '<button onclick="origV9DesmarcarTodos()" style="background:transparent;border:1px solid var(--line);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer">Desmarcar todos</button>'
+    + '<button onclick="origV9SelecionarTodos()" style="background:transparent;border:1px solid var(--line);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer">Selecionar todos</button>'
+    + '<button id="orig-v9-rev-aprovar" onclick="origV9AprovarSelecionados(\'' + buscaId + '\',\'' + busca.originacao_id + '\')" style="background:var(--em,#22c55e);color:#000;border:none;border-radius:6px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer">Aprovar selecionados →</button>'
+    + '</div>'
     + '</div>';
+  // listener de count
+  overlay.querySelectorAll('.orig-v9-rev-cb').forEach(cb => cb.addEventListener('change', origV9RevAtualizarCount));
+  origV9RevAtualizarCount();
 }
+
+function origV9RevAtualizarCount(){
+  const el = document.getElementById('orig-v9-rev-count');
+  if (!el) return;
+  const sel = document.querySelectorAll('.orig-v9-rev-cb:checked').length;
+  el.textContent = sel;
+}
+function origV9SelecionarTodos(){ document.querySelectorAll('.orig-v9-rev-cb').forEach(cb => { cb.checked = true; }); origV9RevAtualizarCount(); }
+function origV9DesmarcarTodos(){ document.querySelectorAll('.orig-v9-rev-cb').forEach(cb => { cb.checked = false; }); origV9RevAtualizarCount(); }
+
+async function origV9AprovarSelecionados(buscaId, origId){
+  const cbs = document.querySelectorAll('.orig-v9-rev-cb:checked');
+  const contatoIds = Array.from(cbs).map(cb => cb.dataset.contatoId).filter(Boolean);
+  if (contatoIds.length === 0) { alert('Selecione pelo menos 1 lead'); return; }
+  const btn = document.getElementById('orig-v9-rev-aprovar');
+  const txtOriginal = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = 'Aprovando...'; btn.disabled = true; }
+  try {
+    const r = await fetch(SB + '/functions/v1/aprovar-leads-busca', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ busca_id: buscaId, contato_ids: contatoIds, originacao_id: origId }),
+    });
+    const data = await r.json();
+    if (!r.ok || !data.ok) { alert('Erro: ' + (data.erro || ('HTTP ' + r.status))); return; }
+    origToast && origToast('✓ ' + data.aprovados + ' leads aprovados (' + data.inseridos + ' novos inserts)');
+    document.getElementById('orig-v9-revisao')?.remove();
+    if (window._origV9OrigCache && window._origV9OrigCache[origId]) {
+      origV9CarregarMatriz(window._origV9OrigCache[origId], window._origV9ArqCache[origId]);
+    }
+    if (typeof pjV347RenderPool === 'function' && window._pjAbertoNeg && window._pjAbertoMeta) {
+      pjV347RenderPool(window._pjAbertoNeg, window._pjAbertoMeta);
+    }
+  } catch (e) {
+    alert('Erro fetch: ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = txtOriginal; btn.disabled = false; }
+  }
+}
+
+window.origV9AprovarSelecionados = origV9AprovarSelecionados;
+window.origV9SelecionarTodos = origV9SelecionarTodos;
+window.origV9DesmarcarTodos = origV9DesmarcarTodos;
+window.origV9RevAtualizarCount = origV9RevAtualizarCount;
 
 function origV6AtualizarEstimativaCanais(origId) {
   // v9.34.1 · 8 canais Apify/Sympla + 5 canais Claude Web
