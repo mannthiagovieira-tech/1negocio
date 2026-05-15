@@ -21362,29 +21362,122 @@ async function leadsEnriquecerLusha(leadId) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   v9.34.3 · V8 · Agente de tese conversacional (Sprint 4)
+   v9.35.0 · V8 · Fase 1 Unificada (tese · arquetipos · ambientacao · livre)
    ════════════════════════════════════════════════════════════ */
 
-let _origV8State = { origId: null, historico: [], tesePropostaJson: null, projetoId: null, locked: false };
+let _origV8State = { origId: null, historico: [], outputProposto: null, projetoId: null, locked: false, faseAtual: 'tese', teseFechada: false, arqsFechados: false };
 
 async function origV8AbrirChatTese(origId) {
   _origV8State.origId = origId;
-  _origV8State.tesePropostaJson = null;
+  _origV8State.outputProposto = null;
   const orig = await pjOriginacaoV2FetchById(origId);
   const projetoId = orig?.projeto_id;
   _origV8State.projetoId = projetoId;
-  // Lê histórico atual
   try {
-    const r = await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + origId + '&select=tese_chat_historico,tese_jsonb,tese_versao', { headers: origV2Headers() });
+    const r = await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + origId + '&select=tese_chat_historico,tese_jsonb,tese_versao,tese_fechada_em,arquetipos_fechados_em,busca_config_jsonb', { headers: origV2Headers() });
     const arr = await r.json();
     const row = Array.isArray(arr) ? arr[0] : null;
     _origV8State.historico = Array.isArray(row?.tese_chat_historico) ? row.tese_chat_historico : [];
-  } catch (_) { _origV8State.historico = []; }
+    _origV8State.teseFechada = !!row?.tese_fechada_em;
+    _origV8State.arqsFechados = !!row?.arquetipos_fechados_em;
+    const ambFechada = !!(row?.busca_config_jsonb && row.busca_config_jsonb.ambientacao);
+    if (ambFechada) _origV8State.faseAtual = 'livre';
+    else if (_origV8State.arqsFechados) _origV8State.faseAtual = 'ambientacao';
+    else if (_origV8State.teseFechada) _origV8State.faseAtual = 'arquetipos';
+    else _origV8State.faseAtual = 'tese';
+  } catch (_) { _origV8State.historico = []; _origV8State.faseAtual = 'tese'; }
   origV8RenderChat();
-  // Se histórico vazio · dispara mensagem inicial automática
-  if (_origV8State.historico.length === 0) {
-    origV8EnviarMsg('', true); // mensagem vazia · edge usa abertura padrão
+  if (_origV8State.historico.length === 0) origV8EnviarMsg('', true);
+}
+
+function origV8FaseInfo(){
+  return [
+    { key:'tese',         label:'Tese',          icon:'📊', short:'1/4' },
+    { key:'arquetipos',   label:'Arquétipos',    icon:'👥', short:'2/4' },
+    { key:'ambientacao',  label:'Ambientação',   icon:'🗺️', short:'3/4' },
+    { key:'livre',        label:'Estratégia',    icon:'💡', short:'4/4' },
+  ];
+}
+
+function origV8ProgressBarHtml(){
+  const fases = origV8FaseInfo();
+  const atual = _origV8State.faseAtual;
+  const idxAtual = fases.findIndex(f => f.key === atual);
+  return '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 12px;background:var(--bg);border-radius:8px;border:1px solid var(--line);margin-bottom:10px">'
+    + fases.map((f,i)=>{
+        const isAtual = f.key === atual;
+        const isConcluida = i < idxAtual;
+        const bg = isConcluida ? 'var(--em, #22c55e)' : isAtual ? 'rgba(34,197,94,.15)' : 'transparent';
+        const border = isAtual ? '1px solid var(--em, #22c55e)' : isConcluida ? '1px solid var(--em, #22c55e)' : '1px solid var(--line)';
+        const color = isConcluida ? '#000' : isAtual ? 'var(--em, #22c55e)' : 'var(--ink-3)';
+        const sep = i < fases.length - 1 ? '<span style="color:var(--ink-4);font-size:11px">→</span>' : '';
+        return '<div style="display:flex;align-items:center;gap:5px;padding:5px 9px;border-radius:6px;background:'+bg+';border:'+border+';cursor:pointer" onclick="origV8MudarFase(\''+f.key+'\')" title="Mudar para fase ' + f.label + '">'
+          + '<span>'+f.icon+'</span>'
+          + '<span style="font-size:11px;font-weight:500;color:'+color+'">'+f.label+'</span>'
+          + (isConcluida ? '<span style="color:var(--em, #22c55e);font-size:11px">✓</span>' : '')
+          + '</div>' + sep;
+      }).join('')
+    + '</div>';
+}
+
+function origV8OutputCardHtml(){
+  const out = _origV8State.outputProposto;
+  if (!out) return '';
+  const fase = _origV8State.faseAtual;
+  const id = _origV8State.origId;
+
+  if (fase === 'tese' && typeof out === 'object' && !Array.isArray(out)) {
+    const comps = [
+      { k:'diferencial_competitivo', l:'Diferencial competitivo' },
+      { k:'dependencia_dono',         l:'Dependência do dono' },
+      { k:'perfil_comprador_ideal',   l:'Perfil comprador ideal' },
+      { k:'riscos_principais',        l:'Riscos principais' },
+      { k:'justificativa_preco',      l:'Justificativa do preço' },
+    ];
+    const compsHtml = comps.map(c => {
+      const v = out[c.k]; if (!v) return '';
+      const valor = Array.isArray(v) ? '<ul style="margin:4px 0 0 16px;padding:0">' + v.map(x => '<li>' + leadsEsc(String(x)) + '</li>').join('') + '</ul>' : leadsEsc(String(v));
+      return '<div class="comp" style="margin-bottom:8px"><strong>' + c.l + '</strong><div style="margin-top:2px">'+valor+'</div></div>';
+    }).join('');
+    return '<div class="tese-chat-proposta-tese" style="background:rgba(34,197,94,.06);border:1px solid var(--em, #22c55e);border-radius:8px;padding:14px;margin:10px 0">'
+      + '<h4 style="margin:0 0 10px 0">✅ Tese proposta pelo agente</h4>'
+      + compsHtml
+      + '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">'
+      + '<button class="orig-v3-send" onclick="origV8AprovarOutput()">💾 Aprovar tese · avançar para Arquétipos →</button>'
+      + '<button onclick="origV8DescartarOutput()">Descartar e continuar conversando</button>'
+      + '</div></div>';
   }
+
+  if (fase === 'arquetipos' && Array.isArray(out)) {
+    const arqsHtml = out.map((a,i) => '<div style="background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin-bottom:6px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><strong>'+leadsEsc(a.nome||'?')+'</strong><span style="font-size:10px;color:var(--ink-3);background:var(--bg);padding:1px 6px;border-radius:3px">'+leadsEsc(a.dimensao||'')+'</span></div>'
+      + (a.logica_compra ? '<div style="font-size:12px;color:var(--ink-2);margin-bottom:2px">'+leadsEsc(a.logica_compra)+'</div>' : '')
+      + (a.capacidade_financeira ? '<div style="font-size:11px;color:var(--ink-3)">💰 '+leadsEsc(a.capacidade_financeira)+'</div>' : '')
+      + '</div>').join('');
+    return '<div style="background:rgba(34,197,94,.06);border:1px solid var(--em, #22c55e);border-radius:8px;padding:14px;margin:10px 0">'
+      + '<h4 style="margin:0 0 10px 0">✅ '+out.length+' arquétipos propostos</h4>'
+      + arqsHtml
+      + '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">'
+      + '<button class="orig-v3-send" onclick="origV8AprovarOutput()">💾 Aprovar arquétipos · avançar para Ambientação →</button>'
+      + '<button onclick="origV8DescartarOutput()">Descartar e continuar conversando</button>'
+      + '</div></div>';
+  }
+
+  if (fase === 'ambientacao' && typeof out === 'object') {
+    const arqs = out.por_arquetipo || {};
+    const arqsList = Object.keys(arqs).slice(0,3).map(nome => '<div style="margin-bottom:6px"><strong>'+leadsEsc(nome)+'</strong><div style="font-size:11px;color:var(--ink-3)">'+(arqs[nome].grupos_online||[]).length+' grupos · '+(arqs[nome].associacoes||[]).length+' associações · '+(arqs[nome].eventos_feiras||[]).length+' eventos</div></div>').join('');
+    const sug = out.sugestoes_dono || {};
+    const sugHtml = '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)"><strong>Sugestões dono:</strong><div style="font-size:11px;color:var(--ink-3)">'+(sug.eventos_para_ir||[]).length+' eventos · '+(sug.grupos_para_entrar||[]).length+' grupos</div></div>';
+    return '<div style="background:rgba(34,197,94,.06);border:1px solid var(--em, #22c55e);border-radius:8px;padding:14px;margin:10px 0">'
+      + '<h4 style="margin:0 0 10px 0">✅ Ambientação proposta</h4>'
+      + arqsList + sugHtml
+      + '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">'
+      + '<button class="orig-v3-send" onclick="origV8AprovarOutput()">💾 Aprovar ambientação · concluir Fase 1 →</button>'
+      + '<button onclick="origV8DescartarOutput()">Descartar e continuar conversando</button>'
+      + '</div></div>';
+  }
+
+  return '';
 }
 
 function origV8RenderChat() {
@@ -21393,51 +21486,28 @@ function origV8RenderChat() {
   const container = document.getElementById('pj-originacao-' + projetoId);
   if (!container) return;
   const historico = _origV8State.historico;
-  const tese = _origV8State.tesePropostaJson;
+  const faseInfo = origV8FaseInfo().find(f => f.key === _origV8State.faseAtual) || origV8FaseInfo()[0];
 
   const msgsHtml = historico.length === 0
-    ? '<div style="text-align:center;padding:20px;color:var(--ink-3);font-size:12px;">Inicializando agente...</div>'
+    ? '<div style="text-align:center;padding:20px;color:var(--ink-3);font-size:12px">Inicializando agente...</div>'
     : historico.map(m => {
         const role = m.role === 'user' ? 'user' : 'assistant';
         const ico = role === 'user' ? '👤' : '🤖';
+        const faseTag = m.fase && m.fase !== _origV8State.faseAtual ? '<span style="font-size:9px;color:var(--ink-4);margin-right:4px">['+m.fase+']</span>' : '';
         return '<div class="tese-chat-msg ' + role + '">'
           + '<div class="role-ico">' + ico + '</div>'
-          + '<div class="role-body">' + leadsEsc(m.content || '') + '</div>'
+          + '<div class="role-body">' + faseTag + leadsEsc(m.content || '') + '</div>'
           + '</div>';
       }).join('');
 
-  let teseHtml = '';
-  if (tese) {
-    const comps = [
-      { k: 'diferencial_competitivo', l: 'Diferencial competitivo' },
-      { k: 'dependencia_dono', l: 'Dependência do dono' },
-      { k: 'perfil_comprador_ideal', l: 'Perfil comprador ideal' },
-      { k: 'riscos_principais', l: 'Riscos principais' },
-      { k: 'justificativa_preco', l: 'Justificativa do preço' },
-    ];
-    const compsHtml = comps.map(c => {
-      const v = tese[c.k];
-      if (!v) return '';
-      const valor = Array.isArray(v) ? '<ul style="margin:4px 0 0 16px;padding:0;">' + v.map(x => '<li>' + leadsEsc(String(x)) + '</li>').join('') + '</ul>' : leadsEsc(String(v));
-      return '<div class="comp"><strong>' + c.l + '</strong>' + valor + '</div>';
-    }).join('');
-    teseHtml = '<div class="tese-chat-proposta-tese">'
-      + '<h4>✅ Tese completa proposta pelo agente</h4>'
-      + compsHtml
-      + '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">'
-      + '<button class="orig-v3-send" onclick="origV8SalvarTese(\'' + _origV8State.origId + '\')">💾 Salvar tese</button>'
-      + '<button onclick="origV8DescartarTese()">Descartar e continuar</button>'
-      + '</div>'
-      + '</div>';
-  }
-
   container.innerHTML = '<div class="tese-chat-wrap">'
     + '<div class="tese-chat-header">'
-    + '<div><h3 style="margin:0;">🤖 Agente de tese</h3><div style="font-size:11px;color:var(--ink-3);margin-top:2px;">' + historico.length + ' mensagens · ~R$ 0,04/turno</div></div>'
-    + '<span class="orig-v3-fase-badge">Fase 1/4</span>'
+    + '<div><h3 style="margin:0">🤖 Agente · '+faseInfo.label+'</h3><div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + historico.length + ' mensagens · ~R$ 0,05/turno</div></div>'
+    + '<span class="orig-v3-fase-badge">Fase '+faseInfo.short+'</span>'
     + '</div>'
+    + origV8ProgressBarHtml()
     + '<div class="tese-chat-historico" id="origV8-historico">' + msgsHtml + '</div>'
-    + teseHtml
+    + origV8OutputCardHtml()
     + '<div class="tese-chat-input-wrap">'
     + '<textarea id="origV8-input" placeholder="Digite sua resposta..." onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();origV8Submit();}"></textarea>'
     + '<button class="orig-v3-send" onclick="origV8Submit()">Enviar →</button>'
@@ -21448,7 +21518,6 @@ function origV8RenderChat() {
     + '</div>'
     + '</div>';
 
-  // Scroll pro fim
   const hist = document.getElementById('origV8-historico');
   if (hist) hist.scrollTop = hist.scrollHeight;
 }
@@ -21463,38 +21532,48 @@ function origV8Submit() {
   origV8EnviarMsg(msg, false);
 }
 
-async function origV8EnviarMsg(mensagem, isAbertura) {
+function origV8MudarFase(novaFase){
+  if (_origV8State.locked) return;
+  if (novaFase === _origV8State.faseAtual) return;
+  _origV8State.faseAtual = novaFase;
+  _origV8State.outputProposto = null;
+  origV8RenderChat();
+  origToast && origToast('Fase mudada para ' + novaFase);
+}
+
+async function origV8EnviarMsg(mensagem, _isAbertura) {
   if (_origV8State.locked) return;
   _origV8State.locked = true;
-  // Append user msg ao state local (otimista)
   if (mensagem) {
-    _origV8State.historico.push({ role: 'user', content: mensagem, ts: new Date().toISOString() });
+    _origV8State.historico.push({ role: 'user', content: mensagem, ts: new Date().toISOString(), fase: _origV8State.faseAtual });
   }
-  // Adiciona placeholder "agente pensando..."
-  _origV8State.historico.push({ role: 'assistant', content: '⏳ pensando...', ts: new Date().toISOString(), _placeholder: true });
+  _origV8State.historico.push({ role: 'assistant', content: '⏳ pensando...', ts: new Date().toISOString(), _placeholder: true, fase: _origV8State.faseAtual });
   origV8RenderChat();
 
   try {
     const r = await fetch(SB + '/functions/v1/tese-agente-chat', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + origV2Token(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ originacao_id: _origV8State.origId, mensagem: mensagem || '' }),
+      body: JSON.stringify({
+        originacao_id: _origV8State.origId,
+        mensagem: mensagem || '',
+        fase_atual: _origV8State.faseAtual,
+        historico: _origV8State.historico.filter(m => !m._placeholder),
+      }),
     });
     let raw = ''; let data = {};
     try { raw = await r.text(); data = JSON.parse(raw); } catch (_) {}
-
-    // Remove placeholder
     _origV8State.historico = _origV8State.historico.filter(m => !m._placeholder);
-
     if (!r.ok) {
       _origV8State.historico.push({ role: 'assistant', content: '❌ Erro HTTP ' + r.status + ': ' + (data.erro_debug || data.erro || raw.slice(0, 200)), ts: new Date().toISOString() });
       origV8RenderChat();
       return;
     }
-    // Substitui histórico pelo retornado (canônico)
     _origV8State.historico = Array.isArray(data.historico) ? data.historico : _origV8State.historico;
-    if (data.tese_completa && data.tese_proposta) {
-      _origV8State.tesePropostaJson = data.tese_proposta;
+    if (data.fase_concluida && data.output_proposto) {
+      _origV8State.outputProposto = data.output_proposto;
+    } else if (data.tese_completa && data.tese_proposta) {
+      _origV8State.outputProposto = data.tese_proposta;
     }
     origV8RenderChat();
   } catch (e) {
@@ -21506,36 +21585,42 @@ async function origV8EnviarMsg(mensagem, isAbertura) {
   }
 }
 
-async function origV8SalvarTese(origId) {
-  if (!_origV8State.tesePropostaJson) { alert('Nenhuma tese proposta pra salvar.'); return; }
-  if (!confirm('Salvar esta tese como versão atual? (Tese atual será sobrescrita · incrementa tese_versao)')) return;
-  // Pega versao atual + incrementa
+async function origV8AprovarOutput(){
+  if (!_origV8State.outputProposto) return;
+  const fase = _origV8State.faseAtual;
+  if (!confirm('Aprovar e salvar o output da fase ' + fase + '?')) return;
   try {
-    const r = await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + origId + '&select=tese_versao', { headers: origV2Headers() });
-    const arr = await r.json();
-    const versaoAtual = Array.isArray(arr) && arr[0] ? Number(arr[0].tese_versao || 1) : 1;
-    const novaVersao = versaoAtual + 1;
-    const teseSalvar = { ..._origV8State.tesePropostaJson, _versao: novaVersao, _salvo_em: new Date().toISOString() };
-    const upd = await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + origId, {
-      method: 'PATCH',
-      headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ tese_jsonb: teseSalvar, tese_versao: novaVersao, updated_at: new Date().toISOString() }),
+    const r = await fetch(SB + '/functions/v1/tese-agente-chat', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + origV2Token(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        originacao_id: _origV8State.origId,
+        salvar_output: { tipo: fase, dados: _origV8State.outputProposto },
+      }),
     });
-    if (!upd.ok) { alert('Erro ao salvar tese (HTTP ' + upd.status + ')'); return; }
-    origToast('✓ Tese v' + novaVersao + ' salva');
-    _origV8State.tesePropostaJson = null;
+    const data = await r.json();
+    if (!r.ok || !data.ok) { alert('Erro ao salvar: ' + (data.erro || ('HTTP ' + r.status))); return; }
+    origToast && origToast('✓ ' + fase + ' salvo');
+    _origV8State.outputProposto = null;
+    if (fase === 'tese') { _origV8State.teseFechada = true; _origV8State.faseAtual = 'arquetipos'; }
+    else if (fase === 'arquetipos') { _origV8State.arqsFechados = true; _origV8State.faseAtual = 'ambientacao'; }
+    else if (fase === 'ambientacao') { _origV8State.faseAtual = 'livre'; }
     origV8RenderChat();
   } catch (e) { alert('Erro: ' + e.message); }
 }
 
-function origV8DescartarTese() {
-  _origV8State.tesePropostaJson = null;
+function origV8DescartarOutput(){
+  _origV8State.outputProposto = null;
   origV8RenderChat();
-  origToast('Tese descartada · continue conversando');
+  origToast && origToast('Output descartado · continue conversando');
 }
 
+// Compat com nomes antigos (v9.34.x)
+async function origV8SalvarTese(origId){ return origV8AprovarOutput(); }
+function origV8DescartarTese(){ return origV8DescartarOutput(); }
+
 async function origV8Reiniciar() {
-  if (!confirm('Reiniciar chat? O histórico atual será apagado · você pode regerar depois.')) return;
+  if (!confirm('Reiniciar chat? O histórico atual será apagado.')) return;
   try {
     await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + _origV8State.origId, {
       method: 'PATCH',
@@ -21543,7 +21628,7 @@ async function origV8Reiniciar() {
       body: JSON.stringify({ tese_chat_historico: [], updated_at: new Date().toISOString() }),
     });
     _origV8State.historico = [];
-    _origV8State.tesePropostaJson = null;
+    _origV8State.outputProposto = null;
     origV8RenderChat();
     origV8EnviarMsg('', true);
   } catch (e) { alert('Erro: ' + e.message); }
@@ -21553,9 +21638,12 @@ window.origV8AbrirChatTese = origV8AbrirChatTese;
 window.origV8Submit = origV8Submit;
 window.origV8EnviarMsg = origV8EnviarMsg;
 window.origV8SalvarTese = origV8SalvarTese;
+window.origV8AprovarOutput = origV8AprovarOutput;
 window.origV8DescartarTese = origV8DescartarTese;
+window.origV8DescartarOutput = origV8DescartarOutput;
 window.origV8Reiniciar = origV8Reiniciar;
 window.origV8RenderChat = origV8RenderChat;
+window.origV8MudarFase = origV8MudarFase;
 
 // Exposição v9.33.5 + v9.34.2
 window.leadsAbaRenderar = leadsAbaRenderar;

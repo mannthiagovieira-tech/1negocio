@@ -1,10 +1,13 @@
-// tese-agente-chat · v9.34.3 · Sprint 4 · Motor V3
-// Chat conversacional · agente sênior M&A · constrói tese iterativamente.
-// Salva histórico em projetos_originacao.tese_chat_historico (jsonb array).
-// Quando agente detecta TESE_COMPLETA: extrai JSON dos 5 componentes · marca tese_jsonb.
+// tese-agente-chat · v9.35.0 · Motor V3.5 · Fase 1 Unificada (tese · arquetipos · ambientacao · livre)
+// Chat conversacional · agente sênior M&A · constrói os 3 outputs sequencialmente em 1 sessão.
+// Salva histórico em projetos_originacao.tese_chat_historico.
+// Detecta marcadores TESE_COMPLETA_JSON / ARQUETIPOS_COMPLETOS_JSON / AMBIENTACAO_COMPLETA_JSON.
 //
-// POST body: { originacao_id: uuid, mensagem?: string, reiniciar?: boolean }
-// Output: { ok, resposta, tese_completa, tese_proposta?, historico, custo_brl }
+// POST body:
+//   { originacao_id, mensagem?, historico?, fase_atual?='tese', reiniciar?, salvar_output? }
+//   salvar_output: { tipo: 'tese'|'arquetipos'|'ambientacao', dados: any }
+// Output:
+//   { ok, resposta, fase_concluida, output_proposto, historico, custo_brl, tokens_in, tokens_out }
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -13,8 +16,8 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 
-const MAX_TOKENS = 1500;
-const CUSTO_POR_TURNO_BRL = 0.04;
+const MAX_TOKENS = 2000;
+const CUSTO_POR_TURNO_BRL = 0.05;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,71 +54,138 @@ function resumirBriefing(briefing: any): string {
   return partes.join("\n");
 }
 
-function montarSystemPrompt(briefing: any, teseAtual: any): string {
+function systemPromptTese(briefing: any, teseAtual: any): string {
   const briefingResumido = resumirBriefing(briefing);
   const teseAtualStr = teseAtual && Object.keys(teseAtual).length > 0
     ? `\nTESE ATUAL (rascunho versão ${teseAtual?._versao || 1}):\n${JSON.stringify(teseAtual, null, 2)}`
     : "";
-
   return `Você é um analista sênior de M&A especializado em pequenas e médias empresas brasileiras.
-Seu trabalho é ajudar o consultor a construir uma TESE DE INVESTIMENTO sólida para este negócio.
+Seu objetivo nesta fase é construir uma TESE DE INVESTIMENTO sólida para o negócio em questão.
 
-DADOS DO NEGÓCIO (já disponíveis):
+DADOS DO NEGÓCIO (carregados automaticamente):
 ${briefingResumido}
 ${teseAtualStr}
 
-REGRAS DE INTERAÇÃO:
-1. Faça UMA pergunta de cada vez · curta e específica
-2. Use os dados que já tem · NÃO peça o que já sabe
-3. Seja direto e factual · NÃO seja vendedor
-4. Tom: relatório de due diligence · não pitch comercial
-5. Português brasileiro · respeitoso · primeira pessoa
-6. NÃO use emojis · NÃO use "claro" / "perfeito" / "ótimo" no início de respostas
+REGRAS:
+- Faça UMA pergunta por vez. Nunca duas.
+- Use os dados que já tem — não peça o que já sabe.
+- Tom: analista frio, direto, factual. Nunca vendedor. Não use "claro" / "perfeito" / "ótimo".
+- Quando tiver informação suficiente para os 5 componentes, proponha a tese completa.
+- Ao propor a tese, inclua no final da resposta, numa linha separada:
+  TESE_COMPLETA_JSON:{"diferencial_competitivo":"...","dependencia_dono":"...","perfil_comprador_ideal":"...","riscos_principais":["...","..."],"justificativa_preco":"..."}
 
-OS 5 COMPONENTES DA TESE:
-1. diferencial_competitivo · O que faz este negócio único? Defensibilidade.
-2. dependencia_dono · A operação funciona sem o dono? Por quanto tempo?
-3. perfil_comprador_ideal · Quem se beneficiaria mais? Razão racional · não emocional.
-4. riscos_principais · 2-3 riscos relevantes que comprador vai questionar.
-5. justificativa_preco · Por que o valor pedido faz sentido? Múltiplos · benchmarks.
-
-QUANDO TIVER INFO SUFICIENTE PROS 5 COMPONENTES:
-Proponha a tese completa em formato natural · depois inclua bloco com este formato EXATO no final:
-
-TESE_COMPLETA:
-\`\`\`json
-{
-  "diferencial_competitivo": "...",
-  "dependencia_dono": "...",
-  "perfil_comprador_ideal": "...",
-  "riscos_principais": ["...", "...", "..."],
-  "justificativa_preco": "..."
-}
-\`\`\`
-
-Antes disso · só faça perguntas e construa entendimento. Não force a tese.`;
+5 componentes obrigatórios:
+1. diferencial_competitivo: o que torna este negócio único e defensável
+2. dependencia_dono: grau de dependência e impacto na transferência
+3. perfil_comprador_ideal: quem teria mais a ganhar com essa aquisição
+4. riscos_principais: array com 3-5 riscos reais e específicos
+5. justificativa_preco: múltiplo, benchmark setorial, por que o preço faz sentido`;
 }
 
-function extrairTeseCompleta(texto: string): any | null {
-  const marcador = texto.indexOf("TESE_COMPLETA:");
-  if (marcador === -1) return null;
-  const depois = texto.slice(marcador);
-  // Tenta extrair bloco ```json ... ```
-  const m1 = depois.match(/```json\s*([\s\S]*?)\s*```/);
-  if (m1) {
-    try { return JSON.parse(m1[1]); } catch {}
+function systemPromptArquetipos(briefing: any, tese: any): string {
+  const briefingResumido = resumirBriefing(briefing);
+  const teseTxt = JSON.stringify(tese || {}, null, 2);
+  return `Você é um especialista em M&A e análise de compradores para PMEs brasileiras.
+Tese de investimento aprovada:
+${teseTxt}
+
+Negócio:
+${briefingResumido}
+
+OBJETIVO: Identificar 4-7 arquétipos de compradores reais e específicos.
+
+OBRIGATÓRIO cobrir as 7 dimensões (não precisa todas, mas pelo menos 4 distintas):
+1. horizontal - concorrente direto que quer crescer
+2. vertical_antes - fornecedor que quer verticalizar (ter ponto de venda)
+3. vertical_depois - cliente que quer integrar (reduzir custos)
+4. adjacente - negócio diferente mas com sinergia operacional
+5. clientes_negocio - consumidor fiel que sempre quis ter o negócio
+6. investidor_financeiro - PF ou empresa buscando rentabilidade
+7. profissional_setor - funcionário/profissional com perfil empreendedor latente
+
+Para cada arquétipo gere:
+- nome: nome descritivo específico (ex: "Distribuidora regional de bebidas")
+- dimensao: uma das 7 acima
+- logica_compra: por que compraria (racional + emocional)
+- objecoes: 2-3 objeções mais prováveis
+- sinal_qualificacao: como reconhecer este perfil
+- capacidade_financeira: estimativa de capacidade de compra
+- mensagem_abordagem: como iniciar contato (tom + conteúdo)
+
+REGRAS:
+- Faça UMA pergunta por vez se faltar informação.
+- Use os dados da tese · não peça o que já sabe.
+- Tom: analista frio, direto. Nada de "claro" / "perfeito".
+
+Quando tiver os arquétipos prontos, inclua no final:
+ARQUETIPOS_COMPLETOS_JSON:[{"nome":"...","dimensao":"...","logica_compra":"...","objecoes":["..."],"sinal_qualificacao":"...","capacidade_financeira":"...","mensagem_abordagem":"..."}]`;
+}
+
+function systemPromptAmbientacao(briefing: any, arquetipos: any[]): string {
+  const briefingResumido = resumirBriefing(briefing);
+  const arqsTxt = JSON.stringify(arquetipos || [], null, 2);
+  return `Você é um especialista em prospecção B2B e redes de relacionamento empresarial.
+
+Arquétipos aprovados:
+${arqsTxt}
+
+Negócio:
+${briefingResumido}
+
+OBJETIVO: Para cada arquétipo, definir onde essa pessoa está no mundo real.
+Isso alimentará as queries de busca do sistema (gmaps · facebook · instagram · associacoes · etc).
+
+Para cada arquétipo gere:
+- grupos_online: nomes reais de grupos Facebook/LinkedIn/WhatsApp onde este perfil está
+- associacoes: entidades setoriais reais (ABRASEL, CDL, sindicatos, etc.)
+- eventos_feiras: eventos reais recorrentes onde este perfil aparece
+- canais_digitais: hashtags Instagram, canais YouTube, blogs do setor
+- corretores_facilitadores: tipo de profissional que pode intermediar o contato
+
+TAMBÉM gere sugestões para o DONO DO NEGÓCIO:
+- eventos_para_ir: eventos onde o dono deveria aparecer para encontrar compradores organicamente
+- grupos_para_entrar: grupos onde o dono deveria participar ativamente
+
+REGRAS:
+- Use nomes reais de associações/eventos/grupos (não invente).
+- Faça UMA pergunta por vez se precisar de mais info do negócio.
+- Tom: analista frio, direto.
+
+Quando concluir, inclua no final:
+AMBIENTACAO_COMPLETA_JSON:{"por_arquetipo":{"[nome_arquetipo]":{"grupos_online":["..."],"associacoes":["..."],"eventos_feiras":["..."],"canais_digitais":["..."],"corretores_facilitadores":"..."}},"sugestoes_dono":{"eventos_para_ir":[{"nome":"...","quando":"...","cidade":"...","motivo":"..."}],"grupos_para_entrar":[{"nome":"...","plataforma":"...","url":"...","motivo":"..."}]}}`;
+}
+
+function systemPromptLivre(briefing: any, tese: any, arquetipos: any[]): string {
+  return `Você é um analista sênior de M&A. Tese aprovada: ${JSON.stringify(tese || {}, null, 2)}.
+Arquétipos: ${JSON.stringify(arquetipos || [], null, 2)}.
+Briefing: ${resumirBriefing(briefing)}.
+
+Continue ajudando com ideias estratégicas livres: roteiros de abordagem, refinamento de mensagens,
+sugestões de timing, materiais de apoio, qualquer coisa que avance o projeto.
+Tom: analista frio, direto. Nada de emojis ou "claro" / "perfeito".`;
+}
+
+function extrairJsonAposMarcador(texto: string, marcador: string): any | null {
+  const idx = texto.indexOf(marcador);
+  if (idx === -1) return null;
+  const depois = texto.slice(idx + marcador.length).trim();
+  // tenta primeiro bloco JSON balanceado a partir do início
+  const m = depois.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+  if (!m) return null;
+  // tenta vários cortes (do mais longo ao mais curto) caso o regex pegue demais
+  for (let len = m[1].length; len > 1; len--) {
+    try { return JSON.parse(m[1].slice(0, len)); } catch { /* keep */ }
   }
-  // Fallback · busca primeiro { ... }
-  const m2 = depois.match(/\{[\s\S]*\}/);
-  if (m2) {
-    try { return JSON.parse(m2[0]); } catch {}
-  }
-  return null;
+  try { return JSON.parse(m[1]); } catch { return null; }
 }
 
-function limparTextoTese(texto: string): string {
-  // Remove o bloco TESE_COMPLETA: do texto exibido (mantém só a parte conversacional + bloco JSON formatado)
-  return texto;
+function limparMarcadores(texto: string): string {
+  return texto
+    .replace(/TESE_COMPLETA_JSON:[\s\S]*$/m, "")
+    .replace(/ARQUETIPOS_COMPLETOS_JSON:[\s\S]*$/m, "")
+    .replace(/AMBIENTACAO_COMPLETA_JSON:[\s\S]*$/m, "")
+    .replace(/TESE_COMPLETA:[\s\S]*$/m, "") // legado
+    .trim();
 }
 
 serve(async (req) => {
@@ -136,31 +206,139 @@ serve(async (req) => {
 
   let body: any;
   try { body = await req.json(); } catch { return resp(400, { ok: false, erro: "json_invalido" }); }
-  const { originacao_id, mensagem, reiniciar } = body || {};
+  const {
+    originacao_id,
+    mensagem,
+    historico: histFromClient,
+    fase_atual = "tese",
+    reiniciar,
+    salvar_output,
+  } = body || {};
   if (!originacao_id) return resp(400, { ok: false, erro: "originacao_id_obrigatorio" });
 
   try {
     const { data: orig } = await adminClient
       .from("projetos_originacao")
-      .select("id, briefing_jsonb, tese_jsonb, tese_versao, tese_chat_historico, gasto_anthropic_mes")
+      .select("id, projeto_id, briefing_jsonb, tese_jsonb, tese_versao, tese_chat_historico, gasto_anthropic_mes, busca_config_jsonb, arquetipos_fechados_em, tese_fechada_em")
       .eq("id", originacao_id).maybeSingle();
     if (!orig) return resp(404, { ok: false, erro: "originacao_nao_encontrada" });
-    if (!orig.briefing_jsonb) return resp(400, { ok: false, erro: "briefing_obrigatorio_antes_da_tese" });
 
-    let historico: any[] = Array.isArray(orig.tese_chat_historico) ? orig.tese_chat_historico : [];
-    if (reiniciar) historico = [];
-
-    // Adiciona mensagem do user (se houver) · senão é abertura
-    if (mensagem && typeof mensagem === "string" && mensagem.trim()) {
-      historico.push({ role: "user", content: mensagem.trim(), ts: new Date().toISOString() });
+    // ---- salvar_output: persiste tese / arquetipos / ambientacao aprovados pelo admin ----
+    if (salvar_output && salvar_output.tipo) {
+      if (salvar_output.tipo === "tese") {
+        const dados = { ...(salvar_output.dados || {}), _versao: (orig.tese_versao || 0) + 1 };
+        await adminClient.from("projetos_originacao").update({
+          tese_jsonb: dados,
+          tese_versao: (orig.tese_versao || 0) + 1,
+          tese_fechada_em: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", originacao_id);
+        return resp(200, { ok: true, salvo: "tese" });
+      }
+      if (salvar_output.tipo === "arquetipos") {
+        const lista = Array.isArray(salvar_output.dados) ? salvar_output.dados : [];
+        let inseridos = 0;
+        for (const arq of lista) {
+          const row: Record<string, unknown> = {
+            originacao_id,
+            projeto_id: orig.projeto_id,
+            nome: arq.nome,
+            tipo: arq.dimensao,
+            vetor: arq.logica_compra,
+            perfil: arq.sinal_qualificacao,
+            motivacao: arq.logica_compra,
+            capacidade_financeira: arq.capacidade_financeira,
+            status: "aprovado",
+            criado_pela_ia: true,
+            aprovado_em: new Date().toISOString(),
+          };
+          const { error: upErr } = await adminClient
+            .from("arquetipos_compradores")
+            .upsert(row, { onConflict: "originacao_id,nome" });
+          if (!upErr) inseridos++;
+        }
+        await adminClient.from("projetos_originacao").update({
+          arquetipos_fechados_em: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", originacao_id);
+        return resp(200, { ok: true, salvo: "arquetipos", total: inseridos });
+      }
+      if (salvar_output.tipo === "ambientacao") {
+        const config = (orig.busca_config_jsonb && typeof orig.busca_config_jsonb === "object") ? { ...orig.busca_config_jsonb } : {};
+        config.ambientacao = salvar_output.dados?.por_arquetipo || {};
+        config.sugestoes_dono = salvar_output.dados?.sugestoes_dono || {};
+        await adminClient.from("projetos_originacao").update({
+          busca_config_jsonb: config,
+          updated_at: new Date().toISOString(),
+        }).eq("id", originacao_id);
+        // sugestoes_dono → tabela específica
+        if (orig.projeto_id && salvar_output.dados?.sugestoes_dono) {
+          const eventos = (salvar_output.dados.sugestoes_dono.eventos_para_ir || []).map((e: any) => ({
+            tipo: "evento",
+            projeto_metadata_id: orig.projeto_id,
+            nome: e.nome,
+            descricao: e.motivo || null,
+            url: e.url || null,
+            cidade: e.cidade || null,
+            data_evento: e.quando && /^\d{4}-\d{2}-\d{2}$/.test(e.quando) ? e.quando : null,
+            motivo: e.motivo || null,
+            gerado_por_ia: true,
+          }));
+          const grupos = (salvar_output.dados.sugestoes_dono.grupos_para_entrar || []).map((g: any) => ({
+            tipo: "grupo",
+            projeto_metadata_id: orig.projeto_id,
+            nome: g.nome,
+            descricao: g.motivo || null,
+            url: g.url || null,
+            plataforma: g.plataforma || null,
+            motivo: g.motivo || null,
+            gerado_por_ia: true,
+          }));
+          const sugs = [...eventos, ...grupos];
+          if (sugs.length > 0) {
+            await adminClient.from("projeto_sugestoes_dono").insert(sugs);
+          }
+        }
+        return resp(200, { ok: true, salvo: "ambientacao" });
+      }
+      return resp(400, { ok: false, erro: "tipo_salvar_output_invalido" });
     }
 
-    // Pega últimas 20 mensagens pra contexto (controle de tokens)
-    const ultimas = historico.slice(-20).map((m) => ({ role: m.role, content: m.content }));
-    // Se ainda não tem nada no histórico (1ª chamada) · força user "vamos começar"
-    const messagesParaApi = ultimas.length > 0 ? ultimas : [{ role: "user", content: "Vamos começar. Analise os dados que tem e me pergunte o que precisa pra construir a tese." }];
+    // ---- chat normal ----
+    let historico: any[] = Array.isArray(orig.tese_chat_historico) ? orig.tese_chat_historico : [];
+    if (Array.isArray(histFromClient) && histFromClient.length > 0) historico = histFromClient;
+    if (reiniciar) historico = [];
 
-    const systemPrompt = montarSystemPrompt(orig.briefing_jsonb, orig.tese_jsonb);
+    if (mensagem && typeof mensagem === "string" && mensagem.trim()) {
+      historico.push({ role: "user", content: mensagem.trim(), ts: new Date().toISOString(), fase: fase_atual });
+    }
+
+    const ultimas = historico.slice(-20).map((m) => ({ role: m.role, content: m.content }));
+    const messagesParaApi = ultimas.length > 0
+      ? ultimas
+      : [{ role: "user", content: "Vamos começar. Analise os dados que tem e me pergunte o que precisa." }];
+
+    // Carregar arquetipos aprovados (necessário pra fases ambientacao/livre)
+    let arquetiposAprovados: any[] = [];
+    if (fase_atual === "ambientacao" || fase_atual === "livre") {
+      const { data: arqs } = await adminClient
+        .from("arquetipos_compradores")
+        .select("nome,tipo,vetor,perfil,motivacao,capacidade_financeira")
+        .eq("originacao_id", originacao_id).eq("status", "aprovado");
+      arquetiposAprovados = arqs || [];
+    }
+
+    let systemPrompt = "";
+    if (fase_atual === "tese") {
+      if (!orig.briefing_jsonb) return resp(400, { ok: false, erro: "briefing_obrigatorio_antes_da_tese" });
+      systemPrompt = systemPromptTese(orig.briefing_jsonb, orig.tese_jsonb);
+    } else if (fase_atual === "arquetipos") {
+      systemPrompt = systemPromptArquetipos(orig.briefing_jsonb, orig.tese_jsonb);
+    } else if (fase_atual === "ambientacao") {
+      systemPrompt = systemPromptAmbientacao(orig.briefing_jsonb, arquetiposAprovados);
+    } else {
+      systemPrompt = systemPromptLivre(orig.briefing_jsonb, orig.tese_jsonb, arquetiposAprovados);
+    }
 
     const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -184,14 +362,22 @@ serve(async (req) => {
     const textBlocks = (claudeData.content || []).filter((b: any) => b.type === "text");
     const respostaAgente = textBlocks.map((b: any) => b.text).join("\n");
 
-    // Adiciona resposta do agente ao histórico
-    historico.push({ role: "assistant", content: respostaAgente, ts: new Date().toISOString() });
+    let fase_concluida: string | null = null;
+    let output_proposto: any = null;
 
-    // Detecta se agente propôs tese completa
-    const tesePropostaJson = extrairTeseCompleta(respostaAgente);
-    const teseCompleta = !!tesePropostaJson;
+    if (fase_atual === "tese") {
+      const j = extrairJsonAposMarcador(respostaAgente, "TESE_COMPLETA_JSON:");
+      if (j && typeof j === "object" && !Array.isArray(j)) { fase_concluida = "tese"; output_proposto = j; }
+    } else if (fase_atual === "arquetipos") {
+      const j = extrairJsonAposMarcador(respostaAgente, "ARQUETIPOS_COMPLETOS_JSON:");
+      if (Array.isArray(j) && j.length > 0) { fase_concluida = "arquetipos"; output_proposto = j; }
+    } else if (fase_atual === "ambientacao") {
+      const j = extrairJsonAposMarcador(respostaAgente, "AMBIENTACAO_COMPLETA_JSON:");
+      if (j && typeof j === "object") { fase_concluida = "ambientacao"; output_proposto = j; }
+    }
 
-    // Atualiza histórico + gasto (não salva tese_jsonb ainda · só com botão "Salvar tese")
+    historico.push({ role: "assistant", content: respostaAgente, ts: new Date().toISOString(), fase: fase_atual });
+
     await adminClient
       .from("projetos_originacao")
       .update({
@@ -203,9 +389,12 @@ serve(async (req) => {
 
     return resp(200, {
       ok: true,
-      resposta: limparTextoTese(respostaAgente),
-      tese_completa: teseCompleta,
-      tese_proposta: tesePropostaJson || null,
+      resposta: limparMarcadores(respostaAgente),
+      fase_concluida,
+      output_proposto,
+      fase_atual,
+      tese_completa: fase_concluida === "tese", // compat com clients v9.34.x
+      tese_proposta: fase_concluida === "tese" ? output_proposto : null, // compat
       historico_count: historico.length,
       historico,
       custo_brl: CUSTO_POR_TURNO_BRL,
@@ -213,7 +402,7 @@ serve(async (req) => {
       tokens_out: claudeData?.usage?.output_tokens ?? 0,
     });
   } catch (e: any) {
-    console.error("[tese-agente-chat] exception raiz", e);
+    console.error("[tese-agente-chat v9.35.0] exception raiz", e);
     return resp(500, { ok: false, erro: "exception_raiz", erro_debug: e?.message, stack: e?.stack?.slice(0, 1000) });
   }
 });
