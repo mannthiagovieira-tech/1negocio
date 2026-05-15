@@ -1,0 +1,2178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1Negócio · Laudo de Avaliação</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#eef5f0;--bg1:#ffffff;--bg2:#f4f9f5;--bg3:#e8f2eb;
+  --em:#1a7a4a;--em-d:rgba(26,122,74,.08);--em-l:rgba(26,122,74,.22);
+  --am:#92470a;--am-d:rgba(146,71,10,.08);--am-l:rgba(146,71,10,.22);
+  --rd:#b91c1c;--rd-d:rgba(185,28,28,.08);--rd-l:rgba(185,28,28,.22);
+  --pu:#6d28d9;--pu-d:rgba(109,40,217,.08);--pu-l:rgba(109,40,217,.22);
+  --bl:#1e40af;--bl-d:rgba(30,64,175,.08);--bl-l:rgba(30,64,175,.22);
+  --ink:#0d2b1e;--ink2:#1f4a32;--ink3:#2d6644;--ink4:#4a7c5c;
+  --line:rgba(13,43,30,.08);--line2:rgba(13,43,30,.15);
+}
+/* Tema escuro — D-1 do mapeamento. Default mantém light (impressão amigável). */
+:root[data-theme="dark"]{
+  --bg:#0c0c0a;--bg1:#161614;--bg2:#1a1a18;--bg3:#1a1a18;
+  --em:#10b981;--em-d:rgba(16,185,129,.10);--em-l:rgba(16,185,129,.30);
+  --am:#f59e0b;--am-d:rgba(245,158,11,.10);--am-l:rgba(245,158,11,.30);
+  --rd:#f87171;--rd-d:rgba(248,113,113,.10);--rd-l:rgba(248,113,113,.30);
+  --pu:#a78bfa;--pu-d:rgba(167,139,250,.10);--pu-l:rgba(167,139,250,.30);
+  --bl:#60a5fa;--bl-d:rgba(96,165,250,.10);--bl-l:rgba(96,165,250,.30);
+  --ink:#e8e8e6;--ink2:#c8c8c4;--ink3:#a8a8a4;--ink4:#6a6a66;
+  --line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.15);
+}
+/* Toggle dark/light — fixed top-right. Hidden em impressão. */
+.theme-toggle{
+  position:fixed;top:14px;right:14px;z-index:100;
+  background:var(--bg1);border:1px solid var(--line2);
+  color:var(--ink2);padding:6px 12px;
+  font-family:'DM Mono',monospace;font-size:11px;
+  cursor:pointer;letter-spacing:.05em;
+}
+.theme-toggle:hover{border-color:var(--em);color:var(--em)}
+@media print{.theme-toggle{display:none}}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);font-family:'DM Mono',monospace}
+#loading{position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .5s,visibility .5s}
+#loading.hide{opacity:0;visibility:hidden;pointer-events:none}
+.ld-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;letter-spacing:-.02em;margin-bottom:28px}
+.ld-logo em{color:var(--em);font-style:normal}
+.ld-bar-wrap{width:200px;height:3px;background:var(--line2);border-radius:2px;overflow:hidden;margin-bottom:20px}
+.ld-bar{height:100%;width:0%;background:var(--em);border-radius:2px;transition:width .6s ease}
+.ld-msg{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink4);min-height:16px}
+#wrap{opacity:0;transition:opacity .6s}
+#wrap.show{opacity:1}
+.page-break{page-break-before:always;break-before:page}
+.doc{max-width:680px;margin:0 auto;padding-bottom:60px}
+.capa{min-height:100vh;display:flex;flex-direction:column;background:var(--bg);border-bottom:2px solid var(--line2);position:relative;overflow:hidden}
+.capa-accent{position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(to bottom,var(--em),transparent)}
+.capa-top{display:flex;align-items:center;justify-content:space-between;padding:24px 32px;border-bottom:1px solid var(--line2)}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;letter-spacing:-.02em;color:var(--ink);display:flex;align-items:center;gap:2px}
+.logo-1{color:var(--em)}
+.capa-badge{font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--am);background:var(--am-d);border:1px solid var(--am-l);padding:5px 12px}
+/* Capa (Fase 3.2.4): logo só no header, nome do negócio à ESQUERDA, sem subtítulo de setor */
+.capa-body{flex:1;display:flex;flex-direction:column;align-items:stretch;text-align:left;padding:48px 48px 32px;gap:24px}
+/* Ajuste 14: 1º filho (nome + subtítulo) ocupa o espaço restante e centraliza vertical */
+.capa-body > div:first-child{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
+.capa-body > .capa-meta-grid{flex:none}
+.capa-hero-nome{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(36px,8vw,56px);letter-spacing:-.03em;line-height:1;color:var(--ink);max-width:560px}
+.capa-subtitulo{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;letter-spacing:.04em;color:var(--em);text-transform:uppercase;display:flex;align-items:center;gap:14px;margin-top:6px}
+.capa-subtitulo::before{content:'';width:32px;height:1.5px;background:var(--em)}
+/* Ajuste 15: rodapé sai de absolute e entra no flow (evita sobreposição com meta-grid) */
+.capa-rodape{display:flex;flex-direction:column;gap:4px;padding:16px 48px 28px;font-size:9px;letter-spacing:.04em;color:var(--ink4)}
+.capa-rodape-linha strong{color:var(--ink3);font-family:'DM Mono',monospace;font-weight:500}
+/* Folha de rosto (Fase 3.2.4 — "Apresentação" simples, sem mega título) */
+.intro{min-height:100vh;display:flex;flex-direction:column;justify-content:space-between;background:var(--bg1);border-bottom:1px solid var(--line2);padding:96px 48px 40px;position:relative}
+.intro-top{max-width:560px}
+/* Eyebrow simples no mesmo tamanho do corpo, peso médio — não é título de destaque */
+.intro-eyebrow{font-size:13px;color:var(--ink2);margin-bottom:24px;font-weight:600;letter-spacing:0}
+.intro-texto{font-size:13px;color:var(--ink2);line-height:1.85;margin-bottom:16px}
+.intro-texto:last-child{margin-bottom:0}
+/* Elementos auditáveis em destaque (datas, versões, nomes) */
+.intro-texto strong{color:var(--em);font-weight:600}
+.intro-rodape{display:flex;justify-content:space-between;align-items:flex-end;padding-top:24px;border-top:1px solid var(--line2);font-size:9px;color:var(--ink4);letter-spacing:.05em}
+.intro-rodape strong{color:var(--ink3);font-weight:500;font-family:'DM Mono',monospace;letter-spacing:.05em}
+/* Índice (C) */
+.indice{min-height:100vh;background:var(--bg);border-bottom:1px solid var(--line2);padding:80px 48px 40px}
+.indice-eyebrow{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--em);margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.indice-eyebrow::before{content:'';width:22px;height:1.5px;background:var(--em)}
+.indice-titulo{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(28px,5vw,36px);letter-spacing:-.03em;line-height:1.05;color:var(--ink);margin-bottom:36px}
+.indice-list{list-style:none;padding:0;margin:0}
+.indice-item{display:flex;align-items:baseline;gap:14px;padding:13px 0;border-bottom:1px solid var(--line)}
+.indice-item:last-child{border-bottom:none}
+.indice-num{font-family:'DM Mono',monospace;font-size:11px;color:var(--em);font-weight:500;width:28px;flex-shrink:0;letter-spacing:.05em}
+.indice-nome{flex:1;font-size:13px;color:var(--ink);line-height:1.4}
+.indice-dots{flex:1;border-bottom:1px dotted var(--line2);margin:0 8px;align-self:flex-end;height:0;min-width:24px}
+.indice-pag{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink4);letter-spacing:.05em;flex-shrink:0;width:24px;text-align:right}
+.sec{border-bottom:1px solid var(--line2)}
+.sec-header{padding:28px 32px 0;display:flex;align-items:flex-start;gap:16px;margin-bottom:22px}
+.sec-num{font-size:9px;letter-spacing:.12em;color:var(--em);flex-shrink:0;padding-top:3px}
+.sec-label{font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px}
+.sec-title{font-family:'Syne',sans-serif;font-weight:700;font-size:19px;color:var(--ink);line-height:1.2}
+.sec-body{padding:0 32px 32px}
+.txt{font-size:11px;color:var(--ink2);line-height:1.85;margin-bottom:12px}
+.txt:last-child{margin-bottom:0}
+.txt-pendente{font-size:11px;color:var(--ink4);line-height:1.7;padding:14px 18px;background:rgba(13,43,30,.04);border:1px dashed var(--line2);border-radius:4px;font-style:italic;margin-bottom:14px}
+.val-nota{font-size:11px;color:var(--ink2);line-height:1.7;padding:14px 16px;background:var(--bg2);border-left:3px solid var(--em);margin-top:10px}
+.alert{font-size:11px;line-height:1.65;padding:12px 14px;margin-bottom:14px;border-left:3px solid}
+.alert.r{background:var(--rd-d);border-color:var(--rd);color:var(--rd)}
+.alert.a{background:var(--am-d);border-color:var(--am);color:var(--am)}
+.alert.g{background:var(--em-d);border-color:var(--em);color:var(--em)}
+.alert.b{background:var(--bl-d);border-color:var(--bl);color:var(--bl)}
+.tbl{width:100%;border-collapse:collapse;margin-bottom:4px}
+.tbl th{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);padding:9px 7px;text-align:right;border-bottom:1px solid var(--line2)}
+.tbl th:first-child{text-align:left}
+.tbl td{padding:9px 7px;border-bottom:1px solid var(--line);font-size:11px;text-align:right;color:var(--ink)}
+.tbl td:first-child{text-align:left;color:var(--ink2)}
+.tbl tr.sub td{background:var(--bg2);font-weight:700;color:var(--ink);border-bottom:1px solid var(--line2)}
+.tbl tr.tot td{background:var(--em-d);font-weight:700;color:var(--em);border-bottom:2px solid var(--em-l)}
+/* hl (Fase 3.2.4): linha "base" em destaque (ex: Faturamento) — peso + bg sutil */
+.tbl tr.hl td{background:#f0fdf4;font-weight:700;font-size:12px;color:var(--ink)}
+.tbl tr.hl td:first-child{color:var(--ink)}
+/* DRE: colunas alinhadas verticalmente entre os 5 blocos via table-layout fixed + colgroup */
+.tbl.dre{table-layout:fixed}
+.tbl.dre td,.tbl.dre th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl.dre td:first-child{white-space:normal} /* label pode quebrar */
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:middle}
+.dot.g{background:var(--em)}.dot.a{background:var(--am)}.dot.r{background:var(--rd)}.dot.m{background:var(--ink4)}
+.chip{display:inline-block;font-size:8px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:10px;font-weight:500;margin-left:6px}
+.chip.g{background:var(--em-d);color:var(--em)}.chip.a{background:var(--am-d);color:var(--am)}.chip.r{background:var(--rd-d);color:var(--rd)}.chip.m{background:rgba(13,43,30,.06);color:var(--ink4)}
+.chip.b{background:var(--bl-d);color:var(--bl)}.chip.p{background:var(--pu-d);color:var(--pu)}
+.diag-bloco{margin-bottom:18px}
+.diag-bloco-title{font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--em);margin-bottom:9px;display:flex;align-items:center;gap:8px}
+.diag-bloco-title::after{content:'';flex:1;height:1px;background:var(--em-l)}
+.ise-hero{display:flex;align-items:center;gap:20px;padding:18px;background:var(--em-d);border:1px solid var(--em-l);margin-bottom:16px}
+.ise-score{font-family:'Syne',sans-serif;font-weight:800;font-size:56px;color:var(--em);line-height:1;letter-spacing:-.03em}
+.ise-class{font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink3);margin-bottom:4px}
+.ise-class-name{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--em)}
+.ise-desc{font-size:10px;color:var(--ink3);margin-top:5px;line-height:1.55;max-width:280px}
+.pilar{margin-bottom:18px}
+.pilar-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:10px}
+.pilar-nome{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);width:auto;flex:none;flex-shrink:0}
+.pilar-bar{width:100%;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-bottom:6px}
+.pilar-fill{height:100%;border-radius:3px}
+.pilar-fill.g{background:var(--em)}.pilar-fill.a{background:var(--am)}.pilar-fill.r{background:var(--rd)}
+.pilar-val{font-size:10px;width:auto;flex:none;flex-shrink:0;font-weight:500}
+.pilar-val.g{color:var(--em)}.pilar-val.a{color:var(--am)}.pilar-val.r{color:var(--rd)}
+.pilar-meta{padding-left:0;font-size:9px;color:var(--ink4);margin-bottom:6px}
+.submet-list{padding-left:0;margin-top:6px;margin-bottom:10px}
+.submet{display:flex;justify-content:space-between;align-items:baseline;font-size:10px;color:var(--ink3);padding:4px 0;border-bottom:1px dashed var(--line)}
+.submet:last-child{border:none}
+.submet-l{flex:1}
+.submet-v{font-family:'DM Mono',monospace;color:var(--ink2);white-space:nowrap}
+.submet-v.g{color:var(--em)}.submet-v.a{color:var(--am)}.submet-v.r{color:var(--rd)}
+.atr-hero{background:var(--bg1);border:1px solid var(--line2);padding:18px;margin-bottom:16px}
+.atr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.atr-score{font-family:'Syne',sans-serif;font-weight:800;font-size:40px;color:var(--em);line-height:1}
+.atr-denom{font-size:14px;color:var(--ink3)}
+.atr-badge{font-size:8px;letter-spacing:.1em;text-transform:uppercase;background:var(--em);color:#fff;padding:5px 12px;font-weight:700}
+.atr-bar-wrap{height:4px;background:var(--line2);margin-bottom:14px;overflow:hidden}
+.atr-bar{height:100%;background:var(--em)}
+.atr-comp{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.atr-comp:last-child{border:none}
+.atr-comp-nome{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);width:140px;flex-shrink:0}
+.atr-comp-bar{flex:1;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden}
+.atr-comp-fill{height:100%;border-radius:2px;background:var(--em)}
+.atr-comp-val{font-size:10px;color:var(--em);width:60px;text-align:right;flex-shrink:0}
+.up-card{background:var(--bg1);border:1px solid var(--line2);border-left:3px solid var(--em);padding:15px 17px;margin-bottom:9px}
+/* Categorias técnicas v2026.07 */
+.up-card.cat-ro{border-left-color:var(--em)}
+.up-card.cat-passivo{border-left-color:var(--rd)}
+.up-card.cat-multiplo{border-left-color:var(--bl)}
+.up-card.cat-qualitativo{border-left-color:var(--pu)}
+.up-card.cat-paywall{border-left-color:var(--ink4)}
+.up-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:7px}
+.up-header-l{flex:1}
+.up-num{display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--em-d);border:1px solid var(--em-l);text-align:center;font-size:9px;color:var(--em);font-weight:700;line-height:18px;margin-right:6px;vertical-align:middle}
+.up-cat{display:inline-block;font-size:8px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-right:6px;padding:2px 7px;border-radius:3px}
+.up-cat.cat-ro{background:var(--em-d);color:var(--em)}
+.up-cat.cat-passivo{background:var(--rd-d);color:var(--rd)}
+.up-cat.cat-multiplo{background:var(--bl-d);color:var(--bl)}
+.up-cat.cat-qualitativo{background:var(--pu-d);color:var(--pu)}
+.up-cat.cat-paywall{background:rgba(74,124,92,0.12);color:var(--ink4)}
+/* Bloco lateral direito: valor R$ + % bruto + notinha (T1 do refactor laudo-pago) */
+.up-valor-block{text-align:right;min-width:140px;flex-shrink:0;font-family:'DM Mono',monospace}
+.up-valor-block .v-brl{font-size:15px;color:var(--em);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.up-valor-block .v-pct{font-size:11px;color:var(--ink4);margin-top:2px}
+.up-valor-block .v-qual{font-size:11px;color:var(--ink4);font-style:italic}
+.up-valor-block .v-nota{font-size:10px;color:var(--ink4);font-style:italic;margin-top:6px;line-height:1.4;max-width:180px;white-space:normal}
+.up-title{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--ink);line-height:1.3;margin-top:4px}
+.up-sub{font-size:10px;color:var(--ink4);margin-top:3px;line-height:1.4}
+.up-desc{font-size:11px;color:var(--ink2);line-height:1.7;margin:8px 0}
+.up-impacto{display:inline-block;font-size:10px;letter-spacing:.04em;color:var(--em);background:var(--em-d);border:1px solid var(--em-l);padding:4px 10px;font-weight:600;white-space:nowrap}
+.up-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:9px;color:var(--ink4);letter-spacing:.04em}
+.up-meta span{display:inline-flex;align-items:center;gap:4px}
+.up-meta span::before{content:'·';color:var(--line2);margin-right:4px}
+.up-meta span:first-child::before{display:none}
+.up-cta{margin-top:10px;padding:10px 12px;background:var(--pu-d);border:1px solid var(--pu-l);font-size:10px;color:var(--pu);letter-spacing:.04em}
+.op-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line2);border:1px solid var(--line2);margin-top:6px}
+.op-cell{background:var(--bg1);padding:13px 16px;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.op-cell-l{font-size:10px;color:var(--ink4);letter-spacing:.04em}
+.op-cell-v{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--ink);text-align:right}
+.kpi-mini{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line2);border:1px solid var(--line2);margin-bottom:14px}
+.kpi-mini-card{background:var(--bg1);padding:14px 16px}
+.kpi-mini-l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:6px}
+/* anual em destaque (Fase 3.2.3): font-size maior, peso 800, line-height apertado */
+.kpi-mini-v{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;color:var(--ink);line-height:1.1;letter-spacing:-.02em}
+.kpi-mini-v.g{color:var(--em)}.kpi-mini-v.a{color:var(--am)}.kpi-mini-v.r{color:var(--rd)}
+/* mensal pequeno embaixo */
+.kpi-mini-sub{font-size:11px;color:var(--ink4);margin-top:4px;font-family:'DM Mono',monospace}
+/* ind-kpi: variante compacta horizontal pra sumário de indicadores caber em 1 linha */
+.ind-kpi{display:flex;align-items:stretch;gap:1px;background:var(--line2);border:1px solid var(--line2);margin-bottom:14px;overflow:hidden}
+.ind-kpi-card{flex:1;min-width:0;background:var(--bg1);padding:8px 10px;display:flex;flex-direction:column;justify-content:center;text-align:left}
+.ind-kpi-l{font-size:7px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ind-kpi-v{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--ink);line-height:1}
+.ind-kpi-v.g{color:var(--em)}.ind-kpi-v.a{color:var(--am)}.ind-kpi-v.r{color:var(--rd)}
+.compare-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:8px}
+.compare-col{background:var(--bg1);border:1px solid var(--line2);padding:13px 14px}
+.compare-col.recomendado{border-color:var(--em);background:var(--em-d)}
+.compare-col[data-inelegivel="true"]{opacity:.55}
+.compare-title{font-family:'Syne',sans-serif;font-weight:700;font-size:11px;color:var(--ink);margin-bottom:5px;letter-spacing:-.01em}
+.compare-total{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--ink);line-height:1;margin:6px 0 8px}
+.compare-row{display:flex;justify-content:space-between;align-items:baseline;font-size:10px;color:var(--ink3);padding:3px 0;border-bottom:1px solid var(--line)}
+.compare-row:last-child{border:none}
+.compare-row span:last-child{font-family:'DM Mono',monospace;color:var(--ink)}
+.compare-motivo{font-size:9px;color:var(--rd);font-style:italic;margin-top:5px;line-height:1.4}
+.hero-3{background:linear-gradient(135deg,var(--em-d),var(--bg1));border:1px solid var(--em-l);padding:22px 24px;margin-bottom:18px}
+.hero-3-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+.hero-3-eyebrow{font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--em);margin-bottom:9px;display:flex;align-items:center;gap:8px}
+.hero-3-eyebrow::before{content:'';width:18px;height:1.5px;background:var(--em)}
+.hero-3-nome{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--ink);letter-spacing:-.03em;line-height:1.1}
+.hero-3-setor{font-size:10px;color:var(--ink3);margin-top:5px}
+.hero-3-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line2);border:1px solid var(--line2)}
+.hero-3-grid.hero-2-grid{grid-template-columns:repeat(2,1fr)}
+.hero-3-cell{background:var(--bg);padding:14px 16px}
+.hero-3-cell-l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:5px}
+.hero-3-cell-v{font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:var(--ink);line-height:1.05;letter-spacing:-.02em}
+.hero-3-cell-v.g{color:var(--em)}.hero-3-cell-v.a{color:var(--am)}
+.hero-3-cell-sub{font-size:10px;color:var(--ink4);margin-top:4px;font-family:'DM Mono',monospace}
+/* Gráfico 3 — radar ISE 8 pilares + barras complementares (Fase 3.2.3) */
+.chart-radar-wrap{margin:0 0 22px;padding:18px 20px;background:var(--bg2);border:1px solid var(--line2)}
+.chart-radar-head{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:14px}
+.chart-radar-canvas-wrap{position:relative;width:100%;max-width:380px;margin:0 auto 14px;aspect-ratio:1/1}
+.chart-radar-canvas-wrap canvas{width:100% !important;height:100% !important}
+.chart-radar-legend{display:flex;justify-content:center;gap:18px;font-size:10px;color:var(--ink3);margin-top:6px;flex-wrap:wrap}
+.chart-radar-legend-item{display:flex;align-items:center;gap:6px}
+.chart-radar-legend-dot{width:10px;height:10px;border-radius:2px}
+.chart-radar-legend-line{width:14px;height:2px;background:transparent;border-top:2px dashed var(--ink4)}
+.ise-barras{margin-top:8px}
+.ise-barras-head{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:10px}
+.ise-bar-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)}
+.ise-bar-row:last-child{border:none}
+.ise-bar-nome{font-size:10px;color:var(--ink3);width:140px;flex-shrink:0;letter-spacing:.04em}
+.ise-bar-track{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.ise-bar-fill{height:100%;border-radius:3px}
+.ise-bar-fill.g{background:var(--em)}.ise-bar-fill.a{background:var(--am)}.ise-bar-fill.r{background:var(--rd)}
+.ise-bar-val{font-size:10px;width:46px;text-align:right;flex-shrink:0;font-family:'DM Mono',monospace}
+.ise-bar-val.g{color:var(--em)}.ise-bar-val.a{color:var(--am)}.ise-bar-val.r{color:var(--rd)}
+.ise-bar-peso{font-size:9px;color:var(--ink4);width:36px;text-align:right;flex-shrink:0;font-family:'DM Mono',monospace}
+/* Gráfico 2 — funil DRE em SVG (Fase 3.2.3) */
+.chart-funnel{margin:0 0 22px;padding:18px 20px;background:var(--bg2);border:1px solid var(--line2)}
+.chart-funnel-head{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:14px}
+.chart-funnel-svg{width:100%;display:block}
+.chart-funnel-svg text{font-family:'DM Mono',monospace}
+.chart-funnel-svg .step-label{font-size:11px;font-weight:600;letter-spacing:.02em}
+.chart-funnel-svg .step-val{font-size:12px;font-family:'Syne',sans-serif;font-weight:800}
+.chart-funnel-svg .step-deduz{font-size:10px;fill:#92470a;font-family:'DM Mono',monospace;font-weight:500}
+/* Gráfico 1 — barra avaliação→potencial em SVG (Fase 3.2.3) */
+.chart-bar{margin-top:18px;padding:16px 18px;background:var(--bg2);border:1px solid var(--line2)}
+.chart-bar-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4)}
+.chart-bar-svg{width:100%;height:60px;display:block}
+.chart-bar-legend{display:flex;justify-content:space-between;margin-top:10px;font-size:10px;color:var(--ink3)}
+.chart-bar-legend-item{display:flex;flex-direction:column;align-items:flex-start}
+.chart-bar-legend-label{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4);margin-bottom:3px;display:flex;align-items:center;gap:6px}
+.chart-bar-legend-dot{width:8px;height:8px;border-radius:2px}
+.chart-bar-legend-val{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;color:var(--ink)}
+.fechamento{background:var(--bg);padding:72px 32px 48px;min-height:60vh;display:flex;flex-direction:column;justify-content:space-between}
+.fech-eyebrow{font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:var(--em);margin-bottom:20px;display:flex;align-items:center;gap:12px}
+.fech-eyebrow::before{content:'';width:24px;height:1.5px;background:var(--em)}
+.fech-titulo{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(28px,6vw,40px);letter-spacing:-.03em;color:var(--ink);line-height:1.05;margin-bottom:24px}
+.fech-titulo em{color:var(--em);font-style:normal}
+.fech-texto{font-size:12px;line-height:1.9;color:var(--ink3);max-width:400px;margin-bottom:36px}
+.fech-rodape{display:flex;align-items:center;justify-content:space-between;padding-top:20px;border-top:1px solid var(--line2)}
+.fech-rod-l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4)}
+.fech-rod-r{font-size:8px;color:var(--em);letter-spacing:.08em}
+/* placeholder removido — unificado mais adiante */
+
+/* ───────── BANNER MODELO DEMONSTRATIVO (?modelo=1) ───────── */
+.banner-modelo{position:sticky;top:0;z-index:100;background:var(--am);color:#fff;text-align:center;padding:10px 20px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.1em}
+.banner-modelo a{color:#fff;text-decoration:underline;margin-left:8px}
+@media print{.banner-modelo{display:none !important}}
+
+/* ───────── BOTÃO BAIXAR PDF — floating mobile-first ───────── */
+.btn-pdf-floating{position:fixed;bottom:24px;right:24px;z-index:9999;background:var(--em);color:#fff;border:none;padding:14px 22px;border-radius:0;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:.04em;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.18);transition:filter .15s,transform .15s}
+.btn-pdf-floating:hover{filter:brightness(1.1);transform:translateY(-1px)}
+@media (max-width:640px){.btn-pdf-floating{bottom:16px;right:16px;padding:12px 18px;font-size:12px}}
+
+/* ───────── @MEDIA PRINT — page-break padronizado por seção ───────── */
+@media print {
+  .btn-pdf-floating, .theme-toggle, #loading, .btn-pdf { display: none !important; }
+  body { background: #fff !important; color: #000 !important; }
+  #doc { padding: 0 !important; max-width: none !important; }
+
+  /* Cada seção principal começa em página nova */
+  .sec, .sumario, .fechamento, .op-wrap, .icd-wrap {
+    page-break-before: always;
+    break-before: page;
+  }
+  /* Capa é a primeira página — não força break antes */
+  .capa { page-break-before: avoid; break-before: avoid; }
+
+  /* renderBalanco antigo: NÃO existe mais como seção separada — está dentro de
+     renderNumeros. Garantia: sem regra de break extra dentro de .sec. */
+
+  /* Evita quebra interna de blocos coesos */
+  .sec, .ind-card, .op-card, .pilar, .bench-item, .met-step,
+  .diag-bloco, .icd-wrap, .op-bloco {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  @page { size: A4; margin: 1.5cm 1cm; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PORT V1 — classes do modelo-laudo.html trazidas pro laudo-pago
+   ═══════════════════════════════════════════════════════════════ */
+
+/* white-space:nowrap em valores monetários grandes (Fix 6) */
+.hero-3-cell-v, .kpi-mini-v, .eq-val, .op-formula-val, .op-hero-valor { white-space: nowrap; }
+
+/* CAPA · meta-grid (6 campos: setor/local/tempo/modelo/equipe/regime) */
+.capa-meta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line2);border:1px solid var(--line2);margin-top:24px;max-width:560px}
+.capa-meta-item{background:var(--bg1);padding:14px 16px}
+.capa-meta-l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:5px}
+.capa-meta-v{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:var(--ink)}
+
+/* SUMÁRIO · estrutura v1 (substitui .indice) */
+.sumario{background:var(--bg1);border-bottom:1px solid var(--line2);padding:32px}
+.sumario-title{font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink4);margin-bottom:20px}
+.sumario-item{display:flex;align-items:center;gap:14px;padding:11px 0;border-bottom:1px solid var(--line)}
+.sumario-item:last-child{border:none}
+.sumario-num{font-size:9px;letter-spacing:.1em;color:var(--em);width:32px;flex-shrink:0}
+.sumario-nome{font-size:12px;color:var(--ink);flex:1}
+.sumario-tag{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+
+/* METODOLOGIA · 5 passos numerados em círculo */
+.met-step{display:flex;gap:14px;padding:13px 0;border-bottom:1px solid var(--line)}
+.met-step:last-child{border:none}
+.met-num{width:24px;height:24px;border-radius:50%;background:var(--em-d);border:1px solid var(--em-l);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--em);flex-shrink:0;font-weight:700;margin-top:2px}
+.met-title{font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:var(--ink);margin-bottom:4px}
+.met-desc{font-size:10px;color:var(--ink3);line-height:1.65}
+
+/* DIAG-ROW · linhas chave/valor dentro de .diag-bloco */
+.diag-row{display:flex;align-items:baseline;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);gap:12px}
+.diag-row:last-child{border:none}
+.diag-label{font-size:10px;color:var(--ink3)}
+.diag-val{font-size:10px;color:var(--ink);text-align:right;font-weight:500}
+
+/* IND-CARD · cards de indicadores chave (07) */
+.ind-card{background:var(--bg1);border:1px solid var(--line2);padding:13px 15px;margin-bottom:9px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start}
+.ind-nome{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:5px}
+.ind-desc{font-size:10px;color:var(--ink3);line-height:1.55}
+.ind-val{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;text-align:right;white-space:nowrap}
+.ind-val.g{color:var(--em)}.ind-val.a{color:var(--am)}.ind-val.r{color:var(--rd)}
+.ind-status{font-size:8px;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;display:inline-block;margin-top:3px;text-align:right}
+.ind-status.g{background:var(--em-d);color:var(--em)}
+.ind-status.a{background:var(--am-d);color:var(--am)}
+.ind-status.r{background:var(--rd-d);color:var(--rd)}
+
+/* BENCH · comparativo barras (07 estilo v1) */
+.bench-item{margin-bottom:16px}
+.bench-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;gap:8px;flex-wrap:wrap}
+.bench-nome{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+.bench-vals{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.bench-emp{font-size:11px;font-weight:700}
+.bench-emp.g{color:var(--em)}.bench-emp.a{color:var(--am)}.bench-emp.r{color:var(--rd)}
+.bench-ref{font-size:9px;color:var(--ink4)}
+.bench-bar{height:5px;background:var(--bg3);border-radius:3px;position:relative;overflow:hidden}
+.bench-bar-ref{position:absolute;left:0;top:0;height:100%;background:var(--line2);border-radius:3px}
+.bench-bar-val{position:absolute;left:0;top:0;height:100%;border-radius:3px}
+.bench-bar-val.g{background:var(--em)}.bench-bar-val.a{background:var(--am)}.bench-bar-val.r{background:var(--rd)}
+
+/* EQ · fórmula visual valuation */
+.eq-wrap{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;padding:22px 0 18px}
+.eq-box{background:var(--bg2);border:1px solid var(--line2);padding:14px 16px;text-align:center;min-width:110px}
+.eq-box.hl{background:var(--em-d);border-color:var(--em-l)}
+.eq-label{font-size:7px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:5px}
+.eq-val{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--ink)}
+.eq-val.g{color:var(--em)}
+.eq-op{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--ink4)}
+
+/* PARECER · hierarquia tipográfica do parecer técnico */
+.parecer-titulo{margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--line2)}
+.parecer-eyebrow{font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink3);margin-bottom:9px}
+.parecer-h{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--ink);letter-spacing:-.02em;line-height:1.2}
+.parecer-linha{width:32px;height:2px;background:var(--em);margin-top:13px}
+.parecer-texto{font-size:11px;color:var(--ink2);line-height:1.85}
+.parecer-texto p{margin-bottom:14px}
+.parecer-texto p:last-child{margin-bottom:0}
+.parecer-texto h3{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--ink);margin:14px 0 8px}
+.parecer-texto h4{font-family:'Syne',sans-serif;font-weight:700;font-size:11px;color:var(--ink);margin:12px 0 6px}
+.parecer-texto strong{color:var(--ink)}
+.parecer-texto ul{margin:8px 0 14px;padding-left:18px}
+.parecer-texto li{margin-bottom:6px}
+
+/* OP-CARD · cards de oportunidades (estilo v1) */
+.op-card{background:var(--bg1);border:1px solid var(--line2);border-left:3px solid var(--em);padding:15px 17px;margin-bottom:9px}
+.op-card.cat-passivo{border-left-color:var(--rd)}
+.op-card.cat-multiplo{border-left-color:var(--bl)}
+.op-card.cat-qualitativo{border-left-color:var(--pu)}
+.op-card.cat-paywall{border-left-color:var(--ink4)}
+.op-card .op-header{display:flex;align-items:flex-start;gap:10px;margin-bottom:7px}
+.op-card .op-num{width:20px;height:20px;border-radius:50%;background:var(--em-d);border:1px solid var(--em-l);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--em);font-weight:700;flex-shrink:0}
+.op-card .op-title{font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:var(--ink);flex:1}
+.op-card .op-desc{font-size:10px;color:var(--ink3);line-height:1.6;margin-bottom:8px}
+.op-card .op-ganho{display:inline-block;font-size:9px;letter-spacing:.06em;color:var(--em);background:var(--em-d);border:1px solid var(--em-l);padding:3px 10px}
+.op-card .op-ganho.qual{color:var(--pu);background:var(--pu-d);border-color:var(--pu-l)}
+
+/* ONE-PAGE (A1 teaser denso) */
+.op-wrap{border-bottom:1px solid var(--line2)}
+.op-hero{background:linear-gradient(135deg,var(--em-d),var(--bg1));border-bottom:1px solid var(--em-l);padding:24px 32px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:nowrap}
+.op-hero > div:first-child{min-width:0;flex:1 1 auto}
+.op-hero-nome{word-break:break-word}
+@media (max-width:560px){.op-hero{flex-wrap:wrap}.op-hero-right{text-align:left;margin-top:8px}}
+.op-hero-eyebrow{font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--em);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.op-hero-eyebrow::before{content:'';width:18px;height:1.5px;background:var(--em)}
+.op-hero-nome{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;color:var(--ink);letter-spacing:-.03em;line-height:1.1;margin-bottom:5px}
+.op-hero-setor{font-size:10px;color:var(--ink3)}
+.op-hero-right{text-align:right;flex:0 0 auto}
+.op-hero-valor-label{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:5px}
+.op-hero-valor{font-family:'Syne',sans-serif;font-weight:800;font-size:32px;color:var(--em);letter-spacing:-.03em;line-height:1}
+.op-hero-valor-tipo{font-size:9px;color:var(--ink4);margin-top:4px}
+.op-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line2);margin:0 32px}
+.op-kpi{background:var(--bg);padding:14px 16px}
+.op-kpi-l{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:5px}
+.op-kpi-v{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--ink);line-height:1}
+.op-kpi-v.g{color:var(--em)}.op-kpi-v.a{color:var(--am)}.op-kpi-v.r{color:var(--rd)}
+.op-kpi-sub{font-size:9px;color:var(--ink4);margin-top:3px}
+.op-body{padding:20px 32px;display:flex;flex-direction:column;gap:16px}
+.op-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.op-bloco{background:var(--bg2);border:1px solid var(--line2);padding:16px}
+.op-bloco-title{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--em);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.op-bloco-title::after{content:'';flex:1;height:1px;background:var(--em-l)}
+.op-item{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);gap:8px}
+.op-item:last-child{border:none}
+.op-item-l{font-size:10px;color:var(--ink3)}
+.op-item-v{font-size:10px;color:var(--ink);font-weight:600;text-align:right}
+.op-item-v.g{color:var(--em)}.op-item-v.a{color:var(--am)}.op-item-v.r{color:var(--rd)}
+.op-formula{background:var(--em-d);border:1px solid var(--em-l);padding:14px 16px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.op-formula-box{background:var(--bg1);border:1px solid var(--line2);padding:10px 14px;text-align:center;min-width:90px}
+.op-formula-box.hl{background:var(--em);border-color:var(--em)}
+.op-formula-label{font-size:7px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);margin-bottom:4px}
+.op-formula-box.hl .op-formula-label{color:rgba(255,255,255,.7)}
+.op-formula-val{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--ink)}
+.op-formula-box.hl .op-formula-val{color:#fff}
+.op-formula-op{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--ink4)}
+.op-ise-bar{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.op-ise-nome{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);width:80px;flex-shrink:0}
+.op-ise-track{flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.op-ise-fill{height:100%;border-radius:3px}
+.op-ise-val{font-size:9px;width:34px;text-align:right;flex-shrink:0;font-weight:600}
+.op-footer{border-top:1px solid var(--line2);padding:14px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.op-footer-l{font-size:9px;color:var(--ink4);letter-spacing:.06em}
+.op-footer-r{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--em)}
+
+/* ICD · Índice de Confiabilidade dos Dados */
+.icd-wrap{background:var(--bg1);border-top:1px solid var(--line2);border-bottom:1px solid var(--line2);padding:20px 28px}
+.icd-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.icd-title{font-size:8px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink4)}
+.icd-score{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--em);letter-spacing:-.02em}
+.icd-bar-track{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-bottom:12px}
+.icd-bar-fill{height:100%;border-radius:3px;background:var(--em)}
+.icd-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.icd-grid.single{grid-template-columns:1fr}
+.icd-col-title{font-size:7px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px;display:flex;align-items:center;gap:6px}
+.icd-col-title::after{content:'';flex:1;height:1px}
+.icd-col-title.g{color:var(--em)}
+.icd-col-title.g::after{background:var(--em-l)}
+.icd-col-title.a{color:var(--am)}
+.icd-col-title.a::after{background:var(--am-l)}
+.icd-item{font-size:9px;color:var(--ink3);padding:4px 0;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px}
+.icd-item:last-child{border:none}
+.icd-item.critico{color:var(--ink2);font-weight:600}
+.icd-item-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.icd-item-star{color:var(--em);font-size:9px;flex-shrink:0}
+.icd-nota{font-size:9px;color:var(--ink3);line-height:1.6;padding:10px 12px;background:var(--bg2);border-left:2px solid var(--em-l);margin-top:10px}
+
+/* FECHAMENTO · assinatura */
+.fech-ass{display:flex;align-items:center;gap:16px;padding:18px 22px;background:var(--bg1);border:1px solid var(--line2);margin-bottom:24px;max-width:480px}
+.fech-ass-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;letter-spacing:-.02em;color:var(--ink)}
+.fech-ass-logo em{color:var(--em);font-style:normal}
+.fech-ass-sep{width:1px;height:32px;background:var(--line2)}
+.fech-ass-txt{font-size:9px;color:var(--ink3);line-height:1.55}
+
+/* TXT · markdown render container */
+.txt-md{font-size:11px;color:var(--ink2);line-height:1.85}
+.txt-md p{margin-bottom:12px}
+.txt-md p:last-child{margin-bottom:0}
+.txt-md h3{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--ink);margin:14px 0 8px}
+.txt-md h4{font-family:'Syne',sans-serif;font-weight:700;font-size:11px;color:var(--ink);margin:12px 0 6px}
+.txt-md ul{margin:8px 0 12px;padding-left:18px}
+.txt-md li{font-size:11px;line-height:1.7;color:var(--ink2);margin-bottom:6px}
+/* Ajuste 7: bullets dentro de .diag-bloco (listaPilares em A2) — mesma fonte do .txt */
+.diag-bloco ul{padding-left:18px;margin-top:6px}
+.diag-bloco ul li{font-size:11px;line-height:1.7;color:var(--ink2)}
+.txt-md strong{color:var(--ink)}
+
+/* FOOTNOTE · nota de rodapé interna de seção */
+.footnote{font-size:9px;color:var(--ink3);line-height:1.7;padding:12px 14px;background:var(--bg2);border-left:2px solid var(--line2);margin-top:12px}
+</style>
+</head>
+<body>
+<button class="btn-pdf-floating" onclick="window.print()" title="Baixar PDF">📄 Baixar PDF</button>
+<button class="theme-toggle" onclick="toggleTheme()" id="theme-toggle-btn" title="Alternar tema">☾ ESCURO</button>
+<div id="loading">
+  <div class="ld-logo"><em>1</em>NEGÓCIO</div>
+  <div class="ld-bar-wrap"><div class="ld-bar" id="ld-bar"></div></div>
+  <div class="ld-msg" id="ld-msg">Carregando dados...</div>
+</div>
+<button class="btn-pdf" id="btn-pdf" onclick="window.print()" style="display:none;position:fixed;bottom:28px;right:28px;z-index:998;background:var(--em);color:#fff;border:none;padding:13px 22px;font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.08em;cursor:pointer;box-shadow:0 4px 20px rgba(26,122,74,.35)">↓ Baixar PDF</button>
+
+<div id="wrap"><div class="doc" id="doc"></div></div>
+
+<script>
+// ─── CONFIG ────────────────────────────────────────────────────────────────
+// Toggle dark/light — D-1 do mapeamento. Default light (impressão).
+// Estado em memória (sem localStorage por design — briefing global).
+function toggleTheme() {
+  const root = document.documentElement;
+  const atual = root.getAttribute('data-theme');
+  const novo = atual === 'dark' ? 'light' : 'dark';
+  if (novo === 'light') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', novo);
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.textContent = novo === 'dark' ? '☀ CLARO' : '☾ ESCURO';
+}
+
+const SUPABASE_URL = 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+let calcJson = null;
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+const n = v => Number(v) || 0;
+const fc = v => 'R$ ' + Math.round(n(v)).toLocaleString('pt-BR');
+const fcShort = v => {
+  const num = n(v);
+  if (Math.abs(num) >= 1000000) return 'R$ ' + (num/1000000).toFixed(1).replace('.', ',') + 'M';
+  if (Math.abs(num) >= 1000) return 'R$ ' + Math.round(num/1000) + 'k';
+  return 'R$ ' + Math.round(num).toLocaleString('pt-BR');
+};
+const escapeHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hoje = () => new Date().toLocaleDateString('pt-BR');
+
+function statusCor(status) {
+  switch(status) {
+    case 'no_alvo': return 'g';
+    case 'atencao': return 'a';
+    case 'abaixo':  return 'r';
+    case 'neutro':  return 'm';
+    default:        return 'm';
+  }
+}
+function statusLabel(status) {
+  // Labels visíveis (Fase 3.2.3) — id interno (no_alvo/atencao/abaixo/neutro) preservado no JSON
+  switch(status) {
+    case 'no_alvo': return 'Bom';
+    case 'atencao': return 'Atenção';
+    case 'abaixo':  return 'Crítico';
+    case 'neutro':  return 'N/A';
+    default:        return '—';
+  }
+}
+function pilarCor(score10) {
+  if (score10 >= 7) return 'g';
+  if (score10 >= 5) return 'a';
+  return 'r';
+}
+function fmtIndValor(item) {
+  const v = n(item.valor);
+  if (item.unidade === '%')    return v.toFixed(1) + '%';
+  if (item.unidade === 'dias') return v.toFixed(0) + ' dias';
+  if (item.unidade === 'unid') return v.toFixed(0);
+  if (item.unidade === 'R$')   return fcShort(v);
+  return v.toFixed(2);
+}
+// Parser markdown enxuto pra textos da Edge Function (#, ##, **, listas, parágrafos)
+function markdownSimples(texto) {
+  if (!texto) return '';
+  let s = String(texto);
+  // Escapa HTML primeiro pra não vazar tags do conteúdo do modelo
+  s = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Negrito **texto** → <strong>
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  // Headers ## → h3, # → h3 (evita h1 dentro do laudo)
+  s = s.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+  s = s.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+  s = s.replace(/^# (.+)$/gm, '<h3>$1</h3>');
+  // Listas (- ou *)
+  s = s.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+  // Agrupa <li> consecutivos em <ul>
+  s = s.replace(/(<li>[\s\S]*?<\/li>(?:\s*<li>[\s\S]*?<\/li>)*)/g, '<ul>$1</ul>');
+  // Parágrafos: linhas em branco viram quebras de parágrafo
+  // Quebra em blocos por 2+ \n
+  const blocos = s.split(/\n{2,}/);
+  s = blocos.map(b => {
+    const t = b.trim();
+    if (!t) return '';
+    // Se já é tag de bloco (h3/h4/ul), retorna direto
+    if (/^<(h[1-6]|ul|ol|li|p|div)/i.test(t)) return t;
+    // Senão, envolve em <p>
+    return '<p>' + t.replace(/\n/g, '<br>') + '</p>';
+  }).join('\n');
+  return s;
+}
+
+function fmtIndBench(item) {
+  if (item.benchmark == null) return '—';
+  const b = n(item.benchmark);
+  if (item.unidade === '%')    return b.toFixed(1) + '%';
+  if (item.unidade === 'dias') return b.toFixed(0) + ' dias';
+  if (item.unidade === 'unid') return b.toFixed(0);
+  if (item.unidade === 'R$')   return fcShort(b);
+  return b.toFixed(2);
+}
+
+// ─── LOADING ────────────────────────────────────────────────────────────────
+let ldStep = 0;
+const ldMsgs = ['Carregando dados...','Lendo análise da skill...','Montando DRE...','Calculando ISE...','Aplicando benchmarks...','Identificando upsides...','Preparando laudo...'];
+function animLD() {
+  const bar = document.getElementById('ld-bar');
+  const msg = document.getElementById('ld-msg');
+  if (ldStep < ldMsgs.length) {
+    if (msg) msg.textContent = ldMsgs[ldStep];
+    if (bar) bar.style.width = ((ldStep+1)/ldMsgs.length*85)+'%';
+    ldStep++;
+    setTimeout(animLD, 600);
+  }
+}
+function hideLoading() {
+  const bar = document.getElementById('ld-bar');
+  if (bar) bar.style.width = '100%';
+  setTimeout(() => {
+    const ld  = document.getElementById('loading');
+    const w   = document.getElementById('wrap');
+    const btn = document.getElementById('btn-pdf');
+    if (ld) ld.classList.add('hide');
+    if (w)  w.classList.add('show');
+    if (btn) btn.style.display = 'block';
+  }, 400);
+}
+
+
+// ─── FETCH ──────────────────────────────────────────────────────────────────
+async function resolverNegocioId(parametro) {
+  if (parametro.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) return parametro;
+  const tryUrl = async (qs) => {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/negocios?' + qs, { headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + SUPABASE_ANON } });
+    const d = await r.json();
+    return d && d[0] ? d[0].id : null;
+  };
+  return await tryUrl('slug=eq.' + parametro + '&select=id') || await tryUrl('codigo_diagnostico=eq.' + parametro + '&select=id');
+}
+
+async function fetchLaudoV2(negocioId) {
+  const url = SUPABASE_URL + '/rest/v1/laudos_v2?negocio_id=eq.' + negocioId + '&ativo=eq.true&select=calc_json,versao,criado_em';
+  const r = await fetch(url, { headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + SUPABASE_ANON } });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const data = await r.json();
+  return data && data.length > 0 ? data[0].calc_json : null;
+}
+
+// ─── INIT ───────────────────────────────────────────────────────────────────
+async function init() {
+  animLD();
+  const params = new URLSearchParams(window.location.search);
+
+  // Banner "modelo demonstrativo" — ativado via ?modelo=1
+  if (params.get('modelo') === '1') {
+    document.body.insertAdjacentHTML('afterbegin',
+      '<div class="banner-modelo">'
+      + 'LAUDO MODELO · DEMONSTRATIVO · Dados do negócio fictício "Trattoria del Lucca" criado para mostrar o formato e profundidade do laudo real.'
+      + '<a href="/diagnostico.html">Faça seu diagnóstico →</a>'
+      + '</div>'
+    );
+  }
+
+  if (params.get('demo') === 'true' || params.get('id') === 'demo') {
+    // Modo demo desabilitado nesta versão (laudo-pago lê só calc_json v2 real).
+    document.getElementById('ld-msg').textContent = 'Modo demo desabilitado. Use ?id=<UUID> com um laudo v2 real.';
+    return;
+  } else {
+    const param = params.get('id') || params.get('c') || params.get('slug');
+    if (!param) {
+      document.getElementById('ld-msg').textContent = 'Parâmetro ?id=, ?c= ou ?slug= não fornecido (ou use ?demo=true).';
+      return;
+    }
+    try {
+      const negocioId = await resolverNegocioId(param);
+      if (!negocioId) {
+        document.getElementById('ld-msg').textContent = 'Negócio não encontrado: ' + param;
+        return;
+      }
+      calcJson = await fetchLaudoV2(negocioId);
+      if (!calcJson) {
+        document.getElementById('ld-msg').textContent = 'Laudo v2 ainda não foi gerado para este negócio.';
+        return;
+      }
+      _currentNegocioId = negocioId;
+    } catch (e) {
+      console.error(e);
+      document.getElementById('ld-msg').textContent = 'Erro ao carregar laudo: ' + e.message;
+      return;
+    }
+  }
+
+  renderTudo();
+  hideLoading();
+  iniciarPollingTextos();
+}
+
+// ─── POLLING DE TEXTOS IA (commit 4 — fix BUG E race condition) ─────────────
+// Edge gerar_textos_laudo dispara 9 fetches paralelos (2-17s cada). Se user
+// abre laudo imediatamente após diag, alguns textos podem ainda estar vazios.
+// Antes: ficava preso em "[Texto pendente]" pra sempre.
+// Agora: poll a cada 5s pra refresh calcJson; re-render quando todos prontos
+// ou timeout 60s (mostra botão "Atualizar" manual).
+
+const TEXTOS_IA_KEYS = [
+  'texto_resumo_executivo_completo',
+  'texto_contexto_negocio',
+  'texto_parecer_tecnico',
+  'texto_riscos_atencao',
+  'texto_diferenciais',
+  'texto_publico_alvo_comprador',
+  'descricoes_polidas_upsides',
+  'sugestoes_titulo_anuncio',
+  'texto_consideracoes_valor',
+];
+
+let _currentNegocioId = null;
+let _pollingInterval = null;
+let _pollingStart = null;
+
+function contarTextosPreenchidos(cj) {
+  const tIA = (cj && cj.textos_ia) || {};
+  let n = 0;
+  for (const k of TEXTOS_IA_KEYS) {
+    const t = tIA[k];
+    if (t && t.conteudo && String(t.conteudo).trim().length > 0) n++;
+  }
+  return n;
+}
+
+function mostrarIndicadorPolling(prontos, total) {
+  let el = document.getElementById('polling-indicator');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'polling-indicator';
+    el.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;'
+      + 'padding:10px 16px;background:#fff;border:1px solid #e5e5e0;'
+      + 'border-radius:999px;font-family:DM Mono,monospace;font-size:11px;'
+      + 'color:#5e5e58;letter-spacing:.04em;box-shadow:0 4px 14px rgba(0,0,0,.08);'
+      + 'display:flex;align-items:center;gap:8px';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = '<span style="display:inline-block;width:10px;height:10px;border:2px solid #e5e5e0;border-top-color:#10b981;border-radius:50%;animation:spin .8s linear infinite"></span>'
+    + 'Gerando textos da IA · ' + prontos + '/' + total;
+  // injeta keyframes spin se ainda não exista
+  if (!document.getElementById('polling-spin-style')) {
+    const s = document.createElement('style');
+    s.id = 'polling-spin-style';
+    s.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(s);
+  }
+}
+
+function esconderIndicadorPolling() {
+  const el = document.getElementById('polling-indicator');
+  if (el) el.remove();
+}
+
+function mostrarBotaoAtualizar() {
+  let el = document.getElementById('polling-indicator');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'polling-indicator';
+    el.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;'
+      + 'padding:10px 16px;background:#fff;border:1px solid #e5e5e0;'
+      + 'border-radius:999px;font-family:DM Mono,monospace;font-size:11px;'
+      + 'color:#5e5e58;letter-spacing:.04em;box-shadow:0 4px 14px rgba(0,0,0,.08);'
+      + 'display:flex;align-items:center;gap:8px';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = '<span style="color:#d97706">⚠</span>'
+    + 'Alguns textos ainda não geraram · '
+    + '<button onclick="atualizarLaudoManual()" style="padding:4px 12px;background:#0c0c0a;color:#fff;border:0;border-radius:999px;font-family:inherit;font-size:11px;cursor:pointer">Atualizar</button>';
+}
+
+async function atualizarLaudoManual(){
+  if (!_currentNegocioId) return;
+  try {
+    const novo = await fetchLaudoV2(_currentNegocioId);
+    if (novo) {
+      calcJson = novo;
+      renderTudo();
+      const prontos = contarTextosPreenchidos(calcJson);
+      if (prontos >= TEXTOS_IA_KEYS.length) {
+        esconderIndicadorPolling();
+      } else {
+        // Reativar polling se ainda incompleto
+        iniciarPollingTextos();
+      }
+    }
+  } catch (e) {
+    console.error('[polling] atualização manual falhou:', e);
+  }
+}
+
+function iniciarPollingTextos() {
+  if (!_currentNegocioId || !calcJson) return;
+  if (_pollingInterval) clearInterval(_pollingInterval);
+
+  const prontosInicial = contarTextosPreenchidos(calcJson);
+  const total = TEXTOS_IA_KEYS.length;
+
+  if (prontosInicial >= total) {
+    esconderIndicadorPolling();
+    return; // Tudo pronto, nada a fazer
+  }
+
+  console.log('[polling] iniciando — ' + prontosInicial + '/' + total + ' textos prontos');
+  mostrarIndicadorPolling(prontosInicial, total);
+  _pollingStart = Date.now();
+
+  _pollingInterval = setInterval(async () => {
+    const elapsed = Date.now() - _pollingStart;
+    if (elapsed > 60000) {
+      // Timeout 60s — para de poll, oferece botão atualizar
+      clearInterval(_pollingInterval);
+      _pollingInterval = null;
+      console.warn('[polling] timeout 60s — '
+        + contarTextosPreenchidos(calcJson) + '/' + total
+        + ' textos prontos. Mostrando botão atualizar.');
+      mostrarBotaoAtualizar();
+      return;
+    }
+
+    try {
+      const novo = await fetchLaudoV2(_currentNegocioId);
+      if (!novo) return;
+      const prontos = contarTextosPreenchidos(novo);
+      if (prontos > contarTextosPreenchidos(calcJson)) {
+        // Houve novos textos — atualiza calcJson e re-renderiza
+        calcJson = novo;
+        renderTudo();
+      }
+      mostrarIndicadorPolling(prontos, total);
+
+      if (prontos >= total) {
+        clearInterval(_pollingInterval);
+        _pollingInterval = null;
+        console.log('[polling] todos os ' + total + ' textos prontos — parando');
+        setTimeout(esconderIndicadorPolling, 1500);
+      }
+    } catch (e) {
+      console.warn('[polling] fetch falhou (vai retentar):', e);
+    }
+  }, 5000);
+}
+
+window.addEventListener('DOMContentLoaded', init);
+
+// ─── FONTE ÚNICA DE VERDADE DA ORDEM ────────────────────────────────────────
+// Port v1 — modelo-laudo estrutural com dados do calc_json v2.
+// 10 principais (01-10) + 3 anexos (A1/A2/A3) + ICD ao final.
+const SECOES = [
+  { num: '01',  nome: 'Apresentação',                                                   tag: 'Laudo Principal',  render: 'apresentacao' },
+  { num: '02',  nome: 'Sumário',                                                        tag: 'Laudo Principal',  render: 'sumario' },
+  { num: '03',  nome: 'Metodologia',                                                    tag: 'Laudo Principal',  render: 'metodologia' },
+  { num: '04',  nome: 'Contexto do Negócio',                                            tag: 'Laudo Principal',  render: 'contexto' },
+  { num: '05',  nome: 'Os Números (DRE + Balanço Patrimonial)',                         tag: 'Laudo Principal',  render: 'numeros' },
+  { num: '06',  nome: 'A Gestão (ISE)',                                                 tag: 'Laudo Principal',  render: 'ise' },
+  { num: '07',  nome: 'Indicadores vs Mercado',                                         tag: 'Laudo Principal',  render: 'indicadores' },
+  { num: '08',  nome: 'A Avaliação · Como chegamos a esse valor (com Parecer Técnico)', tag: 'Laudo Principal',  render: 'avaliacao' },
+  { num: '09',  nome: 'Oportunidades de melhoria',                                      tag: 'Laudo Principal',  render: 'upsides' },
+  { num: '10',  nome: 'Próximos passos',                                                tag: 'Laudo Principal',  render: 'fechamento' },
+  { num: 'A1',  nome: 'Anexo · Teaser One-page',                                        tag: 'Resumo Executivo', render: 'teaser' },
+  { num: 'A2',  nome: 'Anexo · Pontos Fortes e Pontos de Atenção',                      tag: 'Análise',          render: 'pontos' },
+  { num: 'A3',  nome: 'Anexo · Estudo Tributário Detalhado',                            tag: 'Análise',          render: 'tributario' },
+  { num: 'TR',  nome: 'Transparência das informações',                                  tag: 'Transparência',    render: 'icd' },
+];
+function getNum(renderKey) {
+  const s = SECOES.find(x => x.render === renderKey);
+  return s ? s.num : '';
+}
+
+// ─── ORQUESTRADOR ───────────────────────────────────────────────────────────
+function renderTudo() {
+  if (!calcJson) return;
+  const doc = document.getElementById('doc');
+
+  // Capa entra antes de tudo, sem número. ICD entra ao final, depois dos anexos.
+  const blocks = [
+    renderCapa(),
+    renderApresentacao(),   // 01
+    renderSumario(),        // 02
+    renderMetodologia(),    // 03
+    renderContexto(),       // 04
+    renderNumeros(),        // 05 — DRE + BP juntos
+    renderISE(),            // 06
+    renderIndicadores(),    // 07
+    renderAvaliacao(),      // 08
+    renderUpsides(),        // 09
+    renderFechamento(),     // 10
+    renderTeaser(),         // A1
+    renderPontosFortesAtencao(), // A2
+    renderEstudoTributarioDetalhado(), // A3
+    renderICD(),            // ICD (final)
+  ];
+
+  doc.innerHTML = blocks.filter(Boolean).join('');
+  if (typeof initChartsAfterRender === 'function') initChartsAfterRender();
+}
+
+// ─── CAPA (port v1) ─────────────────────────────────────────────────────────
+// Nome do negócio à esquerda + meta-grid com 6 campos (setor/local/tempo/modelo/
+// equipe/regime). Capa NÃO revela avaliação (faturamento, RO, fator, PL, valor).
+function renderCapa() {
+  const id = calcJson.identificacao || {};
+  const dre = calcJson.dre || {};
+  const at = calcJson.analise_tributaria || {};
+
+  // Solicitante: omite linha inteira se ausente.
+  const solicitante = id.solicitante || id.nome_responsavel || null;
+  const linhaEncomenda = solicitante
+    ? '<div class="capa-rodape-linha">Laudo encomendado por <strong>' + escapeHtml(solicitante) + '</strong></div>'
+    : '';
+
+  const setor = (id.setor && id.setor.label) || id.setor_label || '—';
+  const cidade = (id.localizacao && id.localizacao.cidade) || id.cidade || '';
+  const estado = (id.localizacao && id.localizacao.estado) || id.estado || '';
+  const local = [cidade, estado].filter(Boolean).join('/') || '—';
+  const tempo = id.tempo_operacao_anos != null ? id.tempo_operacao_anos + ' anos' : '—';
+  const modelo = id.modelo_negocio || 'B2C';
+  const headcount = (dre.pessoal && dre.pessoal.headcount_total) || id.num_funcionarios;
+  const equipe = headcount != null ? headcount + ' pessoas' : '—';
+  const regime = at.regime_declarado ? at.regime_declarado.toUpperCase() : '—';
+
+  return ''
+    + '<section class="capa">'
+    + '  <div class="capa-accent"></div>'
+    + '  <div class="capa-top">'
+    + '    <div class="logo"><span class="logo-1">1</span>NEGÓCIO</div>'
+    + '    <div class="capa-badge">Laudo confidencial</div>'
+    + '  </div>'
+    + '  <div class="capa-body">'
+    + '    <div>'
+    + '      <div class="capa-hero-nome">' + escapeHtml(id.nome || '—') + '</div>'
+    + '      <div class="capa-subtitulo">Laudo de avaliação</div>'
+    + '    </div>'
+    + '    <div class="capa-meta-grid">'
+    + '      <div class="capa-meta-item"><div class="capa-meta-l">Setor</div><div class="capa-meta-v">' + escapeHtml(setor) + '</div></div>'
+    + '      <div class="capa-meta-item"><div class="capa-meta-l">Localização</div><div class="capa-meta-v">' + escapeHtml(local) + '</div></div>'
+    + '      <div class="capa-meta-item"><div class="capa-meta-l">Tempo de operação</div><div class="capa-meta-v">' + escapeHtml(tempo) + '</div></div>'
+    + '      <div class="capa-meta-item"><div class="capa-meta-l">Modelo de negócio</div><div class="capa-meta-v">' + escapeHtml(modelo) + '</div></div>'
+    + '      <div class="capa-meta-item"><div class="capa-meta-l">Equipe</div><div class="capa-meta-v">' + escapeHtml(equipe) + '</div></div>'
+    + '      <div class="capa-meta-item"><div class="capa-meta-l">Regime tributário</div><div class="capa-meta-v">' + escapeHtml(regime) + '</div></div>'
+    + '    </div>'
+    + '  </div>'
+    + '  <div class="capa-rodape">'
+    + '    ' + linhaEncomenda
+    + '    <div class="capa-rodape-linha">Código <strong>' + escapeHtml(id.codigo_diagnostico || '—') + '</strong></div>'
+    + '    <div class="capa-rodape-linha" style="margin-top:6px;color:var(--em);font-size:8px;letter-spacing:.1em;text-transform:uppercase">Avaliação independente 1Negócio</div>'
+    + '  </div>'
+    + '</section>';
+}
+
+// ─── SUMÁRIO (port v1) ──────────────────────────────────────────────────────
+// Lista das 14 seções (sem se listar). ICD aparece PRIMEIRO com opacity reduzida
+// (ajuste 2 do briefing). Demais entram em ordem normal.
+function renderSumario() {
+  const restante = SECOES.filter(s => s.render !== 'sumario' && s.render !== 'icd');
+
+  // Transparência primeiro com opacity reduzida
+  let lis = ''
+    + '<div class="sumario-item" style="opacity:.6">'
+    + '<span class="sumario-num" style="color:var(--ink4)">TR</span>'
+    + '<span class="sumario-nome">Transparência das informações</span>'
+    + '<span class="sumario-tag">Transparência</span>'
+    + '</div>';
+
+  restante.forEach(s => {
+    lis += ''
+      + '<div class="sumario-item">'
+      + '<span class="sumario-num">' + s.num + '</span>'
+      + '<span class="sumario-nome">' + escapeHtml(s.nome) + '</span>'
+      + '<span class="sumario-tag">' + escapeHtml(s.tag || '') + '</span>'
+      + '</div>';
+  });
+
+  return ''
+    + '<section class="sumario page-break">'
+    + '  <div class="sumario-title">Sumário</div>'
+    + '  ' + lis
+    + '</section>';
+}
+
+
+// ─── GRÁFICO 1: barra avaliação → potencial (SVG inline) ────────────────────
+// Mostra: |======= avaliação atual =======|------ delta upsides ------|
+//                              ↑ R$ atual                  ↑ R$ potencial
+function chartProgressao(avaliacao, potencial) {
+  const delta = Math.max(0, potencial - avaliacao);
+  const total = potencial > 0 ? potencial : 1;
+  const pctAtual = (avaliacao / total) * 100;
+  const pctDelta = (delta / total) * 100;
+  const W = 600, H = 28; // viewBox base
+  const barAtual = (pctAtual / 100) * W;
+  const barDelta = (pctDelta / 100) * W;
+
+  // Cores: var(--em) verde 1N atual / var(--am) âmbar delta / var(--ink) topo
+  return ''
+    + '<div class="chart-bar">'
+    + '  <div class="chart-bar-head"><span>Avaliação atual</span><span>Potencial em 12 meses</span></div>'
+    + '  <svg class="chart-bar-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Barra de progressão da avaliação atual ao potencial em 12 meses">'
+    + '    <rect x="0" y="6" width="' + W + '" height="' + (H - 12) + '" fill="rgba(13,43,30,0.06)"/>'
+    + '    <rect x="0" y="6" width="' + barAtual.toFixed(1) + '" height="' + (H - 12) + '" fill="#1a7a4a"/>'
+    + '    <rect x="' + barAtual.toFixed(1) + '" y="6" width="' + barDelta.toFixed(1) + '" height="' + (H - 12) + '" fill="#92470a" fill-opacity="0.78"/>'
+    // Marcador no topo do limite atual (linha vertical fina)
+    + '    <line x1="' + barAtual.toFixed(1) + '" y1="2" x2="' + barAtual.toFixed(1) + '" y2="' + (H - 2) + '" stroke="#0d2b1e" stroke-width="1.2"/>'
+    + '  </svg>'
+    + '  <div class="chart-bar-legend">'
+    + '    <div class="chart-bar-legend-item">'
+    + '      <div class="chart-bar-legend-label"><span class="chart-bar-legend-dot" style="background:#1a7a4a"></span>Avaliação 1N</div>'
+    + '      <div class="chart-bar-legend-val">' + fcShort(avaliacao) + '</div>'
+    + '    </div>'
+    + '    <div class="chart-bar-legend-item">'
+    + '      <div class="chart-bar-legend-label"><span class="chart-bar-legend-dot" style="background:#92470a;opacity:.78"></span>Ganho potencial</div>'
+    + '      <div class="chart-bar-legend-val">+ ' + fcShort(delta) + '</div>'
+    + '    </div>'
+    + '    <div class="chart-bar-legend-item" style="align-items:flex-end">'
+    + '      <div class="chart-bar-legend-label"><span class="chart-bar-legend-dot" style="background:#0d2b1e"></span>Total potencial</div>'
+    + '      <div class="chart-bar-legend-val">' + fcShort(potencial) + '</div>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>';
+}
+
+// ─── TEXTO IA (placeholder se conteudo == null) ─────────────────────────────
+function renderTextoIA(num, label, sub, chaveTexto) {
+  const tIA = calcJson.textos_ia || {};
+  const t   = tIA[chaveTexto] || {};
+  const conteudo = t.conteudo;
+
+  let body;
+  if (conteudo && (typeof conteudo === 'string' ? conteudo.trim() : true)) {
+    body = '<div class="txt-md">' + markdownSimples(conteudo) + '</div>';
+  } else {
+    body = '<div class="txt-pendente">[Texto pendente — em geração pela IA]</div>';
+  }
+
+  return ''
+    + '<section class="sec">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">' + escapeHtml(num) + '</div>'
+    + '    <div><div class="sec-label">' + escapeHtml(label) + '</div><div class="sec-title">' + escapeHtml(sub) + '</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + body + '</div>'
+    + '</section>';
+}
+
+// ─── DRE ────────────────────────────────────────────────────────────────────
+// 5 blocos. Filtra linhas zeradas (.filter(l => l.valor > 0)) — diferente do admin.
+// ─── GRÁFICO 3: radar ISE 8 pilares + barras complementares ─────────────────
+// Renderiza canvas + barras inline. O radar é inicializado depois do innerHTML
+// pelo initChartsAfterRender — Chart.js precisa do canvas montado no DOM.
+let _iseChartInstance = null;
+function chartRadarISE(pilares) {
+  if (!pilares || pilares.length === 0) return '';
+  // Bloco "Detalhe por pilar (peso · contribuição)" removido em 29/04 — info
+  // redundante (já está no radar acima e nas barrinhas individuais com
+  // sub-métricas mais abaixo).
+  return ''
+    + '<div class="chart-radar-wrap">'
+    + '  <div class="chart-radar-head">Visão geral · ISE × Excelência</div>'
+    + '  <div class="chart-radar-canvas-wrap"><canvas id="chart-ise-radar"></canvas></div>'
+    + '  <div class="chart-radar-legend">'
+    + '    <div class="chart-radar-legend-item"><span class="chart-radar-legend-dot" style="background:#1a7a4a"></span>ISE atual</div>'
+    + '    <div class="chart-radar-legend-item"><span class="chart-radar-legend-line"></span>Excelência (10/10)</div>'
+    + '  </div>'
+    + '</div>';
+}
+
+// Chama após renderTudo() — Chart.js precisa do canvas no DOM.
+function initChartsAfterRender() {
+  if (typeof Chart === 'undefined') return;
+  const canvas = document.getElementById('chart-ise-radar');
+  if (!canvas) return;
+  const ise = (calcJson && calcJson.ise) || {};
+  const pilares = ise.pilares || [];
+  if (pilares.length === 0) return;
+  if (_iseChartInstance) { try { _iseChartInstance.destroy(); } catch(e){} _iseChartInstance = null; }
+  _iseChartInstance = new Chart(canvas.getContext('2d'), {
+    type: 'radar',
+    data: {
+      labels: pilares.map(p => p.label || p.id),
+      datasets: [
+        {
+          label: 'ISE atual',
+          data: pilares.map(p => n(p.score_0_10)),
+          backgroundColor: 'rgba(26,122,74,0.18)',
+          borderColor: '#1a7a4a',
+          borderWidth: 2,
+          pointBackgroundColor: '#1a7a4a',
+          pointRadius: 3,
+        },
+        {
+          label: 'Excelência',
+          data: pilares.map(() => 10),
+          backgroundColor: 'rgba(13,43,30,0.04)',
+          borderColor: 'rgba(74,124,92,0.7)',
+          borderDash: [4, 3],
+          borderWidth: 1.5,
+          pointRadius: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        r: {
+          min: 0, max: 10,
+          ticks: { stepSize: 2, font: { size: 9, family: 'DM Mono' }, color: '#6a8a76', backdropColor: 'transparent' },
+          pointLabels: { font: { size: 10, family: 'DM Mono' }, color: '#2d6644' },
+          grid: { color: 'rgba(13,43,30,0.10)' },
+          angleLines: { color: 'rgba(13,43,30,0.10)' },
+        },
+      },
+    },
+  });
+}
+
+// ─── GRÁFICO 2: funil DRE (SVG inline) ──────────────────────────────────────
+// Top-down: Faturamento (100%) → Receita líq → Lucro bruto → Após pessoal →
+// Após ocupação → RO. Cada bloco estreita proporcional ao % do faturamento.
+// Linhas pontilhadas entre blocos com a categoria de custo deduzida.
+function chartFunilDRE(dre) {
+  const fat = n(dre.fat_mensal);
+  if (fat <= 0) return '';
+  const ded = dre.deducoes_receita || {};
+  const pess = dre.pessoal || {};
+  const ocp  = dre.ocupacao || {};
+  const op   = dre.operacional_outros || {};
+
+  const recLiq = n(dre.rec_liquida_mensal || dre.rec_liquida);
+  const lb     = n(dre.lucro_bruto_mensal || dre.lucro_bruto);
+  const aposPessoal  = lb - n(pess.folha_total_mensal || pess.folha_total);
+  const aposOcupacao = aposPessoal - n(ocp.total_mensal || ocp.total);
+  const ro = n(dre.ro_mensal); // = aposOcupacao - operacional_outros
+
+  // Steps: label, valor, % do fat, custo deduzido entre o anterior
+  const steps = [
+    { label: 'Faturamento bruto',           valor: fat,           deduz: null },
+    { label: 'Receita líquida',             valor: recLiq,        deduz: 'Deduções: ' + fcShort(n(ded.total_mensal || ded.total_deducoes)) },
+    { label: 'Lucro bruto',                 valor: lb,            deduz: n(dre.cmv) > 0 ? 'CMV: ' + fcShort(dre.cmv) : null },
+    { label: 'Após pessoal',                valor: aposPessoal,   deduz: 'Pessoal: ' + fcShort(n(pess.folha_total_mensal || pess.folha_total)) },
+    { label: 'Após ocupação',               valor: aposOcupacao,  deduz: 'Ocupação: ' + fcShort(n(ocp.total_mensal || ocp.total)) },
+    { label: 'Resultado operacional',       valor: ro,            deduz: 'Operacional outros: ' + fcShort(n(op.total_mensal || op.total)), final: true },
+  ];
+
+  const W = 600;
+  const STEP_H = 50;        // altura visual de cada bloco (Fase 3.2.4: +6 pra respirar)
+  const GAP = 34;           // gap entre blocos: faixa pontilhada não invade vizinhos
+  const N = steps.length;
+  const H = N * STEP_H + (N - 1) * GAP;
+  const cx = W / 2;
+
+  // Paleta de fundos por step (Fase 3.2.4: cores fixas, sem opacity decay)
+  // 0: ink escuro (faturamento, base) — texto branco
+  // 1-4: gradiente verde de claro→médio (intermediários) — texto branco em todos
+  // 5 (final): âmbar sólido — texto branco
+  const FUNNEL_FILLS = ['#0d2b1e', '#1a7a4a', '#2d6644', '#1f4a32', '#1a5238', '#92470a'];
+
+  let svg = '<svg class="chart-funnel-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Funil da DRE — Faturamento até Resultado Operacional">';
+  let y = 0;
+  steps.forEach((s, i) => {
+    const pct = fat > 0 ? Math.max(0, (s.valor / fat) * 100) : 0;
+    // largura proporcional ao %, mín 22% pra os labels caberem
+    const width = Math.max(W * 0.22, (pct / 100) * W);
+    const x = cx - width / 2;
+    const fill = s.final ? FUNNEL_FILLS[5] : FUNNEL_FILLS[Math.min(i, 4)];
+    svg += '<rect x="' + x.toFixed(1) + '" y="' + y + '" width="' + width.toFixed(1) + '" height="' + STEP_H + '" fill="' + fill + '" rx="3"/>';
+    // Texto sempre branco — todos os blocos têm fundo escuro o suficiente
+    svg += '<text class="step-label" x="' + cx + '" y="' + (y + STEP_H / 2 - 3) + '" text-anchor="middle" fill="#ffffff">' + escapeHtml(s.label) + '</text>';
+    svg += '<text class="step-val" x="' + cx + '" y="' + (y + STEP_H / 2 + 14) + '" text-anchor="middle" fill="#ffffff">' + fcShort(s.valor) + ' · ' + pct.toFixed(0) + '%</text>';
+    // Linha pontilhada + label da dedução no espaço entre blocos (centralizada no GAP)
+    if (i < N - 1 && steps[i + 1].deduz) {
+      const ny = y + STEP_H + GAP / 2;
+      svg += '<line x1="' + (cx - 90) + '" y1="' + (ny - 6).toFixed(1) + '" x2="' + (cx + 90) + '" y2="' + (ny - 6).toFixed(1) + '" stroke="#92470a" stroke-width="1" stroke-dasharray="3,3" opacity="0.45"/>';
+      svg += '<text class="step-deduz" x="' + cx + '" y="' + (ny + 5).toFixed(1) + '" text-anchor="middle">↓ ' + escapeHtml(steps[i + 1].deduz) + '</text>';
+    }
+    y += STEP_H + GAP;
+  });
+  svg += '</svg>';
+
+  return ''
+    + '<div class="chart-funnel">'
+    + '  <div class="chart-funnel-head">Funil do resultado operacional · cada bloco estreita conforme o % do faturamento que sobra</div>'
+    + svg
+    + '</div>';
+}
+
+// ─── 05 · OS NÚMEROS (port v1) — DRE + Balanço em uma única seção ───────────
+function renderNumeros() {
+  const dre  = calcJson.dre || {};
+  const ind  = calcJson.indicadores_vs_benchmark || {};
+  const fat  = n(dre.fat_mensal);
+  const ded  = dre.deducoes_receita || {};
+  const pess = dre.pessoal || {};
+  const ocp  = dre.ocupacao || {};
+  const op   = dre.operacional_outros || {};
+  const bal  = calcJson.balanco || {};
+  const at   = bal.ativos || {};
+  const pa   = bal.passivos || {};
+
+  // Helper de status comparado ao benchmark via indicadores_vs_benchmark
+  function statusFor(indKey) {
+    const it = ind[indKey];
+    if (!it || it.status == null) return null;
+    return it.status; // no_alvo / atencao / abaixo / neutro
+  }
+  function dotForStatus(s) {
+    if (s === 'no_alvo') return '<span class="dot g"></span>';
+    if (s === 'atencao') return '<span class="dot a"></span>';
+    if (s === 'abaixo')  return '<span class="dot r"></span>';
+    return '';
+  }
+  function benchPct(indKey) {
+    const it = ind[indKey];
+    if (!it || it.benchmark == null) return null;
+    return n(it.benchmark);
+  }
+
+  // Linha da DRE estilo v1: Item | Mensal | Anual | % | Mercado | Status
+  function rowDRE(label, valor, opts) {
+    opts = opts || {};
+    const v = n(valor);
+    if (!opts.always && v <= 0) return '';
+    const anual = v * 12;
+    const pctFat = fat > 0 ? (v / fat) * 100 : 0;
+    const indKey = opts.indKey;
+    const mercado = indKey ? benchPct(indKey) : null;
+    const mercadoTxt = mercado != null ? mercado.toFixed(1) + '%' : '—';
+    const status = indKey ? statusFor(indKey) : null;
+    const dot = status ? dotForStatus(status) : '';
+
+    let trCls = '';
+    if (opts.tot)      trCls = ' class="tot"';
+    else if (opts.sub) trCls = ' class="sub"';
+    else if (opts.hl)  trCls = ' class="hl"';
+
+    let labelCell;
+    if (opts.indent) {
+      labelCell = '<td style="padding-left:14px;color:var(--ink4)">' + escapeHtml(label) + '</td>';
+    } else {
+      labelCell = '<td>' + escapeHtml(label) + '</td>';
+    }
+
+    return '<tr' + trCls + '>'
+      + labelCell
+      + '<td>' + fc(v) + '</td>'
+      + '<td>' + fc(anual) + '</td>'
+      + '<td>' + pctFat.toFixed(1) + '%</td>'
+      + '<td>' + mercadoTxt + '</td>'
+      + '<td>' + dot + '</td>'
+      + '</tr>';
+  }
+
+  // ─ DRE estruturada (tabela única estilo v1)
+  let dreH = '<table class="tbl">'
+    + '<thead><tr><th>Item</th><th>Mensal</th><th>Anual</th><th>%</th><th>Mercado</th><th></th></tr></thead><tbody>';
+
+  dreH += rowDRE('Faturamento Bruto', fat, { always: true, hl: true });
+  dreH += rowDRE('(−) Impostos', ded.impostos_calculados_mensal, { indent: true, indKey: 'impostos_pct' });
+  dreH += rowDRE('(−) Taxas de recebimento', ded.taxas_recebimento, { indent: true });
+  dreH += rowDRE('(−) Comissões', ded.comissoes, { indent: true });
+  dreH += rowDRE('(−) Royalty franquia', ded.royalty_pct_aplicado, { indent: true });
+  dreH += rowDRE('(−) Mkt franquia', ded.mkt_franquia_pct_aplicado, { indent: true });
+  dreH += rowDRE('(=) Receita Líquida', dre.rec_liquida_mensal, { always: true, sub: true });
+  dreH += rowDRE('(−) CMV / Custo direto', dre.cmv, { indent: true, indKey: 'cmv_pct' });
+  dreH += rowDRE('(=) Lucro Bruto', dre.lucro_bruto_mensal, { always: true, sub: true });
+  dreH += rowDRE('(−) Folha CLT bruta', pess.clt_folha_bruta, { indent: true });
+  dreH += rowDRE('(−) Encargos CLT', pess.clt_encargos, { indent: true });
+  dreH += rowDRE('(−) PJ', pess.pj_custo, { indent: true });
+  dreH += rowDRE('(−) Royalty fixo + Mkt fixo', n(pess.royalty_fixo) + n(pess.mkt_franquia_fixo), { indent: true });
+  dreH += rowDRE('(−) Total Pessoal', pess.folha_total_mensal, { sub: true, indKey: 'folha_pct' });
+  dreH += rowDRE('(−) Aluguel', ocp.aluguel, { indent: true, indKey: 'aluguel_pct' });
+  dreH += rowDRE('(−) Facilities', ocp.facilities, { indent: true });
+  dreH += rowDRE('(−) Terceirizados', ocp.terceirizados, { indent: true });
+  dreH += rowDRE('(−) Marketing pago', op.mkt_pago, { indent: true, indKey: 'mkt_pct' });
+  dreH += rowDRE('(−) Sistemas', op.sistemas, { indent: true });
+  dreH += rowDRE('(−) Outros custos fixos', op.outros_cf, { indent: true, indKey: 'outros_cf_pct' });
+  dreH += rowDRE('(=) Resultado Operacional', dre.ro_mensal, { always: true, tot: true, indKey: 'margem_operacional' });
+
+  dreH += '</tbody></table>';
+
+  // Footnote dinâmico baseado em pontos de atenção
+  const atencoes = [];
+  ['cmv_pct', 'folha_pct', 'aluguel_pct', 'mkt_pct'].forEach(k => {
+    const it = ind[k];
+    if (it && it.status === 'atencao') atencoes.push(it.label || k);
+    if (it && it.status === 'abaixo')  atencoes.push(it.label || k);
+  });
+  const dreFootnote = atencoes.length > 0
+    ? 'DRE mensal anualizada (×12). Benchmarks setoriais 1Negócio. Pontos sinalizados: ' + atencoes.join(', ') + '.'
+    : 'DRE mensal anualizada (×12). Benchmarks setoriais 1Negócio. Indicadores em linha com o mercado.';
+
+  // ─ Balanço Patrimonial estilo v1
+  function rowBP(label, valor, opts) {
+    opts = opts || {};
+    const v = n(valor);
+    if (!opts.always && v <= 0) return '';
+    const trCls = opts.tot ? ' class="tot"' : opts.sub ? ' class="sub"' : '';
+    return '<tr' + trCls + '><td>' + escapeHtml(label) + '</td><td>' + fc(v) + '</td></tr>';
+  }
+
+  let bpH = '<table class="tbl"><tbody>';
+  bpH += '<tr class="sub"><td colspan="2">Ativos</td></tr>';
+  bpH += rowBP('Caixa e equivalentes', at.caixa);
+  bpH += rowBP('Contas a receber', at.contas_receber);
+  bpH += rowBP('Estoque', at.estoque);
+  bpH += rowBP('Equipamentos', at.equipamentos);
+  bpH += rowBP('Imóvel', at.imovel);
+  bpH += rowBP('Ativo franquia', at.ativo_franquia);
+  bpH += rowBP('Outros ativos', at.outros);
+  bpH += rowBP('Total de Ativos', at.total, { always: true, sub: true });
+  bpH += '<tr class="sep"><td colspan="2" style="padding:2px;border:none"></td></tr>';
+  bpH += '<tr class="sub"><td colspan="2">Passivos</td></tr>';
+  bpH += rowBP('Fornecedores a vencer', pa.fornecedores_a_vencer);
+  bpH += rowBP('Fornecedores atrasados', pa.fornecedores_atrasados);
+  bpH += rowBP('Impostos atrasados', pa.impostos_atrasados_sem_parcelamento);
+  bpH += rowBP('Empréstimos e financiamentos', pa.saldo_devedor_emprestimos);
+  bpH += rowBP('Provisão CLT (13º + férias)', pa.provisao_clt_calculada && pa.provisao_clt_calculada.valor);
+  bpH += rowBP('Outros passivos', pa.outros_passivos);
+  bpH += rowBP('Total de Passivos', pa.total, { always: true, sub: true });
+  bpH += '<tr class="sep"><td colspan="2" style="padding:2px;border:none"></td></tr>';
+  // Patrimônio líquido com sinal real (pode ser negativo)
+  const pl = n(bal.patrimonio_liquido);
+  bpH += '<tr class="tot"><td>Patrimônio Líquido</td><td style="color:' + (pl < 0 ? 'var(--rd)' : 'var(--em)') + '">' + fc(pl) + '</td></tr>';
+  bpH += '</tbody></table>';
+
+  // Footnote BP
+  const dividaPrincipal = n(pa.saldo_devedor_emprestimos);
+  const bpFootnote = dividaPrincipal > 0
+    ? 'Equipamentos ao valor de mercado. Empréstimos e financiamentos no total de ' + fc(dividaPrincipal) + '.'
+    : 'Equipamentos ao valor de mercado. Sem empréstimos ou financiamentos declarados.';
+
+  return ''
+    + '<section class="sec page-break">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">' + getNum('numeros') + '</div>'
+    + '    <div><div class="sec-label">Laudo Principal</div><div class="sec-title">Os Números (DRE + Balanço Patrimonial)</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">'
+    + '    <div class="diag-bloco"><div class="diag-bloco-title">DRE Estruturada</div>' + chartFunilDRE(dre) + dreH + '<div class="footnote">' + escapeHtml(dreFootnote) + '</div></div>'
+    + '    <div class="diag-bloco" style="margin-top:24px"><div class="diag-bloco-title">Balanço Patrimonial</div>' + bpH + '<div class="footnote">' + escapeHtml(bpFootnote) + '</div></div>'
+    + '  </div>'
+    + '</section>';
+}
+
+// ─── ISE ────────────────────────────────────────────────────────────────────
+// 8 pilares com sub-métricas. SEM ícone de origem (exclusivo do admin).
+function renderISE() {
+  const ise = calcJson.ise || {};
+  const pilares = ise.pilares || [];
+  const total = n(ise.ise_total);
+
+  const classDesc = (ise.classe || '').toLowerCase().includes('estrutur') ? 'Negócio sólido. Múltiplo aplicado é o do setor com prêmio.'
+    : (ise.classe || '').toLowerCase().includes('consolid') ? 'Negócio em estado saudável. Vende em condições normais de mercado.'
+    : (ise.classe || '').toLowerCase().includes('operacion') ? 'Operacional. Vendável com negociação de 10–20% de desconto.'
+    : (ise.classe || '').toLowerCase().includes('depend') ? 'Negócio depende fortemente do dono. Comprador exige garantias.'
+    : 'Negócio em estágio inicial. Reestruturação pode preceder a venda.';
+
+  let h = '';
+  h += '<div class="ise-hero">'
+    + '<div class="ise-score">' + total.toFixed(0) + '</div>'
+    + '<div>'
+    + '  <div class="ise-class">Classe ISE</div>'
+    + '  <div class="ise-class-name">' + escapeHtml(ise.classe || '—') + '</div>'
+    + '  <div class="ise-desc">' + escapeHtml(classDesc) + '</div>'
+    + '  <div class="ise-desc" style="margin-top:6px"><strong>Fator de classe aplicado: </strong>' + n(ise.fator_classe).toFixed(2) + '×</div>'
+    + '</div>'
+    + '</div>';
+
+  // Gráfico 3 — radar dos 8 pilares + barras complementares
+  h += chartRadarISE(pilares);
+
+  // Detalhamento textual por pilar (mantido) — gráficos são complementares
+  pilares.forEach(p => {
+    const score = n(p.score_0_10);
+    const cls = pilarCor(score);
+    const fillPct = (score * 10).toFixed(0);
+    h += '<div class="pilar">';
+    // Linha 1: nome | score (flex space-between)
+    h += '<div class="pilar-row">';
+    h += '<div class="pilar-nome">' + escapeHtml(p.label || p.id) + ' (' + Math.round(p.peso_pct || 0) + '%)</div>';
+    h += '<div class="pilar-val ' + cls + '">' + score.toFixed(1) + '/10</div>';
+    h += '</div>';
+    // Linha 2: barra full-width
+    h += '<div class="pilar-bar"><div class="pilar-fill ' + cls + '" style="width:' + fillPct + '%"></div></div>';
+    // Linha 3: meta + submétricas (sem indentação)
+    h += '<div class="pilar-meta">Contribuição no ISE total: ' + n(p.contribuicao_no_total).toFixed(1) + ' pts</div>';
+    if (p.sub_metricas && p.sub_metricas.length > 0) {
+      h += '<div class="submet-list">';
+      p.sub_metricas.forEach(sm => {
+        const sscore = n(sm.score_0_10);
+        const scls = pilarCor(sscore);
+        const peso = sm.peso_decimal != null ? (sm.peso_decimal * 100).toFixed(0) + '%' : '—';
+        h += '<div class="submet"><span class="submet-l">' + escapeHtml(sm.label || sm.id) + '</span>'
+          + '<span class="submet-v ' + scls + '">' + sscore.toFixed(1) + '/10 · peso ' + peso + '</span></div>';
+      });
+      h += '</div>';
+    }
+    h += '</div>';
+  });
+
+  // Footnote padrão v1
+  h += '<div class="footnote" style="margin-top:14px">ISE 0–39: risco · 40–64: básico · 65–79: sólido · 80–100: excelente. O ISE não altera diretamente o valor de venda, mas impacta as condições e velocidade da transação.</div>';
+
+  return ''
+    + '<section class="sec page-break">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">' + getNum('ise') + '</div>'
+    + '    <div><div class="sec-label">Laudo Principal</div><div class="sec-title">A Gestão · Índice de Solidez Empresarial (ISE)</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + h + '</div>'
+    + '</section>';
+}
+
+// ─── 07 · INDICADORES vs MERCADO (port v1, .bench-item) ─────────────────────
+function renderIndicadores() {
+  const ind = calcJson.indicadores_vs_benchmark || {};
+  const id = calcJson.identificacao || {};
+  const setorLabel = (id.setor && id.setor.label) || 'Empresa';
+
+  // Whitelist de 10 indicadores principais — exclui ro_por_funcionario_mensal,
+  // PMP/PMR/ciclo (sem benchmark setorial), e indicadores sem media_setor.
+  // Atenção: skill grava `recorrencia` e `concentracao` (sem _pct).
+  const whitelist = [
+    'margem_operacional',
+    'margem_bruta',
+    'cmv_pct',
+    'folha_pct',
+    'aluguel_pct',
+    'mkt_pct',
+    'outros_cf_pct',
+    'deducoes_pct',
+    'recorrencia',
+    'concentracao',
+  ];
+
+  const itens = whitelist
+    .map(k => ({ k, it: ind[k] }))
+    .filter(({ it }) => it && typeof it === 'object' && it.benchmark != null);
+
+  if (itens.length === 0) return '';
+
+  let h = '<div style="margin-bottom:14px;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink4)">'
+    + 'Empresa vs benchmark · ' + escapeHtml(setorLabel)
+    + '</div>';
+
+  itens.forEach(({ k, it }) => {
+    const v = n(it.valor);
+    const b = n(it.benchmark);
+    const cor = statusCor(it.status);
+    const valorTxt = fmtIndValor(it);
+    const benchTxt = fmtIndBench(it);
+
+    // Escala visual: max(v, b) * 1.4 pra dar respiração (mín 100% pra %)
+    const maxRange = Math.max(v, b) * 1.4 || 100;
+    const pctVal = Math.min(100, (v / maxRange) * 100);
+    const pctRef = Math.min(100, (b / maxRange) * 100);
+
+    h += '<div class="bench-item">'
+      + '<div class="bench-row">'
+      + '<div class="bench-nome">' + escapeHtml(it.label || k) + '</div>'
+      + '<div class="bench-vals">'
+      + '<span class="bench-emp ' + cor + '">' + valorTxt + '</span>'
+      + '<span class="bench-ref">ref: ' + benchTxt + '</span>'
+      + '<span class="chip ' + cor + '">' + statusLabel(it.status) + '</span>'
+      + '</div>'
+      + '</div>'
+      + '<div class="bench-bar">'
+      + '<div class="bench-bar-ref" style="width:' + pctRef.toFixed(1) + '%"></div>'
+      + '<div class="bench-bar-val ' + cor + '" style="width:' + pctVal.toFixed(1) + '%"></div>'
+      + '</div>'
+      + '</div>';
+  });
+
+  // Footnote dinâmica
+  const footnote = 'Benchmarks setoriais 1Negócio para ' + setorLabel + '. Os indicadores comparam o desempenho do negócio com a média de transações de compra e venda de empresas para empresas do mesmo segmento e porte.';
+  h += '<div class="footnote" style="margin-top:8px">' + escapeHtml(footnote) + '</div>';
+
+  return ''
+    + '<section class="sec page-break">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">' + getNum('indicadores') + '</div>'
+    + '    <div><div class="sec-label">Laudo Principal</div><div class="sec-title">Indicadores vs Mercado</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + h + '</div>'
+    + '</section>';
+}
+
+// ─── ANÁLISE TRIBUTÁRIA ─────────────────────────────────────────────────────
+function renderTributaria() {
+  const at = calcJson.analise_tributaria || {};
+  const comp = at.comparativo_regimes || [];
+  if (comp.length === 0) return '';
+
+  let h = '';
+
+  // Banner de inelegibilidade do regime declarado
+  if (at.alerta_inelegibilidade) {
+    h += '<div class="alert r"><strong>⚠ Você declarou ' + escapeHtml((at.alerta_inelegibilidade.regime || '').toUpperCase()) + ' mas não é elegível.</strong> '
+      + escapeHtml(at.alerta_inelegibilidade.motivo || '') + ' Risco de autuação fiscal — recomenda-se migração imediata.</div>';
+  }
+
+  // Resumo (toggle 3-way: inelegível → 'r' Crítico vermelho / atual=ótimo → 'g' verde / divergente → 'a' amarelo)
+  const inelegivel = at.alerta_inelegibilidade
+    && at.alerta_inelegibilidade.regime === at.regime_declarado;
+  const sameRegime = at.regime_otimo_calculado === at.regime_declarado;
+  const corRegimeAtual = inelegivel ? 'r' : '';
+  const corRegimeIdeal = inelegivel ? 'r' : (sameRegime ? 'g' : 'a');
+  h += '<div class="kpi-mini">';
+  h += '<div class="kpi-mini-card"><div class="kpi-mini-l">Regime atual</div><div class="kpi-mini-v ' + corRegimeAtual + '">' + escapeHtml((at.regime_declarado || '—').toUpperCase()) + (at.anexo_simples ? ' · ' + at.anexo_simples : '') + '</div></div>';
+  h += '<div class="kpi-mini-card"><div class="kpi-mini-l">Regime ideal</div><div class="kpi-mini-v ' + corRegimeIdeal + '">' + escapeHtml((at.regime_otimo_calculado || '—').toUpperCase()) + (at.regime_otimo_anexo ? ' · ' + at.regime_otimo_anexo : '') + '</div></div>';
+  if (at.fator_r_calculado != null) {
+    const cls = at.fator_r_calculado < 0.28 ? 'a' : 'g';
+    h += '<div class="kpi-mini-card"><div class="kpi-mini-l">Fator R calculado</div><div class="kpi-mini-v ' + cls + '">' + (at.fator_r_calculado * 100).toFixed(2) + '%</div></div>';
+  }
+  const eco = at.economia_potencial || {};
+  if (n(eco.economia_anual) > 0) {
+    h += '<div class="kpi-mini-card"><div class="kpi-mini-l">Economia anual</div><div class="kpi-mini-v g">' + fcShort(eco.economia_anual) + '</div><div class="kpi-mini-sub">' + n(eco.economia_pct_do_ro).toFixed(1) + '% do RO</div></div>';
+  }
+  h += '</div>';
+
+  // Texto explicativo
+  if (n(eco.economia_anual) > 0) {
+    h += '<div class="alert g"><strong>Oportunidade tributária:</strong> migrar para ' + escapeHtml((at.regime_otimo_calculado || '').toUpperCase())
+      + ' pode gerar economia anual de ' + fcShort(eco.economia_anual) + ' (' + n(eco.economia_pct_do_ro).toFixed(1) + '% do RO). Recomenda-se validação com contador antes da migração.</div>';
+  }
+  // 4 cards comparativos
+  h += '<div class="diag-bloco"><div class="diag-bloco-title">Comparativo entre regimes</div>';
+  h += '<div class="compare-grid">';
+  comp.forEach(r => {
+    const isOtimo = r.regime === at.regime_otimo_calculado;
+    const isAtual = r.regime === at.regime_declarado;
+    const isInelegivel = r.elegivel === false;
+    let chips = '';
+    if (isAtual) chips += '<span class="chip g">atual</span>';
+    if (isOtimo && !isInelegivel) chips += '<span class="chip a">ideal</span>';
+    if (isInelegivel) chips += '<span class="chip r">inelegível</span>';
+    const cardCls = (isOtimo && !isInelegivel) ? ' recomendado' : '';
+    h += '<div class="compare-col' + cardCls + '"' + (isInelegivel ? ' data-inelegivel="true"' : '') + '>'
+      + '<div class="compare-title">' + escapeHtml(r.regime.toUpperCase()) + (r.anexo ? ' · ' + r.anexo : '') + chips + '</div>'
+      + '<div class="compare-total">' + fcShort(r.total_anual) + '</div>'
+      + '<div class="compare-row"><span>Imposto</span><span>' + fcShort(r.imposto_anual) + '</span></div>'
+      + '<div class="compare-row"><span>Encargo folha</span><span>' + fcShort(r.encargo_folha_anual) + '</span></div>'
+      + '<div class="compare-row"><span>Alíq. efetiva</span><span>' + n(r.aliquota_efetiva_pct).toFixed(2) + '%</span></div>';
+    if (isInelegivel && r.motivo_inelegibilidade) {
+      h += '<div class="compare-motivo">⚠ ' + escapeHtml(r.motivo_inelegibilidade) + '</div>';
+    }
+    h += '</div>';
+  });
+  h += '</div></div>';
+
+  return ''
+    + '<section class="sec">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">' + getNum('tributario') + '</div>'
+    + '    <div><div class="sec-label">Anexo · Tributário detalhado</div><div class="sec-title">4 regimes comparados · economia potencial</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + h + '</div>'
+    + '</section>';
+}
+
+// ─── 09 · OPORTUNIDADES (port v1, .op-card) ─────────────────────────────────
+function renderUpsides() {
+  const upsObj = calcJson.upsides || {};
+  const ativosTodos = Array.isArray(upsObj.ativos) ? upsObj.ativos : [];
+  const paywalls = Array.isArray(upsObj.paywalls) ? upsObj.paywalls : [];
+
+  if (ativosTodos.length === 0 && paywalls.length === 0) return '';
+
+  // Lookup id → {brl, pct, ganho_mensal_caixa_brl, impacto_valuation_brl}
+  const valorPorId = {};
+  const upsP12 = (calcJson.potencial_12m && calcJson.potencial_12m.upsides_ativos) || [];
+  upsP12.forEach(u => { valorPorId[u.id] = u; });
+
+  const monetarios = ativosTodos.filter(u => ['ro', 'passivo', 'multiplo'].includes(u.categoria));
+  const qualitativos = ativosTodos.filter(u => u.categoria === 'qualitativo');
+
+  // Ordem por R$ decrescente dentro dos monetários
+  monetarios.sort((a, b) => {
+    const va = (valorPorId[a.id] && valorPorId[a.id].contribuicao_brl) || 0;
+    const vb = (valorPorId[b.id] && valorPorId[b.id].contribuicao_brl) || 0;
+    return vb - va;
+  });
+
+  const CAT_LABEL = {
+    ro: 'Resultado',
+    passivo: 'Passivos',
+    multiplo: 'Múltiplo',
+    qualitativo: 'Qualitativo',
+    paywall: 'Análise',
+  };
+
+  // Card individual estilo v1: número circular + título + descrição + tag ganho
+  function renderCard(u, idx) {
+    const cat = u.categoria || 'qualitativo';
+    const catLabel = CAT_LABEL[cat] || cat;
+    const valorObj = valorPorId[u.id];
+
+    // Paywalls não recebem badge — já têm chip "ANÁLISE" no header.
+    let ganhoTag = '';
+    if (cat === 'qualitativo') {
+      ganhoTag = '<span class="op-ganho qual">Pré-requisito · sem valor direto</span>';
+    } else if (valorObj && n(valorObj.contribuicao_brl) > 0) {
+      const valor = n(valorObj.impacto_valuation_brl) || n(valorObj.contribuicao_brl);
+      const ganhoMensal = n(valorObj.ganho_mensal_caixa_brl);
+      const sufixo = ganhoMensal > 0 && cat !== 'multiplo'
+        ? ' (+' + fcShort(ganhoMensal) + '/mês caixa)'
+        : '';
+      ganhoTag = '<span class="op-ganho">+' + fcShort(valor) + ' no valor de venda' + sufixo + '</span>';
+    } else if (cat !== 'paywall') {
+      ganhoTag = '<span class="op-ganho qual">Contribuição não calculada</span>';
+    }
+
+    let card = '<div class="op-card cat-' + escapeHtml(cat) + '">';
+    card += '<div class="op-header">';
+    card += '<div class="op-num">' + (idx + 1) + '</div>';
+    card += '<div class="op-title">' + escapeHtml(u.label || u.id);
+    card += ' <span class="chip" style="font-size:7px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);background:rgba(13,43,30,0.04);padding:2px 6px;border-radius:2px;margin-left:6px;font-weight:500">' + escapeHtml(catLabel) + '</span>';
+    card += '</div>';
+    card += '</div>';
+    if (u.descricao) card += '<div class="op-desc">' + escapeHtml(u.descricao) + '</div>';
+    if (u.efeito_explicacao) card += '<div class="op-desc" style="font-style:italic;color:var(--ink4)">' + escapeHtml(u.efeito_explicacao) + '</div>';
+    card += ganhoTag;
+    card += '</div>';
+    return card;
+  }
+
+  let h = '';
+  let idx = 0;
+
+  if (monetarios.length > 0) {
+    monetarios.forEach(u => { h += renderCard(u, idx++); });
+  }
+
+  if (paywalls.length > 0) {
+    h += '<div style="margin-top:18px;margin-bottom:8px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);font-weight:600">Análises Complementares</div>';
+    paywalls.forEach(u => { h += renderCard(u, idx++); });
+  }
+
+  if (qualitativos.length > 0) {
+    h += '<div style="margin-top:18px;margin-bottom:8px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4);font-weight:600">Pré-requisitos qualitativos</div>';
+    qualitativos.forEach(u => { h += renderCard(u, idx++); });
+  }
+
+  // Total no final (estilo v1)
+  const potencialFinal = (calcJson.potencial_12m && calcJson.potencial_12m.potencial_final) || {};
+  const ganhoTotal = n(potencialFinal.delta_brl) || 0;
+  if (ganhoTotal > 0) {
+    h += '<div style="margin-top:14px;padding:14px 16px;background:var(--em-d);border:1px solid var(--em-l);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">'
+      + '<span style="font-size:10px;color:var(--ink3)">Potencial total das ' + (monetarios.length + qualitativos.length) + ' oportunidades implementadas</span>'
+      + '<span style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:16px;color:var(--em)">+' + fcShort(ganhoTotal) + ' no valor de venda</span>'
+      + '</div>';
+  }
+
+  const intro = '<p style="font-size:11.5px;color:var(--ink2);line-height:1.6;margin-bottom:18px;max-width:560px">'
+    + 'Cada ação abaixo tem um valor R$ estimado de ganho no valor de venda do negócio se executada nos próximos 12 meses. '
+    + 'As ações qualitativas não geram contribuição monetária direta, mas são pré-requisitos para destravar valor.'
+    + '</p>';
+
+  return ''
+    + '<section class="sec page-break">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">' + getNum('upsides') + '</div>'
+    + '    <div><div class="sec-label">Laudo Principal</div><div class="sec-title">Oportunidades de melhoria</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + intro + h + '</div>'
+    + '</section>';
+}
+
+// ─── 10 · FECHAMENTO (port v1, com assinatura) ──────────────────────────────
+function renderFechamento() {
+  const id = calcJson.identificacao || {};
+  const cidade = (id.localizacao && id.localizacao.cidade) || id.cidade || '';
+  const estado = (id.localizacao && id.localizacao.estado) || id.estado || '';
+  const local = [cidade, estado].filter(Boolean).join(', ') || '—';
+  const codigo = id.codigo_diagnostico || '—';
+  const dataAvalIso = calcJson._data_avaliacao || (id && id.data_avaliacao);
+  const dataAval = dataAvalIso ? new Date(dataAvalIso).toLocaleDateString('pt-BR') : hoje();
+
+  return ''
+    + '<section class="fechamento page-break">'
+    + '  <div>'
+    + '    <div class="fech-eyebrow">Fim do laudo</div>'
+    + '    <div class="fech-titulo">Próximos <em>passos</em></div>'
+    + '    <div class="fech-texto">Use este laudo para tomar decisões sobre o futuro do negócio: acompanhar avaliação, ajustar processos, priorizar ações de upsides, reavaliar regime tributário e, quando fizer sentido, abrir um anúncio na 1Negócio.</div>'
+    + '    <div class="fech-ass">'
+    + '      <div class="fech-ass-logo"><em>1</em>NEGÓCIO</div>'
+    + '      <div class="fech-ass-sep"></div>'
+    + '      <div class="fech-ass-txt">Plataforma de compra e venda de empresas<br>1negocio.com.br · Avaliação independente</div>'
+    + '    </div>'
+    + '  </div>'
+    + '  <div class="fech-rodape">'
+    + '    <div class="fech-rod-l">' + escapeHtml(id.nome || '—') + ' · ' + escapeHtml(local) + ' · ' + escapeHtml(dataAval) + ' · Cód. ' + escapeHtml(codigo) + '</div>'
+    + '    <div class="fech-rod-r">1negocio.com.br</div>'
+    + '  </div>'
+    + '</section>';
+}
+
+// ─── APRESENTAÇÃO (NOVA — após Capa, antes do Sumário) ───────────────────────
+function renderApresentacao() {
+  const id = calcJson.identificacao || {};
+  const nome = id.nome || '—';
+  const solicitante = id.solicitante || id.nome_responsavel || '—';
+  const dataAvalIso = calcJson._data_avaliacao || (id && id.data_avaliacao);
+  const dataAval = dataAvalIso ? new Date(dataAvalIso).toLocaleDateString('pt-BR') : hoje();
+  const versaoSkill = calcJson._versao_skill || calcJson._versao_calc_json || '2.0';
+  const versaoParam = calcJson._versao_parametros || '—';
+  return ''
+    + '<section class="sec page-break apresentacao">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">' + getNum('apresentacao') + '</div>'
+    + '    <div><div class="sec-label">Apresentação</div><div class="sec-title">Sobre este laudo</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">'
+    + '    <div class="txt">Este laudo apresenta uma análise aprofundada do negócio <strong>' + escapeHtml(nome) + '</strong>, encomendado por ' + escapeHtml(solicitante) + ' em ' + escapeHtml(dataAval) + '.</div>'
+    + '    <div class="txt">O diagnóstico foi estruturado e processado pela 1N em sua versão <strong>' + escapeHtml(versaoSkill) + '</strong>, usando parâmetros e benchmarks setoriais versão <strong>' + escapeHtml(versaoParam) + '</strong>.</div>'
+    + '    <div class="txt">Este documento foi elaborado para apoiar decisões sobre o futuro da operação: avaliação do negócio, prioridades de melhoria, validação do regime tributário e planejamento estratégico.</div>'
+    + '    <div class="txt confidencial" style="margin-top:24px;font-size:11px;color:var(--ink4);font-style:italic">Este laudo é confidencial e destinado ao solicitante.</div>'
+    + '  </div>'
+    + '</section>';
+}
+
+// ─── METODOLOGIA (port v1 — 5 passos numerados em círculo) ──────────────────
+function renderMetodologia() {
+  const steps = [
+    { titulo: 'Resultado Operacional Ajustado', desc: 'Resultado operacional normalizado — remove pró-labore acima do mercado, despesas não recorrentes e provisões excessivas. Representa a capacidade real de geração de caixa do negócio.' },
+    { titulo: 'Múltiplo Base Setorial', desc: 'Referência de transações comparáveis no Brasil para o setor. Reflete o risco, crescimento esperado e liquidez típica de cada segmento de mercado.' },
+    { titulo: 'Fator ISE — Ajuste de Solidez', desc: 'O ISE avalia 8 dimensões operacionais do negócio. Empresas mais sólidas recebem múltiplo maior e condições de venda mais favoráveis na negociação.' },
+    { titulo: 'Fator 1N = Múltiplo Base × Ajuste ISE', desc: 'Multiplicador proprietário aplicado ao resultado operacional anual. Resultado: o Valor de Operação — quanto vale o negócio com base em sua capacidade produtiva futura.' },
+    { titulo: 'Valor de Venda = Valor de Operação + Patrimônio Líquido', desc: 'O valor final inclui os ativos tangíveis líquidos das dívidas: estoque, equipamentos, imóveis, carteira de contratos. É o valor "porteira fechada" apresentado ao comprador.' },
+  ];
+
+  let h = ''
+    + '<div class="val-nota" style="margin-bottom:20px">A avaliação da 1Negócio combina três abordagens complementares: múltiplos de mercado setoriais, análise de resultado operacional e solidez operacional (ISE). O resultado é um valor de transação ajustado à realidade de M&amp;A de PMEs brasileiras.</div>';
+
+  steps.forEach((s, i) => {
+    h += '<div class="met-step">'
+      + '<div class="met-num">' + (i + 1) + '</div>'
+      + '<div><div class="met-title">' + escapeHtml(s.titulo) + '</div><div class="met-desc">' + escapeHtml(s.desc) + '</div></div>'
+      + '</div>';
+  });
+
+  h += '<div class="footnote">Esta avaliação é baseada nos dados fornecidos pelo proprietário e em benchmarks setoriais da 1Negócio. Não substitui due diligence completa. Valores são estimativas para fins de negociação inicial.</div>';
+
+  return ''
+    + '<section class="sec page-break">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">' + getNum('metodologia') + '</div>'
+    + '    <div><div class="sec-label">Laudo Principal</div><div class="sec-title">Metodologia de Avaliação</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + h + '</div>'
+    + '</section>';
+}
+
+// ─── 04 · CONTEXTO DO NEGÓCIO (port v1) ─────────────────────────────────────
+// Parte A: diag-bloco "Identificação" com 6 campos. Parte B: texto IA do contexto.
+function renderContexto() {
+  const id = calcJson.identificacao || {};
+  const dre = calcJson.dre || {};
+  const at = calcJson.analise_tributaria || {};
+
+  const setor = (id.setor && id.setor.label) || '—';
+  const cidade = (id.localizacao && id.localizacao.cidade) || '';
+  const estado = (id.localizacao && id.localizacao.estado) || '';
+  const local = [cidade, estado].filter(Boolean).join('/') || '—';
+  const tempo = id.tempo_operacao_anos != null ? id.tempo_operacao_anos + ' anos' : '—';
+  const modelo = id.modelo_negocio || 'B2C';
+  const headcount = (dre.pessoal && dre.pessoal.headcount_total) || id.num_funcionarios;
+  const equipe = headcount != null ? headcount + ' pessoas' : '—';
+  const numClientes = id.num_clientes != null ? id.num_clientes : null;
+  const regime = at.regime_declarado ? at.regime_declarado.toUpperCase() : '—';
+
+  let identificacao = ''
+    + '<div class="diag-bloco">'
+    + '<div class="diag-bloco-title">Identificação</div>'
+    + '<div class="diag-row"><div class="diag-label">Setor</div><div class="diag-val">' + escapeHtml(setor) + '</div></div>'
+    + '<div class="diag-row"><div class="diag-label">Localização</div><div class="diag-val">' + escapeHtml(local) + '</div></div>'
+    + '<div class="diag-row"><div class="diag-label">Tempo de operação</div><div class="diag-val">' + escapeHtml(tempo) + '</div></div>'
+    + '<div class="diag-row"><div class="diag-label">Modelo de negócio</div><div class="diag-val">' + escapeHtml(modelo) + '</div></div>'
+    + '<div class="diag-row"><div class="diag-label">Equipe</div><div class="diag-val">' + escapeHtml(equipe) + '</div></div>'
+    + '<div class="diag-row"><div class="diag-label">Regime tributário</div><div class="diag-val">' + escapeHtml(regime) + '</div></div>';
+  if (numClientes != null) {
+    identificacao += '<div class="diag-row"><div class="diag-label">Clientes ativos</div><div class="diag-val">' + escapeHtml(String(numClientes)) + '</div></div>';
+  }
+  identificacao += '</div>';
+
+  // Texto IA
+  const tIA = calcJson.textos_ia || {};
+  const tCtx = tIA.texto_contexto_negocio || {};
+  const conteudo = tCtx.conteudo;
+  const textoIA = conteudo
+    ? '<div class="txt-md" style="margin-top:18px">' + markdownSimples(conteudo) + '</div>'
+    : '<div class="txt-pendente" style="margin-top:18px">[Texto pendente — em geração pela IA]</div>';
+
+  return ''
+    + '<section class="sec page-break">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">' + getNum('contexto') + '</div>'
+    + '    <div><div class="sec-label">Laudo Principal</div><div class="sec-title">Contexto do Negócio</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + identificacao + textoIA + '</div>'
+    + '</section>';
+}
+
+// ─── A1 · TEASER ONE-PAGE (port v1, .op-wrap denso, anônimo) ────────────────
+function renderTeaser() {
+  const id  = calcJson.identificacao || {};
+  const v   = calcJson.valuation || {};
+  const dre = calcJson.dre || {};
+  const ise = calcJson.ise || {};
+  const bal = calcJson.balanco || {};
+  const at  = calcJson.analise_tributaria || {};
+
+  const setorLbl = (id.setor && id.setor.label) || '—';
+  const cidade = (id.localizacao && id.localizacao.cidade) || '';
+  const estado = (id.localizacao && id.localizacao.estado) || '';
+  const local = [cidade, estado].filter(Boolean).join('/') || '—';
+  // Tempo: omitir se 0/null em vez de mostrar "—"
+  const tempoNum = n(id.tempo_operacao_anos);
+  const tempoLabel = tempoNum > 0 ? tempoNum + ' anos' : null;
+  // Regime: omitir se vazio em vez de mostrar "—"
+  const regimeLabel = (id && calcJson.analise_tributaria && calcJson.analise_tributaria.regime_declarado || '').trim()
+    ? calcJson.analise_tributaria.regime_declarado.toUpperCase()
+    : null;
+  // Linha do hero do teaser (tempo · regime) — vazia → omite a div inteira
+  const setorLinha = [tempoLabel, regimeLabel].filter(Boolean).join(' · ');
+  const codigo = id.codigo_diagnostico || '—';
+  const dataAvalIso = calcJson._data_avaliacao || (id && id.data_avaliacao);
+  const dataAval = dataAvalIso ? new Date(dataAvalIso).toLocaleDateString('pt-BR') : hoje();
+
+  const valorVenda = n(v.valor_venda);
+  const roAnual = n(dre.ro_anual) || (n(dre.ro_mensal) * 12);
+  const fator = n(v.fator_final || v.fator_1n);
+  const pl = n(bal.patrimonio_liquido);
+  const margem = n(dre.margem_operacional_pct);
+  const iseTotal = n(ise.ise_total);
+
+  // Fórmula visual
+  const formula = '<div class="op-formula">'
+    + '<div class="op-formula-box"><div class="op-formula-label">RO anual</div><div class="op-formula-val">' + fcShort(roAnual) + '</div></div>'
+    + '<div class="op-formula-op">×</div>'
+    + '<div class="op-formula-box"><div class="op-formula-label">Fator 1N</div><div class="op-formula-val">' + fator.toFixed(2).replace('.', ',') + '×</div></div>'
+    + '<div class="op-formula-op">+</div>'
+    + '<div class="op-formula-box"><div class="op-formula-label">Patrimônio</div><div class="op-formula-val">' + fcShort(pl) + '</div></div>'
+    + '<div class="op-formula-op">=</div>'
+    + '<div class="op-formula-box hl"><div class="op-formula-label">Valor</div><div class="op-formula-val">' + fcShort(valorVenda) + '</div></div>'
+    + '</div>';
+
+  // KPIs (6)
+  const kpis = '<div class="op-kpis">'
+    + '<div class="op-kpi"><div class="op-kpi-l">Faturamento anual</div><div class="op-kpi-v">' + fcShort(dre.fat_anual) + '</div></div>'
+    + '<div class="op-kpi"><div class="op-kpi-l">Result. operacional anual</div><div class="op-kpi-v g">' + fcShort(roAnual) + '</div></div>'
+    + '<div class="op-kpi"><div class="op-kpi-l">Margem operacional</div><div class="op-kpi-v ' + (margem >= 15 ? 'g' : margem >= 5 ? 'a' : 'r') + '">' + margem.toFixed(1) + '%</div></div>'
+    + '<div class="op-kpi"><div class="op-kpi-l">ISE · Solidez</div><div class="op-kpi-v g">' + iseTotal.toFixed(0) + '/100</div><div class="op-kpi-sub">' + escapeHtml(ise.classe || '—') + '</div></div>'
+    + '<div class="op-kpi"><div class="op-kpi-l">Fator 1N</div><div class="op-kpi-v">' + fator.toFixed(2).replace('.', ',') + '×</div></div>'
+    + (function() {
+        // Ajuste 6: cascata tempo > regime > equipe
+        if (tempoLabel) {
+          return '<div class="op-kpi"><div class="op-kpi-l">Tempo de operação</div><div class="op-kpi-v">' + escapeHtml(tempoLabel) + '</div></div>';
+        }
+        if (regimeLabel) {
+          return '<div class="op-kpi"><div class="op-kpi-l">Regime tributário</div><div class="op-kpi-v">' + escapeHtml(regimeLabel) + '</div></div>';
+        }
+        const head = (calcJson.dre && calcJson.dre.pessoal && calcJson.dre.pessoal.headcount_total)
+          || (id.num_funcionarios) || null;
+        if (head != null) {
+          return '<div class="op-kpi"><div class="op-kpi-l">Equipe</div><div class="op-kpi-v">' + escapeHtml(String(head)) + ' pessoas</div></div>';
+        }
+        return '<div class="op-kpi"><div class="op-kpi-l">—</div><div class="op-kpi-v">—</div></div>';
+      })()
+    + '</div>';
+
+  // Bloco DRE Resumida
+  const ded = dre.deducoes_receita || {};
+  const pess = dre.pessoal || {};
+  const ocp = dre.ocupacao || {};
+  let dreBloco = '<div class="op-bloco"><div class="op-bloco-title">DRE Resumida</div>';
+  dreBloco += '<div class="op-item"><div class="op-item-l">Faturamento</div><div class="op-item-v">' + fcShort(dre.fat_mensal) + '/mês</div></div>';
+  if (n(ded.impostos_calculados_mensal) > 0) dreBloco += '<div class="op-item"><div class="op-item-l">(−) Impostos</div><div class="op-item-v">' + fcShort(ded.impostos_calculados_mensal) + '</div></div>';
+  if (n(dre.cmv) > 0) dreBloco += '<div class="op-item"><div class="op-item-l">(−) CMV</div><div class="op-item-v a">' + fcShort(dre.cmv) + '</div></div>';
+  if (n(pess.folha_total_mensal) > 0) dreBloco += '<div class="op-item"><div class="op-item-l">(−) Pessoal</div><div class="op-item-v">' + fcShort(pess.folha_total_mensal) + '</div></div>';
+  if (n(ocp.aluguel) > 0) dreBloco += '<div class="op-item"><div class="op-item-l">(−) Aluguel</div><div class="op-item-v">' + fcShort(ocp.aluguel) + '</div></div>';
+  dreBloco += '<div class="op-item"><div class="op-item-l">Result. operacional</div><div class="op-item-v g">' + fcShort(dre.ro_mensal) + '</div></div>';
+  dreBloco += '</div>';
+
+  // Bloco Operação
+  const headcount = (pess.headcount_total) || id.num_funcionarios || '—';
+  const regime = at.regime_declarado ? at.regime_declarado.toUpperCase() : '—';
+  const opBloco = '<div class="op-bloco"><div class="op-bloco-title">Operação</div>'
+    + '<div class="op-item"><div class="op-item-l">Setor</div><div class="op-item-v">' + escapeHtml(setorLbl) + '</div></div>'
+    + '<div class="op-item"><div class="op-item-l">Localização</div><div class="op-item-v">' + escapeHtml(local) + '</div></div>'
+    + '<div class="op-item"><div class="op-item-l">Modelo</div><div class="op-item-v">' + escapeHtml(id.modelo_negocio || 'B2C') + '</div></div>'
+    + '<div class="op-item"><div class="op-item-l">Equipe</div><div class="op-item-v">' + escapeHtml(String(headcount)) + ' pessoas</div></div>'
+    + '<div class="op-item"><div class="op-item-l">Regime</div><div class="op-item-v">' + escapeHtml(regime) + '</div></div>'
+    + '</div>';
+
+  // Bloco ISE 8 Pilares
+  const pilares = (ise.pilares || []).slice(0, 8);
+  let iseBloco = '<div class="op-bloco"><div class="op-bloco-title">ISE · 8 Pilares</div>';
+  pilares.forEach(p => {
+    const score = n(p.score_0_10);
+    const cor = score >= 7 ? 'g' : score >= 5 ? 'a' : 'r';
+    const corVar = cor === 'g' ? 'var(--em)' : cor === 'a' ? 'var(--am)' : 'var(--rd)';
+    iseBloco += '<div class="op-ise-bar">'
+      + '<div class="op-ise-nome">' + escapeHtml((p.label || p.id || '').slice(0, 12)) + '</div>'
+      + '<div class="op-ise-track"><div class="op-ise-fill" style="width:' + (score * 10).toFixed(0) + '%;background:' + corVar + '"></div></div>'
+      + '<div class="op-ise-val" style="color:' + corVar + '">' + score.toFixed(0) + '/10</div>'
+      + '</div>';
+  });
+  iseBloco += '</div>';
+
+  // Bloco Top Destaques (em vez de Atratividade)
+  const upsP12 = (calcJson.potencial_12m && calcJson.potencial_12m.upsides_ativos) || [];
+  const top3 = upsP12.slice().sort((a, b) => n(b.contribuicao_brl) - n(a.contribuicao_brl)).slice(0, 3);
+  let destBloco = '<div class="op-bloco"><div class="op-bloco-title">Top Destaques</div>';
+  if (top3.length === 0) {
+    destBloco += '<div class="op-item-l" style="font-size:10px;color:var(--ink4);font-style:italic">Sem upsides calculados</div>';
+  } else {
+    top3.forEach(u => {
+      const valor = n(u.impacto_valuation_brl) || n(u.contribuicao_brl);
+      destBloco += '<div class="op-item">'
+        + '<div class="op-item-l">' + escapeHtml(u.label || u.id) + '</div>'
+        + '<div class="op-item-v g">+' + fcShort(valor) + '</div>'
+        + '</div>';
+    });
+  }
+  destBloco += '</div>';
+
+  // Bloco potencial 12 meses
+  const potencialFinal = (calcJson.potencial_12m && calcJson.potencial_12m.potencial_final) || {};
+  const valorProjetado = n(potencialFinal.valor_projetado_brl);
+  const deltaBrl = n(potencialFinal.delta_brl);
+  let potencialBloco = '';
+  if (valorProjetado > 0 && deltaBrl > 0) {
+    potencialBloco = '<div style="background:var(--em-d);border:1px solid var(--em-l);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">'
+      + '<div>'
+      + '<div style="font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--em);margin-bottom:6px">Potencial com oportunidades implementadas</div>'
+      + '<div style="font-size:10px;color:var(--ink3);line-height:1.6">+' + fcShort(deltaBrl) + ' no valor de venda em 12 meses</div>'
+      + '</div>'
+      + '<div style="text-align:right;flex-shrink:0">'
+      + '<div style="font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--em);margin-bottom:4px">Valor potencial</div>'
+      + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:22px;color:var(--em)">' + fcShort(valorProjetado) + '</div>'
+      + '</div>'
+      + '</div>';
+  }
+
+  // Footer
+  const footer = '<div class="op-footer">'
+    + '<div class="op-footer-l">' + escapeHtml(setorLbl) + ' em ' + escapeHtml(local) + ' · ' + escapeHtml(dataAval) + ' · Cód. ' + escapeHtml(codigo) + '</div>'
+    + '<div class="op-footer-r">1negocio.com.br</div>'
+    + '</div>';
+
+  return ''
+    + '<section class="op-wrap page-break">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num" style="color:var(--em)">' + getNum('teaser') + '</div>'
+    + '    <div><div class="sec-label" style="color:var(--em)">Resumo Executivo</div><div class="sec-title">Visão Geral · One Page</div></div>'
+    + '  </div>'
+    + '  <div class="op-hero">'
+    + '    <div>'
+    + '      <div class="op-hero-eyebrow">Negócio em avaliação</div>'
+    + '      <div class="op-hero-nome">' + escapeHtml(setorLbl) + ' em ' + escapeHtml(local) + '</div>'
+    + (setorLinha ? '      <div class="op-hero-setor">' + escapeHtml(setorLinha) + '</div>' : '')
+    + '    </div>'
+    + '    <div class="op-hero-right">'
+    + '      <div class="op-hero-valor-label">Valor de venda</div>'
+    + '      <div class="op-hero-valor">' + fcShort(valorVenda) + '</div>'
+    + '      <div class="op-hero-valor-tipo">Porteira fechada</div>'
+    + '    </div>'
+    + '  </div>'
+    + '  ' + kpis
+    + '  <div class="op-body">'
+    + '    ' + formula
+    + '    <div class="op-row">' + dreBloco + opBloco + '</div>'
+    + '    <div class="op-row">' + iseBloco + destBloco + '</div>'
+    + '    ' + potencialBloco
+    + '  </div>'
+    + '  ' + footer
+    + '</section>';
+}
+
+// ─── EXTRA 2: Pontos Fortes + Pontos de Atenção ─────────────────────────────
+function renderPontosFortesAtencao() {
+  const tIA = calcJson.textos_ia || {};
+  const fortes = (tIA.texto_diferenciais && tIA.texto_diferenciais.conteudo) || '';
+  const atencao = (tIA.texto_riscos_atencao && tIA.texto_riscos_atencao.conteudo) || '';
+
+  // Derivação adicional via pilares ISE (score >= 8 = forte; <= 4 = atenção)
+  const pilares = (calcJson.ise && calcJson.ise.pilares) || [];
+  const pFortes = pilares.filter(p => n(p.score_0_10) >= 8).map(p => p.label || p.id);
+  const pAtencao = pilares.filter(p => n(p.score_0_10) <= 4).map(p => p.label || p.id);
+
+  const fmtTexto = (s) => s ? '<div class="txt-md">' + markdownSimples(s) + '</div>' : '<div class="txt-pendente">[Texto pendente]</div>';
+  const listaPilares = (arr) => arr.length ? '<ul style="margin:8px 0 0;padding-left:18px;line-height:1.7">' + arr.map(l => '<li>' + escapeHtml(l) + '</li>').join('') + '</ul>' : '<div class="txt-pendente" style="font-size:11px;color:var(--ink4)">Nenhum pilar nessa faixa.</div>';
+
+  return ''
+    + '<section class="sec page-break extra">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">' + getNum('pontos') + '</div>'
+    + '    <div><div class="sec-label">Anexo · Análise consolidada</div><div class="sec-title">Pontos Fortes e Pontos de Atenção</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">'
+    + '    <div class="diag-bloco"><div class="diag-bloco-title">Pontos Fortes</div>' + fmtTexto(fortes) + '<div style="margin-top:12px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4)">Pilares ISE com score ≥ 8</div>' + listaPilares(pFortes) + '</div>'
+    + '    <div class="diag-bloco" style="margin-top:18px"><div class="diag-bloco-title">Pontos de Atenção</div>' + fmtTexto(atencao) + '<div style="margin-top:12px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink4)">Pilares ISE com score ≤ 4</div>' + listaPilares(pAtencao) + '</div>'
+    + '  </div>'
+    + '</section>';
+}
+
+// ─── 08 · A AVALIAÇÃO (port v1) — fórmula + tabela + parecer ────────────────
+function renderAvaliacao() {
+  const v   = calcJson.valuation || {};
+  const dre = calcJson.dre || {};
+  const ise = calcJson.ise || {};
+  const bal = calcJson.balanco || {};
+
+  const roMensal = n(dre.ro_mensal);
+  const roAnual  = n(dre.ro_anual) || roMensal * 12;
+  const fator    = n(v.fator_final || v.fator_1n);
+  const pl       = n(bal.patrimonio_liquido);
+  const valorOp  = n(v.valor_operacao) || (roAnual * fator);
+  const valorVenda = n(v.valor_venda);
+  const iseTotal = n(ise.ise_total);
+
+  // Parte A: fórmula visual .eq-wrap
+  const eqWrap = '<div class="eq-wrap">'
+    + '<div class="eq-box"><div class="eq-label">RO anual</div><div class="eq-val">' + fcShort(roAnual) + '</div></div>'
+    + '<div class="eq-op">×</div>'
+    + '<div class="eq-box"><div class="eq-label">Fator 1N</div><div class="eq-val g">' + fator.toFixed(2).replace('.', ',') + '×</div></div>'
+    + '<div class="eq-op">+</div>'
+    + '<div class="eq-box"><div class="eq-label">Patrimônio</div><div class="eq-val' + (pl < 0 ? '' : '') + '">' + fcShort(pl) + '</div></div>'
+    + '<div class="eq-op">=</div>'
+    + '<div class="eq-box hl"><div class="eq-label">Valor de venda</div><div class="eq-val g">' + fcShort(valorVenda) + '</div></div>'
+    + '</div>';
+
+  // Parte B: tabela detalhada
+  const tbl = '<table class="tbl" style="margin-bottom:14px">'
+    + '<thead><tr><th>Componente</th><th>Valor</th><th>Fonte</th></tr></thead><tbody>'
+    + '<tr><td>Resultado operacional mensal</td><td>' + fc(roMensal) + '</td><td>DRE declarada</td></tr>'
+    + '<tr><td>Resultado operacional anual</td><td>' + fc(roAnual) + '</td><td>Mensal × 12</td></tr>'
+    + '<tr><td>ISE — Solidez empresarial</td><td>' + iseTotal.toFixed(0) + '/100</td><td>8 dimensões</td></tr>'
+    + '<tr><td>Fator 1N aplicado</td><td>' + fator.toFixed(2).replace('.', ',') + '×</td><td>Múltiplo + ISE</td></tr>'
+    + '<tr class="sub"><td>Valor de operação</td><td>' + fc(valorOp) + '</td><td>RO × Fator</td></tr>'
+    + '<tr><td>Patrimônio líquido</td><td style="color:' + (pl < 0 ? 'var(--rd)' : 'inherit') + '">' + fc(pl) + '</td><td>Ativos − Passivos</td></tr>'
+    + '<tr class="tot"><td>Valor de venda</td><td>' + fc(valorVenda) + '</td><td>Porteira fechada</td></tr>'
+    + '</tbody></table>';
+
+  // Parte C: Parecer Técnico
+  const tIA = calcJson.textos_ia || {};
+  const tParecer = tIA.texto_parecer_tecnico || {};
+  const parecerHtml = tParecer.conteudo
+    ? '<div class="parecer-texto">' + markdownSimples(tParecer.conteudo) + '</div>'
+    : '<div class="txt-pendente">[Parecer pendente — em geração pela IA]</div>';
+
+  const parecer = ''
+    + '<div style="margin-top:24px">'
+    + '  <div class="parecer-titulo">'
+    + '    <div class="parecer-eyebrow">Análise independente · Equipe 1Negócio</div>'
+    + '    <div class="parecer-h">Parecer Técnico — Fator 1N</div>'
+    + '    <div class="parecer-linha"></div>'
+    + '  </div>'
+    + '  ' + parecerHtml
+    + '</div>';
+
+  return ''
+    + '<section class="sec page-break">'
+    + '  <div class="sec-header">'
+    + '    <div class="sec-num">' + getNum('avaliacao') + '</div>'
+    + '    <div><div class="sec-label">Laudo Principal</div><div class="sec-title">A Avaliação · Como chegamos a esse valor</div></div>'
+    + '  </div>'
+    + '  <div class="sec-body">' + eqWrap + tbl + parecer + '</div>'
+    + '</section>';
+}
+
+// ─── EXTRA 3: Estudo Tributário Detalhado ───────────────────────────────────
+// renderTributaria já usa getNum('tributario') = "A3" e label "Anexo · Tributário detalhado".
+// Aqui só envolvemos com page-break/extra.
+function renderEstudoTributarioDetalhado() {
+  const tributariaHTML = renderTributaria();
+  if (!tributariaHTML) return '';
+  return tributariaHTML.replace(/<section class="sec">/, '<section class="sec page-break extra">');
+}
+
+// ─── ICD · Índice de Confiabilidade dos Dados (port v1) ─────────────────────
+// Lê direto de calcJson.icd (vem pronto da skill v2).
+// Coluna verde: respondidos (com asterisco em críticos).
+// Coluna âmbar: não respondidos (omite coluna se vazia).
+// Bloco benchmarks: omitido se array vazio.
+function renderICD() {
+  const icd = calcJson.icd;
+  if (!icd) return '';
+
+  const pct = n(icd.pct);
+  const respondidos = Array.isArray(icd.respondidos) ? icd.respondidos : [];
+  const naoResp = Array.isArray(icd.nao_respondidos) ? icd.nao_respondidos : [];
+
+  // Nota dinâmica baseada no pct (ajuste 1 do briefing)
+  let nota;
+  if (pct >= 85) {
+    nota = pct + '% dos dados foram declarados pelo proprietário. Índice Transparente — avaliação altamente defensável em due diligence.';
+  } else if (pct >= 70) {
+    nota = pct + '% dos dados foram declarados pelo proprietário. Índice Confiável — alguns campos secundários ainda podem ser refinados.';
+  } else if (pct >= 50) {
+    nota = pct + '% dos dados foram declarados. Índice Parcial — recomenda-se complementar campos faltantes para fortalecer a avaliação.';
+  } else {
+    nota = pct + '% dos dados foram declarados. Índice Limitado — laudo serve como ponto de partida, exige refinamento antes de uso em transações.';
+  }
+
+  // Coluna respondidos (verde) — asterisco verde em críticos
+  let colRespondidos = '<div>'
+    + '<div class="icd-col-title g">Informado pelo proprietário (' + respondidos.length + ')</div>';
+  respondidos.forEach(item => {
+    const star = item.critico ? '<span class="icd-item-star">★</span>' : '';
+    const cls = item.critico ? ' critico' : '';
+    colRespondidos += '<div class="icd-item' + cls + '">'
+      + '<div class="icd-item-dot" style="background:var(--em)"></div>'
+      + star
+      + escapeHtml(item.label || item.id)
+      + '</div>';
+  });
+  colRespondidos += '</div>';
+
+  // Coluna não respondidos (âmbar) — só renderiza se houver
+  let colNaoResp = '';
+  if (naoResp.length > 0) {
+    colNaoResp = '<div>'
+      + '<div class="icd-col-title a">Não respondidos (' + naoResp.length + ')</div>';
+    naoResp.forEach(item => {
+      const star = item.critico ? '<span class="icd-item-star" style="color:var(--am)">★</span>' : '';
+      const cls = item.critico ? ' critico' : '';
+      colNaoResp += '<div class="icd-item' + cls + '">'
+        + '<div class="icd-item-dot" style="background:var(--am)"></div>'
+        + star
+        + escapeHtml(item.label || item.id)
+        + '</div>';
+    });
+    colNaoResp += '</div>';
+  }
+
+  const gridCls = naoResp.length === 0 ? 'icd-grid single' : 'icd-grid';
+
+  return ''
+    + '<section class="icd-wrap page-break">'
+    + '  <div class="icd-header">'
+    + '    <div class="icd-title">Transparência · origem dos dados</div>'
+    + '    <div class="icd-score">' + pct + '%</div>'
+    + '  </div>'
+    + '  <div class="icd-bar-track"><div class="icd-bar-fill" style="width:' + pct + '%"></div></div>'
+    + '  <div class="' + gridCls + '">' + colRespondidos + colNaoResp + '</div>'
+    + '  <div class="icd-nota">' + escapeHtml(nota) + '</div>'
+    + '</section>';
+}
+</script>
+</body>
+</html>

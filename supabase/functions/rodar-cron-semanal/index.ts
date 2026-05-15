@@ -1,0 +1,343 @@
+// rodar-cron-semanal · V8 B8.13 · 1negocio.com.br
+// Itera todas teses ativas · gera/atualiza top 10 matches por tese
+// SEM cron pg_cron ativo · invocação manual via UI/curl service_role
+//
+// V8 B8.13 · MUDANÇA: ticket compara tese.valor_alvo vs anuncios_v2.valor_pedido
+// (em vez de negocios.avaliacao_max · que era 1/788 preenchido).
+// Universo agora = só negócios COM ANÚNCIO PUBLICADO (anuncios_v2.status=publicado).
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { aplicarTags, type TagAplicada } from "../_shared/matchmaking-tags.ts";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey",
+};
+const STATUSES_ELEGIVEIS = ["publicado", "em_negociacao", "em_avaliacao", "aguardando_aprovacao", "rascunho"];
+
+function json(d: unknown, s = 200) {
+  return new Response(JSON.stringify(d), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+function decodeJwtPayload(t: string): any | null {
+  try {
+    const p = t.split(".");
+    if (p.length !== 3) return null;
+    const b64 = p[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(b64 + "=".repeat((4 - b64.length % 4) % 4)));
+  } catch { return null; }
+}
+async function gateAdmin(req: Request): Promise<boolean> {
+  const auth = req.headers.get("authorization");
+  if (!auth?.startsWith("Bearer ")) return false;
+  const token = auth.slice(7);
+  if (decodeJwtPayload(token)?.role === "service_role") return true;
+  try {
+    const { data, error } = await adminClient.auth.getUser(token);
+    if (error || !data.user?.phone) return false;
+    const { count } = await adminClient.from("admins").select("id", { count: "exact", head: true })
+      .eq("whatsapp", data.user.phone).eq("ativo", true);
+    return (count ?? 0) > 0;
+  } catch { return false; }
+}
+
+function calcularScore510(s: number): number {
+  if (s <= 0) return 0;   // v9.20 · ELIMINADO · sinal claro de não-match
+  if (s >= 90) return 10; if (s >= 80) return 9; if (s >= 70) return 8;
+  if (s >= 60) return 7; if (s >= 50) return 6; return 5;
+}
+
+type Tese = any; type Negocio = any;
+type Fator = { codigo: string; pontos: number };
+
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
+const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+
+async function sha256Hex(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function compararSemantico(descNeg: string | null, descTese: string | null): Promise<{ score: 0 | 50 | 100; razao: string }> {
+  if (!descNeg || !descTese || descNeg.length < 5 || descTese.length < 5) return { score: 50, razao: "descricao_ausente" };
+  const hash = await sha256Hex(descNeg.toLowerCase().trim() + "||" + descTese.toLowerCase().trim());
+  try {
+    const { data: cached } = await adminClient.from("matchmaking_semantica_cache").select("score, razao").eq("hash_par", hash).maybeSingle();
+    if (cached) return { score: cached.score as 0 | 50 | 100, razao: cached.razao || "cache" };
+  } catch {}
+  if (!ANTHROPIC_API_KEY) return { score: 50, razao: "sem_api_key" };
+  const prompt = `Compare semanticamente as duas descrições abaixo.\n\nNEGÓCIO: "${descNeg}"\nTESE (busca do comprador): "${descTese}"\n\nREGRAS:\n- Identifique o NÚCLEO SEMÂNTICO de cada um (substantivo + adjetivo principal).\n- Palavras AMPLAS (loja · comércio · empresa · negócio · serviço) NÃO contam como match.\n- O match real está no que vem DEPOIS dessas palavras.\n\nResponda APENAS uma destas três strings · sem explicação · sem markdown:\nMATCH (núcleos compatíveis)\nPARCIAL (mesma família mas especialidade diferente)\nSEM_RELACAO (núcleos divergentes)`;
+  try {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({ model: HAIKU_MODEL, max_tokens: 20, messages: [{ role: "user", content: prompt }] }),
+    });
+    if (!resp.ok) return { score: 50, razao: `haiku_${resp.status}` };
+    const data = await resp.json();
+    const txt = (data.content?.[0]?.text || "").trim().toUpperCase();
+    let score: 0 | 50 | 100 = 50; let razao = "haiku_resposta_invalida";
+    if (txt.includes("SEM_RELACAO")) { score = 0; razao = "nucleo_divergente"; }
+    else if (txt.includes("MATCH")) { score = 100; razao = "nucleo_compativel"; }
+    else if (txt.includes("PARCIAL")) { score = 50; razao = "mesma_familia"; }
+    try { await adminClient.from("matchmaking_semantica_cache").insert({ hash_par: hash, score, razao }); } catch {}
+    return { score, razao };
+  } catch { return { score: 50, razao: "haiku_erro" }; }
+}
+
+// Pesos V7 BLOCO 5: Setor 40 · Forma 35 · Loc 10 · Ticket 10 · ISE 5 = 100
+// V8 B8.13: TICKET usa neg.valor_pedido (anexado pelo pré-filtro · vem de anuncios_v2)
+async function calcularMatchPar(tese: Tese, neg: Negocio, tagsAdmin: string[]) {
+  const fatores: Fator[] = [];
+  if (neg.status && !STATUSES_ELEGIVEIS.includes(neg.status)) return null;
+
+  // SETOR 40 · eliminatório
+  const setores = tese.setores || [];
+  const aceitaIndif = setores.includes("indiferente");
+  let pontosSetor = 0;
+  if (setores.length > 0) {
+    if (aceitaIndif) { pontosSetor = 40; fatores.push({ codigo: "setor:indiferente", pontos: 40 }); }
+    else if (neg.setor && setores.includes(neg.setor)) { pontosSetor = 40; fatores.push({ codigo: `setor:${neg.setor}`, pontos: 40 }); }
+    else return null;
+  }
+
+  // FORMA 35 · eliminatório quando declarada (lógica A intersecção)
+  let pontosForma = 0;
+  const teseTemForma = Array.isArray(tese.formas_atuacao) && tese.formas_atuacao.length > 0;
+  const negTemForma = Array.isArray(neg.formas_atuacao) && neg.formas_atuacao.length > 0;
+  if (teseTemForma) {
+    if (!negTemForma) return null;
+    const inter = tese.formas_atuacao.filter((f: string) => neg.formas_atuacao.includes(f));
+    if (inter.length === 0) return null;
+    pontosForma = 35;
+    fatores.push({ codigo: `forma:${inter.join(",")}`, pontos: 35 });
+  }
+
+  // LOC até 10 · eliminatório quando estado/cidade declarado
+  let pontosLoc = 0;
+  if (tese.localizacao_tipo === "brasil_todo" || !tese.localizacao_tipo) {
+    pontosLoc = 5; fatores.push({ codigo: "localizacao:brasil_todo", pontos: 5 });
+  } else if (tese.localizacao_tipo === "estado") {
+    if (tese.estado && neg.estado && tese.estado !== neg.estado) return null;
+    pontosLoc = 8; if (neg.estado) fatores.push({ codigo: `estado:${neg.estado}`, pontos: 8 });
+  } else if (tese.localizacao_tipo === "cidade") {
+    if (tese.estado && neg.estado && tese.estado !== neg.estado) return null;
+    if (tese.cidade && neg.cidade && tese.cidade !== neg.cidade) {
+      pontosLoc = 7; fatores.push({ codigo: `estado:${neg.estado}`, pontos: 7 });
+    } else {
+      pontosLoc = 10; if (neg.cidade) fatores.push({ codigo: `cidade:${neg.cidade}`, pontos: 10 });
+    }
+  }
+
+  // TICKET até 10 · V8 B8.13 usa valor_pedido
+  // v9.20 · prioriza valor_investimento 'min-max' (faixa real) · fallback valor_alvo±30%
+  let pontosTicket = 0;
+  if (neg.valor_pedido != null) {
+    let piso: number | null = null, teto: number | null = null, centro: number | null = null;
+    let origemFaixa: "faixa" | "alvo" = "alvo";
+    const m = String((tese as any).valor_investimento || "").match(/^(\d+)-(\d+)$/);
+    if (m) {
+      piso = Number(m[1]); teto = Number(m[2]); centro = (piso + teto) / 2; origemFaixa = "faixa";
+    } else if (tese.valor_alvo != null) {
+      piso = tese.valor_alvo * 0.7; teto = tese.valor_alvo * 1.3; centro = tese.valor_alvo;
+    }
+    if (piso !== null && teto !== null && centro !== null) {
+      if (neg.valor_pedido < piso || neg.valor_pedido > teto) return null;
+      const meiaLargura = Math.max((teto - piso) / 2, 1);
+      const dist = Math.abs(neg.valor_pedido - centro) / meiaLargura;
+      const p = Math.round(10 * (1 - Math.min(dist, 1)));
+      if (p > 0) {
+        pontosTicket = p;
+        fatores.push({ codigo: `ticket_proximidade:${Math.round((1 - Math.min(dist,1))*100)}%_${origemFaixa}`, pontos: p });
+      }
+    }
+  }
+
+  // ISE até 5 · 5 faixas
+  let pontosISE = 0;
+  if (typeof neg.score_saude === "number") {
+    if (neg.score_saude >= 85) { pontosISE = 5; fatores.push({ codigo: `ise_estruturado:${neg.score_saude}`, pontos: 5 }); }
+    else if (neg.score_saude >= 70) { pontosISE = 3; fatores.push({ codigo: `ise_consolidado:${neg.score_saude}`, pontos: 3 }); }
+    else if (neg.score_saude >= 50) { pontosISE = 1; fatores.push({ codigo: `ise_operacional:${neg.score_saude}`, pontos: 1 }); }
+  }
+
+  // SEMÂNTICA · eliminatória suave + bônus 10pts
+  const semantica = await compararSemantico(neg.descricao_curta || null, tese.descricao_curta || null);
+  if (semantica.score === 0) return null;
+  let pontosSemantica = 0;
+  if (semantica.score === 100) { pontosSemantica = 10; fatores.push({ codigo: `semantica:${semantica.razao}`, pontos: 10 }); }
+
+  const scoreRaw = pontosSetor + pontosForma + pontosLoc + pontosTicket + pontosISE + pontosSemantica;
+  const scoreBase = Math.min(scoreRaw, 100);
+  const { score: scoreFinal, aplicadas } = aplicarTags(scoreBase, tagsAdmin);
+  if (scoreFinal < 30) return null;
+  return { score: scoreFinal, score510: calcularScore510(scoreFinal), fatores, tags: aplicadas };
+}
+
+type Contato = { id: string; phone: string | null; nome: string | null; email: string | null; eh_seed: boolean };
+async function getContato(userId: string | null): Promise<Contato | null> {
+  if (!userId) return null;
+  try {
+    const { data } = await adminClient.rpc("get_user_contato", { p_user_id: userId });
+    if (Array.isArray(data) && data.length > 0) return data[0] as Contato;
+    return null;
+  } catch { return null; }
+}
+
+async function rodarBatch(execId: string, iniciado_por: string | null) {
+  const inicio = Date.now();
+  const { data: teses } = await adminClient.from("teses_investimento").select("*").eq("status", "ativa").limit(1000);
+  if (!teses || !teses.length) {
+    await adminClient.from("matchmaking_cron_execucoes").update({
+      status: "concluida", concluido_em: new Date().toISOString(), duracao_ms: Date.now() - inicio,
+      teses_processadas: 0, matches_gerados: 0,
+    }).eq("id", execId);
+    return;
+  }
+
+  let tesesProc = 0, paresAval = 0, matchesGerados = 0;
+
+  for (let i = 0; i < teses.length; i++) {
+    const tese = teses[i] as Tese;
+    try {
+      // V8 B8.13 · pré-filtro 2-step · v9.20 · usa faixa real do investidor quando disponível
+      const mFaixa = String((tese as any).valor_investimento || "").match(/^(\d+)-(\d+)$/);
+      const piso: number | null = mFaixa ? Number(mFaixa[1])
+        : tese.valor_alvo != null ? tese.valor_alvo * 0.7
+        : null;
+      const teto: number | null = mFaixa ? Number(mFaixa[2])
+        : tese.valor_alvo != null ? tese.valor_alvo * 1.3
+        : null;
+
+      let anQ = adminClient.from("anuncios_v2").select("negocio_id, valor_pedido").eq("status", "publicado");
+      if (piso != null && teto != null) {
+        anQ = anQ.gte("valor_pedido", piso).lte("valor_pedido", teto);
+      }
+      const { data: anuncios } = await anQ.limit(1000);
+      if (!anuncios || anuncios.length === 0) { tesesProc++; continue; }
+
+      const negocioIds = Array.from(new Set((anuncios as any[]).map((a) => a.negocio_id).filter(Boolean)));
+      const valorPedidoMap = new Map<string, number>();
+      for (const a of anuncios as any[]) {
+        if (a.negocio_id && a.valor_pedido != null) valorPedidoMap.set(a.negocio_id, Number(a.valor_pedido));
+      }
+
+      let q = adminClient.from("negocios_com_descricao")
+        .select("id,codigo,nome,setor,formas_atuacao,estado,cidade,status,avaliacao_min,avaliacao_max,score_saude,publicado_em,vendedor_id,descricao_curta")
+        .in("id", negocioIds);
+      q = q.in("status", STATUSES_ELEGIVEIS);
+      const setoresArr = tese.setores || [];
+      if (!setoresArr.includes("indiferente") && setoresArr.length > 0) q = q.in("setor", setoresArr);
+      if (tese.localizacao_tipo && tese.localizacao_tipo !== "brasil_todo" && tese.estado) q = q.eq("estado", tese.estado);
+      const { data: cands } = await q.limit(500);
+      if (!cands || !cands.length) { tesesProc++; continue; }
+
+      // Anexa valor_pedido a cada candidato
+      const candsComPreco = (cands as any[]).map((c) => ({ ...c, valor_pedido: valorPedidoMap.get(c.id) ?? null }));
+
+      // Tags admin
+      let tagsAdmin: string[] = [];
+      if (tese.usuario_id) {
+        const { data: cp } = await adminClient.from("compradores_perfil").select("tags_admin").eq("user_id", tese.usuario_id).maybeSingle();
+        tagsAdmin = Array.isArray(cp?.tags_admin) ? cp!.tags_admin : [];
+      }
+
+      const arr: Array<{ neg: Negocio; r: any }> = [];
+      for (const n of candsComPreco as Negocio[]) {
+        paresAval++;
+        const r = await calcularMatchPar(tese, n, tagsAdmin);
+        if (r) arr.push({ neg: n, r });
+      }
+      arr.sort((a, b) => b.r.score - a.r.score);
+      const top = arr.slice(0, 10);
+
+      if (top.length) {
+        const comprador = await getContato(tese.usuario_id);
+        const vendedoresCache: Record<string, Contato | null> = {};
+        const rows = await Promise.all(top.map(async ({ neg, r }) => {
+          const vid = neg.vendedor_id || "";
+          if (vid && !(vid in vendedoresCache)) vendedoresCache[vid] = await getContato(vid);
+          const vendedor = vid ? vendedoresCache[vid] : null;
+          return {
+            tese_id: tese.id, negocio_id: neg.id,
+            comprador_id: tese.usuario_id, vendedor_id: neg.vendedor_id,
+            score_100: r.score, score_5_10: r.score510,
+            fatores_casados: r.fatores, tags_aplicadas: r.tags,
+            origem: "cron_semanal", cron_execucao_id: execId, status: "pendente",
+            comprador_phone: comprador?.phone ?? null,
+            comprador_nome: comprador?.nome ?? null,
+            comprador_eh_seed: comprador?.eh_seed ?? false,
+            vendedor_phone: vendedor?.phone ?? null,
+            vendedor_nome: vendedor?.nome ?? null,
+            vendedor_eh_seed: vendedor?.eh_seed ?? false,
+          };
+        }));
+        const { error: upErr } = await adminClient.from("matchmaking_resultados").upsert(rows, { onConflict: "tese_id,negocio_id" });
+        if (!upErr) matchesGerados += top.length;
+      }
+      tesesProc++;
+    } catch (e) {
+      console.error(`[cron tese ${tese.id}] err:`, (e as Error).message);
+      tesesProc++;
+    }
+
+    // Heartbeat a cada 10 teses
+    if ((i + 1) % 10 === 0 || i === teses.length - 1) {
+      await adminClient.from("matchmaking_cron_execucoes").update({
+        teses_processadas: tesesProc,
+        pares_avaliados: paresAval,
+        matches_gerados: matchesGerados,
+      }).eq("id", execId);
+    }
+  }
+
+  // Final
+  await adminClient.from("matchmaking_cron_execucoes").update({
+    status: "concluida",
+    concluido_em: new Date().toISOString(),
+    teses_processadas: tesesProc,
+    negocios_processados: 0,
+    pares_avaliados: paresAval,
+    matches_gerados: matchesGerados,
+    duracao_ms: Date.now() - inicio,
+  }).eq("id", execId);
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return json({ ok: false, error: "metodo nao permitido" }, 405);
+  if (!(await gateAdmin(req))) return json({ ok: false, error: "admin ou service_role required" }, 403);
+
+  let iniciado_por: string | null = null;
+  try {
+    const auth = (req.headers.get("authorization") || "").slice(7);
+    const payload = decodeJwtPayload(auth);
+    if (payload?.role !== "service_role") {
+      const { data } = await adminClient.auth.getUser(auth);
+      iniciado_por = data.user?.id || null;
+    }
+  } catch {}
+
+  const { data: exec, error: ee } = await adminClient
+    .from("matchmaking_cron_execucoes")
+    .insert({ tipo: "semanal", status: "rodando", iniciado_por })
+    .select("id").single();
+  if (ee || !exec?.id) return json({ ok: false, error: "erro criar execucao: " + (ee?.message || "?") }, 500);
+  const execId = exec.id;
+
+  // @ts-ignore EdgeRuntime
+  const hasWaitUntil = typeof EdgeRuntime !== "undefined" && typeof (EdgeRuntime as any).waitUntil === "function";
+  if (hasWaitUntil) {
+    // @ts-ignore
+    (EdgeRuntime as any).waitUntil(rodarBatch(execId, iniciado_por));
+    return json({ ok: true, execucao_id: execId, async: true });
+  } else {
+    await rodarBatch(execId, iniciado_por);
+    return json({ ok: true, execucao_id: execId, async: false });
+  }
+});

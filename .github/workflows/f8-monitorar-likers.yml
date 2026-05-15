@@ -1,0 +1,42 @@
+name: F8 · monitorar-post-likers (DESATIVADO ATÉ ADMIN VALIDAR)
+
+# F8 PIVOTE · captura likers de posts de concorrentes (instagram)
+# Pipeline · monitorar-post-likers + classificar-likers
+#
+# CUSTO ESTIMADO (10 posts diário · 500 likers/post):
+#   Apify A · 10 × $0.002       = $0.02   (R$ 0,10)/dia
+#   Haiku B · 5.000 × R$0.003   = R$ 15/dia    (otimização skip private reduz ~50%)
+#   Apify C · 750 × $0.0026     = $1.95   (R$ 9,75)/dia
+#   Haiku D · 750 × R$0.003     = R$ 2,3/dia
+#   TOTAL                         R$ 27/dia · R$ 810/mês
+#
+# COMO ATIVAR · descomenta o `schedule` abaixo + commit + push.
+# Pra rodar manual · GitHub Actions tab → Run workflow.
+
+on:
+  workflow_dispatch:       # trigger manual (ATIVO)
+  # schedule:
+  #   - cron: '30 8 * * *'  # 5h30 BRT diário (DESATIVADO · descomenta pra ligar)
+
+jobs:
+  monitorar-post-likers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Captura likers · POST /functions/v1/monitorar-post-likers
+        id: captura
+        run: |
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"max_posts":50,"limit":500}' \
+            'https://dbijmgqlcrgjlcfrastg.supabase.co/functions/v1/monitorar-post-likers'
+          echo ""
+
+      - name: Classifica likers · POST /functions/v1/classificar-likers
+        run: |
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"limit":5000,"skip_private":true}' \
+            'https://dbijmgqlcrgjlcfrastg.supabase.co/functions/v1/classificar-likers'
+          echo ""

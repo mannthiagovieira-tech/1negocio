@@ -1,0 +1,578 @@
+// Edge Function: gerar_textos_laudo
+// Gera UM texto de IA por chamada (genérica, paralelizável no cliente)
+// Spec rev3 §12.6 — Sub-passo 4.3 + refator 4.6
+//
+// Schema rico: cada texto vira { modelo, conteudo }.
+// Concorrência: usa RPCs jsonb_set atômicas (migration 013) — sem
+// last-writer-wins entre os 9 fetches paralelos.
+// Roteamento: laudo → calc_json.textos_ia ; anúncio → calc_json.textos_anuncio.
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const TIMEOUT_MS = 30000;
+const MAX_TENTATIVAS = 3;
+const BACKOFF_INICIAL_MS = 2000;
+
+const PRECO_USD = {
+  "claude-haiku-4-5-20251001": { input: 0.0000008, output: 0.000004 },
+  "claude-sonnet-4-5":          { input: 0.000003,  output: 0.000015 },
+};
+
+// Roteamento por categoria
+const TEXTOS_ANUNCIO = new Set([
+  "sugestoes_titulo_anuncio",
+  "texto_consideracoes_valor",
+]);
+
+function ramoDoTexto(chave: string): "textos_ia" | "textos_anuncio" {
+  return TEXTOS_ANUNCIO.has(chave) ? "textos_anuncio" : "textos_ia";
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return jsonResp({ ok: false, erro: "Método não permitido", fase: "validacao" }, 405);
+  }
+
+  const inicio = Date.now();
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  let negocio_id = "";
+  let texto_a_gerar = "";
+
+  try {
+    const body = await req.json();
+    negocio_id = body.negocio_id;
+    texto_a_gerar = body.texto_a_gerar;
+
+    if (!negocio_id || !texto_a_gerar) {
+      return jsonResp({ ok: false, erro: "negocio_id e texto_a_gerar são obrigatórios", fase: "validacao" }, 400);
+    }
+
+    const { data: laudo, error: errLaudo } = await supabase
+      .from("laudos_v2")
+      .select("calc_json")
+      .eq("negocio_id", negocio_id)
+      .eq("ativo", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (errLaudo || !laudo) {
+      return jsonResp({ ok: false, erro: "Laudo ativo não encontrado", fase: "leitura_calc_json" }, 404);
+    }
+    const calc = laudo.calc_json;
+
+    const { data: param, error: errParam } = await supabase
+      .from("parametros_versoes")
+      .select("snapshot")
+      .eq("ativo", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (errParam || !param) {
+      return jsonResp({ ok: false, erro: "Snapshot ativo não encontrado", fase: "leitura_prompt" }, 404);
+    }
+
+    const promptsCfg = param.snapshot?.prompts_textos_ia;
+    if (!promptsCfg) {
+      return jsonResp({ ok: false, erro: "prompts_textos_ia ausente no snapshot", fase: "leitura_prompt" }, 400);
+    }
+
+    const promptCfg = promptsCfg.laudo?.[texto_a_gerar] ?? promptsCfg.anuncio?.[texto_a_gerar];
+    if (!promptCfg) {
+      return jsonResp({ ok: false, erro: `Prompt '${texto_a_gerar}' não encontrado`, fase: "leitura_prompt" }, 400);
+    }
+
+    const systemPrompt = promptsCfg.system_prompt_compartilhado ?? "";
+    const modelo = promptCfg.modelo;
+    const ramo = ramoDoTexto(texto_a_gerar);
+
+    // Caso especial: descricoes_polidas_upsides → loop por upside ativo
+    if (texto_a_gerar === "descricoes_polidas_upsides") {
+      const upsidesAtivos = calc?.upsides?.ativos ?? [];
+      const conteudoPolido: { upside_id: string; conteudo: string }[] = [];
+      let totalIn = 0, totalOut = 0;
+
+      for (const ups of upsidesAtivos) {
+        const dadosUps = {
+          categoria: ups.categoria ?? "não informado",
+          titulo: ups.label ?? ups.titulo ?? "não informado",
+          descricao_curta: ups.descricao ?? ups.descricao_curta ?? "não informado",
+          contribuicao_brl_fmt: typeof ups.contribuicao_brl === "number"
+            ? formatBRL(ups.contribuicao_brl) : "não informado",
+          complexidade: ups.complexidade ?? "não informado",
+        };
+        const promptFinal = preencherPlaceholders(promptCfg.prompt, dadosUps);
+        const resp = await chamarAnthropicComRetry(modelo, systemPrompt, promptFinal);
+        conteudoPolido.push({
+          upside_id: ups.id ?? ups.label ?? `upside_${conteudoPolido.length}`,
+          conteudo: resp.texto,
+        });
+        totalIn += resp.tokens_input;
+        totalOut += resp.tokens_output;
+      }
+
+      const valor = { modelo, conteudo: conteudoPolido };
+      await salvarTexto(supabase, negocio_id, ramo, texto_a_gerar, valor, modelo);
+
+      const duracao = Date.now() - inicio;
+      const custo = calcularCusto(modelo, totalIn, totalOut);
+      await logar(supabase, {
+        negocio_id, contexto: texto_a_gerar, texto_gerado: JSON.stringify(conteudoPolido),
+        status: "sucesso", modelo, tokens_input: totalIn, tokens_output: totalOut,
+        custo_estimado: custo, duracao_ms: duracao,
+      });
+
+      return jsonResp({
+        ok: true,
+        texto_gerado: valor,
+        modelo_usado: modelo,
+        tokens_input: totalIn,
+        tokens_output: totalOut,
+        duracao_ms: duracao,
+      });
+    }
+
+    // Caso normal: 1 chamada
+    const dados = formatarDadosCalc(calc);
+    const promptFinal = preencherPlaceholders(promptCfg.prompt, dados);
+    const resp = await chamarAnthropicComRetry(modelo, systemPrompt, promptFinal);
+
+    let conteudo: string | string[] = resp.texto;
+
+    if (texto_a_gerar === "sugestoes_titulo_anuncio") {
+      const limpo = resp.texto
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```\s*$/i, "")
+        .trim();
+      try {
+        const parsed = JSON.parse(limpo);
+        if (Array.isArray(parsed) && parsed.every((s) => typeof s === "string")) {
+          conteudo = parsed;
+        } else {
+          console.warn("[sugestoes_titulo_anuncio] formato inválido, salvando string crua");
+        }
+      } catch (e) {
+        console.warn("[sugestoes_titulo_anuncio] JSON.parse falhou, salvando string crua:", e);
+      }
+    }
+
+    // Prompt 4 do dossiê: array JSON [{titulo, descricao}, ...]
+    if (texto_a_gerar === "texto_dossie_acoes_pos_compra") {
+      const limpo = resp.texto.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+      try {
+        const parsed = JSON.parse(limpo);
+        if (Array.isArray(parsed) && parsed.every((it: any) => it && typeof it.titulo === "string" && typeof it.descricao === "string")) {
+          conteudo = parsed as any;
+        } else {
+          console.warn("[texto_dossie_acoes_pos_compra] formato inválido, salvando string crua");
+        }
+      } catch (e) {
+        console.warn("[texto_dossie_acoes_pos_compra] JSON.parse falhou, salvando string crua:", e);
+      }
+    }
+
+    // Prompt 5 do dossiê: objeto JSON {p1_financeiro: "...", ..., p8_marca: "..."}
+    if (texto_a_gerar === "texto_dossie_caracteristicas_pilares") {
+      const limpo = resp.texto.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+      try {
+        const parsed = JSON.parse(limpo);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          conteudo = parsed as any;
+        } else {
+          console.warn("[texto_dossie_caracteristicas_pilares] formato inválido, salvando string crua");
+        }
+      } catch (e) {
+        console.warn("[texto_dossie_caracteristicas_pilares] JSON.parse falhou, salvando string crua:", e);
+      }
+    }
+
+    const valor = { modelo, conteudo };
+    await salvarTexto(supabase, negocio_id, ramo, texto_a_gerar, valor, modelo);
+
+    const duracao = Date.now() - inicio;
+    const custo = calcularCusto(modelo, resp.tokens_input, resp.tokens_output);
+    await logar(supabase, {
+      negocio_id, contexto: texto_a_gerar,
+      texto_gerado: typeof conteudo === "string" ? conteudo : JSON.stringify(conteudo),
+      status: "sucesso", modelo, tokens_input: resp.tokens_input, tokens_output: resp.tokens_output,
+      custo_estimado: custo, duracao_ms: duracao,
+    });
+
+    return jsonResp({
+      ok: true,
+      texto_gerado: valor,
+      modelo_usado: modelo,
+      tokens_input: resp.tokens_input,
+      tokens_output: resp.tokens_output,
+      duracao_ms: duracao,
+    });
+
+  } catch (err) {
+    const duracao = Date.now() - inicio;
+    const msg = err instanceof Error ? err.message : String(err);
+    try {
+      await logar(supabase, {
+        negocio_id, contexto: texto_a_gerar, texto_gerado: null,
+        status: "erro", modelo: null, tokens_input: null, tokens_output: null,
+        custo_estimado: null, duracao_ms: duracao, erro_mensagem: msg,
+      });
+    } catch (_) { /* swallow */ }
+    return jsonResp({ ok: false, erro: msg, fase: "exception" }, 500);
+  }
+});
+
+// ===== HELPERS =====
+
+function jsonResp(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function formatBRL(valor: number | null | undefined): string {
+  const v = typeof valor === "number" ? valor : 0;
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency", currency: "BRL",
+    minimumFractionDigits: 0, maximumFractionDigits: 0,
+  }).format(v).replace("R$", "").trim();
+}
+
+function preencherPlaceholders(template: string, dados: Record<string, unknown>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+    const v = dados[key];
+    if (v === undefined || v === null || v === "") return "não informado";
+    return String(v);
+  });
+}
+
+function pilarLabel(chave: string): string {
+  const labels: Record<string, string> = {
+    P1: "rentabilidade", P2: "estabilidade", P3: "comercial",
+    P4: "operacional",   P5: "governanca",   P6: "estrategico",
+  };
+  return labels[chave] ?? chave;
+}
+
+function atrSetorLabel(score: number): string {
+  if (score >= 8) return "alta";
+  if (score >= 6) return "média-alta";
+  if (score >= 4) return "média";
+  return "baixa";
+}
+
+function formatarDadosCalc(calc: any): Record<string, string | number> {
+  const ident = calc?.identificacao ?? {};
+  const dre = calc?.dre ?? {};
+  const bal = calc?.balanco ?? {};
+  const val = calc?.valuation ?? {};
+  const ise = calc?.ise ?? {};
+  const atr = calc?.atratividade ?? {};
+  const indBench = calc?.indicadores_vs_benchmark ?? {};
+  const op = calc?.operacional ?? {};
+  const trib = calc?.analise_tributaria ?? {};
+  const inputs = calc?.inputs_origem ?? {};
+  const pot12m = calc?.potencial_12m ?? {};
+  const recoms = Array.isArray(calc?.recomendacoes_pre_venda) ? calc.recomendacoes_pre_venda : [];
+
+  // Top 3 upsides ativos (pra prompt 2 dossiê)
+  const upsidesAtivos = Array.isArray(pot12m?.upsides_ativos) ? pot12m.upsides_ativos : [];
+  const upsidesTop3 = [...upsidesAtivos]
+    .sort((a, b) => (b?.contribuicao_brl ?? 0) - (a?.contribuicao_brl ?? 0))
+    .slice(0, 3);
+  const upsidesTop3Listagem = upsidesTop3.length > 0
+    ? upsidesTop3
+        .map((u: any) =>
+          `- ${u?.label ?? u?.id ?? "—"} (categoria: ${u?.categoria ?? "—"}, contribuição: R$ ${formatBRL(u?.contribuicao_brl ?? 0)})`,
+        )
+        .join("\n")
+    : "nenhum upside ativo identificado";
+
+  // Recomendações pré-venda em formato lista (pra prompt 4)
+  const recomLista = recoms.length > 0
+    ? recoms
+        .map((r: any) =>
+          `- ${r?.id ?? "rec_sem_id"}: ${r?.label ?? r?.titulo ?? "(sem título)"} — ${r?.mensagem ?? r?.descricao ?? "(sem descrição)"}`,
+        )
+        .join("\n")
+    : "nenhuma recomendação registrada";
+
+  // Pilares ISE em dump estruturado (pra prompt 5 — caracteristicas)
+  const pilaresArray = Array.isArray(ise?.pilares) ? ise.pilares : [];
+  const pilaresDump = pilaresArray.length > 0
+    ? pilaresArray
+        .map((p: any) => {
+          const subResumo = Array.isArray(p?.sub_metricas)
+            ? p.sub_metricas
+                .map((s: any) =>
+                  `${s?.label ?? s?.id ?? "—"}: score ${s?.score_0_10 ?? "?"}/10${s?.valor !== undefined && s?.valor !== null ? ` (valor: ${typeof s.valor === "object" ? JSON.stringify(s.valor) : s.valor})` : ""}`,
+                )
+                .join("; ")
+            : "(sem sub-métricas)";
+          return `${p?.id ?? "?"} (${p?.label ?? "?"}, peso ${p?.peso_pct ?? "?"}%, score ${p?.score_0_10 ?? "?"}/10): ${subResumo}`;
+        })
+        .join("\n")
+    : "(pilares ausentes)";
+
+  // Status de transferibilidade derivados de inputs_origem (com fallback)
+  const ynStatus = (v: any): string => {
+    if (v === "sim" || v === true) return "sim";
+    if (v === "nao" || v === false) return "não";
+    if (v === "parcial") return "parcial";
+    if (v === null || v === undefined || v === "") return "não informado";
+    return String(v);
+  };
+  const dep_socio_status = ynStatus(inputs?.opera_sem_dono ?? op?.dep_socio);
+  const processos_status = ynStatus(inputs?.processos);
+  const equipe_estavel_status = ynStatus(inputs?.gestor_autonomo ?? inputs?.tem_gestor);
+  const marca_dependente_dono_status = inputs?.marca_inpi === "registrada" || inputs?.marca_inpi === "sim"
+    ? "marca registrada — menor dependência do dono"
+    : "marca não registrada — provável vínculo informal com o dono";
+  const contratos_transferiveis_status = "não informado";
+
+  // Cenário de preço pro dossiê (±10%) — diverge da home (±3%) por decisão narrativa.
+  // Débito técnico: unificar quando skill v2 calcular calc.valuation.tag_preco.
+  const diferencaPctNumber = typeof val?.diferenca_pct === "number" ? val.diferenca_pct : null;
+  let cenario_preco_dossie = "alinhado";
+  if (typeof diferencaPctNumber === "number") {
+    if (diferencaPctNumber > 10) cenario_preco_dossie = "abaixo";
+    else if (diferencaPctNumber < -10) cenario_preco_dossie = "acima";
+    else cenario_preco_dossie = "alinhado";
+  }
+
+  const pilares = ise?.pilares ?? {};
+  const pilaresEntries = Object.entries(pilares) as [string, any][];
+  let destaque = "";
+  let maiorNota = -Infinity;
+  const pilaresFortes: string[] = [];
+  const pilaresAtencao: string[] = [];
+  for (const [k, v] of pilaresEntries) {
+    const nota = typeof v?.nota === "number" ? v.nota : (typeof v === "number" ? v : null);
+    if (nota === null) continue;
+    if (nota > maiorNota) { maiorNota = nota; destaque = pilarLabel(k); }
+    if (nota > 8) pilaresFortes.push(pilarLabel(k));
+    if (nota < 6) pilaresAtencao.push(pilarLabel(k));
+  }
+
+  const indEntries = Object.entries(indBench) as [string, any][];
+  const indAcima: string[] = [];
+  const indAbaixo: string[] = [];
+  let indDestaque = "";
+  for (const [k, v] of indEntries) {
+    if (v?.acima_media === true) {
+      indAcima.push(k);
+      if (!indDestaque) indDestaque = k;
+    } else if (v?.acima_media === false) {
+      indAbaixo.push(k);
+    }
+  }
+
+  const scoreSetor = typeof atr?.score_setor === "number" ? atr.score_setor : 0;
+
+  return {
+    tipo_negocio_breve: ident.tipo_negocio_breve ?? "",
+    setor_label: ident.setor?.label ?? "",
+    setor_code: ident.setor?.code ?? "",
+    subcategoria: ident.subcategoria ?? "",
+    cidade: ident.cidade ?? "",
+    estado: ident.estado ?? "",
+    tempo_operacao_anos: ident.tempo_operacao_anos ?? "",
+    num_funcs_total: ident.num_funcs_total ?? "",
+    num_funcionarios: ident.num_funcs_total ?? "",
+    modelo_atuacao_label: ident.modelo_atuacao_label ?? "",
+    modelo_negocio: ident.modelo_atuacao?.principal ?? ident.modelo_atuacao_label ?? "",
+    margem_op_pct: typeof dre.margem_operacional_pct === "number" ? Math.round(dre.margem_operacional_pct) : (typeof dre.margem_pct === "number" ? Math.round(dre.margem_pct) : ""),
+    recorrencia_pct: typeof (calc?.comercial?.recorrencia_pct) === "number" ? Math.round(calc.comercial.recorrencia_pct) : (typeof inputs?.recorrencia_pct === "number" ? Math.round(inputs.recorrencia_pct) : ""),
+    num_clientes: typeof (calc?.comercial?.num_clientes_ativos) === "number" ? calc.comercial.num_clientes_ativos : (typeof inputs?.clientes === "number" ? inputs.clientes : ""),
+    fat_anual_fmt: formatBRL(dre.fat_anual),
+    ro_anual_fmt: formatBRL(dre.ro_anual),
+    margem_pct: typeof dre.margem_pct === "number" ? dre.margem_pct.toFixed(1) : "",
+    pl_fmt: formatBRL(bal.pl),
+    valor_venda_fmt: formatBRL(val.valor_venda),
+    fator_final: typeof val.fator_final === "number" ? val.fator_final.toFixed(1) : "",
+    ise_total: typeof ise.total === "number" ? ise.total.toFixed(0) : "",
+    ise_class: ise.class ?? "",
+    ise_pilar_destaque: destaque,
+    score_setor: scoreSetor,
+    score_localizacao: typeof atr?.score_localizacao === "number" ? atr.score_localizacao : "",
+    atr_setor_label: atrSetorLabel(scoreSetor),
+    indicador_destaque_benchmark: indDestaque || "—",
+    pilares_atencao: pilaresAtencao.join(", ") || "nenhum",
+    pilares_fortes: pilaresFortes.join(", ") || "nenhum",
+    indicadores_acima_benchmark: indAcima.join(", ") || "nenhum",
+    indicadores_abaixo_benchmark: indAbaixo.join(", ") || "nenhum",
+    marca_inpi: bal.marca_inpi === true ? "sim" : "não",
+    dep_socio: op.dep_socio ?? "não informado",
+    analise_tributaria_resumo: trib.resumo ?? "não informado",
+    fat_anual_faixa: faixaFaturamento(dre.fat_anual),
+    preco_pedido_fmt: formatBRL(val.preco_pedido),
+    diferenca_pct: typeof val.diferenca_pct === "number" ? Math.abs(val.diferenca_pct).toFixed(0) : "",
+    acima_ou_abaixo: typeof val.diferenca_pct === "number" ? (val.diferenca_pct >= 0 ? "acima" : "abaixo") : "—",
+
+    // Placeholders novos pros 5 prompts do dossiê do comprador (Parte 2)
+    upsides_top3_listagem: upsidesTop3Listagem,
+    valor_projetado_12m_fmt: formatBRL(pot12m?.potencial_final?.valor_projetado_brl ?? 0),
+    ganho_mensal_caixa_fmt: formatBRL(pot12m?.ganho_mensal_caixa_brl ?? 0),
+    ganho_anual_caixa_fmt: formatBRL(pot12m?.ganho_anual_caixa_brl ?? 0),
+    recomendacoes_lista: recomLista,
+    pilares_dump_para_caracteristicas: pilaresDump,
+    dep_socio: dep_socio_status,
+    processos_status,
+    equipe_estavel_status,
+    marca_dependente_dono_status,
+    contratos_transferiveis_status,
+    cenario_preco_dossie,
+  };
+}
+
+function faixaFaturamento(v: number | undefined | null): string {
+  if (typeof v !== "number") return "não informado";
+  if (v < 500_000) return "até R$ 500 mil";
+  if (v < 1_000_000) return "R$ 500 mil a R$ 1 milhão";
+  if (v < 5_000_000) return "R$ 1 a R$ 5 milhões";
+  if (v < 10_000_000) return "R$ 5 a R$ 10 milhões";
+  return "acima de R$ 10 milhões";
+}
+
+async function chamarAnthropicComRetry(
+  modelo: string,
+  systemPrompt: string,
+  userPrompt: string,
+): Promise<{ texto: string; tokens_input: number; tokens_output: number }> {
+  let ultimoErro: unknown = null;
+
+  for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+
+    try {
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: modelo,
+          max_tokens: 1500,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userPrompt }],
+        }),
+        signal: ctrl.signal,
+      });
+
+      clearTimeout(timer);
+
+      if (resp.status === 429 || resp.status >= 500) {
+        const txtErro = await resp.text();
+        ultimoErro = new Error(`Anthropic ${resp.status}: ${txtErro}`);
+        if (tentativa < MAX_TENTATIVAS) {
+          const espera = BACKOFF_INICIAL_MS * Math.pow(2, tentativa - 1);
+          await new Promise(r => setTimeout(r, espera));
+          continue;
+        }
+        throw ultimoErro;
+      }
+
+      if (!resp.ok) {
+        const txtErro = await resp.text();
+        throw new Error(`Anthropic ${resp.status}: ${txtErro}`);
+      }
+
+      const data = await resp.json();
+      const texto = data?.content?.[0]?.text ?? "";
+      const tokens_input = data?.usage?.input_tokens ?? 0;
+      const tokens_output = data?.usage?.output_tokens ?? 0;
+      return { texto, tokens_input, tokens_output };
+
+    } catch (err) {
+      clearTimeout(timer);
+      ultimoErro = err;
+      if (tentativa < MAX_TENTATIVAS && (err instanceof Error && err.name === "AbortError")) {
+        const espera = BACKOFF_INICIAL_MS * Math.pow(2, tentativa - 1);
+        await new Promise(r => setTimeout(r, espera));
+        continue;
+      }
+      if (tentativa >= MAX_TENTATIVAS) throw err;
+    }
+  }
+
+  throw ultimoErro ?? new Error("Falha desconhecida na chamada Anthropic");
+}
+
+function calcularCusto(modelo: string, tokensIn: number, tokensOut: number): number {
+  const preco = PRECO_USD[modelo as keyof typeof PRECO_USD];
+  if (!preco) return 0;
+  return tokensIn * preco.input + tokensOut * preco.output;
+}
+
+async function salvarTexto(
+  supabase: ReturnType<typeof createClient>,
+  negocio_id: string,
+  ramo: "textos_ia" | "textos_anuncio",
+  chave: string,
+  valor: unknown,
+  modelo: string,
+) {
+  const path = `{${ramo},${chave}}`;
+  const { error: errSet } = await supabase.rpc("atualizar_texto_calc_json", {
+    p_negocio_id: negocio_id,
+    p_path: path,
+    p_valor: valor,
+  });
+  if (errSet) throw new Error(`atualizar_texto_calc_json: ${errSet.message}`);
+
+  const { error: errMeta } = await supabase.rpc("atualizar_metadados_textos", {
+    p_negocio_id: negocio_id,
+    p_ramo: ramo,
+    p_chave: chave,
+    p_modelo: modelo,
+    p_timestamp: new Date().toISOString(),
+  });
+  if (errMeta) throw new Error(`atualizar_metadados_textos: ${errMeta.message}`);
+}
+
+async function logar(
+  supabase: ReturnType<typeof createClient>,
+  payload: {
+    negocio_id: string;
+    contexto: string;
+    texto_gerado: string | null;
+    status: "iniciado" | "sucesso" | "erro" | "timeout";
+    modelo: string | null;
+    tokens_input: number | null;
+    tokens_output: number | null;
+    custo_estimado: number | null;
+    duracao_ms: number;
+    erro_mensagem?: string;
+  },
+) {
+  await supabase.from("logs_edge_functions").insert({
+    function_name: "gerar_textos_laudo",
+    negocio_id: payload.negocio_id || null,
+    contexto: payload.contexto,
+    texto_gerado: payload.texto_gerado,
+    status: payload.status,
+    modelo_usado: payload.modelo,
+    tokens_input: payload.tokens_input,
+    tokens_output: payload.tokens_output,
+    custo_estimado: payload.custo_estimado,
+    erro_mensagem: payload.erro_mensagem ?? null,
+    duracao_ms: payload.duracao_ms,
+  });
+}

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cockpit - 1Negocio</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--green:#10b981;--green2:#059669;--bg:#0c0c0a;--s1:#111110;--s2:#161614;--s3:#1c1c19;--tx:#e5e5e3;--t2:#a3a39b;--t3:#6b6b63;--am:#f59e0b;--red:#ef4444;--sep:#252522;--blue:#3b82f6}
+body{background:var(--bg);color:var(--tx);font-family:'DM Mono',monospace;font-size:13px;min-height:100vh}
+.topbar{height:48px;background:var(--s1);border-bottom:1px solid var(--sep);display:flex;align-items:center;padding:0 20px;gap:16px;position:fixed;top:0;left:0;right:0;z-index:200}
+.topbar-logo{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;letter-spacing:-.5px}
+.topbar-logo em{font-style:normal;color:var(--green)}
+.tb-title{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:2px}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.tb-right a{color:var(--t2);text-decoration:none;font-size:10px;padding:4px 10px;border:1px solid var(--sep)}
+.tb-right a:hover{color:var(--green);border-color:var(--green)}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.main{margin-top:48px;padding:14px;display:grid;grid-template-columns:320px 1fr 300px;gap:12px;min-height:calc(100vh - 48px)}
+.col{display:flex;flex-direction:column;gap:12px}
+.card{background:var(--s1);border:1px solid var(--sep);display:flex;flex-direction:column}
+.ch{padding:10px 14px 8px;border-bottom:1px solid var(--sep);display:flex;align-items:center;gap:8px}
+.ch-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;flex:1}
+.ch-badge{font-size:8px;background:var(--s2);color:var(--t3);padding:2px 6px}
+.cb{padding:12px 14px;flex:1;overflow-y:auto}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.st{background:var(--s2);border:1px solid var(--sep);padding:10px 12px}
+.st.hl{border-color:var(--green)}
+.sv{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--green)}
+.sl{font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:var(--t3);margin-top:3px}
+.mform{display:flex;gap:6px;margin-bottom:10px}
+.mform input,.mform select{background:var(--s2);border:1px solid var(--sep);color:var(--tx);padding:6px 8px;font-family:'DM Mono',monospace;font-size:10px;outline:none;flex:1;min-width:0}
+.mform select{flex:0 0 80px}
+.btn-add{padding:6px 14px;background:var(--green);color:#000;border:none;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;cursor:pointer}
+.mi{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--sep)}
+.mi:last-child{border-bottom:none}
+.mi input[type=checkbox]{width:13px;height:13px;cursor:pointer;accent-color:var(--green);flex-shrink:0}
+.mi-txt{flex:1;font-size:11px;line-height:1.4}
+.mi-txt.done{text-decoration:line-through;color:var(--t3)}
+.mpri{font-size:8px;padding:1px 5px;font-weight:600;text-transform:uppercase;flex-shrink:0}
+.p-alta{background:rgba(239,68,68,.2);color:var(--red)}
+.p-media{background:rgba(245,158,11,.2);color:var(--am)}
+.p-baixa{background:var(--s2);color:var(--t3)}
+.mdel{background:none;border:none;color:var(--t3);cursor:pointer;font-size:11px;flex-shrink:0}
+.mdel:hover{color:var(--red)}
+.prog-wrap{height:4px;background:var(--s2);margin-bottom:4px}
+.prog-bar{height:4px;background:var(--green);transition:width .3s}
+.prog-txt{font-size:9px;color:var(--t3);margin-bottom:10px}
+.mempty{color:var(--t3);font-size:11px;text-align:center;padding:20px;border:1px dashed var(--sep)}
+.li{padding:8px 0;border-bottom:1px solid var(--sep);cursor:pointer}
+.li:last-child{border-bottom:none}
+.li:hover .li-name{color:var(--green)}
+.li-name{font-size:11px;font-weight:600;margin-bottom:3px}
+.li-meta{font-size:9px;color:var(--t3);display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:3px}
+.li-obs{font-size:9px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:500px}
+.li-ac{display:flex;gap:4px;margin-top:4px}
+.badge{font-size:8px;text-transform:uppercase;letter-spacing:.3px;padding:1px 5px;font-weight:600}
+.b-novo{background:rgba(16,185,129,.15);color:var(--green)}
+.b-contatado{background:rgba(245,158,11,.15);color:var(--am)}
+.b-qualificado{background:rgba(59,130,246,.15);color:var(--blue)}
+.b-perdido{background:rgba(239,68,68,.15);color:var(--red)}
+.b-dossie,.b-ver_dossie{background:rgba(16,185,129,.15);color:var(--green)}
+.b-proposta{background:rgba(245,158,11,.15);color:var(--am)}
+.b-whatsapp{background:rgba(16,185,129,.15);color:var(--green)}
+.b-gray{background:var(--s2);color:var(--t3)}
+.bxs{padding:3px 8px;font-family:'DM Mono',monospace;font-size:8px;cursor:pointer;border:1px solid var(--sep);background:var(--s2);color:var(--tx);text-decoration:none;display:inline-block}
+.bxs:hover,.bxs.wpp{border-color:var(--green);color:var(--green)}
+.ci{padding:7px 0;border-bottom:1px solid var(--sep);display:flex;align-items:center;gap:7px}
+.ci:last-child{border-bottom:none}
+.ci-emp{font-size:11px;font-weight:600;flex:1}
+.ci-time{font-size:9px;color:var(--t3);flex-shrink:0}
+.frow{display:flex;gap:6px;margin-bottom:8px}
+.frow select,.frow input{background:var(--s2);border:1px solid var(--sep);color:var(--tx);padding:4px 8px;font-family:'DM Mono',monospace;font-size:10px;outline:none;flex:1}
+.sarea{overflow-y:auto;max-height:calc(100vh - 220px)}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;align-items:center;justify-content:center}
+.modal.on{display:flex}
+.mbox{background:var(--s1);border:1px solid var(--sep);padding:20px;width:90%;max-width:460px;position:relative}
+.mbox h3{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;margin-bottom:12px}
+.ff{margin-bottom:10px}
+.ff label{font-size:8px;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);display:block;margin-bottom:4px}
+.ff select,.ff input,.ff textarea{width:100%;background:var(--s2);border:1px solid var(--sep);color:var(--tx);padding:6px 8px;font-family:'DM Mono',monospace;font-size:11px;outline:none}
+.mbtns{display:flex;gap:8px;margin-top:12px}
+.btn-g{padding:6px 14px;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;background:var(--green);color:#000;border:none;font-weight:700}
+.btn-o{padding:6px 14px;font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;background:none;color:var(--tx);border:1px solid var(--sep)}
+.xbtn{position:absolute;top:10px;right:12px;background:none;border:none;color:var(--t3);font-size:16px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-logo"><em>1</em>NEGOCIO</div>
+  <span class="tb-title">Cockpit</span>
+  <span class="live-dot"></span>
+  <span style="font-size:9px;color:var(--green)">live</span>
+  <span style="font-size:9px;color:var(--t3)" id="top-data"></span>
+  <div class="tb-right">
+    <a href="painel-admin.html">Admin</a>
+    <a href="painel-ctas.html">CTAs</a>
+    <span style="font-size:9px;color:var(--t3)" id="top-att"></span>
+  </div>
+</div>
+<div class="main">
+  <div class="col">
+    <div class="stats" id="stats-top">
+      <div class="st"><div class="sv" id="s-leads">-</div><div class="sl">Leads Novos</div></div>
+      <div class="st"><div class="sv" id="s-miss">-</div><div class="sl">Missoes Hoje</div></div>
+      <div class="st"><div class="sv" id="s-ctas">-</div><div class="sl">Clicks Hoje</div></div>
+      <div class="st hl"><div class="sv" id="s-negs">-</div><div class="sl">Negocios</div></div>
+    </div>
+    <div class="card" style="flex:1">
+      <div class="ch">
+        <div class="ch-title">Missoes do Dia</div>
+        <span style="font-size:9px;color:var(--t2)" id="miss-data"></span>
+        <span class="ch-badge" id="miss-badge">0/0</span>
+      </div>
+      <div class="cb">
+        <div class="mform">
+          <input type="text" id="miss-inp" placeholder="Nova missao...">
+          <select id="miss-pri"><option value="alta">Alta</option><option value="media" selected>Media</option><option value="baixa">Baixa</option></select>
+          <button class="btn-add" id="btn-add-miss">+</button>
+        </div>
+        <div class="prog-wrap"><div class="prog-bar" id="miss-bar" style="width:0%"></div></div>
+        <div class="prog-txt" id="miss-prog">0 de 0 concluidas</div>
+        <div id="miss-list"><div class="mempty">Sem missoes hoje. Adicione acima!</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card" style="flex:1">
+      <div class="ch">
+        <div class="ch-title">Leads do Site</div>
+        <span class="ch-badge" id="leads-count">0</span>
+      </div>
+      <div class="cb" style="padding:10px 14px">
+        <div class="frow">
+          <select id="flt-status"><option value="">Todos os status</option><option value="novo">Novo</option><option value="contatado">Contatado</option><option value="qualificado">Qualificado</option><option value="perdido">Perdido</option></select>
+          <input type="text" id="flt-nome" placeholder="Buscar nome...">
+        </div>
+        <div class="sarea" id="leads-list"><div style="color:var(--t3);text-align:center;padding:24px;font-size:11px">Carregando...</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="card" style="flex:1">
+      <div class="ch">
+        <div class="ch-title">CTAs ao Vivo</div>
+        <span class="live-dot"></span>
+        <span class="ch-badge" id="cta-count">0</span>
+      </div>
+      <div class="cb" style="padding:10px 14px">
+        <div class="sarea" id="cta-list"><div style="color:var(--t3);text-align:center;padding:24px;font-size:11px">Carregando...</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="modal-lead" class="modal">
+  <div class="mbox">
+    <button class="xbtn" id="close-lead">x</button>
+    <h3 id="ml-nome">Lead</h3>
+    <div id="ml-info" style="font-size:10px;color:var(--t3);margin-bottom:10px"></div>
+    <div class="ff"><label>Status</label><select id="ml-status"><option value="novo">Novo</option><option value="contatado">Contatado</option><option value="qualificado">Qualificado</option><option value="perdido">Perdido</option></select></div>
+    <div class="ff"><label>Observacoes</label><input type="text" id="ml-obs" placeholder="Anotacao rapida..."></div>
+    <div class="ff"><label>Criar missao para este lead (opcional)</label><input type="text" id="ml-missao" placeholder="Ex: Ligar para cliente amanha"></div>
+    <div class="mbtns">
+      <button class="btn-g" id="btn-salvar-lead">Salvar</button>
+      <button class="btn-o" id="btn-wpp-lead">WhatsApp</button>
+      <button class="btn-o" id="btn-fechar-lead">Fechar</button>
+    </div>
+    <input type="hidden" id="ml-id">
+    <input type="hidden" id="ml-wpp">
+  </div>
+</div>
+<script>
+var SB="https://dbijmgqlcrgjlcfrastg.supabase.co";
+var SK="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzA3NjE2MywiZXhwIjoyMDg4NjUyMTYzfQ.b79syG5GuQZYLd3QvbRMTi66E_sdKa-Nh-Q1XbDcM2Y";
+var _leads=[];var _miss=[];var _ctas=[];
+function sb(t,q){return fetch(SB+"/rest/v1/"+t+"?"+q,{headers:{"apikey":SK,"Authorization":"Bearer "+SK}});}
+function sbp(t,d){return fetch(SB+"/rest/v1/"+t,{method:"POST",headers:{"apikey":SK,"Authorization":"Bearer "+SK,"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(d)});}
+function sbup(t,q,d){return fetch(SB+"/rest/v1/"+t+"?"+q,{method:"PATCH",headers:{"apikey":SK,"Authorization":"Bearer "+SK,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify(d)});}
+function sbdel(t,q){return fetch(SB+"/rest/v1/"+t+"?"+q,{method:"DELETE",headers:{"apikey":SK,"Authorization":"Bearer "+SK}});}
+function sc(t,q){return fetch(SB+"/rest/v1/"+t+"?select=id"+(q||""),{headers:{"apikey":SK,"Authorization":"Bearer "+SK,"Prefer":"count=exact","Range":"0-0"}}).then(function(r){var cr=r.headers.get("content-range");return cr?(parseInt(cr.split("/")[1])||0):0;});}
+function fd(d){if(!d)return"-";var dt=new Date(d);return dt.toLocaleDateString("pt-BR")+" "+dt.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});}
+function ago(d){if(!d)return"-";var s=Math.floor((new Date()-new Date(d))/1000);if(s<60)return s+"s";if(s<3600)return Math.floor(s/60)+"min";if(s<86400)return Math.floor(s/3600)+"h";return Math.floor(s/86400)+"d";}
+function fmtWpp(n){if(!n)return"";return"55"+String(n).replace(/[^0-9]/g,"");}
+
+/* ---- MISSOES ---- */
+function loadMiss(){
+  var hoje=new Date().toISOString().split("T")[0];
+  sb("missoes","select=id,titulo,prioridade,status&data_alvo=eq."+hoje+"&order=created_at.asc&limit=50").then(function(r){return r.json();}).then(function(rows){
+    _miss=rows||[];renderMiss();statsUpdate();
+  });
+}
+function renderMiss(){
+  var list=document.getElementById("miss-list");
+  if(!list)return;
+  if(!_miss.length){list.innerHTML="<div class='mempty'>Sem missoes hoje. Adicione acima!</div>";updateProg(0,0);return;}
+  var done=_miss.filter(function(m){return m.status==="concluida";}).length;
+  updateProg(done,_miss.length);
+  var h="";
+  _miss.forEach(function(m){
+    var isDone=m.status==="concluida";
+    var chk=isDone?" checked":"";
+    h+="<div class='mi'>";
+    h+="<input type='checkbox' class='mchk' data-mid='"+m.id+"'"+chk+">";
+    h+="<span class='mi-txt"+(isDone?" done":"")+"' data-mid='"+m.id+"'>"+String(m.titulo)+"</span>";
+    h+="<span class='mpri p-"+String(m.prioridade||"media")+"'>"+String(m.prioridade||"med")+"</span>";
+    h+="<button class='mdel' data-mid='"+m.id+"'>x</button>";
+    h+="</div>";
+  });
+  list.innerHTML=h;
+  list.querySelectorAll(".mchk").forEach(function(el){el.addEventListener("change",function(){toggleMiss(this.dataset.mid,this.checked);});});
+  list.querySelectorAll(".mdel").forEach(function(el){el.addEventListener("click",function(){delMiss(this.dataset.mid);});});
+}
+function updateProg(done,total){
+  var pct=total>0?Math.round(done/total*100):0;
+  var bar=document.getElementById("miss-bar");var txt=document.getElementById("miss-prog");var badge=document.getElementById("miss-badge");
+  if(bar)bar.style.width=pct+"%";
+  if(txt)txt.textContent=done+" de "+total+" concluidas ("+pct+"%)";
+  if(badge)badge.textContent=done+"/"+total;
+}
+function addMiss(){
+  var inp=document.getElementById("miss-inp");var pri=document.getElementById("miss-pri");
+  var titulo=inp?inp.value.trim():"";if(!titulo)return;
+  var hoje=new Date().toISOString().split("T")[0];
+  sbp("missoes",{titulo:titulo,prioridade:pri?pri.value:"media",status:"pendente",data_alvo:hoje}).then(function(r){return r.json();}).then(function(rows){
+    if(rows&&rows.length)_miss.push(rows[0]);
+    renderMiss();statsUpdate();if(inp)inp.value="";
+  });
+}
+function toggleMiss(id,checked){
+  var patch={status:checked?"concluida":"pendente"};
+  if(checked)patch.concluida_em=new Date().toISOString();
+  sbup("missoes","id=eq."+id,patch).then(function(){
+    var m=_miss.find(function(x){return x.id===id;});if(m)m.status=patch.status;
+    renderMiss();statsUpdate();
+  });
+}
+function delMiss(id){
+  sbdel("missoes","id=eq."+id).then(function(){
+    _miss=_miss.filter(function(m){return m.id!==id;});renderMiss();statsUpdate();
+  });
+}
+
+/* ---- LEADS ---- */
+function loadLeads(){
+  var status=document.getElementById("flt-status")?document.getElementById("flt-status").value:"";
+  var nome=document.getElementById("flt-nome")?document.getElementById("flt-nome").value.trim():"";
+  var q="select=id,nome,whatsapp,email,status,notas,negocio_id,created_at&order=created_at.desc&limit=100";
+  if(status)q+="&status=eq."+encodeURIComponent(status);
+  if(nome)q+="&nome=ilike.*"+encodeURIComponent(nome)+"*";
+  var cnt=document.getElementById("leads-count");
+  sb("leads_site",q).then(function(r){return r.json();}).then(function(rows){
+    _leads=rows||[];if(cnt)cnt.textContent=_leads.length;renderLeads();statsUpdate();
+  });
+}
+function renderLeads(){
+  var list=document.getElementById("leads-list");if(!list)return;
+  if(!_leads.length){list.innerHTML="<div style='color:var(--t3);text-align:center;padding:24px;font-size:11px'>Nenhum lead encontrado</div>";return;}
+  var h="";
+  _leads.forEach(function(l){
+    var stCls="b-"+(l.status||"gray");
+    h+="<div class='li' data-lid='"+l.id+"'>";
+    h+="<div class='li-name'>"+String(l.nome||"-")+"</div>";
+    h+="<div class='li-meta'><span class='badge "+stCls+"'>"+String(l.status||"-")+"</span><span>"+String(l.email||l.notas||"")+"</span><span>"+ago(l.created_at)+" atras</span></div>";
+    if(l.observacoes){h+="<div class='li-obs'>"+String(l.observacoes).substring(0,90)+"</div>";}
+    h+="<div class='li-ac'>";
+    if(l.whatsapp){h+="<a href='https://wa.me/"+fmtWpp(l.whatsapp)+"' target='_blank' class='bxs wpp' data-stop='1'>WA "+String(l.whatsapp)+"</a>";}
+    h+="<button class='bxs lead-miss-btn' data-lid='"+l.id+"' data-lnome='"+String(l.nome||"").replace(/'/g,"")+"' data-stop='1'>+ Missao</button>";
+    h+="</div>";
+    h+="</div>";
+  });
+  list.innerHTML=h;
+  list.querySelectorAll(".li").forEach(function(el){
+    el.addEventListener("click",function(e){
+      if(e.target.dataset.stop)return;
+      abrirLead(this.dataset.lid);
+    });
+  });
+  list.querySelectorAll(".lead-miss-btn").forEach(function(el){
+    el.addEventListener("click",function(e){
+      e.stopPropagation();
+      var nome=this.dataset.lnome||"lead";
+      var txt=prompt("Missao para "+nome+":");
+      if(!txt)return;
+      var hoje=new Date().toISOString().split("T")[0];
+      sbp("missoes",{titulo:txt,prioridade:"alta",status:"pendente",data_alvo:hoje,lead_id:this.dataset.lid}).then(function(r){return r.json();}).then(function(rows){
+        if(rows&&rows.length)_miss.push(rows[0]);renderMiss();statsUpdate();
+      });
+    });
+  });
+}
+function abrirLead(id){
+  var l=_leads.find(function(x){return x.id===id;});if(!l)return;
+  document.getElementById("ml-nome").textContent=l.nome||"Lead";
+  document.getElementById("ml-id").value=id;
+  document.getElementById("ml-wpp").value=l.whatsapp||"";
+  document.getElementById("ml-status").value=l.status||"novo";
+  document.getElementById("ml-obs").value=l.notas||"";
+  document.getElementById("ml-missao").value="";
+  document.getElementById("ml-info").textContent=(l.whatsapp||"-")+" | "+String(l.interesse||"-")+" | "+fd(l.created_at);
+  document.getElementById("modal-lead").classList.add("on");
+}
+function salvarLead(){
+  var id=document.getElementById("ml-id").value;
+  var status=document.getElementById("ml-status").value;
+  var obs=document.getElementById("ml-obs").value;
+  var missaoTxt=document.getElementById("ml-missao").value.trim();
+  sbup("leads_site","id=eq."+id,{status:status,notas:obs}).then(function(){
+    var l=_leads.find(function(x){return x.id===id;});if(l){l.status=status;l.observacoes=obs;}renderLeads();
+  });
+  if(missaoTxt){
+    var hoje=new Date().toISOString().split("T")[0];
+    sbp("missoes",{titulo:missaoTxt,prioridade:"alta",status:"pendente",data_alvo:hoje,lead_id:id}).then(function(r){return r.json();}).then(function(rows){
+      if(rows&&rows.length)_miss.push(rows[0]);renderMiss();statsUpdate();
+    });
+  }
+  document.getElementById("modal-lead").classList.remove("on");
+}
+
+/* ---- CTAs ---- */
+function loadCTAs(){
+  var d=new Date();d.setDate(d.getDate()-1);
+  sb("cta_clicks","select=id,empresa,cta_tipo,cta_label,utm_source,created_at&order=created_at.desc&limit=50&created_at=gte."+d.toISOString()).then(function(r){return r.json();}).then(function(rows){
+    _ctas=rows||[];var cnt=document.getElementById("cta-count");if(cnt)cnt.textContent=_ctas.length;renderCTAs();statsUpdate();
+  });
+}
+function renderCTAs(){
+  var list=document.getElementById("cta-list");if(!list)return;
+  if(!_ctas.length){list.innerHTML="<div style='color:var(--t3);text-align:center;padding:24px;font-size:11px'>Nenhum click recente</div>";return;}
+  var h="";
+  _ctas.forEach(function(c){
+    var tc="b-"+(c.cta_tipo||"gray");
+    h+="<div class='ci'><div style='flex:1'>";
+    h+="<div style='display:flex;align-items:center;gap:5px;margin-bottom:2px'><span class='ci-emp'>"+String(c.empresa||"desconhecido")+"</span><span class='badge "+tc+"'>"+String(c.cta_tipo||"-").replace(/_/g," ")+"</span></div>";
+    if(c.utm_source){h+="<span style='font-size:9px;color:var(--t3)'>via "+String(c.utm_source)+"</span>";}
+    h+="</div><div class='ci-time'>"+ago(c.created_at)+"</div></div>";
+  });
+  list.innerHTML=h;
+}
+
+/* ---- STATS ---- */
+function statsUpdate(){
+  var hoje=new Date();hoje.setHours(0,0,0,0);
+  var elL=document.getElementById("s-leads");var elM=document.getElementById("s-miss");var elC=document.getElementById("s-ctas");
+  if(elL)elL.textContent=(Array.isArray(_leads)?_leads.filter(function(l){return l.status==="novo";}).length:0);
+  var doneMiss=_miss.filter(function(m){return m.status==="concluida";}).length;
+  if(elM)elM.textContent=doneMiss+"/"+_miss.length;
+  if(elC)elC.textContent=_ctas.filter(function(c){return new Date(c.created_at)>=hoje;}).length;
+}
+function loadStatsGlobal(){
+  sc("negocios","").then(function(n){var el=document.getElementById("s-negs");if(el)el.textContent=n;});
+}
+
+/* ---- INIT ---- */
+function init(){
+  var hoje=new Date();
+  var dias=["Dom","Seg","Ter","Qua","Qui","Sex","Sab"];
+  var ds=dias[hoje.getDay()]+", "+hoje.toLocaleDateString("pt-BR");
+  var td=document.getElementById("top-data");var md=document.getElementById("miss-data");
+  if(td)td.textContent=ds;if(md)md.textContent=ds;
+
+  document.getElementById("btn-add-miss").addEventListener("click",addMiss);
+  document.getElementById("miss-inp").addEventListener("keydown",function(e){if(e.key==="Enter")addMiss();});
+  document.getElementById("flt-status").addEventListener("change",loadLeads);
+  document.getElementById("flt-nome").addEventListener("input",loadLeads);
+  document.getElementById("btn-salvar-lead").addEventListener("click",salvarLead);
+  document.getElementById("btn-fechar-lead").addEventListener("click",function(){document.getElementById("modal-lead").classList.remove("on");});
+  document.getElementById("close-lead").addEventListener("click",function(){document.getElementById("modal-lead").classList.remove("on");});
+  document.getElementById("btn-wpp-lead").addEventListener("click",function(){var wpp=document.getElementById("ml-wpp").value;if(wpp)window.open("https://wa.me/55"+wpp.replace(/[^0-9]/g,""),"_blank");});
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")document.querySelectorAll(".modal").forEach(function(m){m.classList.remove("on");});});
+
+  loadMiss();loadLeads();loadCTAs();loadStatsGlobal();
+  var att=document.getElementById("top-att");if(att)att.textContent="att "+hoje.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+}
+init();
+setInterval(function(){loadCTAs();var att=document.getElementById("top-att");if(att)att.textContent="att "+new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});},20000);
+setInterval(function(){loadLeads();loadMiss();},60000);
+</script>
+</body>
+</html>
