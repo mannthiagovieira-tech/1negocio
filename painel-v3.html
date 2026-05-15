@@ -1982,6 +1982,9 @@ table.t .acoes { white-space: nowrap; }
           <div class="secao-explicacao"><p>Estado atual do negócio em uma rolagem só. Negócios novos · resultados · decisões pendentes · 11 blocos sequenciais.</p></div>
           <div class="secao-conteudo">
 
+            <!-- v9.38.0 · Cockpit redesenhado · 5 blocos hierarquizados -->
+            <div id="cockpit-novo" style="margin-bottom:24px"></div>
+
             <!-- 🔥 Leads quentes · 7 dias (esconde se vazio) -->
             <div id="cock-quentes-slot"></div>
 
@@ -5803,7 +5806,7 @@ function mostrarSecao(id) {
     if (id === 'op-pagamentos') pgInit();
     if (id === 'op-zapi-telefones') zapiInit();
     if (id === 'op-disparador') dispInit();
-    if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); lqInit(); saInit(); cockEntregaveisCarregar(); cockQuentesCarregar(); try { propsAtualizarCockpit(); } catch(e){} }
+    if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); lqInit(); saInit(); cockEntregaveisCarregar(); cockQuentesCarregar(); try { propsAtualizarCockpit(); } catch(e){} if (typeof cockpitRenderCompleto === 'function') cockpitRenderCompleto().catch(e=>console.warn('[cockpit novo]', e)); }
     if (id === 'plano-dia') { cwLoadPlanoFull(); cwLoadPlanoHistorico(); }
     if (id === 'cowork-admin') cwAdmInit();
     if (id === 'triagem-olx') trInit();
@@ -13472,6 +13475,301 @@ window.pjV347CopilotHtml = pjV347CopilotHtml;
 window.pjV347CopilotEnviar = pjV347CopilotEnviar;
 window.pjV347ToggleCopilot = pjV347ToggleCopilot;
 window.pjAbrirNeg = pjAbrirNeg;
+
+// ═══════════════════════════════════════════════════════════════════════
+// v9.38.0 · Cockpit Admin · Redesenho 5 blocos (Pipeline · Faturamento ·
+// Saúde · Alertas · Área de Trabalho)
+// Renderiza em #cockpit-novo (acima dos blocos legacy)
+// ═══════════════════════════════════════════════════════════════════════
+
+async function cockpitCarregarDados(){
+  const auth = 'Bearer ' + (__token || AK);
+  const headers = { 'apikey': AK, 'Authorization': auth };
+  const hoje = new Date().toISOString().split('T')[0];
+  const inicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const seteDias = new Date(Date.now() - 7*24*60*60*1000).toISOString();
+  const trintaDias = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+  // PostgREST safe URL helper (encode the gte param)
+  const ge = (col, ts) => col + '=gte.' + encodeURIComponent(ts);
+  const le = (col, ts) => col + '=lte.' + encodeURIComponent(ts);
+  const f = (url) => fetch(SB + url, { headers }).then(r => r.ok ? r.json() : []).catch(() => []);
+
+  const [
+    negocios, usuarios, diagnosticos, corretores,
+    projetos, transacoes, solicitacoes, ndas,
+    teses, leads, arquetipos, atividades
+  ] = await Promise.all([
+    f('/rest/v1/negocios?status=eq.publicado&select=id,nome,preco_pedido,valor_1n,comissao_pct,status,created_at,updated_at,anuncio_valido_ate'),
+    f('/rest/v1/usuarios?select=id,created_at,tipo'),
+    f('/rest/v1/negocios?select=id,created_at&order=created_at.desc&limit=10000'),
+    f('/rest/v1/usuarios?tipo=eq.corretor&select=id,created_at'),
+    f('/rest/v1/projeto_metadata?select=id,negocio_id,valor_mensal_receita,status,created_at,data_inicio_projeto,valor_venda_alvo,comissao_percentual'),
+    f('/rest/v1/transacoes?' + ge('created_at', inicioMes) + '&select=*'),
+    f('/rest/v1/solicitacoes_info?status=eq.pendente&select=id,created_at,updated_at,negocio_id'),
+    f('/rest/v1/nda_assinaturas?' + ge('assinado_em', inicioMes) + '&select=id,assinado_em,negocio_id'),
+    f('/rest/v1/teses_investimento?' + ge('created_at', inicioMes) + '&select=id,setores'),
+    f('/rest/v1/pool_contatos_uso?' + ge('marcado_em', inicioMes) + '&select=id,status,canal,originacao_id,contatado_em,marcado_em&limit=5000'),
+    f('/rest/v1/arquetipos_compradores?' + ge('created_at', inicioMes) + '&select=id'),
+    f('/rest/v1/projeto_atividades?concluida=eq.false&' + le('prazo', hoje) + '&select=id,titulo,prazo,projeto_metadata_id,tipo,visivel_cliente&order=prazo.asc')
+  ]);
+
+  return { negocios, usuarios, diagnosticos, corretores, projetos, transacoes, solicitacoes, ndas, teses, leads, arquetipos, atividades, hoje, inicioMes, seteDias, trintaDias };
+}
+
+// helpers de escape e formatação
+function cockEsc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function cockFmtMi(v){ return 'R$ ' + (Number(v||0)/1000000).toFixed(1) + 'M'; }
+function cockFmtK(v){ return 'R$ ' + (Number(v||0)/1000).toFixed(0) + 'k'; }
+
+// ─── Bloco 1 · Pipeline e números gerais ────────────────
+function cockpitBloco1(d){
+  const valorTotal = d.negocios.reduce((s,n) => s + parseFloat(n.preco_pedido||0), 0);
+  const com5 = d.negocios.filter(n => Number(n.comissao_pct) === 5).reduce((s,n) => s + parseFloat(n.preco_pedido||0)*0.05, 0);
+  const com10 = d.negocios.filter(n => Number(n.comissao_pct) === 10 || !n.comissao_pct).reduce((s,n) => s + parseFloat(n.preco_pedido||0)*0.10, 0);
+  const comissaoTotal = com5 + com10;
+  const KPIs = [
+    { label: 'Valor total anunciado', valor: cockFmtMi(valorTotal), sub: d.negocios.length + ' anúncios ativos' },
+    { label: 'Comissão potencial total', valor: cockFmtK(comissaoTotal), sub: '5%: ' + cockFmtK(com5) + ' · 10%: ' + cockFmtK(com10) },
+    { label: 'Solicitações pendentes', valor: d.solicitacoes.length, sub: 'aguardando admin', alert: d.solicitacoes.length > 0 },
+    { label: 'NDAs assinados (mês)', valor: d.ndas.length, sub: 'no mês corrente' },
+    { label: 'Usuários', valor: d.usuarios.length, sub: 'cadastrados' },
+    { label: 'Diagnósticos', valor: d.diagnosticos.length, sub: 'total realizados' },
+    { label: 'Corretores', valor: d.corretores.length, sub: 'sócios-parceiros' },
+  ];
+  return '<div style="margin-bottom:20px">'
+    + '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Pipeline · Números gerais</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">'
+    + KPIs.map(k =>
+        '<div style="background:var(--surface);border:1px solid ' + (k.alert ? 'var(--warn,#d4a017)' : 'var(--line-2,var(--line))') + ';border-radius:10px;padding:12px">'
+        + '<div style="font-size:10px;color:' + (k.alert ? 'var(--warn,#d4a017)' : 'var(--ink-3)') + ';text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">' + cockEsc(k.label) + '</div>'
+        + '<div style="font-family:var(--serif);font-size:20px;font-weight:700;color:' + (k.alert ? 'var(--warn,#d4a017)' : 'var(--ink)') + '">' + k.valor + '</div>'
+        + '<div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + cockEsc(k.sub) + '</div>'
+        + '</div>').join('')
+    + '</div></div>';
+}
+
+// ─── Bloco 2 · Faturamento do mês ───────────────────────
+function cockpitBloco2(d){
+  const projAtivos = d.projetos.filter(p => p.status === 'ativo' || p.data_inicio_projeto);
+  const totalMensalidades = projAtivos.reduce((s,p) => s + parseFloat(p.valor_mensal_receita||0), 0);
+  const laudos = d.transacoes.filter(t => Number(t.valor) === 99);
+  const guiados = d.transacoes.filter(t => Number(t.valor) === 588);
+  const receitaMes = d.transacoes.filter(t => t.status === 'pago' || t.status === 'aprovado' || !t.status).reduce((s,t) => s + parseFloat(t.valor||0), 0);
+  const contatosMes = d.leads.filter(l => l.contatado_em).length;
+  const tesesMes = d.teses.length;
+  const sociosMes = d.corretores.filter(c => c.created_at >= d.inicioMes).length;
+  const ITEMS = [
+    { label: 'Projetos ativos', valor: projAtivos.length, sub: cockFmtK(totalMensalidades) + '/mês', accent: true },
+    { label: 'Receita total mês', valor: cockFmtK(receitaMes), sub: 'todos os produtos' },
+    { label: 'Laudos R$99', valor: laudos.length, sub: cockFmtK(laudos.length*99) },
+    { label: 'Guiados R$588', valor: guiados.length, sub: cockFmtK(guiados.length*588) },
+    { label: 'Contatos feitos', valor: contatosMes, sub: 'em projetos este mês' },
+    { label: 'Teses novas', valor: tesesMes, sub: 'investidores este mês' },
+    { label: 'Sócios novos', valor: sociosMes, sub: 'de ' + d.corretores.length + ' total' },
+  ];
+  return '<div style="margin-bottom:20px">'
+    + '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Faturamento · ' + new Date().toLocaleDateString('pt-BR', {month:'long', year:'numeric'}) + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px">'
+    + ITEMS.map(k =>
+        '<div style="background:' + (k.accent ? 'var(--accent-soft,rgba(34,197,94,.1))' : 'var(--surface)') + ';border:1px solid ' + (k.accent ? 'var(--accent-line,rgba(34,197,94,.3))' : 'var(--line-2,var(--line))') + ';border-radius:10px;padding:12px">'
+        + '<div style="font-size:10px;color:' + (k.accent ? 'var(--accent,#22c55e)' : 'var(--ink-3)') + ';text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">' + cockEsc(k.label) + '</div>'
+        + '<div style="font-family:var(--serif);font-size:20px;font-weight:700;color:' + (k.accent ? 'var(--accent,#22c55e)' : 'var(--ink)') + '">' + k.valor + '</div>'
+        + '<div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + cockEsc(k.sub) + '</div>'
+        + '</div>').join('')
+    + '</div></div>';
+}
+
+// ─── Bloco 3 · Saúde da operação ────────────────────────
+function cockpitBloco3(d){
+  const totalLeads = d.leads.length;
+  const emContato = d.leads.filter(l => ['em_contato','contatado','respondeu'].includes(l.status)).length;
+  const emNegociacao = d.leads.filter(l => l.status === 'em_negociacao').length;
+  const convertidos = d.leads.filter(l => l.status === 'convertido').length;
+  const taxaContato = totalLeads > 0 ? ((emContato/totalLeads)*100).toFixed(0) : 0;
+  const taxaNegociacao = emContato > 0 ? ((emNegociacao/emContato)*100).toFixed(0) : 0;
+  const origens = {};
+  d.leads.forEach(l => { const k = l.canal || 'desconhecido'; origens[k] = (origens[k]||0)+1; });
+  const topOrigens = Object.entries(origens).sort((a,b) => b[1]-a[1]).slice(0,4);
+  const setores = {};
+  d.teses.forEach(t => { (t.setores||[]).forEach(s => { setores[s] = (setores[s]||0)+1; }); });
+  const topSetores = Object.entries(setores).sort((a,b) => b[1]-a[1]).slice(0,4);
+  const linha = (l, v, c) =>
+    '<div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px"><span style="color:var(--ink-2)">' + cockEsc(l) + '</span><span style="font-weight:600;color:' + c + '">' + v + '</span></div>';
+  return '<div style="margin-bottom:20px">'
+    + '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Saúde da operação</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">'
+    +   '<div style="background:var(--surface);border:1px solid var(--line-2,var(--line));border-radius:10px;padding:14px">'
+    +     '<div style="font-size:11px;font-weight:600;color:var(--ink-3);margin-bottom:10px">Funil de conversão (mês)</div>'
+    +     linha('Total leads', totalLeads, 'var(--ink)')
+    +     linha('Abordados', emContato, 'var(--ink)')
+    +     linha('Em negociação', emNegociacao, '#d4a017')
+    +     linha('Convertidos', convertidos, 'var(--accent,#22c55e)')
+    +     '<div style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px;font-size:11px;color:var(--ink-3)">Contato: ' + taxaContato + '% · Negociação: ' + taxaNegociacao + '%</div>'
+    +   '</div>'
+    +   '<div style="background:var(--surface);border:1px solid var(--line-2,var(--line));border-radius:10px;padding:14px">'
+    +     '<div style="font-size:11px;font-weight:600;color:var(--ink-3);margin-bottom:10px">Origem dos leads</div>'
+    +     (topOrigens.length ? topOrigens.map(([canal, qtd]) => linha(canal, qtd, 'var(--ink-2)')).join('') : '<div style="font-size:12px;color:var(--ink-3)">Sem dados ainda</div>')
+    +   '</div>'
+    +   '<div style="background:var(--surface);border:1px solid var(--line-2,var(--line));border-radius:10px;padding:14px">'
+    +     '<div style="font-size:11px;font-weight:600;color:var(--ink-3);margin-bottom:10px">Setores mais buscados</div>'
+    +     (topSetores.length ? topSetores.map(([setor, qtd]) => linha(setor, qtd, 'var(--ink-2)')).join('') : '<div style="font-size:12px;color:var(--ink-3)">Sem teses cadastradas</div>')
+    +   '</div>'
+    + '</div></div>';
+}
+
+// ─── Bloco 4 · Alertas críticos ─────────────────────────
+async function cockpitBloco4Html(d){
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+  const alertas = [];
+
+  // Pool esvaziando
+  const poolCounts = {};
+  d.leads.forEach(l => { if (l.status === 'novo') poolCounts[l.originacao_id] = (poolCounts[l.originacao_id]||0)+1; });
+  const esvaziando = Object.entries(poolCounts).filter(([,c]) => c < 5);
+  if (esvaziando.length > 0) alertas.push({ tipo:'warn', icone:'⚠️', texto: esvaziando.length + ' projeto(s) com pool esvaziando (< 5 leads novos)', acao:'Ver projetos', link:'#op-projetos' });
+
+  // Atividades atrasadas
+  const atrasadas = d.atividades.filter(a => a.prazo < d.hoje);
+  if (atrasadas.length > 0) alertas.push({ tipo:'alert', icone:'🔴', texto: atrasadas.length + ' atividade(s) atrasada(s)', acao:'Ver tarefas', link:'#secao-cockpit' });
+
+  // Anúncios vencendo (próximos 7 dias) · usa anuncio_valido_ate
+  try {
+    const proxVenc = new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0];
+    const r = await fetch(SB + '/rest/v1/negocios?status=eq.publicado&anuncio_valido_ate=lte.' + proxVenc + '&select=id,nome', { headers });
+    const vencendo = r.ok ? await r.json() : [];
+    if (vencendo.length > 0) alertas.push({ tipo:'warn', icone:'⏰', texto: vencendo.length + ' anúncio(s) vencendo nos próximos 7 dias', acao:'Ver anúncios', link:'#op-negocios' });
+  } catch (_) {}
+
+  // Propostas antigas (sem update há 30d+)
+  try {
+    const trinta = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+    const r = await fetch(SB + '/rest/v1/solicitacoes_info?status=eq.pendente&updated_at=lte.' + encodeURIComponent(trinta) + '&select=id', { headers });
+    const antigas = r.ok ? await r.json() : [];
+    if (antigas.length > 0) alertas.push({ tipo:'warn', icone:'📋', texto: antigas.length + ' proposta(s) sem atualização há 30+ dias', acao:'Revisar', link:'#op-solicitacoes' });
+  } catch (_) {}
+
+  // Inadimplentes · projetos ativos sem transação mês via negocio_id
+  const projAtivos = d.projetos.filter(p => p.status === 'ativo');
+  const negComPag = new Set(d.transacoes.filter(t => t.status === 'pago' || t.status === 'aprovado' || !t.status).map(t => t.negocio_id).filter(Boolean));
+  const inadimplentes = projAtivos.filter(p => p.negocio_id && !negComPag.has(p.negocio_id));
+  if (inadimplentes.length > 0) alertas.push({ tipo:'alert', icone:'💳', texto: inadimplentes.length + ' projeto(s) sem pagamento este mês', acao:'Cobrar', link:'#op-projetos' });
+
+  if (alertas.length === 0) {
+    return '<div style="margin-bottom:20px">'
+      + '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Alertas críticos</div>'
+      + '<div style="background:var(--accent-soft,rgba(34,197,94,.1));border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:10px;padding:14px;font-size:13px;color:var(--accent,#22c55e)">✓ Nenhum alerta crítico no momento. Tudo em ordem.</div>'
+      + '</div>';
+  }
+  return '<div style="margin-bottom:20px">'
+    + '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Alertas críticos · ' + alertas.length + ' item(ns)</div>'
+    + '<div style="display:flex;flex-direction:column;gap:6px">'
+    + alertas.map(a => {
+        const cor = a.tipo === 'alert' ? 'var(--alert,#ff6b5c)' : '#d4a017';
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border:1px solid ' + cor + ';border-radius:8px">'
+          + '<span style="font-size:13px">' + a.icone + ' ' + cockEsc(a.texto) + '</span>'
+          + '<a href="' + a.link + '" style="font-size:11px;color:' + cor + ';font-weight:600;text-decoration:none;white-space:nowrap;margin-left:12px">' + a.acao + ' →</a>'
+          + '</div>';
+      }).join('')
+    + '</div></div>';
+}
+
+// ─── Bloco 5 · Área de trabalho ─────────────────────────
+function cockpitBloco5(d){
+  const hojeD = new Date(d.hoje + 'T00:00');
+  const sexta = new Date(hojeD);
+  const diff = (5 - sexta.getDay() + 7) % 7;
+  sexta.setDate(sexta.getDate() + (diff === 0 ? 7 : diff));
+  const sextaStr = sexta.toISOString().split('T')[0];
+  const atrasadas = d.atividades.filter(a => a.prazo < d.hoje);
+  const paraHoje = d.atividades.filter(a => a.prazo === d.hoje);
+  const paraSemana = d.atividades.filter(a => a.prazo > d.hoje && a.prazo <= sextaStr);
+  const novosLeads = d.leads.filter(l => l.status === 'novo' || !l.status).length;
+  const CHECKLIST = [
+    { label: 'Postagens redes sociais',         sub: 'Publicar conteúdo agendado',              icone: '📱', link: '#gerador-conteudo' },
+    { label: 'Análise performance anúncios',    sub: 'Reviews cliques · views · solicitações',  icone: '📊', link: '#op-negocios' },
+    { label: 'Abordagem de leads',              sub: novosLeads + ' leads novos aguardando',     icone: '📞', link: '#op-projetos' },
+    { label: 'Fup clientes vendedores',         sub: 'Atualizar status dos projetos',           icone: '🏪', link: '#op-projetos' },
+    { label: 'Fup compradores',                 sub: 'Retornar solicitações pendentes',         icone: '🛒', link: '#op-solicitacoes' },
+    { label: 'Cobrar inadimplentes',            sub: 'Projetos sem pagamento no mês',           icone: '💳', link: '#op-projetos' },
+  ];
+  const renderAtividade = (a, cor, bg) => {
+    const prazo = a.prazo ? new Date(a.prazo + 'T00:00').toLocaleDateString('pt-BR') : '';
+    return '<div style="padding:6px 8px;background:' + bg + ';border-radius:6px;margin-bottom:4px;font-size:12px;color:' + cor + '">'
+      + cockEsc(a.titulo || '?')
+      + '<div style="font-size:10px;opacity:.75">' + prazo + '</div>'
+      + '</div>';
+  };
+  let tarefasHtml = '';
+  if (atrasadas.length > 0) {
+    tarefasHtml += '<div style="font-size:10px;color:var(--alert,#ff6b5c);font-weight:600;text-transform:uppercase;margin-bottom:6px">Atrasadas (' + atrasadas.length + ')</div>'
+      + atrasadas.slice(0,3).map(a => renderAtividade(a, 'var(--alert,#ff6b5c)', 'rgba(255,107,92,.08)')).join('');
+  }
+  if (paraHoje.length > 0) {
+    tarefasHtml += '<div style="font-size:10px;color:#d4a017;font-weight:600;text-transform:uppercase;margin:8px 0 6px">Para hoje (' + paraHoje.length + ')</div>'
+      + paraHoje.slice(0,3).map(a => renderAtividade(a, 'var(--ink)', 'rgba(245,200,66,.08)')).join('');
+  }
+  if (paraSemana.length > 0) {
+    tarefasHtml += '<div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;margin:8px 0 6px">Esta semana (' + paraSemana.length + ')</div>'
+      + paraSemana.slice(0,3).map(a => renderAtividade(a, 'var(--ink)', 'var(--bg)')).join('');
+  }
+  if (!tarefasHtml) tarefasHtml = '<div style="font-size:12px;color:var(--ink-3);text-align:center;padding:16px">✓ Sem tarefas pendentes</div>';
+
+  return '<div id="cockpit-tarefas" style="margin-bottom:20px">'
+    + '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Área de trabalho</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+    +   '<div style="background:var(--surface);border:1px solid var(--line-2,var(--line));border-radius:10px;padding:14px">'
+    +     '<div style="font-size:12px;font-weight:600;margin-bottom:10px">Tarefas do projeto</div>'
+    +     tarefasHtml
+    +   '</div>'
+    +   '<div style="background:var(--surface);border:1px solid var(--line-2,var(--line));border-radius:10px;padding:14px">'
+    +     '<div style="font-size:12px;font-weight:600;margin-bottom:10px">Checklist do dia</div>'
+    +     CHECKLIST.map((it, i) =>
+          '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer" onclick="cockpitToggleCheck(' + i + ')" id="ck-item-' + i + '">'
+          + '<div id="ck-box-' + i + '" style="width:16px;height:16px;border-radius:4px;border:1.5px solid var(--line-2,var(--line));flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px"></div>'
+          + '<div style="flex:1"><div style="font-size:12px">' + it.icone + ' ' + cockEsc(it.label) + '</div><div style="font-size:10px;color:var(--ink-3)">' + cockEsc(it.sub) + '</div></div>'
+          + '<a href="' + it.link + '" style="font-size:10px;color:var(--accent,#22c55e);text-decoration:none" onclick="event.stopPropagation()">→</a>'
+          + '</div>').join('')
+    +   '</div>'
+    + '</div></div>';
+}
+
+function cockpitToggleCheck(i){
+  const box = document.getElementById('ck-box-' + i);
+  const item = document.getElementById('ck-item-' + i);
+  if (!box) return;
+  const checked = box.textContent === '✓';
+  box.textContent = checked ? '' : '✓';
+  box.style.background = checked ? 'transparent' : 'var(--accent,#22c55e)';
+  box.style.color = '#000';
+  box.style.borderColor = checked ? 'var(--line-2,var(--line))' : 'var(--accent,#22c55e)';
+  if (item) item.style.opacity = checked ? '1' : '0.5';
+}
+
+// ─── Renderer principal ─────────────────────────────────
+async function cockpitRenderCompleto(){
+  const cont = document.getElementById('cockpit-novo');
+  if (!cont) { console.warn('cockpit: container #cockpit-novo não encontrado'); return; }
+  const header = ''
+    + '<div style="padding:4px 0 16px;display:flex;align-items:center;justify-content:space-between">'
+    +   '<div>'
+    +     '<div style="font-family:var(--serif);font-size:20px;font-weight:700">Cockpit</div>'
+    +     '<div style="font-size:12px;color:var(--ink-3)">' + new Date().toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long' }) + '</div>'
+    +   '</div>'
+    +   '<button onclick="cockpitRenderCompleto()" style="background:transparent;border:1px solid var(--line-2,var(--line));border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;color:var(--ink-2)">🔄 Atualizar</button>'
+    + '</div>';
+  cont.innerHTML = header + '<div id="cockpit-loading" style="text-align:center;padding:40px;color:var(--ink-3)">Carregando dados...</div>';
+  try {
+    const d = await cockpitCarregarDados();
+    const b4 = await cockpitBloco4Html(d);
+    cont.innerHTML = header + cockpitBloco1(d) + cockpitBloco2(d) + cockpitBloco3(d) + b4 + cockpitBloco5(d);
+  } catch (e) {
+    cont.innerHTML = header + '<div style="color:var(--alert,#ff6b5c);padding:20px">Erro ao carregar cockpit: ' + cockEsc(e && e.message ? e.message : 'desconhecido') + '</div>';
+  }
+}
+
+window.cockpitRenderCompleto = cockpitRenderCompleto;
+window.cockpitToggleCheck = cockpitToggleCheck;
+window.cockpitCarregarDados = cockpitCarregarDados;
 
 
 window.pjV347RenderSugestoesDono = pjV347RenderSugestoesDono;
