@@ -20067,7 +20067,8 @@ async function origV346RodarMatchmaking(origId){
 }
 
 // ═══════ Modal arsenal · 6 abas ═══════
-function origV346AbrirArsenal(origId){
+// v9.35.1 · aceita projeto_metadata.id OU originacao.id · resolve via DB se cache miss
+async function origV346AbrirArsenal(idArg){
   let overlay = document.getElementById('v346-arsenal-overlay');
   if (!overlay){
     overlay = document.createElement('div');
@@ -20076,8 +20077,42 @@ function origV346AbrirArsenal(origId){
     overlay.onclick = (e) => { if (e.target === overlay) origV346FecharArsenal(); };
     document.body.appendChild(overlay);
   }
-  const orig = window._origV346OrigCache[origId];
-  if (!orig){ alert('Projeto não carregado · recarregue a página.'); return; }
+  window._origV346OrigCache = window._origV346OrigCache || {};
+  window._origV346ArqCache  = window._origV346ArqCache  || {};
+
+  let origId = idArg;
+  let orig = window._origV346OrigCache[origId];
+
+  // cache miss OU stub incompleto (briefing_jsonb null) → resolve via DB
+  // idArg pode ser projeto_metadata.id (toolbar do projeto) ou originacao.id (página origV6)
+  if (!orig || !orig.briefing_jsonb){
+    overlay.innerHTML = '<div style="background:var(--bg,#0a0a0a);padding:24px 32px;border-radius:12px;color:var(--ink,#fff);font-size:13px;border:1px solid var(--line)">⏳ Carregando arsenal…</div>';
+    try {
+      const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+      // tenta 1: idArg como projeto_id
+      let r = await fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + idArg + '&select=*&order=created_at.desc&limit=1', { headers });
+      let arr = r.ok ? await r.json() : [];
+      // tenta 2: idArg como originacao.id (fallback)
+      if (!arr.length){
+        r = await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + idArg + '&select=*&limit=1', { headers });
+        arr = r.ok ? await r.json() : [];
+      }
+      if (!arr.length){
+        overlay.innerHTML = '<div style="background:var(--bg,#0a0a0a);padding:24px 32px;border-radius:12px;color:#dc2626;font-size:13px;border:1px solid #dc2626">⚠ Originação não encontrada para este projeto. <button onclick="origV346FecharArsenal()" style="margin-left:12px;background:transparent;border:1px solid var(--line);color:var(--ink);padding:4px 12px;border-radius:4px;cursor:pointer">Fechar</button></div>';
+        return;
+      }
+      orig = arr[0];
+      origId = orig.id;
+      window._origV346OrigCache[origId] = orig;
+      // arquétipos
+      const rA = await fetch(SB + '/rest/v1/arquetipos_compradores?originacao_id=eq.' + origId + '&order=created_at.desc&limit=50', { headers });
+      const arqsDb = rA.ok ? await rA.json() : [];
+      window._origV346ArqCache[origId] = arqsDb;
+    } catch (e){
+      overlay.innerHTML = '<div style="background:var(--bg,#0a0a0a);padding:24px 32px;border-radius:12px;color:#dc2626;font-size:13px;border:1px solid #dc2626">⚠ Erro: ' + (e && e.message ? e.message : 'desconhecido') + ' <button onclick="origV346FecharArsenal()" style="margin-left:12px;background:transparent;border:1px solid var(--line);color:var(--ink);padding:4px 12px;border-radius:4px;cursor:pointer">Fechar</button></div>';
+      return;
+    }
+  }
   const arqs = window._origV346ArqCache[origId] || [];
   // v9.34.7 · default: Passo C se já tem arquétipos · Setup se não tem
   const tabSalvo = (() => {
