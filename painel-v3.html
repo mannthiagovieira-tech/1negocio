@@ -12635,9 +12635,12 @@ async function pjIniciar(negId){
 
 async function pjAbrirDetalhe(negId){
   _pjAbertoId=negId;
+  window._pjAbertoId=negId; // v9.35.x · mirror para acesso global (let não anexa em window)
   _pjAbaDetalhe='visao';
   document.getElementById('pj-lista-wrap').style.display='none';
-  document.getElementById('pj-detalhe').style.display='block';
+  const det=document.getElementById('pj-detalhe');
+  det.style.display='block';
+  det.setAttribute('data-neg-id', negId); // v9.35.x · root element com data-neg-id (sobrevive a re-renders do corpo)
   document.getElementById('pj-det-corpo').innerHTML='<div class="td-loading">carregando...</div>';
   const negUrl=SB+'/rest/v1/negocios?id=eq.'+negId+'&select=id,nome,cidade,estado,plano,socio_codigo,created_at,publicado_em,anuncio_valido_ate,vendedor:usuarios!vendedor_id(nome,whatsapp),metadata:projeto_metadata(*),entregaveis:projeto_entregaveis(*,tarefas:projeto_tarefas_internas(*))';
   const movUrl=SB+'/rest/v1/projeto_movimentacoes?negocio_id=eq.'+negId+'&select=id,tipo,categoria,valor,data,descricao,created_at&order=data.desc&limit=200';
@@ -12655,6 +12658,8 @@ async function pjAbrirDetalhe(negId){
   const arr=rNeg.ok?await rNeg.json():[];
   if(!arr.length){document.getElementById('pj-det-corpo').innerHTML='<div class="td-loading">não encontrado</div>';return;}
   _pjAbertoNeg=arr[0];
+  window._pjAbertoNeg=_pjAbertoNeg; // v9.35.x · mirror para acesso global (let não anexa em window)
+  window._pjAbertoMeta=(Array.isArray(_pjAbertoNeg.metadata)?_pjAbertoNeg.metadata[0]:_pjAbertoNeg.metadata)||null;
   _pjMovimentacoes=rMov.ok?await rMov.json():[];
   _pjPoolContatos=rPool.ok?await rPool.json():[];
   _pjVencimentos=rVenc.ok?await rVenc.json():[];
@@ -12706,6 +12711,10 @@ function pjRenderDetalhe(){
 // ═══════════════════════════════════════════════════════════════════════
 
 function pjV347RenderDetalhe(n, meta, mesAtual, refs){
+  // v9.35.x · garante mirror global mesmo se chamado por outro path
+  window._pjAbertoNeg = n;
+  window._pjAbertoMeta = meta || null;
+  if (n?.id) window._pjAbertoId = n.id;
   const negocioNome = origV2Esc(n.nome || '—');
   const negLocal = origV2Esc((n.cidade || '—') + '/' + (n.estado || '—'));
   const status = origV2Esc(meta?.status || 'sem onda');
@@ -12767,9 +12776,9 @@ function pjV347RenderDetalhe(n, meta, mesAtual, refs){
     + '<button class="pj-v347-tool" data-aba="config" onclick="pjV347SetAba(\'config\')">⚙️ Config</button>'
     + '</div>';
 
-  // Coluna direita (referências · mantida)
+  // Coluna direita (referências) · classe simplificada para evitar conflito com .pj-detalhe-grid-2col legado
   const direita = ''
-    + '<div class="pj-coluna-direita pj-v347-direita">'
+    + '<div class="pj-v347-direita" style="display:flex;flex-direction:column;gap:14px;min-width:0">'
     + '<div class="pj-coluna-titulo">Referências do negócio</div>'
     + pjRefCard('📋 Cabeçalho', refs.resumoCabecalho, pjRenderCabecalho(n, meta), true)
     + pjRefCard('💰 Financeiro', refs.resumoFinanc, pjRenderFinanceiro(n, meta, _pjMovimentacoes||[]), false)
@@ -12813,8 +12822,8 @@ function pjV347RenderDetalhe(n, meta, mesAtual, refs){
     + '</style>'
     + header
     + stats
-    + '<div class="pj-v347-grid">'
-    +   '<div class="pj-v347-grid-esq">'
+    + '<div class="pj-v347-grid" style="display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start">'
+    +   '<div class="pj-v347-grid-esq" style="min-width:0">'
     +     toolbar
     +     poolBloco
     +   '</div>'
@@ -13053,9 +13062,13 @@ async function pjV347GerarSugestoesDono(metaId, negId){
 // Resolve _pjAbertoNeg via fallback DOM ([data-neg-id]) se estiver null.
 // ───────────────────────────────────────────────────────────────────
 async function pjV347ResolverNeg(){
+  // Ordem: window mirror → variável lexical (_pjAbertoNeg) → DOM data-neg-id → re-fetch
   if (window._pjAbertoNeg) return window._pjAbertoNeg;
-  // Fallback 1: _pjAbertoId ainda preservado
-  const idDoState = window._pjAbertoId;
+  if (typeof _pjAbertoNeg !== 'undefined' && _pjAbertoNeg){
+    window._pjAbertoNeg = _pjAbertoNeg; // sync mirror para próximas chamadas
+    return _pjAbertoNeg;
+  }
+  const idDoState = window._pjAbertoId || (typeof _pjAbertoId !== 'undefined' ? _pjAbertoId : null);
   const idDoDom = document.querySelector('[data-neg-id]')?.getAttribute('data-neg-id');
   const negId = idDoState || idDoDom;
   if (!negId) return null;
