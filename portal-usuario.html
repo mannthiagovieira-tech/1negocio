@@ -2298,7 +2298,7 @@ function renderCardNegocio(n) {
   if (status === 'rascunho') {
     ctas = `
       <div class="card-ctas">
-        <a href="/diagnostico.html?id=${n.id}" class="card-cta primary">Continuar diagnóstico →</a>
+        <a href="javascript:void(0)" onclick="puIrParaDiagnostico('${n.id}')" class="card-cta primary">Continuar diagnóstico →</a>
       </div>
     `;
   } else if (status === 'em_avaliacao') {
@@ -3428,10 +3428,10 @@ function puRenderVendedorAssessorado(negocio, meta){
     +       '<span style="background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600">● ATIVO</span>'
     +     '</div>'
     +     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border-radius:8px;overflow:hidden;margin-top:16px">'
-    +       '<div style="background:var(--surface);padding:12px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Contatos feitos</div><div id="pu-stat-contatos" style="font-family:var(--serif);font-size:20px;font-weight:700">—</div></div>'
-    +       '<div style="background:var(--surface);padding:12px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Em conversa</div><div id="pu-stat-conversa" style="font-family:var(--serif);font-size:20px;font-weight:700">—</div></div>'
-    +       '<div style="background:var(--surface);padding:12px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">NDAs assinados</div><div id="pu-stat-ndas" style="font-family:var(--serif);font-size:20px;font-weight:700">—</div></div>'
-    +       '<div style="background:var(--surface);padding:12px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Em negociação</div><div id="pu-stat-negociacao" style="font-family:var(--serif);font-size:20px;font-weight:700">—</div></div>'
+    +       '<div style="background:var(--surface);padding:12px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Contatos feitos</div><div id="pu-stat-contatos" style="font-family:var(--serif);font-size:20px;font-weight:700">0</div></div>'
+    +       '<div style="background:var(--surface);padding:12px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Em conversa</div><div id="pu-stat-conversa" style="font-family:var(--serif);font-size:20px;font-weight:700">0</div></div>'
+    +       '<div style="background:var(--surface);padding:12px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">NDAs assinados</div><div id="pu-stat-ndas" style="font-family:var(--serif);font-size:20px;font-weight:700">0</div></div>'
+    +       '<div style="background:var(--surface);padding:12px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Em negociação</div><div id="pu-stat-negociacao" style="font-family:var(--serif);font-size:20px;font-weight:700">0</div></div>'
     +     '</div>'
     +   '</div>'
     +   '<div style="display:flex;gap:4px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px">' + tabs + '</div>'
@@ -3772,6 +3772,7 @@ function puRenderDataroom(meta){
     +   '<div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px">'
     +     '<div style="font-size:13px;font-weight:500;margin-bottom:8px">Enviar documento</div>'
     +     '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+    +       '<input type="text" id="pu-doc-titulo" placeholder="Nome/título do documento (ex: Contrato Social 2024)" style="flex:1;background:var(--surface);border:1px solid var(--line-2,var(--line));border-radius:6px;padding:7px 10px;color:var(--ink);font-size:13px;min-width:200px">'
     +       '<select id="pu-doc-categoria" style="background:var(--surface);border:1px solid var(--line-2,var(--line));border-radius:6px;padding:7px 10px;color:var(--ink);font-size:13px"><option value="societario">Societário</option><option value="financeiro">Financeiro</option><option value="operacional">Operacional</option><option value="fotos">Fotos</option><option value="laudos">Laudos</option><option value="outros">Outros</option></select>'
     +       '<input type="file" id="pu-doc-file" style="display:none" onchange="puEnviarDocumento(\'' + puEsc(metaId) + '\')" accept=".pdf,.jpg,.jpeg,.png,.xlsx,.docx">'
     +       '<button onclick="document.getElementById(\'pu-doc-file\').click()" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">📎 Selecionar arquivo</button>'
@@ -3792,17 +3793,40 @@ async function puCarregarDataroom(meta){
     if (!docs?.length) { el.innerHTML = '<div style="color:var(--ink-3);font-size:13px">Nenhum documento enviado ainda.</div>'; return; }
     const COR = { pendente: '#d4a017', enviado: 'var(--ink-3)', aprovado: 'var(--accent,#22c55e)', rejeitado: 'var(--alert,#ff6b5c)' };
     const LBL = { pendente: 'Pendente', enviado: 'Enviado', aprovado: 'Aprovado', rejeitado: 'Rejeitado' };
-    el.innerHTML = docs.map(d => '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:8px">'
-      + '<div><div style="font-size:13px;font-weight:500">' + puEsc(d.nome || '?') + '</div><div style="font-size:11px;color:var(--ink-3)">' + puEsc(d.categoria || '') + '</div></div>'
-      + '<span style="font-size:11px;font-weight:600;color:' + (COR[d.status] || 'var(--ink-3)') + '">' + puEsc(LBL[d.status] || d.status || '') + '</span>'
+    el.innerHTML = docs.map(d => '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;gap:10px">'
+      + '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + puEsc(d.nome || '?') + '</div><div style="font-size:11px;color:var(--ink-3)">' + puEsc(d.categoria || '') + '</div></div>'
+      + '<span style="font-size:11px;font-weight:600;color:' + (COR[d.status] || 'var(--ink-3)') + ';white-space:nowrap">' + puEsc(LBL[d.status] || d.status || '') + '</span>'
+      + '<button onclick="puExcluirDocumento(\'' + puEsc(d.id) + '\',\'' + puEsc(d.url || '') + '\',\'' + puEsc(meta.id) + '\')" style="background:transparent;border:none;cursor:pointer;color:var(--alert,#ff6b5c);font-size:14px;padding:2px 6px;line-height:1" title="Excluir">✕</button>'
       + '</div>').join('');
   } catch (_) {}
+}
+
+async function puExcluirDocumento(docId, url, metaId){
+  if (!docId || !confirm('Excluir este documento?')) return;
+  const headers = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token };
+  try {
+    // Deletar do banco
+    await fetch(SUPABASE_URL + '/rest/v1/projeto_dataroom?id=eq.' + encodeURIComponent(docId), { method: 'DELETE', headers });
+    // Tentar deletar do Storage (best-effort)
+    if (url) {
+      const m = url.split('/storage/v1/object/public/dataroom/')[1] || url.split('/storage/v1/object/dataroom/')[1];
+      if (m) {
+        try {
+          await fetch(SUPABASE_URL + '/storage/v1/object/dataroom/' + m, { method: 'DELETE', headers });
+        } catch (_) {}
+      }
+    }
+    if (metaId) puCarregarDataroom({ id: metaId });
+  } catch (e) {
+    alert('Erro ao excluir: ' + (e && e.message ? e.message : 'desconhecido'));
+  }
 }
 
 async function puEnviarDocumento(metaId){
   const fileEl = document.getElementById('pu-doc-file');
   const file = fileEl?.files?.[0];
   const categoria = document.getElementById('pu-doc-categoria')?.value || 'outros';
+  const tituloCustom = (document.getElementById('pu-doc-titulo')?.value || '').trim();
   if (!file || !metaId) return;
   try {
     const safeName = file.name.replace(/[^\w.\-]/g, '_');
@@ -3818,12 +3842,15 @@ async function puEnviarDocumento(metaId){
       return;
     }
     const publicUrl = SUPABASE_URL + '/storage/v1/object/dataroom/' + path;
+    // v9.38.1 · usa título customizado se fornecido · senão nome do arquivo
+    const nomeFinal = tituloCustom || file.name;
     await fetch(SUPABASE_URL + '/rest/v1/projeto_dataroom', {
       method: 'POST',
       headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ projeto_metadata_id: metaId, nome: file.name, categoria, url: publicUrl, tamanho_bytes: file.size, mime_type: file.type || null, status: 'enviado' })
+      body: JSON.stringify({ projeto_metadata_id: metaId, nome: nomeFinal, categoria, url: publicUrl, tamanho_bytes: file.size, mime_type: file.type || null, status: 'enviado' })
     });
     if (fileEl) fileEl.value = '';
+    const tituloEl = document.getElementById('pu-doc-titulo'); if (tituloEl) tituloEl.value = '';
     alert('✓ Documento enviado!');
     puCarregarDataroom({ id: metaId });
   } catch (e) {
@@ -3831,10 +3858,22 @@ async function puEnviarDocumento(metaId){
   }
 }
 
+// v9.38.1 · navegar para diagnostico.html injetando credenciais (evita OTP novo)
+function puIrParaDiagnostico(negId){
+  try {
+    if (session?.token)   localStorage.setItem('1n_auth_token', session.token);
+    if (session?.refresh) localStorage.setItem('1n_auth_refresh', session.refresh);
+    if (session?.user_id) localStorage.setItem('1n_auth_user_id', session.user_id);
+  } catch (_) {}
+  window.location.href = '/diagnostico.html' + (negId ? ('?id=' + encodeURIComponent(negId)) : '');
+}
+
 // Expose for inline onclick / external calls
 window.puVerificarAssessorada = puVerificarAssessorada;
 window.puSetAba = puSetAba;
 window.puEnviarDocumento = puEnviarDocumento;
+window.puExcluirDocumento = puExcluirDocumento;
+window.puIrParaDiagnostico = puIrParaDiagnostico;
 
 init();
 </script>

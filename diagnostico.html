@@ -5939,7 +5939,18 @@ async function tentarRetomar() {
 ══════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   // [REMOVIDO] verificarGoogleAuth — auth agora é via OTP SMS
-  
+
+  // v9.38.1 · se já existe sessão válida (vindo do portal ou login anterior), pula OTP
+  try {
+    const tk = localStorage.getItem('1n_auth_token');
+    const uid = localStorage.getItem('1n_auth_user_id');
+    if (tk && uid) {
+      D.google_user_id = uid; // alimenta vendedor_id usado nas chamadas
+      // pula bloco-inicial e bloco-otp · vai direto para o primeiro passo do diagnóstico
+      setTimeout(function(){ try { ir('t-cnpj'); } catch(_) {} }, 80);
+    }
+  } catch (_) {}
+
   // carrega parâmetros da URL (vindo de auth.html)
   const url = new URL(location.href);
   const nome = url.searchParams.get('nome');
