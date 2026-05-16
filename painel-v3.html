@@ -6473,8 +6473,16 @@ function paFilterNegocios() {
 }
 function paRenderNegocios(data) {
   document.getElementById('pa-tbl-negocios').innerHTML = paRenderTable([
-    {key:'titulo_anuncio', label:'Título', type:'actions', render: r => r.titulo_anuncio ? escapeHtml(r.titulo_anuncio) : '<span class="pa-muted">— sem título —</span>' },
-    {key:'nome',           label:'Nome interno'},
+    // v9.38.7 · célula combinada · título do anúncio (público) + nome real abaixo (interno, ink-3)
+    {key:'titulo_anuncio', label:'Título · Nome real', type:'actions', render: r => {
+      const tit = r.titulo_anuncio
+        ? '<div style="font-weight:600">' + escapeHtml(r.titulo_anuncio) + '</div>'
+        : '<div><span class="pa-muted">— sem título —</span></div>';
+      // só mostra nome real se for diferente do título (evita duplicação)
+      const mostrar = r.nome && (!r.titulo_anuncio || r.titulo_anuncio !== r.nome);
+      const sub = mostrar ? '<div style="font-size:11px;color:var(--ink-3);font-style:italic;margin-top:2px">Nome real: ' + escapeHtml(r.nome) + '</div>' : '';
+      return tit + sub;
+    }},
     {key:'setor',          label:'Setor'},
     {key:'estado',         label:'UF'},
     {key:'status',         label:'Status', type:'badge'},
@@ -13860,18 +13868,19 @@ function pjNovoBuscar(termo){
     try {
       const q = encodeURIComponent(tr);
       const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
-      const sel = 'id,nome,codigo,cidade,estado,setor,preco_pedido,valor_1n,vendedor_id,vendedor:usuarios!vendedor_id(nome,whatsapp)';
+      // v9.38.7 · select agora inclui titulo_anuncio
+      const sel = 'id,nome,titulo_anuncio,codigo,cidade,estado,setor,preco_pedido,valor_1n,vendedor_id,vendedor:usuarios!vendedor_id(nome,whatsapp)';
       const stf = 'status=in.(publicado,em_avaliacao,aguardando_aprovacao,em_revisao)';
 
-      // Heurística: termo começa com "1N" (case-insensitive) → priorizar código (busca só por código)
+      // Heurística: termo começa com "1N" (case-insensitive) → priorizar código
       const isCodigo = /^1n/i.test(tr);
       const urls = isCodigo
         ? [SB + '/rest/v1/negocios?codigo=ilike.*' + q + '*&' + stf + '&select=' + sel + '&limit=10']
         : [
-            // Query A: campos do próprio negocios
-            SB + '/rest/v1/negocios?or=(nome.ilike.*' + q + '*,codigo.ilike.*' + q + '*,cidade.ilike.*' + q + '*)&' + stf + '&select=' + sel + '&limit=10',
+            // Query A: campos do próprio negocios · v9.38.7 · adiciona titulo_anuncio
+            SB + '/rest/v1/negocios?or=(nome.ilike.*' + q + '*,titulo_anuncio.ilike.*' + q + '*,codigo.ilike.*' + q + '*,cidade.ilike.*' + q + '*)&' + stf + '&select=' + sel + '&limit=10',
             // Query B: nome do vendedor (filtro em embed via PostgREST · !inner garante que filtro aplica)
-            SB + '/rest/v1/negocios?vendedor.nome=ilike.*' + q + '*&' + stf + '&select=id,nome,codigo,cidade,estado,setor,preco_pedido,valor_1n,vendedor_id,vendedor:usuarios!vendedor_id!inner(nome,whatsapp)&limit=10',
+            SB + '/rest/v1/negocios?vendedor.nome=ilike.*' + q + '*&' + stf + '&select=id,nome,titulo_anuncio,codigo,cidade,estado,setor,preco_pedido,valor_1n,vendedor_id,vendedor:usuarios!vendedor_id!inner(nome,whatsapp)&limit=10',
           ];
 
       const responses = await Promise.all(urls.map(u =>
@@ -13896,11 +13905,15 @@ function pjNovoBuscar(termo){
         const vend = (n.vendedor && (Array.isArray(n.vendedor) ? n.vendedor[0] : n.vendedor)) || {};
         const localStr = (n.cidade || '') + (n.estado ? '/' + n.estado : '');
         const aval = parseFloat(n.valor_1n || 0);
+        // v9.38.7 · título do anúncio é o principal · nome real (interno) abaixo se diferente
+        const tituloPrincipal = n.titulo_anuncio || n.nome || '?';
+        const mostrarNomeReal = n.titulo_anuncio && n.nome && n.titulo_anuncio !== n.nome;
         return '<div onclick="pjNovoSel(\'' + pjEsc(n.id) + '\')" style="padding:10px 12px;background:var(--bg);border:1px solid transparent;border-radius:8px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--accent-line,rgba(34,197,94,.3))\'" onmouseout="this.style.borderColor=\'transparent\'">'
           + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'
           +   '<div style="flex:1;min-width:0">'
           +     (n.codigo ? '<div style="font-family:var(--mono);font-size:10px;color:var(--ink-3);letter-spacing:.04em;margin-bottom:2px">' + pjEsc(n.codigo) + '</div>' : '')
-          +     '<div style="font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + pjEsc(n.nome || '?') + '</div>'
+          +     '<div style="font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + pjEsc(tituloPrincipal) + '</div>'
+          +     (mostrarNomeReal ? '<div style="font-size:10px;color:var(--ink-4);font-style:italic;margin-top:1px">Nome real: ' + pjEsc(n.nome) + '</div>' : '')
           +     '<div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + pjEsc(localStr) + (n.setor ? ' · ' + pjEsc(n.setor) : '') + '</div>'
           +     (vend.nome ? '<div style="font-size:11px;color:var(--ink-3);margin-top:2px">Dono: <span style="color:var(--ink-2)">' + pjEsc(vend.nome) + '</span></div>' : '')
           +   '</div>'
@@ -13928,11 +13941,15 @@ function pjNovoSel(negId){
     const vend = (neg.vendedor && (Array.isArray(neg.vendedor) ? neg.vendedor[0] : neg.vendedor)) || {};
     const localStr = (neg.cidade || '') + (neg.estado ? '/' + neg.estado : '');
     const aval = parseFloat(neg.valor_1n || 0);
+    // v9.38.7 · título principal · nome real menor abaixo se diferente
+    const tituloPrincipal = neg.titulo_anuncio || neg.nome || '?';
+    const mostrarNomeReal = neg.titulo_anuncio && neg.nome && neg.titulo_anuncio !== neg.nome;
     wrap.innerHTML = ''
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'
       +   '<div style="flex:1;min-width:0">'
       +     '<div style="font-size:10px;color:var(--accent,#22c55e);font-weight:600;letter-spacing:.04em;margin-bottom:4px">✓ SELECIONADO' + (neg.codigo ? ' · <span style="font-family:var(--mono)">' + pjEsc(neg.codigo) + '</span>' : '') + '</div>'
-      +     '<div style="font-size:14px;font-weight:600;color:var(--ink)">' + pjEsc(neg.nome || '?') + '</div>'
+      +     '<div style="font-size:14px;font-weight:600;color:var(--ink)">' + pjEsc(tituloPrincipal) + '</div>'
+      +     (mostrarNomeReal ? '<div style="font-size:11px;color:var(--ink-4);font-style:italic;margin-top:2px">Nome real: ' + pjEsc(neg.nome) + '</div>' : '')
       +     '<div style="font-size:12px;color:var(--ink-3);margin-top:2px">' + pjEsc(localStr) + (neg.setor ? ' · ' + pjEsc(neg.setor) : '') + '</div>'
       +     (vend.nome ? '<div style="font-size:12px;color:var(--ink-2);margin-top:2px">Dono: <b>' + pjEsc(vend.nome) + '</b></div>' : '')
       +   '</div>'
