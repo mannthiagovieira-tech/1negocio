@@ -6453,8 +6453,9 @@ async function paLoadNegocios() {
   if (!tbl) return;
   tbl.innerHTML = '<div class="pa-loading">Carregando...</div>';
   try {
-    const r = await paApi('select','negocios',{
-      select:'id,nome,titulo_anuncio,setor,estado,cidade,status,faturamento_anual,preco_pedido,created_at,vendedor_id',
+    // v9.38.8 · usa view unificada · puxa título/código/status do anúncio quando existir + vendedor flat
+    const r = await paApi('select','vw_negocios_anuncios',{
+      select:'id,negocio_id,nome,titulo_anuncio,titulo,codigo,setor,estado,cidade,status,status_negocio,faturamento_anual,preco_pedido,valor_pedido,valor_1n,vendedor_id,vendedor_nome,vendedor_whatsapp,anuncio_id,publicado_em,created_at',
       order:'created_at', ascending:false, limit:500
     });
     _paNegData = r.data || [];
@@ -13868,20 +13869,13 @@ function pjNovoBuscar(termo){
     try {
       const q = encodeURIComponent(tr);
       const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
-      // v9.38.7 · select agora inclui titulo_anuncio
-      const sel = 'id,nome,titulo_anuncio,codigo,cidade,estado,setor,preco_pedido,valor_1n,vendedor_id,vendedor:usuarios!vendedor_id(nome,whatsapp)';
-      const stf = 'status=in.(publicado,em_avaliacao,aguardando_aprovacao,em_revisao)';
-
-      // Heurística: termo começa com "1N" (case-insensitive) → priorizar código
+      // v9.38.8 · usa view unificada vw_negocios_anuncios · OR em titulo+codigo+cidade+vendedor_nome numa única query
+      const sel = 'negocio_id,nome,titulo_anuncio,titulo,codigo,cidade,estado,setor,valor_pedido,preco_pedido,valor_1n,vendedor_id,vendedor_nome,vendedor_whatsapp,anuncio_id,status';
+      const stf = 'status=in.(publicado,em_avaliacao,aguardando_aprovacao,em_revisao,rascunho)';
       const isCodigo = /^1n/i.test(tr);
       const urls = isCodigo
-        ? [SB + '/rest/v1/negocios?codigo=ilike.*' + q + '*&' + stf + '&select=' + sel + '&limit=10']
-        : [
-            // Query A: campos do próprio negocios · v9.38.7 · adiciona titulo_anuncio
-            SB + '/rest/v1/negocios?or=(nome.ilike.*' + q + '*,titulo_anuncio.ilike.*' + q + '*,codigo.ilike.*' + q + '*,cidade.ilike.*' + q + '*)&' + stf + '&select=' + sel + '&limit=10',
-            // Query B: nome do vendedor (filtro em embed via PostgREST · !inner garante que filtro aplica)
-            SB + '/rest/v1/negocios?vendedor.nome=ilike.*' + q + '*&' + stf + '&select=id,nome,titulo_anuncio,codigo,cidade,estado,setor,preco_pedido,valor_1n,vendedor_id,vendedor:usuarios!vendedor_id!inner(nome,whatsapp)&limit=10',
-          ];
+        ? [SB + '/rest/v1/vw_negocios_anuncios?codigo=ilike.*' + q + '*&select=' + sel + '&limit=10']
+        : [SB + '/rest/v1/vw_negocios_anuncios?or=(titulo.ilike.*' + q + '*,nome.ilike.*' + q + '*,codigo.ilike.*' + q + '*,cidade.ilike.*' + q + '*,vendedor_nome.ilike.*' + q + '*)&' + stf + '&select=' + sel + '&limit=10'];
 
       const responses = await Promise.all(urls.map(u =>
         fetch(u, { headers }).then(r => r.ok ? r.json() : []).catch(() => [])
@@ -13890,7 +13884,10 @@ function pjNovoBuscar(termo){
       // Dedup por id · preserva ordem · cap em 10
       const seen = new Set();
       const negs = [];
-      responses.flat().forEach(n => { if (n && n.id && !seen.has(n.id)) { seen.add(n.id); negs.push(n); } });
+      responses.flat().forEach(n => {
+        const key = n && (n.negocio_id || n.id);
+        if (key && !seen.has(key)) { seen.add(key); negs.push(n); }
+      });
       const top = negs.slice(0, 10);
 
       if (!top.length) {
@@ -13898,28 +13895,31 @@ function pjNovoBuscar(termo){
         return;
       }
 
+      // v9.38.8 · cache por negocio_id (chave usada em pjNovoCriar)
       window._pjNovoCache = {};
-      top.forEach(n => { window._pjNovoCache[n.id] = n; });
+      top.forEach(n => { const k = n.negocio_id || n.id; if (k) window._pjNovoCache[k] = n; });
 
       lista.innerHTML = top.map(n => {
-        const vend = (n.vendedor && (Array.isArray(n.vendedor) ? n.vendedor[0] : n.vendedor)) || {};
+        const negKey = n.negocio_id || n.id;
+        const vendNome = n.vendedor_nome || '';
         const localStr = (n.cidade || '') + (n.estado ? '/' + n.estado : '');
         const aval = parseFloat(n.valor_1n || 0);
-        // v9.38.7 · título do anúncio é o principal · nome real (interno) abaixo se diferente
-        const tituloPrincipal = n.titulo_anuncio || n.nome || '?';
-        const mostrarNomeReal = n.titulo_anuncio && n.nome && n.titulo_anuncio !== n.nome;
-        return '<div onclick="pjNovoSel(\'' + pjEsc(n.id) + '\')" style="padding:10px 12px;background:var(--bg);border:1px solid transparent;border-radius:8px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--accent-line,rgba(34,197,94,.3))\'" onmouseout="this.style.borderColor=\'transparent\'">'
+        // v9.38.8 · view já entrega "titulo" via COALESCE(a.titulo,n.titulo_anuncio,n.nome)
+        const tituloPrincipal = n.titulo || n.titulo_anuncio || n.nome || '?';
+        const mostrarNomeReal = n.nome && tituloPrincipal !== n.nome;
+        const valorPed = parseFloat(n.valor_pedido || n.preco_pedido || 0);
+        return '<div onclick="pjNovoSel(\'' + pjEsc(negKey) + '\')" style="padding:10px 12px;background:var(--bg);border:1px solid transparent;border-radius:8px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--accent-line,rgba(34,197,94,.3))\'" onmouseout="this.style.borderColor=\'transparent\'">'
           + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'
           +   '<div style="flex:1;min-width:0">'
           +     (n.codigo ? '<div style="font-family:var(--mono);font-size:10px;color:var(--ink-3);letter-spacing:.04em;margin-bottom:2px">' + pjEsc(n.codigo) + '</div>' : '')
           +     '<div style="font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + pjEsc(tituloPrincipal) + '</div>'
           +     (mostrarNomeReal ? '<div style="font-size:10px;color:var(--ink-4);font-style:italic;margin-top:1px">Nome real: ' + pjEsc(n.nome) + '</div>' : '')
           +     '<div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + pjEsc(localStr) + (n.setor ? ' · ' + pjEsc(n.setor) : '') + '</div>'
-          +     (vend.nome ? '<div style="font-size:11px;color:var(--ink-3);margin-top:2px">Dono: <span style="color:var(--ink-2)">' + pjEsc(vend.nome) + '</span></div>' : '')
+          +     (vendNome ? '<div style="font-size:11px;color:var(--ink-3);margin-top:2px">Dono: <span style="color:var(--ink-2)">' + pjEsc(vendNome) + '</span></div>' : '')
           +   '</div>'
           +   '<div style="text-align:right;flex-shrink:0">'
           +     '<div style="font-size:10px;color:var(--ink-3)">Pedido</div>'
-          +     '<div style="font-size:12px;font-weight:600;color:var(--accent,#22c55e)">' + pjFmtK(parseFloat(n.preco_pedido || 0)) + '</div>'
+          +     '<div style="font-size:12px;font-weight:600;color:var(--accent,#22c55e)">' + pjFmtK(valorPed) + '</div>'
           +     (aval > 0 ? '<div style="font-size:10px;color:var(--ink-3);margin-top:4px">Aval. 1N</div><div style="font-size:12px;font-weight:600;color:var(--ink)">' + pjFmtK(aval) + '</div>' : '')
           +   '</div>'
           + '</div>'
@@ -13938,12 +13938,13 @@ function pjNovoSel(negId){
   // v9.38.6 · card selecionado enriquecido (código · dono · pedido + aval 1N lado a lado)
   const wrap = document.getElementById('pj-novo-sel');
   if (wrap) {
-    const vend = (neg.vendedor && (Array.isArray(neg.vendedor) ? neg.vendedor[0] : neg.vendedor)) || {};
+    // v9.38.8 · view entrega campos flat · vendedor_nome direto
+    const vendNome = neg.vendedor_nome || '';
     const localStr = (neg.cidade || '') + (neg.estado ? '/' + neg.estado : '');
     const aval = parseFloat(neg.valor_1n || 0);
-    // v9.38.7 · título principal · nome real menor abaixo se diferente
-    const tituloPrincipal = neg.titulo_anuncio || neg.nome || '?';
-    const mostrarNomeReal = neg.titulo_anuncio && neg.nome && neg.titulo_anuncio !== neg.nome;
+    const tituloPrincipal = neg.titulo || neg.titulo_anuncio || neg.nome || '?';
+    const mostrarNomeReal = neg.nome && tituloPrincipal !== neg.nome;
+    const valorPed = parseFloat(neg.valor_pedido || neg.preco_pedido || 0);
     wrap.innerHTML = ''
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'
       +   '<div style="flex:1;min-width:0">'
@@ -13951,11 +13952,11 @@ function pjNovoSel(negId){
       +     '<div style="font-size:14px;font-weight:600;color:var(--ink)">' + pjEsc(tituloPrincipal) + '</div>'
       +     (mostrarNomeReal ? '<div style="font-size:11px;color:var(--ink-4);font-style:italic;margin-top:2px">Nome real: ' + pjEsc(neg.nome) + '</div>' : '')
       +     '<div style="font-size:12px;color:var(--ink-3);margin-top:2px">' + pjEsc(localStr) + (neg.setor ? ' · ' + pjEsc(neg.setor) : '') + '</div>'
-      +     (vend.nome ? '<div style="font-size:12px;color:var(--ink-2);margin-top:2px">Dono: <b>' + pjEsc(vend.nome) + '</b></div>' : '')
+      +     (vendNome ? '<div style="font-size:12px;color:var(--ink-2);margin-top:2px">Dono: <b>' + pjEsc(vendNome) + '</b></div>' : '')
       +   '</div>'
       +   '<div style="text-align:right;flex-shrink:0">'
       +     '<div style="font-size:10px;color:var(--ink-3)">Pedido</div>'
-      +     '<div style="font-size:13px;font-weight:700;color:var(--accent,#22c55e)">' + pjFmtK(parseFloat(neg.preco_pedido || 0)) + '</div>'
+      +     '<div style="font-size:13px;font-weight:700;color:var(--accent,#22c55e)">' + pjFmtK(valorPed) + '</div>'
       +     (aval > 0 ? '<div style="font-size:10px;color:var(--ink-3);margin-top:6px">Aval. 1N</div><div style="font-size:13px;font-weight:700;color:var(--ink)">' + pjFmtK(aval) + '</div>' : '')
       +   '</div>'
       + '</div>'
@@ -14036,7 +14037,7 @@ async function pjNovoCriar(){
     //   observacao         → notas_admin
     //   venda_alvo         → valor_venda_alvo
     const payload = {
-      negocio_id: _pjNovoNeg.id,
+      negocio_id: _pjNovoNeg.negocio_id || _pjNovoNeg.id,
       status: 'ativo',
       valor_mensal_receita: mensal,
       data_inicio_projeto: inicio,
@@ -14048,7 +14049,7 @@ async function pjNovoCriar(){
       motivo_inicio: motivo,
       notas_admin: obs || null,
       comissao_percentual: 5,
-      valor_venda_alvo: parseFloat(_pjNovoNeg.preco_pedido || 0),
+      valor_venda_alvo: parseFloat(_pjNovoNeg.valor_pedido || _pjNovoNeg.preco_pedido || 0),
     };
 
     const r = await fetch(SB + '/rest/v1/projeto_metadata', { method: 'POST', headers, body: JSON.stringify(payload) });
@@ -14058,7 +14059,7 @@ async function pjNovoCriar(){
 
     // Atualiza status do negócio (best-effort)
     try {
-      await fetch(SB + '/rest/v1/negocios?id=eq.' + encodeURIComponent(_pjNovoNeg.id), {
+      await fetch(SB + '/rest/v1/negocios?id=eq.' + encodeURIComponent(_pjNovoNeg.negocio_id || _pjNovoNeg.id), {
         method: 'PATCH',
         headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
         body: JSON.stringify({ status: 'em_negociacao' }),
@@ -14070,7 +14071,7 @@ async function pjNovoCriar(){
 
     // Abre o detalhe do projeto recém-criado
     if (typeof pjAbrirNeg === 'function') {
-      pjAbrirNeg(_pjNovoNeg.id);
+      pjAbrirNeg(_pjNovoNeg.negocio_id || _pjNovoNeg.id);
     } else if (typeof pjRenderListaV2 === 'function') {
       pjRenderListaV2();
     }

@@ -3363,17 +3363,31 @@ async function puVerificarAssessorada(){
   if (!host) return;
   const headers = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + session.token };
   try {
-    // 1) Procura negócio do usuário com projeto_metadata vinculado (Venda Assessorada)
-    const r = await fetch(SUPABASE_URL + '/rest/v1/negocios?vendedor_id=eq.' + session.user_id
-      + '&select=id,nome,cidade,estado,setor,categoria,preco_pedido,avaliacao_min,avaliacao_max,score_saude,status,metadata:projeto_metadata(*)'
-      + '&order=created_at.desc&limit=10', { headers });
-    if (!r.ok) return;
-    const negs = await r.json();
-    // Acha o primeiro com metadata (projeto assessorado)
-    const negComMeta = (negs || []).find(n => Array.isArray(n.metadata) ? n.metadata.length > 0 : !!n.metadata);
-    if (!negComMeta) { host.innerHTML = ''; return; }
+    // v9.38.8 · busca via vw_negocios_anuncios (cobre vendedor_id em negocios OU em anuncios_v2)
+    const uid = encodeURIComponent(session.user_id);
+    const negs = await fetch(SUPABASE_URL + '/rest/v1/vw_negocios_anuncios?'
+      + 'or=(vendedor_id.eq.' + uid + ',vendedor_id_anuncio.eq.' + uid + ')'
+      + '&select=negocio_id,id,nome,titulo,titulo_anuncio,codigo,cidade,estado,setor,preco_pedido,valor_pedido,valor_1n,score_saude,status,status_negocio,vendedor_id,vendedor_id_anuncio'
+      + '&order=created_at.desc&limit=20', { headers }).then(r => r.ok ? r.json() : []).catch(() => []);
+    if (!negs.length) { host.innerHTML = ''; return; }
 
-    const meta = Array.isArray(negComMeta.metadata) ? negComMeta.metadata[0] : negComMeta.metadata;
+    // Para cada negocio_id único, verifica se há projeto_metadata ativo
+    const negIds = Array.from(new Set(negs.map(n => n.negocio_id).filter(Boolean)));
+    const metas = await fetch(SUPABASE_URL + '/rest/v1/projeto_metadata?negocio_id=in.(' + negIds.join(',') + ')&select=*&order=created_at.desc', { headers })
+      .then(r => r.ok ? r.json() : []).catch(() => []);
+    if (!metas.length) { host.innerHTML = ''; return; }
+
+    const meta = metas[0];
+    // Achata os campos do negocio (view) num shape que o restante do portal espera
+    const negV = negs.find(n => n.negocio_id === meta.negocio_id) || negs[0];
+    const negComMeta = {
+      id: negV.negocio_id || negV.id,
+      nome: negV.titulo || negV.titulo_anuncio || negV.nome,
+      cidade: negV.cidade, estado: negV.estado, setor: negV.setor,
+      preco_pedido: negV.preco_pedido || negV.valor_pedido,
+      score_saude: negV.score_saude, status: negV.status,
+    };
+
     window._puNegocioAtual = negComMeta;
     window._puMetaAtual = meta;
     window._puOrigIdAtual = null;
