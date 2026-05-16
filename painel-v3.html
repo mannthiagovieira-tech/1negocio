@@ -13845,34 +13845,73 @@ function pjNovoProjetoModal(){
   pjNovoCarregarAssessores();
 }
 
+// v9.38.6 · busca expandida · cobre nome · código · cidade · dono(via join)
 function pjNovoBuscar(termo){
   clearTimeout(_pjNovoBounce);
   _pjNovoBounce = setTimeout(async function(){
     const lista = document.getElementById('pj-novo-lista');
     if (!lista) return;
-    if (!termo || termo.length < 2) {
+    const tr = (termo || '').trim();
+    if (!tr || tr.length < 2) {
       lista.innerHTML = '<div style="color:var(--ink-3);font-size:13px;text-align:center;padding:16px">Digite para buscar</div>';
       return;
     }
     lista.innerHTML = '<div style="color:var(--ink-3);font-size:13px;text-align:center;padding:12px">Buscando...</div>';
     try {
-      const q = encodeURIComponent(termo);
-      const url = SB + '/rest/v1/negocios?or=(nome.ilike.*' + q + '*,cidade.ilike.*' + q + '*)&status=in.(publicado,em_avaliacao,aguardando_aprovacao,em_revisao)&select=id,nome,cidade,estado,setor,preco_pedido,vendedor_id&limit=8';
-      const r = await fetch(url, { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) } });
-      const negs = r.ok ? await r.json() : [];
-      if (!negs.length) {
+      const q = encodeURIComponent(tr);
+      const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+      const sel = 'id,nome,codigo,cidade,estado,setor,preco_pedido,valor_1n,vendedor_id,vendedor:usuarios!vendedor_id(nome,whatsapp)';
+      const stf = 'status=in.(publicado,em_avaliacao,aguardando_aprovacao,em_revisao)';
+
+      // Heurística: termo começa com "1N" (case-insensitive) → priorizar código (busca só por código)
+      const isCodigo = /^1n/i.test(tr);
+      const urls = isCodigo
+        ? [SB + '/rest/v1/negocios?codigo=ilike.*' + q + '*&' + stf + '&select=' + sel + '&limit=10']
+        : [
+            // Query A: campos do próprio negocios
+            SB + '/rest/v1/negocios?or=(nome.ilike.*' + q + '*,codigo.ilike.*' + q + '*,cidade.ilike.*' + q + '*)&' + stf + '&select=' + sel + '&limit=10',
+            // Query B: nome do vendedor (filtro em embed via PostgREST · !inner garante que filtro aplica)
+            SB + '/rest/v1/negocios?vendedor.nome=ilike.*' + q + '*&' + stf + '&select=id,nome,codigo,cidade,estado,setor,preco_pedido,valor_1n,vendedor_id,vendedor:usuarios!vendedor_id!inner(nome,whatsapp)&limit=10',
+          ];
+
+      const responses = await Promise.all(urls.map(u =>
+        fetch(u, { headers }).then(r => r.ok ? r.json() : []).catch(() => [])
+      ));
+
+      // Dedup por id · preserva ordem · cap em 10
+      const seen = new Set();
+      const negs = [];
+      responses.flat().forEach(n => { if (n && n.id && !seen.has(n.id)) { seen.add(n.id); negs.push(n); } });
+      const top = negs.slice(0, 10);
+
+      if (!top.length) {
         lista.innerHTML = '<div style="color:var(--ink-3);font-size:13px;text-align:center;padding:12px">Nenhum anúncio encontrado</div>';
         return;
       }
-      // Cache por id · safe pra HTML/atributos
+
       window._pjNovoCache = {};
-      negs.forEach(n => { window._pjNovoCache[n.id] = n; });
-      lista.innerHTML = negs.map(n =>
-        '<div onclick="pjNovoSel(\'' + pjEsc(n.id) + '\')" style="padding:10px 12px;background:var(--bg);border-radius:8px;cursor:pointer;border:1px solid transparent;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--accent-line,rgba(34,197,94,.3))\'" onmouseout="this.style.borderColor=\'transparent\'">'
-        + '<div style="font-size:13px;font-weight:500">' + pjEsc(n.nome || '?') + '</div>'
-        + '<div style="font-size:11px;color:var(--ink-3)">' + pjEsc(n.cidade || '') + (n.estado ? '/' + pjEsc(n.estado) : '') + ' · ' + pjEsc(n.setor || '') + ' · ' + pjFmtK(parseFloat(n.preco_pedido || 0)) + '</div>'
-        + '</div>'
-      ).join('');
+      top.forEach(n => { window._pjNovoCache[n.id] = n; });
+
+      lista.innerHTML = top.map(n => {
+        const vend = (n.vendedor && (Array.isArray(n.vendedor) ? n.vendedor[0] : n.vendedor)) || {};
+        const localStr = (n.cidade || '') + (n.estado ? '/' + n.estado : '');
+        const aval = parseFloat(n.valor_1n || 0);
+        return '<div onclick="pjNovoSel(\'' + pjEsc(n.id) + '\')" style="padding:10px 12px;background:var(--bg);border:1px solid transparent;border-radius:8px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--accent-line,rgba(34,197,94,.3))\'" onmouseout="this.style.borderColor=\'transparent\'">'
+          + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'
+          +   '<div style="flex:1;min-width:0">'
+          +     (n.codigo ? '<div style="font-family:var(--mono);font-size:10px;color:var(--ink-3);letter-spacing:.04em;margin-bottom:2px">' + pjEsc(n.codigo) + '</div>' : '')
+          +     '<div style="font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + pjEsc(n.nome || '?') + '</div>'
+          +     '<div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + pjEsc(localStr) + (n.setor ? ' · ' + pjEsc(n.setor) : '') + '</div>'
+          +     (vend.nome ? '<div style="font-size:11px;color:var(--ink-3);margin-top:2px">Dono: <span style="color:var(--ink-2)">' + pjEsc(vend.nome) + '</span></div>' : '')
+          +   '</div>'
+          +   '<div style="text-align:right;flex-shrink:0">'
+          +     '<div style="font-size:10px;color:var(--ink-3)">Pedido</div>'
+          +     '<div style="font-size:12px;font-weight:600;color:var(--accent,#22c55e)">' + pjFmtK(parseFloat(n.preco_pedido || 0)) + '</div>'
+          +     (aval > 0 ? '<div style="font-size:10px;color:var(--ink-3);margin-top:4px">Aval. 1N</div><div style="font-size:12px;font-weight:600;color:var(--ink)">' + pjFmtK(aval) + '</div>' : '')
+          +   '</div>'
+          + '</div>'
+          + '</div>';
+      }).join('');
     } catch (e) {
       lista.innerHTML = '<div style="color:var(--alert,#ff6b5c);font-size:13px;padding:12px">Erro: ' + pjEsc(e.message || 'desconhecido') + '</div>';
     }
@@ -13883,10 +13922,29 @@ function pjNovoSel(negId){
   const neg = (window._pjNovoCache || {})[negId];
   if (!neg) return;
   _pjNovoNeg = neg;
-  const nomeEl = document.getElementById('pj-novo-sel-nome'); if (nomeEl) nomeEl.textContent = neg.nome || '?';
-  const infoEl = document.getElementById('pj-novo-sel-info');
-  if (infoEl) infoEl.textContent = (neg.cidade || '') + (neg.estado ? '/' + neg.estado : '') + ' · ' + pjFmtK(parseFloat(neg.preco_pedido || 0));
-  document.getElementById('pj-novo-sel').style.display = 'block';
+  // v9.38.6 · card selecionado enriquecido (código · dono · pedido + aval 1N lado a lado)
+  const wrap = document.getElementById('pj-novo-sel');
+  if (wrap) {
+    const vend = (neg.vendedor && (Array.isArray(neg.vendedor) ? neg.vendedor[0] : neg.vendedor)) || {};
+    const localStr = (neg.cidade || '') + (neg.estado ? '/' + neg.estado : '');
+    const aval = parseFloat(neg.valor_1n || 0);
+    wrap.innerHTML = ''
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'
+      +   '<div style="flex:1;min-width:0">'
+      +     '<div style="font-size:10px;color:var(--accent,#22c55e);font-weight:600;letter-spacing:.04em;margin-bottom:4px">✓ SELECIONADO' + (neg.codigo ? ' · <span style="font-family:var(--mono)">' + pjEsc(neg.codigo) + '</span>' : '') + '</div>'
+      +     '<div style="font-size:14px;font-weight:600;color:var(--ink)">' + pjEsc(neg.nome || '?') + '</div>'
+      +     '<div style="font-size:12px;color:var(--ink-3);margin-top:2px">' + pjEsc(localStr) + (neg.setor ? ' · ' + pjEsc(neg.setor) : '') + '</div>'
+      +     (vend.nome ? '<div style="font-size:12px;color:var(--ink-2);margin-top:2px">Dono: <b>' + pjEsc(vend.nome) + '</b></div>' : '')
+      +   '</div>'
+      +   '<div style="text-align:right;flex-shrink:0">'
+      +     '<div style="font-size:10px;color:var(--ink-3)">Pedido</div>'
+      +     '<div style="font-size:13px;font-weight:700;color:var(--accent,#22c55e)">' + pjFmtK(parseFloat(neg.preco_pedido || 0)) + '</div>'
+      +     (aval > 0 ? '<div style="font-size:10px;color:var(--ink-3);margin-top:6px">Aval. 1N</div><div style="font-size:13px;font-weight:700;color:var(--ink)">' + pjFmtK(aval) + '</div>' : '')
+      +   '</div>'
+      + '</div>'
+      + '<button onclick="pjNovoLimparSel()" style="font-size:11px;color:var(--ink-3);background:none;border:none;cursor:pointer;margin-top:8px;padding:0">trocar →</button>';
+    wrap.style.display = 'block';
+  }
   document.getElementById('pj-novo-lista').innerHTML = '';
   const busca = document.getElementById('pj-novo-busca'); if (busca) busca.value = '';
   document.getElementById('pj-novo-config').style.display = 'block';
