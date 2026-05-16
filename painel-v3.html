@@ -13754,6 +13754,238 @@ window.pjCarregarAlertas = pjCarregarAlertas;
 window.pjTabelaProjetosHtml = pjTabelaProjetosHtml;
 window.pjCockpitCompactoHtml = pjCockpitCompactoHtml;
 
+// ─────────────────────────────────────────────────────────────────────
+// v9.38.3 · Modal · Criar novo projeto assessorado a partir de anúncio
+// ─────────────────────────────────────────────────────────────────────
+
+let _pjNovoNeg = null;
+let _pjNovoBounce = null;
+window._pjNovoCache = window._pjNovoCache || {};
+
+function pjNovoProjetoModal(){
+  const old = document.getElementById('pj-novo-overlay');
+  if (old) old.remove();
+  _pjNovoNeg = null;
+  window._pjNovoCache = {};
+
+  const overlay = document.createElement('div');
+  overlay.id = 'pj-novo-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = ''
+    + '<div style="background:var(--surface);border-radius:16px;padding:24px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto">'
+    +   '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">'
+    +     '<div style="font-family:var(--serif);font-size:18px;font-weight:700">+ Novo projeto assessorado</div>'
+    +     '<button onclick="document.getElementById(\'pj-novo-overlay\').remove()" style="background:none;border:none;cursor:pointer;color:var(--ink-3);font-size:20px;line-height:1;padding:0 4px">✕</button>'
+    +   '</div>'
+    +   '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">1. Selecionar anúncio</div>'
+    +   '<input id="pj-novo-busca" type="text" placeholder="Buscar por nome · cidade · setor..." oninput="pjNovoBuscar(this.value)" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:10px 14px;color:var(--ink);font-size:13px;box-sizing:border-box;margin-bottom:8px">'
+    +   '<div id="pj-novo-lista" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;margin-bottom:12px">'
+    +     '<div style="color:var(--ink-3);font-size:13px;text-align:center;padding:16px">Digite para buscar</div>'
+    +   '</div>'
+    +   '<div id="pj-novo-sel" style="display:none;background:var(--accent-soft,rgba(34,197,94,.1));border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:8px;padding:12px;margin-bottom:16px">'
+    +     '<div style="font-size:10px;color:var(--accent,#22c55e);font-weight:600;margin-bottom:4px">✓ SELECIONADO</div>'
+    +     '<div id="pj-novo-sel-nome" style="font-size:14px;font-weight:600"></div>'
+    +     '<div id="pj-novo-sel-info" style="font-size:12px;color:var(--ink-3);margin-top:2px"></div>'
+    +     '<button onclick="pjNovoLimparSel()" style="font-size:11px;color:var(--ink-3);background:none;border:none;cursor:pointer;margin-top:4px;padding:0">trocar →</button>'
+    +   '</div>'
+    +   '<div id="pj-novo-config" style="display:none">'
+    +     '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">2. Configurar projeto</div>'
+    +     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">'
+    +       '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Valor mensal (R$)*</label><input id="pj-novo-mensal" type="number" placeholder="500" min="0" oninput="pjNovoMargem()" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
+    +       '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Data de início*</label><input id="pj-novo-inicio" type="date" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
+    +     '</div>'
+    +     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">'
+    +       '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">% Ads</label><input id="pj-novo-ads" type="number" value="30" min="0" max="100" oninput="pjNovoMargem()" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
+    +       '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">% Leads</label><input id="pj-novo-leads" type="number" value="16" min="0" max="100" oninput="pjNovoMargem()" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
+    +       '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">% Conteúdo</label><input id="pj-novo-cont" type="number" value="10" min="0" max="100" oninput="pjNovoMargem()" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
+    +     '</div>'
+    +     '<div id="pj-novo-margem" style="background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:12px;color:var(--ink-3)">Margem 1Negócio: —</div>'
+    +     '<div style="margin-bottom:12px"><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Assessor responsável</label><select id="pj-novo-assessor" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"><option value="">Sem assessor (admin)</option></select></div>'
+    +     '<div style="margin-bottom:12px"><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Motivo</label><select id="pj-novo-motivo" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"><option value="cliente_pagou_stripe">Cliente pagou (Stripe)</option><option value="admin_decidiu" selected>Admin decidiu incluir</option><option value="negociado_direto">Negociado direto</option><option value="parceiro_indicou">Parceiro indicou</option></select></div>'
+    +     '<div style="margin-bottom:20px"><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Observação (opcional)</label><textarea id="pj-novo-obs" rows="2" placeholder="Ex: Negociamos R$500/mês, sendo R$150 em mídia" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box;resize:none;font-family:var(--sans)"></textarea></div>'
+    +   '</div>'
+    +   '<div style="display:flex;gap:8px;justify-content:flex-end">'
+    +     '<button onclick="document.getElementById(\'pj-novo-overlay\').remove()" style="background:transparent;border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--ink-2)">Cancelar</button>'
+    +     '<button id="pj-novo-btn-criar" onclick="pjNovoCriar()" style="display:none;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">Criar projeto →</button>'
+    +   '</div>'
+    + '</div>';
+
+  document.body.appendChild(overlay);
+  const inpInicio = document.getElementById('pj-novo-inicio');
+  if (inpInicio) inpInicio.value = new Date().toISOString().split('T')[0];
+  pjNovoCarregarAssessores();
+}
+
+function pjNovoBuscar(termo){
+  clearTimeout(_pjNovoBounce);
+  _pjNovoBounce = setTimeout(async function(){
+    const lista = document.getElementById('pj-novo-lista');
+    if (!lista) return;
+    if (!termo || termo.length < 2) {
+      lista.innerHTML = '<div style="color:var(--ink-3);font-size:13px;text-align:center;padding:16px">Digite para buscar</div>';
+      return;
+    }
+    lista.innerHTML = '<div style="color:var(--ink-3);font-size:13px;text-align:center;padding:12px">Buscando...</div>';
+    try {
+      const q = encodeURIComponent(termo);
+      const url = SB + '/rest/v1/negocios?or=(nome.ilike.*' + q + '*,cidade.ilike.*' + q + '*)&status=in.(publicado,em_avaliacao,aguardando_aprovacao,em_revisao)&select=id,nome,cidade,estado,setor,preco_pedido,vendedor_id&limit=8';
+      const r = await fetch(url, { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) } });
+      const negs = r.ok ? await r.json() : [];
+      if (!negs.length) {
+        lista.innerHTML = '<div style="color:var(--ink-3);font-size:13px;text-align:center;padding:12px">Nenhum anúncio encontrado</div>';
+        return;
+      }
+      // Cache por id · safe pra HTML/atributos
+      window._pjNovoCache = {};
+      negs.forEach(n => { window._pjNovoCache[n.id] = n; });
+      lista.innerHTML = negs.map(n =>
+        '<div onclick="pjNovoSel(\'' + pjEsc(n.id) + '\')" style="padding:10px 12px;background:var(--bg);border-radius:8px;cursor:pointer;border:1px solid transparent;transition:border-color .15s" onmouseover="this.style.borderColor=\'var(--accent-line,rgba(34,197,94,.3))\'" onmouseout="this.style.borderColor=\'transparent\'">'
+        + '<div style="font-size:13px;font-weight:500">' + pjEsc(n.nome || '?') + '</div>'
+        + '<div style="font-size:11px;color:var(--ink-3)">' + pjEsc(n.cidade || '') + (n.estado ? '/' + pjEsc(n.estado) : '') + ' · ' + pjEsc(n.setor || '') + ' · ' + pjFmtK(parseFloat(n.preco_pedido || 0)) + '</div>'
+        + '</div>'
+      ).join('');
+    } catch (e) {
+      lista.innerHTML = '<div style="color:var(--alert,#ff6b5c);font-size:13px;padding:12px">Erro: ' + pjEsc(e.message || 'desconhecido') + '</div>';
+    }
+  }, 300);
+}
+
+function pjNovoSel(negId){
+  const neg = (window._pjNovoCache || {})[negId];
+  if (!neg) return;
+  _pjNovoNeg = neg;
+  const nomeEl = document.getElementById('pj-novo-sel-nome'); if (nomeEl) nomeEl.textContent = neg.nome || '?';
+  const infoEl = document.getElementById('pj-novo-sel-info');
+  if (infoEl) infoEl.textContent = (neg.cidade || '') + (neg.estado ? '/' + neg.estado : '') + ' · ' + pjFmtK(parseFloat(neg.preco_pedido || 0));
+  document.getElementById('pj-novo-sel').style.display = 'block';
+  document.getElementById('pj-novo-lista').innerHTML = '';
+  const busca = document.getElementById('pj-novo-busca'); if (busca) busca.value = '';
+  document.getElementById('pj-novo-config').style.display = 'block';
+  document.getElementById('pj-novo-btn-criar').style.display = 'block';
+  pjNovoMargem();
+}
+
+function pjNovoLimparSel(){
+  _pjNovoNeg = null;
+  document.getElementById('pj-novo-sel').style.display = 'none';
+  document.getElementById('pj-novo-config').style.display = 'none';
+  document.getElementById('pj-novo-btn-criar').style.display = 'none';
+}
+
+function pjNovoMargem(){
+  const mensal = parseFloat(document.getElementById('pj-novo-mensal')?.value || 0);
+  const ads = parseFloat(document.getElementById('pj-novo-ads')?.value || 0);
+  const leads = parseFloat(document.getElementById('pj-novo-leads')?.value || 0);
+  const cont = parseFloat(document.getElementById('pj-novo-cont')?.value || 0);
+  const margem = 100 - ads - leads - cont;
+  const el = document.getElementById('pj-novo-margem');
+  if (!el) return;
+  const cor = margem < 0 ? 'var(--alert,#ff6b5c)' : margem < 20 ? '#d4a017' : 'var(--accent,#22c55e)';
+  el.innerHTML = 'Margem 1Negócio: <b style="color:' + cor + '">' + margem.toFixed(0) + '%</b>'
+    + (mensal > 0 ? ' = <b style="color:' + cor + '">R$ ' + (mensal * margem / 100).toFixed(0) + '/mês</b>' : '');
+}
+
+async function pjNovoCarregarAssessores(){
+  try {
+    const r = await fetch(SB + '/rest/v1/projeto_assessores?ativo=eq.true&select=id,nome&order=nome.asc', {
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) }
+    });
+    if (!r.ok) return;
+    const assessores = await r.json();
+    const sel = document.getElementById('pj-novo-assessor');
+    if (!sel) return;
+    assessores.forEach(a => {
+      const opt = document.createElement('option');
+      // value = nome (assessor_responsavel no banco é text, não FK)
+      opt.value = a.nome;
+      opt.textContent = a.nome;
+      opt.setAttribute('data-id', a.id);
+      sel.appendChild(opt);
+    });
+  } catch (_) {}
+}
+
+async function pjNovoCriar(){
+  if (!_pjNovoNeg) { alert('Selecione um anúncio'); return; }
+  const mensal = parseFloat(document.getElementById('pj-novo-mensal')?.value || 0);
+  const inicio = document.getElementById('pj-novo-inicio')?.value;
+  if (!mensal || mensal < 1) { alert('Informe o valor mensal'); return; }
+  if (!inicio) { alert('Informe a data de início'); return; }
+
+  const ads = parseFloat(document.getElementById('pj-novo-ads')?.value || 30);
+  const leads = parseFloat(document.getElementById('pj-novo-leads')?.value || 16);
+  const cont = parseFloat(document.getElementById('pj-novo-cont')?.value || 10);
+  const assessorNome = document.getElementById('pj-novo-assessor')?.value || '';
+  const motivo = document.getElementById('pj-novo-motivo')?.value || 'admin_decidiu';
+  const obs = (document.getElementById('pj-novo-obs')?.value || '').trim();
+
+  const btn = document.getElementById('pj-novo-btn-criar');
+  const txtOriginal = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = 'Criando...'; btn.disabled = true; }
+
+  try {
+    const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+
+    // v9.38.3 · payload adaptado ao schema real de projeto_metadata
+    // motivo_contratacao/observacao/venda_alvo do spec NÃO existem · usar:
+    //   motivo_contratacao → motivo_inicio
+    //   observacao         → notas_admin
+    //   venda_alvo         → valor_venda_alvo
+    const payload = {
+      negocio_id: _pjNovoNeg.id,
+      status: 'ativo',
+      valor_mensal_receita: mensal,
+      data_inicio_projeto: inicio,
+      iniciado_em: inicio,
+      perc_ads: ads,
+      perc_leads: leads,
+      perc_conteudo: cont,
+      assessor_responsavel: assessorNome || null,
+      motivo_inicio: motivo,
+      notas_admin: obs || null,
+      comissao_percentual: 5,
+      valor_venda_alvo: parseFloat(_pjNovoNeg.preco_pedido || 0),
+    };
+
+    const r = await fetch(SB + '/rest/v1/projeto_metadata', { method: 'POST', headers, body: JSON.stringify(payload) });
+    const raw = await r.text();
+    let data; try { data = JSON.parse(raw); } catch (_) { data = raw; }
+    if (!r.ok) throw new Error((data && data.message) || raw || ('HTTP ' + r.status));
+
+    // Atualiza status do negócio (best-effort)
+    try {
+      await fetch(SB + '/rest/v1/negocios?id=eq.' + encodeURIComponent(_pjNovoNeg.id), {
+        method: 'PATCH',
+        headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ status: 'em_negociacao' }),
+      });
+    } catch (_) {}
+
+    document.getElementById('pj-novo-overlay')?.remove();
+    if (typeof origToast === 'function') origToast('✓ Projeto criado'); else alert('✓ Projeto criado!');
+
+    // Abre o detalhe do projeto recém-criado
+    if (typeof pjAbrirNeg === 'function') {
+      pjAbrirNeg(_pjNovoNeg.id);
+    } else if (typeof pjRenderListaV2 === 'function') {
+      pjRenderListaV2();
+    }
+  } catch (e) {
+    alert('Erro ao criar projeto: ' + (e && e.message ? e.message : 'desconhecido'));
+    if (btn) { btn.textContent = txtOriginal || 'Criar projeto →'; btn.disabled = false; }
+  }
+}
+
+window.pjNovoProjetoModal = pjNovoProjetoModal;
+window.pjNovoBuscar = pjNovoBuscar;
+window.pjNovoSel = pjNovoSel;
+window.pjNovoLimparSel = pjNovoLimparSel;
+window.pjNovoMargem = pjNovoMargem;
+window.pjNovoCriar = pjNovoCriar;
+window.pjNovoCarregarAssessores = pjNovoCarregarAssessores;
+
 // ═══════════════════════════════════════════════════════════════════════
 // v9.38.0 · Cockpit Admin · Redesenho 5 blocos (Pipeline · Faturamento ·
 // Saúde · Alertas · Área de Trabalho)
