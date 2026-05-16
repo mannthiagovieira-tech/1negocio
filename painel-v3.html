@@ -13513,7 +13513,7 @@ function pjCockpitCompactoHtml(projetos, movimentacoes){
     { label: 'EM ATRASO', valor: pjFmtK(atrasado), sub: 'cobrar', cor: atrasado > 0 ? 'var(--alert,#ff6b5c)' : 'var(--ink-3)' },
   ];
 
-  return '<div style="background:var(--surface);border:1px solid var(--line-2,var(--line));border-radius:10px;padding:12px 16px;margin-bottom:12px;position:relative">'
+  return '<div style="background:var(--surface);border:1px solid var(--line-2,var(--line));border-radius:12px;padding:12px 16px;margin-bottom:12px;position:relative">'
     + '<div style="display:flex;align-items:center;gap:0;overflow-x:auto">'
     + KPIs.map((k,i) =>
         '<div style="flex:1;min-width:140px;padding:8px 16px' + (i>0?';border-left:1px solid var(--line)':'') + '">'
@@ -13546,17 +13546,29 @@ function pjTabelaProjetosHtml(projetos, movimentacoes){
       pagosPorNeg[m.negocio_id] = (pagosPorNeg[m.negocio_id] || 0) + parseFloat(m.valor || 0);
     }
   });
+  // v9.38.5+ · design system aplicado · CSS encapsulado via class pj-tab-v2
   const headers = ['Negócio · Valor','Comissão total','Comissão líquida','Cliente','Mês','Próx. entregável','Assessor','Mensal','Ações'];
-  return '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'
-    + '<thead><tr style="border-bottom:2px solid var(--line-2,var(--line))">'
-    + headers.map((h, i) => {
-        const sticky = (i === headers.length - 1) ? ';position:sticky;right:0;background:var(--surface);z-index:3;box-shadow:-4px 0 8px rgba(0,0,0,.06)' : '';
-        const align  = (i === headers.length - 1) ? ';text-align:right' : ';text-align:left';
-        return '<th style="padding:8px 12px;font-size:10px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap' + align + sticky + '">' + pjEsc(h) + '</th>';
-      }).join('')
-    + '</tr></thead><tbody>'
-    + projetos.map(p => pjTabelaLinhaHtml(p, pagosPorNeg)).join('')
-    + '</tbody></table></div>';
+  return ''
+    + '<style>'
+    +   '.pj-tab-v2-wrap{background:var(--surface);border:1px solid var(--line-2,var(--line));border-radius:12px;overflow:hidden}'
+    +   '.pj-tab-v2-scroll{overflow-x:auto}'
+    +   '.pj-tab-v2{width:100%;border-collapse:collapse;font-size:12px;font-family:var(--sans)}'
+    +   '.pj-tab-v2 thead tr{background:var(--surface-2,var(--bg));border-bottom:1px solid var(--line-2,var(--line))}'
+    +   '.pj-tab-v2 thead th{padding:10px 16px;font-size:10px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;text-align:left}'
+    +   '.pj-tab-v2 thead th:last-child{text-align:right;position:sticky;right:0;background:var(--surface-2,var(--bg));z-index:3;box-shadow:-4px 0 8px rgba(0,0,0,.06)}'
+    +   '.pj-tab-v2 tbody tr{border-bottom:1px solid var(--line);transition:background .12s;cursor:pointer}'
+    +   '.pj-tab-v2 tbody tr:last-child{border-bottom:0}'
+    +   '.pj-tab-v2 tbody tr:hover{background:var(--surface-2,var(--bg))}'
+    +   '.pj-tab-v2 tbody tr:hover .pj-tr-acoes{background:var(--surface-2,var(--bg))}'
+    +   '.pj-tab-v2 tbody td{padding:12px 16px;color:var(--ink);vertical-align:middle}'
+    +   '.pj-tab-v2 tbody td.pj-tr-acoes{position:sticky;right:0;background:var(--surface);z-index:2;box-shadow:-4px 0 8px rgba(0,0,0,.06);text-align:right}'
+    +   '.pj-tab-v2 .pj-btn-abrir{background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer}'
+    +   '.pj-tab-v2 .pj-btn-cliente{background:transparent;border:1px solid var(--line-2,var(--line));border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;color:var(--ink-2)}'
+    + '</style>'
+    + '<div class="pj-tab-v2-wrap"><div class="pj-tab-v2-scroll"><table class="pj-tab-v2">'
+    + '<thead><tr>' + headers.map(h => '<th>' + pjEsc(h) + '</th>').join('') + '</tr></thead>'
+    + '<tbody>' + projetos.map(p => pjTabelaLinhaHtml(p, pagosPorNeg)).join('') + '</tbody>'
+    + '</table></div></div>';
 }
 
 function pjMesAtualProjeto(meta){
@@ -13598,28 +13610,32 @@ function pjTabelaLinhaHtml(p, pagosPorNeg){
   const corLiq = comissaoLiquida < comissaoTotal * 0.9 ? 'var(--accent,#22c55e)' : 'var(--ink)';
   const corProx = vencido ? 'var(--alert,#ff6b5c)' : 'var(--ink-2)';
 
-  // v9.38.5 · linha clicável + actions sticky:right
+  // v9.38.5+ · linha do design system (CSS encapsulado em .pj-tab-v2 controla bg/hover/padding/sticky)
   const negIdSafe = pjEsc(negId);
-  // hover handler atualiza tanto a row quanto a td sticky (que precisa cobrir conteúdo de baixo no scroll)
-  const onIn  = "this.style.background='var(--bg)';var c=this.querySelector('.pj-tr-acoes');if(c)c.style.background='var(--bg)'";
-  const onOut = "this.style.background='transparent';var c=this.querySelector('.pj-tr-acoes');if(c)c.style.background='var(--surface)'";
-  return '<tr data-neg-id="' + negIdSafe + '" onclick="pjAbrirNeg(\'' + negIdSafe + '\')" style="border-bottom:1px solid var(--line);transition:background .1s;cursor:pointer" onmouseover="' + onIn + '" onmouseout="' + onOut + '">'
-    + '<td style="padding:10px 12px;min-width:180px">'
-    +   '<div style="font-weight:600;color:var(--ink)">' + pjEsc(neg.nome || '—') + '</div>'
-    +   '<div style="font-size:11px;color:var(--ink-3)">' + pjEsc(neg.cidade || '') + (neg.estado ? '/' + pjEsc(neg.estado) : '') + '</div>'
-    +   '<div style="font-size:11px;color:var(--accent,#22c55e);font-weight:600;margin-top:2px">' + pjFmtK(valorNeg) + '</div>'
+  return '<tr data-neg-id="' + negIdSafe + '" onclick="pjAbrirNeg(\'' + negIdSafe + '\')">'
+    + '<td style="min-width:180px">'
+    +   '<div style="font-size:13px;font-weight:600;color:var(--ink)">' + pjEsc(neg.nome || '—') + '</div>'
+    +   '<div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + pjEsc(neg.cidade || '') + (neg.estado ? '/' + pjEsc(neg.estado) : '') + '</div>'
+    +   '<div style="font-size:12px;color:var(--accent,#22c55e);font-weight:600;margin-top:3px">' + pjFmtK(valorNeg) + '</div>'
     + '</td>'
-    + '<td style="padding:10px 12px;white-space:nowrap"><div style="font-weight:600">' + pjFmtK(comissaoTotal) + '</div><div style="font-size:10px;color:var(--ink-3)">' + (pct*100).toFixed(0) + '% do valor</div></td>'
-    + '<td style="padding:10px 12px;white-space:nowrap"><div style="font-weight:600;color:' + corLiq + '">' + pjFmtK(comissaoLiquida) + '</div><div style="font-size:10px;color:var(--ink-3)">- ' + pjFmtK(totalPago) + ' pago</div></td>'
-    + '<td style="padding:10px 12px;min-width:140px"><div>' + pjEsc(clienteNome) + '</div>' + (clienteWa ? '<a href="' + clienteWa + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:11px;color:var(--accent,#22c55e);text-decoration:none;display:flex;align-items:center;gap:3px;margin-top:2px">💬 WhatsApp</a>' : '<div style="font-size:11px;color:var(--ink-3)">Sem contato</div>') + '</td>'
-    + '<td style="padding:10px 12px;text-align:center;white-space:nowrap"><div style="font-family:var(--serif);font-size:16px;font-weight:700">' + (mesAtual || '—') + '</div><div style="font-size:10px;color:var(--ink-3)">de ' + mesTotal + '</div></td>'
-    + '<td style="padding:10px 12px;min-width:160px"><div style="font-size:11px;color:' + corProx + ';line-height:1.3">' + (vencido ? '⚠️ ' : '') + pjEsc(proxEntregavel) + '</div>' + (prazoTxt ? '<div style="font-size:10px;color:' + (vencido ? 'var(--alert,#ff6b5c)' : 'var(--ink-3)') + '">' + prazoTxt + '</div>' : '') + '</td>'
-    + '<td style="padding:10px 12px;white-space:nowrap"><div style="font-size:12px">' + pjEsc(assessorNome) + '</div></td>'
-    + '<td style="padding:10px 12px;white-space:nowrap"><div style="font-weight:600">' + pjFmtK(mensal) + '</div><div style="font-size:10px;color:var(--ink-3)">/mês</div></td>'
-    + '<td class="pj-tr-acoes" style="padding:10px 12px;white-space:nowrap;position:sticky;right:0;background:var(--surface);z-index:2;box-shadow:-4px 0 8px rgba(0,0,0,.06)">'
+    + '<td style="white-space:nowrap"><div style="font-weight:600">' + pjFmtK(comissaoTotal) + '</div><div style="font-size:10px;color:var(--ink-3);margin-top:2px">' + (pct*100).toFixed(0) + '% do valor</div></td>'
+    + '<td style="white-space:nowrap"><div style="font-weight:600;color:' + corLiq + '">' + pjFmtK(comissaoLiquida) + '</div><div style="font-size:10px;color:var(--ink-3);margin-top:2px">- ' + pjFmtK(totalPago) + ' pago</div></td>'
+    + '<td style="min-width:140px"><div style="font-size:13px;color:var(--ink)">' + pjEsc(clienteNome) + '</div>'
+    +   (clienteWa
+        ? '<a href="' + clienteWa + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:11px;color:var(--accent,#22c55e);text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-top:3px">💬 WhatsApp</a>'
+        : '<div style="font-size:11px;color:var(--ink-3);margin-top:3px">Sem contato</div>')
+    + '</td>'
+    + '<td style="text-align:center;white-space:nowrap"><div style="font-family:var(--serif);font-size:16px;font-weight:700">' + (mesAtual || '—') + '</div><div style="font-size:10px;color:var(--ink-3)">de ' + mesTotal + '</div></td>'
+    + '<td style="min-width:160px">'
+    +   '<div style="font-size:12px;color:' + corProx + ';line-height:1.35">' + (vencido ? '⚠️ ' : '') + pjEsc(proxEntregavel) + '</div>'
+    +   (prazoTxt ? '<div style="font-size:10px;color:' + (vencido ? 'var(--alert,#ff6b5c)' : 'var(--ink-3)') + ';margin-top:2px">' + prazoTxt + '</div>' : '')
+    + '</td>'
+    + '<td style="white-space:nowrap"><div style="font-size:12px;color:var(--ink-2)">' + pjEsc(assessorNome) + '</div></td>'
+    + '<td style="white-space:nowrap"><div style="font-weight:600">' + pjFmtK(mensal) + '</div><div style="font-size:10px;color:var(--ink-3);margin-top:2px">/mês</div></td>'
+    + '<td class="pj-tr-acoes">'
     +   '<div style="display:flex;gap:6px;justify-content:flex-end">'
-    +     '<button onclick="event.stopPropagation();pjAbrirNeg(\'' + negIdSafe + '\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer">Abrir</button>'
-    +     '<button onclick="event.stopPropagation();pjVerComoCliente(\'' + negIdSafe + '\')" style="background:transparent;border:1px solid var(--line-2,var(--line));border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;color:var(--ink-2)">Cliente</button>'
+    +     '<button class="pj-btn-abrir"   onclick="event.stopPropagation();pjAbrirNeg(\'' + negIdSafe + '\')">Abrir</button>'
+    +     '<button class="pj-btn-cliente" onclick="event.stopPropagation();pjVerComoCliente(\'' + negIdSafe + '\')">Cliente</button>'
     +   '</div>'
     + '</td>'
     + '</tr>';
