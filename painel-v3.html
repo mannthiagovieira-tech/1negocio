@@ -12811,6 +12811,7 @@ function pjV347RenderDetalhe(n, meta, mesAtual, refs){
     +       '<a href="javascript:void(0)" onclick="pjV347AbrirLaudos(\'' + negId + '\')" style="color:var(--accent,#22c55e);border-color:var(--accent-line,rgba(34,197,94,.3))">📋 Todos laudos</a>'
     +     '</span>'
     +   '</div>'
+    +   '<div id="pj-fase-indicator" class="pjv-cockpit-row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)"></div>'
     + '</div>';
 
   const central = ''
@@ -13132,6 +13133,9 @@ async function pjV347SetAba(aba, negIdHint){
   if (!n){ alert('Projeto não carregado · recarregue a página.'); return; }
   if (!meta) meta = Array.isArray(n.metadata) ? n.metadata[0] : n.metadata;
 
+  // v9.39.0 · atualiza indicador de fase a cada troca de aba
+  if (typeof pjV347AtualizarFaseIndicator === 'function') pjV347AtualizarFaseIndicator();
+
   // Marca item ativo no sidebar direito
   document.querySelectorAll('#pj-v347-sidebar-direito .pjv-side-item').forEach(el => el.classList.remove('ativo'));
   const ativo = document.querySelector('#pj-v347-sidebar-direito .pjv-side-item[data-aba="' + aba + '"]');
@@ -13162,7 +13166,13 @@ async function pjV347SetAba(aba, negIdHint){
     } else if (aba === 'matchmaking'){
       cont.innerHTML = typeof pjRenderMatches === 'function' ? pjRenderMatches(n, meta, window._pjMatches || []) : '<div class="pj-v347-empty">Matchmaking indisponível</div>';
     } else if (aba === 'financeiro'){
-      cont.innerHTML = pjV347RenderFinanceiro(n, meta, window._pjMovimentacoes || []);
+      // v9.39.0 · setup form se não configurado · senão usa render completo
+      cont.innerHTML = (typeof pjV347RenderFinanceiroSetup === 'function')
+        ? pjV347RenderFinanceiroSetup(meta)
+        : pjV347RenderFinanceiro(n, meta, window._pjMovimentacoes || []);
+      if (typeof pjFinCarregarAssessores === 'function' && !(parseFloat(meta?.valor_mensal_receita || 0) > 0)) {
+        pjFinCarregarAssessores().catch(()=>{});
+      }
     } else if (aba === 'entregaveis'){
       if (!meta?.id){ cont.innerHTML = '<div class="pj-v347-empty">Sem meta vinculada</div>'; }
       else {
@@ -13264,7 +13274,18 @@ async function pjV347MontarInteligencia(n, meta){
     const r = await fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + (meta?.id || '') + '&select=id&order=created_at.desc&limit=1', { headers });
     const arr = r.ok ? await r.json() : [];
     const origId = arr[0]?.id;
-    if (!origId){ host.innerHTML = '<div class="pj-v347-empty">Originação não encontrada para este projeto. Configure uma na aba Arsenal.</div>'; return; }
+    if (!origId){
+      // v9.39.0 · CTA de início (cria originacao on-demand)
+      host.innerHTML = ''
+        + '<div style="text-align:center;padding:40px 20px">'
+        +   '<div style="font-size:32px;margin-bottom:16px">🧠</div>'
+        +   '<div style="font-family:var(--serif);font-size:20px;font-weight:700;margin-bottom:8px">Vamos definir a estratégia</div>'
+        +   '<div style="font-size:13px;color:var(--ink-3);margin-bottom:24px;max-width:440px;margin-left:auto;margin-right:auto;line-height:1.6">O agente de inteligência vai conduzir uma conversa para definir a tese de investimento, os arquétipos de compradores e onde encontrá-los. Tudo isso alimenta o arsenal de prospecção.</div>'
+        +   '<button onclick="pjV347CriarOriginacao(\'' + (meta?.id || '') + '\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:999px;padding:12px 28px;font-size:14px;font-weight:700;cursor:pointer">🧠 Iniciar definição de estratégia</button>'
+        +   '<div style="font-size:11px;color:var(--ink-3);margin-top:12px">Este é o primeiro passo. Arsenal só fica disponível após tese e arquétipos aprovados.</div>'
+        + '</div>';
+      return;
+    }
     // origV8 escreve no #pj-originacao-{projetoId} · injetamos um wrapper com esse ID
     host.innerHTML = '<div id="pj-originacao-' + (meta?.id || '') + '"></div>';
     if (typeof origV8AbrirChatTese === 'function') await origV8AbrirChatTese(origId);
@@ -13272,26 +13293,215 @@ async function pjV347MontarInteligencia(n, meta){
   } catch(e){ host.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Erro: ' + (e?.message || 'desconhecido') + '</div>'; }
 }
 
+// v9.39.0 · cria projetos_originacao on-demand a partir da aba Inteligência
+async function pjV347CriarOriginacao(metaId){
+  if (!metaId) { alert('meta_id ausente'); return; }
+  const host = document.getElementById('pj-inteligencia-host-' + metaId);
+  if (host) host.innerHTML = '<div class="pj-v347-empty">⏳ Criando originação…</div>';
+  try {
+    const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+    const r = await fetch(SB + '/rest/v1/projetos_originacao', { method: 'POST', headers, body: JSON.stringify({ projeto_id: metaId, status: 'em_definicao' }) });
+    const raw = await r.text();
+    let data; try { data = JSON.parse(raw); } catch (_) { data = null; }
+    if (!r.ok) { alert('Erro ao criar originação: ' + ((data && data.message) || raw || ('HTTP ' + r.status))); if (host) host.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Falha · tente recarregar a página</div>'; return; }
+    // Re-monta · agora vai achar o origId e abrir o chat
+    const n = window._pjAbertoNeg; const meta = window._pjAbertoMeta;
+    if (typeof pjV347MontarInteligencia === 'function') await pjV347MontarInteligencia(n, meta);
+    // Atualiza fase indicator
+    if (typeof pjV347AtualizarFaseIndicator === 'function') pjV347AtualizarFaseIndicator();
+  } catch (e) {
+    alert('Erro: ' + (e?.message || 'desconhecido'));
+  }
+}
+window.pjV347CriarOriginacao = pjV347CriarOriginacao;
+
+// ─────────────────────────────────────────────────────────────
+// v9.39.0 · Fases do projeto · indicador no cockpit fixo
+// ─────────────────────────────────────────────────────────────
+function pjFaseAtualHtml(meta, tese, arquetipos, negocioId){
+  const temTese = !!(tese && Object.keys(tese).length && tese.diferencial_competitivo);
+  const temArqs = Array.isArray(arquetipos) && arquetipos.some(a => a.status === 'aprovado');
+  const temFin  = parseFloat(meta?.valor_mensal_receita || 0) > 0;
+  const temOnda = !!(meta?.data_inicio_projeto);
+
+  const FASES = [
+    { key: 'inteligencia', label: 'Tese & Arquétipos', feito: temTese && temArqs, atual: !(temTese && temArqs) },
+    { key: 'financeiro',   label: 'Setup financeiro',  feito: temFin,             atual: (temTese && temArqs) && !temFin },
+    { key: 'entregaveis',  label: 'Ativar onda',       feito: temOnda,            atual: temFin && !temOnda },
+    { key: 'arsenal',      label: 'Arsenal',           feito: false,              atual: temOnda },
+    { key: 'kanban',       label: 'Operação',          feito: false,              atual: false },
+  ];
+
+  const negKey = negocioId || (window._pjAbertoNeg && window._pjAbertoNeg.id) || '';
+  const fasesHtml = FASES.map((f, i) => {
+    const cor = f.feito ? 'var(--accent,#22c55e)' : f.atual ? '#d4a017' : 'var(--ink-4)';
+    const bg  = f.atual ? 'var(--accent-soft,rgba(34,197,94,.08))' : 'transparent';
+    const ico = f.feito ? '✓' : f.atual ? '●' : '○';
+    const sep = i < FASES.length - 1 ? '<span style="color:var(--line-2,var(--line));font-size:10px">→</span>' : '';
+    return '<div onclick="pjV347SetAba(\'' + f.key + '\',\'' + negKey + '\')" '
+      + 'style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;background:' + bg + ';cursor:pointer;white-space:nowrap">'
+      + '<span style="color:' + cor + ';font-size:12px">' + ico + '</span>'
+      + '<span style="font-size:11px;color:' + cor + ';font-weight:' + (f.atual ? '600' : '400') + '">' + f.label + '</span>'
+      + '</div>' + sep;
+  }).join('');
+
+  const prox = FASES.find(f => f.atual);
+  const cta = prox
+    ? '<button onclick="pjV347SetAba(\'' + prox.key + '\',\'' + negKey + '\')" style="margin-left:auto;background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:4px 12px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">Ir para: ' + prox.label + ' →</button>'
+    : '';
+
+  return '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;width:100%">' + fasesHtml + cta + '</div>';
+}
+
+async function pjV347AtualizarFaseIndicator(){
+  const el = document.getElementById('pj-fase-indicator');
+  if (!el) return;
+  const n = window._pjAbertoNeg;
+  const meta = window._pjAbertoMeta;
+  if (!meta?.id) { el.innerHTML = ''; return; }
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+  try {
+    const rO = await fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + meta.id + '&select=id,tese_jsonb&order=created_at.desc&limit=1', { headers });
+    const origs = rO.ok ? await rO.json() : [];
+    const orig = origs[0] || null;
+    let arqs = [];
+    if (orig?.id) {
+      const rA = await fetch(SB + '/rest/v1/arquetipos_compradores?originacao_id=eq.' + orig.id + '&select=id,status&limit=50', { headers });
+      arqs = rA.ok ? await rA.json() : [];
+    }
+    el.innerHTML = pjFaseAtualHtml(meta, orig?.tese_jsonb || null, arqs, n?.id);
+  } catch (_) { /* silencioso */ }
+}
+
+window.pjFaseAtualHtml = pjFaseAtualHtml;
+window.pjV347AtualizarFaseIndicator = pjV347AtualizarFaseIndicator;
+
+// ─────────────────────────────────────────────────────────────
+// v9.39.0 · Aba Financeiro · setup form quando não configurado
+// ─────────────────────────────────────────────────────────────
+function pjV347RenderFinanceiroSetup(meta){
+  const mensal = parseFloat(meta?.valor_mensal_receita || 0);
+  if (mensal > 0) {
+    // já configurado · usa o render existente
+    return pjV347RenderFinanceiro(window._pjAbertoNeg, meta, window._pjMovimentacoes || []);
+  }
+  const metaId = meta?.id || '';
+  return ''
+    + '<div style="max-width:540px">'
+    +   '<div style="font-family:var(--serif);font-size:18px;font-weight:700;margin-bottom:6px">💰 Setup financeiro</div>'
+    +   '<div style="font-size:13px;color:var(--ink-3);margin-bottom:20px">Configure os valores do projeto assessorado.</div>'
+    +   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">'
+    +     '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Valor mensal (R$)*</label><input id="fin-mensal" type="number" placeholder="500" min="0" oninput="pjFinMargem()" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
+    +     '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Comissão de sucesso (%)*</label><input id="fin-comissao" type="number" placeholder="5" min="1" max="20" value="5" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
+    +   '</div>'
+    +   '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">'
+    +     '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">% Ads</label><input id="fin-ads" type="number" value="30" min="0" max="100" oninput="pjFinMargem()" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
+    +     '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">% Leads</label><input id="fin-leads" type="number" value="16" min="0" max="100" oninput="pjFinMargem()" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
+    +     '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">% Conteúdo</label><input id="fin-cont" type="number" value="10" min="0" max="100" oninput="pjFinMargem()" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
+    +   '</div>'
+    +   '<div id="fin-margem-preview" style="background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:12px;color:var(--ink-3)">Margem 1NEGÓCIO: —</div>'
+    +   '<div style="margin-bottom:12px"><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Assessor responsável</label><select id="fin-assessor" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"><option value="">Sem assessor (admin)</option></select></div>'
+    +   '<button onclick="pjFinSalvar(\'' + metaId + '\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer">Salvar configuração →</button>'
+    + '</div>';
+}
+
+async function pjFinCarregarAssessores(){
+  try {
+    const r = await fetch(SB + '/rest/v1/projeto_assessores?ativo=eq.true&select=id,nome&order=nome.asc', { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) } });
+    if (!r.ok) return;
+    const assessores = await r.json();
+    const sel = document.getElementById('fin-assessor');
+    if (!sel) return;
+    assessores.forEach(a => { const opt = document.createElement('option'); opt.value = a.nome; opt.textContent = a.nome; sel.appendChild(opt); });
+  } catch (_) {}
+}
+
+function pjFinMargem(){
+  const mensal = parseFloat(document.getElementById('fin-mensal')?.value || 0);
+  const ads = parseFloat(document.getElementById('fin-ads')?.value || 0);
+  const leads = parseFloat(document.getElementById('fin-leads')?.value || 0);
+  const cont = parseFloat(document.getElementById('fin-cont')?.value || 0);
+  const margem = 100 - ads - leads - cont;
+  const el = document.getElementById('fin-margem-preview');
+  if (!el) return;
+  const cor = margem < 0 ? 'var(--alert,#ff6b5c)' : margem < 20 ? '#d4a017' : 'var(--accent,#22c55e)';
+  el.innerHTML = 'Margem 1NEGÓCIO: <b style="color:' + cor + '">' + margem.toFixed(0) + '%</b>'
+    + (mensal > 0 ? ' = <b style="color:' + cor + '">R$ ' + (mensal * margem / 100).toFixed(0) + '/mês</b>' : '');
+}
+
+async function pjFinSalvar(metaId){
+  if (!metaId) { alert('meta_id ausente'); return; }
+  const mensal = parseFloat(document.getElementById('fin-mensal')?.value || 0);
+  if (!mensal || mensal < 1) { alert('Informe o valor mensal'); return; }
+  const ads = parseFloat(document.getElementById('fin-ads')?.value || 30);
+  const leads = parseFloat(document.getElementById('fin-leads')?.value || 16);
+  const cont = parseFloat(document.getElementById('fin-cont')?.value || 10);
+  const comissao = parseFloat(document.getElementById('fin-comissao')?.value || 5);
+  const assessor = document.getElementById('fin-assessor')?.value || '';
+  try {
+    const r = await fetch(SB + '/rest/v1/projeto_metadata?id=eq.' + encodeURIComponent(metaId), {
+      method: 'PATCH',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        valor_mensal_receita: mensal,
+        perc_ads: ads, perc_leads: leads, perc_conteudo: cont,
+        comissao_percentual: comissao,
+        assessor_responsavel: assessor || null,
+      })
+    });
+    if (!r.ok) { alert('Erro ao salvar (HTTP ' + r.status + ')'); return; }
+    if (window._pjAbertoMeta) {
+      window._pjAbertoMeta = { ...window._pjAbertoMeta, valor_mensal_receita: mensal, perc_ads: ads, perc_leads: leads, perc_conteudo: cont, comissao_percentual: comissao, assessor_responsavel: assessor || null };
+    }
+    if (typeof origToast === 'function') origToast('✓ Configuração salva'); else alert('✓ Configuração salva!');
+    pjV347SetAba('financeiro', window._pjAbertoNeg?.id);
+    if (typeof pjV347AtualizarFaseIndicator === 'function') pjV347AtualizarFaseIndicator();
+  } catch (e) { alert('Erro: ' + (e?.message || 'desconhecido')); }
+}
+
+window.pjV347RenderFinanceiroSetup = pjV347RenderFinanceiroSetup;
+window.pjFinCarregarAssessores = pjFinCarregarAssessores;
+window.pjFinMargem = pjFinMargem;
+window.pjFinSalvar = pjFinSalvar;
+
 // Arsenal inline: preview compacto + botão para modal completo (fluxo pesado já existente)
 async function pjV347EnsureArsenalCache(metaId, n){
   if (!metaId) return;
+  const prev = document.getElementById('pj-arsenal-preview');
+  const btn  = document.getElementById('pj-arsenal-btn-abrir');
   try {
     const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
     const r = await fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + metaId + '&select=*&order=created_at.desc&limit=1', { headers });
     const arr = r.ok ? await r.json() : [];
-    if (!arr[0]) return;
+    if (!arr[0]) {
+      // sem originação ainda · bloqueia · CTA pra Inteligência
+      const negId = (prev && prev.getAttribute('data-neg-id')) || (n && n.id) || '';
+      if (prev) prev.outerHTML = pjV347ArsenalBloqueadoHtml(negId);
+      if (btn) btn.style.display = 'none';
+      return;
+    }
     window._origV346OrigCache = window._origV346OrigCache || {};
     window._origV346ArqCache  = window._origV346ArqCache  || {};
     window._origV346OrigCache[arr[0].id] = arr[0];
     const rA = await fetch(SB + '/rest/v1/arquetipos_compradores?originacao_id=eq.' + arr[0].id + '&order=created_at.desc&limit=50', { headers });
     const arqs = rA.ok ? await rA.json() : [];
     window._origV346ArqCache[arr[0].id] = arqs;
-    // atualiza preview
-    const prev = document.getElementById('pj-arsenal-preview');
-    if (prev){
+
+    const temTese = !!(arr[0].tese_jsonb && Object.keys(arr[0].tese_jsonb).length);
+    const arqsAprovados = (arqs || []).filter(a => a.status === 'aprovado').length;
+
+    // v9.39.0 · arsenal bloqueado se não tem tese + ao menos 1 arquétipo aprovado
+    if (!temTese || arqsAprovados < 1) {
+      const negId = (prev && prev.getAttribute('data-neg-id')) || (n && n.id) || '';
+      if (prev) prev.outerHTML = pjV347ArsenalBloqueadoHtml(negId);
+      if (btn) btn.style.display = 'none';
+      return;
+    }
+
+    if (btn) btn.style.display = '';
+    if (prev) {
       prev.innerHTML = '<div style="font-size:12px;color:var(--ink-2)">'
-        + (arqs.length || 0) + ' arquétipos · '
-        + (arr[0].tese_jsonb ? 'tese definida' : 'tese pendente')
+        + arqs.length + ' arquétipos (' + arqsAprovados + ' aprovados) · tese definida ✓'
         + '</div>';
     }
   } catch(_){ /* silencioso */ }
@@ -13299,14 +13509,24 @@ async function pjV347EnsureArsenalCache(metaId, n){
 
 function pjV347ArsenalInlineHtml(n, meta){
   const metaId = meta?.id || '';
+  const negId = n?.id || '';
   return ''
     + '<div style="display:flex;flex-direction:column;gap:14px">'
     +   '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">'
     +     '<div><div style="font-family:var(--serif);font-size:18px;font-weight:700">🎯 Arsenal</div>'
     +       '<div style="font-size:12px;color:var(--ink-3);margin-top:2px">Queries · Matriz de buscas · Aprovação de leads</div></div>'
-    +     '<button onclick="origV346AbrirArsenal(\'' + metaId + '\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">Abrir arsenal completo →</button>'
+    +     '<button id="pj-arsenal-btn-abrir" onclick="origV346AbrirArsenal(\'' + metaId + '\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;display:none">Abrir arsenal completo →</button>'
     +   '</div>'
-    +   '<div id="pj-arsenal-preview" style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:14px;font-size:13px;color:var(--ink-3)">Carregando preview…</div>'
+    +   '<div id="pj-arsenal-preview" data-neg-id="' + negId + '" style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:14px;font-size:13px;color:var(--ink-3)">Carregando preview…</div>'
+    + '</div>';
+}
+
+function pjV347ArsenalBloqueadoHtml(negId){
+  return '<div style="text-align:center;padding:40px 20px">'
+    + '<div style="font-size:32px;margin-bottom:16px">🔒</div>'
+    + '<div style="font-family:var(--serif);font-size:18px;font-weight:700;margin-bottom:8px">Arsenal bloqueado</div>'
+    + '<div style="font-size:13px;color:var(--ink-3);margin-bottom:20px;line-height:1.6;max-width:440px;margin-left:auto;margin-right:auto">Complete primeiro a Inteligência — defina a tese de investimento e aprove pelo menos um arquétipo de comprador. O arsenal usa esses dados para gerar as queries de prospecção.</div>'
+    + '<button onclick="pjV347SetAba(\'inteligencia\',\'' + (negId || '') + '\')" style="background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:999px;padding:10px 24px;font-size:13px;font-weight:600;cursor:pointer">Ir para Inteligência →</button>'
     + '</div>';
 }
 
@@ -13827,20 +14047,10 @@ function pjNovoProjetoModal(){
     +     '<button onclick="pjNovoLimparSel()" style="font-size:11px;color:var(--ink-3);background:none;border:none;cursor:pointer;margin-top:4px;padding:0">trocar →</button>'
     +   '</div>'
     +   '<div id="pj-novo-config" style="display:none">'
-    +     '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">2. Configurar projeto</div>'
-    +     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">'
-    +       '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Valor mensal (R$)*</label><input id="pj-novo-mensal" type="number" placeholder="500" min="0" oninput="pjNovoMargem()" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
-    +       '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Data de início*</label><input id="pj-novo-inicio" type="date" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
-    +     '</div>'
-    +     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">'
-    +       '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">% Ads</label><input id="pj-novo-ads" type="number" value="30" min="0" max="100" oninput="pjNovoMargem()" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
-    +       '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">% Leads</label><input id="pj-novo-leads" type="number" value="16" min="0" max="100" oninput="pjNovoMargem()" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
-    +       '<div><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">% Conteúdo</label><input id="pj-novo-cont" type="number" value="10" min="0" max="100" oninput="pjNovoMargem()" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
-    +     '</div>'
-    +     '<div id="pj-novo-margem" style="background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:12px;color:var(--ink-3)">Margem 1NEGÓCIO: —</div>'
-    +     '<div style="margin-bottom:12px"><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Assessor responsável</label><select id="pj-novo-assessor" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"><option value="">Sem assessor (admin)</option></select></div>'
+    +     '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">2. Origem do projeto</div>'
     +     '<div style="margin-bottom:12px"><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Motivo</label><select id="pj-novo-motivo" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box"><option value="cliente_pagou_stripe" selected>Cliente pagou (Stripe)</option><option value="cliente_pagou_pix">Cliente pagou (PIX)</option><option value="cliente_pagou_outro">Cliente pagou (outro)</option><option value="cortesia">Cortesia</option><option value="piloto_interno">Piloto interno</option><option value="investimento_proprio">Investimento próprio</option><option value="parceria">Parceria</option><option value="condicao_especial">Condição especial</option><option value="outro">Outro</option></select></div>'
-    +     '<div style="margin-bottom:20px"><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Observação (opcional)</label><textarea id="pj-novo-obs" rows="2" placeholder="Ex: Negociamos R$500/mês, sendo R$150 em mídia" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box;resize:none;font-family:var(--sans)"></textarea></div>'
+    +     '<div style="margin-bottom:20px"><label style="font-size:11px;color:var(--ink-3);display:block;margin-bottom:4px">Observação (opcional)</label><textarea id="pj-novo-obs" rows="2" placeholder="Ex: Negócio fechado por indicação · cliente aceitou condição especial" style="width:100%;background:var(--bg);border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;box-sizing:border-box;resize:none;font-family:var(--sans)"></textarea></div>'
+    +     '<div style="background:var(--bg);border:1px dashed var(--line-2,var(--line));border-radius:8px;padding:10px 12px;font-size:11px;color:var(--ink-3);margin-bottom:12px;line-height:1.5">💡 Configuração financeira (mensalidade · % ads/leads/conteúdo · assessor) será feita dentro do projeto, na aba <b style="color:var(--ink-2)">💰 Financeiro</b>.</div>'
     +   '</div>'
     +   '<div style="display:flex;gap:8px;justify-content:flex-end">'
     +     '<button onclick="document.getElementById(\'pj-novo-overlay\').remove()" style="background:transparent;border:1px solid var(--line-2,var(--line));border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;color:var(--ink-2)">Cancelar</button>'
@@ -13849,9 +14059,7 @@ function pjNovoProjetoModal(){
     + '</div>';
 
   document.body.appendChild(overlay);
-  const inpInicio = document.getElementById('pj-novo-inicio');
-  if (inpInicio) inpInicio.value = new Date().toISOString().split('T')[0];
-  pjNovoCarregarAssessores();
+  // v9.39.0 · modal simplificado · não há mais inputs de financeiro/assessor/data
 }
 
 // v9.38.6 · busca expandida · cobre nome · código · cidade · dono(via join)
@@ -13967,7 +14175,7 @@ function pjNovoSel(negId){
   const busca = document.getElementById('pj-novo-busca'); if (busca) busca.value = '';
   document.getElementById('pj-novo-config').style.display = 'block';
   document.getElementById('pj-novo-btn-criar').style.display = 'block';
-  pjNovoMargem();
+  // v9.39.0 · pjNovoMargem não é mais chamada (campos removidos)
 }
 
 function pjNovoLimparSel(){
@@ -14012,15 +14220,7 @@ async function pjNovoCarregarAssessores(){
 
 async function pjNovoCriar(){
   if (!_pjNovoNeg) { alert('Selecione um anúncio'); return; }
-  const mensal = parseFloat(document.getElementById('pj-novo-mensal')?.value || 0);
-  const inicio = document.getElementById('pj-novo-inicio')?.value;
-  if (!mensal || mensal < 1) { alert('Informe o valor mensal'); return; }
-  if (!inicio) { alert('Informe a data de início'); return; }
-
-  const ads = parseFloat(document.getElementById('pj-novo-ads')?.value || 30);
-  const leads = parseFloat(document.getElementById('pj-novo-leads')?.value || 16);
-  const cont = parseFloat(document.getElementById('pj-novo-cont')?.value || 10);
-  const assessorNome = document.getElementById('pj-novo-assessor')?.value || '';
+  // v9.39.0 · modal simplificado · só motivo + observação · setup financeiro vai dentro do projeto
   const motivo = document.getElementById('pj-novo-motivo')?.value || 'cliente_pagou_stripe';
   const obs = (document.getElementById('pj-novo-obs')?.value || '').trim();
 
@@ -14031,25 +14231,12 @@ async function pjNovoCriar(){
   try {
     const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
 
-    // v9.38.3 · payload adaptado ao schema real de projeto_metadata
-    // motivo_contratacao/observacao/venda_alvo do spec NÃO existem · usar:
-    //   motivo_contratacao → motivo_inicio
-    //   observacao         → notas_admin
-    //   venda_alvo         → valor_venda_alvo
+    // Payload mínimo · usuário completa financeiro na aba dedicada
     const payload = {
       negocio_id: _pjNovoNeg.negocio_id || _pjNovoNeg.id,
       status: 'ativo',
-      valor_mensal_receita: mensal,
-      data_inicio_projeto: inicio,
-      iniciado_em: inicio,
-      perc_ads: ads,
-      perc_leads: leads,
-      perc_conteudo: cont,
-      assessor_responsavel: assessorNome || null,
       motivo_inicio: motivo,
       notas_admin: obs || null,
-      comissao_percentual: 5,
-      valor_venda_alvo: parseFloat(_pjNovoNeg.valor_pedido || _pjNovoNeg.preco_pedido || 0),
     };
 
     const r = await fetch(SB + '/rest/v1/projeto_metadata', { method: 'POST', headers, body: JSON.stringify(payload) });
