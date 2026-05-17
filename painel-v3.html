@@ -13282,10 +13282,15 @@ async function pjV347MontarInteligencia(n, meta){
     window._pjAbertoOrigId = ctx.originacao.id;
 
     // v9.39.2 · prepara contexto do negócio pra mandar no body do chat
+    // v9.39.4 · laudos_v2.calc_json.dre é a fonte canônica · ebitda_anual fica como fallback
     const negocio = ctx.negocio || {};
     const anuncio = ctx.anuncio || {};
-    const fat = parseFloat(negocio.faturamento_anual || 0);
-    const resOp = parseFloat(negocio.ebitda_anual || 0);
+    const dre = ctx.laudo?.calc_json?.dre || null;
+    const fat = dre?.fat_anual != null ? parseFloat(dre.fat_anual) : parseFloat(negocio.faturamento_anual || 0);
+    const resOp = dre?.ro_anual != null ? parseFloat(dre.ro_anual) : parseFloat(negocio.ebitda_anual || 0);
+    const margem = dre?.margem_operacional_pct != null
+      ? Math.round(parseFloat(dre.margem_operacional_pct))
+      : (fat > 0 ? Math.round((resOp / fat) * 100) : null);
     window._origV8NegocioId = n?.id || null;
     window._origV8ContextoNegocio = {
       nome: negocio.nome || negocio.titulo_anuncio || anuncio.titulo || null,
@@ -13294,7 +13299,7 @@ async function pjV347MontarInteligencia(n, meta){
       cidade: negocio.cidade ? (negocio.cidade + (negocio.estado ? '/' + negocio.estado : '')) : null,
       faturamento_anual: fat || null,
       resultado_operacional: resOp || null,
-      margem: fat > 0 ? Math.round((resOp / fat) * 100) : null,
+      margem: margem,
       score_saude: (negocio.score_saude !== null && negocio.score_saude !== undefined) ? negocio.score_saude : null,
       valor_pedido: parseFloat(anuncio.valor_pedido || negocio.preco_pedido || 0) || null,
       valor_1n: parseFloat(negocio.valor_1n || 0) || null,
@@ -13323,13 +13328,15 @@ async function pjV347MontarInteligencia(n, meta){
 async function origV8CarregarContextoNegocio(negocioId, metaId) {
   const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
   const pickOne = (r) => r.ok ? r.json().then(a => Array.isArray(a) ? a[0] || null : null) : Promise.resolve(null);
-  const [negocio, anuncio, meta, originacao] = await Promise.all([
+  const [negocio, anuncio, meta, originacao, laudo] = await Promise.all([
     negocioId ? fetch(SB + '/rest/v1/negocios?id=eq.' + negocioId + '&select=*&limit=1', { headers }).then(pickOne).catch(() => null) : Promise.resolve(null),
     negocioId ? fetch(SB + '/rest/v1/anuncios_v2?negocio_id=eq.' + negocioId + '&select=*&limit=1', { headers }).then(pickOne).catch(() => null) : Promise.resolve(null),
     metaId    ? fetch(SB + '/rest/v1/projeto_metadata?id=eq.' + metaId + '&select=*&limit=1', { headers }).then(pickOne).catch(() => null) : Promise.resolve(null),
     metaId    ? fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + metaId + '&select=*&order=created_at.desc&limit=1', { headers }).then(pickOne).catch(() => null) : Promise.resolve(null),
+    // v9.39.4 · laudos_v2.calc_json.dre é a fonte canônica do resultado operacional
+    negocioId ? fetch(SB + '/rest/v1/laudos_v2?negocio_id=eq.' + negocioId + '&ativo=eq.true&select=calc_json&order=versao.desc&limit=1', { headers }).then(pickOne).catch(() => null) : Promise.resolve(null),
   ]);
-  return { negocio, anuncio, meta, originacao };
+  return { negocio, anuncio, meta, originacao, laudo };
 }
 window.origV8CarregarContextoNegocio = origV8CarregarContextoNegocio;
 

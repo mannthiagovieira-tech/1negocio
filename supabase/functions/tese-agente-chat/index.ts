@@ -370,26 +370,32 @@ serve(async (req) => {
           .from("projeto_metadata").select("negocio_id").eq("id", orig.projeto_id).maybeSingle();
         const negId = meta?.negocio_id || negIdFromClient || null;
         if (negId) {
-          const [{ data: neg }, { data: anuArr }] = await Promise.all([
+          // v9.39.4 · 3 queries paralelas · negocios + anuncios_v2 + laudos_v2.calc_json.dre (fonte canônica do resultado operacional)
+          const [{ data: neg }, { data: anuArr }, { data: laudo }] = await Promise.all([
             adminClient.from("negocios").select("nome, titulo_anuncio, setor, cidade, estado, faturamento_anual, ebitda_anual, score_saude, preco_pedido, valor_1n, descricao_geral").eq("id", negId).maybeSingle(),
             adminClient.from("anuncios_v2").select("titulo, valor_pedido, descricao_card").eq("negocio_id", negId).limit(1),
+            adminClient.from("laudos_v2").select("calc_json").eq("negocio_id", negId).eq("ativo", true).order("versao", { ascending: false }).limit(1).maybeSingle(),
           ]);
           const anu = Array.isArray(anuArr) && anuArr.length > 0 ? anuArr[0] : null;
-          if (neg) {
-            const fat = Number(neg.faturamento_anual || 0);
-            const res = Number(neg.ebitda_anual || 0);
+          const dre: any = laudo?.calc_json?.dre || null;
+          if (neg || dre) {
+            const fatAnual = dre?.fat_anual != null ? Number(dre.fat_anual) : Number(neg?.faturamento_anual || 0);
+            const roAnual = dre?.ro_anual != null ? Number(dre.ro_anual) : Number(neg?.ebitda_anual || 0);
+            const margem = dre?.margem_operacional_pct != null
+              ? Math.round(Number(dre.margem_operacional_pct))
+              : (fatAnual > 0 ? Math.round((roAnual / fatAnual) * 100) : null);
             contextoNegocio = {
-              nome: neg.nome || neg.titulo_anuncio || anu?.titulo || null,
-              titulo_anuncio: neg.titulo_anuncio || anu?.titulo || null,
-              setor: neg.setor || null,
-              cidade: neg.cidade ? `${neg.cidade}${neg.estado ? "/" + neg.estado : ""}` : null,
-              faturamento_anual: fat || null,
-              resultado_operacional: res || null,
-              margem: fat > 0 ? Math.round((res / fat) * 100) : null,
-              score_saude: neg.score_saude ?? null,
-              valor_pedido: Number(anu?.valor_pedido || neg.preco_pedido || 0) || null,
-              valor_1n: Number(neg.valor_1n || 0) || null,
-              descricao: anu?.descricao_card || neg.descricao_geral || null,
+              nome: neg?.nome || neg?.titulo_anuncio || anu?.titulo || null,
+              titulo_anuncio: neg?.titulo_anuncio || anu?.titulo || null,
+              setor: neg?.setor || null,
+              cidade: neg?.cidade ? `${neg.cidade}${neg.estado ? "/" + neg.estado : ""}` : null,
+              faturamento_anual: fatAnual || null,
+              resultado_operacional: roAnual || null,
+              margem: margem,
+              score_saude: neg?.score_saude ?? null,
+              valor_pedido: Number(anu?.valor_pedido || neg?.preco_pedido || 0) || null,
+              valor_1n: Number(neg?.valor_1n || 0) || null,
+              descricao: anu?.descricao_card || neg?.descricao_geral || null,
             };
           }
         }
