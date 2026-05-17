@@ -54,6 +54,7 @@ function resumirContextoNegocio(ctx: any): string {
   if (ctx.valor_pedido != null && Number(ctx.valor_pedido) > 0) p.push(`Valor pedido pelo dono: R$ ${fmtBRL(ctx.valor_pedido)}`);
   if (ctx.valor_1n != null && Number(ctx.valor_1n) > 0) p.push(`Avaliação 1NEGÓCIO: R$ ${fmtBRL(ctx.valor_1n)}`);
   if (ctx.descricao) p.push(`Descrição do anúncio: ${String(ctx.descricao).slice(0, 400)}`);
+  if (ctx.transcricao) p.push(`\nTRANSCRIÇÃO DA REUNIÃO COM O DONO:\n${String(ctx.transcricao).slice(0, 3000)}`);
   return p.join("\n");
 }
 

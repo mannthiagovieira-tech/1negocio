@@ -13300,6 +13300,11 @@ async function pjV347MontarInteligencia(n, meta){
       valor_1n: parseFloat(negocio.valor_1n || 0) || null,
       descricao: anuncio.descricao_card || negocio.descricao_geral || null,
     };
+    // v9.39.3 · transcrição persistida em briefing_jsonb.transcricao_reuniao
+    window._origV8BriefingAtual = ctx.originacao.briefing_jsonb || null;
+    window._origV8Transcricao = ctx.originacao.briefing_jsonb?.transcricao_reuniao || null;
+    window._origV8TranscricaoArquivo = ctx.originacao.briefing_jsonb?.transcricao_arquivo || null;
+    window._origV8SystemMsgs = [];
 
     host.innerHTML = origV8HtmlAba(ctx);
     origV8AtualizarBoxTese(ctx.originacao.tese_jsonb);
@@ -13359,6 +13364,11 @@ function origV8HtmlAba(ctx) {
     +     '<div style="display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-2);border-radius:12px;overflow:hidden;min-height:420px">'
     +       '<div id="orig-chat-msgs" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px"></div>'
     +       '<div id="orig-chat-output" style="padding:0 12px"></div>'
+    +       '<div style="padding:8px 12px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px">'
+    +         '<input type="file" id="orig-transcricao-file" style="display:none" accept=".txt,.md" onchange="origV8ProcessarTranscricao(this.files[0])">'
+    +         '<button onclick="origV8AbrirUploadTranscricao()" id="btn-upload-transcricao" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--ink-3);cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .15s">📎 Transcrição</button>'
+    +         '<div id="transcricao-status" style="font-size:11px;color:var(--ink-3);flex:1"></div>'
+    +       '</div>'
     +       '<div style="padding:12px;border-top:1px solid var(--line);display:flex;gap:8px">'
     +         '<textarea id="orig-chat-input" rows="2" placeholder="Digite sua resposta..." onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();origV8Submit2Pane()}" style="flex:1;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;resize:none;font-family:var(--sans);line-height:1.4;box-sizing:border-box"></textarea>'
     +         '<button onclick="origV8Submit2Pane()" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;align-self:flex-end">Enviar →</button>'
@@ -13449,14 +13459,23 @@ function origV8Render2Pane() {
   const cont = document.getElementById('orig-chat-msgs');
   if (!cont) return;
   const historico = _origV8State.historico || [];
+  const sysMsgs = (window._origV8SystemMsgs || []).map(m => ({ ...m, role: 'system', _kind: 'sys' }));
+  const histKind = historico.map(m => ({ ...m, _kind: 'hist' }));
+  // Merge cronológico · sys msgs sem ts vão pro fim
+  const todos = [...histKind, ...sysMsgs].sort((a, b) => String(a.ts || '￿').localeCompare(String(b.ts || '￿')));
   const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
-  if (historico.length === 0) {
+  if (todos.length === 0) {
     cont.innerHTML = '<div style="text-align:center;padding:30px;color:var(--ink-3);font-size:13px">⏳ Iniciando análise…</div>';
   } else {
-    cont.innerHTML = historico.map(m => {
+    cont.innerHTML = todos.map(m => {
+      const txt = esc(m.content || '').replace(/\n/g, '<br>');
+      if (m.role === 'system') {
+        return '<div style="display:flex;justify-content:center">'
+          +    '<div style="background:var(--surface-2,var(--bg));border:1px solid var(--line);border-radius:6px;padding:6px 14px;font-size:11px;color:var(--ink-3);text-align:center;max-width:85%">' + txt + '</div>'
+          + '</div>';
+      }
       const isAg = m.role !== 'user';
       const ico = isAg ? '🤖' : '👤';
-      const txt = esc(m.content || '').replace(/\n/g, '<br>');
       const bubbleBg = isAg ? 'var(--surface-2,var(--bg))' : 'var(--accent-soft,rgba(34,197,94,.15))';
       const bubbleBorder = isAg ? 'var(--line)' : 'var(--accent-line,rgba(34,197,94,.3))';
       const avatarBg = isAg ? 'var(--accent-soft,rgba(34,197,94,.15))' : 'var(--surface-2,var(--bg))';
@@ -13475,7 +13494,82 @@ function origV8Render2Pane() {
   if (_origV8State.outputProposto && _origV8State.faseAtual === 'tese' && typeof _origV8State.outputProposto === 'object' && !Array.isArray(_origV8State.outputProposto)) {
     origV8AtualizarBoxTese(_origV8State.outputProposto);
   }
+
+  // Estado visual do botão de transcrição
+  origV8AtualizarBotaoTranscricao();
 }
+
+function origV8AtualizarBotaoTranscricao() {
+  const btn = document.getElementById('btn-upload-transcricao');
+  const status = document.getElementById('transcricao-status');
+  if (!btn) return;
+  if (window._origV8Transcricao && String(window._origV8Transcricao).trim().length > 0) {
+    btn.style.borderColor = 'var(--accent-line,rgba(34,197,94,.3))';
+    btn.style.color = 'var(--accent,#22c55e)';
+    btn.textContent = '✓ Transcrição';
+    btn.title = 'Substituir transcrição (clique pra fazer upload de outro arquivo)';
+    if (status && window._origV8TranscricaoArquivo) {
+      status.textContent = window._origV8TranscricaoArquivo + ' · ' + (String(window._origV8Transcricao).length / 1000).toFixed(1) + 'k chars';
+    }
+  } else {
+    btn.style.borderColor = 'var(--line-2)';
+    btn.style.color = 'var(--ink-3)';
+    btn.textContent = '📎 Transcrição';
+    btn.title = 'Anexar transcrição (.txt ou .md) da reunião com o dono';
+  }
+}
+
+function origV8AbrirUploadTranscricao() {
+  const el = document.getElementById('orig-transcricao-file');
+  if (el) el.click();
+}
+
+async function origV8ProcessarTranscricao(file) {
+  if (!file) return;
+  const status = document.getElementById('transcricao-status');
+  const setStatus = (txt, cor) => { if (status) { status.textContent = txt; status.style.color = cor || 'var(--ink-3)'; } };
+
+  const isText = file.type === 'text/plain' || /\.(txt|md)$/i.test(file.name);
+  if (!isText) {
+    setStatus('✗ Use .txt ou .md · PDF/DOCX ainda não suportado (cole o texto em um .txt)', '#dc2626');
+    return;
+  }
+
+  setStatus('⏳ Processando…');
+  try {
+    const texto = await file.text();
+    if (!texto || texto.trim().length < 10) { setStatus('✗ Arquivo vazio ou muito curto', '#dc2626'); return; }
+    const textoLimitado = texto.slice(0, 3000);
+
+    window._origV8Transcricao = textoLimitado;
+    window._origV8TranscricaoArquivo = file.name;
+
+    const origId = window._pjAbertoOrigId || _origV8State.origId;
+    if (origId) {
+      const briefingNovo = { ...(window._origV8BriefingAtual || {}), transcricao_reuniao: textoLimitado, transcricao_arquivo: file.name, transcricao_em: new Date().toISOString() };
+      const r = await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + origId, {
+        method: 'PATCH',
+        headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ briefing_jsonb: briefingNovo, updated_at: new Date().toISOString() }),
+      });
+      if (r.ok) window._origV8BriefingAtual = briefingNovo;
+      else { setStatus('✗ Salvo localmente · erro HTTP ' + r.status + ' ao persistir', '#d4a017'); }
+    }
+
+    setStatus('✓ ' + file.name + ' (' + (texto.length / 1000).toFixed(1) + 'k chars)', 'var(--accent,#22c55e)');
+    origV8AtualizarBotaoTranscricao();
+
+    if (!window._origV8SystemMsgs) window._origV8SystemMsgs = [];
+    window._origV8SystemMsgs.push({ ts: new Date().toISOString(), content: '📎 Transcrição "' + file.name + '" carregada · o agente vai considerar esse conteúdo nas próximas respostas.' });
+    origV8Render2Pane();
+  } catch (e) {
+    setStatus('✗ Erro: ' + (e?.message || 'desconhecido'), '#dc2626');
+  }
+}
+
+window.origV8AbrirUploadTranscricao = origV8AbrirUploadTranscricao;
+window.origV8ProcessarTranscricao = origV8ProcessarTranscricao;
+window.origV8AtualizarBotaoTranscricao = origV8AtualizarBotaoTranscricao;
 
 window.origV8Submit2Pane = origV8Submit2Pane;
 window.origV8SalvarTesePainel = origV8SalvarTesePainel;
@@ -23783,7 +23877,10 @@ async function origV8EnviarMsg(mensagem, _isAbertura) {
         fase_atual: _origV8State.faseAtual,
         historico: _origV8State.historico.filter(m => !m._placeholder),
         // v9.39.2 · contexto do negócio (hidratado no mount da aba Inteligência)
-        contexto_negocio: window._origV8ContextoNegocio || undefined,
+        // v9.39.3 · transcricao incluída quando disponível
+        contexto_negocio: window._origV8ContextoNegocio
+          ? { ...window._origV8ContextoNegocio, transcricao: window._origV8Transcricao || null }
+          : (window._origV8Transcricao ? { transcricao: window._origV8Transcricao } : undefined),
         negocio_id: window._origV8NegocioId || undefined,
       }),
     });
