@@ -1737,6 +1737,8 @@ table.t .acoes { white-space: nowrap; }
 .tese-chat-input-wrap textarea { flex: 1; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font-size: 13px; resize: vertical; min-height: 60px; font-family: inherit; box-sizing: border-box; }
 .tese-chat-acoes { display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .tese-chat-proposta-tese { margin-top: 12px; padding: 14px; background: rgba(61,255,149,0.08); border: 1px solid rgba(61,255,149,0.4); border-radius: 10px; }
+/* v9.39.2 · Inteligência 2-pane · mobile empilha */
+@media (max-width: 900px) { .orig-v8-2pane { grid-template-columns: 1fr !important; } }
 .tese-chat-proposta-tese h4 { margin: 0 0 8px 0; font-size: 13px; color: var(--em, var(--ink)); }
 .tese-chat-proposta-tese .comp { margin-top: 6px; font-size: 12px; }
 .tese-chat-proposta-tese .comp strong { font-size: 11px; text-transform: uppercase; color: var(--ink-3); letter-spacing: .04em; display: block; margin-bottom: 2px; }
@@ -13240,44 +13242,227 @@ function pjV347PlaceholderEmBreve(aba){
     + '</div>';
 }
 
+// v9.39.2 · Inteligência · layout 2-pane (chat + box tese) com auto-start contextualizado
 function pjV347RenderInteligencia(n, meta){
   const metaId = meta?.id || '';
-  return ''
-    + '<div style="display:flex;flex-direction:column;gap:14px">'
-    +   '<div><div style="font-family:var(--serif);font-size:18px;font-weight:700">🧠 Inteligência</div>'
-    +     '<div style="font-size:12px;color:var(--ink-3);margin-top:2px">Tese · Arquétipos · Ambientação · Estratégia</div></div>'
-    +   '<div id="pj-inteligencia-host-' + metaId + '" style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:14px;min-height:480px"></div>'
-    + '</div>';
+  return '<div id="pj-inteligencia-host-' + metaId + '" style="min-height:620px;height:calc(100vh - 240px)"></div>';
 }
 
-// Resolve originacao_id a partir de meta.id e dispara o chat origV8 dentro do host
 async function pjV347MontarInteligencia(n, meta){
   const host = document.getElementById('pj-inteligencia-host-' + (meta?.id || ''));
   if (!host) return;
-  host.innerHTML = '<div class="pj-v347-empty">⏳ Carregando originação…</div>';
+  if (!meta?.id) { host.innerHTML = '<div class="pj-v347-empty">Sem meta vinculada</div>'; return; }
+  host.innerHTML = '<div class="pj-v347-empty">⏳ Carregando dados do negócio…</div>';
   try {
-    const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
-    const r = await fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + (meta?.id || '') + '&select=id&order=created_at.desc&limit=1', { headers });
-    const arr = r.ok ? await r.json() : [];
-    const origId = arr[0]?.id;
-    if (!origId){
-      // v9.39.0 · CTA de início (cria originacao on-demand)
-      host.innerHTML = ''
-        + '<div style="text-align:center;padding:40px 20px">'
-        +   '<div style="font-size:32px;margin-bottom:16px">🧠</div>'
-        +   '<div style="font-family:var(--serif);font-size:20px;font-weight:700;margin-bottom:8px">Vamos definir a estratégia</div>'
-        +   '<div style="font-size:13px;color:var(--ink-3);margin-bottom:24px;max-width:440px;margin-left:auto;margin-right:auto;line-height:1.6">O agente de inteligência vai conduzir uma conversa para definir a tese de investimento, os arquétipos de compradores e onde encontrá-los. Tudo isso alimenta o arsenal de prospecção.</div>'
-        +   '<button onclick="pjV347CriarOriginacao(\'' + (meta?.id || '') + '\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:999px;padding:12px 28px;font-size:14px;font-weight:700;cursor:pointer">🧠 Iniciar definição de estratégia</button>'
-        +   '<div style="font-size:11px;color:var(--ink-3);margin-top:12px">Este é o primeiro passo. Arsenal só fica disponível após tese e arquétipos aprovados.</div>'
-        + '</div>';
-      return;
+    const ctx = await origV8CarregarContextoNegocio(n?.id, meta.id);
+
+    // Garante originação · cria com defaults válidos se necessário
+    if (!ctx.originacao?.id) {
+      const headersPost = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+      const rC = await fetch(SB + '/rest/v1/projetos_originacao', { method: 'POST', headers: headersPost, body: JSON.stringify({ projeto_id: meta.id, status: 'rascunho', fase_atual: 'tese', versao: 1 }) });
+      const raw = await rC.text(); let data; try { data = JSON.parse(raw); } catch (_) { data = null; }
+      if (!rC.ok) { host.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Falha ao criar originação: ' + ((data && data.message) || raw || ('HTTP ' + rC.status)) + '</div>'; return; }
+      ctx.originacao = Array.isArray(data) ? data[0] : data;
     }
-    // origV8 escreve no #pj-originacao-{projetoId} · injetamos um wrapper com esse ID
-    host.innerHTML = '<div id="pj-originacao-' + (meta?.id || '') + '"></div>';
-    if (typeof origV8AbrirChatTese === 'function') await origV8AbrirChatTese(origId);
-    else host.innerHTML = '<div class="pj-v347-empty">Chat de tese indisponível neste build.</div>';
-  } catch(e){ host.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Erro: ' + (e?.message || 'desconhecido') + '</div>'; }
+    if (!ctx.originacao?.id) { host.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Originação não disponível</div>'; return; }
+
+    // Hidrata _origV8State (reusa engine existente)
+    _origV8State.origId = ctx.originacao.id;
+    _origV8State.projetoId = meta.id;
+    _origV8State.historico = Array.isArray(ctx.originacao.tese_chat_historico) ? ctx.originacao.tese_chat_historico : [];
+    _origV8State.teseFechada = !!ctx.originacao.tese_fechada_em;
+    _origV8State.arqsFechados = !!ctx.originacao.arquetipos_fechados_em;
+    const ambFechada = !!(ctx.originacao.busca_config_jsonb && ctx.originacao.busca_config_jsonb.ambientacao);
+    if (ambFechada) _origV8State.faseAtual = 'livre';
+    else if (_origV8State.arqsFechados) _origV8State.faseAtual = 'ambientacao';
+    else if (_origV8State.teseFechada) _origV8State.faseAtual = 'arquetipos';
+    else _origV8State.faseAtual = 'tese';
+    _origV8State.outputProposto = null;
+    _origV8State.locked = false;
+    window._pjAbertoOrigId = ctx.originacao.id;
+
+    host.innerHTML = origV8HtmlAba(ctx);
+    origV8AtualizarBoxTese(ctx.originacao.tese_jsonb);
+
+    if (_origV8State.historico.length === 0) {
+      origV8EnviarMsg('', true);
+    } else {
+      origV8Render2Pane();
+    }
+  } catch(e){
+    host.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Erro: ' + (e?.message || 'desconhecido') + '</div>';
+  }
 }
+
+// Carrega contexto completo do negócio em paralelo
+async function origV8CarregarContextoNegocio(negocioId, metaId) {
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+  const pickOne = (r) => r.ok ? r.json().then(a => Array.isArray(a) ? a[0] || null : null) : Promise.resolve(null);
+  const [negocio, anuncio, meta, originacao] = await Promise.all([
+    negocioId ? fetch(SB + '/rest/v1/negocios?id=eq.' + negocioId + '&select=*&limit=1', { headers }).then(pickOne).catch(() => null) : Promise.resolve(null),
+    negocioId ? fetch(SB + '/rest/v1/anuncios_v2?negocio_id=eq.' + negocioId + '&select=*&limit=1', { headers }).then(pickOne).catch(() => null) : Promise.resolve(null),
+    metaId    ? fetch(SB + '/rest/v1/projeto_metadata?id=eq.' + metaId + '&select=*&limit=1', { headers }).then(pickOne).catch(() => null) : Promise.resolve(null),
+    metaId    ? fetch(SB + '/rest/v1/projetos_originacao?projeto_id=eq.' + metaId + '&select=*&order=created_at.desc&limit=1', { headers }).then(pickOne).catch(() => null) : Promise.resolve(null),
+  ]);
+  return { negocio, anuncio, meta, originacao };
+}
+window.origV8CarregarContextoNegocio = origV8CarregarContextoNegocio;
+
+// Layout 2-pane: chat (3fr) + box tese (2fr)
+function origV8HtmlAba(ctx) {
+  const tese = ctx?.originacao?.tese_jsonb || null;
+  const FASES = [
+    { key:'tese',        label:'Tese' },
+    { key:'arquetipos',  label:'Arquétipos' },
+    { key:'ambientacao', label:'Ambientação' },
+    { key:'livre',       label:'Estratégia' },
+  ];
+  const fase = _origV8State.faseAtual || 'tese';
+  const faseIdx = FASES.findIndex(f => f.key === fase);
+  const pills = FASES.map((f, i) => {
+    const ativa = i === faseIdx;
+    const concluida = i < faseIdx;
+    const bg = ativa ? 'var(--accent,#22c55e)' : concluida ? 'var(--accent-soft,rgba(34,197,94,.15))' : 'var(--surface-2,var(--bg))';
+    const cor = ativa ? '#000' : concluida ? 'var(--accent,#22c55e)' : 'var(--ink-3)';
+    const peso = ativa ? '700' : '500';
+    return '<span onclick="origV8MudarFase(\'' + f.key + '\')" title="Ir para ' + f.label + '" style="font-size:10px;padding:3px 10px;border-radius:999px;background:' + bg + ';color:' + cor + ';font-weight:' + peso + ';cursor:pointer">' + (concluida ? '✓ ' : '') + f.label + '</span>';
+  }).join('');
+
+  return ''
+    + '<div style="display:flex;flex-direction:column;height:100%">'
+    +   '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px">'
+    +     '<div><div style="font-family:var(--serif);font-size:17px;font-weight:700">🧠 Inteligência</div>'
+    +       '<div style="font-size:12px;color:var(--ink-3)">Tese · Arquétipos · Ambientação · Estratégia</div></div>'
+    +     '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">' + pills + '</div>'
+    +   '</div>'
+    +   '<div class="orig-v8-2pane" style="display:grid;grid-template-columns:3fr 2fr;gap:14px;flex:1;min-height:0">'
+    +     '<div style="display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-2);border-radius:12px;overflow:hidden;min-height:420px">'
+    +       '<div id="orig-chat-msgs" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px"></div>'
+    +       '<div id="orig-chat-output" style="padding:0 12px"></div>'
+    +       '<div style="padding:12px;border-top:1px solid var(--line);display:flex;gap:8px">'
+    +         '<textarea id="orig-chat-input" rows="2" placeholder="Digite sua resposta..." onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();origV8Submit2Pane()}" style="flex:1;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;resize:none;font-family:var(--sans);line-height:1.4;box-sizing:border-box"></textarea>'
+    +         '<button onclick="origV8Submit2Pane()" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;align-self:flex-end">Enviar →</button>'
+    +       '</div>'
+    +     '</div>'
+    +     '<div style="overflow-y:auto;min-height:420px">' + origV8HtmlBoxTese(tese) + '</div>'
+    +   '</div>'
+    + '</div>';
+}
+
+function origV8HtmlBoxTese(tese) {
+  const t = tese || {};
+  const campos = [
+    { key:'diferencial_competitivo', label:'Diferencial competitivo' },
+    { key:'perfil_comprador_ideal',  label:'Perfil do comprador ideal' },
+    { key:'justificativa_preco',     label:'Justificativa do preço' },
+    { key:'riscos_principais',       label:'Pontos de atenção' },
+    { key:'motivo_venda',            label:'Motivo da venda' },
+    { key:'prazo_desejado',          label:'Prazo desejado' },
+  ];
+  const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+  const camposHtml = campos.map(f => {
+    const v = t[f.key];
+    const txt = Array.isArray(v) ? v.join(', ') : (v || '');
+    return ''
+      + '<div style="margin-bottom:12px">'
+      +   '<div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">' + f.label + '</div>'
+      +   '<textarea id="tese-' + f.key + '" rows="2" placeholder="Será preenchido pela conversa..." style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;resize:vertical;box-sizing:border-box;font-family:var(--sans);line-height:1.4">' + esc(txt) + '</textarea>'
+      + '</div>';
+  }).join('');
+  return ''
+    + '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:16px;box-sizing:border-box">'
+    +   '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px">📋 Tese de Investimento</div>'
+    +   camposHtml
+    +   '<button onclick="origV8SalvarTesePainel()" style="width:100%;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;margin-top:4px">💾 Salvar tese</button>'
+    +   '<div id="tese-status" style="font-size:11px;color:var(--ink-3);text-align:center;margin-top:8px;min-height:14px"></div>'
+    + '</div>';
+}
+
+function origV8AtualizarBoxTese(tese) {
+  if (!tese || typeof tese !== 'object') return;
+  Object.entries(tese).forEach(([k, v]) => {
+    const el = document.getElementById('tese-' + k);
+    if (el && (v !== null && v !== undefined) && v !== '') {
+      const valor = Array.isArray(v) ? v.join(', ') : String(v);
+      // Não sobrescreve edição manual do admin: só preenche se vazio
+      if (!el.value || !el.value.trim()) el.value = valor;
+    }
+  });
+}
+
+async function origV8SalvarTesePainel() {
+  const campos = ['diferencial_competitivo','perfil_comprador_ideal','justificativa_preco','riscos_principais','motivo_venda','prazo_desejado'];
+  const tese = {};
+  campos.forEach(k => {
+    const el = document.getElementById('tese-' + k);
+    if (el && el.value.trim()) tese[k] = el.value.trim();
+  });
+  const origId = window._pjAbertoOrigId || _origV8State.origId;
+  const statusEl = document.getElementById('tese-status');
+  const setStatus = (txt, cor) => { if (statusEl) { statusEl.textContent = txt; statusEl.style.color = cor || 'var(--ink-3)'; } };
+  if (!origId) { setStatus('✗ Originação não encontrada', '#dc2626'); return; }
+  setStatus('Salvando…');
+  try {
+    const r = await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + origId, {
+      method: 'PATCH',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ tese_jsonb: tese, updated_at: new Date().toISOString() }),
+    });
+    if (!r.ok) { setStatus('✗ Erro HTTP ' + r.status, '#dc2626'); return; }
+    setStatus('✓ Tese salva', 'var(--accent,#22c55e)');
+    setTimeout(() => setStatus(''), 3000);
+    if (typeof pjV347AtualizarFaseIndicator === 'function') pjV347AtualizarFaseIndicator();
+  } catch (e) { setStatus('✗ Erro: ' + e.message, '#dc2626'); }
+}
+
+function origV8Submit2Pane() {
+  if (_origV8State.locked) return;
+  const ta = document.getElementById('orig-chat-input');
+  if (!ta) return;
+  const msg = (ta.value || '').trim();
+  if (!msg) return;
+  ta.value = '';
+  origV8EnviarMsg(msg, false);
+}
+
+function origV8Render2Pane() {
+  const cont = document.getElementById('orig-chat-msgs');
+  if (!cont) return;
+  const historico = _origV8State.historico || [];
+  const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+  if (historico.length === 0) {
+    cont.innerHTML = '<div style="text-align:center;padding:30px;color:var(--ink-3);font-size:13px">⏳ Iniciando análise…</div>';
+  } else {
+    cont.innerHTML = historico.map(m => {
+      const isAg = m.role !== 'user';
+      const ico = isAg ? '🤖' : '👤';
+      const txt = esc(m.content || '').replace(/\n/g, '<br>');
+      const bubbleBg = isAg ? 'var(--surface-2,var(--bg))' : 'var(--accent-soft,rgba(34,197,94,.15))';
+      const bubbleBorder = isAg ? 'var(--line)' : 'var(--accent-line,rgba(34,197,94,.3))';
+      const avatarBg = isAg ? 'var(--accent-soft,rgba(34,197,94,.15))' : 'var(--surface-2,var(--bg))';
+      return '<div style="display:flex;gap:10px;align-items:flex-start;' + (isAg ? '' : 'flex-direction:row-reverse') + '">'
+        +   '<div style="width:28px;height:28px;border-radius:50%;background:' + avatarBg + ';display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">' + ico + '</div>'
+        +   '<div style="background:' + bubbleBg + ';border-radius:10px;padding:10px 14px;font-size:13px;line-height:1.5;max-width:85%;border:1px solid ' + bubbleBorder + '">' + txt + '</div>'
+        + '</div>';
+    }).join('');
+  }
+  cont.scrollTop = cont.scrollHeight;
+
+  const out = document.getElementById('orig-chat-output');
+  if (out) out.innerHTML = (typeof origV8OutputCardHtml === 'function' ? origV8OutputCardHtml() : '');
+
+  // Preview: se output_proposto é tese, espelha no box (sem sobrescrever edição manual)
+  if (_origV8State.outputProposto && _origV8State.faseAtual === 'tese' && typeof _origV8State.outputProposto === 'object' && !Array.isArray(_origV8State.outputProposto)) {
+    origV8AtualizarBoxTese(_origV8State.outputProposto);
+  }
+}
+
+window.origV8Submit2Pane = origV8Submit2Pane;
+window.origV8SalvarTesePainel = origV8SalvarTesePainel;
+window.origV8Render2Pane = origV8Render2Pane;
+window.origV8AtualizarBoxTese = origV8AtualizarBoxTese;
+window.origV8HtmlBoxTese = origV8HtmlBoxTese;
+window.origV8HtmlAba = origV8HtmlAba;
 
 // v9.39.0 · cria projetos_originacao on-demand a partir da aba Inteligência
 async function pjV347CriarOriginacao(metaId){
@@ -23494,6 +23679,11 @@ function origV8OutputCardHtml(){
 }
 
 function origV8RenderChat() {
+  // v9.39.2 · 2-pane (aba Inteligência) · delega
+  if (document.getElementById('orig-chat-msgs')) {
+    if (typeof origV8Render2Pane === 'function') origV8Render2Pane();
+    return;
+  }
   const projetoId = _origV8State.projetoId;
   if (!projetoId) return;
   const container = document.getElementById('pj-originacao-' + projetoId);
