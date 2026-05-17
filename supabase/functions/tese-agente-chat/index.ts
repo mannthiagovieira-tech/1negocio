@@ -32,6 +32,37 @@ function resp(status: number, body: Record<string, unknown>) {
   });
 }
 
+function fmtBRL(v: any): string {
+  const n = Number(v || 0);
+  if (!Number.isFinite(n) || n === 0) return "0";
+  return n.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+}
+
+function resumirContextoNegocio(ctx: any): string {
+  if (!ctx || typeof ctx !== "object") return "";
+  const p: string[] = [];
+  const nome = ctx.nome || ctx.titulo_anuncio;
+  if (nome) p.push(`Nome/Título: ${nome}`);
+  if (ctx.setor) p.push(`Setor: ${ctx.setor}`);
+  if (ctx.cidade) p.push(`Cidade: ${ctx.cidade}`);
+  if (ctx.faturamento_anual != null && Number(ctx.faturamento_anual) > 0) p.push(`Faturamento anual: R$ ${fmtBRL(ctx.faturamento_anual)}`);
+  if (ctx.resultado_operacional != null && Number(ctx.resultado_operacional) > 0) {
+    const margemTxt = ctx.margem != null ? ` (margem ${ctx.margem}%)` : "";
+    p.push(`Resultado operacional: R$ ${fmtBRL(ctx.resultado_operacional)}${margemTxt}`);
+  }
+  if (ctx.score_saude != null && ctx.score_saude !== "" && ctx.score_saude !== "—") p.push(`Score de saúde: ${ctx.score_saude}/100`);
+  if (ctx.valor_pedido != null && Number(ctx.valor_pedido) > 0) p.push(`Valor pedido pelo dono: R$ ${fmtBRL(ctx.valor_pedido)}`);
+  if (ctx.valor_1n != null && Number(ctx.valor_1n) > 0) p.push(`Avaliação 1NEGÓCIO: R$ ${fmtBRL(ctx.valor_1n)}`);
+  if (ctx.descricao) p.push(`Descrição do anúncio: ${String(ctx.descricao).slice(0, 400)}`);
+  return p.join("\n");
+}
+
+function composeDadosNegocio(ctx: any, briefing: any): string {
+  const c = resumirContextoNegocio(ctx);
+  if (c) return c;
+  return resumirBriefing(briefing);
+}
+
 function resumirBriefing(briefing: any): string {
   if (!briefing) return "(briefing não preenchido)";
   const n = briefing.negocio || {};
@@ -54,8 +85,8 @@ function resumirBriefing(briefing: any): string {
   return partes.join("\n");
 }
 
-function systemPromptTese(briefing: any, teseAtual: any): string {
-  const briefingResumido = resumirBriefing(briefing);
+function systemPromptTese(ctx: any, briefing: any, teseAtual: any): string {
+  const dadosNegocio = composeDadosNegocio(ctx, briefing);
   const teseAtualStr = teseAtual && Object.keys(teseAtual).length > 0
     ? `\nTESE ATUAL (rascunho versão ${teseAtual?._versao || 1}):\n${JSON.stringify(teseAtual, null, 2)}`
     : "";
@@ -63,7 +94,7 @@ function systemPromptTese(briefing: any, teseAtual: any): string {
 Seu objetivo nesta fase é construir uma TESE DE INVESTIMENTO sólida para o negócio em questão.
 
 DADOS DO NEGÓCIO (carregados automaticamente):
-${briefingResumido}
+${dadosNegocio}
 ${teseAtualStr}
 
 REGRAS:
@@ -82,15 +113,15 @@ REGRAS:
 5. justificativa_preco: múltiplo, benchmark setorial, por que o preço faz sentido`;
 }
 
-function systemPromptArquetipos(briefing: any, tese: any): string {
-  const briefingResumido = resumirBriefing(briefing);
+function systemPromptArquetipos(ctx: any, briefing: any, tese: any): string {
+  const dadosNegocio = composeDadosNegocio(ctx, briefing);
   const teseTxt = JSON.stringify(tese || {}, null, 2);
   return `Você é um especialista em M&A e análise de compradores para PMEs brasileiras.
 Tese de investimento aprovada:
 ${teseTxt}
 
 Negócio:
-${briefingResumido}
+${dadosNegocio}
 
 OBJETIVO: Identificar 4-7 arquétipos de compradores reais e específicos.
 
@@ -121,8 +152,8 @@ Quando tiver os arquétipos prontos, inclua no final:
 ARQUETIPOS_COMPLETOS_JSON:[{"nome":"...","dimensao":"...","logica_compra":"...","objecoes":["..."],"sinal_qualificacao":"...","capacidade_financeira":"...","mensagem_abordagem":"..."}]`;
 }
 
-function systemPromptAmbientacao(briefing: any, arquetipos: any[]): string {
-  const briefingResumido = resumirBriefing(briefing);
+function systemPromptAmbientacao(ctx: any, briefing: any, arquetipos: any[]): string {
+  const dadosNegocio = composeDadosNegocio(ctx, briefing);
   const arqsTxt = JSON.stringify(arquetipos || [], null, 2);
   return `Você é um especialista em prospecção B2B e redes de relacionamento empresarial.
 
@@ -130,7 +161,7 @@ Arquétipos aprovados:
 ${arqsTxt}
 
 Negócio:
-${briefingResumido}
+${dadosNegocio}
 
 OBJETIVO: Para cada arquétipo, definir onde essa pessoa está no mundo real.
 Isso alimentará as queries de busca do sistema (gmaps · facebook · instagram · associacoes · etc).
@@ -155,10 +186,10 @@ Quando concluir, inclua no final:
 AMBIENTACAO_COMPLETA_JSON:{"por_arquetipo":{"[nome_arquetipo]":{"grupos_online":["..."],"associacoes":["..."],"eventos_feiras":["..."],"canais_digitais":["..."],"corretores_facilitadores":"..."}},"sugestoes_dono":{"eventos_para_ir":[{"nome":"...","quando":"...","cidade":"...","motivo":"..."}],"grupos_para_entrar":[{"nome":"...","plataforma":"...","url":"...","motivo":"..."}]}}`;
 }
 
-function systemPromptLivre(briefing: any, tese: any, arquetipos: any[]): string {
+function systemPromptLivre(ctx: any, briefing: any, tese: any, arquetipos: any[]): string {
   return `Você é um analista sênior de M&A. Tese aprovada: ${JSON.stringify(tese || {}, null, 2)}.
 Arquétipos: ${JSON.stringify(arquetipos || [], null, 2)}.
-Briefing: ${resumirBriefing(briefing)}.
+Negócio: ${composeDadosNegocio(ctx, briefing)}.
 
 Continue ajudando com ideias estratégicas livres: roteiros de abordagem, refinamento de mensagens,
 sugestões de timing, materiais de apoio, qualquer coisa que avance o projeto.
@@ -213,6 +244,8 @@ serve(async (req) => {
     fase_atual = "tese",
     reiniciar,
     salvar_output,
+    contexto_negocio: ctxFromClient,
+    negocio_id: negIdFromClient,
   } = body || {};
   if (!originacao_id) return resp(400, { ok: false, erro: "originacao_id_obrigatorio" });
 
@@ -328,16 +361,50 @@ serve(async (req) => {
       arquetiposAprovados = arqs || [];
     }
 
+    // v9.39.2 · resolver contexto do negócio · preferência ao client; fallback ao banco via projeto_metadata.negocio_id
+    let contextoNegocio: any = ctxFromClient && typeof ctxFromClient === "object" ? ctxFromClient : null;
+    if (!contextoNegocio && orig.projeto_id) {
+      try {
+        const { data: meta } = await adminClient
+          .from("projeto_metadata").select("negocio_id").eq("id", orig.projeto_id).maybeSingle();
+        const negId = meta?.negocio_id || negIdFromClient || null;
+        if (negId) {
+          const [{ data: neg }, { data: anuArr }] = await Promise.all([
+            adminClient.from("negocios").select("nome, titulo_anuncio, setor, cidade, estado, faturamento_anual, ebitda_anual, score_saude, preco_pedido, valor_1n, descricao_geral").eq("id", negId).maybeSingle(),
+            adminClient.from("anuncios_v2").select("titulo, valor_pedido, descricao_card").eq("negocio_id", negId).limit(1),
+          ]);
+          const anu = Array.isArray(anuArr) && anuArr.length > 0 ? anuArr[0] : null;
+          if (neg) {
+            const fat = Number(neg.faturamento_anual || 0);
+            const res = Number(neg.ebitda_anual || 0);
+            contextoNegocio = {
+              nome: neg.nome || neg.titulo_anuncio || anu?.titulo || null,
+              titulo_anuncio: neg.titulo_anuncio || anu?.titulo || null,
+              setor: neg.setor || null,
+              cidade: neg.cidade ? `${neg.cidade}${neg.estado ? "/" + neg.estado : ""}` : null,
+              faturamento_anual: fat || null,
+              resultado_operacional: res || null,
+              margem: fat > 0 ? Math.round((res / fat) * 100) : null,
+              score_saude: neg.score_saude ?? null,
+              valor_pedido: Number(anu?.valor_pedido || neg.preco_pedido || 0) || null,
+              valor_1n: Number(neg.valor_1n || 0) || null,
+              descricao: anu?.descricao_card || neg.descricao_geral || null,
+            };
+          }
+        }
+      } catch (_) { /* fallback silencioso · cai no resumirBriefing */ }
+    }
+
     let systemPrompt = "";
     if (fase_atual === "tese") {
       // v9.39.2 · briefing deixou de ser pré-requisito · o próprio chat coleta o contexto
-      systemPrompt = systemPromptTese(orig.briefing_jsonb, orig.tese_jsonb);
+      systemPrompt = systemPromptTese(contextoNegocio, orig.briefing_jsonb, orig.tese_jsonb);
     } else if (fase_atual === "arquetipos") {
-      systemPrompt = systemPromptArquetipos(orig.briefing_jsonb, orig.tese_jsonb);
+      systemPrompt = systemPromptArquetipos(contextoNegocio, orig.briefing_jsonb, orig.tese_jsonb);
     } else if (fase_atual === "ambientacao") {
-      systemPrompt = systemPromptAmbientacao(orig.briefing_jsonb, arquetiposAprovados);
+      systemPrompt = systemPromptAmbientacao(contextoNegocio, orig.briefing_jsonb, arquetiposAprovados);
     } else {
-      systemPrompt = systemPromptLivre(orig.briefing_jsonb, orig.tese_jsonb, arquetiposAprovados);
+      systemPrompt = systemPromptLivre(contextoNegocio, orig.briefing_jsonb, orig.tese_jsonb, arquetiposAprovados);
     }
 
     const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {

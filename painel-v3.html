@@ -13281,6 +13281,26 @@ async function pjV347MontarInteligencia(n, meta){
     _origV8State.locked = false;
     window._pjAbertoOrigId = ctx.originacao.id;
 
+    // v9.39.2 · prepara contexto do negócio pra mandar no body do chat
+    const negocio = ctx.negocio || {};
+    const anuncio = ctx.anuncio || {};
+    const fat = parseFloat(negocio.faturamento_anual || 0);
+    const resOp = parseFloat(negocio.ebitda_anual || 0);
+    window._origV8NegocioId = n?.id || null;
+    window._origV8ContextoNegocio = {
+      nome: negocio.nome || negocio.titulo_anuncio || anuncio.titulo || null,
+      titulo_anuncio: negocio.titulo_anuncio || anuncio.titulo || null,
+      setor: negocio.setor || null,
+      cidade: negocio.cidade ? (negocio.cidade + (negocio.estado ? '/' + negocio.estado : '')) : null,
+      faturamento_anual: fat || null,
+      resultado_operacional: resOp || null,
+      margem: fat > 0 ? Math.round((resOp / fat) * 100) : null,
+      score_saude: (negocio.score_saude !== null && negocio.score_saude !== undefined) ? negocio.score_saude : null,
+      valor_pedido: parseFloat(anuncio.valor_pedido || negocio.preco_pedido || 0) || null,
+      valor_1n: parseFloat(negocio.valor_1n || 0) || null,
+      descricao: anuncio.descricao_card || negocio.descricao_geral || null,
+    };
+
     host.innerHTML = origV8HtmlAba(ctx);
     origV8AtualizarBoxTese(ctx.originacao.tese_jsonb);
 
@@ -23762,6 +23782,9 @@ async function origV8EnviarMsg(mensagem, _isAbertura) {
         mensagem: mensagem || '',
         fase_atual: _origV8State.faseAtual,
         historico: _origV8State.historico.filter(m => !m._placeholder),
+        // v9.39.2 · contexto do negócio (hidratado no mount da aba Inteligência)
+        contexto_negocio: window._origV8ContextoNegocio || undefined,
+        negocio_id: window._origV8NegocioId || undefined,
       }),
     });
     let raw = ''; let data = {};
