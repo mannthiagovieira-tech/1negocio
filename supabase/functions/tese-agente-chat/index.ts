@@ -330,7 +330,7 @@ serve(async (req) => {
 
     let systemPrompt = "";
     if (fase_atual === "tese") {
-      if (!orig.briefing_jsonb) return resp(400, { ok: false, erro: "briefing_obrigatorio_antes_da_tese" });
+      // v9.39.2 · briefing deixou de ser pré-requisito · o próprio chat coleta o contexto
       systemPrompt = systemPromptTese(orig.briefing_jsonb, orig.tese_jsonb);
     } else if (fase_atual === "arquetipos") {
       systemPrompt = systemPromptArquetipos(orig.briefing_jsonb, orig.tese_jsonb);
