@@ -13313,6 +13313,7 @@ async function pjV347MontarInteligencia(n, meta){
 
     host.innerHTML = origV8HtmlAba(ctx);
     origV8AtualizarBoxTese(ctx.originacao.tese_jsonb);
+    window._origV8CtxAtual = ctx;
 
     if (_origV8State.historico.length === 0) {
       origV8EnviarMsg('', true);
@@ -13384,38 +13385,139 @@ function origV8HtmlAba(ctx) {
     +         '<button onclick="origV8Submit2Pane()" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;align-self:flex-end">Enviar →</button>'
     +       '</div>'
     +     '</div>'
-    +     '<div style="overflow-y:auto;min-height:420px">' + origV8HtmlBoxTese(tese) + '</div>'
+    +     '<div style="overflow-y:auto;min-height:420px">' + origV8HtmlPainelDireito(ctx) + '</div>'
     +   '</div>'
     + '</div>';
 }
 
-function origV8HtmlBoxTese(tese) {
-  const t = tese || {};
-  const campos = [
-    { key:'diferencial_competitivo', label:'Diferencial competitivo' },
-    { key:'perfil_comprador_ideal',  label:'Perfil do comprador ideal' },
-    { key:'justificativa_preco',     label:'Justificativa do preço' },
-    { key:'riscos_principais',       label:'Pontos de atenção' },
-    { key:'motivo_venda',            label:'Motivo da venda' },
-    { key:'prazo_desejado',          label:'Prazo desejado' },
-  ];
-  const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
-  const camposHtml = campos.map(f => {
-    const v = t[f.key];
-    const txt = Array.isArray(v) ? v.join(', ') : (v || '');
-    return ''
-      + '<div style="margin-bottom:12px">'
-      +   '<div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">' + f.label + '</div>'
-      +   '<textarea id="tese-' + f.key + '" rows="2" placeholder="Será preenchido pela conversa..." style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;resize:vertical;box-sizing:border-box;font-family:var(--sans);line-height:1.4">' + esc(txt) + '</textarea>'
-      + '</div>';
-  }).join('');
-  return ''
-    + '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:16px;box-sizing:border-box">'
-    +   '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px">📋 Tese de Investimento</div>'
-    +   camposHtml
-    +   '<button onclick="origV8SalvarTesePainel()" style="width:100%;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:9px;font-size:13px;font-weight:600;cursor:pointer;margin-top:4px">💾 Salvar tese</button>'
-    +   '<div id="tese-status" style="font-size:11px;color:var(--ink-3);text-align:center;margin-top:8px;min-height:14px"></div>'
+// v9.40.3 · Painel direito com 3 abas: Tese · Arquétipos · Ambientação
+function origV8HtmlPainelDireito(ctx) {
+  const orig = ctx && ctx.originacao ? ctx.originacao : (window._origV8CtxAtual && window._origV8CtxAtual.originacao ? window._origV8CtxAtual.originacao : {});
+  const tese = orig.tese_jsonb || {};
+  const teseFechada = !!orig.tese_fechada_em;
+  const arqsFechados = !!orig.arquetipos_fechados_em;
+  const ambFechada = !!(orig.busca_config_jsonb && orig.busca_config_jsonb.ambientacao);
+  const fase = _origV8State.faseAtual || 'tese';
+  const abaAtiva = (fase === 'arquetipos') ? 'arquetipos' : (fase === 'ambientacao' || fase === 'livre') ? 'ambientacao' : 'tese';
+  const esc = (s) => String(s || '').replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+
+  const tabBtn = (key, label, concluida, bloqueada) => {
+    const ativo = abaAtiva === key;
+    return '<button onclick="' + (bloqueada ? '' : "origV8SetPainelAba('" + key + "')") + '"'
+      + ' style="padding:7px 12px;font-size:11px;font-weight:' + (ativo ? '700' : '500') + ';cursor:' + (bloqueada ? 'not-allowed' : 'pointer') + ';border:none;border-bottom:2px solid ' + (ativo ? 'var(--accent,#22c55e)' : 'transparent') + ';color:' + (bloqueada ? 'var(--ink-4)' : ativo ? 'var(--ink)' : 'var(--ink-3)') + ';background:transparent;font-family:var(--sans);white-space:nowrap"'
+      + (bloqueada ? ' title="Conclua a etapa anterior primeiro"' : '') + '>'
+      + label + (concluida ? ' ✓' : '') + '</button>';
+  };
+
+  const tabs = '<div style="display:flex;border-bottom:1px solid var(--line-2);margin-bottom:12px">'
+    + tabBtn('tese', '📋 Tese', teseFechada, false)
+    + tabBtn('arquetipos', '👥 Arquétipos', arqsFechados, !teseFechada)
+    + tabBtn('ambientacao', '🗺️ Ambientação', ambFechada, !arqsFechados)
     + '</div>';
+
+  let corpo = '';
+
+  if (abaAtiva === 'tese') {
+    const campos = [
+      { key:'diferencial_competitivo', label:'Diferencial competitivo', rows:3 },
+      { key:'perfil_comprador_ideal',  label:'Perfil do comprador ideal', rows:2 },
+      { key:'justificativa_preco',     label:'Justificativa do preço', rows:2 },
+      { key:'riscos_principais',       label:'Pontos de atenção', rows:2 },
+      { key:'motivo_venda',            label:'Motivo da venda', rows:2 },
+      { key:'prazo_desejado',          label:'Prazo desejado', rows:1 },
+    ];
+    corpo = campos.map(f => {
+      const v = tese[f.key];
+      const txt = Array.isArray(v) ? v.join(', ') : (v || '');
+      return '<div style="margin-bottom:10px">'
+        + '<div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">' + f.label + '</div>'
+        + '<textarea id="tese-' + f.key + '" rows="' + f.rows + '" placeholder="Será preenchido pela conversa..." style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:6px 9px;color:var(--ink);font-size:12px;resize:vertical;box-sizing:border-box;font-family:var(--sans);line-height:1.4">' + esc(txt) + '</textarea>'
+        + '</div>';
+    }).join('');
+    corpo += '<button onclick="origV8SalvarTesePainel()" style="width:100%;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:8px;font-size:12px;font-weight:600;cursor:pointer">💾 Salvar tese</button>';
+    corpo += '<div id="tese-status" style="font-size:11px;color:var(--ink-3);text-align:center;margin-top:6px;min-height:12px"></div>';
+    corpo += '<button onclick="origV8GerarFaseAtual('tese')" style="width:100%;background:transparent;border:1px solid var(--line-2);border-radius:8px;padding:7px;font-size:11px;color:var(--ink-3);cursor:pointer;margin-top:6px">⚡ Gerar tese agora</button>';
+  }
+
+  else if (abaAtiva === 'arquetipos') {
+    corpo = '<div id="orig-arqs-lista">' + (arqsFechados ? 'Carregando...' : '<div style="text-align:center;padding:20px;color:var(--ink-3);font-size:12px">Arquétipos aparecerão após aprovação.</div>') + '</div>';
+    corpo += '<button onclick="origV8GerarFaseAtual('arquetipos')" style="width:100%;background:transparent;border:1px solid var(--line-2);border-radius:8px;padding:7px;font-size:11px;color:var(--ink-3);cursor:pointer;margin-top:10px">⚡ ' + (arqsFechados ? 'Regerar' : 'Gerar') + ' arquétipos agora</button>';
+    if (arqsFechados) setTimeout(origV8CarregarArquetiposPainel, 80);
+  }
+
+  else if (abaAtiva === 'ambientacao') {
+    corpo = '<div id="orig-amb-lista">' + (ambFechada ? 'Carregando...' : '<div style="text-align:center;padding:20px;color:var(--ink-3);font-size:12px">Ambientação aparecerá após aprovação.</div>') + '</div>';
+    corpo += '<button onclick="origV8GerarFaseAtual('ambientacao')" style="width:100%;background:transparent;border:1px solid var(--line-2);border-radius:8px;padding:7px;font-size:11px;color:var(--ink-3);cursor:pointer;margin-top:10px">⚡ ' + (ambFechada ? 'Regerar' : 'Gerar') + ' ambientação agora</button>';
+    if (ambFechada) setTimeout(origV8CarregarAmbientacaoPainel, 80);
+  }
+
+  return '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:14px;box-sizing:border-box;height:100%;display:flex;flex-direction:column">'
+    + tabs
+    + '<div style="overflow-y:auto;flex:1">' + corpo + '</div>'
+    + '</div>';
+}
+
+function origV8HtmlBoxTese(tese) {
+  return origV8HtmlPainelDireito({ originacao: { tese_jsonb: tese } });
+}
+
+function origV8SetPainelAba(aba) {
+  _origV8State.faseAtual = aba;
+  origV8RenderChat();
+}
+
+function origV8GerarFaseAtual(fase) {
+  _origV8State.faseAtual = fase;
+  origV8EnviarMsg('', true);
+}
+
+async function origV8CarregarArquetiposPainel() {
+  const el = document.getElementById('orig-arqs-lista');
+  if (!el) return;
+  const origId = window._pjAbertoOrigId || _origV8State.origId;
+  if (!origId) return;
+  const esc = (s) => String(s || '').replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+  try {
+    const sbUrl = (typeof SB !== 'undefined' && SB) ? SB : 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+    const r = await fetch(sbUrl + '/rest/v1/arquetipos_compradores?originacao_id=eq.' + origId + '&status=eq.aprovado&select=nome,tipo,vetor,capacidade_financeira,mensagem_abordagem', {
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) }
+    });
+    const arqs = await r.json();
+    if (!Array.isArray(arqs) || arqs.length === 0) { el.innerHTML = '<div style="color:var(--ink-3);font-size:12px;text-align:center;padding:20px">Nenhum arquétipo salvo ainda.</div>'; return; }
+    el.innerHTML = arqs.map(a => '<div style="background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:10px;margin-bottom:8px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><strong style="font-size:12px">' + esc(a.nome) + '</strong><span style="font-size:10px;color:var(--ink-3);background:var(--surface-2);padding:1px 6px;border-radius:3px">' + esc(a.tipo) + '</span></div>'
+      + (a.vetor ? '<div style="font-size:11px;color:var(--ink-2);margin-bottom:3px">' + esc(a.vetor) + '</div>' : '')
+      + (a.capacidade_financeira ? '<div style="font-size:10px;color:var(--ink-3)">💰 ' + esc(a.capacidade_financeira) + '</div>' : '')
+      + (a.mensagem_abordagem ? '<div style="font-size:10px;color:var(--accent,#22c55e);margin-top:4px;font-style:italic">"' + esc(a.mensagem_abordagem) + '"</div>' : '')
+      + '</div>').join('');
+  } catch(e) { if(el) el.innerHTML = '<div style="color:var(--alert,#f87171)">Erro: ' + e.message + '</div>'; }
+}
+
+async function origV8CarregarAmbientacaoPainel() {
+  const el = document.getElementById('orig-amb-lista');
+  if (!el) return;
+  const origId = window._pjAbertoOrigId || _origV8State.origId;
+  if (!origId) return;
+  const esc = (s) => String(s || '').replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+  try {
+    const sbUrl = (typeof SB !== 'undefined' && SB) ? SB : 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+    const r = await fetch(sbUrl + '/rest/v1/projetos_originacao?id=eq.' + origId + '&select=busca_config_jsonb', {
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) }
+    });
+    const rows = await r.json();
+    const amb = rows?.[0]?.busca_config_jsonb?.ambientacao || {};
+    const arqs = Object.keys(amb);
+    if (arqs.length === 0) { el.innerHTML = '<div style="color:var(--ink-3);font-size:12px;text-align:center;padding:20px">Nenhuma ambientação salva.</div>'; return; }
+    el.innerHTML = arqs.map(nome => {
+      const d = amb[nome] || {};
+      return '<div style="background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:10px;margin-bottom:8px">'
+        + '<strong style="font-size:12px">' + esc(nome) + '</strong>'
+        + (d.associacoes?.length ? '<div style="font-size:10px;color:var(--ink-3);margin-top:4px">🏛 ' + d.associacoes.slice(0,2).map(esc).join(' · ') + '</div>' : '')
+        + (d.eventos_feiras?.length ? '<div style="font-size:10px;color:var(--ink-3)">📅 ' + d.eventos_feiras.slice(0,2).map(esc).join(' · ') + '</div>' : '')
+        + (d.grupos_online?.length ? '<div style="font-size:10px;color:var(--ink-3)">👥 ' + d.grupos_online.slice(0,2).map(esc).join(' · ') + '</div>' : '')
+        + '</div>';
+    }).join('');
+  } catch(e) { if(el) el.innerHTML = '<div style="color:var(--alert,#f87171)">Erro: ' + e.message + '</div>'; }
 }
 
 function origV8AtualizarBoxTese(tese) {
