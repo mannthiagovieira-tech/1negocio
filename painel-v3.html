@@ -24074,20 +24074,41 @@ async function origV8SalvarTese(origId){ return origV8AprovarOutput(); }
 function origV8DescartarTese(){ return origV8DescartarOutput(); }
 
 async function origV8Reiniciar() {
-  if (!confirm('Reiniciar chat? O histórico atual será apagado.')) return;
+  const opcao = confirm('Reiniciar TUDO (tese + arquétipos + ambientação)?\nOK = reinicio completo · Cancelar = só o chat');
+  const sbUrl = (typeof SB !== 'undefined' && SB) ? SB : 'https://dbijmgqlcrgjlcfrastg.supabase.co';
   try {
-    const sbUrl = (typeof SB !== 'undefined' && SB) ? SB : 'https://dbijmgqlcrgjlcfrastg.supabase.co';
-    await fetch(sbUrl + '/rest/v1/projetos_originacao?id=eq.' + _origV8State.origId, {
-      method: 'PATCH',
-      headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ tese_chat_historico: [], updated_at: new Date().toISOString() }),
-    });
-    // v9.40.5 · reseta fase pra tese e dispara auto-start
+    if (opcao) {
+      // Reinicio completo: limpa banco inteiro
+      await fetch(sbUrl + '/rest/v1/projetos_originacao?id=eq.' + _origV8State.origId, {
+        method: 'PATCH',
+        headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          tese_chat_historico: [],
+          tese_jsonb: null,
+          tese_fechada_em: null,
+          arquetipos_fechados_em: null,
+          busca_config_jsonb: null,
+          updated_at: new Date().toISOString()
+        }),
+      });
+      // Apaga arquétipos da tabela
+      await fetch(sbUrl + '/rest/v1/arquetipos_compradores?originacao_id=eq.' + _origV8State.origId, {
+        method: 'DELETE',
+        headers: { ...origV2Headers() },
+      });
+      _origV8State.teseFechada = false;
+      _origV8State.arqsFechados = false;
+    } else {
+      // Só o chat
+      await fetch(sbUrl + '/rest/v1/projetos_originacao?id=eq.' + _origV8State.origId, {
+        method: 'PATCH',
+        headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ tese_chat_historico: [], updated_at: new Date().toISOString() }),
+      });
+    }
     _origV8State.historico = [];
     _origV8State.outputProposto = null;
     _origV8State.faseAtual = 'tese';
-    _origV8State.teseFechada = false;
-    _origV8State.arqsFechados = false;
     _origV8State.locked = false;
     origV8RenderChat();
     origV8EnviarMsg('', true);
