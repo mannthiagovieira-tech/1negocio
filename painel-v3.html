@@ -13365,7 +13365,10 @@ function origV8HtmlAba(ctx) {
     +   '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px">'
     +     '<div><div style="font-family:var(--serif);font-size:17px;font-weight:700">🧠 Inteligência</div>'
     +       '<div style="font-size:12px;color:var(--ink-3)">Tese · Arquétipos · Ambientação · Estratégia</div></div>'
-    +     '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">' + pills + '</div>'
+    +     '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+    +       pills
+    +       '<button onclick="origV8Reiniciar()" title="Reiniciar chat (limpa histórico)" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:3px 8px;font-size:10px;color:var(--ink-4);cursor:pointer;margin-left:4px">🔄</button>'
+    +     '</div>'
     +   '</div>'
     +   '<div class="orig-v8-2pane" style="display:grid;grid-template-columns:3fr 2fr;gap:14px;flex:1;min-height:0">'
     +     '<div style="display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-2);border-radius:12px;overflow:hidden;min-height:420px">'
@@ -13471,11 +13474,19 @@ function origV8Render2Pane() {
   // Merge cronológico · sys msgs sem ts vão pro fim
   const todos = [...histKind, ...sysMsgs].sort((a, b) => String(a.ts || '￿').localeCompare(String(b.ts || '￿')));
   const esc = (s) => String(s).replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+  // v9.40.2 · strip marcadores JSON antes de renderizar no chat
+  const stripMarcadores = (s) => String(s)
+    .replace(/TESE_COMPLETA_JSON:[\s\S]*$/m, '')
+    .replace(/ARQUETIPOS_COMPLETOS_JSON:[\s\S]*$/m, '')
+    .replace(/AMBIENTACAO_COMPLETA_JSON:[\s\S]*$/m, '')
+    .replace(/TESE_COMPLETA:[\s\S]*$/m, '')
+    .trim();
+
   if (todos.length === 0) {
     cont.innerHTML = '<div style="text-align:center;padding:30px;color:var(--ink-3);font-size:13px">⏳ Iniciando análise…</div>';
   } else {
     cont.innerHTML = todos.map(m => {
-      const txt = esc(m.content || '').replace(/\n/g, '<br>');
+      const txt = esc(stripMarcadores(m.content || '')).replace(/\n/g, '<br>');
       if (m.role === 'system') {
         return '<div style="display:flex;justify-content:center">'
           +    '<div style="background:var(--surface-2,var(--bg));border:1px solid var(--line);border-radius:6px;padding:6px 14px;font-size:11px;color:var(--ink-3);text-align:center;max-width:85%">' + txt + '</div>'
@@ -23863,6 +23874,9 @@ function origV8MudarFase(novaFase){
   _origV8State.outputProposto = null;
   origV8RenderChat();
   origToast && origToast('Fase mudada para ' + novaFase);
+  // v9.40.2 · se não há mensagens na nova fase, inicia o agente automaticamente
+  const temMsgsFase = _origV8State.historico.some(m => m.fase === novaFase);
+  if (!temMsgsFase) origV8EnviarMsg('', true);
 }
 
 async function origV8EnviarMsg(mensagem, _isAbertura) {
@@ -23919,8 +23933,10 @@ async function origV8AprovarOutput(){
   if (!_origV8State.outputProposto) return;
   const fase = _origV8State.faseAtual;
   if (!confirm('Aprovar e salvar o output da fase ' + fase + '?')) return;
+  // v9.40.2 · SB pode estar undefined em alguns contextos · fallback hardcoded
+  const _sbUrl = (typeof SB !== 'undefined' && SB) ? SB : 'https://dbijmgqlcrgjlcfrastg.supabase.co';
   try {
-    const r = await fetch(SB + '/functions/v1/tese-agente-chat', {
+    const r = await fetch(_sbUrl + '/functions/v1/tese-agente-chat', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + origV2Token(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
