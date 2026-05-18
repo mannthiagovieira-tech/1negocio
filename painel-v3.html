@@ -24076,13 +24076,19 @@ function origV8DescartarTese(){ return origV8DescartarOutput(); }
 async function origV8Reiniciar() {
   if (!confirm('Reiniciar chat? O histórico atual será apagado.')) return;
   try {
-    await fetch(SB + '/rest/v1/projetos_originacao?id=eq.' + _origV8State.origId, {
+    const sbUrl = (typeof SB !== 'undefined' && SB) ? SB : 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+    await fetch(sbUrl + '/rest/v1/projetos_originacao?id=eq.' + _origV8State.origId, {
       method: 'PATCH',
       headers: { ...origV2Headers(), 'Prefer': 'return=minimal' },
       body: JSON.stringify({ tese_chat_historico: [], updated_at: new Date().toISOString() }),
     });
+    // v9.40.5 · reseta fase pra tese e dispara auto-start
     _origV8State.historico = [];
     _origV8State.outputProposto = null;
+    _origV8State.faseAtual = 'tese';
+    _origV8State.teseFechada = false;
+    _origV8State.arqsFechados = false;
+    _origV8State.locked = false;
     origV8RenderChat();
     origV8EnviarMsg('', true);
   } catch (e) { alert('Erro: ' + e.message); }
