@@ -13381,11 +13381,12 @@ function origV8HtmlAba(ctx) {
     +tabBtn('tese','📋 Tese',teseFechada)
     +tabBtn('arquetipos','👥 Arquétipos',arqsFechados)
     +tabBtn('ambientacao','🗺️ Ambientação',ambFechada)
-    +tabBtn('plano','⚡ Plano',false)
+    +tabBtn('fontes','🎯 Fontes',false)
+    +tabBtn('contatos','👤 Contatos',false)
     +tabBtn('resumo','📄 Resumo',false)
     +'</div>';
 
-  const atalhos = {'tese':['Benchmarks do setor','Oportunidades típicas','Justificar o preço','Dependência do dono'],'arquetipos':['Mais promissores?','Como abordar horizontal','Perfil do investidor','Quem é o adjacente?'],'ambientacao':['Eventos em SP','Grupos LinkedIn varejo','Associações do setor','Onde achar fornecedores'],'plano':['Quais ações priorizar?','Como abordar evento?','Mensagem cold pra grupo','Próximos passos urgentes'],'resumo':['Gaps na tese?','Consistência dos arquétipos','Primeira abordagem','O que falta definir?']}[aba]||[];
+  const atalhos = {'tese':['Benchmarks do setor','Oportunidades típicas','Justificar o preço','Dependência do dono'],'arquetipos':['Mais promissores?','Como abordar horizontal','Perfil do investidor','Quem é o adjacente?'],'ambientacao':['Eventos em SP','Grupos LinkedIn varejo','Associações do setor','Onde achar fornecedores'],'fontes':['Quais ações priorizar?','Como abordar evento?','Mensagem cold pra grupo','Próximos passos urgentes'],'contatos':['Como abordar este lead?','Mensagem follow-up','Quem priorizar agora?','Roteiro de reunião'],'resumo':['Gaps na tese?','Consistência dos arquétipos','Primeira abordagem','O que falta definir?']}[aba]||[];
   const copilot = '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:14px;display:flex;flex-direction:column;height:100%;box-sizing:border-box;min-height:500px">'
     +'<div style="font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">🤖 IA Copilot</div>'
     +'<div style="font-size:11px;color:var(--ink-3);margin-bottom:10px;line-height:1.5">Conheço o negócio, o laudo e a metodologia. Pergunte o que quiser.</div>'
@@ -13508,9 +13509,14 @@ function origV8HtmlAba(ctx) {
     setTimeout(origV8CarregarAmbientacaoForm, 80);
   }
 
-  else if (aba === 'plano') {
+  else if (aba === 'fontes') {
     corpo = origV8HtmlPlanoAcao(ctx);
     setTimeout(origV8CarregarPlanoAcao, 80);
+  }
+
+  else if (aba === 'contatos') {
+    corpo = origV8HtmlContatosKanban(ctx);
+    setTimeout(origV8CarregarContatos, 80);
   }
 
   else if (aba === 'resumo') {
@@ -13547,7 +13553,7 @@ function origV8HtmlAba(ctx) {
   return '<div style="display:flex;flex-direction:column;height:100%">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
     +'<div><div style="font-family:var(--serif);font-size:17px;font-weight:700">🧠 Inteligência</div>'
-    +'<div style="font-size:12px;color:var(--ink-3)">Tese · Arquétipos · Ambientação · Plano · Resumo</div></div>'
+    +'<div style="font-size:12px;color:var(--ink-3)">Tese · Arquétipos · Ambientação · Fontes · Contatos · Resumo</div></div>'
     +'<button onclick="origV8ResetarInteligencia()" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:3px 8px;font-size:10px;color:var(--ink-4);cursor:pointer">🗑 Resetar</button>'
     +'</div>'
     +'<div style="display:grid;grid-template-columns:3fr 2fr;gap:14px;flex:1;min-height:0;overflow:hidden">'
@@ -13968,9 +13974,10 @@ function origV8RenderCardPlano(card) {
       +(temEmail?'<a href="mailto:'+esc(card.contato_email)+'" style="font-size:10px;color:var(--ink-2);text-decoration:none;background:var(--surface-2);border-radius:4px;padding:2px 7px">✉️ email</a>':'')
       +'</div>' : '')
     +(card.resultado_texto?'<div style="font-size:10px;color:var(--ink-2);background:var(--bg);border-radius:4px;padding:4px 7px;margin-bottom:6px">📝 '+esc(card.resultado_texto)+'</div>':'')
-    +'<div style="display:flex;gap:4px">'
+    +'<div style="display:flex;gap:4px;flex-wrap:wrap">'
     +(card.status==='pendente'?'<button onclick="origV8MoverCard(\''+card.id+'\',\'em_andamento\')" style="font-size:9px;background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:2px 7px;color:var(--ink-3);cursor:pointer">▶ Iniciar</button>':'')
     +'<button onclick="origV8AbrirNotaCard(\''+card.id+'\')" style="font-size:9px;background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:2px 7px;color:var(--ink-3);cursor:pointer">📝 Nota</button>'
+    +'<button onclick="origV8AbrirModalContato(\''+card.id+'\',\''+(card.canal||'')+'\',\''+(card.arquetipo_tipo||'')+'\')" style="font-size:9px;background:var(--accent-soft,rgba(34,197,94,.1));border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:4px;padding:2px 7px;color:var(--accent,#22c55e);cursor:pointer">👤 Contato</button>'
     +'</div>'
     +'</div>';
 }
@@ -14069,6 +14076,234 @@ async function origV8GerarPlanoCompleto() {
 
   if(meta) meta.textContent='✓ '+d2.cards_criados+' ações geradas';
   origV8CarregarPlanoAcao();
+}
+
+// ============================================================
+// CONTATOS KANBAN v1.0 (v9.42.3)
+// ============================================================
+
+function origV8HtmlContatosKanban(ctx) {
+  const colunas = [
+    {id:'novo',label:'Novo',cor:'var(--ink-3)'},
+    {id:'contatado',label:'Contatado',cor:'var(--warn,#f5c842)'},
+    {id:'respondeu',label:'Respondeu',cor:'#60a5fa'},
+    {id:'reuniao',label:'Reunião',cor:'#a78bfa'},
+    {id:'proposta',label:'Proposta',cor:'var(--accent,#22c55e)'},
+    {id:'descartado',label:'Descartado',cor:'var(--alert,#ff6b5c)'},
+  ];
+  return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +'<div><div style="font-size:13px;font-weight:600">Contatos</div>'
+    +'<div style="font-size:11px;color:var(--ink-3)" id="contatos-meta">Carregando...</div></div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<select id="contatos-filtro-arq" onchange="origV8CarregarContatos()" style="background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--ink)">'
+    +'<option value="">Todos arquétipos</option>'
+    +'<option value="horizontal">Horizontal</option>'
+    +'<option value="vertical_antes">Vertical antes</option>'
+    +'<option value="vertical_depois">Vertical depois</option>'
+    +'<option value="adjacente">Adjacente</option>'
+    +'<option value="clientes_negocio">Cliente fiel</option>'
+    +'<option value="investidor_financeiro">Investidor</option>'
+    +'<option value="profissional_setor">Profissional setor</option>'
+    +'</select>'
+    +'<button onclick="origV8AbrirModalContato(null,\'manual\',\'\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">+ Contato</button>'
+    +'</div></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;min-height:400px;overflow-x:auto" id="contatos-kanban">'
+    +colunas.map(col=>'<div style="background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:8px;min-height:300px;min-width:140px" id="cont-col-'+col.id+'">'
+      +'<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:'+col.cor+';margin-bottom:8px;display:flex;align-items:center;gap:4px">'
+      +'<span>'+col.label+'</span><span id="cont-count-'+col.id+'" style="background:var(--surface-2);border-radius:999px;padding:1px 6px;font-size:8px">0</span>'
+      +'</div>'
+      +'<div id="cont-cards-'+col.id+'" style="display:flex;flex-direction:column;gap:6px"></div>'
+      +'</div>').join('')
+    +'</div>'
+    +'<div id="modal-contato" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">'
+    +'<div style="background:var(--surface);border-radius:14px;padding:20px;width:400px;max-width:92vw;max-height:90vh;overflow-y:auto">'
+    +'<div style="font-size:14px;font-weight:700;margin-bottom:14px">Novo contato</div>'
+    +'<input type="hidden" id="mc-atividade-id"><input type="hidden" id="mc-canal"><input type="hidden" id="mc-arq-tipo">'
+    +['nome','empresa','telefone','email','cnpj','website'].map(f=>'<div style="margin-bottom:8px">'
+      +'<div style="font-size:10px;color:var(--ink-3);margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em">'+f.charAt(0).toUpperCase()+f.slice(1)+(f==='nome'?' *':'')+'</div>'
+      +'<input id="mc-'+f+'" placeholder="'+({nome:'João Silva / Empório XYZ',empresa:'Empório XYZ Ltda',telefone:'(11) 99999-9999',email:'contato@...',cnpj:'00.000.000/0001-00',website:'https://...'}[f]||'')+'" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--ink);box-sizing:border-box">'
+      +'</div>').join('')
+    +'<div style="margin-bottom:8px"><div style="font-size:10px;color:var(--ink-3);margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em">Arquétipo</div>'
+    +'<select id="mc-arq-sel" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--ink)">'
+    +'<option value="">Selecionar...</option>'
+    +'<option value="horizontal">Horizontal</option><option value="vertical_antes">Vertical antes</option>'
+    +'<option value="vertical_depois">Vertical depois</option><option value="adjacente">Adjacente</option>'
+    +'<option value="clientes_negocio">Cliente fiel</option><option value="investidor_financeiro">Investidor</option>'
+    +'<option value="profissional_setor">Profissional setor</option>'
+    +'</select></div>'
+    +'<div style="margin-bottom:14px"><div style="font-size:10px;color:var(--ink-3);margin-bottom:2px;text-transform:uppercase;letter-spacing:.05em">Observação</div>'
+    +'<textarea id="mc-obs" rows="2" placeholder="Como encontrou, contexto inicial..." style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--ink);resize:vertical;box-sizing:border-box;font-family:var(--sans)"></textarea></div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="origV8SalvarContato()" style="flex:1;background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:8px;font-size:12px;font-weight:700;cursor:pointer">Salvar contato</button>'
+    +'<button onclick="document.getElementById(\'modal-contato\').style.display=\'none\'" style="flex:1;background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:8px;font-size:12px;color:var(--ink-2);cursor:pointer">Cancelar</button>'
+    +'</div></div></div>';
+}
+
+function origV8RenderContatoCard(c) {
+  const esc = s => String(s||'').replace(/[&<>]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]));
+  const ARQ_LABEL = {horizontal:'Horizontal',vertical_antes:'V. Antes',vertical_depois:'V. Depois',
+    adjacente:'Adjacente',clientes_negocio:'Cliente fiel',investidor_financeiro:'Investidor',profissional_setor:'Profissional'};
+  const NEXT_STATUS = {novo:'em_contato',em_contato:'respondeu',respondeu:'reuniao',reuniao:'em_negociacao'};
+  const NEXT_LABEL = {novo:'Contatado →',em_contato:'Respondeu →',respondeu:'Reunião →',reuniao:'Proposta →'};
+  const arqTipo = c.arquetipo_tipo || '';
+  const tel = c.telefone || c.contato_telefone;
+  const email = c.email || c.email_contato || c.contato_email;
+  const site = c.website;
+  const nome = c.nome || c.titulo || 'Sem nome';
+  const empresa = c.empresa || c.categoria_setorial || '';
+  return '<div id="cont-card-'+c.id+'" style="background:var(--surface);border:1px solid var(--line-2);border-radius:8px;padding:8px">'
+    +'<div style="font-size:11px;font-weight:600;color:var(--ink);margin-bottom:3px;line-height:1.3">'+esc(nome)+'</div>'
+    +(empresa?'<div style="font-size:10px;color:var(--ink-3);margin-bottom:4px">'+esc(empresa)+'</div>':'')
+    +(arqTipo?'<div style="display:inline-block;font-size:9px;background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border-radius:4px;padding:1px 6px;margin-bottom:5px">'+esc(ARQ_LABEL[arqTipo]||arqTipo)+'</div>':'')
+    +'<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px">'
+    +(tel?'<a href="tel:'+esc(tel)+'" style="font-size:9px;color:var(--ink-2);background:var(--bg);border-radius:4px;padding:1px 5px;text-decoration:none">📞 '+esc(tel)+'</a>':'')
+    +(email?'<a href="mailto:'+esc(email)+'" style="font-size:9px;color:var(--ink-2);background:var(--bg);border-radius:4px;padding:1px 5px;text-decoration:none">✉️</a>':'')
+    +(site?'<a href="'+esc(site)+'" target="_blank" style="font-size:9px;color:var(--accent,#22c55e);background:var(--accent-soft,rgba(34,197,94,.1));border-radius:4px;padding:1px 5px;text-decoration:none">🔗</a>':'')
+    +'</div>'
+    +'<div style="display:flex;gap:3px;flex-wrap:wrap">'
+    +(NEXT_STATUS[c.status]?'<button onclick="origV8MoverContato(\''+c.id+'\',\''+NEXT_STATUS[c.status]+'\')" style="font-size:9px;background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:2px 6px;color:var(--ink-3);cursor:pointer">'+NEXT_LABEL[c.status]+'</button>':'')
+    +'<button onclick="origV8NotaContato(\''+c.id+'\')" style="font-size:9px;background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:2px 6px;color:var(--ink-3);cursor:pointer">📝</button>'
+    +(c.status!=='descartado'?'<button onclick="origV8MoverContato(\''+c.id+'\',\'descartado\')" style="font-size:9px;background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:2px 6px;color:var(--alert,#ff6b5c);cursor:pointer">✕</button>':'')
+    +'</div>'
+    +(Array.isArray(c.notas)&&c.notas.length?'<div style="font-size:9px;color:var(--ink-3);margin-top:4px;border-top:1px solid var(--line);padding-top:3px">📝 '+esc(c.notas[c.notas.length-1]?.texto||'')+'</div>':'')
+    +'</div>';
+}
+
+async function origV8CarregarContatos() {
+  const origId = window._pjAbertoOrigId || _origV8State?.origId;
+  if (!origId) return;
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  const filtroArq = document.getElementById('contatos-filtro-arq')?.value || '';
+  const url = sbUrl+'/rest/v1/pool_leads_originacao?originacao_id=eq.'+origId+'&order=ultima_atividade.desc.nullslast&limit=200&select=*';
+  const r = await fetch(url, {headers: origV2Headers()});
+  let contatos;
+  try { contatos = await r.json(); } catch(_) { contatos = []; }
+  if (!Array.isArray(contatos)) contatos = [];
+
+  if (filtroArq) {
+    contatos = contatos.filter(c => c.arquetipo_tipo === filtroArq);
+  }
+
+  // status pool_contatos_uso → coluna kanban
+  const STATUS_MAP = {
+    novo: 'novo', marcado: 'novo',
+    em_contato: 'contatado', contatado: 'contatado',
+    respondeu: 'respondeu',
+    reuniao: 'reuniao',
+    proposta: 'proposta', em_negociacao: 'proposta', convertido: 'proposta',
+    descartado: 'descartado',
+  };
+
+  const cols = {novo:[],contatado:[],respondeu:[],reuniao:[],proposta:[],descartado:[]};
+  contatos.forEach(c => {
+    const col = STATUS_MAP[c.status] || 'novo';
+    if (cols[col]) cols[col].push(c);
+  });
+
+  Object.keys(cols).forEach(col => {
+    const el = document.getElementById('cont-cards-'+col);
+    const cnt = document.getElementById('cont-count-'+col);
+    if (el) el.innerHTML = cols[col].map(origV8RenderContatoCard).join('');
+    if (cnt) cnt.textContent = String(cols[col].length);
+  });
+
+  const meta = document.getElementById('contatos-meta');
+  if (meta) meta.textContent = contatos.length + ' contatos';
+}
+
+async function origV8MoverContato(id, novoStatus) {
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  await fetch(sbUrl+'/rest/v1/pool_contatos_uso?id=eq.'+id, {
+    method: 'PATCH',
+    headers: {...origV2Headers(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal'},
+    body: JSON.stringify({status: novoStatus, ultima_atividade: new Date().toISOString()}),
+  });
+  origV8CarregarContatos();
+}
+
+async function origV8NotaContato(id) {
+  const nota = prompt('Adicionar nota:');
+  if (nota === null || !nota.trim()) return;
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  const r = await fetch(sbUrl+'/rest/v1/pool_contatos_uso?id=eq.'+id+'&select=notas', {headers: origV2Headers()});
+  const rows = await r.json();
+  const notasAtuais = (Array.isArray(rows) && rows[0]?.notas) ? rows[0].notas : [];
+  notasAtuais.push({data: new Date().toISOString(), autor: 'admin', texto: nota.trim()});
+  await fetch(sbUrl+'/rest/v1/pool_contatos_uso?id=eq.'+id, {
+    method: 'PATCH',
+    headers: {...origV2Headers(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal'},
+    body: JSON.stringify({notas: notasAtuais, ultima_atividade: new Date().toISOString()}),
+  });
+  origV8CarregarContatos();
+}
+
+function origV8AbrirModalContato(atividadeId, canal, arqTipo) {
+  ['nome','empresa','telefone','email','cnpj','website','obs'].forEach(f => {
+    const el = document.getElementById('mc-'+f);
+    if (el) el.value = '';
+  });
+  const ai = document.getElementById('mc-atividade-id'); if (ai) ai.value = atividadeId || '';
+  const cn = document.getElementById('mc-canal'); if (cn) cn.value = canal || '';
+  const arqSel = document.getElementById('mc-arq-sel'); if (arqSel) arqSel.value = arqTipo || '';
+  const mcArqTipo = document.getElementById('mc-arq-tipo'); if (mcArqTipo) mcArqTipo.value = arqTipo || '';
+  const modal = document.getElementById('modal-contato');
+  if (modal) modal.style.display = 'flex';
+}
+
+async function origV8SalvarContato() {
+  const origId = window._pjAbertoOrigId || _origV8State?.origId;
+  const nome = document.getElementById('mc-nome')?.value?.trim();
+  if (!nome) { alert('Nome obrigatório'); return; }
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  const arqTipo = document.getElementById('mc-arq-sel')?.value || '';
+  const canal = document.getElementById('mc-canal')?.value || 'manual';
+  const obs = document.getElementById('mc-obs')?.value?.trim();
+  const tel = document.getElementById('mc-telefone')?.value?.trim() || null;
+  const email = document.getElementById('mc-email')?.value?.trim() || null;
+  const website = document.getElementById('mc-website')?.value?.trim() || null;
+  const empresa = document.getElementById('mc-empresa')?.value?.trim() || null;
+  const cnpj = document.getElementById('mc-cnpj')?.value?.trim() || null;
+
+  let arquetipo_id = null;
+  if (arqTipo) {
+    const ra = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&tipo=eq.'+arqTipo+'&select=id&limit=1', {headers: origV2Headers()});
+    const arqs = await ra.json();
+    if (Array.isArray(arqs) && arqs[0]) arquetipo_id = arqs[0].id;
+  }
+
+  // 1. Cria contato
+  const contatoBody = { nome, empresa, telefone: tel, email, website, cnpj };
+  const rc = await fetch(sbUrl+'/rest/v1/contatos', {
+    method: 'POST',
+    headers: {...origV2Headers(), 'Content-Type': 'application/json', 'Prefer': 'return=representation'},
+    body: JSON.stringify(contatoBody),
+  });
+  let contato_id = null;
+  if (rc.ok) {
+    const arr = await rc.json();
+    if (Array.isArray(arr) && arr[0]) contato_id = arr[0].id;
+  }
+  if (!contato_id) {
+    alert('Falha ao criar contato (verifique se a tabela contatos aceita esses campos).');
+    return;
+  }
+
+  // 2. Cria pool_contatos_uso linkando
+  const poolBody = {
+    contato_id, originacao_id: origId, arquetipo_id,
+    canal, status: 'novo',
+    notas: obs ? [{data: new Date().toISOString(), autor: 'admin', texto: obs}] : [],
+    ultima_atividade: new Date().toISOString(),
+  };
+  await fetch(sbUrl+'/rest/v1/pool_contatos_uso', {
+    method: 'POST',
+    headers: {...origV2Headers(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal'},
+    body: JSON.stringify(poolBody),
+  });
+
+  const modal = document.getElementById('modal-contato');
+  if (modal) modal.style.display = 'none';
+  origV8CarregarContatos();
 }
 
 async function origV8SalvarAmbientacaoForm() {
