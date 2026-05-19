@@ -13431,25 +13431,60 @@ function origV8HtmlAba(ctx) {
   }
 
   else if (aba === 'arquetipos') {
+    // v9.41.8 · Campos estruturados por arquétipo · IA sugere tipo de negócio alvo
     const CANONICOS = [
-      {tipo:'horizontal',label:'Horizontal',desc:'Concorrente direto — quer expandir ou consolidar mercado'},
-      {tipo:'vertical_antes',label:'Vertical antes',desc:'Fornecedor — quer verticalizar e controlar a margem final'},
-      {tipo:'vertical_depois',label:'Vertical depois',desc:'Cliente — quer integrar o fornecimento e reduzir custos'},
-      {tipo:'adjacente',label:'Adjacente',desc:'Negócio diferente com sinergia operacional ou de clientes'},
-      {tipo:'clientes_negocio',label:'Cliente fiel',desc:'Consumidor frequente com perfil empreendedor'},
-      {tipo:'investidor_financeiro',label:'Investidor financeiro',desc:'PF ou empresa buscando rentabilidade com negócio operacional'},
-      {tipo:'profissional_setor',label:'Profissional do setor',desc:'Funcionário ou profissional que quer empreender no setor'},
+      {tipo:'horizontal',      label:'Horizontal',           desc:'Concorrente direto — quer expandir ou consolidar',
+       campo_principal:'Tipo de negócio alvo', campo_ph:'Ex: empório produtos naturais, loja grãos orgânicos'},
+      {tipo:'vertical_antes',  label:'Vertical antes',       desc:'Fornecedor — quer verticalizar e controlar margem',
+       campo_principal:'Tipo de fornecedor/distribuidor', campo_ph:'Ex: distribuidor alimentos naturais, atacadista orgânicos'},
+      {tipo:'vertical_depois', label:'Vertical depois',      desc:'Cliente — quer integrar o fornecimento',
+       campo_principal:'Tipo de cliente/canal', campo_ph:'Ex: restaurante premium, café gourmet, dark kitchen'},
+      {tipo:'adjacente',       label:'Adjacente',            desc:'Negócio diferente com sinergia operacional',
+       campo_principal:'Tipo de negócio adjacente', campo_ph:'Ex: academia, farmácia natural, loja suplementos'},
+      {tipo:'clientes_negocio',label:'Cliente fiel',         desc:'Consumidor frequente com perfil empreendedor',
+       campo_principal:'Perfil demográfico do cliente fiel', campo_ph:'Ex: profissional liberal 35-50 anos, fitness, renda A/B'},
+      {tipo:'investidor_financeiro',label:'Investidor financeiro',desc:'PF ou empresa buscando rentabilidade',
+       campo_principal:'Perfil do investidor', campo_ph:'Ex: profissional liberal, family office, sócio-investidor'},
+      {tipo:'profissional_setor',label:'Profissional do setor',desc:'Funcionário que quer empreender',
+       campo_principal:'Cargo/função alvo', campo_ph:'Ex: gerente de loja, comprador de rede, chef de cozinha'},
     ];
-    const camposArq = [{k:'descricao',l:'Quem são exatamente',ph:'Descreva o perfil específico neste contexto',r:2},{k:'logica_compra',l:'Por que comprariam',ph:'Racional + motivação emocional',r:2},{k:'capacidade_financeira',l:'Capacidade financeira',ph:'Ex: R$ 400-600k',r:1},{k:'mensagem_abordagem',l:'Mensagem de abordagem',ph:'Template de primeiro contato',r:2}];
-    corpo = '<div style="font-size:12px;color:var(--ink-3);margin-bottom:14px">Ative os arquétipos relevantes e preencha os detalhes. Cada um vira uma estratégia de busca no Arsenal.</div>'
+    const abrangencias = [
+      {v:'cidade',l:'Mesma cidade'},
+      {v:'estado',l:'Mesmo estado'},
+      {v:'brasil',l:'Brasil todo'},
+    ];
+    corpo = '<div style="font-size:12px;color:var(--ink-3);margin-bottom:14px">Ative os arquétipos relevantes. A IA sugere o tipo de negócio alvo com base no seu negócio.</div>'
       +CANONICOS.map(a=>'<div style="background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:12px;margin-bottom:8px" id="arq-card-'+a.tipo+'">'
         +'<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="origV8ToggleArquetipo(\''+a.tipo+'\')">'
         +'<input type="checkbox" id="arq-check-'+a.tipo+'" style="width:16px;height:16px;accent-color:var(--accent,#22c55e);cursor:pointer;flex-shrink:0">'
         +'<div><div style="font-size:13px;font-weight:600">'+esc(a.label)+'</div><div style="font-size:11px;color:var(--ink-3)">'+esc(a.desc)+'</div></div></div>'
         +'<div id="arq-form-'+a.tipo+'" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">'
-        +camposArq.map(f=>'<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+f.l+'</div><textarea id="arq-'+a.tipo+'-'+f.k+'" rows="'+f.r+'" placeholder="'+esc(f.ph)+'" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;resize:vertical;box-sizing:border-box;font-family:var(--sans)"></textarea></div>').join('')
+        +'<div style="margin-bottom:10px">'
+        +'<div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">'+esc(a.campo_principal)+' <span style="color:var(--alert,#ff6b5c)">*</span></div>'
+        +'<div id="arq-'+a.tipo+'-sugestoes" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px"></div>'
+        +'<input id="arq-'+a.tipo+'-perfil" placeholder="'+esc(a.campo_ph)+'" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;box-sizing:border-box;font-family:var(--sans)">'
+        +'<button onclick="origV8SugerirTipoAlvo(\''+a.tipo+'\')" style="margin-top:4px;background:transparent;border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:6px;padding:4px 10px;font-size:11px;color:var(--accent,#22c55e);cursor:pointer">✨ Sugerir com IA</button>'
+        +'<span id="arq-sug-status-'+a.tipo+'" style="font-size:11px;color:var(--ink-3);margin-left:8px"></span>'
+        +'</div>'
+        +'<div style="margin-bottom:10px">'
+        +'<div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Abrangência geográfica <span style="color:var(--alert,#ff6b5c)">*</span></div>'
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+        +abrangencias.map(ab=>'<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px"><input type="radio" name="arq-'+a.tipo+'-abrang" value="'+ab.v+'" onchange="origV8ToggleRaio(\''+a.tipo+'\',this.value)" style="accent-color:var(--accent,#22c55e)">'+ab.l+'</label>').join('')
+        +'</div>'
+        +'<div id="arq-'+a.tipo+'-raio-wrap" style="display:none;margin-top:6px">'
+        +'<select id="arq-'+a.tipo+'-raio" style="background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--ink)">'
+        +'<option value="10">10 km</option><option value="30" selected>30 km</option><option value="50">50 km</option><option value="100">100 km</option>'
+        +'</select>'
+        +'</div>'
+        +'</div>'
+        +'<div style="margin-bottom:10px">'
+        +'<div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Capacidade financeira estimada</div>'
+        +'<input id="arq-'+a.tipo+'-cap" placeholder="Ex: R$ 300-600k" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;box-sizing:border-box;font-family:var(--sans)">'
+        +'</div>'
+        +'<div style="display:flex;gap:8px;align-items:center">'
         +'<button onclick="origV8SalvarArquetipoDireto(\''+a.tipo+'\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">💾 Salvar</button>'
-        +'<span id="arq-status-'+a.tipo+'" style="font-size:11px;color:var(--ink-3);margin-left:10px"></span>'
+        +'<span id="arq-status-'+a.tipo+'" style="font-size:11px;color:var(--ink-3)"></span>'
+        +'</div>'
         +'</div></div>').join('')
       +'<div id="arq-extras-lista"></div>'
       +'<button onclick="origV8AdicionarArquetipoExtra()" style="width:100%;background:transparent;border:1px dashed var(--line-2);border-radius:8px;padding:10px;font-size:13px;color:var(--ink-3);cursor:pointer;margin:8px 0">+ Nova estratégia</button>'
@@ -13536,6 +13571,58 @@ function origV8ToggleArquetipo(tipo) {
   form.style.display = cb.checked ? 'block' : 'none';
 }
 
+function origV8ToggleRaio(tipo, val) {
+  const wrap = document.getElementById('arq-'+tipo+'-raio-wrap');
+  if (wrap) wrap.style.display = val === 'cidade' ? 'block' : 'none';
+}
+
+async function origV8SugerirTipoAlvo(tipo) {
+  const statusEl = document.getElementById('arq-sug-status-'+tipo);
+  const sugEl = document.getElementById('arq-'+tipo+'-sugestoes');
+  if(statusEl) statusEl.textContent = '✨ Gerando...';
+  const ctx = window._origV8ContextoNegocio || {};
+  const neg = window._origV8CtxAtual?.negocio || {};
+  const setor = neg.setor || ctx.setor || '';
+  const cidade = neg.cidade || (ctx.cidade||'').split('/')[0] || '';
+  const nome = neg.nome || ctx.nome || '';
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  const MAPA = {
+    horizontal: 'concorrente direto que quer expandir',
+    vertical_antes: 'fornecedor ou distribuidor upstream',
+    vertical_depois: 'cliente ou canal downstream',
+    adjacente: 'negócio diferente com sinergia operacional',
+    clientes_negocio: 'cliente fiel com perfil empreendedor',
+    investidor_financeiro: 'investidor pessoa física ou família',
+    profissional_setor: 'funcionário do setor que quer empreender',
+  };
+  try {
+    const r = await fetch(sbUrl+'/functions/v1/tese-agente-chat',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+origV2Token(),'Content-Type':'application/json'},
+      body:JSON.stringify({
+        originacao_id: window._pjAbertoOrigId || _origV8State?.origId,
+        mensagem: 'Para o negócio "'+nome+'" (setor: '+setor+', cidade: '+cidade+'), sugira 4 tipos específicos de "'+MAPA[tipo]+'" que seriam compradores ideais. Responda APENAS com um JSON array de strings, ex: ["tipo 1","tipo 2","tipo 3","tipo 4"]. Seja específico ao setor, não genérico.',
+        fase_atual: 'livre',
+        historico: [],
+        contexto_negocio: {...ctx},
+      }),
+    });
+    const data = await r.json();
+    const txt = (data.resposta||'').replace(/```json|```/g,'').trim();
+    let sugestoes = [];
+    try { sugestoes = JSON.parse(txt); } catch(_) {
+      const match = txt.match(/\[[\s\S]*?\]/);
+      if(match) try { sugestoes = JSON.parse(match[0]); } catch(_){}
+    }
+    if(Array.isArray(sugestoes) && sugestoes.length) {
+      if(sugEl) sugEl.innerHTML = sugestoes.map(s=>'<button onclick="document.getElementById(\'arq-'+tipo+'-perfil\').value=\''+s.replace(/'/g,"\\'")+'\';" style="background:var(--surface-2);border:1px solid var(--line-2);border-radius:999px;padding:3px 10px;font-size:11px;color:var(--ink-2);cursor:pointer;font-family:var(--sans)">'+s+'</button>').join('');
+      if(statusEl) { statusEl.textContent=''; }
+    } else {
+      if(statusEl) statusEl.textContent = '— sem sugestões';
+    }
+  } catch(e) { if(statusEl) statusEl.textContent='✗ '+e.message; }
+}
+
 async function origV8CarregarArquetiposNosCards() {
   const origId = window._pjAbertoOrigId || _origV8State?.origId;
   if (!origId) return;
@@ -13552,10 +13639,13 @@ async function origV8CarregarArquetiposNosCards() {
       if (cb) cb.checked = true;
       if (form) {
         form.style.display = 'block';
-        ['descricao','logica_compra','capacidade_financeira','mensagem_abordagem'].forEach(k => {
-          const el = document.getElementById('arq-'+a.tipo+'-'+k);
-          if (el && a[k]) el.value = Array.isArray(a[k])?a[k].join(', '):(a[k]||'');
-        });
+        const elPerfil = document.getElementById('arq-'+a.tipo+'-perfil');
+        if (elPerfil && a.perfil) elPerfil.value = a.perfil;
+        const elCap = document.getElementById('arq-'+a.tipo+'-cap');
+        if (elCap && a.capacidade_financeira) elCap.value = a.capacidade_financeira;
+        const abrang = a.queries_busca?.alcance || 'cidade';
+        const radio = document.querySelector('input[name="arq-'+a.tipo+'-abrang"][value="'+abrang+'"]');
+        if (radio) { radio.checked = true; origV8ToggleRaio(a.tipo, abrang); }
       }
     });
     const listaEl = document.getElementById('arq-extras-lista');
@@ -13618,13 +13708,16 @@ async function origV8SalvarArquetipoDireto(tipo) {
   const origId = window._pjAbertoOrigId || _origV8State?.origId;
   const projetoId = window._pjAbertoMeta?.id || _origV8State?.projetoId;
   const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  const perfilVal = document.getElementById('arq-'+tipo+'-perfil')?.value?.trim()||null;
+  if (!perfilVal) { alert('Preencha o tipo de negócio alvo antes de salvar.'); return; }
+  const abrangVal = document.querySelector('input[name="arq-'+tipo+'-abrang"]:checked')?.value || 'cidade';
+  const raioVal = document.getElementById('arq-'+tipo+'-raio')?.value || '30';
   const row = {
     originacao_id:origId, projeto_id:projetoId, tipo, status:'aprovado', criado_pela_ia:false,
     nome: tipo,
-    vetor: document.getElementById('arq-'+tipo+'-logica_compra')?.value?.trim()||null,
-    perfil: document.getElementById('arq-'+tipo+'-descricao')?.value?.trim()||null,
-    capacidade_financeira: document.getElementById('arq-'+tipo+'-capacidade_financeira')?.value?.trim()||null,
-    mensagem_abordagem: document.getElementById('arq-'+tipo+'-mensagem_abordagem')?.value?.trim()||null,
+    perfil: perfilVal,
+    capacidade_financeira: document.getElementById('arq-'+tipo+'-cap')?.value?.trim()||null,
+    queries_busca: {alcance: abrangVal, raio_km: parseInt(raioVal)},
   };
   const statusEl = document.getElementById('arq-status-'+tipo);
   const hdrs = {...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'};
@@ -13702,14 +13795,18 @@ async function origV8GerarQueriesIA(arqId) {
 
   const ctx = window._origV8ContextoNegocio || {};
   const neg = window._origV8CtxAtual?.negocio || {};
+  const arqEl = document.getElementById('arq-'+arqId+'-perfil') ||
+    document.querySelector('[id^="arq-"][id$="-perfil"]');
+  const arqPerfil = arqEl?.value?.trim() || '';
+  const arqAbrang = document.querySelector('input[name*="-abrang"]:checked')?.value || 'estado';
   const briefingMinimo = {
     negocio: {
       setor: neg.setor || ctx.setor || '',
-      sub_setor: neg.setor || ctx.setor || '',
+      sub_setor: arqPerfil || neg.setor || ctx.setor || '',
       cidade: neg.cidade || (ctx.cidade||'').split('/')[0] || '',
       estado: neg.estado || (ctx.cidade||'').split('/')[1] || '',
     },
-    alcance_geografico_comprador: 'estado',
+    alcance_geografico_comprador: arqAbrang,
   };
 
   try {
