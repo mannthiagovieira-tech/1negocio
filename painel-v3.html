@@ -13541,7 +13541,7 @@ async function origV8CarregarArquetiposNosCards() {
   if (!origId) return;
   const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
   try {
-    const r = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=*&order=created_at.asc',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+    const r = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=*&order=created_at.asc',{headers:origV2Headers()});
     const arqs = await r.json();
     if (!Array.isArray(arqs)) return;
     const extras = arqs.filter(a => a.tipo && a.tipo.startsWith('extra_'));
@@ -13609,7 +13609,7 @@ async function origV8SalvarArquetipoExtra(id, tipo) {
   try {
     const method = id ? 'PATCH' : 'POST';
     const url = id ? sbUrl+'/rest/v1/arquetipos_compradores?id=eq.'+id : sbUrl+'/rest/v1/arquetipos_compradores';
-    await fetch(url,{method,headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(row)});
+    await fetch(url,{method,headers:{...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(row)});
     if(statusEl){statusEl.textContent='✓ Salvo';setTimeout(()=>{if(statusEl)statusEl.textContent='';},2000);}
   } catch(e) { if(statusEl) statusEl.textContent='✗ Erro: '+e.message; }
 }
@@ -13622,17 +13622,18 @@ async function origV8SalvarArquetipoDireto(tipo) {
     originacao_id:origId, projeto_id:projetoId, tipo, status:'aprovado', criado_pela_ia:false,
     nome: tipo,
     vetor: document.getElementById('arq-'+tipo+'-logica_compra')?.value?.trim()||null,
-    descricao_perfil: document.getElementById('arq-'+tipo+'-descricao')?.value?.trim()||null,
+    perfil: document.getElementById('arq-'+tipo+'-descricao')?.value?.trim()||null,
     capacidade_financeira: document.getElementById('arq-'+tipo+'-capacidade_financeira')?.value?.trim()||null,
     mensagem_abordagem: document.getElementById('arq-'+tipo+'-mensagem_abordagem')?.value?.trim()||null,
   };
   const statusEl = document.getElementById('arq-status-'+tipo);
+  const hdrs = {...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'};
   try {
-    const check = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&tipo=eq.'+tipo+'&select=id',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+    const check = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&tipo=eq.'+tipo+'&select=id',{headers:origV2Headers()});
     const existe = await check.json();
     const method = existe?.length ? 'PATCH' : 'POST';
     const url = existe?.length ? sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&tipo=eq.'+tipo : sbUrl+'/rest/v1/arquetipos_compradores';
-    await fetch(url,{method,headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(row)});
+    await fetch(url,{method,headers:hdrs,body:JSON.stringify(row)});
     if(statusEl){statusEl.textContent='✓ Salvo';setTimeout(()=>{if(statusEl)statusEl.textContent='';},2000);}
     if (!window._origArqsSalvos) window._origArqsSalvos = new Set();
     window._origArqsSalvos.add(tipo);
@@ -13662,7 +13663,7 @@ async function origV8CarregarAmbientacaoForm() {
   const esc = s => String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
   try {
-    const r = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=id,nome,tipo&order=created_at.asc',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+    const r = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=id,nome,tipo&order=created_at.asc',{headers:origV2Headers()});
     const arqs = await r.json();
     if (!arqs?.length) { el.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-3);font-size:12px">Nenhum arquétipo salvo. Volte para a aba Arquétipos.</div>'; return; }
     const ro = await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId+'&select=busca_config_jsonb',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
