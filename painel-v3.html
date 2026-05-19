@@ -13371,222 +13371,161 @@ function origV8HtmlAba(ctx) {
   const tese = orig.tese_jsonb || {};
   const teseFechada = !!orig.tese_fechada_em;
   const arqsFechados = !!orig.arquetipos_fechados_em;
-  const ambFechada = !!(orig.busca_config_jsonb?.ambientacao && Object.keys(orig.busca_config_jsonb.ambientacao).length > 0);
-  const abaAtiva = window._origV8AbaForm || 'tese';
+  const ambFechada = !!(orig.busca_config_jsonb?.ambientacao && Object.keys(orig.busca_config_jsonb.ambientacao||{}).length > 0);
+  const aba = window._origV8AbaForm || 'tese';
   const esc = s => String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-  const fmtK = v => { const n=parseFloat(v||0); if(!n)return'R$ 0'; return n>=1000?'R$ '+(n/1000).toFixed(n%1000===0?0:1)+'k':'R$ '+n.toLocaleString('pt-BR',{maximumFractionDigits:0}); };
+  const fmtK = v => { const n=parseFloat(v||0); if(!n)return'R$ 0'; return n>=1000?'R$ '+(n/1000).toFixed(1).replace('.0','')+'k':'R$ '+n.toLocaleString('pt-BR',{maximumFractionDigits:0}); };
 
-  const tabBtn = (k, label, ok) => {
-    const on = abaAtiva === k;
-    return '<button data-origformaba="'+k+'" style="padding:8px 14px;font-size:12px;font-weight:'+(on?'700':'500')+';cursor:pointer;border:none;border-bottom:2px solid '+(on?'var(--accent,#22c55e)':'transparent')+';color:'+(on?'var(--ink)':'var(--ink-3)')+';background:transparent;font-family:var(--sans)">'+label+(ok?' ✓':'')+'</button>';
-  };
+  const tabBtn = (k,label,ok) => '<button data-origformaba="'+k+'" style="padding:8px 14px;font-size:12px;font-weight:'+(aba===k?'700':'500')+';cursor:pointer;border:none;border-bottom:2px solid '+(aba===k?'var(--accent,#22c55e)':'transparent')+';color:'+(aba===k?'var(--ink)':'var(--ink-3)')+';background:transparent;font-family:var(--sans)">'+label+(ok?' ✓':'')+'</button>';
   const tabs = '<div style="display:flex;border-bottom:1px solid var(--line-2);margin-bottom:16px">'
-    + tabBtn('tese','📋 Tese',teseFechada)
-    + tabBtn('arquetipos','👥 Arquétipos',arqsFechados)
-    + tabBtn('ambientacao','🗺️ Ambientação',ambFechada)
-    + tabBtn('resumo','📄 Resumo',false)
-    + '</div>';
+    +tabBtn('tese','📋 Tese',teseFechada)
+    +tabBtn('arquetipos','👥 Arquétipos',arqsFechados)
+    +tabBtn('ambientacao','🗺️ Ambientação',ambFechada)
+    +tabBtn('resumo','📄 Resumo',false)
+    +'</div>';
 
-  const atalhosPorAba = {
-    tese: ['Benchmarks do setor','Riscos típicos','Justificar o preço','Dependência do dono'],
-    arquetipos: ['Mais promissores?','Mensagem pra horizontal','Perfil do investidor','Quem é o adjacente?'],
-    ambientacao: ['Eventos em SP','Grupos LinkedIn varejo','Associações do setor','Onde achar fornecedores'],
-    resumo: ['Gaps na tese?','Consistência dos arquétipos','Sugestão de primeira abordagem','O que falta definir?'],
-  };
-  const atalhos = (atalhosPorAba[abaAtiva]||[]).map(s =>
-    '<button data-copilotsugestao="'+esc(s)+'" style="background:var(--surface-2);border:1px solid var(--line-2);border-radius:999px;padding:3px 10px;font-size:10px;color:var(--ink-3);cursor:pointer;font-family:var(--sans);white-space:nowrap">'+esc(s)+'</button>'
-  ).join('');
+  const atalhos = {'tese':['Benchmarks do setor','Oportunidades típicas','Justificar o preço','Dependência do dono'],'arquetipos':['Mais promissores?','Como abordar horizontal','Perfil do investidor','Quem é o adjacente?'],'ambientacao':['Eventos em SP','Grupos LinkedIn varejo','Associações do setor','Onde achar fornecedores'],'resumo':['Gaps na tese?','Consistência dos arquétipos','Primeira abordagem','O que falta definir?']}[aba]||[];
   const copilot = '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:14px;display:flex;flex-direction:column;height:100%;box-sizing:border-box;min-height:500px">'
-    + '<div style="font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">🤖 IA Copilot</div>'
-    + '<div style="font-size:11px;color:var(--ink-3);margin-bottom:10px;line-height:1.5">Conheço o negócio, o laudo e a metodologia. Pergunte o que quiser.</div>'
-    + '<div id="orig-copilot-msgs" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;min-height:180px;margin-bottom:10px"></div>'
-    + '<div style="display:flex;gap:6px;margin-bottom:8px">'
-    +   '<textarea id="orig-copilot-input" rows="2" placeholder="Pergunte ao copilot..." onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();origV8CopilotEnviar()}" style="flex:1;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:8px 10px;color:var(--ink);font-size:12px;resize:none;font-family:var(--sans);line-height:1.4;box-sizing:border-box"></textarea>'
-    +   '<button onclick="origV8CopilotEnviar()" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;align-self:flex-end">→</button>'
-    + '</div>'
-    + '<div style="display:flex;flex-wrap:wrap;gap:4px">'+atalhos+'</div>'
-    + '</div>';
+    +'<div style="font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">🤖 IA Copilot</div>'
+    +'<div style="font-size:11px;color:var(--ink-3);margin-bottom:10px;line-height:1.5">Conheço o negócio, o laudo e a metodologia. Pergunte o que quiser.</div>'
+    +'<div id="orig-copilot-msgs" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;min-height:180px;margin-bottom:10px"></div>'
+    +'<div style="display:flex;gap:6px;margin-bottom:8px">'
+    +'<textarea id="orig-copilot-input" rows="2" placeholder="Pergunte ao copilot..." onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();origV8CopilotEnviar()}" style="flex:1;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:8px 10px;color:var(--ink);font-size:12px;resize:none;font-family:var(--sans);line-height:1.4;box-sizing:border-box"></textarea>'
+    +'<button onclick="origV8CopilotEnviar()" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;align-self:flex-end">→</button>'
+    +'</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:4px">'+atalhos.map(s=>'<button data-copilotsugestao="'+esc(s)+'" style="background:var(--surface-2);border:1px solid var(--line-2);border-radius:999px;padding:3px 10px;font-size:10px;color:var(--ink-3);cursor:pointer;font-family:var(--sans);white-space:nowrap">'+esc(s)+'</button>').join('')+'</div>'
+    +'</div>';
 
-  let formCorpo = '';
-
-  if (abaAtiva === 'tese') {
+  let corpo = '';
+  if (aba === 'tese') {
     const fatAnual = parseFloat(dre.fat_anual||0);
     const roAnual = parseFloat(dre.ro_anual||0);
     const margem = parseFloat(dre.margem_operacional_pct||0).toFixed(1);
     const valPedido = parseFloat(ctx?.anuncio?.valor_pedido||ctx?.negocio?.preco_pedido||0);
     const val1n = parseFloat(val.valor_venda||0);
-    const multiplo = roAnual > 0 ? (valPedido/roAnual).toFixed(1) : '—';
-    const multiploRec = fatAnual > 0 ? (valPedido/fatAnual).toFixed(1) : '—';
-    const payback = roAnual > 0 ? (valPedido/roAnual).toFixed(1) : '—';
+    const multiplo = roAnual>0?(valPedido/roAnual).toFixed(1):'—';
+    const multiploRec = fatAnual>0?(valPedido/fatAnual).toFixed(2):'—';
+    const payback = roAnual>0?(valPedido/roAnual).toFixed(1):'—';
     const iseTotal = parseFloat(ise.ise_total||0).toFixed(1);
     const iseClasse = ise.classe||'—';
-    const upsidesHtml = upsides.length > 0
-      ? upsides.slice(0,3).map((u,i) => '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--line)"><span>'+(i+1)+'. '+esc(u.titulo||u.label||u.nome||'Upside')+'</span><span style="color:var(--accent,#22c55e);font-weight:600">+'+fmtK(u.valor_potencial||u.valor||0)+'</span></div>').join('')
-      : '<div style="font-size:12px;color:var(--ink-3)">Nenhum upside identificado no laudo</div>';
+    const upsidesHtml = upsides.length>0
+      ? upsides.slice(0,4).map((u,i)=>'<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--line)"><span>'+esc(u.titulo||u.label||u.nome||'Upside '+( i+1))+'</span><span style="color:var(--accent,#22c55e);font-weight:600">'+fmtK(u.valor_potencial||u.valor||0)+'</span></div>').join('')
+      : '<div style="font-size:12px;color:var(--ink-3)">Nenhum upside no laudo</div>';
 
-    const blocoLaudo = '<div style="background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:14px;margin-bottom:16px">'
-      + '<div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">📊 Dados do laudo</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">'
-      + ['Faturamento anual:'+fmtBRLk(fatAnual),'Result. operacional:'+fmtBRLk(roAnual)+' ('+margem+'%)','Avaliação 1NEGÓCIO:'+fmtBRLk(val1n),'Valor pedido:'+fmtBRLk(valPedido),'Múltiplo RO:'+multiplo+'x','Múltiplo receita:'+multiploRec+'x','Payback bruto:'+payback+' anos','ISE:'+iseTotal+' — '+iseClasse].map(item => {
-          const [l,v] = item.split(':'); return '<div><div style="font-size:9px;color:var(--ink-4);text-transform:uppercase;letter-spacing:.05em">'+l+'</div><div style="font-size:13px;font-weight:600;color:var(--ink)">'+v+'</div></div>';
-        }).join('')
-      + '</div>'
-      + '<div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Upsides identificados</div>'
-      + upsidesHtml
-      + '</div>';
-
-    const camposBase = [
-      { key:'diferencial_competitivo', label:'Diferencial competitivo', ph:'O que torna este negócio único e defensável?', rows:3 },
-      { key:'pontos_atencao', label:'Pontos de atenção', ph:'Riscos e fragilidades além do laudo', rows:2 },
-      { key:'motivo_venda', label:'Motivo da venda', ph:'Por que o dono está vendendo?', rows:2 },
-      { key:'prazo_desejado', label:'Prazo desejado', ph:'Em quanto tempo quer concluir?', rows:1 },
-    ];
-    const camposCustom = tese._campos_custom || [];
-    const camposHtml = camposBase.map(f => {
-      const v = tese[f.key]; const txt = Array.isArray(v)?v.join(', '):(v||'');
-      return '<div style="margin-bottom:12px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">'+f.label+'</div>'
-        + '<textarea id="tese-'+f.key+'" rows="'+f.rows+'" placeholder="'+esc(f.ph)+'" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;resize:vertical;box-sizing:border-box;font-family:var(--sans);line-height:1.5">'+esc(txt)+'</textarea></div>';
-    }).join('');
-    const camposCustomHtml = camposCustom.map((c,i) =>
-      '<div style="margin-bottom:12px;display:flex;gap:6px;align-items:flex-start">'
-      + '<div style="flex:1"><div style="font-size:10px;color:var(--accent,#22c55e);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">'+esc(c.titulo)+'</div>'
-      + '<textarea id="tese-custom-'+i+'" rows="2" style="width:100%;background:var(--bg);border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;resize:vertical;box-sizing:border-box;font-family:var(--sans);line-height:1.5">'+esc(c.valor||'')+'</textarea></div>'
-      + '<button onclick="origV8RemoverCampoCustom('+i+')" style="background:transparent;border:none;color:var(--ink-4);cursor:pointer;font-size:16px;padding:4px;margin-top:16px">×</button>'
-      + '</div>'
-    ).join('');
-
-    formCorpo = blocoLaudo
-      + '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:14px;margin-bottom:12px">'
-      + '<div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">✍️ Interpretação do assessor</div>'
-      + camposHtml
-      + camposCustomHtml
-      + '<button onclick="origV8AdicionarCampoCustom()" style="width:100%;background:transparent;border:1px dashed var(--line-2);border-radius:8px;padding:8px;font-size:12px;color:var(--ink-3);cursor:pointer;margin-top:4px">+ Adicionar campo personalizado</button>'
-      + '</div>'
-      + '<div style="display:flex;gap:8px">'
-      + '<button onclick="origV8SalvarTeseForm()" style="flex:1;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">💾 Salvar tese</button>'
-      + '<button onclick="origV8AvancarParaArquetipos()" style="flex:1;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink)">Concluir → Arquétipos</button>'
-      + '</div>'
-      + '<div id="tese-status" style="font-size:11px;color:var(--ink-3);text-align:center;margin-top:8px;min-height:14px"></div>';
+    corpo = '<div style="background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:14px;margin-bottom:14px">'
+      +'<div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📊 Dados do laudo</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'
+      +[['Faturamento anual',fmtK(fatAnual)],['Result. operacional',fmtK(roAnual)+' ('+margem+'%)'],['Avaliação 1NEGÓCIO',fmtK(val1n)],['Valor pedido',fmtK(valPedido)],['Múltiplo RO',multiplo+'x resultado op.'],['Múltiplo receita',multiploRec+'x receita bruta'],['Payback bruto',payback+' anos'],['ISE',iseTotal+' — '+iseClasse]].map(([l,v])=>'<div><div style="font-size:9px;color:var(--ink-4);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">'+l+'</div><div style="font-size:13px;font-weight:600">'+v+'</div></div>').join('')
+      +'</div>'
+      +'<div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Upsides identificados</div>'
+      +upsidesHtml+'</div>'
+      +'<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:14px;margin-bottom:12px">'
+      +'<div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">✍️ Interpretação do assessor</div>'
+      +[{key:'tese_principal',label:'Tese principal',ph:'Frase de posicionamento do negócio — por que vale comprar?',rows:2},{key:'diferenciais',label:'Diferenciais competitivos',ph:'O que torna este negócio único e defensável?',rows:3},{key:'oportunidades',label:'Oportunidades para o comprador',ph:'O que o comprador pode fazer que o dono não fez? Ex: e-commerce parado, base 15k não monetizada...',rows:3},{key:'motivo_venda',label:'Motivo da venda',ph:'Por que o dono está saindo?',rows:2},{key:'prazo_desejado',label:'Prazo desejado',ph:'Em quanto tempo quer concluir?',rows:1}].map(f=>{const v=tese[f.key];const txt=Array.isArray(v)?v.join(', '):(v||'');return'<div style="margin-bottom:12px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">'+f.label+'</div><textarea id="tese-'+f.key+'" rows="'+f.rows+'" placeholder="'+esc(f.ph)+'" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;resize:vertical;box-sizing:border-box;font-family:var(--sans);line-height:1.5">'+esc(txt)+'</textarea></div>';}).join('')
+      +(tese._campos_custom||[]).map((c,i)=>'<div style="margin-bottom:12px;display:flex;gap:6px;align-items:flex-start"><div style="flex:1"><div style="font-size:10px;color:var(--accent,#22c55e);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">'+esc(c.titulo)+'</div><textarea id="tese-custom-'+i+'" rows="2" style="width:100%;background:var(--bg);border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;resize:vertical;box-sizing:border-box;font-family:var(--sans);line-height:1.5">'+esc(c.valor||'')+'</textarea></div><button onclick="origV8RemoverCampoCustom('+i+')" style="background:transparent;border:none;color:var(--ink-4);cursor:pointer;font-size:18px;padding:4px;margin-top:14px">×</button></div>').join('')
+      +'<button onclick="origV8AdicionarCampoCustom()" style="width:100%;background:transparent;border:1px dashed var(--line-2);border-radius:8px;padding:8px;font-size:12px;color:var(--ink-3);cursor:pointer;margin-top:4px">+ Adicionar campo personalizado</button>'
+      +'</div>'
+      +'<div style="display:flex;gap:8px"><button onclick="origV8SalvarTeseForm()" style="flex:1;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">💾 Salvar tese</button>'
+      +'<button onclick="origV8AvancarParaArquetipos()" style="flex:1;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink)">Concluir → Arquétipos</button></div>'
+      +'<div id="tese-status" style="font-size:11px;color:var(--ink-3);text-align:center;margin-top:8px;min-height:14px"></div>';
   }
 
-  else if (abaAtiva === 'arquetipos') {
-    const ARQS_CANONICOS = [
-      { tipo:'horizontal', label:'Horizontal', desc:'Concorrente direto buscando expansão ou consolidação de mercado' },
-      { tipo:'vertical_antes', label:'Vertical antes', desc:'Fornecedor querendo ter ponto de venda e controlar a margem final' },
-      { tipo:'vertical_depois', label:'Vertical depois', desc:'Cliente querendo integrar o fornecimento e reduzir custos' },
-      { tipo:'adjacente', label:'Adjacente', desc:'Negócio diferente com sinergia operacional ou de base de clientes' },
-      { tipo:'clientes_negocio', label:'Cliente fiel', desc:'Consumidor frequente que sempre quis ter o negócio' },
-      { tipo:'investidor_financeiro', label:'Investidor financeiro', desc:'PF ou empresa buscando rentabilidade com negócio operacional' },
-      { tipo:'profissional_setor', label:'Profissional do setor', desc:'Funcionário ou profissional com perfil empreendedor latente' },
-      { tipo:'outros', label:'Outros', desc:'Perfil específico identificado pelo assessor' },
+  else if (aba === 'arquetipos') {
+    const CANONICOS = [
+      {tipo:'horizontal',label:'Horizontal',desc:'Concorrente direto — quer expandir ou consolidar mercado'},
+      {tipo:'vertical_antes',label:'Vertical antes',desc:'Fornecedor — quer verticalizar e controlar a margem final'},
+      {tipo:'vertical_depois',label:'Vertical depois',desc:'Cliente — quer integrar o fornecimento e reduzir custos'},
+      {tipo:'adjacente',label:'Adjacente',desc:'Negócio diferente com sinergia operacional ou de clientes'},
+      {tipo:'clientes_negocio',label:'Cliente fiel',desc:'Consumidor frequente com perfil empreendedor'},
+      {tipo:'investidor_financeiro',label:'Investidor financeiro',desc:'PF ou empresa buscando rentabilidade com negócio operacional'},
+      {tipo:'profissional_setor',label:'Profissional do setor',desc:'Funcionário ou profissional que quer empreender no setor'},
     ];
-    formCorpo = '<div style="font-size:12px;color:var(--ink-3);margin-bottom:14px">Ative os arquétipos relevantes e preencha os detalhes de cada um.</div>'
-      + ARQS_CANONICOS.map(a =>
-        '<div style="background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:12px;margin-bottom:8px" id="arq-card-'+a.tipo+'">'
-        + '<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="origV8ToggleArquetipo(\''+a.tipo+'\')">'
-        + '<input type="checkbox" id="arq-check-'+a.tipo+'" style="width:16px;height:16px;accent-color:var(--accent,#22c55e);cursor:pointer">'
-        + '<div><div style="font-size:13px;font-weight:600">'+esc(a.label)+'</div>'
-        + '<div style="font-size:11px;color:var(--ink-3)">'+esc(a.desc)+'</div></div>'
-        + '</div>'
-        + '<div id="arq-form-'+a.tipo+'" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">'
-        + ['nome_especifico:Nome específico:Ex: Rede de lojas naturais SP:1','logica_compra:Lógica de compra:Por que compraria? Racional + emocional:2','objecoes:Objeções principais:Principais resistências deste perfil:2','capacidade_financeira:Capacidade financeira:Ex: R$ 400-600k:1','mensagem_abordagem:Mensagem de abordagem:Como iniciar o contato?:2'].map(f => {
-            const [k,l,ph,r] = f.split(':');
-            return '<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+l+'</div>'
-              + '<textarea id="arq-'+a.tipo+'-'+k+'" rows="'+r+'" placeholder="'+ph+'" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;resize:vertical;box-sizing:border-box;font-family:var(--sans)"></textarea></div>';
-          }).join('')
-        + '<button onclick="origV8SalvarArquetipoDireto(\''+a.tipo+'\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">💾 Salvar</button>'
-        + '</div>'
-        + '</div>'
-      ).join('')
-      + '<div style="display:flex;gap:8px;margin-top:12px">'
-      + '<button onclick="origV8ConcluirArquetipos()" style="flex:1;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">Concluir → Ambientação</button>'
-      + '</div>';
+    const camposArq = [{k:'descricao',l:'Quem são exatamente',ph:'Descreva o perfil específico neste contexto',r:2},{k:'logica_compra',l:'Por que comprariam',ph:'Racional + motivação emocional',r:2},{k:'capacidade_financeira',l:'Capacidade financeira',ph:'Ex: R$ 400-600k',r:1},{k:'mensagem_abordagem',l:'Mensagem de abordagem',ph:'Template de primeiro contato',r:2}];
+    corpo = '<div style="font-size:12px;color:var(--ink-3);margin-bottom:14px">Ative os arquétipos relevantes e preencha os detalhes. Cada um vira uma estratégia de busca no Arsenal.</div>'
+      +CANONICOS.map(a=>'<div style="background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:12px;margin-bottom:8px" id="arq-card-'+a.tipo+'">'
+        +'<div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="origV8ToggleArquetipo(\''+a.tipo+'\')">'
+        +'<input type="checkbox" id="arq-check-'+a.tipo+'" style="width:16px;height:16px;accent-color:var(--accent,#22c55e);cursor:pointer;flex-shrink:0">'
+        +'<div><div style="font-size:13px;font-weight:600">'+esc(a.label)+'</div><div style="font-size:11px;color:var(--ink-3)">'+esc(a.desc)+'</div></div></div>'
+        +'<div id="arq-form-'+a.tipo+'" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">'
+        +camposArq.map(f=>'<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+f.l+'</div><textarea id="arq-'+a.tipo+'-'+f.k+'" rows="'+f.r+'" placeholder="'+esc(f.ph)+'" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;resize:vertical;box-sizing:border-box;font-family:var(--sans)"></textarea></div>').join('')
+        +'<button onclick="origV8SalvarArquetipoDireto(\''+a.tipo+'\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">💾 Salvar</button>'
+        +'<span id="arq-status-'+a.tipo+'" style="font-size:11px;color:var(--ink-3);margin-left:10px"></span>'
+        +'</div></div>').join('')
+      +'<div id="arq-extras-lista"></div>'
+      +'<button onclick="origV8AdicionarArquetipoExtra()" style="width:100%;background:transparent;border:1px dashed var(--line-2);border-radius:8px;padding:10px;font-size:13px;color:var(--ink-3);cursor:pointer;margin:8px 0">+ Nova estratégia</button>'
+      +'<button onclick="origV8ConcluirArquetipos()" style="width:100%;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px">Concluir → Ambientação</button>';
     setTimeout(origV8CarregarArquetiposNosCards, 80);
   }
 
-  else if (abaAtiva === 'ambientacao') {
-    formCorpo = '<div style="font-size:12px;color:var(--ink-3);margin-bottom:14px">Para cada arquétipo ativo, defina onde encontrá-los no mundo real.</div>'
-      + '<div id="orig-amb-form-lista">Carregando...</div>'
-      + '<div style="margin-top:16px;background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:14px">'
-      + '<div style="font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">🎯 Recomendações pro proprietário</div>'
-      + '<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Eventos para ir</div>'
-      + '<textarea id="amb-dono-eventos" rows="2" placeholder="Ex: APAS Show (abril/SP) — networking com compradores" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;resize:vertical;box-sizing:border-box;font-family:var(--sans)"></textarea></div>'
-      + '<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Grupos para entrar</div>'
-      + '<textarea id="amb-dono-grupos" rows="2" placeholder="Ex: Empreendedores do Ramo Alimentício Brasil (Facebook)" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;resize:vertical;box-sizing:border-box;font-family:var(--sans)"></textarea></div>'
-      + '<div><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;margin-bottom:4px">Pessoas para conversar</div>'
-      + '<textarea id="amb-dono-pessoas" rows="2" placeholder="Ex: Distribuidores do setor, donos de redes similares" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;resize:vertical;box-sizing:border-box;font-family:var(--sans)"></textarea></div>'
-      + '</div>'
-      + '<div style="display:flex;gap:8px;margin-top:12px">'
-      + '<button onclick="origV8SalvarAmbientacaoForm()" style="flex:1;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">💾 Salvar ambientação</button>'
-      + '<button onclick="origV8SetAbaForm(\'resumo\')" style="flex:1;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink)">Ver resumo →</button>'
-      + '</div>'
-      + '<div id="amb-status" style="font-size:11px;color:var(--ink-3);text-align:center;margin-top:8px;min-height:12px"></div>';
+  else if (aba === 'ambientacao') {
+    corpo = '<div style="font-size:12px;color:var(--ink-3);margin-bottom:14px">Para cada arquétipo ativo, defina onde encontrá-los. Isso alimenta diretamente o Arsenal.</div>'
+      +'<div id="orig-amb-form-lista">Carregando...</div>'
+      +'<div style="margin-top:16px;background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:14px">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">🎯 Recomendações pro proprietário</div>'
+      +[{id:'amb-dono-eventos',l:'Eventos para ir',ph:'Ex: APAS Show (abril/SP) — networking com compradores'},{id:'amb-dono-grupos',l:'Grupos para entrar',ph:'Ex: Empreendedores Alimentício Brasil (Facebook)'},{id:'amb-dono-pessoas',l:'Pessoas para conversar',ph:'Ex: Distribuidores do setor, donos de redes similares'}].map(f=>'<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;margin-bottom:4px">'+f.l+'</div><textarea id="'+f.id+'" rows="2" placeholder="'+esc(f.ph)+'" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;resize:vertical;box-sizing:border-box;font-family:var(--sans)"></textarea></div>').join('')
+      +'</div>'
+      +'<div style="display:flex;gap:8px;margin-top:12px">'
+      +'<button onclick="origV8SalvarAmbientacaoForm()" style="flex:1;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">💾 Salvar ambientação</button>'
+      +'<button onclick="origV8SetAbaForm(\'resumo\')" style="flex:1;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink)">Ver resumo →</button>'
+      +'</div>'
+      +'<div id="amb-status" style="font-size:11px;color:var(--ink-3);text-align:center;margin-top:8px;min-height:12px"></div>';
     setTimeout(origV8CarregarAmbientacaoForm, 80);
   }
 
-  else if (abaAtiva === 'resumo') {
+  else if (aba === 'resumo') {
     const tese2 = orig.tese_jsonb || {};
     const fatAnual = parseFloat(dre.fat_anual||0);
     const roAnual = parseFloat(dre.ro_anual||0);
     const valPedido = parseFloat(ctx?.anuncio?.valor_pedido||ctx?.negocio?.preco_pedido||0);
     const val1n = parseFloat(val.valor_venda||0);
-    const multiplo = roAnual > 0 ? (valPedido/roAnual).toFixed(1) : '—';
-    const payback = roAnual > 0 ? (valPedido/roAnual).toFixed(1) : '—';
-    const nomeNeg = ctx?.negocio?.nome || ctx?.anuncio?.titulo || '—';
-    const cidadeNeg = ctx?.negocio?.cidade || '—';
-    formCorpo = '<div id="orig-resumo-folha" style="background:var(--bg);border:1px solid var(--line-2);border-radius:12px;padding:20px;font-family:var(--sans)">'
-      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">'
-      + '<div><div style="font-family:var(--serif);font-size:20px;font-weight:800">'+esc(nomeNeg)+'</div>'
-      + '<div style="font-size:13px;color:var(--ink-3);margin-top:4px">'+esc(cidadeNeg)+' · Venda Assessorada</div></div>'
-      + '<div style="text-align:right"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em">Avaliação 1NEGÓCIO</div>'
-      + '<div style="font-family:var(--serif);font-size:22px;font-weight:800;color:var(--accent,#22c55e)">'+fmtK(val1n)+'</div></div>'
-      + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;padding:14px;background:var(--surface);border-radius:8px">'
-      + [['Faturamento anual',fmtK(fatAnual)],['Result. operacional',fmtK(roAnual)],['Valor pedido',fmtK(valPedido)],['Múltiplo RO',multiplo+'x'],['Payback bruto',payback+' anos'],['ISE',(ise.ise_total||0).toFixed(1)+' — '+(ise.classe||'—')]].map(([l,v])=>
-          '<div><div style="font-size:9px;color:var(--ink-4);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">'+l+'</div><div style="font-size:14px;font-weight:700">'+v+'</div></div>'
-        ).join('')
-      + '</div>'
-      + (tese2.diferencial_competitivo ? '<div style="margin-bottom:12px;padding:12px;background:var(--surface);border-radius:8px"><div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Diferencial competitivo</div><div style="font-size:13px;line-height:1.6">'+esc(tese2.diferencial_competitivo)+'</div></div>' : '')
-      + (tese2.motivo_venda ? '<div style="margin-bottom:12px;padding:12px;background:var(--surface);border-radius:8px"><div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Motivo da venda</div><div style="font-size:13px;line-height:1.6">'+esc(tese2.motivo_venda)+'</div></div>' : '')
-      + '<div id="orig-resumo-arqs" style="margin-bottom:12px">Carregando arquétipos...</div>'
-      + '<div id="orig-resumo-queries" style="margin-bottom:12px">Carregando queries...</div>'
-      + '</div>'
-      + '<div style="display:flex;gap:8px;margin-top:12px">'
-      + '<button onclick="window.print()" style="flex:1;background:transparent;border:1px solid var(--line-2);border-radius:8px;padding:10px;font-size:13px;cursor:pointer;color:var(--ink-3)">🖨 Imprimir</button>'
-      + '<button onclick="origV8CopiarResumo()" style="flex:1;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">📋 Copiar resumo</button>'
-      + '</div>';
+    const multiplo = roAnual>0?(valPedido/roAnual).toFixed(1)+'x resultado op.':'—';
+    const payback = roAnual>0?(valPedido/roAnual).toFixed(1)+' anos':'—';
+    const nomeNeg = ctx?.negocio?.nome||ctx?.anuncio?.titulo||'—';
+    const cidadeNeg = (ctx?.negocio?.cidade||'')+(ctx?.negocio?.estado?'/'+ctx.negocio.estado:'');
+    corpo = '<div id="orig-resumo-folha" style="background:var(--bg);border:1px solid var(--line-2);border-radius:12px;padding:20px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">'
+      +'<div><div style="font-family:var(--serif);font-size:20px;font-weight:800">'+esc(nomeNeg)+'</div>'
+      +'<div style="font-size:12px;color:var(--ink-3);margin-top:3px">'+esc(cidadeNeg)+' · Venda Assessorada</div></div>'
+      +'<div style="text-align:right"><div style="font-size:9px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em">Avaliação 1NEGÓCIO</div>'
+      +'<div style="font-family:var(--serif);font-size:22px;font-weight:800;color:var(--accent,#22c55e)">'+fmtK(val1n)+'</div></div></div>'
+      +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px;background:var(--surface);border-radius:8px;margin-bottom:14px">'
+      +[['Faturamento',fmtK(fatAnual)],['Result. operacional',fmtK(roAnual)],['Valor pedido',fmtK(valPedido)],['Múltiplo',multiplo],['Payback',payback],['ISE',(ise.ise_total||0).toFixed(1)+' — '+(ise.classe||'—')]].map(([l,v])=>'<div><div style="font-size:9px;color:var(--ink-4);text-transform:uppercase;margin-bottom:2px">'+l+'</div><div style="font-size:13px;font-weight:700">'+v+'</div></div>').join('')+'</div>'
+      +(tese2.tese_principal?'<div style="margin-bottom:10px;padding:12px;background:var(--surface);border-radius:8px;border-left:3px solid var(--accent,#22c55e)"><div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;margin-bottom:4px">Tese</div><div style="font-size:13px;line-height:1.6">'+esc(tese2.tese_principal)+'</div></div>':'')
+      +(tese2.oportunidades?'<div style="margin-bottom:10px;padding:12px;background:var(--surface);border-radius:8px"><div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;margin-bottom:4px">Oportunidades para o comprador</div><div style="font-size:13px;line-height:1.6">'+esc(tese2.oportunidades)+'</div></div>':'')
+      +(tese2.motivo_venda?'<div style="margin-bottom:10px;padding:12px;background:var(--surface);border-radius:8px"><div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;margin-bottom:4px">Motivo da venda</div><div style="font-size:13px;line-height:1.6">'+esc(tese2.motivo_venda)+'</div></div>':'')
+      +'<div id="orig-resumo-arqs" style="margin-bottom:10px">Carregando arquétipos...</div>'
+      +'<div id="orig-resumo-queries">Carregando queries...</div>'
+      +'</div>'
+      +'<div style="display:flex;gap:8px;margin-top:12px">'
+      +'<button onclick="window.print()" style="flex:1;background:transparent;border:1px solid var(--line-2);border-radius:8px;padding:10px;font-size:13px;cursor:pointer;color:var(--ink-3)">🖨 Imprimir</button>'
+      +'<button onclick="origV8CopiarResumo()" style="flex:1;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">📋 Copiar</button>'
+      +'</div>';
     setTimeout(origV8CarregarResumoCompleto, 80);
   }
 
   return '<div style="display:flex;flex-direction:column;height:100%">'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
-    +   '<div><div style="font-family:var(--serif);font-size:17px;font-weight:700">🧠 Inteligência</div>'
-    +   '<div style="font-size:12px;color:var(--ink-3)">Tese · Arquétipos · Ambientação · Resumo</div></div>'
-    +   '<button onclick="origV8ResetarInteligencia()" title="Apagar tudo e recomeçar" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:3px 8px;font-size:10px;color:var(--ink-4);cursor:pointer">🗑 Resetar</button>'
-    + '</div>'
-    + '<div style="display:grid;grid-template-columns:3fr 2fr;gap:14px;flex:1;min-height:0;overflow:hidden">'
-    +   '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:16px;overflow-y:auto">'
-    +     tabs + formCorpo
-    +   '</div>'
-    +   '<div style="overflow-y:auto">' + copilot + '</div>'
-    + '</div>'
-    + '</div>';
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+    +'<div><div style="font-family:var(--serif);font-size:17px;font-weight:700">🧠 Inteligência</div>'
+    +'<div style="font-size:12px;color:var(--ink-3)">Tese · Arquétipos · Ambientação · Resumo</div></div>'
+    +'<button onclick="origV8ResetarInteligencia()" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:3px 8px;font-size:10px;color:var(--ink-4);cursor:pointer">🗑 Resetar</button>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:3fr 2fr;gap:14px;flex:1;min-height:0;overflow:hidden">'
+    +'<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:16px;overflow-y:auto">'+tabs+corpo+'</div>'
+    +'<div style="overflow-y:auto">'+copilot+'</div>'
+    +'</div></div>';
 }
-
-function fmtBRLk(v) { const n=parseFloat(v||0); if(!n)return'R$ 0'; return n>=1000?'R$ '+(n/1000).toFixed(n%1000===0?0:1)+'k':'R$ '+n.toLocaleString('pt-BR',{maximumFractionDigits:0}); }
 
 function origV8SetAbaForm(aba) {
   window._origV8AbaForm = aba;
-  const host = document.getElementById('pj-inteligencia-host-' + (window._pjAbertoMeta?.id||''));
+  const host = document.getElementById('pj-inteligencia-host-'+(window._pjAbertoMeta?.id||''));
   if (host) { host.innerHTML = origV8HtmlAba(window._origV8CtxAtual); return; }
-  origV8RenderChat && origV8RenderChat();
 }
 
 document.addEventListener('click', function(e) {
   const aba = e.target?.getAttribute?.('data-origformaba');
   if (aba) origV8SetAbaForm(aba);
   const sug = e.target?.getAttribute?.('data-copilotsugestao');
-  if (sug) { const ta = document.getElementById('orig-copilot-input'); if(ta){ta.value=sug;ta.focus();} }
+  if (sug) { const ta=document.getElementById('orig-copilot-input'); if(ta){ta.value=sug;ta.focus();} }
 });
 
 function origV8ToggleArquetipo(tipo) {
@@ -13605,53 +13544,113 @@ async function origV8CarregarArquetiposNosCards() {
     const r = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=*&order=created_at.asc',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
     const arqs = await r.json();
     if (!Array.isArray(arqs)) return;
-    arqs.forEach(a => {
+    const extras = arqs.filter(a => a.tipo && a.tipo.startsWith('extra_'));
+    const canonicos = arqs.filter(a => !a.tipo?.startsWith('extra_'));
+    canonicos.forEach(a => {
       const cb = document.getElementById('arq-check-'+a.tipo);
       const form = document.getElementById('arq-form-'+a.tipo);
       if (cb) cb.checked = true;
       if (form) {
         form.style.display = 'block';
-        ['nome_especifico','logica_compra','objecoes','capacidade_financeira','mensagem_abordagem'].forEach(k => {
+        ['descricao','logica_compra','capacidade_financeira','mensagem_abordagem'].forEach(k => {
           const el = document.getElementById('arq-'+a.tipo+'-'+k);
-          if (el && a[k]) el.value = Array.isArray(a[k]) ? a[k].join(', ') : (a[k]||'');
+          if (el && a[k]) el.value = Array.isArray(a[k])?a[k].join(', '):(a[k]||'');
         });
       }
     });
-  } catch(e) { console.warn('CarregarArquetiposNosCards erro:', e); }
+    const listaEl = document.getElementById('arq-extras-lista');
+    if (listaEl && extras.length) {
+      listaEl.innerHTML = extras.map(a => origV8HtmlExtraCard(a.id, a.tipo, a)).join('');
+    }
+  } catch(e) { console.warn('CarregarArquetiposNosCards:', e); }
+}
+
+function origV8HtmlExtraCard(id, tipo, dados) {
+  const esc = s => String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const campos = [{k:'descricao',l:'Quem são exatamente',r:2},{k:'logica_compra',l:'Por que comprariam',r:2},{k:'capacidade_financeira',l:'Capacidade financeira',r:1},{k:'mensagem_abordagem',l:'Mensagem de abordagem',r:2}];
+  return '<div style="background:var(--bg);border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:10px;padding:12px;margin-bottom:8px" id="arq-card-'+tipo+'">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+    +'<input id="arq-extra-titulo-'+tipo+'" value="'+esc(dados?.nome||'')+'" placeholder="Nome da estratégia" style="flex:1;background:transparent;border:none;border-bottom:1px solid var(--line-2);padding:4px 0;font-size:13px;font-weight:600;color:var(--ink);font-family:var(--sans)">'
+    +'<button onclick="origV8RemoverArquetipoExtra(\''+esc(id||tipo)+'\')" style="background:transparent;border:none;color:var(--ink-4);cursor:pointer;font-size:18px;margin-left:8px">×</button>'
+    +'</div>'
+    +campos.map(f=>'<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+f.l+'</div><textarea id="arq-'+tipo+'-'+f.k+'" rows="'+f.r+'" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;resize:vertical;box-sizing:border-box;font-family:var(--sans)">'+(dados?.[f.k]||'')+'</textarea></div>').join('')
+    +'<button onclick="origV8SalvarArquetipoExtra(\''+esc(id||'')+"','"+tipo+'\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">💾 Salvar</button>'
+    +'<span id="arq-status-'+tipo+'" style="font-size:11px;color:var(--ink-3);margin-left:10px"></span>'
+    +'</div>';
+}
+
+function origV8AdicionarArquetipoExtra() {
+  const listaEl = document.getElementById('arq-extras-lista');
+  if (!listaEl) return;
+  const idx = Date.now();
+  const tipo = 'extra_'+idx;
+  listaEl.insertAdjacentHTML('beforeend', origV8HtmlExtraCard('', tipo, null));
+}
+
+async function origV8RemoverArquetipoExtra(id) {
+  if (!confirm('Remover esta estratégia?')) return;
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  if (id) await fetch(sbUrl+'/rest/v1/arquetipos_compradores?id=eq.'+id,{method:'DELETE',headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+  origV8SetAbaForm('arquetipos');
+}
+
+async function origV8SalvarArquetipoExtra(id, tipo) {
+  const origId = window._pjAbertoOrigId || _origV8State?.origId;
+  const projetoId = window._pjAbertoMeta?.id || _origV8State?.projetoId;
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  const nome = document.getElementById('arq-extra-titulo-'+tipo)?.value?.trim() || 'Estratégia personalizada';
+  const row = {
+    originacao_id:origId, projeto_id:projetoId, tipo, status:'aprovado', criado_pela_ia:false, nome,
+    vetor: document.getElementById('arq-'+tipo+'-logica_compra')?.value?.trim()||null,
+    capacidade_financeira: document.getElementById('arq-'+tipo+'-capacidade_financeira')?.value?.trim()||null,
+    mensagem_abordagem: document.getElementById('arq-'+tipo+'-mensagem_abordagem')?.value?.trim()||null,
+  };
+  const statusEl = document.getElementById('arq-status-'+tipo);
+  try {
+    const method = id ? 'PATCH' : 'POST';
+    const url = id ? sbUrl+'/rest/v1/arquetipos_compradores?id=eq.'+id : sbUrl+'/rest/v1/arquetipos_compradores';
+    await fetch(url,{method,headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(row)});
+    if(statusEl){statusEl.textContent='✓ Salvo';setTimeout(()=>{if(statusEl)statusEl.textContent='';},2000);}
+  } catch(e) { if(statusEl) statusEl.textContent='✗ Erro: '+e.message; }
 }
 
 async function origV8SalvarArquetipoDireto(tipo) {
   const origId = window._pjAbertoOrigId || _origV8State?.origId;
   const projetoId = window._pjAbertoMeta?.id || _origV8State?.projetoId;
   const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
-  const nome = document.getElementById('arq-'+tipo+'-nome_especifico')?.value?.trim();
-  if (!nome) { alert('Preencha o nome específico antes de salvar'); return; }
   const row = {
-    originacao_id: origId, projeto_id: projetoId, tipo, status: 'aprovado', criado_pela_ia: false,
-    nome: nome,
+    originacao_id:origId, projeto_id:projetoId, tipo, status:'aprovado', criado_pela_ia:false,
+    nome: tipo,
     vetor: document.getElementById('arq-'+tipo+'-logica_compra')?.value?.trim()||null,
-    objecoes: document.getElementById('arq-'+tipo+'-objecoes')?.value?.trim()||null,
+    descricao_perfil: document.getElementById('arq-'+tipo+'-descricao')?.value?.trim()||null,
     capacidade_financeira: document.getElementById('arq-'+tipo+'-capacidade_financeira')?.value?.trim()||null,
     mensagem_abordagem: document.getElementById('arq-'+tipo+'-mensagem_abordagem')?.value?.trim()||null,
   };
+  const statusEl = document.getElementById('arq-status-'+tipo);
   try {
-    const r = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&tipo=eq.'+tipo,{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
-    const existe = await r.json();
+    const check = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&tipo=eq.'+tipo+'&select=id',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+    const existe = await check.json();
     const method = existe?.length ? 'PATCH' : 'POST';
     const url = existe?.length ? sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&tipo=eq.'+tipo : sbUrl+'/rest/v1/arquetipos_compradores';
     await fetch(url,{method,headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(row)});
-    origToast && origToast('✓ '+nome+' salvo');
-  } catch(e) { alert('Erro: '+e.message); }
+    if(statusEl){statusEl.textContent='✓ Salvo';setTimeout(()=>{if(statusEl)statusEl.textContent='';},2000);}
+    if (!window._origArqsSalvos) window._origArqsSalvos = new Set();
+    window._origArqsSalvos.add(tipo);
+  } catch(e) { if(statusEl) statusEl.textContent='✗ Erro: '+e.message; }
 }
 
 async function origV8ConcluirArquetipos() {
   const origId = window._pjAbertoOrigId || _origV8State?.origId;
   const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
-  const r = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=id',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
-  const arqs = await r.json();
-  if (!arqs?.length) { alert('Ative e salve pelo menos 1 arquétipo antes de concluir.'); return; }
+  const temLocal = window._origArqsSalvos && window._origArqsSalvos.size > 0;
+  if (!temLocal) {
+    const r = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=id&limit=1',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+    const arqs = await r.json();
+    if (!arqs?.length) { alert('Salve pelo menos 1 arquétipo antes de concluir.'); return; }
+  }
   await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId,{method:'PATCH',headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({arquetipos_fechados_em:new Date().toISOString(),updated_at:new Date().toISOString()})});
   if(window._origV8CtxAtual?.originacao) window._origV8CtxAtual.originacao.arquetipos_fechados_em = new Date().toISOString();
+  window._origArqsSalvos = new Set();
   origToast && origToast('✓ Arquétipos concluídos');
   origV8SetAbaForm('ambientacao');
 }
@@ -13665,30 +13664,23 @@ async function origV8CarregarAmbientacaoForm() {
   try {
     const r = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=id,nome,tipo&order=created_at.asc',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
     const arqs = await r.json();
-    if (!arqs?.length) { el.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-3);font-size:12px">Nenhum arquétipo ativado. Volte para a aba Arquétipos.</div>'; return; }
+    if (!arqs?.length) { el.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-3);font-size:12px">Nenhum arquétipo salvo. Volte para a aba Arquétipos.</div>'; return; }
     const ro = await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId+'&select=busca_config_jsonb',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
     const rows = await ro.json();
     const ambSalva = rows?.[0]?.busca_config_jsonb?.ambientacao || {};
+    const CAMPOS = [{k:'gmaps',l:'Google Maps — queries'},{k:'facebook_grupos',l:'Facebook — grupos'},{k:'linkedin',l:'LinkedIn — cargos/queries'},{k:'associacoes',l:'Associações setoriais'},{k:'eventos',l:'Eventos e feiras'}];
     el.innerHTML = arqs.map(a => {
-      const d = ambSalva[a.nome] || {};
-      const campos = ['grupos_online','associacoes','eventos_feiras','canais_digitais','intermediarios'];
-      const labels = ['Grupos online','Associações','Eventos e feiras','Canais digitais','Intermediários/corretores'];
+      const d = ambSalva[a.nome] || ambSalva[a.tipo] || {};
       return '<div style="background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:14px;margin-bottom:12px">'
-        + '<div style="font-size:13px;font-weight:700;margin-bottom:10px">'+esc(a.nome)+'<span style="font-size:10px;color:var(--ink-3);margin-left:8px;background:var(--surface-2);padding:1px 7px;border-radius:3px">'+esc(a.tipo)+'</span></div>'
-        + campos.map((k,i) => {
-            const val = Array.isArray(d[k]) ? d[k].join(', ') : (d[k]||'');
-            return '<div style="margin-bottom:8px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+labels[i]+'</div>'
-              + '<input data-arq-nome="'+esc(a.nome)+'" data-campo="'+k+'" value="'+esc(val)+'" placeholder="Separe por vírgula" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;box-sizing:border-box;font-family:var(--sans)"></div>';
-          }).join('')
-        + '</div>';
+        +'<div style="font-size:13px;font-weight:700;margin-bottom:10px">'+esc(a.nome||a.tipo)+'<span style="font-size:10px;color:var(--ink-3);margin-left:8px;background:var(--surface-2);padding:1px 7px;border-radius:3px">'+esc(a.tipo)+'</span></div>'
+        +CAMPOS.map(f=>'<div style="margin-bottom:8px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+f.l+'</div><input data-arq-nome="'+esc(a.nome||a.tipo)+'" data-campo="'+f.k+'" value="'+esc(Array.isArray(d[f.k])?d[f.k].join(', '):(d[f.k]||''))+'" placeholder="Separe por vírgula" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;box-sizing:border-box;font-family:var(--sans)"></div>').join('')
+        +'</div>';
     }).join('');
     const recDono = rows?.[0]?.busca_config_jsonb?.sugestoes_dono || {};
-    const evEl = document.getElementById('amb-dono-eventos');
-    const grEl = document.getElementById('amb-dono-grupos');
-    const peEl = document.getElementById('amb-dono-pessoas');
-    if (evEl && recDono.eventos) evEl.value = Array.isArray(recDono.eventos) ? recDono.eventos.join('\n') : recDono.eventos;
-    if (grEl && recDono.grupos) grEl.value = Array.isArray(recDono.grupos) ? recDono.grupos.join('\n') : recDono.grupos;
-    if (peEl && recDono.pessoas) peEl.value = Array.isArray(recDono.pessoas) ? recDono.pessoas.join('\n') : recDono.pessoas;
+    const evEl=document.getElementById('amb-dono-eventos');const grEl=document.getElementById('amb-dono-grupos');const peEl=document.getElementById('amb-dono-pessoas');
+    if(evEl&&recDono.eventos) evEl.value=Array.isArray(recDono.eventos)?recDono.eventos.join('\n'):recDono.eventos;
+    if(grEl&&recDono.grupos) grEl.value=Array.isArray(recDono.grupos)?recDono.grupos.join('\n'):recDono.grupos;
+    if(peEl&&recDono.pessoas) peEl.value=Array.isArray(recDono.pessoas)?recDono.pessoas.join('\n'):recDono.pessoas;
   } catch(e) { el.innerHTML='<div style="color:var(--alert,#f87171)">Erro: '+e.message+'</div>'; }
 }
 
@@ -13696,29 +13688,27 @@ async function origV8SalvarAmbientacaoForm() {
   const origId = window._pjAbertoOrigId || _origV8State?.origId;
   const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
   const statusEl = document.getElementById('amb-status');
-  if(statusEl) statusEl.textContent = 'Salvando...';
+  if(statusEl) statusEl.textContent='Salvando...';
   const amb = {};
-  document.querySelectorAll('[data-arq-nome][data-campo]').forEach(inp => {
-    const nome = inp.dataset.arqNome;
-    const campo = inp.dataset.campo;
-    if (!nome) return;
-    if (!amb[nome]) amb[nome] = {};
-    amb[nome][campo] = inp.value.split(',').map(s=>s.trim()).filter(Boolean);
+  document.querySelectorAll('[data-arq-nome][data-campo]').forEach(inp=>{
+    const nome=inp.dataset.arqNome;const campo=inp.dataset.campo;
+    if(!nome)return;if(!amb[nome])amb[nome]={};
+    amb[nome][campo]=inp.value.split(',').map(s=>s.trim()).filter(Boolean);
   });
   const sugestoes_dono = {
-    eventos: document.getElementById('amb-dono-eventos')?.value?.split('\n').filter(Boolean)||[],
-    grupos: document.getElementById('amb-dono-grupos')?.value?.split('\n').filter(Boolean)||[],
-    pessoas: document.getElementById('amb-dono-pessoas')?.value?.split('\n').filter(Boolean)||[],
+    eventos:document.getElementById('amb-dono-eventos')?.value?.split('\n').filter(Boolean)||[],
+    grupos:document.getElementById('amb-dono-grupos')?.value?.split('\n').filter(Boolean)||[],
+    pessoas:document.getElementById('amb-dono-pessoas')?.value?.split('\n').filter(Boolean)||[],
   };
   try {
-    const ro = await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId+'&select=busca_config_jsonb',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
-    const rows = await ro.json();
-    const config = {...(rows?.[0]?.busca_config_jsonb||{}), ambientacao: amb, sugestoes_dono};
+    const ro=await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId+'&select=busca_config_jsonb',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+    const rows=await ro.json();
+    const config={...(rows?.[0]?.busca_config_jsonb||{}),ambientacao:amb,sugestoes_dono};
     await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId,{method:'PATCH',headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({busca_config_jsonb:config,updated_at:new Date().toISOString()})});
-    if(window._origV8CtxAtual?.originacao){window._origV8CtxAtual.originacao.busca_config_jsonb=config;}
+    if(window._origV8CtxAtual?.originacao) window._origV8CtxAtual.originacao.busca_config_jsonb=config;
     if(statusEl){statusEl.textContent='✓ Salvo';statusEl.style.color='var(--accent,#22c55e)';}
     setTimeout(()=>{if(statusEl)statusEl.textContent='';},3000);
-  } catch(e) { if(statusEl){statusEl.textContent='✗ Erro: '+e.message;statusEl.style.color='var(--alert,#f87171)';} }
+  } catch(e){if(statusEl){statusEl.textContent='✗ Erro: '+e.message;statusEl.style.color='var(--alert,#f87171)';}}
 }
 
 async function origV8CarregarResumoCompleto() {
@@ -13726,167 +13716,134 @@ async function origV8CarregarResumoCompleto() {
   const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
   const esc = s => String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   try {
-    const r = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=nome,tipo,vetor,capacidade_financeira,mensagem_abordagem&order=created_at.asc',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
-    const arqs = await r.json();
-    const arqsEl = document.getElementById('orig-resumo-arqs');
-    if (arqsEl) {
-      arqsEl.innerHTML = arqs?.length
-        ? '<div style="padding:12px;background:var(--surface);border-radius:8px;margin-bottom:12px"><div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Arquétipos ativos ('+arqs.length+')</div>'
-          + arqs.map(a=>'<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--line)"><span>'+esc(a.nome)+'</span><span style="color:var(--ink-3);font-size:11px">'+esc(a.tipo)+'</span></div>').join('')
-          + '</div>'
-        : '';
+    const r=await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=nome,tipo,vetor,capacidade_financeira,mensagem_abordagem&order=created_at.asc',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+    const arqs=await r.json();
+    const arqsEl=document.getElementById('orig-resumo-arqs');
+    if(arqsEl&&arqs?.length) {
+      arqsEl.innerHTML='<div style="padding:12px;background:var(--surface);border-radius:8px;margin-bottom:10px">'
+        +'<div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Arquétipos ativos ('+arqs.length+')</div>'
+        +arqs.map(a=>'<div style="padding:6px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between"><span style="font-size:12px">'+esc(a.nome||a.tipo)+'</span><span style="font-size:11px;color:var(--ink-3)">'+esc(a.tipo)+'</span></div>').join('')
+        +'</div>';
+    } else if(arqsEl) arqsEl.innerHTML='';
+    const queriesEl=document.getElementById('orig-resumo-queries');
+    if(queriesEl&&arqs?.length) {
+      const neg=window._origV8CtxAtual?.negocio;
+      const setor=neg?.setor||'';const cidade=neg?.cidade||'SP';
+      queriesEl.innerHTML='<div style="padding:12px;background:var(--surface);border-radius:8px">'
+        +'<div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Queries sugeridas para o Arsenal</div>'
+        +arqs.map(a=>'<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">'+esc(a.nome||a.tipo)+'</div>'
+          +'<div style="font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-bottom:2px">📍 GMaps: "'+esc(setor)+' '+esc(cidade)+'"</div>'
+          +'<div style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">💼 LinkedIn: "'+esc(a.tipo.replace(/_/g,' '))+' '+esc(cidade)+'"</div>'
+          +'</div>').join('')
+        +'</div>';
     }
-    const queriesEl = document.getElementById('orig-resumo-queries');
-    if (queriesEl && arqs?.length) {
-      const queries = arqs.map(a => {
-        const neg = window._origV8CtxAtual?.negocio;
-        const setor = neg?.setor||'';
-        const cidade = neg?.cidade||'SP';
-        return '<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--ink)">'+esc(a.nome)+'</div>'
-          + '<div style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">GMaps: "'+esc(setor)+' '+esc(cidade)+'"</div>'
-          + '<div style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">LinkedIn: "'+esc(a.tipo.replace(/_/g,' '))+' '+esc(cidade)+'"</div>'
-          + '</div>';
-      }).join('');
-      queriesEl.innerHTML = '<div style="padding:12px;background:var(--surface);border-radius:8px"><div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Queries sugeridas para o Arsenal</div>'+queries+'</div>';
-    }
-  } catch(e) { console.warn('CarregarResumoCompleto erro:', e); }
+  } catch(e){ console.warn('ResumoCompleto:', e); }
 }
 
 function origV8CopiarResumo() {
-  const el = document.getElementById('orig-resumo-folha');
-  if (!el) return;
+  const el=document.getElementById('orig-resumo-folha');
+  if(!el)return;
   navigator.clipboard.writeText(el.innerText||el.textContent||'').then(()=>origToast&&origToast('✓ Resumo copiado'));
 }
 
 async function origV8SalvarTeseForm() {
-  const campos = ['diferencial_competitivo','pontos_atencao','motivo_venda','prazo_desejado'];
-  const tese = {};
-  campos.forEach(k => {
-    const el = document.getElementById('tese-'+k);
-    if (el && el.value.trim()) tese[k] = el.value.trim();
-  });
-  const custom = [];
-  let i = 0;
-  while (document.getElementById('tese-custom-'+i)) {
-    const el = document.getElementById('tese-custom-'+i);
-    const ctx2 = window._origV8CtxAtual?.originacao?.tese_jsonb?._campos_custom || [];
-    if (el && ctx2[i]) custom.push({titulo: ctx2[i].titulo, valor: el.value.trim()});
+  const campos=['tese_principal','diferenciais','oportunidades','motivo_venda','prazo_desejado'];
+  const tese={};
+  campos.forEach(k=>{const el=document.getElementById('tese-'+k);if(el&&el.value.trim())tese[k]=el.value.trim();});
+  const custom=[];let i=0;
+  while(document.getElementById('tese-custom-'+i)){
+    const el=document.getElementById('tese-custom-'+i);
+    const ctx2=window._origV8CtxAtual?.originacao?.tese_jsonb?._campos_custom||[];
+    if(el&&ctx2[i])custom.push({titulo:ctx2[i].titulo,valor:el.value.trim()});
     i++;
   }
-  if (custom.length) tese._campos_custom = custom;
-  const origId = window._pjAbertoOrigId || _origV8State?.origId;
-  const statusEl = document.getElementById('tese-status');
-  const setStatus = (t,c) => { if(statusEl){statusEl.textContent=t;statusEl.style.color=c||'var(--ink-3)';} };
-  if (!origId) { setStatus('✗ Originação não encontrada','#dc2626'); return; }
+  if(custom.length)tese._campos_custom=custom;
+  const origId=window._pjAbertoOrigId||_origV8State?.origId;
+  const statusEl=document.getElementById('tese-status');
+  const setStatus=(t,c)=>{if(statusEl){statusEl.textContent=t;statusEl.style.color=c||'var(--ink-3)';}};
+  if(!origId){setStatus('✗ Originação não encontrada','#dc2626');return;}
   setStatus('Salvando…');
-  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  const sbUrl=(typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
   try {
-    const r = await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId,{method:'PATCH',headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({tese_jsonb:tese,updated_at:new Date().toISOString()})});
-    if (!r.ok) { setStatus('✗ Erro HTTP '+r.status,'#dc2626'); return; }
+    const r=await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId,{method:'PATCH',headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({tese_jsonb:tese,updated_at:new Date().toISOString()})});
+    if(!r.ok){setStatus('✗ Erro HTTP '+r.status,'#dc2626');return;}
     setStatus('✓ Salvo','var(--accent,#22c55e)');
     setTimeout(()=>setStatus(''),3000);
-    if (window._origV8CtxAtual?.originacao) window._origV8CtxAtual.originacao.tese_jsonb = tese;
-    if (typeof pjV347AtualizarFaseIndicator==='function') pjV347AtualizarFaseIndicator();
-  } catch(e) { setStatus('✗ Erro: '+e.message,'#dc2626'); }
+    if(window._origV8CtxAtual?.originacao)window._origV8CtxAtual.originacao.tese_jsonb=tese;
+    if(typeof pjV347AtualizarFaseIndicator==='function')pjV347AtualizarFaseIndicator();
+  } catch(e){setStatus('✗ Erro: '+e.message,'#dc2626');}
 }
 
 async function origV8AvancarParaArquetipos() {
   await origV8SalvarTeseForm();
-  const origId = window._pjAbertoOrigId || _origV8State?.origId;
-  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
-  const tese = window._origV8CtxAtual?.originacao?.tese_jsonb || {};
-  if (!tese.diferencial_competitivo) { alert('Preencha pelo menos o Diferencial competitivo antes de avançar.'); return; }
+  const tese=window._origV8CtxAtual?.originacao?.tese_jsonb||{};
+  if(!tese.tese_principal&&!tese.diferenciais){alert('Preencha pelo menos a Tese principal ou os Diferenciais antes de avançar.');return;}
+  const origId=window._pjAbertoOrigId||_origV8State?.origId;
+  const sbUrl=(typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
   await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId,{method:'PATCH',headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({tese_fechada_em:new Date().toISOString(),updated_at:new Date().toISOString()})});
-  if (window._origV8CtxAtual?.originacao) window._origV8CtxAtual.originacao.tese_fechada_em = new Date().toISOString();
-  origToast && origToast('✓ Tese salva');
+  if(window._origV8CtxAtual?.originacao)window._origV8CtxAtual.originacao.tese_fechada_em=new Date().toISOString();
+  origToast&&origToast('✓ Tese salva');
   origV8SetAbaForm('arquetipos');
 }
 
 function origV8AdicionarCampoCustom() {
-  const titulo = prompt('Nome do campo personalizado:');
-  if (!titulo?.trim()) return;
-  const orig = window._origV8CtxAtual?.originacao;
-  if (!orig) return;
-  if (!orig.tese_jsonb) orig.tese_jsonb = {};
-  if (!orig.tese_jsonb._campos_custom) orig.tese_jsonb._campos_custom = [];
-  orig.tese_jsonb._campos_custom.push({titulo: titulo.trim(), valor: ''});
+  const titulo=prompt('Nome do campo personalizado:');
+  if(!titulo?.trim())return;
+  const orig=window._origV8CtxAtual?.originacao;
+  if(!orig)return;
+  if(!orig.tese_jsonb)orig.tese_jsonb={};
+  if(!orig.tese_jsonb._campos_custom)orig.tese_jsonb._campos_custom=[];
+  orig.tese_jsonb._campos_custom.push({titulo:titulo.trim(),valor:''});
   origV8SetAbaForm('tese');
 }
 
 function origV8RemoverCampoCustom(idx) {
-  const orig = window._origV8CtxAtual?.originacao;
-  if (!orig?.tese_jsonb?._campos_custom) return;
-  orig.tese_jsonb._campos_custom.splice(idx, 1);
+  const orig=window._origV8CtxAtual?.originacao;
+  if(!orig?.tese_jsonb?._campos_custom)return;
+  orig.tese_jsonb._campos_custom.splice(idx,1);
   origV8SetAbaForm('tese');
 }
 
 async function origV8ResetarInteligencia() {
-  if (!confirm('Apagar tudo (tese, arquétipos, ambientação) e recomeçar?')) return;
-  const origId = window._pjAbertoOrigId || _origV8State?.origId;
-  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  if(!confirm('Apagar tudo (tese, arquétipos, ambientação) e recomeçar?'))return;
+  const origId=window._pjAbertoOrigId||_origV8State?.origId;
+  const sbUrl=(typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
   await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId,{method:'PATCH',headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({tese_chat_historico:[],tese_jsonb:null,tese_fechada_em:null,arquetipos_fechados_em:null,busca_config_jsonb:null,updated_at:new Date().toISOString()})});
   await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId,{method:'DELETE',headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
   if(window._origV8CtxAtual?.originacao){const o=window._origV8CtxAtual.originacao;o.tese_jsonb=null;o.tese_fechada_em=null;o.arquetipos_fechados_em=null;o.busca_config_jsonb=null;}
-  window._origV8AbaForm = 'tese';
-  origToast && origToast('✓ Inteligência resetada');
+  window._origV8AbaForm='tese';window._origArqsSalvos=new Set();
+  origToast&&origToast('✓ Inteligência resetada');
   origV8SetAbaForm('tese');
 }
 
-window._origCopilotHistorico = window._origCopilotHistorico || [];
-window._origCopilotLocked = false;
+window._origCopilotHistorico=window._origCopilotHistorico||[];
+window._origCopilotLocked=false;
 
 async function origV8CopilotEnviar() {
-  if (window._origCopilotLocked) return;
-  const ta = document.getElementById('orig-copilot-input');
-  const msg = (ta?.value||'').trim();
-  if (!msg) return;
-  ta.value = '';
-  window._origCopilotLocked = true;
+  if(window._origCopilotLocked)return;
+  const ta=document.getElementById('orig-copilot-input');
+  const msg=(ta?.value||'').trim();if(!msg)return;
+  ta.value='';window._origCopilotLocked=true;
   window._origCopilotHistorico.push({role:'user',content:msg});
   origV8CopilotRender();
   try {
-    const ctx2 = window._origV8ContextoNegocio || {};
-    const tese2 = window._origV8CtxAtual?.originacao?.tese_jsonb || {};
-    const abaAtual = window._origV8AbaForm || 'tese';
-    const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
-    const r = await fetch(sbUrl+'/functions/v1/tese-agente-chat',{
-      method:'POST',
-      headers:{'Authorization':'Bearer '+origV2Token(),'Content-Type':'application/json'},
-      body:JSON.stringify({
-        originacao_id: window._pjAbertoOrigId || _origV8State?.origId,
-        mensagem: msg,
-        fase_atual: 'livre',
-        historico: window._origCopilotHistorico.slice(-10),
-        contexto_negocio: {...ctx2, tese_atual: tese2, aba_ativa: abaAtual},
-      }),
-    });
-    const data = await r.json();
+    const ctx2=window._origV8ContextoNegocio||{};
+    const tese2=window._origV8CtxAtual?.originacao?.tese_jsonb||{};
+    const sbUrl=(typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+    const r=await fetch(sbUrl+'/functions/v1/tese-agente-chat',{method:'POST',headers:{'Authorization':'Bearer '+origV2Token(),'Content-Type':'application/json'},body:JSON.stringify({originacao_id:window._pjAbertoOrigId||_origV8State?.origId,mensagem:msg,fase_atual:'livre',historico:window._origCopilotHistorico.slice(-10),contexto_negocio:{...ctx2,tese_atual:tese2,aba_ativa:window._origV8AbaForm||'tese'}})});
+    const data=await r.json();
     window._origCopilotHistorico.push({role:'assistant',content:data.resposta||data.erro||'Sem resposta'});
-  } catch(e) {
-    window._origCopilotHistorico.push({role:'assistant',content:'✗ Erro: '+e.message});
-  } finally {
-    window._origCopilotLocked = false;
-    origV8CopilotRender();
-  }
+  } catch(e){window._origCopilotHistorico.push({role:'assistant',content:'✗ Erro: '+e.message});}
+  finally{window._origCopilotLocked=false;origV8CopilotRender();}
 }
 
 function origV8CopilotRender() {
-  const cont = document.getElementById('orig-copilot-msgs');
-  if (!cont) return;
-  const esc = s => String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-  if (!window._origCopilotHistorico.length) {
-    cont.innerHTML = '<div style="text-align:center;padding:20px;color:var(--ink-4);font-size:11px">Use os atalhos abaixo ou faça uma pergunta</div>';
-    return;
-  }
-  cont.innerHTML = window._origCopilotHistorico.map(m => {
-    const isU = m.role==='user';
-    return '<div style="display:flex;gap:6px;align-items:flex-start;'+(isU?'flex-direction:row-reverse':'')+'">'
-      + '<div style="width:22px;height:22px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">'+(isU?'👤':'🤖')+'</div>'
-      + '<div style="background:'+(isU?'var(--accent-soft,rgba(34,197,94,.12))':'var(--surface-2)')+';border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.5;max-width:85%;color:var(--ink)">'+esc(m.content).replace(/\n/g,'<br>')+'</div>'
-      + '</div>';
-  }).join('');
-  if (window._origCopilotLocked) cont.innerHTML += '<div style="display:flex;gap:6px"><div style="width:22px;height:22px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:11px">🤖</div><div style="background:var(--surface-2);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--ink-3)">⏳</div></div>';
-  cont.scrollTop = cont.scrollHeight;
+  const cont=document.getElementById('orig-copilot-msgs');if(!cont)return;
+  const esc=s=>String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  if(!window._origCopilotHistorico.length){cont.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-4);font-size:11px">Use os atalhos ou faça uma pergunta</div>';return;}
+  cont.innerHTML=window._origCopilotHistorico.map(m=>{const isU=m.role==='user';return'<div style="display:flex;gap:6px;align-items:flex-start;'+(isU?'flex-direction:row-reverse':'')+'">'+'<div style="width:22px;height:22px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">'+(isU?'👤':'🤖')+'</div>'+'<div style="background:'+(isU?'var(--accent-soft,rgba(34,197,94,.12))':'var(--surface-2)')+';border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.5;max-width:85%;color:var(--ink)">'+esc(m.content).replace(/\n/g,'<br>')+'</div></div>';}).join('');
+  if(window._origCopilotLocked)cont.innerHTML+='<div style="display:flex;gap:6px"><div style="width:22px;height:22px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:11px">🤖</div><div style="background:var(--surface-2);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--ink-3)">⏳</div></div>';
+  cont.scrollTop=cont.scrollHeight;
 }
 
 window.origV8HtmlAba = origV8HtmlAba;
