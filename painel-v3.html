@@ -13342,53 +13342,395 @@ async function origV8CarregarContextoNegocio(negocioId, metaId) {
 }
 window.origV8CarregarContextoNegocio = origV8CarregarContextoNegocio;
 
-// Layout 2-pane: chat (3fr) + box tese (2fr)
+// v9.41.0 · NOVO MODELO · Formulário direto + IA Copilot lateral
+// Consultor preenche na mão · IA ajuda quando quer · controle total
 function origV8HtmlAba(ctx) {
-  const tese = ctx?.originacao?.tese_jsonb || null;
-  const FASES = [
-    { key:'tese',        label:'Tese' },
-    { key:'arquetipos',  label:'Arquétipos' },
-    { key:'ambientacao', label:'Ambientação' },
-    { key:'livre',       label:'Estratégia' },
-  ];
-  const fase = _origV8State.faseAtual || 'tese';
-  const faseIdx = FASES.findIndex(f => f.key === fase);
-  const pills = FASES.map((f, i) => {
-    const ativa = i === faseIdx;
-    const concluida = i < faseIdx;
-    const bg = ativa ? 'var(--accent,#22c55e)' : concluida ? 'var(--accent-soft,rgba(34,197,94,.15))' : 'var(--surface-2,var(--bg))';
-    const cor = ativa ? '#000' : concluida ? 'var(--accent,#22c55e)' : 'var(--ink-3)';
-    const peso = ativa ? '700' : '500';
-    return '<span onclick="origV8MudarFase(\'' + f.key + '\')" title="Ir para ' + f.label + '" style="font-size:10px;padding:3px 10px;border-radius:999px;background:' + bg + ';color:' + cor + ';font-weight:' + peso + ';cursor:pointer">' + (concluida ? '✓ ' : '') + f.label + '</span>';
-  }).join('');
+  const orig = ctx?.originacao || {};
+  const tese = orig.tese_jsonb || {};
+  const teseFechada = !!orig.tese_fechada_em;
+  const arqsFechados = !!orig.arquetipos_fechados_em;
+  const ambFechada = !!(orig.busca_config_jsonb?.ambientacao && Object.keys(orig.busca_config_jsonb.ambientacao).length > 0);
+  const abaAtiva = window._origV8AbaForm || 'tese';
+  const esc = (s) => String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
-  return ''
-    + '<div style="display:flex;flex-direction:column;height:100%">'
-    +   '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px">'
-    +     '<div><div style="font-family:var(--serif);font-size:17px;font-weight:700">🧠 Inteligência</div>'
-    +       '<div style="font-size:12px;color:var(--ink-3)">Tese · Arquétipos · Ambientação · Estratégia</div></div>'
-    +     '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
-    +       pills
-    +       '<button onclick="origV8Reiniciar()" title="Reiniciar chat (limpa histórico)" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:3px 8px;font-size:10px;color:var(--ink-4);cursor:pointer;margin-left:4px">🔄</button>'
-    +     '</div>'
-    +   '</div>'
-    +   '<div class="orig-v8-2pane" style="display:grid;grid-template-columns:3fr 2fr;gap:14px;flex:1;min-height:0">'
-    +     '<div style="display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-2);border-radius:12px;overflow:hidden;min-height:420px">'
-    +       '<div id="orig-chat-msgs" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px"></div>'
-    +       '<div id="orig-chat-output" style="padding:0 12px"></div>'
-    +       '<div style="padding:8px 12px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px">'
-    +         '<input type="file" id="orig-transcricao-file" style="display:none" accept=".txt,.md" onchange="origV8ProcessarTranscricao(this.files[0])">'
-    +         '<button onclick="origV8AbrirUploadTranscricao()" id="btn-upload-transcricao" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--ink-3);cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .15s">📎 Transcrição</button>'
-    +         '<div id="transcricao-status" style="font-size:11px;color:var(--ink-3);flex:1"></div>'
-    +       '</div>'
-    +       '<div style="padding:12px;border-top:1px solid var(--line);display:flex;gap:8px">'
-    +         '<textarea id="orig-chat-input" rows="2" placeholder="Digite sua resposta..." onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();origV8Submit2Pane()}" style="flex:1;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;resize:none;font-family:var(--sans);line-height:1.4;box-sizing:border-box"></textarea>'
-    +         '<button onclick="origV8Submit2Pane()" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;align-self:flex-end">Enviar →</button>'
-    +       '</div>'
-    +     '</div>'
-    +     '<div style="overflow-y:auto;min-height:420px">' + origV8HtmlPainelDireito(ctx) + '</div>'
-    +   '</div>'
+  const tabStyle = (k) => {
+    const on = abaAtiva === k;
+    return 'padding:8px 14px;font-size:12px;font-weight:'+(on?'700':'500')+';cursor:pointer;border:none;border-bottom:2px solid '+(on?'var(--accent,#22c55e)':'transparent')+';color:'+(on?'var(--ink)':'var(--ink-3)')+';background:transparent;font-family:var(--sans)';
+  };
+  const tabs = '<div style="display:flex;border-bottom:1px solid var(--line-2);margin-bottom:16px">'
+    + '<button style="'+tabStyle('tese')+'" data-origformaba="tese">📋 Tese'+(teseFechada?' ✓':'')+'</button>'
+    + '<button style="'+tabStyle('arquetipos')+'" data-origformaba="arquetipos">👥 Arquétipos'+(arqsFechados?' ✓':'')+'</button>'
+    + '<button style="'+tabStyle('ambientacao')+'" data-origformaba="ambientacao">🗺️ Ambientação'+(ambFechada?' ✓':'')+'</button>'
     + '</div>';
+
+  let formCorpo = '';
+
+  if (abaAtiva === 'tese') {
+    const campos = [
+      { key:'diferencial_competitivo', label:'Diferencial competitivo', ph:'O que torna este negócio único e defensável?', rows:3 },
+      { key:'perfil_comprador_ideal',  label:'Perfil do comprador ideal', ph:'Quem teria mais a ganhar com essa aquisição?', rows:2 },
+      { key:'justificativa_preco',     label:'Justificativa do preço', ph:'Múltiplo, benchmark setorial, por que o preço faz sentido?', rows:2 },
+      { key:'riscos_principais',       label:'Pontos de atenção', ph:'Liste os principais riscos e fragilidades do negócio', rows:3 },
+      { key:'motivo_venda',            label:'Motivo da venda', ph:'Por que o dono está vendendo agora?', rows:2 },
+      { key:'prazo_desejado',          label:'Prazo desejado', ph:'Em quanto tempo o dono quer concluir a venda?', rows:1 },
+    ];
+    formCorpo = campos.map(f => {
+      const v = tese[f.key];
+      const txt = Array.isArray(v) ? v.join(', ') : (v||'');
+      return '<div style="margin-bottom:14px">'
+        + '<div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">'+f.label+'</div>'
+        + '<textarea id="tese-'+f.key+'" rows="'+f.rows+'" placeholder="'+esc(f.ph)+'" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;resize:vertical;box-sizing:border-box;font-family:var(--sans);line-height:1.5">'+esc(txt)+'</textarea>'
+        + '</div>';
+    }).join('');
+    formCorpo += '<div style="display:flex;gap:8px;margin-top:4px">'
+      + '<button onclick="origV8SalvarTeseForm()" style="flex:1;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">💾 Salvar tese</button>'
+      + (teseFechada
+        ? '<button onclick="origV8SetAbaForm(\'arquetipos\')" style="flex:1;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink)">Ir para Arquétipos →</button>'
+        : '<button onclick="origV8AvancarParaArquetipos()" style="flex:1;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink-3)">Concluir e ir para Arquétipos →</button>')
+      + '</div>'
+      + '<div id="tese-status" style="font-size:11px;color:var(--ink-3);text-align:center;margin-top:8px;min-height:14px"></div>';
+  }
+
+  else if (abaAtiva === 'arquetipos') {
+    formCorpo = '<div id="orig-arqs-form-lista">Carregando...</div>'
+      + '<button onclick="origV8AbrirModalArquetipo(null)" style="width:100%;background:transparent;border:1px dashed var(--line-2);border-radius:8px;padding:10px;font-size:13px;color:var(--ink-3);cursor:pointer;margin-top:10px">+ Adicionar arquétipo</button>'
+      + '<div style="margin-top:14px;display:flex;gap:8px">'
+      + (arqsFechados
+        ? '<button onclick="origV8SetAbaForm(\'ambientacao\')" style="flex:1;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink)">Ir para Ambientação →</button>'
+        : '<button onclick="origV8ConcluirArquetipos()" style="flex:1;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink-3)">Concluir arquétipos →</button>')
+      + '</div>';
+    setTimeout(origV8CarregarArquetiposForm, 80);
+  }
+
+  else if (abaAtiva === 'ambientacao') {
+    formCorpo = '<div id="orig-amb-form-lista">Carregando...</div>';
+    setTimeout(origV8CarregarAmbientacaoForm, 80);
+  }
+
+  const copilot = '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:14px;display:flex;flex-direction:column;height:100%;box-sizing:border-box">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">🤖 IA Copilot</div>'
+    + '<div style="font-size:11px;color:var(--ink-3);margin-bottom:10px;line-height:1.5">Conheço o negócio e a metodologia. Pergunte o que quiser — sugestões, provocações, conceitos.</div>'
+    + '<div id="orig-copilot-msgs" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;min-height:200px;max-height:380px"></div>'
+    + '<div style="margin-top:10px;display:flex;gap:6px">'
+    +   '<textarea id="orig-copilot-input" rows="2" placeholder="Pergunte ao copilot..." onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();origV8CopilotEnviar()}" style="flex:1;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:8px 10px;color:var(--ink);font-size:12px;resize:none;font-family:var(--sans);line-height:1.4;box-sizing:border-box"></textarea>'
+    +   '<button onclick="origV8CopilotEnviar()" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;align-self:flex-end">→</button>'
+    + '</div>'
+    + '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">'
+    +   ['Quais diferenciais você vê?','Riscos deste negócio?','Sugestão de arquétipos?','Justificativa do preço?'].map(s =>
+        '<button onclick="origV8CopilotSugestao(\''+esc(s)+'\')" style="background:var(--surface-2);border:1px solid var(--line-2);border-radius:999px;padding:3px 10px;font-size:10px;color:var(--ink-3);cursor:pointer;font-family:var(--sans)">'+esc(s)+'</button>'
+      ).join('')
+    + '</div>'
+    + '</div>';
+
+  return '<div style="display:flex;flex-direction:column;height:100%">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+    +   '<div><div style="font-family:var(--serif);font-size:17px;font-weight:700">🧠 Inteligência</div>'
+    +   '<div style="font-size:12px;color:var(--ink-3)">Tese · Arquétipos · Ambientação</div></div>'
+    +   '<button onclick="origV8ResetarInteligencia()" title="Apagar tudo e recomeçar" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:3px 8px;font-size:10px;color:var(--ink-4);cursor:pointer">🗑 Resetar</button>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:3fr 2fr;gap:14px;flex:1;min-height:0">'
+    +   '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:16px;overflow-y:auto">'
+    +     tabs + formCorpo
+    +   '</div>'
+    +   '<div>' + copilot + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function origV8SetAbaForm(aba) {
+  window._origV8AbaForm = aba;
+  if (window._origV8CtxAtual) {
+    const host = document.querySelector('[id^="pj-inteligencia-host-"]');
+    if (host) { host.innerHTML = origV8HtmlAba(window._origV8CtxAtual); return; }
+  }
+  origV8RenderChat();
+}
+
+document.addEventListener('click', function(e) {
+  const aba = e.target && e.target.getAttribute && e.target.getAttribute('data-origformaba');
+  if (aba) origV8SetAbaForm(aba);
+});
+
+async function origV8SalvarTeseForm() {
+  const campos = ['diferencial_competitivo','perfil_comprador_ideal','justificativa_preco','riscos_principais','motivo_venda','prazo_desejado'];
+  const tese = {};
+  campos.forEach(k => {
+    const el = document.getElementById('tese-'+k);
+    if (el && el.value.trim()) tese[k] = el.value.trim();
+  });
+  const origId = window._pjAbertoOrigId || _origV8State.origId;
+  const statusEl = document.getElementById('tese-status');
+  const setStatus = (t,c) => { if(statusEl){statusEl.textContent=t;statusEl.style.color=c||'var(--ink-3)';} };
+  if (!origId) { setStatus('✗ Originação não encontrada','#dc2626'); return; }
+  setStatus('Salvando…');
+  try {
+    const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+    const r = await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId, {
+      method:'PATCH',
+      headers:{...origV2Headers(),'Prefer':'return=minimal'},
+      body:JSON.stringify({tese_jsonb:tese,updated_at:new Date().toISOString()}),
+    });
+    if (!r.ok) { setStatus('✗ Erro HTTP '+r.status,'#dc2626'); return; }
+    setStatus('✓ Salvo','var(--accent,#22c55e)');
+    setTimeout(()=>setStatus(''),3000);
+    if (window._origV8CtxAtual?.originacao) window._origV8CtxAtual.originacao.tese_jsonb = tese;
+    if (typeof pjV347AtualizarFaseIndicator==='function') pjV347AtualizarFaseIndicator();
+  } catch(e) { setStatus('✗ Erro: '+e.message,'#dc2626'); }
+}
+
+async function origV8AvancarParaArquetipos() {
+  const campos = ['diferencial_competitivo','perfil_comprador_ideal','justificativa_preco','riscos_principais','motivo_venda','prazo_desejado'];
+  const tese = {};
+  campos.forEach(k => {
+    const el = document.getElementById('tese-'+k);
+    if (el && el.value.trim()) tese[k] = el.value.trim();
+  });
+  const obrigatorios = ['diferencial_competitivo','perfil_comprador_ideal','justificativa_preco','riscos_principais'];
+  const faltando = obrigatorios.filter(k => !tese[k]);
+  if (faltando.length > 0) { alert('Preencha os campos obrigatórios antes de avançar: '+faltando.map(k=>k.replace(/_/g,' ')).join(', ')); return; }
+  const origId = window._pjAbertoOrigId || _origV8State.origId;
+  if (!origId) return;
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  try {
+    await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId, {
+      method:'PATCH',
+      headers:{...origV2Headers(),'Prefer':'return=minimal'},
+      body:JSON.stringify({tese_jsonb:tese,tese_fechada_em:new Date().toISOString(),updated_at:new Date().toISOString()}),
+    });
+    if (window._origV8CtxAtual?.originacao) {
+      window._origV8CtxAtual.originacao.tese_jsonb = tese;
+      window._origV8CtxAtual.originacao.tese_fechada_em = new Date().toISOString();
+    }
+    origToast && origToast('✓ Tese salva');
+    origV8SetAbaForm('arquetipos');
+  } catch(e) { alert('Erro: '+e.message); }
+}
+
+async function origV8CarregarArquetiposForm() {
+  const el = document.getElementById('orig-arqs-form-lista');
+  if (!el) return;
+  const origId = window._pjAbertoOrigId || _origV8State.origId;
+  if (!origId) { el.innerHTML = ''; return; }
+  const esc = (s) => String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  try {
+    const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+    const r = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=id,nome,tipo,vetor,capacidade_financeira,mensagem_abordagem&order=created_at.asc',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+    const arqs = await r.json();
+    if (!Array.isArray(arqs)||arqs.length===0) { el.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-3);font-size:12px">Nenhum arquétipo adicionado ainda.<br>Clique em "+ Adicionar arquétipo" para começar.</div>'; return; }
+    el.innerHTML = arqs.map(a => '<div style="background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:12px;margin-bottom:8px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'
+      +   '<div><strong style="font-size:13px">'+esc(a.nome)+'</strong><span style="font-size:10px;color:var(--ink-3);background:var(--surface-2);padding:1px 7px;border-radius:3px;margin-left:8px">'+esc(a.tipo)+'</span></div>'
+      +   '<div style="display:flex;gap:6px">'
+      +     '<button onclick="origV8AbrirModalArquetipo(\''+a.id+'\')" style="background:transparent;border:1px solid var(--line-2);border-radius:5px;padding:2px 8px;font-size:11px;cursor:pointer;color:var(--ink-3)">Editar</button>'
+      +     '<button onclick="origV8RemoverArquetipo(\''+a.id+'\')" style="background:transparent;border:1px solid var(--alert,#ff6b5c);border-radius:5px;padding:2px 8px;font-size:11px;cursor:pointer;color:var(--alert,#ff6b5c)">×</button>'
+      +   '</div>'
+      + '</div>'
+      + (a.vetor?'<div style="font-size:12px;color:var(--ink-2);margin-bottom:3px">'+esc(a.vetor)+'</div>':'')
+      + (a.capacidade_financeira?'<div style="font-size:11px;color:var(--ink-3)">💰 '+esc(a.capacidade_financeira)+'</div>':'')
+      + (a.mensagem_abordagem?'<div style="font-size:11px;color:var(--accent,#22c55e);margin-top:4px;font-style:italic">"'+esc(a.mensagem_abordagem)+'"</div>':'')
+      + '</div>'
+    ).join('');
+  } catch(e) { el.innerHTML='<div style="color:var(--alert,#f87171)">Erro: '+e.message+'</div>'; }
+}
+
+function origV8AbrirModalArquetipo(id) {
+  const esc = (s) => String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const DIMENSOES = ['horizontal','vertical_antes','vertical_depois','adjacente','clientes_negocio','investidor_financeiro','profissional_setor'];
+  const modal = document.createElement('div');
+  modal.id = 'orig-arq-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML = '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:16px;padding:24px;width:min(500px,95vw);max-height:90vh;overflow-y:auto">'
+    + '<div style="font-size:15px;font-weight:700;margin-bottom:16px">'+(id?'Editar':'Novo')+' arquétipo</div>'
+    + '<div style="margin-bottom:12px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Nome</div>'
+    +   '<input id="arq-nome" placeholder="Ex: Rede de lojas de produtos naturais" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;box-sizing:border-box;font-family:var(--sans)"></div>'
+    + '<div style="margin-bottom:12px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Dimensão</div>'
+    +   '<select id="arq-tipo" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;box-sizing:border-box;font-family:var(--sans)">'
+    +   DIMENSOES.map(d=>'<option value="'+d+'">'+d.replace(/_/g,' ')+'</option>').join('')
+    +   '</select></div>'
+    + '<div style="margin-bottom:12px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Lógica de compra</div>'
+    +   '<textarea id="arq-vetor" rows="2" placeholder="Por que compraria? Racional + emocional" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;resize:vertical;box-sizing:border-box;font-family:var(--sans)"></textarea></div>'
+    + '<div style="margin-bottom:12px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Capacidade financeira</div>'
+    +   '<input id="arq-cap" placeholder="Ex: R$ 400-600k" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;box-sizing:border-box;font-family:var(--sans)"></div>'
+    + '<div style="margin-bottom:16px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Mensagem de abordagem</div>'
+    +   '<textarea id="arq-msg" rows="2" placeholder="Como iniciar o contato com este perfil?" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;resize:vertical;box-sizing:border-box;font-family:var(--sans)"></textarea></div>'
+    + '<div style="display:flex;gap:8px">'
+    +   '<button onclick="document.getElementById(\'orig-arq-modal\').remove()" style="flex:1;background:transparent;border:1px solid var(--line-2);border-radius:8px;padding:10px;font-size:13px;cursor:pointer;color:var(--ink-3)">Cancelar</button>'
+    +   '<button onclick="origV8SalvarArquetipo(\''+esc(id||'')+'\')" style="flex:2;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer">💾 Salvar arquétipo</button>'
+    + '</div>'
+    + '</div>';
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+}
+
+async function origV8SalvarArquetipo(id) {
+  const nome = document.getElementById('arq-nome')?.value?.trim();
+  const tipo = document.getElementById('arq-tipo')?.value;
+  const vetor = document.getElementById('arq-vetor')?.value?.trim();
+  const cap = document.getElementById('arq-cap')?.value?.trim();
+  const msg = document.getElementById('arq-msg')?.value?.trim();
+  if (!nome) { alert('Nome é obrigatório'); return; }
+  const origId = window._pjAbertoOrigId || _origV8State.origId;
+  const projetoId = window._pjAbertoMeta?.id || _origV8State.projetoId;
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  const row = { originacao_id:origId, projeto_id:projetoId, nome, tipo, vetor, capacidade_financeira:cap, mensagem_abordagem:msg, status:'aprovado', criado_pela_ia:false };
+  try {
+    const method = id ? 'PATCH' : 'POST';
+    const url = id ? sbUrl+'/rest/v1/arquetipos_compradores?id=eq.'+id : sbUrl+'/rest/v1/arquetipos_compradores';
+    const r = await fetch(url,{method,headers:{...origV2Headers(),'Prefer':'return=minimal'},body:JSON.stringify(row)});
+    if (!r.ok) { alert('Erro HTTP '+r.status); return; }
+    document.getElementById('orig-arq-modal')?.remove();
+    origToast && origToast('✓ Arquétipo salvo');
+    origV8CarregarArquetiposForm();
+  } catch(e) { alert('Erro: '+e.message); }
+}
+
+async function origV8RemoverArquetipo(id) {
+  if (!confirm('Remover este arquétipo?')) return;
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  await fetch(sbUrl+'/rest/v1/arquetipos_compradores?id=eq.'+id,{method:'DELETE',headers:origV2Headers()});
+  origToast && origToast('Arquétipo removido');
+  origV8CarregarArquetiposForm();
+}
+
+async function origV8ConcluirArquetipos() {
+  const origId = window._pjAbertoOrigId || _origV8State.origId;
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  const r = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=id',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+  const arqs = await r.json();
+  if (!arqs?.length) { alert('Adicione pelo menos 1 arquétipo antes de concluir.'); return; }
+  await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId,{method:'PATCH',headers:{...origV2Headers(),'Prefer':'return=minimal'},body:JSON.stringify({arquetipos_fechados_em:new Date().toISOString(),updated_at:new Date().toISOString()})});
+  if (window._origV8CtxAtual?.originacao) window._origV8CtxAtual.originacao.arquetipos_fechados_em = new Date().toISOString();
+  origToast && origToast('✓ Arquétipos concluídos');
+  origV8SetAbaForm('ambientacao');
+}
+
+async function origV8CarregarAmbientacaoForm() {
+  const el = document.getElementById('orig-amb-form-lista');
+  if (!el) return;
+  const origId = window._pjAbertoOrigId || _origV8State.origId;
+  const esc = (s) => String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  try {
+    const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+    const r = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=id,nome&order=created_at.asc',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+    const arqs = await r.json();
+    if (!arqs?.length) { el.innerHTML='<div style="text-align:center;padding:20px;color:var(--ink-3);font-size:12px">Adicione arquétipos primeiro.</div>'; return; }
+    const ro = await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId+'&select=busca_config_jsonb',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+    const rows = await ro.json();
+    const ambSalva = rows?.[0]?.busca_config_jsonb?.ambientacao || {};
+    el.innerHTML = arqs.map(a => {
+      const d = ambSalva[a.nome] || {};
+      return '<div data-arq-nome="'+esc(a.nome)+'" style="background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:12px;margin-bottom:12px">'
+        + '<div style="font-size:13px;font-weight:700;margin-bottom:10px">'+esc(a.nome)+'</div>'
+        + ['grupos_online','associacoes','eventos_feiras','canais_digitais'].map(campo => {
+            const val = Array.isArray(d[campo]) ? d[campo].join(', ') : (d[campo]||'');
+            return '<div style="margin-bottom:8px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+campo.replace(/_/g,' ')+'</div>'
+              + '<input data-arq-id="'+a.id+'" data-campo="'+campo+'" value="'+esc(val)+'" placeholder="Separe por vírgula" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;box-sizing:border-box;font-family:var(--sans)"></div>';
+          }).join('')
+        + '</div>';
+    }).join('')
+    + '<button onclick="origV8SalvarAmbientacaoForm()" style="width:100%;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;margin-top:4px">💾 Salvar ambientação</button>'
+    + '<div id="amb-status" style="font-size:11px;color:var(--ink-3);text-align:center;margin-top:8px;min-height:12px"></div>';
+  } catch(e) { el.innerHTML='<div style="color:var(--alert,#f87171)">Erro: '+e.message+'</div>'; }
+}
+
+async function origV8SalvarAmbientacaoForm() {
+  const origId = window._pjAbertoOrigId || _origV8State.origId;
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  const inputs = document.querySelectorAll('[data-arq-id][data-campo]');
+  const amb = {};
+  inputs.forEach(inp => {
+    const card = inp.closest('[data-arq-nome]');
+    const nome = card?.getAttribute('data-arq-nome') || '';
+    if (!nome) return;
+    if (!amb[nome]) amb[nome] = {};
+    amb[nome][inp.dataset.campo] = inp.value.split(',').map(s=>s.trim()).filter(Boolean);
+  });
+  const statusEl = document.getElementById('amb-status');
+  if(statusEl) statusEl.textContent = 'Salvando...';
+  try {
+    const ro = await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId+'&select=busca_config_jsonb',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+    const rows = await ro.json();
+    const config = {...(rows?.[0]?.busca_config_jsonb||{}), ambientacao: amb};
+    await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId,{method:'PATCH',headers:{...origV2Headers(),'Prefer':'return=minimal'},body:JSON.stringify({busca_config_jsonb:config,updated_at:new Date().toISOString()})});
+    if(statusEl){statusEl.textContent='✓ Salvo';statusEl.style.color='var(--accent,#22c55e)';}
+    setTimeout(()=>{if(statusEl)statusEl.textContent='';},3000);
+  } catch(e) { if(statusEl){statusEl.textContent='✗ Erro: '+e.message;statusEl.style.color='var(--alert,#f87171)';} }
+}
+
+async function origV8ResetarInteligencia() {
+  if (!confirm('Apagar tudo (tese, arquétipos, ambientação) e recomeçar?')) return;
+  const origId = window._pjAbertoOrigId || _origV8State.origId;
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId,{method:'PATCH',headers:{...origV2Headers(),'Prefer':'return=minimal'},body:JSON.stringify({tese_chat_historico:[],tese_jsonb:null,tese_fechada_em:null,arquetipos_fechados_em:null,busca_config_jsonb:null,updated_at:new Date().toISOString()})});
+  await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId,{method:'DELETE',headers:origV2Headers()});
+  if(window._origV8CtxAtual?.originacao){const o=window._origV8CtxAtual.originacao;o.tese_jsonb=null;o.tese_fechada_em=null;o.arquetipos_fechados_em=null;o.busca_config_jsonb=null;}
+  window._origV8AbaForm = 'tese';
+  origToast && origToast('✓ Inteligência resetada');
+  origV8SetAbaForm('tese');
+}
+
+window._origCopilotHistorico = [];
+window._origCopilotLocked = false;
+
+async function origV8CopilotEnviar() {
+  if (window._origCopilotLocked) return;
+  const ta = document.getElementById('orig-copilot-input');
+  const msg = (ta?.value||'').trim();
+  if (!msg) return;
+  ta.value = '';
+  window._origCopilotLocked = true;
+  window._origCopilotHistorico.push({role:'user',content:msg});
+  origV8CopilotRender();
+  try {
+    const ctx = window._origV8ContextoNegocio || {};
+    const tese = window._origV8CtxAtual?.originacao?.tese_jsonb || {};
+    const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+    const r = await fetch(sbUrl+'/functions/v1/tese-agente-chat',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+origV2Token(),'Content-Type':'application/json'},
+      body:JSON.stringify({
+        originacao_id: window._pjAbertoOrigId || _origV8State.origId,
+        mensagem: msg,
+        fase_atual: 'livre',
+        historico: window._origCopilotHistorico.slice(-10),
+        contexto_negocio: {...ctx, tese_atual: tese},
+      }),
+    });
+    const data = await r.json();
+    const resposta = data.resposta || data.erro || 'Sem resposta';
+    window._origCopilotHistorico.push({role:'assistant',content:resposta});
+  } catch(e) {
+    window._origCopilotHistorico.push({role:'assistant',content:'✗ Erro: '+e.message});
+  } finally {
+    window._origCopilotLocked = false;
+    origV8CopilotRender();
+  }
+}
+
+function origV8CopilotSugestao(txt) {
+  const ta = document.getElementById('orig-copilot-input');
+  if (ta) { ta.value = txt; ta.focus(); }
+}
+
+function origV8CopilotRender() {
+  const cont = document.getElementById('orig-copilot-msgs');
+  if (!cont) return;
+  const esc = (s) => String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  if (window._origCopilotHistorico.length === 0) {
+    cont.innerHTML = '<div style="text-align:center;padding:20px;color:var(--ink-4);font-size:11px">Faça uma pergunta para o copilot</div>';
+    return;
+  }
+  cont.innerHTML = window._origCopilotHistorico.map(m => {
+    const isUser = m.role === 'user';
+    return '<div style="display:flex;gap:6px;align-items:flex-start;'+(isUser?'flex-direction:row-reverse':'')+'">'
+      + '<div style="width:22px;height:22px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">'+(isUser?'👤':'🤖')+'</div>'
+      + '<div style="background:'+(isUser?'var(--accent-soft,rgba(34,197,94,.12))':'var(--surface-2)')+';border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.5;max-width:85%;color:var(--ink)">'+esc(m.content).replace(/\n/g,'<br>')+'</div>'
+      + '</div>';
+  }).join('');
+  if (window._origCopilotLocked) {
+    cont.innerHTML += '<div style="display:flex;gap:6px;align-items:flex-start"><div style="width:22px;height:22px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:11px">🤖</div><div style="background:var(--surface-2);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--ink-3)">⏳ pensando...</div></div>';
+  }
+  cont.scrollTop = cont.scrollHeight;
 }
 
 // v9.40.3 · Painel direito com 3 abas: Tese · Arquétipos · Ambientação
