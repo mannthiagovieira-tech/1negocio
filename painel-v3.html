@@ -13985,11 +13985,135 @@ function origV8RenderCardPlano(card) {
       +'</div>' : '')
     +(card.resultado_texto?'<div style="font-size:10px;color:var(--ink-2);background:var(--bg);border-radius:4px;padding:4px 7px;margin-bottom:6px">📝 '+esc(card.resultado_texto)+'</div>':'')
     +'<div style="display:flex;gap:4px;flex-wrap:wrap">'
-    +(card.status==='pendente'?'<button onclick="origV8MoverCard(\''+card.id+'\',\'em_andamento\')" style="font-size:9px;background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:2px 7px;color:var(--ink-3);cursor:pointer">▶ Iniciar</button>':'')
+    +(card.status==='pendente' && card.canal==='gmaps'
+      ? '<button onclick="origV8RodarGmapsCard(\''+card.id+'\',\''+esc(card.titulo).replace(/\'/g,"&#39;")+'\')" style="font-size:9px;background:var(--accent-soft,rgba(34,197,94,.1));border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:4px;padding:2px 7px;color:var(--accent,#22c55e);cursor:pointer;font-weight:600">▶ Rodar busca</button>'
+      : card.status==='pendente' && card.canal==='cnae'
+      ? '<button onclick="origV8RodarCnaeCard(\''+card.id+'\')" style="font-size:9px;background:var(--accent-soft,rgba(34,197,94,.1));border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:4px;padding:2px 7px;color:var(--accent,#22c55e);cursor:pointer;font-weight:600">▶ Rodar busca</button>'
+      : card.status==='pendente'
+      ? '<button onclick="origV8MoverCard(\''+card.id+'\',\'em_andamento\')" style="font-size:9px;background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:2px 7px;color:var(--ink-3);cursor:pointer">▶ Iniciar</button>'
+      : '')
     +'<button onclick="origV8AbrirNotaCard(\''+card.id+'\')" style="font-size:9px;background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:2px 7px;color:var(--ink-3);cursor:pointer">📝 Nota</button>'
     +'<button onclick="origV8AbrirModalContato(\''+card.id+'\',\''+(card.canal||'')+'\',\''+(card.arquetipo_tipo||'')+'\')" style="font-size:9px;background:var(--accent-soft,rgba(34,197,94,.1));border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:4px;padding:2px 7px;color:var(--accent,#22c55e);cursor:pointer">👤 Contato</button>'
     +'</div>'
     +'</div>';
+}
+
+async function origV8RodarGmapsCard(cardId, query) {
+  const origId = window._pjAbertoOrigId || _origV8State?.origId;
+  if (!origId) return;
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+
+  await fetch(sbUrl+'/rest/v1/projeto_atividades?id=eq.'+cardId, {
+    method:'PATCH',
+    headers:{...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'},
+    body:JSON.stringify({status:'em_andamento',updated_at:new Date().toISOString()}),
+  });
+
+  const cardEl = document.getElementById('card-'+cardId);
+  if (cardEl) {
+    const btn = cardEl.querySelector('button[onclick*="RodarGmaps"]');
+    if (btn) { btn.textContent = '⏳ Rodando...'; btn.disabled = true; }
+  }
+
+  const rArq = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?originacao_id=eq.'+origId+'&status=eq.aprovado&select=id&limit=1', {headers:origV2Headers()});
+  const arqs = await rArq.json();
+  const arquetipo_id = Array.isArray(arqs) && arqs[0] ? arqs[0].id : null;
+
+  try {
+    const r = await fetch(sbUrl+'/functions/v1/originacao-buscar-gmaps', {
+      method:'POST',
+      headers:{...origV2Headers(),'Content-Type':'application/json'},
+      body:JSON.stringify({
+        originacao_id: origId,
+        arquetipo_id,
+        gmaps_queries_override: [query],
+        limite: 15,
+      }),
+    });
+    const data = await r.json();
+    const total = data.total_inseridos || 0;
+
+    await fetch(sbUrl+'/rest/v1/projeto_atividades?id=eq.'+cardId, {
+      method:'PATCH',
+      headers:{...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({
+        status:'concluido',
+        resultado_texto: total+' contatos encontrados via Apify',
+        concluido_em: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+    });
+
+    if (typeof origToast==='function') origToast('✓ '+total+' contatos adicionados ao pool');
+    origV8CarregarPlanoAcao();
+    if (window._origV8AbaForm === 'contatos') origV8CarregarContatos();
+
+  } catch(e) {
+    if (typeof origToast==='function') origToast('✗ Erro: '+e.message);
+    await fetch(sbUrl+'/rest/v1/projeto_atividades?id=eq.'+cardId, {
+      method:'PATCH',
+      headers:{...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({status:'pendente',updated_at:new Date().toISOString()}),
+    });
+    origV8CarregarPlanoAcao();
+  }
+}
+
+async function origV8RodarCnaeCard(cardId) {
+  const origId = window._pjAbertoOrigId || _origV8State?.origId;
+  if (!origId) return;
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+
+  const rCard = await fetch(sbUrl+'/rest/v1/projeto_atividades?id=eq.'+cardId+'&select=contato_extra', {headers:origV2Headers()});
+  const cards = await rCard.json();
+  const cnae = cards?.[0]?.contato_extra?.cnae?.codigo || '';
+  if (!cnae) { if (typeof origToast==='function') origToast('CNAE não encontrado'); return; }
+
+  await fetch(sbUrl+'/rest/v1/projeto_atividades?id=eq.'+cardId, {
+    method:'PATCH',
+    headers:{...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'},
+    body:JSON.stringify({status:'em_andamento',updated_at:new Date().toISOString()}),
+  });
+
+  const cardEl = document.getElementById('card-'+cardId);
+  if (cardEl) {
+    const btn = cardEl.querySelector('button[onclick*="RodarCnae"]');
+    if (btn) { btn.textContent = '⏳ Rodando...'; btn.disabled = true; }
+  }
+
+  try {
+    const r = await fetch(sbUrl+'/functions/v1/originacao-buscar-cnae', {
+      method:'POST',
+      headers:{...origV2Headers(),'Content-Type':'application/json'},
+      body:JSON.stringify({originacao_id: origId, cnae}),
+    });
+    const data = await r.json();
+    const total = data.total_inseridos || data.inseridos || 0;
+
+    await fetch(sbUrl+'/rest/v1/projeto_atividades?id=eq.'+cardId, {
+      method:'PATCH',
+      headers:{...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({
+        status:'concluido',
+        resultado_texto: total+' empresas encontradas via CNAE',
+        concluido_em: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+    });
+
+    if (typeof origToast==='function') origToast('✓ '+total+' empresas adicionadas');
+    origV8CarregarPlanoAcao();
+    if (window._origV8AbaForm === 'contatos') origV8CarregarContatos();
+
+  } catch(e) {
+    if (typeof origToast==='function') origToast('✗ Erro: '+e.message);
+    await fetch(sbUrl+'/rest/v1/projeto_atividades?id=eq.'+cardId, {
+      method:'PATCH',
+      headers:{...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({status:'pendente',updated_at:new Date().toISOString()}),
+    });
+    origV8CarregarPlanoAcao();
+  }
 }
 
 async function origV8CarregarPlanoAcao() {
@@ -14177,7 +14301,7 @@ function origV8RenderContatoCard(c) {
     adjacente:'Adjacente',clientes_negocio:'Cliente fiel',investidor_financeiro:'Investidor',profissional_setor:'Profissional'};
   const NEXT_STATUS = {novo:'em_contato',em_contato:'respondeu',respondeu:'reuniao',reuniao:'em_negociacao'};
   const NEXT_LABEL = {novo:'Contatado →',em_contato:'Respondeu →',respondeu:'Reunião →',reuniao:'Proposta →'};
-  const arqTipo = c.arquetipo_tipo || '';
+  const arqTipo = c.arquetipo_tipo || c.arquetipos_compradores?.tipo || '';
   const tel = c.telefone || c.contato_telefone;
   const email = c.email || c.email_contato || c.contato_email;
   const site = c.website;
@@ -14206,7 +14330,7 @@ async function origV8CarregarContatos() {
   if (!origId) return;
   const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
   const filtroArq = document.getElementById('contatos-filtro-arq')?.value || '';
-  const url = sbUrl+'/rest/v1/pool_leads_originacao?originacao_id=eq.'+origId+'&order=ultima_atividade.desc.nullslast&limit=200&select=*';
+  const url = sbUrl+'/rest/v1/pool_leads_originacao?originacao_id=eq.'+origId+'&order=ultima_atividade.desc.nullslast&limit=200&select=*,arquetipos_compradores(tipo,nome)';
   const r = await fetch(url, {headers: origV2Headers()});
   let contatos;
   try { contatos = await r.json(); } catch(_) { contatos = []; }
