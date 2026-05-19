@@ -13674,6 +13674,11 @@ async function origV8CarregarAmbientacaoForm() {
       return '<div style="background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:14px;margin-bottom:12px">'
         +'<div style="font-size:13px;font-weight:700;margin-bottom:10px">'+esc(a.nome||a.tipo)+'<span style="font-size:10px;color:var(--ink-3);margin-left:8px;background:var(--surface-2);padding:1px 7px;border-radius:3px">'+esc(a.tipo)+'</span></div>'
         +CAMPOS.map(f=>'<div style="margin-bottom:8px"><div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+f.l+'</div><input data-arq-nome="'+esc(a.nome||a.tipo)+'" data-campo="'+f.k+'" value="'+esc(Array.isArray(d[f.k])?d[f.k].join(', '):(d[f.k]||''))+'" placeholder="Separe por vírgula" style="width:100%;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;box-sizing:border-box;font-family:var(--sans)"></div>').join('')
+        +'<div style="display:flex;gap:8px;margin-top:8px">'
+        +'<button onclick="origV8GerarQueriesIA(\''+esc(a.id)+'\')" style="flex:1;background:transparent;border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:6px;padding:6px 10px;font-size:11px;color:var(--accent,#22c55e);cursor:pointer;font-weight:600">⚡ Gerar queries com IA</button>'
+        +'<span id="amb-ia-status-'+esc(a.id)+'" style="font-size:11px;color:var(--ink-3);align-self:center"></span>'
+        +'</div>'
+        +'<div id="amb-ia-preview-'+esc(a.id)+'" style="display:none;margin-top:8px;background:var(--bg);border:1px solid var(--accent-line,rgba(34,197,94,.2));border-radius:8px;padding:10px;font-size:11px;font-family:var(--mono);color:var(--ink-2);white-space:pre-wrap"></div>'
         +'</div>';
     }).join('');
     const recDono = rows?.[0]?.busca_config_jsonb?.sugestoes_dono || {};
@@ -13682,6 +13687,78 @@ async function origV8CarregarAmbientacaoForm() {
     if(grEl&&recDono.grupos) grEl.value=Array.isArray(recDono.grupos)?recDono.grupos.join('\n'):recDono.grupos;
     if(peEl&&recDono.pessoas) peEl.value=Array.isArray(recDono.pessoas)?recDono.pessoas.join('\n'):recDono.pessoas;
   } catch(e) { el.innerHTML='<div style="color:var(--alert,#f87171)">Erro: '+e.message+'</div>'; }
+}
+
+// v9.41.6 · Gera queries via edge gerar-queries-arquetipo
+async function origV8GerarQueriesIA(arqId) {
+  if (!arqId) return;
+  const origId = window._pjAbertoOrigId || _origV8State?.origId;
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  const statusEl = document.getElementById('amb-ia-status-'+arqId);
+  const previewEl = document.getElementById('amb-ia-preview-'+arqId);
+  if(statusEl) statusEl.textContent = '⏳ Gerando...';
+  if(previewEl) previewEl.style.display = 'none';
+
+  const ctx = window._origV8ContextoNegocio || {};
+  const neg = window._origV8CtxAtual?.negocio || {};
+  const briefingMinimo = {
+    negocio: {
+      setor: neg.setor || ctx.setor || '',
+      sub_setor: neg.setor || ctx.setor || '',
+      cidade: neg.cidade || (ctx.cidade||'').split('/')[0] || '',
+      estado: neg.estado || (ctx.cidade||'').split('/')[1] || '',
+    },
+    alcance_geografico_comprador: 'estado',
+  };
+
+  try {
+    const rCheck = await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId+'&select=briefing_jsonb',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+    const rows = await rCheck.json();
+    const briefingAtual = rows?.[0]?.briefing_jsonb;
+    if (!briefingAtual?.negocio?.cidade) {
+      await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId,{method:'PATCH',headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({briefing_jsonb:briefingMinimo,updated_at:new Date().toISOString()})});
+    }
+
+    const r = await fetch(sbUrl+'/functions/v1/gerar-queries-arquetipo',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+origV2Token(),'Content-Type':'application/json'},
+      body:JSON.stringify({originacao_id:origId, arquetipo_id:arqId}),
+    });
+    const data = await r.json();
+
+    if (!r.ok || !data.ok) {
+      if(statusEl) statusEl.textContent = '✗ Erro: '+(data.erro||'HTTP '+r.status);
+      return;
+    }
+
+    if(statusEl) { statusEl.textContent = '✓ Gerado!'; setTimeout(()=>{if(statusEl)statusEl.textContent='';},3000); }
+
+    const rArq = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?id=eq.'+arqId+'&select=nome,queries_busca',{headers:{apikey:AK,'Authorization':'Bearer '+(__token||AK)}});
+    const arqs = await rArq.json();
+    const qb = arqs?.[0]?.queries_busca || {};
+    const nomeArq = arqs?.[0]?.nome || arqId;
+
+    const campos = document.querySelectorAll('[data-arq-nome="'+nomeArq+'"][data-campo]');
+    campos.forEach(inp => {
+      const campo = inp.dataset.campo;
+      if (campo === 'gmaps' && qb.gmaps?.length) inp.value = qb.gmaps.join(', ');
+      else if (campo === 'facebook_grupos' && qb.fb_grupos?.length) inp.value = qb.fb_grupos.join(', ');
+      else if (campo === 'linkedin' && qb.web_profissionais?.length) inp.value = qb.web_profissionais.join(', ');
+      else if (campo === 'associacoes' && qb.web_corretores?.length) inp.value = qb.web_corretores.join(', ');
+      else if (campo === 'eventos' && qb.web_eventos?.length) inp.value = qb.web_eventos.join(', ');
+    });
+
+    if (previewEl && qb.raciocinio) {
+      previewEl.style.display = 'block';
+      previewEl.textContent = '💡 '+qb.raciocinio+'\n\n'
+        +(qb.gmaps?.length?'📍 GMaps: '+qb.gmaps.join(' · ')+'\n':'')
+        +(qb.fb_grupos?.length?'📘 FB: '+qb.fb_grupos.join(' · ')+'\n':'')
+        +(qb.web_profissionais?.length?'💼 LinkedIn/Web: '+qb.web_profissionais.join(' · ')+'\n':'')
+        +(qb.web_eventos?.length?'📅 Eventos: '+qb.web_eventos.join(' · '):'');
+    }
+  } catch(e) {
+    if(statusEl) statusEl.textContent = '✗ Erro: '+e.message;
+  }
 }
 
 async function origV8SalvarAmbientacaoForm() {
