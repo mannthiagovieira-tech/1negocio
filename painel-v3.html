@@ -13571,6 +13571,29 @@ function origV8ToggleArquetipo(tipo) {
   form.style.display = cb.checked ? 'block' : 'none';
 }
 
+function origV8ToggleSugestao(btn, inputId) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  const val = btn.dataset.sug || btn.textContent.trim();
+  const ativo = btn.dataset.ativo === '1';
+  if (ativo) {
+    btn.style.background = 'var(--surface-2)';
+    btn.style.color = 'var(--ink-2)';
+    btn.style.borderColor = 'var(--line-2)';
+    btn.dataset.ativo = '0';
+    const atual = inp.value.split(',').map(s=>s.trim()).filter(s=>s && s!==val);
+    inp.value = atual.join(', ');
+  } else {
+    btn.style.background = 'var(--accent-soft, rgba(34,197,94,.12))';
+    btn.style.color = 'var(--accent, #22c55e)';
+    btn.style.borderColor = 'var(--accent-line, rgba(34,197,94,.3))';
+    btn.dataset.ativo = '1';
+    const atual = inp.value.split(',').map(s=>s.trim()).filter(Boolean);
+    if (!atual.includes(val)) atual.push(val);
+    inp.value = atual.join(', ');
+  }
+}
+
 function origV8ToggleRaio(tipo, val) {
   const wrap = document.getElementById('arq-'+tipo+'-raio-wrap');
   if (wrap) wrap.style.display = val === 'cidade' ? 'block' : 'none';
@@ -13601,7 +13624,7 @@ async function origV8SugerirTipoAlvo(tipo) {
       headers:{'Authorization':'Bearer '+origV2Token(),'Content-Type':'application/json'},
       body:JSON.stringify({
         originacao_id: window._pjAbertoOrigId || _origV8State?.origId,
-        mensagem: 'Para o negócio "'+nome+'" (setor: '+setor+', cidade: '+cidade+'), sugira 4 tipos específicos de "'+MAPA[tipo]+'" que seriam compradores ideais. Responda APENAS com um JSON array de strings, ex: ["tipo 1","tipo 2","tipo 3","tipo 4"]. Seja específico ao setor, não genérico.',
+        mensagem: 'Para o negócio "'+nome+'" (setor: '+setor+', cidade: '+cidade+'), sugira 5 tipos de "'+MAPA[tipo]+'" que seriam compradores ideais. REGRA CRÍTICA: cada sugestão deve ser um TIPO DE NEGÓCIO ou PERFIL curto (2-4 palavras), sem verbos de intenção. CERTO: "empório produtos naturais", "loja grãos orgânicos", "mercado natural premium". ERRADO: "rede buscando expandir", "loja querendo crescer". Responda APENAS com JSON array de strings curtas.',
         fase_atual: 'livre',
         historico: [],
         contexto_negocio: {...ctx},
@@ -13615,7 +13638,7 @@ async function origV8SugerirTipoAlvo(tipo) {
       if(match) try { sugestoes = JSON.parse(match[0]); } catch(_){}
     }
     if(Array.isArray(sugestoes) && sugestoes.length) {
-      if(sugEl) sugEl.innerHTML = sugestoes.map(s=>'<button onclick="document.getElementById(\'arq-'+tipo+'-perfil\').value=\''+s.replace(/'/g,"\\'")+'\';" style="background:var(--surface-2);border:1px solid var(--line-2);border-radius:999px;padding:3px 10px;font-size:11px;color:var(--ink-2);cursor:pointer;font-family:var(--sans)">'+s+'</button>').join('');
+      if(sugEl) sugEl.innerHTML = sugestoes.map(s=>'<button data-sug="'+s.replace(/"/g,'&quot;')+'" onclick="origV8ToggleSugestao(this,\'arq-'+tipo+'-perfil\')" style="background:var(--surface-2);border:1px solid var(--line-2);border-radius:999px;padding:3px 10px;font-size:11px;color:var(--ink-2);cursor:pointer;font-family:var(--sans);transition:all .15s">'+s+'</button>').join('');
       if(statusEl) { statusEl.textContent=''; }
     } else {
       if(statusEl) statusEl.textContent = '— sem sugestões';
