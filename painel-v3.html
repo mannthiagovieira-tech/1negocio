@@ -14020,13 +14020,25 @@ async function origV8RodarGmapsCard(cardId, query) {
   const arquetipo_id = Array.isArray(arqs) && arqs[0] ? arqs[0].id : null;
 
   try {
+    // v9.42.7 · edge lê queries_busca.gmaps_query do arquétipo · atualiza antes de chamar
+    if (arquetipo_id) {
+      const rArqData = await fetch(sbUrl+'/rest/v1/arquetipos_compradores?id=eq.'+arquetipo_id+'&select=queries_busca', {headers:origV2Headers()});
+      const arqData = await rArqData.json();
+      const qb = (arqData?.[0]?.queries_busca && typeof arqData[0].queries_busca === 'object') ? arqData[0].queries_busca : {};
+      qb.gmaps_query = query;
+      if (!Array.isArray(qb.gmaps)) qb.gmaps = [query];
+      await fetch(sbUrl+'/rest/v1/arquetipos_compradores?id=eq.'+arquetipo_id, {
+        method:'PATCH',
+        headers:{...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'},
+        body:JSON.stringify({queries_busca: qb, updated_at: new Date().toISOString()}),
+      });
+    }
     const r = await fetch(sbUrl+'/functions/v1/originacao-buscar-gmaps', {
       method:'POST',
       headers:{...origV2Headers(),'Content-Type':'application/json'},
       body:JSON.stringify({
         originacao_id: origId,
         arquetipo_id,
-        gmaps_queries_override: [query],
         limite: 15,
       }),
     });
@@ -14330,11 +14342,36 @@ async function origV8CarregarContatos() {
   if (!origId) return;
   const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
   const filtroArq = document.getElementById('contatos-filtro-arq')?.value || '';
+  // v9.42.7 · lê pool_leads_originacao + originacao_leads_brutos (recém-chegados do Apify)
   const url = sbUrl+'/rest/v1/pool_leads_originacao?originacao_id=eq.'+origId+'&order=ultima_atividade.desc.nullslast&limit=200&select=*,arquetipos_compradores(tipo,nome)';
   const r = await fetch(url, {headers: origV2Headers()});
-  let contatos;
-  try { contatos = await r.json(); } catch(_) { contatos = []; }
-  if (!Array.isArray(contatos)) contatos = [];
+  let pool; try { pool = await r.json(); } catch(_) { pool = []; }
+  if (!Array.isArray(pool)) pool = [];
+
+  const rB = await fetch(sbUrl+'/rest/v1/originacao_leads_brutos?originacao_id=eq.'+origId+'&adicionado_ao_pool=eq.false&order=created_at.desc&limit=200&select=*', {headers: origV2Headers()});
+  let brutos; try { brutos = await rB.json(); } catch(_) { brutos = []; }
+  if (!Array.isArray(brutos)) brutos = [];
+
+  const brutosNorm = brutos.map(b => ({
+    id: b.id,
+    originacao_id: b.originacao_id,
+    arquetipo_id: b.arquetipo_id,
+    canal: b.canal || 'gmaps',
+    status: b.status || 'novo',
+    nome: b.nome,
+    empresa: b.categoria || null,
+    telefone: b.telefone,
+    email: b.email,
+    website: b.dados_brutos?.website || null,
+    notas: [],
+    ultima_atividade: b.updated_at || b.created_at,
+    arquetipo_tipo: '',
+    _fonte: 'brutos',
+    score_ia: b.score_ia,
+  }));
+
+  const poolIds = new Set(pool.map(p => p.id));
+  let contatos = [...pool, ...brutosNorm.filter(b => !poolIds.has(b.id))];
 
   if (filtroArq) {
     contatos = contatos.filter(c => c.arquetipo_tipo === filtroArq);
@@ -14369,11 +14406,20 @@ async function origV8CarregarContatos() {
 
 async function origV8MoverContato(id, novoStatus) {
   const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
-  await fetch(sbUrl+'/rest/v1/pool_contatos_uso?id=eq.'+id, {
-    method: 'PATCH',
-    headers: {...origV2Headers(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal'},
-    body: JSON.stringify({status: novoStatus, ultima_atividade: new Date().toISOString()}),
-  });
+  // v9.42.7 · descobre se é lead bruto ou pool
+  const r1 = await fetch(sbUrl+'/rest/v1/pool_contatos_uso?id=eq.'+id+'&select=id', {headers:origV2Headers()});
+  let pool; try { pool = await r1.json(); } catch(_) { pool = []; }
+  if (Array.isArray(pool) && pool.length > 0) {
+    await fetch(sbUrl+'/rest/v1/pool_contatos_uso?id=eq.'+id, {
+      method:'PATCH', headers:{...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({status:novoStatus, ultima_atividade:new Date().toISOString()}),
+    });
+  } else {
+    await fetch(sbUrl+'/rest/v1/originacao_leads_brutos?id=eq.'+id, {
+      method:'PATCH', headers:{...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({status:novoStatus, updated_at:new Date().toISOString()}),
+    });
+  }
   origV8CarregarContatos();
 }
 
