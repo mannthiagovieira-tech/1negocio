@@ -1,13 +1,8 @@
-// tese-agente-chat · v9.35.0 · Motor V3.5 · Fase 1 Unificada (tese · arquetipos · ambientacao · livre)
-// Chat conversacional · agente sênior M&A · constrói os 3 outputs sequencialmente em 1 sessão.
-// Salva histórico em projetos_originacao.tese_chat_historico.
-// Detecta marcadores TESE_COMPLETA_JSON / ARQUETIPOS_COMPLETOS_JSON / AMBIENTACAO_COMPLETA_JSON.
-//
-// POST body:
-//   { originacao_id, mensagem?, historico?, fase_atual?='tese', reiniciar?, salvar_output? }
-//   salvar_output: { tipo: 'tese'|'arquetipos'|'ambientacao', dados: any }
-// Output:
-//   { ok, resposta, fase_concluida, output_proposto, historico, custo_brl, tokens_in, tokens_out }
+// tese-agente-chat · v9.40.0 · Motor V3.6 · Fix abertura com contexto real
+// MUDANÇAS v9.40.0:
+//   - Edge sempre busca dados do banco (não depende do client)
+//   - Mensagem inicial força agente a descrever o negócio antes de perguntar
+//   - Merge banco + client (banco prevalece em campos numéricos)
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -65,7 +60,7 @@ function composeDadosNegocio(ctx: any, briefing: any): string {
 }
 
 function resumirBriefing(briefing: any): string {
-  if (!briefing) return "(briefing não preenchido)";
+  if (!briefing) return "(dados do negócio não disponíveis ainda)";
   const n = briefing.negocio || {};
   const t = briefing.tamanho || {};
   const s = briefing.sinergia || {};
@@ -83,7 +78,80 @@ function resumirBriefing(briefing: any): string {
     partes.push(`Tipos comprador alvo: ${briefing.tipos_comprador_buscar.join(", ")}`);
   }
   if (briefing.alcance_geografico_comprador) partes.push(`Alcance: ${briefing.alcance_geografico_comprador}`);
-  return partes.join("\n");
+  return partes.length > 0 ? partes.join("\n") : "(dados do negócio não disponíveis ainda)";
+}
+
+// v9.40.0 · busca contexto completo do negócio direto no banco
+// Sempre executa · independente do que o client enviou
+async function buscarContextoNegocioBanco(adminClient: any, negId: string): Promise<any | null> {
+  if (!negId) return null;
+  try {
+    const [{ data: neg }, { data: anuArr }, { data: laudo }] = await Promise.all([
+      adminClient
+        .from("negocios")
+        .select("nome, titulo_anuncio, setor, cidade, estado, faturamento_anual, ebitda_anual, score_saude, preco_pedido, valor_1n, descricao_geral")
+        .eq("id", negId)
+        .maybeSingle(),
+      adminClient
+        .from("anuncios_v2")
+        .select("titulo, valor_pedido, descricao_card")
+        .eq("negocio_id", negId)
+        .limit(1),
+      adminClient
+        .from("laudos_v2")
+        .select("calc_json")
+        .eq("negocio_id", negId)
+        .eq("ativo", true)
+        .order("versao", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    const anu = Array.isArray(anuArr) && anuArr.length > 0 ? anuArr[0] : null;
+    const dre: any = laudo?.calc_json?.dre || null;
+    if (!neg && !dre) return null;
+    const fatAnual = dre?.fat_anual != null ? Number(dre.fat_anual) : Number(neg?.faturamento_anual || 0);
+    const roAnual = dre?.ro_anual != null ? Number(dre.ro_anual) : Number(neg?.ebitda_anual || 0);
+    const margem = dre?.margem_operacional_pct != null
+      ? Math.round(Number(dre.margem_operacional_pct))
+      : (fatAnual > 0 ? Math.round((roAnual / fatAnual) * 100) : null);
+    return {
+      nome: neg?.nome || neg?.titulo_anuncio || anu?.titulo || null,
+      titulo_anuncio: neg?.titulo_anuncio || anu?.titulo || null,
+      setor: neg?.setor || null,
+      cidade: neg?.cidade ? `${neg.cidade}${neg.estado ? "/" + neg.estado : ""}` : null,
+      faturamento_anual: fatAnual || null,
+      resultado_operacional: roAnual || null,
+      margem,
+      score_saude: neg?.score_saude ?? null,
+      valor_pedido: Number(anu?.valor_pedido || neg?.preco_pedido || 0) || null,
+      valor_1n: Number(neg?.valor_1n || 0) || null,
+      descricao: anu?.descricao_card || neg?.descricao_geral || null,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+// v9.40.0 · merge banco + client · banco prevalece em campos numéricos
+function mergeContexto(banco: any | null, client: any | null, transcricao: string | null): any | null {
+  if (!banco && !client) return null;
+  const base = banco || client;
+  const complemento = banco ? client : null;
+  return {
+    nome: base?.nome || complemento?.nome || null,
+    titulo_anuncio: base?.titulo_anuncio || complemento?.titulo_anuncio || null,
+    setor: base?.setor || complemento?.setor || null,
+    cidade: base?.cidade || complemento?.cidade || null,
+    // banco prevalece em numéricos (fonte canônica = laudos_v2)
+    faturamento_anual: base?.faturamento_anual || complemento?.faturamento_anual || null,
+    resultado_operacional: base?.resultado_operacional || complemento?.resultado_operacional || null,
+    margem: base?.margem ?? complemento?.margem ?? null,
+    score_saude: base?.score_saude ?? complemento?.score_saude ?? null,
+    valor_pedido: base?.valor_pedido || complemento?.valor_pedido || null,
+    valor_1n: base?.valor_1n || complemento?.valor_1n || null,
+    descricao: base?.descricao || complemento?.descricao || null,
+    transcricao: transcricao || client?.transcricao || null,
+  };
 }
 
 function systemPromptTese(ctx: any, briefing: any, teseAtual: any): string {
@@ -98,7 +166,20 @@ DADOS DO NEGÓCIO (carregados automaticamente):
 ${dadosNegocio}
 ${teseAtualStr}
 
-REGRAS:
+VOCABULÁRIO OBRIGATÓRIO — NUNCA violar:
+- NUNCA usar "EBITDA". Sempre "resultado operacional".
+- NUNCA usar "M&A". Sempre "compra e venda de empresas".
+- Múltiplos: calcular SEMPRE como (valor_pedido / resultado_operacional) = múltiplo resultado operacional
+  e (valor_pedido / faturamento_anual) = múltiplo receita bruta.
+  Exemplo correto: "R$ 450k = 0,6x receita bruta · 2,7x resultado operacional"
+  NUNCA inverter os labels.
+
+REGRAS DE TOM E FORMATO:
+- Na PRIMEIRA mensagem: apresente os dados que já tem (setor, cidade, financeiro, múltiplos, valor pedido).
+  Depois proponha hipóteses para cada componente da tese — baseadas nos dados disponíveis.
+  Por último, pergunte UMA coisa: se as hipóteses fazem sentido ou o que muda.
+- Nas mensagens seguintes: continue propondo, nunca só perguntando.
+  Formato: "Minha leitura é X. Faz sentido?" — não "Qual é o X?"
 - Faça UMA pergunta por vez. Nunca duas.
 - Use os dados que já tem — não peça o que já sabe.
 - Tom: analista frio, direto, factual. Nunca vendedor. Não use "claro" / "perfeito" / "ótimo".
@@ -111,7 +192,7 @@ REGRAS:
 2. dependencia_dono: grau de dependência e impacto na transferência
 3. perfil_comprador_ideal: quem teria mais a ganhar com essa aquisição
 4. riscos_principais: array com 3-5 riscos reais e específicos
-5. justificativa_preco: múltiplo, benchmark setorial, por que o preço faz sentido`;
+5. justificativa_preco: múltiplo resultado operacional + múltiplo receita bruta + benchmark setorial`;
 }
 
 function systemPromptArquetipos(ctx: any, briefing: any, tese: any): string {
@@ -156,34 +237,43 @@ ARQUETIPOS_COMPLETOS_JSON:[{"nome":"...","dimensao":"...","logica_compra":"...",
 function systemPromptAmbientacao(ctx: any, briefing: any, arquetipos: any[]): string {
   const dadosNegocio = composeDadosNegocio(ctx, briefing);
   const arqsTxt = JSON.stringify(arquetipos || [], null, 2);
-  return `Você é um especialista em prospecção B2B e redes de relacionamento empresarial.
+  return `Você é um especialista em prospecção B2B e inteligência de mercado para PMEs brasileiras.
 
-Arquétipos aprovados:
+⚠️ ATENÇÃO: Esta fase NÃO é sobre descrever o negócio. O negócio já foi descrito nas fases anteriores.
+Esta fase é exclusivamente sobre LOCALIZAR OS COMPRADORES no mundo real.
+
+Arquétipos de compradores aprovados:
 ${arqsTxt}
 
-Negócio:
+Negócio de referência (contexto apenas):
 ${dadosNegocio}
 
-OBJETIVO: Para cada arquétipo, definir onde essa pessoa está no mundo real.
-Isso alimentará as queries de busca do sistema (gmaps · facebook · instagram · associacoes · etc).
+OBJETIVO ÚNICO DESTA FASE:
+Para cada arquétipo acima, responder: onde essa pessoa física ou empresa ESTÁ no mundo real?
+Onde ela aparece? O que ela lê? Em quais grupos participa? Quais eventos frequenta?
+Isso vai alimentar diretamente as ferramentas de prospecção (Google Maps, Facebook, Instagram, associações).
 
-Para cada arquétipo gere:
+Para cada arquétipo, mapeie:
 - grupos_online: nomes reais de grupos Facebook/LinkedIn/WhatsApp onde este perfil está
-- associacoes: entidades setoriais reais (ABRASEL, CDL, sindicatos, etc.)
-- eventos_feiras: eventos reais recorrentes onde este perfil aparece
-- canais_digitais: hashtags Instagram, canais YouTube, blogs do setor
-- corretores_facilitadores: tipo de profissional que pode intermediar o contato
+- associacoes: entidades setoriais reais (ABRASEL, CDL, APAS, sindicatos, federações, etc.)
+- eventos_feiras: eventos reais e recorrentes onde este perfil aparece (nome + frequência + cidade)
+- canais_digitais: hashtags Instagram, canais YouTube, podcasts, newsletters do setor
+- corretores_facilitadores: tipo de profissional que pode intermediar o contato com este perfil
 
-TAMBÉM gere sugestões para o DONO DO NEGÓCIO:
-- eventos_para_ir: eventos onde o dono deveria aparecer para encontrar compradores organicamente
+TAMBÉM mapeie para o DONO DO NEGÓCIO (onde ele deveria aparecer para encontrar compradores):
+- eventos_para_ir: eventos onde o dono deveria se posicionar
 - grupos_para_entrar: grupos onde o dono deveria participar ativamente
 
 REGRAS:
-- Use nomes reais de associações/eventos/grupos (não invente).
-- Faça UMA pergunta por vez se precisar de mais info do negócio.
-- Tom: analista frio, direto.
+- Use nomes REAIS e ESPECÍFICOS. Não invente. Prefira ser honesto se não souber.
+- NÃO descreva o negócio. NÃO repita a tese. NÃO fale sobre ambientação do empório.
+- Se precisar de informação, faça UMA pergunta direta sobre o arquétipo, não sobre o negócio.
+- Tom: analista frio, direto, operacional.
 
-Quando concluir, inclua no final:
+Na PRIMEIRA mensagem: apresente o mapeamento dos 7 arquétipos diretamente.
+Não pergunte nada antes — você tem informação suficiente para começar.
+
+Quando concluir, inclua no final numa linha separada:
 AMBIENTACAO_COMPLETA_JSON:{"por_arquetipo":{"[nome_arquetipo]":{"grupos_online":["..."],"associacoes":["..."],"eventos_feiras":["..."],"canais_digitais":["..."],"corretores_facilitadores":"..."}},"sugestoes_dono":{"eventos_para_ir":[{"nome":"...","quando":"...","cidade":"...","motivo":"..."}],"grupos_para_entrar":[{"nome":"...","plataforma":"...","url":"...","motivo":"..."}]}}`;
 }
 
@@ -201,10 +291,8 @@ function extrairJsonAposMarcador(texto: string, marcador: string): any | null {
   const idx = texto.indexOf(marcador);
   if (idx === -1) return null;
   const depois = texto.slice(idx + marcador.length).trim();
-  // tenta primeiro bloco JSON balanceado a partir do início
   const m = depois.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
   if (!m) return null;
-  // tenta vários cortes (do mais longo ao mais curto) caso o regex pegue demais
   for (let len = m[1].length; len > 1; len--) {
     try { return JSON.parse(m[1].slice(0, len)); } catch { /* keep */ }
   }
@@ -216,7 +304,7 @@ function limparMarcadores(texto: string): string {
     .replace(/TESE_COMPLETA_JSON:[\s\S]*$/m, "")
     .replace(/ARQUETIPOS_COMPLETOS_JSON:[\s\S]*$/m, "")
     .replace(/AMBIENTACAO_COMPLETA_JSON:[\s\S]*$/m, "")
-    .replace(/TESE_COMPLETA:[\s\S]*$/m, "") // legado
+    .replace(/TESE_COMPLETA:[\s\S]*$/m, "")
     .trim();
 }
 
@@ -248,6 +336,40 @@ serve(async (req) => {
     contexto_negocio: ctxFromClient,
     negocio_id: negIdFromClient,
   } = body || {};
+
+  // v9.43.5 · modo:'json_only' · bypass conversacional pra one-shot estruturados (aba Mídia, etc.)
+  if (body?.modo === 'json_only') {
+    const userMsg = (body.mensagens?.[0]?.content || body.mensagem || '').toString().trim();
+    if (!userMsg) return resp(400, { ok: false, erro: "prompt_vazio_em_json_only" });
+    try {
+      const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 3000,
+          system: "Você é assistente. Retorne APENAS o JSON solicitado pelo usuário, sem markdown, sem texto antes ou depois.",
+          messages: [{ role: "user", content: userMsg }],
+        }),
+      });
+      const claudeData = await claudeResp.json();
+      if (!claudeResp.ok) return resp(claudeResp.status, { ok: false, erro: "claude_falhou", detalhe: claudeData });
+      const txt = (claudeData?.content || []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
+      return resp(200, {
+        ok: true,
+        resposta: txt,
+        tokens_in: claudeData?.usage?.input_tokens ?? 0,
+        tokens_out: claudeData?.usage?.output_tokens ?? 0,
+      });
+    } catch (e: any) {
+      return resp(500, { ok: false, erro: "exception_json_only", detalhe: e?.message });
+    }
+  }
+
   if (!originacao_id) return resp(400, { ok: false, erro: "originacao_id_obrigatorio" });
 
   try {
@@ -257,7 +379,7 @@ serve(async (req) => {
       .eq("id", originacao_id).maybeSingle();
     if (!orig) return resp(404, { ok: false, erro: "originacao_nao_encontrada" });
 
-    // ---- salvar_output: persiste tese / arquetipos / ambientacao aprovados pelo admin ----
+    // ---- salvar_output ----
     if (salvar_output && salvar_output.tipo) {
       if (salvar_output.tipo === "tese") {
         const dados = { ...(salvar_output.dados || {}), _versao: (orig.tese_versao || 0) + 1 };
@@ -305,7 +427,6 @@ serve(async (req) => {
           busca_config_jsonb: config,
           updated_at: new Date().toISOString(),
         }).eq("id", originacao_id);
-        // sugestoes_dono → tabela específica
         if (orig.projeto_id && salvar_output.dados?.sugestoes_dono) {
           const eventos = (salvar_output.dados.sugestoes_dono.eventos_para_ir || []).map((e: any) => ({
             tipo: "evento",
@@ -347,10 +468,18 @@ serve(async (req) => {
       historico.push({ role: "user", content: mensagem.trim(), ts: new Date().toISOString(), fase: fase_atual });
     }
 
-    const ultimas = historico.slice(-20).map((m) => ({ role: m.role, content: m.content }));
-    const messagesParaApi = ultimas.length > 0
-      ? ultimas
-      : [{ role: "user", content: "Vamos começar. Analise os dados que tem e me pergunte o que precisa." }];
+    // v9.40.0 · SEMPRE busca negocio_id · via projeto_metadata ou client
+    let negId: string | null = negIdFromClient || null;
+    if (!negId && orig.projeto_id) {
+      const { data: meta } = await adminClient
+        .from("projeto_metadata").select("negocio_id").eq("id", orig.projeto_id).maybeSingle();
+      negId = meta?.negocio_id || null;
+    }
+
+    // v9.40.0 · busca banco sempre · merge com client
+    const ctxBanco = negId ? await buscarContextoNegocioBanco(adminClient, negId) : null;
+    const transcricao = orig.briefing_jsonb?.transcricao_reuniao || ctxFromClient?.transcricao || null;
+    const contextoNegocio = mergeContexto(ctxBanco, ctxFromClient || null, transcricao);
 
     // Carregar arquetipos aprovados (necessário pra fases ambientacao/livre)
     let arquetiposAprovados: any[] = [];
@@ -362,49 +491,8 @@ serve(async (req) => {
       arquetiposAprovados = arqs || [];
     }
 
-    // v9.39.2 · resolver contexto do negócio · preferência ao client; fallback ao banco via projeto_metadata.negocio_id
-    let contextoNegocio: any = ctxFromClient && typeof ctxFromClient === "object" ? ctxFromClient : null;
-    if (!contextoNegocio && orig.projeto_id) {
-      try {
-        const { data: meta } = await adminClient
-          .from("projeto_metadata").select("negocio_id").eq("id", orig.projeto_id).maybeSingle();
-        const negId = meta?.negocio_id || negIdFromClient || null;
-        if (negId) {
-          // v9.39.4 · 3 queries paralelas · negocios + anuncios_v2 + laudos_v2.calc_json.dre (fonte canônica do resultado operacional)
-          const [{ data: neg }, { data: anuArr }, { data: laudo }] = await Promise.all([
-            adminClient.from("negocios").select("nome, titulo_anuncio, setor, cidade, estado, faturamento_anual, ebitda_anual, score_saude, preco_pedido, valor_1n, descricao_geral").eq("id", negId).maybeSingle(),
-            adminClient.from("anuncios_v2").select("titulo, valor_pedido, descricao_card").eq("negocio_id", negId).limit(1),
-            adminClient.from("laudos_v2").select("calc_json").eq("negocio_id", negId).eq("ativo", true).order("versao", { ascending: false }).limit(1).maybeSingle(),
-          ]);
-          const anu = Array.isArray(anuArr) && anuArr.length > 0 ? anuArr[0] : null;
-          const dre: any = laudo?.calc_json?.dre || null;
-          if (neg || dre) {
-            const fatAnual = dre?.fat_anual != null ? Number(dre.fat_anual) : Number(neg?.faturamento_anual || 0);
-            const roAnual = dre?.ro_anual != null ? Number(dre.ro_anual) : Number(neg?.ebitda_anual || 0);
-            const margem = dre?.margem_operacional_pct != null
-              ? Math.round(Number(dre.margem_operacional_pct))
-              : (fatAnual > 0 ? Math.round((roAnual / fatAnual) * 100) : null);
-            contextoNegocio = {
-              nome: neg?.nome || neg?.titulo_anuncio || anu?.titulo || null,
-              titulo_anuncio: neg?.titulo_anuncio || anu?.titulo || null,
-              setor: neg?.setor || null,
-              cidade: neg?.cidade ? `${neg.cidade}${neg.estado ? "/" + neg.estado : ""}` : null,
-              faturamento_anual: fatAnual || null,
-              resultado_operacional: roAnual || null,
-              margem: margem,
-              score_saude: neg?.score_saude ?? null,
-              valor_pedido: Number(anu?.valor_pedido || neg?.preco_pedido || 0) || null,
-              valor_1n: Number(neg?.valor_1n || 0) || null,
-              descricao: anu?.descricao_card || neg?.descricao_geral || null,
-            };
-          }
-        }
-      } catch (_) { /* fallback silencioso · cai no resumirBriefing */ }
-    }
-
     let systemPrompt = "";
     if (fase_atual === "tese") {
-      // v9.39.2 · briefing deixou de ser pré-requisito · o próprio chat coleta o contexto
       systemPrompt = systemPromptTese(contextoNegocio, orig.briefing_jsonb, orig.tese_jsonb);
     } else if (fase_atual === "arquetipos") {
       systemPrompt = systemPromptArquetipos(contextoNegocio, orig.briefing_jsonb, orig.tese_jsonb);
@@ -413,6 +501,15 @@ serve(async (req) => {
     } else {
       systemPrompt = systemPromptLivre(contextoNegocio, orig.briefing_jsonb, orig.tese_jsonb, arquetiposAprovados);
     }
+
+    // v9.40.0 · mensagem inicial força o agente a descrever o negócio antes de perguntar
+    // antes era "me pergunte o que precisa" → agente ficava perguntando em vez de apresentar
+    const ultimas = historico.slice(-20).map((m: any) => ({ role: m.role, content: m.content }));
+    const messagesParaApi = ultimas.length > 0
+      ? ultimas
+      : fase_atual === 'ambientacao'
+        ? [{ role: "user", content: "Mapeie agora onde estão os compradores de cada arquétipo no mundo real. Apresente direto, sem introdução." }]
+        : [{ role: "user", content: "Vamos começar. Apresente o que você já sabe sobre o negócio e me diga o que ainda precisa entender para montar a tese." }];
 
     const claudeResp = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -428,10 +525,12 @@ serve(async (req) => {
         messages: messagesParaApi,
       }),
     });
+
     if (!claudeResp.ok) {
       const errTxt = await claudeResp.text();
       return resp(500, { ok: false, erro: `claude_status_${claudeResp.status}`, detalhe: errTxt.slice(0, 300) });
     }
+
     const claudeData = await claudeResp.json();
     const textBlocks = (claudeData.content || []).filter((b: any) => b.type === "text");
     const respostaAgente = textBlocks.map((b: any) => b.text).join("\n");
@@ -467,8 +566,8 @@ serve(async (req) => {
       fase_concluida,
       output_proposto,
       fase_atual,
-      tese_completa: fase_concluida === "tese", // compat com clients v9.34.x
-      tese_proposta: fase_concluida === "tese" ? output_proposto : null, // compat
+      tese_completa: fase_concluida === "tese",
+      tese_proposta: fase_concluida === "tese" ? output_proposto : null,
       historico_count: historico.length,
       historico,
       custo_brl: CUSTO_POR_TURNO_BRL,
@@ -476,7 +575,7 @@ serve(async (req) => {
       tokens_out: claudeData?.usage?.output_tokens ?? 0,
     });
   } catch (e: any) {
-    console.error("[tese-agente-chat v9.35.0] exception raiz", e);
+    console.error("[tese-agente-chat v9.40.0] exception raiz", e);
     return resp(500, { ok: false, erro: "exception_raiz", erro_debug: e?.message, stack: e?.stack?.slice(0, 1000) });
   }
 });
