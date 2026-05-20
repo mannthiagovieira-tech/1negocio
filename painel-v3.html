@@ -1798,6 +1798,7 @@ table.t .acoes { white-space: nowrap; }
 }
 
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 
 <body>
@@ -13185,7 +13186,10 @@ async function pjV347SetAba(aba, negIdHint){
       }
       const vinc = typeof pjRenderVinculo === 'function' ? pjRenderVinculo(n, meta) : '';
       cont.innerHTML = vinc + pjV347RenderConfigAssessores(meta?.id, assessores);
-    } else if (aba === 'conteudo' || aba === 'ads' || aba === 'dataroom'){
+    } else if (aba === 'conteudo'){
+      cont.innerHTML = '<div class="pj-v347-empty">⏳ Carregando…</div>';
+      await pjV347RenderConteudo(meta, n, cont);
+    } else if (aba === 'ads' || aba === 'dataroom'){
       cont.innerHTML = pjV347PlaceholderEmBreve(aba);
     } else {
       cont.innerHTML = '<div class="pj-v347-empty">Aba desconhecida: ' + aba + '</div>';
@@ -13204,7 +13208,7 @@ function pjV347SidebarItens(n, meta, abaAtiva){
     { key:'kanban',       icon:'📊', label:'Kanban',       desc:'Pool de leads · operação diária' },
     { key:'inteligencia', icon:'🧠', label:'Inteligência', desc:'Tese · Arquétipos · Ambientação' },
     { key:'arsenal',      icon:'🎯', label:'Arsenal',      desc:'Queries · Matriz · Buscas' },
-    { key:'conteudo',     icon:'✍️', label:'Conteúdo',     desc:'Roteiros · Posts · Imagens', tag:'em breve' },
+    { key:'conteudo',     icon:'📸', label:'Conteúdo',     desc:'Gerador de imagem por templates' },
     { key:'ads',          icon:'📣', label:'Ads',          desc:'META + Google Ads',          tag:'em breve' },
     { key:'dataroom',     icon:'📁', label:'Dataroom',     desc:'Documentos · Fotos · NDAs',  tag:'em breve' },
     { key:'financeiro',   icon:'💰', label:'Financeiro',   desc:'Mensalidades · Comissão' },
@@ -13246,6 +13250,396 @@ function pjV347PlaceholderEmBreve(aba){
     + '<div style="text-align:center;margin-top:24px"><span style="font-size:12px;color:var(--ink-4);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 14px">🚧 Em desenvolvimento</span></div>'
     + '</div>';
 }
+
+// ============================================================
+// ABA CONTEÚDO · Gerador de imagem por templates v1 (v9.44.0)
+// ============================================================
+// Estado global do gerador (escopo da aba, recriado a cada entrada)
+let _pjConteudoState = null;
+
+async function pjV347RenderConteudo(meta, neg, cont){
+  if (!meta?.id || !neg?.id){
+    cont.innerHTML = '<div class="pj-v347-empty">Sem meta/negócio vinculado</div>';
+    return;
+  }
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+  try {
+    const [rT, rC] = await Promise.all([
+      fetch(SB + '/rest/v1/conteudo_templates?ativo=eq.true&order=ordem', { headers }),
+      fetch(SB + '/rest/v1/projeto_conteudo?projeto_metadata_id=eq.' + meta.id + '&order=created_at.desc&select=*,conteudo_templates(titulo,variante,dimensoes)', { headers }),
+    ]);
+    const templates = rT.ok ? await rT.json() : [];
+    const conteudos = rC.ok ? await rC.json() : [];
+    _pjConteudoState = { meta, neg, templates, conteudos, container: cont, view: 'lista', atual: null };
+    pjConteudoRenderLista();
+  } catch (e){
+    cont.innerHTML = '<div class="pj-v347-empty" style="color:#dc2626">Erro: ' + (e?.message || 'desconhecido') + '</div>';
+  }
+}
+
+function pjConteudoRenderLista(){
+  const s = _pjConteudoState; if (!s) return;
+  const esc = pjcEsc;
+  const meusBlock = s.conteudos.length === 0 ? ''
+    : '<div style="margin-bottom:28px">'
+      + '<div style="font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Conteúdos do projeto · ' + s.conteudos.length + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">'
+      + s.conteudos.map(c => {
+          const tplNome = c.conteudo_templates?.titulo || '(template removido)';
+          return '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px">'
+            + '<div style="font-size:13px;font-weight:600">' + esc(c.titulo || 'Sem título') + '</div>'
+            + '<div style="font-size:11px;color:var(--ink-3)">' + esc(tplNome) + ' · ' + new Date(c.created_at).toLocaleDateString('pt-BR') + '</div>'
+            + '<div style="display:flex;gap:6px;margin-top:4px">'
+            +   '<button onclick="pjConteudoEditar(\'' + c.id + '\')" style="flex:1;background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--ink-2);cursor:pointer">Editar</button>'
+            +   '<button onclick="pjConteudoDeletar(\'' + c.id + '\')" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--alert,#ff6b5c);cursor:pointer" title="Deletar">🗑</button>'
+            + '</div></div>';
+        }).join('')
+      + '</div></div>';
+
+  const tplsBlock = s.templates.length === 0
+    ? '<div class="pj-v347-empty">Nenhum template ativo. Crie templates em <code>conteudo_templates</code>.</div>'
+    : '<div>'
+      + '<div style="font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Novo conteúdo — escolha um template</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">'
+      + s.templates.map(t => {
+          const isDark = t.variante === 'dark';
+          const isFeed = t.dimensoes === '1080x1080';
+          const thumbBg = isDark ? '#0a0f0c' : '#fff';
+          const thumbInk = isDark ? '#e8efe9' : '#1a1f1c';
+          const thumbAccent = '#3dff95';
+          const aspect = isFeed ? '1 / 1' : '4 / 5';
+          return '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px">'
+            + '<div style="aspect-ratio:' + aspect + ';background:' + thumbBg + ';border-radius:8px;padding:14px;display:flex;flex-direction:column;justify-content:space-between;color:' + thumbInk + ';font-family:var(--sans);overflow:hidden">'
+            +   '<div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;letter-spacing:.06em">'
+            +     '<span style="font-weight:700"><span style="color:' + thumbAccent + '">1</span>NEGÓCIO</span>'
+            +     '<span style="opacity:.6">CIDADE · UF</span>'
+            +   '</div>'
+            +   '<div><div style="font-size:8px;opacity:.5;margin-bottom:2px">À VENDA POR</div><div style="font-size:24px;font-weight:800;color:' + thumbAccent + '">R$ X.Xk</div></div>'
+            +   '<div style="font-size:14px;font-weight:700;line-height:1.15">Título do negócio</div>'
+            +   '<div style="display:flex;gap:4px;font-size:7px;opacity:.7"><span>FAT</span>·<span>RES</span>·<span>ATV</span>·<span>PAS</span>·<span>PL</span></div>'
+            + '</div>'
+            + '<div style="display:flex;gap:4px;flex-wrap:wrap"><span style="font-size:9px;background:var(--bg);border-radius:4px;padding:2px 6px;color:var(--ink-3)">' + esc(t.variante) + '</span>'
+            +   '<span style="font-size:9px;background:var(--bg);border-radius:4px;padding:2px 6px;color:var(--ink-3)">' + esc(t.dimensoes) + '</span></div>'
+            + '<div style="font-size:12px;font-weight:600;line-height:1.3">' + esc(t.titulo) + '</div>'
+            + '<button onclick="pjConteudoNovo(\'' + t.id + '\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:7px;font-size:11px;font-weight:700;cursor:pointer">Usar este →</button>'
+            + '</div>';
+        }).join('')
+      + '</div></div>';
+
+  s.container.innerHTML = '<div style="padding:4px">' + meusBlock + tplsBlock + '</div>';
+}
+
+function pjConteudoNovo(templateId){
+  const s = _pjConteudoState; if (!s) return;
+  const tpl = s.templates.find(t => t.id === templateId);
+  if (!tpl) return;
+  const valoresIniciais = {};
+  (tpl.campos || []).forEach(c => { valoresIniciais[c.id] = ''; });
+  s.atual = { id: null, template: tpl, titulo: '', valores: valoresIniciais };
+  s.view = 'editor';
+  pjConteudoRenderEditor();
+}
+
+function pjConteudoEditar(conteudoId){
+  const s = _pjConteudoState; if (!s) return;
+  const c = s.conteudos.find(x => x.id === conteudoId);
+  if (!c) return;
+  const tpl = s.templates.find(t => t.id === c.template_id);
+  if (!tpl){ alert('Template original não encontrado'); return; }
+  s.atual = { id: c.id, template: tpl, titulo: c.titulo || '', valores: c.valores || {} };
+  s.view = 'editor';
+  pjConteudoRenderEditor();
+}
+
+async function pjConteudoDeletar(conteudoId){
+  if (!confirm('Deletar este conteúdo?')) return;
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Prefer': 'return=minimal' };
+  const r = await fetch(SB + '/rest/v1/projeto_conteudo?id=eq.' + conteudoId, { method: 'DELETE', headers });
+  if (!r.ok){ alert('Erro ao deletar (HTTP ' + r.status + ')'); return; }
+  const s = _pjConteudoState; if (!s) return;
+  s.conteudos = s.conteudos.filter(c => c.id !== conteudoId);
+  try { typeof origToast === 'function' && origToast('✓ Conteúdo deletado'); } catch(_){}
+  pjConteudoRenderLista();
+}
+
+function pjConteudoRenderEditor(){
+  const s = _pjConteudoState; if (!s || !s.atual) return;
+  const tpl = s.atual.template;
+  const esc = pjcEsc;
+  const camposHtml = (tpl.campos || []).map(c => {
+    const val = s.atual.valores[c.id] || '';
+    const len = val.length;
+    const max = c.max_chars || 200;
+    const overCls = len > max ? ' style="color:var(--alert,#ff6b5c)"' : '';
+    const auto = c.auto_fill ? '<button onclick="pjConteudoAutoFill(\'' + c.id + '\')" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:3px 8px;font-size:10px;color:var(--ink-3);cursor:pointer;margin-left:4px" title="Preencher automaticamente">↺ Auto</button>' : '';
+    const reqMark = c.obrigatorio ? '<span style="color:var(--alert,#ff6b5c)"> *</span>' : '';
+    const inputEl = c.tipo === 'textarea'
+      ? '<textarea id="pjc-f-' + c.id + '" rows="3" oninput="pjConteudoOnChange(\'' + c.id + '\')" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;color:var(--ink);font-size:12px;resize:vertical;box-sizing:border-box;font-family:var(--sans)">' + esc(val) + '</textarea>'
+      : '<input id="pjc-f-' + c.id + '" type="text" oninput="pjConteudoOnChange(\'' + c.id + '\')" value="' + esc(val).replace(/"/g, '&quot;') + '" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;color:var(--ink);font-size:12px;box-sizing:border-box">';
+    return '<div style="margin-bottom:12px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
+      +   '<label style="font-size:11px;font-weight:600;color:var(--ink-2)">' + esc(c.label || c.id) + reqMark + auto + '</label>'
+      +   '<span id="pjc-c-' + c.id + '" style="font-size:10px;color:var(--ink-3)"' + overCls + '>' + len + '/' + max + '</span>'
+      + '</div>'
+      + inputEl
+      + '</div>';
+  }).join('');
+
+  s.container.innerHTML =
+    '<div style="display:flex;gap:16px;height:calc(100vh - 220px);min-height:560px">'
+    + '<div style="width:380px;flex-shrink:0;background:var(--surface);border:1px solid var(--line-2);border-radius:12px;display:flex;flex-direction:column;overflow:hidden">'
+    +   '<div style="padding:14px;border-bottom:1px solid var(--line-2);display:flex;align-items:center;gap:10px">'
+    +     '<button onclick="pjConteudoVoltar()" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--ink-2);cursor:pointer">← Voltar</button>'
+    +     '<div style="font-size:13px;font-weight:600;flex:1">' + esc(tpl.titulo) + '</div>'
+    +   '</div>'
+    +   '<div style="padding:14px;overflow-y:auto;flex:1">'
+    +     '<div style="margin-bottom:14px">'
+    +       '<label style="font-size:11px;font-weight:600;color:var(--ink-2);display:block;margin-bottom:4px">Título deste conteúdo</label>'
+    +       '<input id="pjc-titulo" type="text" oninput="pjConteudoOnChangeTitulo()" value="' + esc(s.atual.titulo).replace(/"/g, '&quot;') + '" placeholder="ex: Post semana 1" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;color:var(--ink);font-size:12px;box-sizing:border-box">'
+    +     '</div>'
+    +     '<div style="height:1px;background:var(--line-2);margin:12px 0"></div>'
+    +     camposHtml
+    +   '</div>'
+    +   '<div style="padding:12px;border-top:1px solid var(--line-2);display:flex;gap:8px">'
+    +     '<button onclick="pjConteudoSalvar()" id="pjc-btn-salvar" style="flex:1;background:var(--accent,#22c55e);color:#000;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer">💾 Salvar</button>'
+    +     '<button onclick="pjConteudoDownload()" id="pjc-btn-png" style="flex:1;background:var(--surface-2,var(--bg));border:1px solid var(--line-2);border-radius:8px;padding:9px;font-size:12px;color:var(--ink-2);cursor:pointer">⬇ Download PNG</button>'
+    +   '</div>'
+    + '</div>'
+    + '<div style="flex:1;min-width:0;background:var(--surface);border:1px solid var(--line-2);border-radius:16px;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:20px">'
+    +   '<div id="pjc-preview-wrap" style="display:flex;align-items:center;justify-content:center;max-width:100%;max-height:100%"></div>'
+    + '</div>'
+    + '</div>';
+
+  pjConteudoMontarPreview();
+}
+
+function pjConteudoOnChange(campoId){
+  const s = _pjConteudoState; if (!s || !s.atual) return;
+  const el = document.getElementById('pjc-f-' + campoId);
+  if (!el) return;
+  s.atual.valores[campoId] = el.value;
+  const c = (s.atual.template.campos || []).find(x => x.id === campoId);
+  const max = c?.max_chars || 200;
+  const ctr = document.getElementById('pjc-c-' + campoId);
+  if (ctr){
+    ctr.textContent = el.value.length + '/' + max;
+    ctr.style.color = el.value.length > max ? 'var(--alert,#ff6b5c)' : 'var(--ink-3)';
+  }
+  pjConteudoAtualizarPreview();
+}
+
+function pjConteudoOnChangeTitulo(){
+  const s = _pjConteudoState; if (!s || !s.atual) return;
+  const el = document.getElementById('pjc-titulo');
+  if (el) s.atual.titulo = el.value;
+}
+
+function pjConteudoAutoFill(campoId){
+  const s = _pjConteudoState; if (!s || !s.atual) return;
+  const c = (s.atual.template.campos || []).find(x => x.id === campoId);
+  if (!c || !c.auto_fill) return;
+  const val = pjConteudoResolverAutoFill(c.auto_fill, s.neg);
+  s.atual.valores[campoId] = val;
+  const el = document.getElementById('pjc-f-' + campoId);
+  if (el) el.value = val;
+  pjConteudoOnChange(campoId);
+}
+
+function pjConteudoResolverAutoFill(path, neg){
+  const laudo = window._pjAbertoLaudo || {};
+  const dre = laudo?.calc_json?.dre || laudo?.dre || {};
+  const val = laudo?.calc_json?.valuation || laudo?.valuation || {};
+  switch(path){
+    case 'negocio.titulo_anuncio': return neg?.titulo_anuncio || neg?.nome || '';
+    case 'negocio.descricao_card': return neg?.descricao_card || neg?.descricao || '';
+    case 'negocio.codigo': return neg?.codigo || neg?.codigo_diagnostico || (neg?.id ? neg.id.substring(0,8).toUpperCase() : '');
+    case 'negocio.cidade_estado': return (neg?.cidade || '') + (neg?.estado ? ' · ' + String(neg.estado).toUpperCase() : '');
+    case 'negocio.valor_pedido_formatado': return pjcFmtBR(neg?.valor_pedido || neg?.preco_pedido || val?.valor_venda || 0);
+    case 'laudo.faturamento_anual_formatado': return pjcFmtBR(dre?.fat_anual || neg?.faturamento_anual || 0, true);
+    case 'laudo.resultado_anual_formatado': return pjcFmtBR(dre?.ro_anual || neg?.ebitda_anual || 0, true);
+    case 'laudo.ativos_formatado': return pjcFmtBR(laudo?.ativos || dre?.ativos || 0, true);
+    case 'laudo.passivos_formatado': return pjcFmtBR(laudo?.passivos || dre?.passivos || 0, true);
+    case 'laudo.patrimonio_liquido_formatado': return pjcFmtBR(laudo?.patrimonio_liquido || dre?.patrimonio_liquido || 0, true);
+    default: return '';
+  }
+}
+
+// formata como "850k" / "1.6M" / "2.4M" — se prefixR$=true, retorna "R$ 1.6M"
+function pjcFmtBR(v, comR$){
+  const n = parseFloat(v); if (!n || n <= 0) return comR$ ? 'R$ 0' : '0';
+  let s;
+  if (n >= 1000000) s = (n/1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  else if (n >= 1000) s = Math.round(n/1000) + 'k';
+  else s = Math.round(n).toString();
+  return comR$ ? ('R$ ' + s) : s;
+}
+
+function pjcEsc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// monta o preview com HTML do template + CSS + valores substituídos
+function pjConteudoMontarPreview(){
+  const s = _pjConteudoState; if (!s || !s.atual) return;
+  const tpl = s.atual.template;
+  const isDark = tpl.variante === 'dark';
+  const isFeed = tpl.dimensoes === '1080x1080';
+  const w = 1080;
+  const h = isFeed ? 1080 : 1350;
+  // dim disponível: aprox 80% da largura do container do preview
+  const wrap = document.getElementById('pjc-preview-wrap');
+  if (!wrap) return;
+  const parent = wrap.parentElement;
+  const availW = (parent?.clientWidth || 800) - 40;
+  const availH = (parent?.clientHeight || 700) - 40;
+  const scale = Math.min(availW / w, availH / h, 1);
+  const css = pjConteudoCss();
+  wrap.innerHTML =
+    '<style>' + css + '</style>'
+    + '<div id="pjc-preview-canvas" class="pjc-canvas ' + (isDark ? 'dark' : 'light') + (isFeed ? ' feed' : '') + '" '
+    +   'style="width:' + w + 'px;height:' + h + 'px;transform:scale(' + scale + ');transform-origin:center center">'
+    +   pjConteudoTemplateAplicado()
+    + '</div>';
+}
+
+function pjConteudoAtualizarPreview(){
+  const canvas = document.getElementById('pjc-preview-canvas');
+  if (!canvas) return;
+  canvas.innerHTML = pjConteudoTemplateAplicado();
+}
+
+function pjConteudoTemplateAplicado(){
+  const s = _pjConteudoState; if (!s || !s.atual) return '';
+  let html = s.atual.template.html_template || '';
+  const vals = s.atual.valores || {};
+  // substitui {{var}} pelos valores; se vazio, mostra placeholder discreto entre colchetes
+  html = html.replace(/\{\{(\w+)\}\}/g, (_, k) => {
+    const v = vals[k];
+    if (v == null || v === '') return '<span style="opacity:.35">[' + k + ']</span>';
+    return pjcEsc(v);
+  });
+  return html;
+}
+
+// CSS do canvas + tokens do template Carrossel · Capa
+function pjConteudoCss(){
+  return `
+  .pjc-canvas { box-sizing:border-box; font-family: 'Inter', system-ui, sans-serif; position:relative; padding:64px 56px 56px; display:flex; flex-direction:column; gap:18px; overflow:hidden; }
+  .pjc-canvas.light { background:#fff; color:#1a1f1c; }
+  .pjc-canvas.dark  { background:#0a0f0c; color:#e8efe9; }
+  .pjc-canvas .pg { display:flex; flex-direction:column; gap:18px; height:100%; }
+  .pjc-canvas .pg-head { display:flex; justify-content:space-between; align-items:center; font-size:20px; font-weight:700; letter-spacing:.04em; }
+  .pjc-canvas .pg-logo .one { color:#3dff95; }
+  .pjc-canvas .pg-loc { opacity:.7; font-weight:500; letter-spacing:.08em; text-transform:uppercase; }
+  .pjc-canvas .pg-valor { display:flex; flex-direction:column; gap:4px; margin-top:12px; }
+  .pjc-canvas .pg-valor .l { font-size:18px; opacity:.55; letter-spacing:.1em; text-transform:uppercase; font-weight:600; }
+  .pjc-canvas .pg-valor .v { font-size:128px; font-weight:900; color:#3dff95; line-height:.95; letter-spacing:-.02em; }
+  .pjc-canvas .pg-valor .pre { font-size:48px; vertical-align:top; margin-right:8px; opacity:.9; }
+  .pjc-canvas .pg-title h1 { font-size:80px; font-weight:800; line-height:1.05; letter-spacing:-.02em; margin:0; }
+  .pjc-canvas .pg-stripe { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; border-top:1px solid currentColor; border-bottom:1px solid currentColor; padding:18px 0; margin-top:6px; opacity:.95; }
+  .pjc-canvas.dark .pg-stripe { border-color:rgba(255,255,255,.18); }
+  .pjc-canvas.light .pg-stripe { border-color:rgba(0,0,0,.12); }
+  .pjc-canvas .pg-stripe .cell { display:flex; flex-direction:column; gap:4px; }
+  .pjc-canvas .pg-stripe .l { font-size:11px; opacity:.55; letter-spacing:.08em; text-transform:uppercase; font-weight:700; }
+  .pjc-canvas .pg-stripe .v { font-size:30px; font-weight:700; }
+  .pjc-canvas .pg-spacer { flex:1; min-height:8px; }
+  .pjc-canvas .pg-feature { display:flex; align-items:center; gap:16px; }
+  .pjc-canvas .pg-feature .rule { width:48px; height:3px; background:#3dff95; border-radius:2px; flex-shrink:0; }
+  .pjc-canvas .pg-feature .txt { font-size:40px; font-weight:700; letter-spacing:-.01em; }
+  .pjc-canvas .pg-desc { font-size:20px; line-height:1.55; opacity:.78; text-align:justify; margin:6px 0 0; }
+  .pjc-canvas .pg-foot { display:flex; justify-content:space-between; align-items:center; margin-top:auto; padding-top:16px; }
+  .pjc-canvas .pg-foot .dots { display:flex; gap:8px; }
+  .pjc-canvas .pg-foot .dot { width:10px; height:10px; border-radius:999px; background:currentColor; opacity:.18; }
+  .pjc-canvas .pg-foot .dot.on { opacity:.9; background:#3dff95; }
+  .pjc-canvas .pg-foot .code { font-size:14px; opacity:.55; letter-spacing:.08em; text-transform:uppercase; font-weight:600; }
+  .pjc-canvas.feed { padding:56px 52px; }
+  .pjc-canvas.feed .pg-valor .v { font-size:104px; }
+  .pjc-canvas.feed .pg-title h1 { font-size:64px; }
+  `;
+}
+
+function pjConteudoVoltar(){
+  const s = _pjConteudoState; if (!s) return;
+  s.view = 'lista'; s.atual = null;
+  pjConteudoRenderLista();
+}
+
+async function pjConteudoSalvar(){
+  const s = _pjConteudoState; if (!s || !s.atual) return;
+  const btn = document.getElementById('pjc-btn-salvar');
+  if (btn){ btn.disabled = true; btn.textContent = '⏳ Salvando...'; }
+  const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+  const payload = {
+    projeto_metadata_id: s.meta.id,
+    template_id: s.atual.template.id,
+    titulo: s.atual.titulo || 'Sem título',
+    valores: s.atual.valores || {},
+    updated_at: new Date().toISOString(),
+  };
+  try {
+    let resp;
+    if (s.atual.id){
+      resp = await fetch(SB + '/rest/v1/projeto_conteudo?id=eq.' + s.atual.id, { method: 'PATCH', headers, body: JSON.stringify(payload) });
+    } else {
+      resp = await fetch(SB + '/rest/v1/projeto_conteudo', { method: 'POST', headers, body: JSON.stringify(payload) });
+    }
+    if (!resp.ok){ throw new Error('HTTP ' + resp.status + ' · ' + (await resp.text()).slice(0,200)); }
+    const data = await resp.json();
+    const row = Array.isArray(data) ? data[0] : data;
+    // recarrega lista
+    const rC = await fetch(SB + '/rest/v1/projeto_conteudo?projeto_metadata_id=eq.' + s.meta.id + '&order=created_at.desc&select=*,conteudo_templates(titulo,variante,dimensoes)', { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) } });
+    s.conteudos = rC.ok ? await rC.json() : s.conteudos;
+    if (!s.atual.id && row?.id) s.atual.id = row.id;
+    try { typeof origToast === 'function' && origToast('✓ Salvo'); } catch(_){}
+    s.view = 'lista'; s.atual = null;
+    pjConteudoRenderLista();
+  } catch (e){
+    alert('Erro ao salvar: ' + (e?.message || e));
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = '💾 Salvar'; }
+  }
+}
+
+async function pjConteudoDownload(){
+  const s = _pjConteudoState; if (!s || !s.atual) return;
+  if (typeof html2canvas !== 'function'){ alert('html2canvas não carregou — recarregue a página'); return; }
+  const btn = document.getElementById('pjc-btn-png');
+  if (btn){ btn.disabled = true; btn.textContent = '⏳ Gerando...'; }
+  try {
+    const canvasEl = document.getElementById('pjc-preview-canvas');
+    if (!canvasEl) throw new Error('preview não encontrado');
+    // remove o scale temporariamente pra render em tamanho real
+    const prevTransform = canvasEl.style.transform;
+    canvasEl.style.transform = 'scale(1)';
+    const c = await html2canvas(canvasEl, { scale: 2, useCORS: true, allowTaint: false, backgroundColor: null, logging: false });
+    canvasEl.style.transform = prevTransform;
+    const slug = (s.atual.titulo || 'conteudo').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'conteudo';
+    const variante = s.atual.template.variante || 'light';
+    c.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = '1negocio-' + slug + '-' + variante + '.png';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+    try { typeof origToast === 'function' && origToast('✓ PNG baixado'); } catch(_){}
+  } catch (e){
+    alert('Erro ao gerar PNG: ' + (e?.message || e));
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = '⬇ Download PNG'; }
+  }
+}
+
+window.pjV347RenderConteudo = pjV347RenderConteudo;
+window.pjConteudoNovo = pjConteudoNovo;
+window.pjConteudoEditar = pjConteudoEditar;
+window.pjConteudoDeletar = pjConteudoDeletar;
+window.pjConteudoVoltar = pjConteudoVoltar;
+window.pjConteudoSalvar = pjConteudoSalvar;
+window.pjConteudoDownload = pjConteudoDownload;
+window.pjConteudoAutoFill = pjConteudoAutoFill;
+window.pjConteudoOnChange = pjConteudoOnChange;
+window.pjConteudoOnChangeTitulo = pjConteudoOnChangeTitulo;
 
 // v9.39.2 · Inteligência · layout 2-pane (chat + box tese) com auto-start contextualizado
 function pjV347RenderInteligencia(n, meta){
