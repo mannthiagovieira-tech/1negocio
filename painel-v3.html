@@ -14042,6 +14042,13 @@ async function origV8RodarGmapsCard(cardId, query) {
   if (!origId) return;
   const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
 
+  // v9.43.8 · garante fase=leads antes de chamar a edge (evita fase_invalida)
+  await fetch(sbUrl+'/rest/v1/projetos_originacao?id=eq.'+origId, {
+    method:'PATCH',
+    headers:{...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'},
+    body:JSON.stringify({fase_atual:'leads', updated_at:new Date().toISOString()}),
+  });
+
   await fetch(sbUrl+'/rest/v1/projeto_atividades?id=eq.'+cardId, {
     method:'PATCH',
     headers:{...origV2Headers(),'Content-Type':'application/json','Prefer':'return=minimal'},
@@ -14623,8 +14630,11 @@ async function origV8AbrirModalExpandido(id) {
     +'</div>':'')
     +'<div style="background:var(--accent-soft,rgba(34,197,94,.08));border:1px solid var(--accent-line,rgba(34,197,94,.2));border-radius:8px;padding:10px;margin-bottom:10px">'
     +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent,#22c55e);margin-bottom:6px">💬 Mensagem sugerida</div>'
-    +'<div id="exp-msg-sugerida-'+esc(id)+'" style="font-size:11px;color:var(--ink-2);line-height:1.6;white-space:pre-wrap">'+esc(origV8MensagemSugerida(tipo,nome))+'</div>'
-    +'<button onclick="(function(){var el=document.getElementById(\'exp-msg-sugerida-'+esc(id)+'\');if(!el)return;navigator.clipboard.writeText(el.textContent).then(function(){try{typeof origToast===\'function\'&&origToast(\'✓ Copiado!\')}catch(_){}})})()" style="margin-top:6px;background:transparent;border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:4px;padding:3px 10px;font-size:10px;color:var(--accent,#22c55e);cursor:pointer">📋 Copiar mensagem</button>'
+    +'<textarea id="exp-msg-sugerida-'+esc(id)+'" rows="8" style="width:100%;font-size:11px;color:var(--ink-2);line-height:1.6;background:transparent;border:none;resize:vertical;font-family:var(--sans);box-sizing:border-box;outline:none">'+esc(origV8MensagemSugerida(tipo,nome))+'</textarea>'
+    +'<div style="display:flex;gap:6px;margin-top:6px">'
+    +'<button onclick="(function(){var el=document.getElementById(\'exp-msg-sugerida-'+esc(id)+'\');if(!el)return;navigator.clipboard.writeText(el.value).then(function(){try{typeof origToast===\'function\'&&origToast(\'✓ Copiado!\')}catch(_){}})})()" style="background:transparent;border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:4px;padding:3px 10px;font-size:10px;color:var(--accent,#22c55e);cursor:pointer">📋 Copiar</button>'
+    +'<button onclick="origV8GerarJustificativa(\''+esc(id)+'\',\''+esc(tipo)+'\')" style="background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:3px 10px;font-size:10px;color:var(--ink-3);cursor:pointer">✨ Gerar justificativa</button>'
+    +'</div>'
     +'</div>'
     +'<div style="margin-bottom:14px">'
     +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);margin-bottom:6px">Contatos</div>'
@@ -14643,6 +14653,62 @@ async function origV8AbrirModalExpandido(id) {
     +'<textarea id="exp-nova-nota" placeholder="Adicionar nota..." rows="2" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:6px 10px;font-size:11px;color:var(--ink);resize:vertical;box-sizing:border-box;font-family:var(--sans)"></textarea>'
     +'<button onclick="origV8SalvarNotaExpandida(\''+esc(id)+'\')" style="margin-top:4px;background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer">+ Salvar nota</button>'
     +'</div></div>';
+}
+
+async function origV8GerarJustificativa(id, tipo) {
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  const msgEl = document.getElementById('exp-msg-sugerida-'+id);
+  if (!msgEl) return;
+  const msgAtual = msgEl.value;
+  msgEl.value = '⏳ Gerando justificativa...';
+
+  const r = await fetch(sbUrl+'/rest/v1/pool_contatos_uso?id=eq.'+id+'&select=nome,telefone,pool_contatos_global(nome,categoria_setorial,endereco_completo,cidade,dados_brutos)',{headers:origV2Headers()});
+  let rows; try { rows = await r.json(); } catch(_) { rows = []; }
+  const c = Array.isArray(rows)?rows[0]:null;
+  const g = c?.pool_contatos_global || {};
+  const nome = c?.nome || g?.nome || '';
+  const categoria = g?.categoria_setorial || '';
+  const cidade = g?.cidade || '';
+  const negocio = window._origV8CtxAtual?.negocio || {};
+  const dre = window._origV8CtxAtual?.laudo?.calc_json?.dre || {};
+  const negNome = negocio.nome || negocio.titulo_anuncio || 'o negócio';
+  const negSetor = negocio.setor || 'do setor';
+  const negCidade = negocio.cidade || cidade || '';
+  const fatStr = dre.fat_anual ? ('R$ '+(parseFloat(dre.fat_anual)/1000).toFixed(0)+'k/ano') : '';
+  const valPed = window._origV8CtxAtual?.anuncio?.valor_pedido || negocio.preco_pedido;
+  const valStr = valPed ? ('R$ '+(parseFloat(valPed)/1000).toFixed(0)+'k') : '';
+
+  const CONTEXTO_TIPO = {
+    horizontal:'Este contato opera no mesmo segmento ('+categoria+') e pode querer expandir sem o risco de abrir do zero.',
+    vertical_antes:'Este contato é um distribuidor/atacadista que abastece negócios como o '+negNome+' — pode querer ter ponto de venda próprio.',
+    vertical_depois:'Este contato é um cliente potencial do tipo de negócio à venda — pode querer integrar o fornecimento.',
+    adjacente:'Este contato opera em negócio adjacente com público similar ao '+negNome+' — existe sinergia de clientes e localização.',
+    clientes_negocio:'Este contato é cliente fiel do '+negNome+' — já consome e ama o negócio, alta afinidade emocional.',
+    investidor_financeiro:'Este contato é um investidor/gestor patrimonial que pode buscar rentabilidade com negócio operacional consolidado.',
+    profissional_setor:'Este contato trabalha no setor de '+negSetor+' e pode querer empreender saindo do CLT.',
+  };
+  const contexto = CONTEXTO_TIPO[tipo] || '';
+
+  try {
+    const resp = await fetch(sbUrl+'/functions/v1/tese-agente-chat', {
+      method:'POST',
+      headers:{...origV2Headers(),'Content-Type':'application/json'},
+      body: JSON.stringify({
+        originacao_id: window._pjAbertoOrigId || _origV8State?.origId,
+        fase_atual:'livre',
+        historico: [],
+        mensagem: 'Escreva uma mensagem de primeiro contato via WhatsApp para '+(nome||'este contato')+' ('+categoria+(cidade?' em '+cidade:'')+').\n\nContexto: '+contexto+'\n\nUse no máximo 5 linhas. Seja natural, não corporativo. Mencione especificamente o que você viu no negócio deles que fez pensar neles. Inclua o link: https://1negocio.com.br/negocio.html?id='+(negocio.id||'')+'\n\nNegócio à venda: '+negNome+' · '+negSetor+(negCidade?' · '+negCidade:'')+(fatStr?' · '+fatStr:'')+(valStr?' · valor pedido '+valStr:'')+'\n\nResponda APENAS a mensagem, sem introdução.',
+        contexto_negocio: negocio,
+      }),
+    });
+    const data = await resp.json();
+    const msg = data.resposta || data.response || data.content || '';
+    if (msg && msgEl) msgEl.value = String(msg);
+    else if (msgEl) { msgEl.value = msgAtual; try { typeof origToast==='function' && origToast('✗ Resposta vazia'); } catch(_){} }
+  } catch(e) {
+    if (msgEl) msgEl.value = msgAtual;
+    try { typeof origToast==='function' && origToast('✗ Erro ao gerar'); } catch(_){}
+  }
 }
 
 async function origV8SalvarTelExtra(id) {
