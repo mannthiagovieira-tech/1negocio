@@ -14352,22 +14352,23 @@ async function origV8CarregarContatos() {
   let brutos; try { brutos = await rB.json(); } catch(_) { brutos = []; }
   if (!Array.isArray(brutos)) brutos = [];
 
+  // v9.42.9 · brutos do Apify · pega nome/empresa/telefone do payload original via dados_brutos
   const brutosNorm = brutos.map(b => ({
     id: b.id,
     originacao_id: b.originacao_id,
     arquetipo_id: b.arquetipo_id,
     canal: b.canal || 'gmaps',
-    status: b.status || 'novo',
-    nome: b.nome,
-    empresa: b.categoria || null,
-    telefone: b.telefone,
-    email: b.email,
-    website: b.dados_brutos?.website || null,
-    notas: [],
+    status: 'novo',
+    nome: b.nome || b.dados_brutos?.title || '(sem nome)',
+    empresa: b.dados_brutos?.categoryName || (Array.isArray(b.dados_brutos?.categories) ? b.dados_brutos.categories[0] : '') || b.categoria || '',
+    telefone: b.telefone || b.dados_brutos?.phone || b.dados_brutos?.phoneUnformatted || null,
+    email: b.email || null,
+    website: b.dados_brutos?.website || b.dados_brutos?.url || null,
+    notas: b.razao_score ? [{data: b.created_at, autor: 'ia', texto: b.razao_score}] : [],
     ultima_atividade: b.updated_at || b.created_at,
     arquetipo_tipo: '',
-    _fonte: 'brutos',
     score_ia: b.score_ia,
+    _fonte: 'brutos',
   }));
 
   const poolIds = new Set(pool.map(p => p.id));
