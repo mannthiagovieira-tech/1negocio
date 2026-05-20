@@ -27,6 +27,9 @@ const ALLOWED_TABLES = [
   "config_plataforma",
   "dossie_acessos",
   "socio_parceiro_leads",
+  "vw_negocios_anuncios",
+  "conteudo_templates",
+  "projeto_conteudo",
 ];
 
 const corsHeaders = {
