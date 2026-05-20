@@ -12776,7 +12776,10 @@ function pjV347RenderDetalhe(n, meta, mesAtual, refs){
     +     '<span style="font-size:12px;color:var(--ink-3)">Mês ' + (mesAtual || 1) + '/12</span>'
     +     '<span style="background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:999px;padding:2px 10px;font-size:11px;font-weight:600">' + statusTxt.toUpperCase() + '</span>'
     +   '</div>'
-    +   '<a href="javascript:void(0)" onclick="pjVerComoCliente(\'' + negId + '\')" style="background:var(--accent,#22c55e);color:#000;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:600;text-decoration:none">Ver como cliente →</a>'
+    +   '<div style="display:flex;gap:8px;align-items:center">'
+    +     '<button onclick="(()=>{const u=\'https://1negocio.com.br/negocio.html?id=' + negId + '\';navigator.clipboard.writeText(u).then(()=>{try{typeof origToast===\'function\'&&origToast(\'✓ Link copiado!\')}catch(_){}});window.open(u,\'_blank\')})()" style="background:transparent;border:1px solid var(--line-2);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--ink-2);cursor:pointer">🔗 Link do anúncio</button>'
+    +     '<a href="javascript:void(0)" onclick="pjVerComoCliente(\'' + negId + '\')" style="background:var(--accent,#22c55e);color:#000;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:600;text-decoration:none">Ver como cliente →</a>'
+    +   '</div>'
     + '</div>';
 
   const stats = ''
@@ -14541,6 +14544,50 @@ async function origV8GerarMidia(ctx, forcar) {
 }
 
 // ============================================================
+// CONTATO · Posicionamento + mensagem por arquétipo (v9.43.7)
+// ============================================================
+function origV8ContextoArquetipo(tipo) {
+  const ctx = {
+    horizontal:'🏪 Concorrente direto — mesmo segmento. Pode buscar expansão ou segunda unidade. Aborde como oportunidade de crescer sem risco de abrir do zero.',
+    vertical_antes:'🚛 Distribuidor/atacadista — abastece negócios como este. Pode querer verticalizar tendo ponto de venda próprio e aumentar margem.',
+    vertical_depois:'🍽️ Cliente downstream — restaurante ou negócio que compra deste fornecedor. Pode integrar o fornecimento pra reduzir custos e garantir qualidade.',
+    adjacente:'🔗 Negócio adjacente — segmento diferente, público similar. Sinergia em clientes, localização ou operação.',
+    clientes_negocio:'❤️ Cliente fiel — já consome e ama o negócio. Comprou várias vezes. Pode estar interessado em assumir como dono — alta afinidade emocional.',
+    investidor_financeiro:'💼 Investidor financeiro — busca rentabilidade. Não conhece o setor. Foco na tese financeira: retorno, margem e risco.',
+    profissional_setor:'👷 Profissional CLT — conhece o negócio por dentro, quer empreender. Foco no sonho de independência vs risco de abrir do zero.',
+  };
+  return ctx[tipo] || '📌 Arquétipo não identificado — analise o perfil antes de abordar.';
+}
+
+function origV8MensagemSugerida(tipo, _nomeContato) {
+  const ctxN = window._origV8CtxAtual || {};
+  const neg = ctxN.negocio || {};
+  const dre = ctxN.laudo?.calc_json?.dre || {};
+  const valuation = ctxN.laudo?.calc_json?.valuation || {};
+  const negId = neg.id || '';
+  const nomeNeg = neg.nome || ctxN.anuncio?.titulo || 'um negócio';
+  const setor = neg.setor || 'do segmento';
+  const cidade = neg.cidade ? (neg.cidade + (neg.estado?'/'+neg.estado:'')) : 'na região';
+  const fatStr = dre.fat_anual ? ('R$ '+(parseFloat(dre.fat_anual)/1000).toFixed(0)+'k/ano') : 'faturamento expressivo';
+  const valStr = (ctxN?.anuncio?.valor_pedido||neg.preco_pedido) ? ('R$ '+(parseFloat(ctxN?.anuncio?.valor_pedido||neg.preco_pedido)/1000).toFixed(0)+'k') : 'um valor competitivo';
+  const link = negId ? ('https://1negocio.com.br/negocio.html?id='+negId) : '[link do anúncio]';
+
+  const intro = 'Olá, tudo bem?\n\nMeu nome é [SEU NOME] e trabalho com assessoria em compra e venda de empresas.';
+  const dados = nomeNeg + ' — ' + setor + ' em ' + cidade + ', com ' + fatStr + '.';
+
+  const msgs = {
+    horizontal: intro + ' Estou representando a venda de ' + dados + '\n\nPara quem pensa em expansão ou segunda unidade, é uma oportunidade de crescer sem o risco de abrir do zero.\n\nResumo do negócio: ' + link + '\n\nVocê teria interesse em conversar?',
+    vertical_antes: intro + ' Estou representando ' + dados + '\n\nÉ exatamente o tipo de negócio que distribuidores do segmento consideram para verticalização — tendo ponto de venda próprio aumenta margem e reduz dependência.\n\nResumo: ' + link + '\n\nTopa uma conversa rápida?',
+    vertical_depois: intro + ' Represento ' + dados + '\n\nÉ um fornecedor natural para operações que compram do segmento. Integrar pode reduzir custos e garantir qualidade da cadeia.\n\nResumo: ' + link + '\n\nPodemos conversar?',
+    adjacente: intro + ' Represento ' + dados + '\n\nO público é muito similar ao do seu segmento — existe uma sinergia natural interessante de clientes, localização ou operação.\n\nResumo: ' + link + '\n\nPodemos bater um papo?',
+    clientes_negocio: 'Olá!\n\nVi que você já é cliente do ' + nomeNeg + '. Trabalho com assessoria de M&A e estou representando a venda do negócio.\n\nQuem já conhece e ama tem uma vantagem enorme — base de clientes formada, processos rodando, ' + fatStr + '.\n\nResumo: ' + link + '\n\nVocê teria interesse em conhecer melhor?',
+    investidor_financeiro: 'Olá!\n\nSou assessor de M&A. Tenho uma oportunidade: ' + dados + ' Avaliação de ' + valStr + '.\n\nResumo completo (com tese, múltiplos e payback): ' + link + '\n\nVocê estaria aberto a conhecer os números?',
+    profissional_setor: intro + ' Represento ' + dados + '\n\nPara quem conhece o setor por dentro, é uma oportunidade de empreender com muito menos risco: base de clientes formada, processos rodando e faturamento comprovado.\n\nResumo: ' + link + '\n\nVocê toparia conhecer mais?',
+  };
+  return msgs[tipo] || ('Olá! Sou assessor de M&A e represento a venda de ' + dados + '\n\n' + link);
+}
+
+// ============================================================
 // CONTATO · Modal expandido (v9.43.4)
 // ============================================================
 async function origV8AbrirModalExpandido(id) {
@@ -14552,6 +14599,7 @@ async function origV8AbrirModalExpandido(id) {
   if (!c) { try { typeof origToast==='function' && origToast('Contato não encontrado no pool'); } catch(_) {} return; }
   const esc = s => String(s||'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const nome = c.nome||g.nome||'Sem nome';
+  const tipo = c.arquetipo_tipo||c.arquetipos_compradores?.tipo||'';
   const tel = c.telefone||g.telefone||'';
   const email = c.email_contato||g.email||'';
   const site = c.website||g.website||'';
@@ -14569,6 +14617,15 @@ async function origV8AbrirModalExpandido(id) {
     +'</div>'
     +(cat?'<div style="font-size:11px;color:var(--ink-3);margin-bottom:8px">'+esc(cat)+'</div>':'')
     +(end?'<div style="font-size:11px;color:var(--ink-3);margin-bottom:10px">📍 '+esc(end)+'</div>':'')
+    +(tipo?'<div style="background:var(--surface-2);border-radius:8px;padding:10px;margin-bottom:10px">'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);margin-bottom:4px">Como se posicionar</div>'
+      +'<div style="font-size:11px;color:var(--ink-2);line-height:1.5">'+esc(origV8ContextoArquetipo(tipo))+'</div>'
+    +'</div>':'')
+    +'<div style="background:var(--accent-soft,rgba(34,197,94,.08));border:1px solid var(--accent-line,rgba(34,197,94,.2));border-radius:8px;padding:10px;margin-bottom:10px">'
+    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent,#22c55e);margin-bottom:6px">💬 Mensagem sugerida</div>'
+    +'<div id="exp-msg-sugerida-'+esc(id)+'" style="font-size:11px;color:var(--ink-2);line-height:1.6;white-space:pre-wrap">'+esc(origV8MensagemSugerida(tipo,nome))+'</div>'
+    +'<button onclick="(function(){var el=document.getElementById(\'exp-msg-sugerida-'+esc(id)+'\');if(!el)return;navigator.clipboard.writeText(el.textContent).then(function(){try{typeof origToast===\'function\'&&origToast(\'✓ Copiado!\')}catch(_){}})})()" style="margin-top:6px;background:transparent;border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:4px;padding:3px 10px;font-size:10px;color:var(--accent,#22c55e);cursor:pointer">📋 Copiar mensagem</button>'
+    +'</div>'
     +'<div style="margin-bottom:14px">'
     +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);margin-bottom:6px">Contatos</div>'
     +(tel?'<a href="https://wa.me/'+esc(String(tel).replace(/\D/g,''))+'" target="_blank" style="display:block;font-size:12px;color:#25d366;margin-bottom:4px">📞 '+esc(tel)+' (WhatsApp)</a>':'')
