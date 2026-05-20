@@ -14263,16 +14263,6 @@ function origV8HtmlContatosKanban(ctx) {
     +'<div><div style="font-size:13px;font-weight:600">Contatos</div>'
     +'<div style="font-size:11px;color:var(--ink-3)" id="contatos-meta">Carregando...</div></div>'
     +'<div style="display:flex;gap:8px">'
-    +'<select id="contatos-filtro-arq" onchange="origV8CarregarContatos()" style="background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--ink)">'
-    +'<option value="">Todos arquétipos</option>'
-    +'<option value="horizontal">Horizontal</option>'
-    +'<option value="vertical_antes">Vertical antes</option>'
-    +'<option value="vertical_depois">Vertical depois</option>'
-    +'<option value="adjacente">Adjacente</option>'
-    +'<option value="clientes_negocio">Cliente fiel</option>'
-    +'<option value="investidor_financeiro">Investidor</option>'
-    +'<option value="profissional_setor">Profissional setor</option>'
-    +'</select>'
     +'<button onclick="origV8AbrirModalContato(null,\'manual\',\'\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">+ Contato</button>'
     +'</div></div>'
     +'<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;min-height:400px;overflow-x:auto" id="contatos-kanban">'
@@ -14341,7 +14331,6 @@ async function origV8CarregarContatos() {
   const origId = window._pjAbertoOrigId || _origV8State?.origId;
   if (!origId) return;
   const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
-  const filtroArq = document.getElementById('contatos-filtro-arq')?.value || '';
   // v9.42.7 · lê pool_leads_originacao + originacao_leads_brutos (recém-chegados do Apify)
   const url = sbUrl+'/rest/v1/pool_leads_originacao?originacao_id=eq.'+origId+'&order=ultima_atividade.desc.nullslast&limit=200&select=*,arquetipos_compradores(tipo,nome)';
   const r = await fetch(url, {headers: origV2Headers()});
@@ -14373,10 +14362,6 @@ async function origV8CarregarContatos() {
 
   const poolIds = new Set(pool.map(p => p.id));
   let contatos = [...pool, ...brutosNorm.filter(b => !poolIds.has(b.id))];
-
-  if (filtroArq) {
-    contatos = contatos.filter(c => c.arquetipo_tipo === filtroArq);
-  }
 
   // status pool_contatos_uso → coluna kanban
   const STATUS_MAP = {
