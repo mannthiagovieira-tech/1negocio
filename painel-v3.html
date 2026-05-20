@@ -13171,10 +13171,10 @@ async function pjV347SetAba(aba, negIdHint){
       else {
         const [rO, rA] = await Promise.all([
           fetch(SB + '/rest/v1/projeto_ondas?projeto_metadata_id=eq.' + meta.id + '&order=numero_onda', { headers }),
-          fetch(SB + '/rest/v1/projeto_atividades?projeto_metadata_id=eq.' + meta.id + '&order=ordem', { headers }),
+          fetch(SB + '/rest/v1/projeto_entregaveis?negocio_id=eq.' + (n?.id || '') + '&order=ordem', { headers }),
         ]);
         const ondas = rO.ok ? await rO.json() : [];
-        const atvs  = rA.ok ? await rA.json() : [];
+        const atvs  = (rA.ok ? await rA.json() : []).map(a => ({ ...a, prazo: a.data_prevista, concluida: a.status === 'concluido' }));
         cont.innerHTML = pjV347RenderEntregaveis(meta, atvs, ondas);
       }
     } else if (aba === 'config'){
@@ -15375,7 +15375,7 @@ async function pjV347CarregarCockpitFixo(n, meta){
   // Próxima entrega
   try {
     if (meta?.id){
-      const r = await fetch(SB + '/rest/v1/projeto_atividades?projeto_metadata_id=eq.' + meta.id + '&concluida=eq.false&visivel_cliente=eq.true&order=prazo.asc&limit=1', { headers });
+      const r = await fetch(SB + '/rest/v1/projeto_entregaveis?negocio_id=eq.' + (n?.id || '') + '&status=neq.concluido&order=data_prevista.asc&limit=1&select=titulo,prazo:data_prevista', { headers });
       const arr = r.ok ? await r.json() : [];
       const prox = arr[0];
       const el = document.getElementById('pj-cockpit-proxima');
@@ -15759,12 +15759,12 @@ async function pjRenderListaV2(){
   // Próximo entregável por projeto (visível ao cliente · não concluído · prazo mais próximo)
   if (window._pjTodosProj.length > 0) {
     try {
-      const ids = window._pjTodosProj.map(p => p.id).filter(Boolean).join(',');
-      if (ids) {
-        const r = await fetch(SB + '/rest/v1/projeto_atividades?projeto_metadata_id=in.(' + ids + ')&concluida=eq.false&visivel_cliente=eq.true&order=prazo.asc&select=projeto_metadata_id,titulo,prazo&limit=1000', { headers });
+      const negIds = window._pjTodosProj.map(p => p.negocio_id).filter(Boolean).join(',');
+      if (negIds) {
+        const r = await fetch(SB + '/rest/v1/projeto_entregaveis?negocio_id=in.(' + negIds + ')&status=neq.concluido&order=data_prevista.asc&select=negocio_id,titulo,prazo:data_prevista&limit=1000', { headers });
         const ativs = r.ok ? await r.json() : [];
         ativs.forEach(a => {
-          const proj = window._pjTodosProj.find(p => p.id === a.projeto_metadata_id);
+          const proj = window._pjTodosProj.find(p => p.negocio_id === a.negocio_id);
           if (proj && !proj.proximo_entregavel) { proj.proximo_entregavel = a.titulo; proj.proximo_prazo = a.prazo; }
         });
       }
@@ -16101,7 +16101,7 @@ async function cockpitCarregarDados(){
     f('/rest/v1/teses_investimento?' + ge('created_at', inicioMes) + '&select=id,setores'),
     f('/rest/v1/pool_contatos_uso?' + ge('marcado_em', inicioMes) + '&select=id,status,canal,originacao_id,contatado_em,marcado_em&limit=5000'),
     f('/rest/v1/arquetipos_compradores?' + ge('created_at', inicioMes) + '&select=id'),
-    f('/rest/v1/projeto_atividades?concluida=eq.false&' + le('prazo', hoje) + '&select=id,titulo,prazo,projeto_metadata_id,tipo,visivel_cliente&order=prazo.asc')
+    f('/rest/v1/projeto_entregaveis?status=neq.concluido&' + le('data_prevista', hoje) + '&select=id,titulo,prazo:data_prevista,negocio_id,tipo&order=data_prevista.asc')
   ]);
 
   return { negocios, usuarios, diagnosticos, corretores, projetos, transacoes, solicitacoes, ndas, teses, leads, arquetipos, atividades, hoje, inicioMes, seteDias, trintaDias };
@@ -16381,12 +16381,13 @@ async function pjV347AbrirEntregaveis(){
   if (!meta?.id) { pjV347OverlayGenerico('📋 Entregáveis', '<p>Sem meta vinculada</p>'); return; }
   // carrega ondas + atividades
   const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+  const negocioId = n?.id || meta?.negocio_id || null;
   const [rOnda, rAtv] = await Promise.all([
     fetch(SB + '/rest/v1/projeto_ondas?projeto_metadata_id=eq.' + meta.id + '&order=numero_onda', { headers }),
-    fetch(SB + '/rest/v1/projeto_atividades?projeto_metadata_id=eq.' + meta.id + '&order=ordem', { headers }),
+    fetch(SB + '/rest/v1/projeto_entregaveis?negocio_id=eq.' + (negocioId || '') + '&order=ordem', { headers }),
   ]);
   const ondas = rOnda.ok ? await rOnda.json() : [];
-  const atvs = rAtv.ok ? await rAtv.json() : [];
+  const atvs = (rAtv.ok ? await rAtv.json() : []).map(a => ({ ...a, prazo: a.data_prevista, concluida: a.status === 'concluido' }));
   pjV347OverlayGenerico('📋 Cronograma de ondas', pjV347RenderEntregaveis(meta, atvs, ondas));
 }
 async function pjV347AbrirConfig(negId){
@@ -16544,7 +16545,7 @@ function pjV347RenderEntregaveis(meta, atividades, ondas){
   }
 
   const ondaAtual = ondasAtivas.find(o => o.status === 'ativa') || ondasAtivas[0];
-  const atvsOnda = (atividades||[]).filter(a => a.onda_id === ondaAtual?.id).sort((a, b) => (a.ordem||0) - (b.ordem||0));
+  const atvsOnda = (atividades||[]).slice().sort((a, b) => (a.ordem||0) - (b.ordem||0));
   const concluidas = atvsOnda.filter(a => a.concluida).length;
   const total = atvsOnda.length;
   const hoje = new Date();
@@ -16609,13 +16610,24 @@ async function pjV347DefinirDataInicio(metaId){
     { titulo: 'Primeira leva: 20 contatos abordados', tipo: 'entrega', dias: 40, visivel_cliente: true, ordem: 11 },
     { titulo: 'Relatório do primeiro mês', tipo: 'entrega', dias: 45, visivel_cliente: true, ordem: 12 },
   ];
+  const negocioId = window._pjAbertoNeg?.id || null;
+  if (!negocioId) { alert('Negócio não resolvido — reabra o projeto'); return; }
   const inicio = new Date(dataInicio + 'T00:00');
   const atvsInsert = ATIVIDADES.map(a => {
     const prazo = new Date(inicio);
     prazo.setDate(prazo.getDate() + a.dias);
-    return { titulo: a.titulo, tipo: a.tipo, ordem: a.ordem, visivel_cliente: a.visivel_cliente, onda_id: ondaId, projeto_metadata_id: metaId, prazo: prazo.toISOString().split('T')[0], dias_offset: a.dias };
+    return {
+      negocio_id: negocioId,
+      titulo: a.titulo,
+      tipo: a.tipo,
+      tipo_atividade: a.tipo,
+      ordem: a.ordem,
+      mes_relativo: Math.ceil(a.dias / 30),
+      data_prevista: prazo.toISOString().split('T')[0],
+      status: 'pendente',
+    };
   });
-  const r2 = await fetch(SB + '/rest/v1/projeto_atividades', { method: 'POST', headers, body: JSON.stringify(atvsInsert) });
+  const r2 = await fetch(SB + '/rest/v1/projeto_entregaveis', { method: 'POST', headers, body: JSON.stringify(atvsInsert) });
   if (!r2.ok) { alert('Erro ao inserir atividades (HTTP ' + r2.status + ')'); return; }
 
   await fetch(SB + '/rest/v1/projeto_metadata?id=eq.' + metaId, {
@@ -16631,9 +16643,9 @@ async function pjV347DefinirDataInicio(metaId){
 async function pjV347ToggleAtividade(atvId, marcarConcluida){
   const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
   const patch = marcarConcluida
-    ? { concluida: true, concluida_em: new Date().toISOString() }
-    : { concluida: false, concluida_em: null };
-  await fetch(SB + '/rest/v1/projeto_atividades?id=eq.' + atvId, { method: 'PATCH', headers, body: JSON.stringify(patch) });
+    ? { status: 'concluido', concluido_em: new Date().toISOString() }
+    : { status: 'pendente', concluido_em: null };
+  await fetch(SB + '/rest/v1/projeto_entregaveis?id=eq.' + atvId, { method: 'PATCH', headers, body: JSON.stringify(patch) });
   pjV347SetAba("entregaveis");
 }
 
