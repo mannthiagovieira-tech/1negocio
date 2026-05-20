@@ -14198,6 +14198,36 @@ async function origV8SalvarManual() {
   origV8CarregarPlanoAcao();
 }
 
+async function origV8GerarQueriesTodosArquetipos(origId) {
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  const meta = document.getElementById('plano-meta');
+
+  const rLista = await fetch(sbUrl+'/functions/v1/gerar-queries-arquetipo',{
+    method:'POST', headers:{...origV2Headers(),'Content-Type':'application/json'},
+    body:JSON.stringify({originacao_id:origId}),
+  });
+  const dLista = await rLista.json();
+  if(!dLista.ok) { if(meta) meta.textContent='✗ Erro: '+dLista.erro; return false; }
+  if(dLista.modo !== 'lista') return true;
+
+  const arquetipos = dLista.arquetipos || [];
+  if(meta) meta.textContent='⏳ Gerando queries: 0/'+arquetipos.length+' arquétipos...';
+
+  for(let i = 0; i < arquetipos.length; i++) {
+    const arq = arquetipos[i];
+    if(meta) meta.textContent='⏳ Gerando queries: '+(i+1)+'/'+arquetipos.length+' — '+arq.nome+'...';
+    const r = await fetch(sbUrl+'/functions/v1/gerar-queries-arquetipo',{
+      method:'POST', headers:{...origV2Headers(),'Content-Type':'application/json'},
+      body:JSON.stringify({originacao_id:origId, arquetipo_id:arq.id}),
+    });
+    const d = await r.json();
+    if(!d.ok) { if (typeof origToast==='function') origToast('✗ Erro no arquétipo '+arq.nome+': '+(d.erro||'?')); }
+    else { if (typeof origToast==='function') origToast('✓ Queries geradas: '+arq.nome); }
+    await new Promise(res => setTimeout(res, 1000));
+  }
+  return true;
+}
+
 async function origV8GerarPlanoCompleto() {
   const origId = window._pjAbertoOrigId || _origV8State?.origId;
   if(!origId) { alert('Abra um projeto primeiro'); return; }
@@ -14205,12 +14235,8 @@ async function origV8GerarPlanoCompleto() {
   const meta = document.getElementById('plano-meta');
   if(meta) meta.textContent = '⏳ Gerando inteligência... (pode levar 2-3 min)';
 
-  const r1 = await fetch(sbUrl+'/functions/v1/gerar-queries-arquetipo',{
-    method:'POST', headers:{...origV2Headers(),'Content-Type':'application/json'},
-    body:JSON.stringify({originacao_id:origId}),
-  });
-  const d1 = await r1.json();
-  if(!d1.ok) { if(meta) meta.textContent='✗ Erro: '+d1.erro; return; }
+  const ok1 = await origV8GerarQueriesTodosArquetipos(origId);
+  if(!ok1) return;
   if(meta) meta.textContent='⏳ Enriquecendo com links e contatos...';
 
   const r2 = await fetch(sbUrl+'/functions/v1/enriquecer-plano-acao',{
