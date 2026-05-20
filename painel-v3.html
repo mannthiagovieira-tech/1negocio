@@ -13486,33 +13486,47 @@ function pjConteudoMontarPreview(){
   const isFeed = tpl.dimensoes === '1080x1080';
   const w = 1080;
   const h = isFeed ? 1080 : 1350;
-  // dim disponível: aprox 80% da largura do container do preview
   const wrap = document.getElementById('pjc-preview-wrap');
   if (!wrap) return;
   const parent = wrap.parentElement;
   const availW = (parent?.clientWidth || 800) - 40;
   const availH = (parent?.clientHeight || 700) - 40;
   const scale = Math.min(availW / w, availH / h, 1);
-  const css = pjConteudoCss();
-  wrap.innerHTML =
-    '<style>' + css + '</style>'
-    + '<div id="pjc-preview-canvas" class="pjc-canvas ' + (isDark ? 'dark' : 'light') + (isFeed ? ' feed' : '') + '" '
-    +   'style="width:' + w + 'px;height:' + h + 'px;transform:scale(' + scale + ');transform-origin:center center">'
-    +   pjConteudoTemplateAplicado()
+  const frameCls = 'frame' + (isDark ? ' dark' : '') + (isFeed ? ' feed' : '');
+
+  // Outer (scale) → iframe (isolamento total de CSS: o `:root` e `*` globais do template não vazam pro painel).
+  // Iframe sem srcdoc; injetamos via contentDocument.write pra evitar escape de atributo HTML.
+  wrap.innerHTML = '<div id="pjc-preview-outer" style="width:'+w+'px;height:'+h+'px;transform:scale('+scale+');transform-origin:center center;flex-shrink:0">'
+    + '<iframe id="pjc-preview-iframe" style="width:'+w+'px;height:'+h+'px;border:0;display:block;background:transparent"></iframe>'
     + '</div>';
+  const iframe = document.getElementById('pjc-preview-iframe');
+  if (!iframe) return;
+  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!doc) return;
+  doc.open();
+  doc.write('<!doctype html><html><head><meta charset="utf-8"><style>'
+    + pjConteudoCss()
+    + '</style></head><body><div class="' + frameCls + '" id="pjc-frame">'
+    + pjConteudoTemplateAplicado()
+    + '</div></body></html>');
+  doc.close();
 }
 
 function pjConteudoAtualizarPreview(){
-  const canvas = document.getElementById('pjc-preview-canvas');
-  if (!canvas) return;
-  canvas.innerHTML = pjConteudoTemplateAplicado();
+  const iframe = document.getElementById('pjc-preview-iframe');
+  if (!iframe) return;
+  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!doc) return;
+  const frameEl = doc.getElementById('pjc-frame');
+  if (!frameEl) return;
+  // O html_template começa em <div class="pg">... — escreve direto dentro do .frame (substitui o .pg anterior)
+  frameEl.innerHTML = pjConteudoTemplateAplicado();
 }
 
 function pjConteudoTemplateAplicado(){
   const s = _pjConteudoState; if (!s || !s.atual) return '';
   let html = s.atual.template.html_template || '';
   const vals = s.atual.valores || {};
-  // substitui {{var}} pelos valores; se vazio, mostra placeholder discreto entre colchetes
   html = html.replace(/\{\{(\w+)\}\}/g, (_, k) => {
     const v = vals[k];
     if (v == null || v === '') return '<span style="opacity:.35">[' + k + ']</span>';
@@ -13521,41 +13535,51 @@ function pjConteudoTemplateAplicado(){
   return html;
 }
 
-// CSS do canvas + tokens do template Carrossel · Capa
+// CSS canônico do engine (entra dentro do iframe — isolado do painel)
 function pjConteudoCss(){
-  return `
-  .pjc-canvas { box-sizing:border-box; font-family: 'Inter', system-ui, sans-serif; position:relative; padding:64px 56px 56px; display:flex; flex-direction:column; gap:18px; overflow:hidden; }
-  .pjc-canvas.light { background:#fff; color:#1a1f1c; }
-  .pjc-canvas.dark  { background:#0a0f0c; color:#e8efe9; }
-  .pjc-canvas .pg { display:flex; flex-direction:column; gap:18px; height:100%; }
-  .pjc-canvas .pg-head { display:flex; justify-content:space-between; align-items:center; font-size:20px; font-weight:700; letter-spacing:.04em; }
-  .pjc-canvas .pg-logo .one { color:#3dff95; }
-  .pjc-canvas .pg-loc { opacity:.7; font-weight:500; letter-spacing:.08em; text-transform:uppercase; }
-  .pjc-canvas .pg-valor { display:flex; flex-direction:column; gap:4px; margin-top:12px; }
-  .pjc-canvas .pg-valor .l { font-size:18px; opacity:.55; letter-spacing:.1em; text-transform:uppercase; font-weight:600; }
-  .pjc-canvas .pg-valor .v { font-size:128px; font-weight:900; color:#3dff95; line-height:.95; letter-spacing:-.02em; }
-  .pjc-canvas .pg-valor .pre { font-size:48px; vertical-align:top; margin-right:8px; opacity:.9; }
-  .pjc-canvas .pg-title h1 { font-size:80px; font-weight:800; line-height:1.05; letter-spacing:-.02em; margin:0; }
-  .pjc-canvas .pg-stripe { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; border-top:1px solid currentColor; border-bottom:1px solid currentColor; padding:18px 0; margin-top:6px; opacity:.95; }
-  .pjc-canvas.dark .pg-stripe { border-color:rgba(255,255,255,.18); }
-  .pjc-canvas.light .pg-stripe { border-color:rgba(0,0,0,.12); }
-  .pjc-canvas .pg-stripe .cell { display:flex; flex-direction:column; gap:4px; }
-  .pjc-canvas .pg-stripe .l { font-size:11px; opacity:.55; letter-spacing:.08em; text-transform:uppercase; font-weight:700; }
-  .pjc-canvas .pg-stripe .v { font-size:30px; font-weight:700; }
-  .pjc-canvas .pg-spacer { flex:1; min-height:8px; }
-  .pjc-canvas .pg-feature { display:flex; align-items:center; gap:16px; }
-  .pjc-canvas .pg-feature .rule { width:48px; height:3px; background:#3dff95; border-radius:2px; flex-shrink:0; }
-  .pjc-canvas .pg-feature .txt { font-size:40px; font-weight:700; letter-spacing:-.01em; }
-  .pjc-canvas .pg-desc { font-size:20px; line-height:1.55; opacity:.78; text-align:justify; margin:6px 0 0; }
-  .pjc-canvas .pg-foot { display:flex; justify-content:space-between; align-items:center; margin-top:auto; padding-top:16px; }
-  .pjc-canvas .pg-foot .dots { display:flex; gap:8px; }
-  .pjc-canvas .pg-foot .dot { width:10px; height:10px; border-radius:999px; background:currentColor; opacity:.18; }
-  .pjc-canvas .pg-foot .dot.on { opacity:.9; background:#3dff95; }
-  .pjc-canvas .pg-foot .code { font-size:14px; opacity:.55; letter-spacing:.08em; text-transform:uppercase; font-weight:600; }
-  .pjc-canvas.feed { padding:56px 52px; }
-  .pjc-canvas.feed .pg-valor .v { font-size:104px; }
-  .pjc-canvas.feed .pg-title h1 { font-size:64px; }
-  `;
+  return `@import url('https://fonts.googleapis.com/css2?family=Syne:ital,wght@0,500..900;1,500..900&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.cdnfonts.com/css/geist');
+:root{--serif:'Syne',ui-serif,serif;--sans:'Geist','Inter',-apple-system,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;--bg:#f6f7f5;--ink:#0a1510;--ink-2:rgba(10,21,16,.78);--ink-3:rgba(10,21,16,.58);--ink-4:rgba(10,21,16,.38);--line:rgba(10,21,16,.10);--line-2:rgba(10,21,16,.18);--accent:#0aa85a;--accent-ink:#ffffff}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+.frame{position:relative;width:1080px;height:1350px;background:var(--bg);color:var(--ink);overflow:hidden}
+.frame.feed{width:1080px;height:1080px}
+.frame.feed .pg{padding:48px 56px 44px}
+.frame.feed .pg-valor{margin-top:14px}
+.frame.feed .pg-title{margin-top:18px}
+.frame.feed .pg-title h1{font-size:72px}
+.frame.feed .pg-stripe{margin-top:32px}
+.frame.feed .pg-spacer{flex:1 1 24px;min-height:24px}
+.frame.dark{--bg:#0a0f0c;--ink:#f4f7f4;--ink-3:rgba(244,247,244,.55);--ink-4:rgba(244,247,244,.32);--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);--accent:#3dff95}
+.frame.dark .pg{background:var(--bg);color:var(--ink)}
+.frame.dark .pg-head{border-bottom-color:var(--ink)}
+.pg{position:absolute;inset:0;padding:60px 64px 52px;display:flex;flex-direction:column;color:var(--ink);background:var(--bg)}
+.pg-head{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-bottom:18px;border-bottom:1px solid var(--ink);flex-shrink:0}
+.pg-logo{font-family:var(--serif);font-weight:800;font-size:34px;letter-spacing:-.02em;line-height:1;color:var(--ink);text-decoration:none}
+.pg-logo .one{color:var(--accent);font-weight:900}
+.pg-loc{font-family:var(--mono);font-size:20px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.pg-valor{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-top:24px;flex-shrink:0}
+.pg-valor .l{font-family:var(--mono);font-size:20px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4);line-height:1}
+.pg-valor .v{font-family:var(--serif);font-weight:800;font-style:italic;font-size:104px;letter-spacing:-.045em;color:var(--accent);line-height:.95;font-variant-numeric:tabular-nums;padding-right:.08em}
+.pg-valor .v .pre{font-family:var(--sans);font-style:normal;font-weight:500;font-size:.32em;color:var(--ink-3);margin-right:.14em;vertical-align:baseline}
+.pg-title{margin-top:48px;flex-shrink:0}
+.pg-title h1{font-family:var(--serif);font-weight:800;font-style:italic;font-size:88px;line-height:.92;letter-spacing:-.035em;color:var(--ink);text-wrap:balance;margin:0;overflow:hidden}
+.pg-stripe{margin-top:48px;display:grid;grid-template-columns:repeat(5,1fr);gap:0;border-top:1px solid var(--line-2);border-bottom:1px solid var(--line-2);padding:14px 0;opacity:.78;flex-shrink:0}
+.pg-stripe .cell{display:flex;flex-direction:column;gap:6px;padding:0 10px;border-right:1px solid var(--line);align-items:center;text-align:center}
+.pg-stripe .cell:last-child{border-right:none}
+.pg-stripe .cell:first-child{align-items:flex-start;text-align:left;padding-left:0}
+.pg-stripe .cell:last-child{align-items:flex-end;text-align:right;padding-right:0}
+.pg-stripe .l{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4)}
+.pg-stripe .v{font-family:var(--serif);font-weight:700;font-size:30px;line-height:1;letter-spacing:-.02em;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.pg-spacer{flex:1 1 60px;min-height:60px}
+.pg-feature{display:grid;grid-template-columns:1fr auto;align-items:center;gap:24px;flex-shrink:0}
+.pg-feature .rule{height:1px;background:var(--ink-3)}
+.pg-feature .txt{font-family:var(--serif);font-weight:500;font-style:italic;font-size:40px;line-height:1.06;letter-spacing:-.015em;color:var(--accent);text-align:right}
+.pg-desc{font-family:var(--sans);font-size:20px;line-height:1.5;color:var(--ink-3);margin-top:18px;max-width:100%;flex-shrink:0;text-align:justify}
+.pg-foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.pg-foot .dots{display:flex;gap:6px;align-items:center}
+.pg-foot .dot{width:7px;height:7px;border-radius:50%;background:var(--line-2)}
+.pg-foot .dot.on{width:22px;border-radius:4px;background:var(--accent)}
+.pg-foot .code{font-family:var(--mono);font-size:20px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}`;
 }
 
 function pjConteudoVoltar(){
@@ -13606,13 +13630,14 @@ async function pjConteudoDownload(){
   const btn = document.getElementById('pjc-btn-png');
   if (btn){ btn.disabled = true; btn.textContent = '⏳ Gerando...'; }
   try {
-    const canvasEl = document.getElementById('pjc-preview-canvas');
-    if (!canvasEl) throw new Error('preview não encontrado');
-    // remove o scale temporariamente pra render em tamanho real
-    const prevTransform = canvasEl.style.transform;
-    canvasEl.style.transform = 'scale(1)';
-    const c = await html2canvas(canvasEl, { scale: 2, useCORS: true, allowTaint: false, backgroundColor: null, logging: false });
-    canvasEl.style.transform = prevTransform;
+    const iframe = document.getElementById('pjc-preview-iframe');
+    if (!iframe) throw new Error('iframe do preview não encontrado');
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) throw new Error('contentDocument inacessível');
+    const frameEl = doc.getElementById('pjc-frame');
+    if (!frameEl) throw new Error('.frame não montado no preview');
+    // html2canvas pode capturar nodes em iframe same-origin sem destruir o scale do outer
+    const c = await html2canvas(frameEl, { scale: 2, useCORS: true, allowTaint: false, backgroundColor: null, logging: false, width: frameEl.offsetWidth, height: frameEl.offsetHeight });
     const slug = (s.atual.titulo || 'conteudo').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'conteudo';
     const variante = s.atual.template.variante || 'light';
     c.toBlob(blob => {
