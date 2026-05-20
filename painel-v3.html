@@ -21349,10 +21349,9 @@ function origCriarModal() {
         <label><input type="checkbox" name="orig-canal-excluir" value="google_maps"> Google Maps</label>
         <label><input type="checkbox" name="orig-canal-excluir" value="midia_paga"> Mídia paga</label>
       </div></div>
-    <div class="orig-info-box">ℹ️ IA com web search · 30-90s · custo R$ 2-3 por geração · limite 3/dia/projeto</div>
+    <div class="orig-info-box" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);color:#dc2626">⚠️ Motor V1 desativado desde v9.27 · use a aba 🧠 Inteligência do projeto pra gerar tese, arquétipos e buscas com o novo motor.</div>
     <div class="modal-actions">
-      <button onclick="origFecharForm()" class="orig-btn">Cancelar</button>
-      <button class="orig-btn primary" onclick="origGerar()">🚀 Gerar análise</button>
+      <button onclick="origFecharForm()" class="orig-btn">Fechar</button>
     </div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', html);
 }
@@ -21362,51 +21361,12 @@ function origFecharForm() {
   if (m) m.classList.remove('show');
 }
 
+// ⚠️ DEPRECATED v9.27 · edge `gerar-originacao` usa schema obsoleto (colunas DROPPED).
+// V2 substitui: tese-agente-chat + gerar-arquetipos-v2 + originacao-buscar-* via aba 🧠 Inteligência.
+// Stub mantido pra evitar ReferenceError caso `window.origGerar` ainda seja chamado em algum lugar.
 async function origGerar() {
-  const contexto = document.getElementById('orig-contexto').value.trim();
-  if (!contexto) { alert('Contexto adicional é obrigatório'); return; }
-  const canaisExcluidos = Array.from(document.querySelectorAll('input[name="orig-canal-excluir"]:checked')).map(cb => cb.value);
-  const payload = {
-    projeto_id: _pjOrigProjetoId,
-    contexto_adicional: contexto,
-    hipotese_comprador: document.getElementById('orig-hipotese').value.trim() || null,
-    restricoes: document.getElementById('orig-restricoes').value.trim() || null,
-    urgencia: document.getElementById('orig-urgencia').value,
-    orcamento_midia_diario: parseFloat(document.getElementById('orig-orcamento').value) || 50,
-    canais_excluidos: canaisExcluidos,
-    foco_pj_pf: document.getElementById('orig-foco').value
-  };
+  alert('⚠️ Motor V1 desativado desde v9.27. Use a aba 🧠 Inteligência do projeto pra gerar tese, arquétipos e buscas.');
   origFecharForm();
-
-  const container = document.getElementById('pj-originacao-' + _pjOrigProjetoId);
-  if (container) {
-    container.innerHTML = '<div class="pj-originacao gerando"><div class="progress-spinner"></div>'
-      + '<h3>🎯 Iniciando geração…</h3><p style="font-size:12px;color:var(--ink-2)">Enviando para IA · aguarde 30-90s</p></div>';
-  }
-
-  try {
-    const r = await fetch(SB + '/functions/v1/gerar-originacao', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + (typeof __token !== 'undefined' && __token ? __token : AK), 'Content-Type': 'application/json', 'apikey': AK },
-      body: JSON.stringify(payload)
-    });
-    const data = await r.json();
-    if (r.status === 429) {
-      alert('Limite diário atingido: ' + (data.detalhe || ''));
-      pjOriginacaoRender(_pjOrigProjetoId);
-      return;
-    }
-    if (!r.ok || !data.ok) {
-      alert('Erro: ' + (data.erro || 'desconhecido') + ' · ' + (data.detalhe || ''));
-      pjOriginacaoRender(_pjOrigProjetoId);
-      return;
-    }
-    origToast('✓ Originação gerada · ' + data.arquetipos_count + ' arquétipos · ' + Math.round(data.duracao_ms / 1000) + 's');
-    pjOriginacaoRender(_pjOrigProjetoId);
-  } catch (e) {
-    alert('Erro de rede: ' + e.message);
-    pjOriginacaoRender(_pjOrigProjetoId);
-  }
 }
 
 /* ──── Ações sobre o output ──── */
