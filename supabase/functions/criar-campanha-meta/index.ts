@@ -144,6 +144,7 @@ Deno.serve(async (req: Request) => {
       daily_budget: Math.round(parseFloat(orcamento_diario) * 100), // BRL → centavos
       billing_event: "IMPRESSIONS",
       optimization_goal: "LEAD_GENERATION",
+      bid_strategy: "LOWEST_COST_WITHOUT_CAP",
       destination_type: "ON_AD",
       promoted_object: { page_id: PAGE_ID },
       targeting,
