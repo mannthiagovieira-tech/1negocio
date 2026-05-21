@@ -113,6 +113,7 @@ Deno.serve(async (req: Request) => {
       objective: "OUTCOME_LEADS",
       status: "PAUSED",
       special_ad_categories: [],
+      is_adset_budget_sharing_enabled: false,
     });
     const campanha_meta_id = camp?.id;
     if (!campanha_meta_id) throw new Error("campanha sem id");
