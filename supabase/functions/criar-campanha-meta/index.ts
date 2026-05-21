@@ -135,6 +135,7 @@ Deno.serve(async (req: Request) => {
       publisher_platforms: ["facebook", "instagram"],
       facebook_positions: ["feed", "marketplace", "story"],
       instagram_positions: ["stream", "story", "explore", "reels"],
+      targeting_automation: { advantage_audience: 0 },
     };
     if (genders) targeting.genders = genders;
 
