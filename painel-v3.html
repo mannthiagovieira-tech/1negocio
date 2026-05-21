@@ -13336,17 +13336,15 @@ async function pjConteudoNovo(templateId){
   const neg = s.neg || {};
   const headers = { apikey: AK, Authorization: 'Bearer ' + (__token || AK) };
 
-  // Busca anúncio ativo + laudo mais recente em paralelo (dados completos vão pro auto-fill)
+  // Busca anúncio ativo + laudo mais recente em paralelo (colunas alinhadas ao schema real)
   const [rAnuncio, rLaudo] = await Promise.all([
-    fetch(SB + '/rest/v1/anuncios_v2?negocio_id=eq.' + neg.id + '&order=created_at.desc&limit=1&select=titulo,valor_pedido,descricao_card,status', { headers }),
-    fetch(SB + '/rest/v1/laudos_v2?negocio_id=eq.' + neg.id + '&order=created_at.desc&limit=1&select=calc_json,ro_anual,faturamento_anual', { headers }),
+    fetch(SB + '/rest/v1/anuncios_v2?negocio_id=eq.' + neg.id + '&order=criado_em.desc&limit=1&select=titulo,valor_pedido,descricao_card,status', { headers }),
+    fetch(SB + '/rest/v1/laudos_v2?negocio_id=eq.' + neg.id + '&ativo=eq.true&order=versao.desc&limit=1&select=calc_json', { headers }),
   ]);
   const anuncios = rAnuncio.ok ? await rAnuncio.json() : [];
   const laudos = rLaudo.ok ? await rLaudo.json() : [];
   const anuncio = (Array.isArray(anuncios) && anuncios[0]) || {};
   const laudo = (Array.isArray(laudos) && laudos[0]) || {};
-  console.log('[debug anuncio]', anuncio);
-  console.log('[debug laudo]', laudo);
   const balanco = laudo.calc_json?.balanco || {};
   const dre = laudo.calc_json?.dre || {};
 
@@ -13361,15 +13359,14 @@ async function pjConteudoNovo(templateId){
     valor_venda: pjcFmtBR(anuncio.valor_pedido || 0),
     titulo: anuncio.titulo || neg.nome || '',
     descricao: anuncio.descricao_card || '',
-    faturamento_anual: pjcFmtBR(laudo.faturamento_anual || dre.faturamento_bruto || 0, true),
-    resultado_anual: pjcFmtBR(laudo.ro_anual || dre.resultado_liquido || 0, true),
+    faturamento_anual: pjcFmtBR(dre.fat_anual || dre.faturamento_bruto || 0, true),
+    resultado_anual: pjcFmtBR(dre.ro_anual || dre.resultado_liquido || 0, true),
     ativos: pjcFmtBR(balanco.ativos_total || 0, true),
     passivos: pjcFmtBR(balanco.passivos_total || 0, true),
     patrimonio_liquido: pjcFmtBR(balanco.patrimonio_liquido || 0, true),
     caracteristica: '',
     codigo: codigo,
   });
-  console.log('[debug params]', Object.fromEntries(params));
   window.open('/conteudo-editor.html?' + params.toString(), '_blank');
 }
 
