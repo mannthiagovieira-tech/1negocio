@@ -337,29 +337,17 @@ document.querySelectorAll('.btn').forEach(btn => {
       const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
       if (!blob) throw new Error('toBlob retornou null');
 
-      // Upload pro Supabase Storage (não bloqueia download se falhar)
+      // Upload pro Supabase Storage via signed URL gerada pelo painel (sem auth embedado)
       const urlParams = new URLSearchParams(window.location.search);
-      const negocioId = urlParams.get('negocio_id');
-      if (negocioId) {
-        const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
-        const accessToken = localStorage.getItem('sb_access_token') || ANON_KEY;
-        const uploadPath = negocioId + '/' + Date.now() + '-' + name + '.png';
-        console.log('[upload] negocio_id:', negocioId);
-        console.log('[upload] token:', localStorage.getItem('sb_access_token') ? 'presente' : 'ausente');
-        console.log('[upload] path:', uploadPath);
+      const uploadUrl = urlParams.get('upload_url');
+      if (uploadUrl) {
         try {
-          const uploadResp = await fetch('https://dbijmgqlcrgjlcfrastg.supabase.co/storage/v1/object/conteudo-midias/' + uploadPath, {
-            method: 'POST',
-            headers: {
-              'apikey': ANON_KEY,
-              'Authorization': 'Bearer ' + accessToken,
-              'Content-Type': 'image/png',
-            },
+          const uploadResp = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'image/png' },
             body: blob,
           });
-          console.log('[upload] status:', uploadResp.status);
-          const uploadBody = await uploadResp.text();
-          console.log('[upload] body:', uploadBody);
+          if (!uploadResp.ok) console.warn('[upload] falhou:', uploadResp.status, await uploadResp.text().catch(()=>''));
         } catch (eUp) {
           console.warn('[upload] exception:', eUp);
         }

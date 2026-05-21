@@ -13407,9 +13407,29 @@ async function pjConteudoNovo(templateId){
   const isFeed = tpl.dimensoes === '1080x1080';
   const tplSlug = (isFeed ? 'feed' : 'story') + '-' + (tpl.variante || 'light');
 
+  // Signed upload URL · gerada agora (admin logado) · válida ~2h · editor usa direto sem auth
+  const uploadPath = (neg.id || 'sem-id') + '/' + Date.now() + '-' + tplSlug + '.png';
+  let uploadUrl = '';
+  try {
+    const rSign = await fetch(SB + '/storage/v1/object/upload/sign/conteudo-midias/' + uploadPath, {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+    });
+    if (rSign.ok) {
+      const sd = await rSign.json();
+      // resposta tem url relativa (ex: /object/upload/sign/{bucket}/{path}?token=...)
+      uploadUrl = SB + '/storage/v1' + (sd.url || '');
+    } else {
+      console.warn('[sign upload-url] falhou:', rSign.status, await rSign.text().catch(()=>''));
+    }
+  } catch(eSign) {
+    console.warn('[sign upload-url] exception:', eSign);
+  }
+
   const params = new URLSearchParams({
     template: tplSlug,
     negocio_id: neg.id || '',
+    upload_url: uploadUrl,
     localidade: cidadeEstado,
     valor_venda: pjcFmtBR(anuncio.valor_pedido || 0),
     titulo: anuncio.titulo || neg.nome || '',
