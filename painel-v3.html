@@ -13388,8 +13388,6 @@ async function pjConteudoNovo(templateId){
   const tpl = s.templates.find(t => t.id === templateId);
   if (!tpl) return;
   const neg = s.neg || {};
-  console.log('[pjConteudoNovo] início, neg.id:', neg?.id);
- try {
   const headers = { apikey: AK, Authorization: 'Bearer ' + (__token || AK) };
 
   // Busca anúncio ativo + laudo mais recente em paralelo (colunas alinhadas ao schema real)
@@ -13410,26 +13408,22 @@ async function pjConteudoNovo(templateId){
   const tplSlug = (isFeed ? 'feed' : 'story') + '-' + (tpl.variante || 'light');
 
   // Signed upload URL · gerada agora (admin logado) · válida ~2h · editor usa direto sem auth
+  // Storage endpoint não aceita body — Content-Type fora pra não dar "Body cannot be empty"
   const uploadPath = (neg.id || 'sem-id') + '/' + Date.now() + '-' + tplSlug + '.png';
-  console.log('[signed-url] neg.id:', neg?.id);
-  console.log('[signed-url] __token:', typeof __token !== 'undefined' && __token ? 'presente' : 'ausente');
-  console.log('[signed-url] uploadPath:', uploadPath);
   let uploadUrl = '';
   try {
     const sdResp = await fetch(SB + '/storage/v1/object/upload/sign/conteudo-midias/' + uploadPath, {
       method: 'POST',
-      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) },
     });
-    const sdText = await sdResp.text();
-    console.log('[signed-url] status:', sdResp.status, 'body:', sdText);
-    let sd = {};
-    try { sd = JSON.parse(sdText); } catch(_) {}
-    if (sdResp.ok && sd.url) {
-      // resposta tem url relativa (ex: /object/upload/sign/{bucket}/{path}?token=...)
-      uploadUrl = SB + '/storage/v1' + sd.url;
+    if (sdResp.ok) {
+      const sd = await sdResp.json();
+      if (sd.url) uploadUrl = SB + '/storage/v1' + sd.url;
+    } else {
+      console.warn('[signed-url] falhou:', sdResp.status, await sdResp.text().catch(()=>''));
     }
   } catch(eSign) {
-    console.error('[signed-url] exception:', eSign);
+    console.warn('[signed-url] exception:', eSign);
   }
 
   const params = new URLSearchParams({
@@ -13449,9 +13443,6 @@ async function pjConteudoNovo(templateId){
     codigo: codigo,
   });
   window.open('/conteudo-editor.html?' + params.toString(), '_blank');
- } catch(e) {
-   console.error('[pjConteudoNovo] ERRO:', e);
- }
 }
 
 function pjConteudoEditar(conteudoId){
