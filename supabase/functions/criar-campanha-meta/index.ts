@@ -11,7 +11,6 @@ const PRIVACY_URL = Deno.env.get("META_PRIVACY_URL") || "https://1negocio.com.br
 
 const AD_ACCOUNT_ID = "act_983335024007752";
 const PAGE_ID = "612525678608107";
-const INSTAGRAM_ACTOR_ID = "17841472978111882"; // @1negocio_
 const GRAPH = "https://graph.facebook.com/v23.0";
 
 const cors = {
@@ -162,7 +161,6 @@ Deno.serve(async (req: Request) => {
       name: `Creative · ${nome_campanha}`,
       object_story_spec: {
         page_id: PAGE_ID,
-        instagram_actor_id: INSTAGRAM_ACTOR_ID,
         link_data: {
           image_hash,
           link: url_destino || "https://1negocio.com.br/",
