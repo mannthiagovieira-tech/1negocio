@@ -13329,23 +13329,42 @@ function pjConteudoRenderLista(){
   s.container.innerHTML = '<div style="padding:4px">' + meusBlock + tplsBlock + '</div>';
 }
 
-function pjConteudoNovo(templateId){
+async function pjConteudoNovo(templateId){
   const s = _pjConteudoState; if (!s) return;
   const tpl = s.templates.find(t => t.id === templateId);
   if (!tpl) return;
   const neg = s.neg || {};
-  console.log('[pjConteudoNovo] neg completo:', neg);
+  const headers = { apikey: AK, Authorization: 'Bearer ' + (__token || AK) };
+
+  // Busca anúncio ativo + laudo mais recente em paralelo (dados completos vão pro auto-fill)
+  const [rAnuncio, rLaudo] = await Promise.all([
+    fetch(SB + '/rest/v1/anuncios_v2?negocio_id=eq.' + neg.id + '&order=created_at.desc&limit=1&select=titulo,valor_pedido,descricao_card,status', { headers }),
+    fetch(SB + '/rest/v1/laudos_v2?negocio_id=eq.' + neg.id + '&order=created_at.desc&limit=1&select=calc_json,ro_anual,faturamento_anual', { headers }),
+  ]);
+  const anuncios = rAnuncio.ok ? await rAnuncio.json() : [];
+  const laudos = rLaudo.ok ? await rLaudo.json() : [];
+  const anuncio = (Array.isArray(anuncios) && anuncios[0]) || {};
+  const laudo = (Array.isArray(laudos) && laudos[0]) || {};
+  const balanco = laudo.calc_json?.balanco || {};
+  const dre = laudo.calc_json?.dre || {};
+
   const cidadeEstado = (neg.cidade || '') + (neg.estado ? ' · ' + String(neg.estado).toUpperCase() : '');
-  const codigo = neg.codigo || neg.codigo_diagnostico || (neg.id ? neg.id.substring(0,8).toUpperCase() : '');
-  // Mapeia variante/dimensoes do template do banco pro slug do conteudo-editor.html
+  const codigo = neg.id ? neg.id.substring(0, 8).toUpperCase() : '';
   const isFeed = tpl.dimensoes === '1080x1080';
   const tplSlug = (isFeed ? 'feed' : 'story') + '-' + (tpl.variante || 'light');
+
   const params = new URLSearchParams({
     template: tplSlug,
     localidade: cidadeEstado,
-    valor_venda: pjcFmtBR(neg.valor_pedido || neg.preco_pedido || neg.valor_avaliacao || 0),
-    titulo: neg.titulo_anuncio || neg.titulo || neg.nome_fantasia || neg.nome || '',
-    descricao: neg.descricao_card || neg.descricao || '',
+    valor_venda: pjcFmtBR(anuncio.valor_pedido || 0),
+    titulo: anuncio.titulo || neg.nome || '',
+    descricao: anuncio.descricao_card || '',
+    faturamento_anual: pjcFmtBR(laudo.faturamento_anual || dre.faturamento_bruto || 0, true),
+    resultado_anual: pjcFmtBR(laudo.ro_anual || dre.resultado_liquido || 0, true),
+    ativos: pjcFmtBR(balanco.ativos_total || 0, true),
+    passivos: pjcFmtBR(balanco.passivos_total || 0, true),
+    patrimonio_liquido: pjcFmtBR(balanco.patrimonio_liquido || 0, true),
+    caracteristica: '',
     codigo: codigo,
   });
   window.open('/conteudo-editor.html?' + params.toString(), '_blank');
