@@ -13351,14 +13351,21 @@ async function pjConteudoCarregarMidias(){
       grid.innerHTML = '<div style="color:var(--ink-3);font-size:12px;padding:8px 0">Nenhuma mídia salva ainda</div>';
       return;
     }
-    grid.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px">'
+    grid.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">'
       + arr.map(it => {
           const path = negId + '/' + it.name;
           const url = SB + '/storage/v1/object/public/conteudo-midias/' + path;
           const safePath = String(path).replace(/'/g, '%27');
+          const safeUrl = String(url).replace(/'/g, '%27');
+          const safeName = String(it.name).replace(/'/g, '%27');
+          const btnBase = 'background:rgba(0,0,0,.65);color:#fff;border:none;border-radius:4px;padding:3px 7px;font-size:10px;cursor:pointer;line-height:1';
           return '<div style="position:relative;border:1px solid var(--line-2);border-radius:8px;overflow:hidden;background:var(--bg)">'
             + '<a href="' + pjcEsc(url) + '" target="_blank" rel="noopener"><img src="' + pjcEsc(url) + '" loading="lazy" style="width:100%;height:120px;object-fit:cover;display:block"></a>'
-            + '<button onclick="pjConteudoDeletarMidia(\'' + safePath + '\')" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:4px;width:24px;height:24px;font-size:12px;cursor:pointer" title="Deletar">🗑</button>'
+            + '<button onclick="pjConteudoDeletarMidia(\'' + safePath + '\')" style="position:absolute;top:4px;right:4px;' + btnBase + ';width:24px;height:24px;font-size:12px;padding:0" title="Deletar">🗑</button>'
+            + '<div style="position:absolute;bottom:28px;left:4px;right:4px;display:flex;gap:4px;justify-content:flex-start">'
+            +   '<button onclick="pjConteudoBaixarMidia(\'' + safeUrl + '\',\'' + safeName + '\')" style="' + btnBase + '" title="Baixar PNG">⬇ Baixar</button>'
+            +   '<button onclick="pjConteudoCompartilharMidia(\'' + safeUrl + '\',\'' + safeName + '\')" style="' + btnBase + '" title="Compartilhar">↗ Share</button>'
+            + '</div>'
             + '<div style="font-size:9px;color:var(--ink-3);padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + pjcEsc(it.name) + '">' + pjcEsc(it.name) + '</div>'
             + '</div>';
         }).join('')
@@ -13380,6 +13387,52 @@ async function pjConteudoDeletarMidia(path){
     pjConteudoCarregarMidias();
   } catch (e) {
     alert('Erro ao deletar: ' + (e?.message || e));
+  }
+}
+
+async function pjConteudoBaixarMidia(url, name){
+  try {
+    // Baixa o blob primeiro (evita o browser abrir a imagem em vez de baixar)
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const blob = await r.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objUrl;
+    a.download = name || 'midia.png';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+  } catch (e) {
+    alert('Erro ao baixar: ' + (e?.message || e));
+  }
+}
+
+async function pjConteudoCompartilharMidia(url, name){
+  try {
+    // Caminho 1: Web Share API com File (mobile / Safari novo)
+    if (navigator.canShare && typeof navigator.share === 'function') {
+      try {
+        const r = await fetch(url);
+        const blob = await r.blob();
+        const file = new File([blob], name || 'midia.png', { type: blob.type || 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: '1Negócio' });
+          return;
+        }
+      } catch (eShare) {
+        // Cai pro fallback abaixo
+        console.warn('[share] falhou, vai pra clipboard:', eShare?.message || eShare);
+      }
+    }
+    // Fallback: copia URL pública pro clipboard
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(url);
+      try { typeof origToast === 'function' && origToast('✓ Link copiado'); } catch(_){}
+    } else {
+      prompt('Copie o link manualmente:', url);
+    }
+  } catch (e) {
+    alert('Erro ao compartilhar: ' + (e?.message || e));
   }
 }
 
@@ -13774,6 +13827,8 @@ window.pjConteudoOnChange = pjConteudoOnChange;
 window.pjConteudoOnChangeTitulo = pjConteudoOnChangeTitulo;
 window.pjConteudoCarregarMidias = pjConteudoCarregarMidias;
 window.pjConteudoDeletarMidia = pjConteudoDeletarMidia;
+window.pjConteudoBaixarMidia = pjConteudoBaixarMidia;
+window.pjConteudoCompartilharMidia = pjConteudoCompartilharMidia;
 
 // v9.39.2 · Inteligência · layout 2-pane (chat + box tese) com auto-start contextualizado
 function pjV347RenderInteligencia(n, meta){
