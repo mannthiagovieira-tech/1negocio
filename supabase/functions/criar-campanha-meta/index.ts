@@ -86,6 +86,7 @@ Deno.serve(async (req: Request) => {
     const firstKey = Object.keys(upData.images || {})[0];
     const image_hash = upData.images?.[firstKey]?.hash;
     if (!image_hash) throw new Error("adimages sem hash retornado");
+    console.log('[meta] image_hash:', image_hash);
 
     // 2. Criar Lead Gen Form na página
     const formData = await metaPOST(`/${PAGE_ID}/leadgen_forms`, {
@@ -106,6 +107,7 @@ Deno.serve(async (req: Request) => {
     });
     const leadgen_form_id = formData?.id;
     if (!leadgen_form_id) throw new Error("leadgen_form sem id");
+    console.log('[meta] leadgen_form_id:', leadgen_form_id);
 
     // 3. Criar campanha PAUSED
     const camp = await metaPOST(`/${AD_ACCOUNT_ID}/campaigns`, {
@@ -117,6 +119,7 @@ Deno.serve(async (req: Request) => {
     });
     const campanha_meta_id = camp?.id;
     if (!campanha_meta_id) throw new Error("campanha sem id");
+    console.log('[meta] campanha_id:', camp?.id);
 
     // 4. Criar adset PAUSED
     const ageMin = Math.max(18, parseInt(publico?.age_min || 25, 10));
@@ -155,6 +158,7 @@ Deno.serve(async (req: Request) => {
     });
     const adset_meta_id = adset?.id;
     if (!adset_meta_id) throw new Error("adset sem id");
+    console.log('[meta] adset_id:', adset?.id);
 
     // 5. Criar creative
     const creative = await metaPOST(`/${AD_ACCOUNT_ID}/adcreatives`, {
@@ -175,6 +179,7 @@ Deno.serve(async (req: Request) => {
     });
     const creative_id = creative?.id;
     if (!creative_id) throw new Error("creative sem id");
+    console.log('[meta] creative_id:', creative?.id);
 
     // 6. Criar ad PAUSED
     const ad = await metaPOST(`/${AD_ACCOUNT_ID}/ads`, {
@@ -185,6 +190,7 @@ Deno.serve(async (req: Request) => {
     });
     const ad_meta_id = ad?.id;
     if (!ad_meta_id) throw new Error("ad sem id");
+    console.log('[meta] ad_id:', ad?.id);
 
     // 7. Persistir em projeto_ads
     const { data: row, error: insErr } = await admin
@@ -224,7 +230,10 @@ Deno.serve(async (req: Request) => {
       status: "PAUSED",
     });
   } catch (e: any) {
-    console.error("[criar-campanha-meta] erro:", e);
-    return resp(500, { ok: false, erro: "falha_meta_api", detalhe: e?.message || String(e) });
+    console.error("[criar-campanha-meta] erro:", e?.message, e?.stack);
+    return new Response(
+      JSON.stringify({ ok: false, erro: e?.message || String(e), stack: e?.stack }),
+      { status: 500, headers: { ...cors, "Content-Type": "application/json" } }
+    );
   }
 });
