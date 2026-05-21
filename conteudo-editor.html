@@ -293,28 +293,42 @@
 </main>
 
 <script>
-// captura a 1080×1350 (story) ou 1080×1080 (feed) — desfazendo o transform:scale do preview
+// Captura em tamanho real (1080×1350 ou 1080×1080) clonando o .frame sem zoom — html2canvas
+// não respeita `zoom: var(--s)`, então a única forma robusta é renderizar um clone em escala 1:1
+// posicionado fora da viewport. Antes da captura, esperamos `document.fonts.ready` pra garantir
+// que Syne/JetBrains Mono/Inter já estejam aplicadas.
 document.querySelectorAll('.btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const id   = btn.dataset.target;
     const name = btn.dataset.name;
     const node = document.getElementById(id);
+    if (!node) return;
     btn.disabled = true; btn.textContent = 'capturando…';
 
-    // remove scale temporariamente
-    const origTransform = node.style.transform;
-    node.style.transform = 'none';
-    // tira o frame-outer constraint para não cortar
-    const outer = node.closest('.frame-outer');
-    const origOH = outer.style.overflow; outer.style.overflow = 'visible';
+    // Espera fontes carregarem (Syne, JetBrains Mono, Inter)
+    if (document.fonts && typeof document.fonts.ready?.then === 'function') {
+      try { await document.fonts.ready; } catch(_) {}
+    }
+
+    // Clona o frame e força tamanho real (zoom:1) fora da viewport
+    const clone = node.cloneNode(true);
+    const isFeed = node.classList.contains('feed');
+    const w = 1080;
+    const h = isFeed ? 1080 : 1350;
+    clone.style.cssText = 'zoom:1;transform:none;position:fixed;top:-99999px;left:-99999px;width:' + w + 'px;height:' + h + 'px;box-shadow:none';
+    // Remove ID duplicado pra não conflitar com o original
+    clone.removeAttribute('id');
+    document.body.appendChild(clone);
 
     try {
-      const canvas = await html2canvas(node, {
-        width:  node.classList.contains('feed') ? 1080 : 1080,
-        height: node.classList.contains('feed') ? 1080 : 1350,
-        scale:  2,
+      const canvas = await html2canvas(clone, {
+        width: w,
+        height: h,
+        scale: 2,
         backgroundColor: null,
         useCORS: true,
+        allowTaint: false,
+        logging: false,
       });
       const link = document.createElement('a');
       link.download = '1negocio-' + name + '.png';
@@ -323,8 +337,7 @@ document.querySelectorAll('.btn').forEach(btn => {
     } catch(e){
       console.error(e); alert('Erro ao capturar: ' + e.message);
     } finally {
-      node.style.transform = origTransform;
-      outer.style.overflow = origOH;
+      clone.remove();
       btn.disabled = false; btn.textContent = '↓ Download PNG';
     }
   });
