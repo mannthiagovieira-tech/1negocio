@@ -334,10 +334,39 @@ document.querySelectorAll('.btn').forEach(btn => {
         allowTaint: false,
         logging: false,
       });
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      if (!blob) throw new Error('toBlob retornou null');
+
+      // Upload pro Supabase Storage (não bloqueia download se falhar)
+      const urlParams = new URLSearchParams(window.location.search);
+      const negocioId = urlParams.get('negocio_id');
+      if (negocioId) {
+        const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+        const accessToken = localStorage.getItem('sb_access_token') || ANON_KEY;
+        const path = negocioId + '/' + Date.now() + '-' + name + '.png';
+        try {
+          const up = await fetch('https://dbijmgqlcrgjlcfrastg.supabase.co/storage/v1/object/conteudo-midias/' + path, {
+            method: 'POST',
+            headers: {
+              'apikey': ANON_KEY,
+              'Authorization': 'Bearer ' + accessToken,
+              'Content-Type': 'image/png',
+            },
+            body: blob,
+          });
+          if (!up.ok) console.warn('[storage] upload falhou:', up.status, await up.text().catch(()=>''));
+        } catch (eUp) {
+          console.warn('[storage] upload exception:', eUp);
+        }
+      }
+
+      // Download local (sempre roda)
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.download = '1negocio-' + name + '.png';
-      link.href = canvas.toDataURL('image/png');
+      link.href = url;
       link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch(e){
       console.error(e); alert('Erro ao capturar: ' + e.message);
     } finally {
