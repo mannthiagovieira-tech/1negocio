@@ -8,19 +8,14 @@
 <!-- html2canvas via CDN (necessário para captura PNG) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:ital,wght@0,500..900;1,500..900&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.cdnfonts.com/css/geist">
 <style>
-  /* ──────────────────────────────────────────────────────────────
-     FONTES
-     ─────
-     NOTA: O ideal seria embutir os arquivos .woff2 como base64 dentro
-     do @font-face. Fontes completas das 3 famílias somam 3-5MB — fica
-     inviável carregar inline num único HTML. Solução prática: @import
-     do Google Fonts dentro do <style>. Se você precisar de operação
-     100% offline, baixe os .woff2 e substitua os @import por blocos
-     @font-face com src:url(data:font/woff2;base64,...).
-     ────────────────────────────────────────────────────────────── */
-  @import url('https://fonts.googleapis.com/css2?family=Syne:ital,wght@0,500..900;1,500..900&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
-  @import url('https://fonts.cdnfonts.com/css/geist');
+  /* Fontes carregadas via <link rel="stylesheet"> acima — @import dentro de <style>
+     bloqueia o parser do CSS até o stylesheet carregar, e em alguns browsers nem chega
+     a aplicar as fontes corretamente. <link> resolve isso e ainda dá preconnect grátis. */
 
   /* ─────────────── TOKENS ─────────────── */
   :root{
@@ -52,12 +47,13 @@
   .btn{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;background:#3dff95;color:#0a0f0c;padding:6px 14px;border-radius:999px;border:none;cursor:pointer;transition:opacity .15s}
   .btn:hover{opacity:.85}
   .btn:disabled{opacity:.5;cursor:wait}
-  .frame-outer{width:calc(1080px*var(--s));position:relative;overflow:visible}
-  .frame-outer.story{height:calc(1350px*var(--s))}
-  .frame-outer.feed{height:calc(1080px*var(--s))}
+  /* zoom no .frame: escala visual SEM transform → pointer-events + contenteditable funcionam nativamente.
+     O .frame-outer deixa o layout fluir com width/height em auto (zoom recalcula box pro pai). */
+  .frame-outer{width:auto;height:auto;position:relative;overflow:visible}
+  .frame-outer.story,.frame-outer.feed{width:auto;height:auto}
 
   /* ─────────────── FRAME ─────────────── */
-  .frame{position:absolute;top:0;left:0;width:1080px;height:1350px;background:var(--bg);color:var(--ink);overflow:hidden;transform:scale(var(--s));transform-origin:top left;box-shadow:0 14px 50px rgba(0,0,0,.35)}
+  .frame{position:relative;width:1080px;height:1350px;background:var(--bg);color:var(--ink);overflow:hidden;zoom:var(--s);transform:none;transform-origin:unset;box-shadow:0 14px 50px rgba(0,0,0,.35)}
   .frame.feed{height:1080px}
   .frame.feed .pg{padding:48px 56px 44px}
   .frame.feed .pg-valor{margin-top:14px}
@@ -336,7 +332,7 @@ document.querySelectorAll('.btn').forEach(btn => {
 });
 
 // Pré-preenche os campos via URL params (?localidade=...&valor_venda=...&titulo=...)
-// Aplica em todos os frames (cada data-field aparece 4×, um por template).
+// e mostra só 1 template via ?template=story-light|story-dark|feed-light|feed-dark.
 window.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
   const CAMPOS = ['localidade','valor_venda','titulo','faturamento_anual','resultado_anual','ativos','passivos','patrimonio_liquido','caracteristica','descricao','codigo'];
@@ -347,6 +343,16 @@ window.addEventListener('DOMContentLoaded', () => {
       el.textContent = val;
     });
   });
+  // Filtro de template — esconde os 3 frames que não foram pedidos
+  const TPL_MAP = { 'story-light': 't1', 'story-dark': 't2', 'feed-light': 't3', 'feed-dark': 't4' };
+  const tpl = params.get('template');
+  if (tpl && TPL_MAP[tpl]) {
+    const alvoId = TPL_MAP[tpl];
+    document.querySelectorAll('.item').forEach(item => {
+      const frame = item.querySelector('.frame');
+      if (!frame || frame.id !== alvoId) item.style.display = 'none';
+    });
+  }
 });
 </script>
 
