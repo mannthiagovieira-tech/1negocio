@@ -13411,19 +13411,20 @@ async function pjConteudoNovo(templateId){
   const uploadPath = (neg.id || 'sem-id') + '/' + Date.now() + '-' + tplSlug + '.png';
   let uploadUrl = '';
   try {
-    const rSign = await fetch(SB + '/storage/v1/object/upload/sign/conteudo-midias/' + uploadPath, {
+    const sdResp = await fetch(SB + '/storage/v1/object/upload/sign/conteudo-midias/' + uploadPath, {
       method: 'POST',
       headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
     });
-    if (rSign.ok) {
-      const sd = await rSign.json();
+    const sdText = await sdResp.text();
+    console.log('[signed-url] status:', sdResp.status, 'body:', sdText);
+    let sd = {};
+    try { sd = JSON.parse(sdText); } catch(_) {}
+    if (sdResp.ok && sd.url) {
       // resposta tem url relativa (ex: /object/upload/sign/{bucket}/{path}?token=...)
-      uploadUrl = SB + '/storage/v1' + (sd.url || '');
-    } else {
-      console.warn('[sign upload-url] falhou:', rSign.status, await rSign.text().catch(()=>''));
+      uploadUrl = SB + '/storage/v1' + sd.url;
     }
   } catch(eSign) {
-    console.warn('[sign upload-url] exception:', eSign);
+    console.warn('[signed-url] exception:', eSign);
   }
 
   const params = new URLSearchParams({
