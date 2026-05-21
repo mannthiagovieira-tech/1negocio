@@ -131,15 +131,53 @@ Deno.serve(async (req: Request) => {
     const startTime = new Date(now.getTime() + 2 * 60 * 1000).toISOString(); // +2 min
     const endTime = new Date(now.getTime() + parseInt(duracao_dias, 10) * 24 * 60 * 60 * 1000).toISOString();
 
+    // Resolve cidades via Meta search (best-effort · fallback BR se zero match)
+    const cidadesInput: any[] = Array.isArray(publico?.cidades) ? publico.cidades : [];
+    const cidadesResolved: any[] = [];
+    for (const c of cidadesInput) {
+      const nome = (c?.nome || "").toString().trim();
+      if (!nome) continue;
+      const raio = Math.min(100, Math.max(10, parseInt(c?.raio || 25, 10)));
+      try {
+        const q = encodeURIComponent(nome + ", Brasil");
+        const r = await fetch(`${GRAPH}/search?type=adgeolocation&location_types=["city"]&q=${q}&country_code=BR&limit=1&access_token=${encodeURIComponent(META_TOKEN)}`);
+        if (!r.ok) { console.warn("[geo search]", nome, r.status); continue; }
+        const j = await r.json();
+        const hit = (j?.data || [])[0];
+        if (hit?.key) cidadesResolved.push({ key: hit.key, radius: raio, distance_unit: "kilometer" });
+      } catch (e) { console.warn("[geo search exception]", nome, e); }
+    }
+
+    // Posicionamentos · default tudo se nenhum vier
+    const pos = publico?.posicionamentos || {};
+    const fbPositions: string[] = [];
+    if (pos.fb_feed) fbPositions.push("feed");
+    if (pos.fb_stories) fbPositions.push("story");
+    if (pos.fb_marketplace) fbPositions.push("marketplace");
+    if (pos.fb_reels) fbPositions.push("facebook_reels");
+    const igPositions: string[] = [];
+    if (pos.ig_feed) igPositions.push("stream");
+    if (pos.ig_stories) igPositions.push("story");
+    if (pos.ig_reels) igPositions.push("reels");
+    const pubPlatforms: string[] = [];
+    if (fbPositions.length) pubPlatforms.push("facebook");
+    if (igPositions.length) pubPlatforms.push("instagram");
+    // Fallback: se nada selecionado, todos
+    const pubPlatformsFinal = pubPlatforms.length ? pubPlatforms : ["facebook", "instagram"];
+    const fbPositionsFinal = fbPositions.length ? fbPositions : ["feed", "marketplace", "story"];
+    const igPositionsFinal = igPositions.length ? igPositions : ["stream", "story", "explore", "reels"];
+
     const targeting: any = {
-      geo_locations: { countries: ["BR"] },
+      geo_locations: cidadesResolved.length
+        ? { cities: cidadesResolved }
+        : { countries: ["BR"] },
       age_min: ageMin,
       age_max: ageMax,
-      publisher_platforms: ["facebook", "instagram"],
-      facebook_positions: ["feed", "marketplace", "story"],
-      instagram_positions: ["stream", "story", "explore", "reels"],
+      publisher_platforms: pubPlatformsFinal,
       targeting_automation: { advantage_audience: 0 },
     };
+    if (pubPlatformsFinal.includes("facebook")) targeting.facebook_positions = fbPositionsFinal;
+    if (pubPlatformsFinal.includes("instagram")) targeting.instagram_positions = igPositionsFinal;
     if (genders) targeting.genders = genders;
 
     const adset = await metaPOST(`/${AD_ACCOUNT_ID}/adsets`, {

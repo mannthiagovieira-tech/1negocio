@@ -13463,7 +13463,13 @@ function pjAdsAbrirModal(imagemUrl, imagemNome){
       headline: '',
       url_destino: 'https://1negocio.com.br/negocio.html?id=' + (neg.id || ''),
     },
-    publico: { age_min: 30, age_max: 60, genero: 'all', cidades_info: '', interesses_info: '' },
+    publico: {
+      cidades: [],
+      age_min: 30, age_max: 60, genero: 'all',
+      interesses: [],
+      comportamentos: { pequenos_empresarios: false, proprietarios_negocio: false, alta_renda: false, compradores_online: false },
+      posicionamentos: { fb_feed: true, fb_stories: true, ig_feed: true, ig_stories: true, ig_reels: true, fb_marketplace: false, fb_reels: false },
+    },
     orcamento: { diario: 10, dias: 7, nome: '1N · ' + (neg.titulo_anuncio || neg.nome || 'Sem título') + ' · ' + new Date().toLocaleDateString('pt-BR') },
   };
   let modal = document.getElementById('pjc-ads-modal');
@@ -13523,23 +13529,80 @@ function pjAdsRenderStep(){
       + pjAdsFooter(1);
   } else if (a.step === 2) {
     const sel = (v, opt) => 'value="' + opt + '"' + (v === opt ? ' selected' : '');
+    const SUG_INT = ['Empreendedorismo','Investimentos','Franquias','Compra e venda de empresas','Pequenos negócios'];
+    const COMPS = [
+      {key:'pequenos_empresarios', label:'Pequenos empresários'},
+      {key:'proprietarios_negocio', label:'Proprietários de negócio'},
+      {key:'alta_renda',            label:'Alta renda estimada'},
+      {key:'compradores_online',    label:'Compradores frequentes online'},
+    ];
+    const POS = [
+      {key:'fb_feed',        label:'Facebook Feed'},
+      {key:'fb_stories',     label:'Facebook Stories'},
+      {key:'ig_feed',        label:'Instagram Feed'},
+      {key:'ig_stories',     label:'Instagram Stories'},
+      {key:'ig_reels',       label:'Instagram Reels'},
+      {key:'fb_marketplace', label:'Facebook Marketplace'},
+      {key:'fb_reels',       label:'Facebook Reels'},
+    ];
+    const cidadesHtml = (a.publico.cidades || []).map((c, idx) =>
+      '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border-radius:999px;padding:3px 9px;font-size:11px;margin-right:6px;margin-bottom:4px">' + esc(c.nome) + ' · ' + (c.raio || 25) + 'km<button onclick="pjAdsRemoverCidade(' + idx + ')" style="background:none;border:none;color:var(--accent,#22c55e);cursor:pointer;font-size:12px;padding:0 0 0 2px;line-height:1">×</button></span>'
+    ).join('');
+    const interessesHtml = (a.publico.interesses || []).map((i, idx) =>
+      '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface-2,var(--bg));color:var(--ink-2);border:1px solid var(--line-2);border-radius:999px;padding:3px 9px;font-size:11px;margin-right:6px;margin-bottom:4px">' + esc(i) + '<button onclick="pjAdsRemoverInteresse(' + idx + ')" style="background:none;border:none;color:var(--ink-3);cursor:pointer;font-size:12px;padding:0 0 0 2px;line-height:1">×</button></span>'
+    ).join('');
     body.innerHTML = '<div style="margin-bottom:14px"><button onclick="pjAdsSugerirPublico()" id="pjc-ads-btn-pub-ia" style="background:transparent;border:1px solid var(--accent-line,rgba(34,197,94,.3));color:var(--accent,#22c55e);border-radius:6px;padding:7px 12px;font-size:11px;font-weight:600;cursor:pointer">✨ Sugerir público com IA</button>'
-      + '<div style="font-size:10px;color:var(--ink-3);margin-top:4px">A IA cruza tese + arquétipos do projeto e sugere cidades/interesses. Na v1 ainda não aplicamos automaticamente, mas fica registrado pra você usar manual.</div></div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'
+      + '<div style="font-size:10px;color:var(--ink-3);margin-top:4px">A IA cruza tese + arquétipos e preenche todos os campos automaticamente.</div></div>'
+
+      // GEO
+      + '<div style="margin-bottom:14px;padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--line-2)">'
+      +   '<div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">📍 Cidades · raio (se vazio, atinge Brasil inteiro)</div>'
+      +   '<div id="pjc-ads-cidades-list">' + cidadesHtml + '</div>'
+      +   '<div style="display:flex;gap:6px;margin-top:6px">'
+      +     '<input id="pjc-ads-cidade-input" type="text" placeholder="Ex: São Paulo" onkeydown="if(event.key===\'Enter\'){event.preventDefault();pjAdsAdicionarCidade();}" style="flex:1;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;box-sizing:border-box">'
+      +     '<select id="pjc-ads-cidade-raio" style="background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px">'
+      +       '<option value="10">10km</option><option value="25" selected>25km</option><option value="50">50km</option><option value="100">100km</option>'
+      +     '</select>'
+      +     '<button onclick="pjAdsAdicionarCidade()" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer">+ Add</button>'
+      +   '</div>'
+      + '</div>'
+
+      // IDADE + GENERO
+      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">'
       +   '<div><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Idade mín</label><input id="pjc-ads-amin" type="number" min="18" max="65" value="' + (a.publico.age_min||30) + '" oninput="pjAdsOnPublico(\'age_min\',this.value)" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:12px;box-sizing:border-box"></div>'
       +   '<div><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Idade máx</label><input id="pjc-ads-amax" type="number" min="18" max="65" value="' + (a.publico.age_max||60) + '" oninput="pjAdsOnPublico(\'age_max\',this.value)" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:12px;box-sizing:border-box"></div>'
+      +   '<div><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Gênero</label><select id="pjc-ads-gen" onchange="pjAdsOnPublico(\'genero\',this.value)" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:12px;box-sizing:border-box"><option ' + sel(a.publico.genero,'all') + '>Todos</option><option ' + sel(a.publico.genero,'homens') + '>Homens</option><option ' + sel(a.publico.genero,'mulheres') + '>Mulheres</option></select></div>'
       + '</div>'
-      + '<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Gênero</label>'
-      +   '<select id="pjc-ads-gen" onchange="pjAdsOnPublico(\'genero\',this.value)" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:12px;box-sizing:border-box">'
-      +     '<option ' + sel(a.publico.genero, 'all') + '>Todos</option>'
-      +     '<option ' + sel(a.publico.genero, 'homens') + '>Homens</option>'
-      +     '<option ' + sel(a.publico.genero, 'mulheres') + '>Mulheres</option>'
-      +   '</select></div>'
-      + '<div style="margin-bottom:12px;padding:10px;background:var(--bg);border-radius:8px;border:1px dashed var(--line-2)">'
-      +   '<div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">v1 · Targeting amplo Brasil (cidades + interesses na v2)</div>'
-      +   (a.publico.cidades_info ? '<div style="font-size:11px;color:var(--ink-2);margin-top:6px"><b>Cidades sugeridas:</b> ' + esc(a.publico.cidades_info) + '</div>' : '')
-      +   (a.publico.interesses_info ? '<div style="font-size:11px;color:var(--ink-2);margin-top:4px"><b>Interesses sugeridos:</b> ' + esc(a.publico.interesses_info) + '</div>' : '')
+
+      // INTERESSES
+      + '<div style="margin-bottom:14px;padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--line-2)">'
+      +   '<div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">🎯 Interesses</div>'
+      +   '<div id="pjc-ads-int-list">' + interessesHtml + '</div>'
+      +   '<div style="display:flex;gap:6px;margin-top:6px">'
+      +     '<input id="pjc-ads-int-input" type="text" placeholder="Ex: Empreendedorismo" onkeydown="if(event.key===\'Enter\'){event.preventDefault();pjAdsAdicionarInteresse();}" style="flex:1;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 10px;color:var(--ink);font-size:12px;box-sizing:border-box">'
+      +     '<button onclick="pjAdsAdicionarInteresse()" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer">+ Add</button>'
+      +   '</div>'
+      +   '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">'
+      +     SUG_INT.map(s => '<button onclick="pjAdsAdicionarInteresse(\'' + s + '\')" style="background:transparent;border:1px dashed var(--line-2);border-radius:999px;padding:3px 8px;font-size:10px;color:var(--ink-3);cursor:pointer">+ ' + esc(s) + '</button>').join('')
+      +   '</div>'
       + '</div>'
+
+      // COMPORTAMENTOS
+      + '<div style="margin-bottom:14px;padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--line-2)">'
+      +   '<div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">👥 Comportamentos</div>'
+      +   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
+      +   COMPS.map(c => '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-2);cursor:pointer"><input type="checkbox" ' + (a.publico.comportamentos[c.key] ? 'checked' : '') + ' onchange="pjAdsToggleComp(\'' + c.key + '\',this.checked)">' + esc(c.label) + '</label>').join('')
+      +   '</div>'
+      + '</div>'
+
+      // POSICIONAMENTOS
+      + '<div style="margin-bottom:14px;padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--line-2)">'
+      +   '<div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">📱 Posicionamentos</div>'
+      +   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
+      +   POS.map(p => '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-2);cursor:pointer"><input type="checkbox" ' + (a.publico.posicionamentos[p.key] ? 'checked' : '') + ' onchange="pjAdsTogglePos(\'' + p.key + '\',this.checked)">' + esc(p.label) + '</label>').join('')
+      +   '</div>'
+      + '</div>'
+
       + pjAdsFooter(2);
   } else if (a.step === 3) {
     const total = (parseFloat(a.orcamento.diario) || 0) * (parseInt(a.orcamento.dias, 10) || 0);
@@ -13563,7 +13626,10 @@ function pjAdsRenderStep(){
       +     '<div style="color:var(--ink-3)"><b>Texto:</b> ' + esc(a.criativo.primary_text) + '</div>'
       +     '<div style="color:var(--ink-3)"><b>Headline:</b> ' + esc(a.criativo.headline) + '</div>'
       +     '<div style="color:var(--ink-3);font-family:var(--mono);font-size:10px;word-break:break-all">' + esc(a.criativo.url_destino) + '</div>'
-      +     '<div style="color:var(--ink-3);margin-top:4px"><b>Público:</b> BR · ' + a.publico.age_min + '-' + a.publico.age_max + ' anos · ' + a.publico.genero + '</div>'
+      +     '<div style="color:var(--ink-3);margin-top:4px"><b>Público:</b> ' + ((a.publico.cidades && a.publico.cidades.length) ? a.publico.cidades.map(c=>esc(c.nome+' '+c.raio+'km')).join(' · ') : 'BR') + ' · ' + a.publico.age_min + '-' + a.publico.age_max + ' anos · ' + a.publico.genero + '</div>'
+      +     ((a.publico.interesses && a.publico.interesses.length) ? '<div style="color:var(--ink-3);font-size:11px"><b>Interesses:</b> ' + esc(a.publico.interesses.join(', ')) + '</div>' : '')
+      +     ((Object.values(a.publico.comportamentos||{}).some(Boolean)) ? '<div style="color:var(--ink-3);font-size:11px"><b>Comportamentos:</b> ' + esc(Object.entries(a.publico.comportamentos).filter(([,v])=>v).map(([k])=>k).join(', ')) + '</div>' : '')
+      +     '<div style="color:var(--ink-3);font-size:11px"><b>Posicionamentos:</b> ' + esc(Object.entries(a.publico.posicionamentos||{}).filter(([,v])=>v).map(([k])=>k).join(', ') || '—') + '</div>'
       +     '<div style="color:var(--ink-3)"><b>Orçamento:</b> R$ ' + (parseFloat(a.orcamento.diario)||0).toLocaleString('pt-BR') + '/dia × ' + a.orcamento.dias + ' dias = <b style="color:var(--accent,#22c55e)">R$ ' + total.toLocaleString('pt-BR') + '</b></div>'
       +   '</div></div></div>'
       + '<div style="padding:10px;background:rgba(245,200,66,.1);border:1px solid rgba(245,200,66,.3);border-radius:8px;margin-bottom:14px;font-size:11px;color:var(--ink-2);line-height:1.5">⚠️ A campanha vai ser criada <b>PAUSADA</b>. Revise tudo no Ads Manager e ative manualmente quando estiver pronto.</div>'
@@ -13600,6 +13666,49 @@ function pjAdsOnOrcamento(field, val){
     const el = document.getElementById('pjc-ads-total');
     if (el) el.textContent = 'R$ ' + total.toLocaleString('pt-BR');
   }
+}
+
+function pjAdsAdicionarCidade(nomeArg, raioArg){
+  const a = _pjAdsState; if (!a) return;
+  const inp = document.getElementById('pjc-ads-cidade-input');
+  const raioSel = document.getElementById('pjc-ads-cidade-raio');
+  const nome = (nomeArg || inp?.value || '').trim();
+  const raio = parseInt(raioArg || raioSel?.value || 25, 10);
+  if (!nome) return;
+  if (!a.publico.cidades) a.publico.cidades = [];
+  if (a.publico.cidades.find(c => c.nome.toLowerCase() === nome.toLowerCase())) return;
+  a.publico.cidades.push({ nome, raio });
+  if (inp) inp.value = '';
+  pjAdsRender();
+}
+function pjAdsRemoverCidade(idx){
+  const a = _pjAdsState; if (!a) return;
+  a.publico.cidades.splice(idx, 1);
+  pjAdsRender();
+}
+function pjAdsAdicionarInteresse(nomeArg){
+  const a = _pjAdsState; if (!a) return;
+  const inp = document.getElementById('pjc-ads-int-input');
+  const nome = (nomeArg || inp?.value || '').trim();
+  if (!nome) return;
+  if (!a.publico.interesses) a.publico.interesses = [];
+  if (a.publico.interesses.find(i => i.toLowerCase() === nome.toLowerCase())) return;
+  a.publico.interesses.push(nome);
+  if (inp) inp.value = '';
+  pjAdsRender();
+}
+function pjAdsRemoverInteresse(idx){
+  const a = _pjAdsState; if (!a) return;
+  a.publico.interesses.splice(idx, 1);
+  pjAdsRender();
+}
+function pjAdsToggleComp(key, checked){
+  const a = _pjAdsState; if (!a) return;
+  a.publico.comportamentos[key] = !!checked;
+}
+function pjAdsTogglePos(key, checked){
+  const a = _pjAdsState; if (!a) return;
+  a.publico.posicionamentos[key] = !!checked;
 }
 
 function pjAdsAvancar(){
@@ -13648,7 +13757,7 @@ async function pjAdsSugerirPublico(){
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando...'; }
   try {
     const neg = a.neg || {};
-    const prompt = 'Negócio à venda: ' + (neg.titulo_anuncio||neg.nome||'') + ' · setor ' + (neg.setor||'?') + ' · ' + (neg.cidade||'') + '/' + (neg.estado||'') + ' · valor R$ ' + (neg.valor_pedido||'?') + '. Sugere público-alvo Meta Ads para Lead Gen. Retorna JSON: {"age_min":int,"age_max":int,"genero":"all|homens|mulheres","cidades":["cidade1","cidade2"],"interesses":["interesse1","interesse2"]}';
+    const prompt = 'Negócio à venda — setor: ' + (neg.setor||'?') + ' · cidade: ' + (neg.cidade||'?') + '/' + (neg.estado||'') + ' · valor R$ ' + (neg.valor_pedido||neg.preco_pedido||'?') + '. Sugere público Meta Ads de Lead Gen ideal pra comprador deste negócio.\n\nRetorna SÓ JSON neste schema EXATO:\n{\n  "cidades": [{"nome":"São Paulo","raio":25}, {"nome":"Campinas","raio":50}],\n  "age_min": 35,\n  "age_max": 60,\n  "genero": "all",\n  "interesses": ["Empreendedorismo","Investimentos","Compra e venda de empresas"],\n  "comportamentos": ["pequenos_empresarios","proprietarios_negocio","alta_renda","compradores_online"]\n}\n\nRegras: cidades = 2-5 cidades brasileiras priorizando a região do negócio · raio em km (10/25/50/100) · genero "all"|"homens"|"mulheres" · interesses 3-6 strings · comportamentos só os keys exatos (subconjunto de pequenos_empresarios/proprietarios_negocio/alta_renda/compradores_online).';
     const r = await fetch(SB + '/functions/v1/tese-agente-chat', {
       method: 'POST',
       headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
@@ -13657,11 +13766,21 @@ async function pjAdsSugerirPublico(){
     const d = await r.json();
     const txt = (d.resposta || '').toString().replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(txt.match(/\{[\s\S]*\}/)?.[0] || txt);
-    if (parsed.age_min) a.publico.age_min = parsed.age_min;
-    if (parsed.age_max) a.publico.age_max = parsed.age_max;
+    if (parsed.age_min) a.publico.age_min = parseInt(parsed.age_min, 10);
+    if (parsed.age_max) a.publico.age_max = parseInt(parsed.age_max, 10);
     if (parsed.genero) a.publico.genero = parsed.genero;
-    if (Array.isArray(parsed.cidades)) a.publico.cidades_info = parsed.cidades.join(', ');
-    if (Array.isArray(parsed.interesses)) a.publico.interesses_info = parsed.interesses.join(', ');
+    if (Array.isArray(parsed.cidades)) {
+      a.publico.cidades = parsed.cidades
+        .map(c => typeof c === 'string' ? { nome: c, raio: 25 } : { nome: c.nome || c.cidade || '', raio: parseInt(c.raio||25,10) })
+        .filter(c => c.nome);
+    }
+    if (Array.isArray(parsed.interesses)) {
+      a.publico.interesses = parsed.interesses.filter(i => typeof i === 'string' && i.trim()).map(i => i.trim());
+    }
+    if (Array.isArray(parsed.comportamentos)) {
+      const VALID = ['pequenos_empresarios','proprietarios_negocio','alta_renda','compradores_online'];
+      VALID.forEach(k => { a.publico.comportamentos[k] = parsed.comportamentos.includes(k); });
+    }
     pjAdsRender();
   } catch (e) {
     alert('Erro ao gerar público: ' + (e?.message || e));
@@ -13798,6 +13917,12 @@ window.pjAdsOnPublico = pjAdsOnPublico;
 window.pjAdsOnOrcamento = pjAdsOnOrcamento;
 window.pjAdsSugerirCopy = pjAdsSugerirCopy;
 window.pjAdsSugerirPublico = pjAdsSugerirPublico;
+window.pjAdsAdicionarCidade = pjAdsAdicionarCidade;
+window.pjAdsRemoverCidade = pjAdsRemoverCidade;
+window.pjAdsAdicionarInteresse = pjAdsAdicionarInteresse;
+window.pjAdsRemoverInteresse = pjAdsRemoverInteresse;
+window.pjAdsToggleComp = pjAdsToggleComp;
+window.pjAdsTogglePos = pjAdsTogglePos;
 window.pjAdsCriar = pjAdsCriar;
 window.pjAdsCarregarCampanhas = pjAdsCarregarCampanhas;
 window.pjAdsToggleStatus = pjAdsToggleStatus;
