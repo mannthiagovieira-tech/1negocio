@@ -13327,7 +13327,10 @@ function pjConteudoRenderLista(){
       + '</div></div>';
 
   const midiasBlock = '<div style="margin-top:28px">'
-    + '<div style="font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📁 Mídias salvas</div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+    +   '<div style="font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em">📁 Mídias salvas</div>'
+    +   '<button onclick="pjConteudoUploadImagem()" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--ink-2);cursor:pointer">⬆ Subir imagem</button>'
+    + '</div>'
     + '<div id="pjc-midias-grid" style="color:var(--ink-3);font-size:12px">Carregando…</div>'
     + '</div>';
   const adsBlock = '<div style="margin-top:28px">'
@@ -13413,6 +13416,44 @@ async function pjConteudoBaixarMidia(url, name){
   }
 }
 
+async function pjConteudoUploadImagem(){
+  const s = _pjConteudoState; if (!s || !s.neg?.id) { alert('Negócio não resolvido'); return; }
+  const negId = s.neg.id;
+  // Cria input file invisível, dispara click
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/jpeg,image/png,image/webp';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    input.remove();
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { alert('Formato inválido. Use JPG, PNG ou WebP.'); return; }
+    const ext = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/webp' ? 'webp' : 'png';
+    const path = negId + '/' + Date.now() + '-upload.' + ext;
+    try {
+      // 1. Gera signed upload URL via REST (admin logado)
+      const rSign = await fetch(SB + '/storage/v1/object/upload/sign/conteudo-midias/' + path, {
+        method: 'POST',
+        headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) },
+      });
+      if (!rSign.ok) throw new Error('signed-url ' + rSign.status + ': ' + (await rSign.text().catch(()=>'')));
+      const sd = await rSign.json();
+      if (!sd.url) throw new Error('signed-url sem url retornado');
+      const uploadUrl = SB + '/storage/v1' + sd.url;
+      // 2. PUT da imagem
+      const rUp = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+      if (!rUp.ok) throw new Error('upload ' + rUp.status + ': ' + (await rUp.text().catch(()=>'')));
+      try { typeof origToast === 'function' && origToast('✓ Imagem salva'); } catch(_){}
+      pjConteudoCarregarMidias();
+    } catch (e) {
+      alert('Erro ao subir imagem: ' + (e?.message || e));
+    }
+  });
+  input.click();
+}
+
 async function pjConteudoCompartilharMidia(url, name){
   try {
     // Caminho 1: Web Share API com File (mobile / Safari novo)
@@ -13451,6 +13492,32 @@ function pjAdsAbrirModal(imagemUrl, imagemNome){
   const s = _pjConteudoState; if (!s) return;
   const neg = s.neg || {};
   const meta = s.meta || {};
+  const publicoBase = {
+    cidades: [],
+    age_min: 30, age_max: 60, genero: 'all',
+    interesses: [],
+    comportamentos: { pequenos_empresarios: false, proprietarios_negocio: false, alta_renda: false, compradores_online: false },
+    posicionamentos: { fb_feed: true, fb_stories: true, ig_feed: true, ig_stories: true, ig_reels: true, fb_marketplace: false, fb_reels: false },
+  };
+  // Aplica sugestão da Inteligência se já existir cacheada
+  let publicoVeioDaInteligencia = false;
+  const sug = window._pjAdsPublicoSugerido;
+  if (sug && typeof sug === 'object') {
+    if (sug.age_min) publicoBase.age_min = parseInt(sug.age_min, 10);
+    if (sug.age_max) publicoBase.age_max = parseInt(sug.age_max, 10);
+    if (sug.genero) publicoBase.genero = sug.genero;
+    if (Array.isArray(sug.cidades)) {
+      publicoBase.cidades = sug.cidades
+        .map(c => typeof c === 'string' ? { nome: c, raio: 25 } : { nome: c.nome || c.cidade || '', raio: parseInt(c.raio||25,10) })
+        .filter(c => c.nome);
+    }
+    if (Array.isArray(sug.interesses)) publicoBase.interesses = sug.interesses.filter(i => typeof i === 'string' && i.trim());
+    if (Array.isArray(sug.comportamentos)) {
+      const VALID = ['pequenos_empresarios','proprietarios_negocio','alta_renda','compradores_online'];
+      VALID.forEach(k => { publicoBase.comportamentos[k] = sug.comportamentos.includes(k); });
+    }
+    publicoVeioDaInteligencia = true;
+  }
   _pjAdsState = {
     imagem_url: imagemUrl,
     imagem_nome: imagemNome,
@@ -13463,13 +13530,8 @@ function pjAdsAbrirModal(imagemUrl, imagemNome){
       headline: '',
       url_destino: 'https://1negocio.com.br/negocio.html?id=' + (neg.id || ''),
     },
-    publico: {
-      cidades: [],
-      age_min: 30, age_max: 60, genero: 'all',
-      interesses: [],
-      comportamentos: { pequenos_empresarios: false, proprietarios_negocio: false, alta_renda: false, compradores_online: false },
-      posicionamentos: { fb_feed: true, fb_stories: true, ig_feed: true, ig_stories: true, ig_reels: true, fb_marketplace: false, fb_reels: false },
-    },
+    publico: publicoBase,
+    publicoVeioDaInteligencia,
     orcamento: { diario: 10, dias: 7, nome: '1N · ' + (neg.titulo_anuncio || neg.nome || 'Sem título') + ' · ' + new Date().toLocaleDateString('pt-BR') },
   };
   let modal = document.getElementById('pjc-ads-modal');
@@ -13551,7 +13613,9 @@ function pjAdsRenderStep(){
     const interessesHtml = (a.publico.interesses || []).map((i, idx) =>
       '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface-2,var(--bg));color:var(--ink-2);border:1px solid var(--line-2);border-radius:999px;padding:3px 9px;font-size:11px;margin-right:6px;margin-bottom:4px">' + esc(i) + '<button onclick="pjAdsRemoverInteresse(' + idx + ')" style="background:none;border:none;color:var(--ink-3);cursor:pointer;font-size:12px;padding:0 0 0 2px;line-height:1">×</button></span>'
     ).join('');
-    body.innerHTML = '<div style="margin-bottom:14px"><button onclick="pjAdsSugerirPublico()" id="pjc-ads-btn-pub-ia" style="background:transparent;border:1px solid var(--accent-line,rgba(34,197,94,.3));color:var(--accent,#22c55e);border-radius:6px;padding:7px 12px;font-size:11px;font-weight:600;cursor:pointer">✨ Sugerir público com IA</button>'
+    body.innerHTML = '<div style="margin-bottom:14px">'
+      + (a.publicoVeioDaInteligencia ? '<div style="display:inline-block;background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;margin-bottom:8px">✓ Público sugerido pela Inteligência</div><br>' : '')
+      + '<button onclick="pjAdsSugerirPublico()" id="pjc-ads-btn-pub-ia" style="background:transparent;border:1px solid var(--accent-line,rgba(34,197,94,.3));color:var(--accent,#22c55e);border-radius:6px;padding:7px 12px;font-size:11px;font-weight:600;cursor:pointer">✨ Sugerir público com IA</button>'
       + '<div style="font-size:10px;color:var(--ink-3);margin-top:4px">A IA cruza tese + arquétipos e preenche todos os campos automaticamente.</div></div>'
 
       // GEO
@@ -14321,6 +14385,7 @@ window.pjConteudoCarregarMidias = pjConteudoCarregarMidias;
 window.pjConteudoDeletarMidia = pjConteudoDeletarMidia;
 window.pjConteudoBaixarMidia = pjConteudoBaixarMidia;
 window.pjConteudoCompartilharMidia = pjConteudoCompartilharMidia;
+window.pjConteudoUploadImagem = pjConteudoUploadImagem;
 
 // v9.39.2 · Inteligência · layout 2-pane (chat + box tese) com auto-start contextualizado
 function pjV347RenderInteligencia(n, meta){
@@ -15389,6 +15454,35 @@ async function origV8GerarPlanoCompleto() {
 
   if(meta) meta.textContent='✓ '+totalCards+' ações geradas';
   origV8CarregarPlanoAcao();
+
+  // B-NOVO-6 · gera sugestão de público Meta Ads em background pra preencher modal de Impulsionar
+  pjAdsGerarPublicoSugerido(origId).catch(e => console.warn('[publico-sugerido bg]', e));
+}
+
+// Gera (e cacheia) sugestão de público Meta Ads usando IA · não bloqueia UI
+async function pjAdsGerarPublicoSugerido(origId){
+  const sbUrl = (typeof SB!=='undefined'&&SB)?SB:'https://dbijmgqlcrgjlcfrastg.supabase.co';
+  try {
+    // Busca neg + arquetipos aprovados do projeto
+    const headers = { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) };
+    const orig = window._pjAbertoNeg || {};
+    const rArq = await fetch(sbUrl + '/rest/v1/arquetipos_compradores?originacao_id=eq.' + origId + '&status=eq.aprovado&select=tipo,nome,perfil', { headers });
+    const arqs = rArq.ok ? await rArq.json() : [];
+    const arqResumo = Array.isArray(arqs) ? arqs.map(a => '- ' + a.tipo + ': ' + (a.perfil||a.nome||'')).join('\n') : '';
+    const prompt = 'Com base nos dados do negócio "' + (orig.titulo_anuncio || orig.nome || '') + '", setor "' + (orig.setor || '') + '", valor R$ ' + (orig.valor_pedido || orig.preco_pedido || '?') + ', cidade ' + (orig.cidade || '?') + '/' + (orig.estado || '') + ', e nos arquétipos aprovados:\n' + arqResumo + '\n\nSugira o público ideal para um anúncio Meta Ads Lead Gen.\n\nRetorne SÓ JSON neste schema EXATO:\n{\n  "cidades": [{"nome":"São Paulo","raio":25}],\n  "age_min": 35,\n  "age_max": 60,\n  "genero": "all",\n  "interesses": ["..."],\n  "comportamentos": ["pequenos_empresarios","proprietarios_negocio","alta_renda","compradores_online"]\n}\n\nRegras: cidades 2-5 brasileiras priorizando região do negócio · raio 10/25/50/100 · genero "all"|"homens"|"mulheres" · interesses 3-6 · comportamentos só os 4 keys exatos (subconjunto).';
+    const r = await fetch(sbUrl + '/functions/v1/tese-agente-chat', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modo: 'json_only', mensagem: prompt }),
+    });
+    const d = await r.json();
+    const txt = (d.resposta || '').toString().replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(txt.match(/\{[\s\S]*\}/)?.[0] || txt);
+    window._pjAdsPublicoSugerido = parsed;
+    console.log('[publico-sugerido] cacheado:', parsed);
+  } catch (e) {
+    console.warn('[publico-sugerido] falhou (não bloqueia):', e?.message || e);
+  }
 }
 
 // v9.42.5 · toggle copilot flutuante
