@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>1Negócio · Engine editável — 4 templates</title>
+
+<!-- html2canvas via CDN (necessário para captura PNG) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+  /* ──────────────────────────────────────────────────────────────
+     FONTES
+     ─────
+     NOTA: O ideal seria embutir os arquivos .woff2 como base64 dentro
+     do @font-face. Fontes completas das 3 famílias somam 3-5MB — fica
+     inviável carregar inline num único HTML. Solução prática: @import
+     do Google Fonts dentro do <style>. Se você precisar de operação
+     100% offline, baixe os .woff2 e substitua os @import por blocos
+     @font-face com src:url(data:font/woff2;base64,...).
+     ────────────────────────────────────────────────────────────── */
+  @import url('https://fonts.googleapis.com/css2?family=Syne:ital,wght@0,500..900;1,500..900&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.cdnfonts.com/css/geist');
+
+  /* ─────────────── TOKENS ─────────────── */
+  :root{
+    --serif:'Syne',ui-serif,serif;
+    --sans:'Geist','Inter',-apple-system,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+    --bg:#f6f7f5;
+    --ink:#0a1510;
+    --ink-2:rgba(10,21,16,.78);
+    --ink-3:rgba(10,21,16,.58);
+    --ink-4:rgba(10,21,16,.38);
+    --line:rgba(10,21,16,.10);
+    --line-2:rgba(10,21,16,.18);
+    --accent:#0aa85a;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:#0d100f;color:#e6e9e3;font-family:var(--sans);-webkit-font-smoothing:antialiased}
+
+  /* ─────────────── SHELL (só pra UI; não vai pro PNG) ─────────────── */
+  .shell-head{padding:16px 22px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .shell-head .brand{font-family:var(--serif);font-weight:800;font-size:20px;letter-spacing:-.03em}
+  .shell-head .brand .one{color:#3dff95;font-weight:900}
+  .shell-head .info{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+  .body-pad{padding:36px 22px 80px;display:flex;flex-direction:column;gap:36px;align-items:center}
+  .item{display:flex;flex-direction:column;gap:12px;--s:.48}
+  .item-bar{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:rgba(255,255,255,.4)}
+  .item-bar b{color:#3dff95;font-weight:700;letter-spacing:.18em}
+  .item-bar .name{color:#e6e9e3;font-family:var(--sans);font-size:13px;font-weight:500}
+  .btn{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;background:#3dff95;color:#0a0f0c;padding:6px 14px;border-radius:999px;border:none;cursor:pointer;transition:opacity .15s}
+  .btn:hover{opacity:.85}
+  .btn:disabled{opacity:.5;cursor:wait}
+  .frame-outer{width:calc(1080px*var(--s));position:relative;overflow:visible}
+  .frame-outer.story{height:calc(1350px*var(--s))}
+  .frame-outer.feed{height:calc(1080px*var(--s))}
+
+  /* ─────────────── FRAME ─────────────── */
+  .frame{position:absolute;top:0;left:0;width:1080px;height:1350px;background:var(--bg);color:var(--ink);overflow:hidden;transform:scale(var(--s));transform-origin:top left;box-shadow:0 14px 50px rgba(0,0,0,.35)}
+  .frame.feed{height:1080px}
+  .frame.feed .pg{padding:48px 56px 44px}
+  .frame.feed .pg-valor{margin-top:14px}
+  .frame.feed .pg-title{margin-top:18px}
+  .frame.feed .pg-title h1{font-size:72px}
+  .frame.feed .pg-stripe{margin-top:32px}
+  .frame.feed .pg-spacer{flex:1 1 24px;min-height:24px}
+  .frame.dark{
+    --bg:#0a0f0c;
+    --ink:#f4f7f4;
+    --ink-3:rgba(244,247,244,.55);
+    --ink-4:rgba(244,247,244,.32);
+    --line:rgba(255,255,255,.08);
+    --line-2:rgba(255,255,255,.14);
+    --accent:#3dff95;
+  }
+  .frame.dark .pg{background:var(--bg);color:var(--ink)}
+  .frame.dark .pg-head{border-bottom-color:var(--ink)}
+
+  /* ─────────────── PÁGINA ─────────────── */
+  .pg{position:absolute;inset:0;padding:60px 64px 52px;display:flex;flex-direction:column;color:var(--ink);background:var(--bg)}
+  .pg-head{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-bottom:18px;border-bottom:1px solid var(--ink);flex-shrink:0}
+  .pg-logo{font-family:var(--serif);font-weight:800;font-size:34px;letter-spacing:-.02em;line-height:1;color:var(--ink)}
+  .pg-logo .one{color:var(--accent);font-weight:900}
+  .pg-loc{font-family:var(--mono);font-size:20px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+  .pg-valor{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-top:24px;flex-shrink:0}
+  .pg-valor .l{font-family:var(--mono);font-size:20px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4);line-height:1}
+  .pg-valor .v{font-family:var(--serif);font-weight:800;font-style:italic;font-size:104px;letter-spacing:-.045em;color:var(--accent);line-height:.95;font-variant-numeric:tabular-nums;padding-right:.08em}
+  .pg-valor .v .pre{font-family:var(--sans);font-style:normal;font-weight:500;font-size:.32em;color:var(--ink-3);margin-right:.14em;vertical-align:baseline}
+  .pg-title{margin-top:48px;flex-shrink:0}
+  .pg-title h1{font-family:var(--serif);font-weight:800;font-style:italic;font-size:88px;line-height:.92;letter-spacing:-.035em;color:var(--ink);text-wrap:balance;margin:0;overflow:hidden}
+  .pg-stripe{margin-top:48px;display:grid;grid-template-columns:repeat(5,1fr);gap:0;border-top:1px solid var(--line-2);border-bottom:1px solid var(--line-2);padding:14px 0;opacity:.78;flex-shrink:0}
+  .pg-stripe .cell{display:flex;flex-direction:column;gap:6px;padding:0 10px;border-right:1px solid var(--line);align-items:center;text-align:center}
+  .pg-stripe .cell:last-child{border-right:none}
+  .pg-stripe .cell:first-child{align-items:flex-start;text-align:left;padding-left:0}
+  .pg-stripe .cell:last-child{align-items:flex-end;text-align:right;padding-right:0}
+  .pg-stripe .l{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4)}
+  .pg-stripe .v{font-family:var(--serif);font-weight:700;font-size:30px;line-height:1;letter-spacing:-.02em;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .pg-spacer{flex:1 1 60px;min-height:60px}
+  .pg-feature{display:grid;grid-template-columns:1fr auto;align-items:center;gap:24px;flex-shrink:0}
+  .pg-feature .rule{height:1px;background:var(--ink-3)}
+  .pg-feature .txt{font-family:var(--serif);font-weight:500;font-style:italic;font-size:40px;line-height:1.06;letter-spacing:-.015em;color:var(--accent);text-align:right}
+  .pg-desc{font-family:var(--sans);font-size:20px;line-height:1.5;color:var(--ink-3);margin-top:18px;max-width:100%;flex-shrink:0;text-align:justify}
+  .pg-foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+  .pg-foot .dots{display:flex;gap:6px;align-items:center}
+  .pg-foot .dot{width:7px;height:7px;border-radius:50%;background:var(--line-2)}
+  .pg-foot .dot.on{width:22px;border-radius:4px;background:var(--accent)}
+  .pg-foot .code{font-family:var(--mono);font-size:20px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+
+  /* edição inline: outline sutil + cursor */
+  [contenteditable="true"]{outline:none;cursor:text;border-radius:2px;transition:background .15s}
+  [contenteditable="true"]:hover{background:rgba(98,200,120,.08)}
+  [contenteditable="true"]:focus{background:rgba(98,200,120,.14);box-shadow:0 0 0 2px rgba(98,200,120,.4)}
+  .frame.dark [contenteditable="true"]:hover{background:rgba(61,255,149,.10)}
+  .frame.dark [contenteditable="true"]:focus{background:rgba(61,255,149,.18);box-shadow:0 0 0 2px rgba(61,255,149,.4)}
+</style>
+</head>
+<body>
+
+<header class="shell-head">
+  <span class="brand"><span class="one">1</span>Negócio</span>
+  <span class="info">engine editável · clique nos textos para editar · download PNG por template</span>
+</header>
+
+<main class="body-pad">
+
+  <!-- ─────────────── TEMPLATE 01 — STORY LIGHT ─────────────── -->
+  <div class="item">
+    <div class="frame-outer story">
+      <div class="frame" id="t1">
+        <div class="pg">
+          <header class="pg-head">
+            <span class="pg-logo"><span class="one">1</span>NEGÓCIO</span>
+            <span class="pg-loc" contenteditable="true" data-field="localidade">PARQUE SÃO DOMINGOS · SP</span>
+          </header>
+          <div class="pg-valor">
+            <span class="l" contenteditable="true">À VENDA POR</span>
+            <span class="v"><span class="pre">R$</span><span contenteditable="true" data-field="valor_venda">1.6M</span></span>
+          </div>
+          <div class="pg-title">
+            <h1 contenteditable="true" data-field="titulo">Empório de Produtos Naturais</h1>
+          </div>
+          <div class="pg-stripe">
+            <div class="cell"><span class="l">FATURAMENTO ANUAL</span><span class="v" contenteditable="true" data-field="faturamento_anual">R$ 8.2M</span></div>
+            <div class="cell"><span class="l">RES. ANUAL</span><span class="v" contenteditable="true" data-field="resultado_anual">R$ 740k</span></div>
+            <div class="cell"><span class="l">ATIVOS</span><span class="v" contenteditable="true" data-field="ativos">R$ 2.1M</span></div>
+            <div class="cell"><span class="l">PASSIVOS</span><span class="v" contenteditable="true" data-field="passivos">R$ 700k</span></div>
+            <div class="cell"><span class="l">PATRIMÔNIO LÍQUIDO</span><span class="v" contenteditable="true" data-field="patrimonio_liquido">R$ 1.4M</span></div>
+          </div>
+          <div class="pg-spacer"></div>
+          <div class="pg-feature">
+            <span class="rule"></span>
+            <span class="txt" contenteditable="true" data-field="caracteristica">+15 mil clientes na base</span>
+          </div>
+          <p class="pg-desc" contenteditable="true" data-field="descricao">Negócio de varejo alimentar com longa trajetória — +15 anos de mercado, e-commerce inexplorado, base sólida de clientes recorrentes.</p>
+          <footer class="pg-foot">
+            <div class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <span class="code">CÓD. <span contenteditable="true" data-field="codigo">1N-AN-431E6</span></span>
+          </footer>
+        </div>
+      </div>
+    </div>
+    <div class="item-bar">
+      <span><b>01 / 04</b> &nbsp;<span class="name">Story Light · 1080×1350</span></span>
+      <button class="btn" data-target="t1" data-name="story-light">↓ Download PNG</button>
+    </div>
+  </div>
+
+
+  <!-- ─────────────── TEMPLATE 02 — STORY DARK ─────────────── -->
+  <div class="item">
+    <div class="frame-outer story">
+      <div class="frame dark" id="t2">
+        <div class="pg">
+          <header class="pg-head">
+            <span class="pg-logo"><span class="one">1</span>NEGÓCIO</span>
+            <span class="pg-loc" contenteditable="true" data-field="localidade">PARQUE SÃO DOMINGOS · SP</span>
+          </header>
+          <div class="pg-valor">
+            <span class="l" contenteditable="true">À VENDA POR</span>
+            <span class="v"><span class="pre">R$</span><span contenteditable="true" data-field="valor_venda">1.6M</span></span>
+          </div>
+          <div class="pg-title">
+            <h1 contenteditable="true" data-field="titulo">Empório de Produtos Naturais</h1>
+          </div>
+          <div class="pg-stripe">
+            <div class="cell"><span class="l">FATURAMENTO ANUAL</span><span class="v" contenteditable="true" data-field="faturamento_anual">R$ 8.2M</span></div>
+            <div class="cell"><span class="l">RES. ANUAL</span><span class="v" contenteditable="true" data-field="resultado_anual">R$ 740k</span></div>
+            <div class="cell"><span class="l">ATIVOS</span><span class="v" contenteditable="true" data-field="ativos">R$ 2.1M</span></div>
+            <div class="cell"><span class="l">PASSIVOS</span><span class="v" contenteditable="true" data-field="passivos">R$ 700k</span></div>
+            <div class="cell"><span class="l">PATRIMÔNIO LÍQUIDO</span><span class="v" contenteditable="true" data-field="patrimonio_liquido">R$ 1.4M</span></div>
+          </div>
+          <div class="pg-spacer"></div>
+          <div class="pg-feature">
+            <span class="rule"></span>
+            <span class="txt" contenteditable="true" data-field="caracteristica">+15 mil clientes na base</span>
+          </div>
+          <p class="pg-desc" contenteditable="true" data-field="descricao">Negócio de varejo alimentar com longa trajetória — +15 anos de mercado, e-commerce inexplorado, base sólida de clientes recorrentes.</p>
+          <footer class="pg-foot">
+            <div class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <span class="code">CÓD. <span contenteditable="true" data-field="codigo">1N-AN-431E6</span></span>
+          </footer>
+        </div>
+      </div>
+    </div>
+    <div class="item-bar">
+      <span><b>02 / 04</b> &nbsp;<span class="name">Story Dark · 1080×1350</span></span>
+      <button class="btn" data-target="t2" data-name="story-dark">↓ Download PNG</button>
+    </div>
+  </div>
+
+
+  <!-- ─────────────── TEMPLATE 03 — FEED LIGHT ─────────────── -->
+  <div class="item">
+    <div class="frame-outer feed">
+      <div class="frame feed" id="t3">
+        <div class="pg">
+          <header class="pg-head">
+            <span class="pg-logo"><span class="one">1</span>NEGÓCIO</span>
+            <span class="pg-loc" contenteditable="true" data-field="localidade">PARQUE SÃO DOMINGOS · SP</span>
+          </header>
+          <div class="pg-valor">
+            <span class="l" contenteditable="true">À VENDA POR</span>
+            <span class="v"><span class="pre">R$</span><span contenteditable="true" data-field="valor_venda">1.6M</span></span>
+          </div>
+          <div class="pg-title">
+            <h1 contenteditable="true" data-field="titulo">Empório de Produtos Naturais</h1>
+          </div>
+          <div class="pg-stripe">
+            <div class="cell"><span class="l">FATURAMENTO ANUAL</span><span class="v" contenteditable="true" data-field="faturamento_anual">R$ 8.2M</span></div>
+            <div class="cell"><span class="l">RES. ANUAL</span><span class="v" contenteditable="true" data-field="resultado_anual">R$ 740k</span></div>
+            <div class="cell"><span class="l">ATIVOS</span><span class="v" contenteditable="true" data-field="ativos">R$ 2.1M</span></div>
+            <div class="cell"><span class="l">PASSIVOS</span><span class="v" contenteditable="true" data-field="passivos">R$ 700k</span></div>
+            <div class="cell"><span class="l">PATRIMÔNIO LÍQUIDO</span><span class="v" contenteditable="true" data-field="patrimonio_liquido">R$ 1.4M</span></div>
+          </div>
+          <div class="pg-spacer"></div>
+          <div class="pg-feature">
+            <span class="rule"></span>
+            <span class="txt" contenteditable="true" data-field="caracteristica">+15 mil clientes na base</span>
+          </div>
+          <p class="pg-desc" contenteditable="true" data-field="descricao">Negócio de varejo alimentar com longa trajetória — +15 anos de mercado, e-commerce inexplorado, base sólida de clientes recorrentes.</p>
+          <footer class="pg-foot">
+            <div class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <span class="code">CÓD. <span contenteditable="true" data-field="codigo">1N-AN-431E6</span></span>
+          </footer>
+        </div>
+      </div>
+    </div>
+    <div class="item-bar">
+      <span><b>03 / 04</b> &nbsp;<span class="name">Feed Light · 1080×1080</span></span>
+      <button class="btn" data-target="t3" data-name="feed-light">↓ Download PNG</button>
+    </div>
+  </div>
+
+
+  <!-- ─────────────── TEMPLATE 04 — FEED DARK ─────────────── -->
+  <div class="item">
+    <div class="frame-outer feed">
+      <div class="frame feed dark" id="t4">
+        <div class="pg">
+          <header class="pg-head">
+            <span class="pg-logo"><span class="one">1</span>NEGÓCIO</span>
+            <span class="pg-loc" contenteditable="true" data-field="localidade">PARQUE SÃO DOMINGOS · SP</span>
+          </header>
+          <div class="pg-valor">
+            <span class="l" contenteditable="true">À VENDA POR</span>
+            <span class="v"><span class="pre">R$</span><span contenteditable="true" data-field="valor_venda">1.6M</span></span>
+          </div>
+          <div class="pg-title">
+            <h1 contenteditable="true" data-field="titulo">Empório de Produtos Naturais</h1>
+          </div>
+          <div class="pg-stripe">
+            <div class="cell"><span class="l">FATURAMENTO ANUAL</span><span class="v" contenteditable="true" data-field="faturamento_anual">R$ 8.2M</span></div>
+            <div class="cell"><span class="l">RES. ANUAL</span><span class="v" contenteditable="true" data-field="resultado_anual">R$ 740k</span></div>
+            <div class="cell"><span class="l">ATIVOS</span><span class="v" contenteditable="true" data-field="ativos">R$ 2.1M</span></div>
+            <div class="cell"><span class="l">PASSIVOS</span><span class="v" contenteditable="true" data-field="passivos">R$ 700k</span></div>
+            <div class="cell"><span class="l">PATRIMÔNIO LÍQUIDO</span><span class="v" contenteditable="true" data-field="patrimonio_liquido">R$ 1.4M</span></div>
+          </div>
+          <div class="pg-spacer"></div>
+          <div class="pg-feature">
+            <span class="rule"></span>
+            <span class="txt" contenteditable="true" data-field="caracteristica">+15 mil clientes na base</span>
+          </div>
+          <p class="pg-desc" contenteditable="true" data-field="descricao">Negócio de varejo alimentar com longa trajetória — +15 anos de mercado, e-commerce inexplorado, base sólida de clientes recorrentes.</p>
+          <footer class="pg-foot">
+            <div class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <span class="code">CÓD. <span contenteditable="true" data-field="codigo">1N-AN-431E6</span></span>
+          </footer>
+        </div>
+      </div>
+    </div>
+    <div class="item-bar">
+      <span><b>04 / 04</b> &nbsp;<span class="name">Feed Dark · 1080×1080</span></span>
+      <button class="btn" data-target="t4" data-name="feed-dark">↓ Download PNG</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// captura a 1080×1350 (story) ou 1080×1080 (feed) — desfazendo o transform:scale do preview
+document.querySelectorAll('.btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id   = btn.dataset.target;
+    const name = btn.dataset.name;
+    const node = document.getElementById(id);
+    btn.disabled = true; btn.textContent = 'capturando…';
+
+    // remove scale temporariamente
+    const origTransform = node.style.transform;
+    node.style.transform = 'none';
+    // tira o frame-outer constraint para não cortar
+    const outer = node.closest('.frame-outer');
+    const origOH = outer.style.overflow; outer.style.overflow = 'visible';
+
+    try {
+      const canvas = await html2canvas(node, {
+        width:  node.classList.contains('feed') ? 1080 : 1080,
+        height: node.classList.contains('feed') ? 1080 : 1350,
+        scale:  2,
+        backgroundColor: null,
+        useCORS: true,
+      });
+      const link = document.createElement('a');
+      link.download = '1negocio-' + name + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch(e){
+      console.error(e); alert('Erro ao capturar: ' + e.message);
+    } finally {
+      node.style.transform = origTransform;
+      outer.style.overflow = origOH;
+      btn.disabled = false; btn.textContent = '↓ Download PNG';
+    }
+  });
+});
+
+// Pré-preenche os campos via URL params (?localidade=...&valor_venda=...&titulo=...)
+// Aplica em todos os frames (cada data-field aparece 4×, um por template).
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const CAMPOS = ['localidade','valor_venda','titulo','faturamento_anual','resultado_anual','ativos','passivos','patrimonio_liquido','caracteristica','descricao','codigo'];
+  CAMPOS.forEach(campo => {
+    const val = params.get(campo);
+    if (val == null || val === '') return;
+    document.querySelectorAll('[data-field="' + campo + '"]').forEach(el => {
+      el.textContent = val;
+    });
+  });
+});
+</script>
+
+</body>
+</html>

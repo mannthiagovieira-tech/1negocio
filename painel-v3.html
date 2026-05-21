@@ -13333,11 +13333,17 @@ function pjConteudoNovo(templateId){
   const s = _pjConteudoState; if (!s) return;
   const tpl = s.templates.find(t => t.id === templateId);
   if (!tpl) return;
-  const valoresIniciais = {};
-  (tpl.campos || []).forEach(c => { valoresIniciais[c.id] = ''; });
-  s.atual = { id: null, template: tpl, titulo: '', valores: valoresIniciais };
-  s.view = 'editor';
-  pjConteudoRenderEditor();
+  const neg = s.neg || {};
+  const cidadeEstado = (neg.cidade || '') + (neg.estado ? ' · ' + String(neg.estado).toUpperCase() : '');
+  const codigo = neg.codigo || neg.codigo_diagnostico || (neg.id ? neg.id.substring(0,8).toUpperCase() : '');
+  const params = new URLSearchParams({
+    localidade: cidadeEstado,
+    valor_venda: pjcFmtBR(neg.valor_pedido || neg.preco_pedido || 0),
+    titulo: neg.titulo_anuncio || neg.nome || '',
+    descricao: neg.descricao_card || neg.descricao || '',
+    codigo: codigo,
+  });
+  window.open('/conteudo-editor.html?' + params.toString(), '_blank');
 }
 
 function pjConteudoEditar(conteudoId){
