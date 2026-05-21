@@ -30,6 +30,7 @@ const ALLOWED_TABLES = [
   "vw_negocios_anuncios",
   "conteudo_templates",
   "projeto_conteudo",
+  "projeto_ads",
 ];
 
 const corsHeaders = {

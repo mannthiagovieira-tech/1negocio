@@ -13330,8 +13330,13 @@ function pjConteudoRenderLista(){
     + '<div style="font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📁 Mídias salvas</div>'
     + '<div id="pjc-midias-grid" style="color:var(--ink-3);font-size:12px">Carregando…</div>'
     + '</div>';
-  s.container.innerHTML = '<div style="padding:4px">' + meusBlock + tplsBlock + midiasBlock + '</div>';
+  const adsBlock = '<div style="margin-top:28px">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📣 Campanhas ativas</div>'
+    + '<div id="pjc-ads-grid" style="color:var(--ink-3);font-size:12px">Carregando…</div>'
+    + '</div>';
+  s.container.innerHTML = '<div style="padding:4px">' + meusBlock + tplsBlock + midiasBlock + adsBlock + '</div>';
   pjConteudoCarregarMidias();
+  pjAdsCarregarCampanhas();
 }
 
 async function pjConteudoCarregarMidias(){
@@ -13362,9 +13367,10 @@ async function pjConteudoCarregarMidias(){
           return '<div style="position:relative;border:1px solid var(--line-2);border-radius:8px;overflow:hidden;background:var(--bg)">'
             + '<a href="' + pjcEsc(url) + '" target="_blank" rel="noopener"><img src="' + pjcEsc(url) + '" loading="lazy" style="width:100%;height:120px;object-fit:cover;display:block"></a>'
             + '<button onclick="pjConteudoDeletarMidia(\'' + safePath + '\')" style="position:absolute;top:4px;right:4px;' + btnBase + ';width:24px;height:24px;font-size:12px;padding:0" title="Deletar">🗑</button>'
-            + '<div style="position:absolute;bottom:28px;left:4px;right:4px;display:flex;gap:4px;justify-content:flex-start">'
-            +   '<button onclick="pjConteudoBaixarMidia(\'' + safeUrl + '\',\'' + safeName + '\')" style="' + btnBase + '" title="Baixar PNG">⬇ Baixar</button>'
-            +   '<button onclick="pjConteudoCompartilharMidia(\'' + safeUrl + '\',\'' + safeName + '\')" style="' + btnBase + '" title="Compartilhar">↗ Share</button>'
+            + '<div style="position:absolute;bottom:28px;left:4px;right:4px;display:flex;gap:4px;justify-content:flex-start;flex-wrap:wrap">'
+            +   '<button onclick="pjConteudoBaixarMidia(\'' + safeUrl + '\',\'' + safeName + '\')" style="' + btnBase + '" title="Baixar PNG">⬇</button>'
+            +   '<button onclick="pjConteudoCompartilharMidia(\'' + safeUrl + '\',\'' + safeName + '\')" style="' + btnBase + '" title="Compartilhar">↗</button>'
+            +   '<button onclick="pjAdsAbrirModal(\'' + safeUrl + '\',\'' + safeName + '\')" style="' + btnBase + ';background:rgba(34,197,94,.85);color:#000;font-weight:700" title="Impulsionar como anúncio">🚀 Impulsionar</button>'
             + '</div>'
             + '<div style="font-size:9px;color:var(--ink-3);padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + pjcEsc(it.name) + '">' + pjcEsc(it.name) + '</div>'
             + '</div>';
@@ -13435,6 +13441,367 @@ async function pjConteudoCompartilharMidia(url, name){
     alert('Erro ao compartilhar: ' + (e?.message || e));
   }
 }
+
+// ============================================================
+// META ADS · Lead Gen v1 (v9.44.0)
+// ============================================================
+let _pjAdsState = null;
+
+function pjAdsAbrirModal(imagemUrl, imagemNome){
+  const s = _pjConteudoState; if (!s) return;
+  const neg = s.neg || {};
+  const meta = s.meta || {};
+  _pjAdsState = {
+    imagem_url: imagemUrl,
+    imagem_nome: imagemNome,
+    negocio_id: neg.id,
+    projeto_metadata_id: meta.id,
+    neg, meta,
+    step: 1,
+    criativo: {
+      primary_text: '',
+      headline: '',
+      url_destino: 'https://1negocio.com.br/negocio.html?id=' + (neg.id || ''),
+    },
+    publico: { age_min: 30, age_max: 60, genero: 'all', cidades_info: '', interesses_info: '' },
+    orcamento: { diario: 10, dias: 7, nome: '1N · ' + (neg.titulo_anuncio || neg.nome || 'Sem título') + ' · ' + new Date().toLocaleDateString('pt-BR') },
+  };
+  let modal = document.getElementById('pjc-ads-modal');
+  if (!modal) { modal = document.createElement('div'); modal.id = 'pjc-ads-modal'; document.body.appendChild(modal); }
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  pjAdsRender();
+}
+
+function pjAdsFecharModal(){
+  const m = document.getElementById('pjc-ads-modal');
+  if (m) m.style.display = 'none';
+  _pjAdsState = null;
+}
+
+function pjAdsRender(){
+  const a = _pjAdsState; if (!a) return;
+  const m = document.getElementById('pjc-ads-modal'); if (!m) return;
+  const esc = pjcEsc;
+  const stepDot = (n, label) => '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:' + (a.step === n ? 'var(--accent,#22c55e)' : 'var(--ink-3)') + '"><span style="width:18px;height:18px;border-radius:999px;background:' + (a.step >= n ? 'var(--accent,#22c55e)' : 'var(--surface-2,var(--bg))') + ';color:' + (a.step >= n ? '#000' : 'var(--ink-3)') + ';display:inline-flex;align-items:center;justify-content:center;font-weight:700">' + n + '</span><span>' + label + '</span></div>';
+  m.innerHTML = '<div style="background:var(--surface);border-radius:14px;padding:22px;width:640px;max-width:96vw;max-height:92vh;overflow-y:auto;border:1px solid var(--line-2)">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +   '<div><div style="font-family:var(--serif);font-size:18px;font-weight:700">🚀 Impulsionar como anúncio</div>'
+    +     '<div style="font-size:11px;color:var(--ink-3)">Lead Gen · Facebook + Instagram · começa PAUSADO</div></div>'
+    +   '<button onclick="pjAdsFecharModal()" style="background:transparent;border:none;font-size:20px;cursor:pointer;color:var(--ink-3)">×</button>'
+    + '</div>'
+    + '<div style="display:flex;gap:14px;margin-bottom:18px;padding:10px 14px;background:var(--bg);border-radius:8px">'
+    +   stepDot(1, 'Criativo') + stepDot(2, 'Público') + stepDot(3, 'Orçamento') + stepDot(4, 'Revisão')
+    + '</div>'
+    + '<div id="pjc-ads-step-body"></div>'
+    + '</div>';
+  pjAdsRenderStep();
+}
+
+function pjAdsRenderStep(){
+  const a = _pjAdsState; if (!a) return;
+  const body = document.getElementById('pjc-ads-step-body'); if (!body) return;
+  const esc = pjcEsc;
+  if (a.step === 1) {
+    body.innerHTML = '<div style="display:flex;gap:14px;margin-bottom:12px">'
+      + '<img src="' + esc(a.imagem_url) + '" style="width:140px;height:175px;object-fit:cover;border-radius:8px;flex-shrink:0">'
+      + '<div style="flex:1;display:flex;flex-direction:column;gap:8px">'
+      +   '<button onclick="pjAdsSugerirCopy()" id="pjc-ads-btn-copy-ia" style="background:transparent;border:1px solid var(--accent-line,rgba(34,197,94,.3));color:var(--accent,#22c55e);border-radius:6px;padding:7px 12px;font-size:11px;font-weight:600;cursor:pointer">✨ Sugerir copy com IA</button>'
+      +   '<div style="font-size:10px;color:var(--ink-3);line-height:1.4">A IA escreve texto + headline baseados no setor, valor e cidade do negócio. Você pode editar.</div>'
+      + '</div></div>'
+      + '<div style="margin-bottom:12px">'
+      +   '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><label style="font-size:11px;font-weight:600">Texto principal</label><span id="pjc-ads-c-prim" style="font-size:10px;color:var(--ink-3)">' + (a.criativo.primary_text||'').length + '/125</span></div>'
+      +   '<textarea id="pjc-ads-prim" rows="3" maxlength="125" oninput="pjAdsOnInput(\'primary_text\',this.value,\'pjc-ads-c-prim\',125)" placeholder="Ex: Empório de produtos naturais em SP · 15 anos · R$ 730k/ano · à venda" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:12px;resize:vertical;box-sizing:border-box;font-family:var(--sans)">' + esc(a.criativo.primary_text || '') + '</textarea>'
+      + '</div>'
+      + '<div style="margin-bottom:12px">'
+      +   '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><label style="font-size:11px;font-weight:600">Título (headline)</label><span id="pjc-ads-c-head" style="font-size:10px;color:var(--ink-3)">' + (a.criativo.headline||'').length + '/40</span></div>'
+      +   '<input id="pjc-ads-head" type="text" maxlength="40" oninput="pjAdsOnInput(\'headline\',this.value,\'pjc-ads-c-head\',40)" placeholder="Ex: Compre uma empresa pronta" value="' + esc(a.criativo.headline || '').replace(/"/g,'&quot;') + '" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:12px;box-sizing:border-box">'
+      + '</div>'
+      + '<div style="margin-bottom:12px">'
+      +   '<label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">URL de destino (após preencher form)</label>'
+      +   '<input id="pjc-ads-url" type="url" oninput="pjAdsOnInput(\'url_destino\',this.value,null,null)" value="' + esc(a.criativo.url_destino || '').replace(/"/g,'&quot;') + '" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:12px;box-sizing:border-box;font-family:var(--mono)">'
+      + '</div>'
+      + pjAdsFooter(1);
+  } else if (a.step === 2) {
+    const sel = (v, opt) => 'value="' + opt + '"' + (v === opt ? ' selected' : '');
+    body.innerHTML = '<div style="margin-bottom:14px"><button onclick="pjAdsSugerirPublico()" id="pjc-ads-btn-pub-ia" style="background:transparent;border:1px solid var(--accent-line,rgba(34,197,94,.3));color:var(--accent,#22c55e);border-radius:6px;padding:7px 12px;font-size:11px;font-weight:600;cursor:pointer">✨ Sugerir público com IA</button>'
+      + '<div style="font-size:10px;color:var(--ink-3);margin-top:4px">A IA cruza tese + arquétipos do projeto e sugere cidades/interesses. Na v1 ainda não aplicamos automaticamente, mas fica registrado pra você usar manual.</div></div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'
+      +   '<div><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Idade mín</label><input id="pjc-ads-amin" type="number" min="18" max="65" value="' + (a.publico.age_min||30) + '" oninput="pjAdsOnPublico(\'age_min\',this.value)" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:12px;box-sizing:border-box"></div>'
+      +   '<div><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Idade máx</label><input id="pjc-ads-amax" type="number" min="18" max="65" value="' + (a.publico.age_max||60) + '" oninput="pjAdsOnPublico(\'age_max\',this.value)" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:12px;box-sizing:border-box"></div>'
+      + '</div>'
+      + '<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Gênero</label>'
+      +   '<select id="pjc-ads-gen" onchange="pjAdsOnPublico(\'genero\',this.value)" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:12px;box-sizing:border-box">'
+      +     '<option ' + sel(a.publico.genero, 'all') + '>Todos</option>'
+      +     '<option ' + sel(a.publico.genero, 'homens') + '>Homens</option>'
+      +     '<option ' + sel(a.publico.genero, 'mulheres') + '>Mulheres</option>'
+      +   '</select></div>'
+      + '<div style="margin-bottom:12px;padding:10px;background:var(--bg);border-radius:8px;border:1px dashed var(--line-2)">'
+      +   '<div style="font-size:10px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">v1 · Targeting amplo Brasil (cidades + interesses na v2)</div>'
+      +   (a.publico.cidades_info ? '<div style="font-size:11px;color:var(--ink-2);margin-top:6px"><b>Cidades sugeridas:</b> ' + esc(a.publico.cidades_info) + '</div>' : '')
+      +   (a.publico.interesses_info ? '<div style="font-size:11px;color:var(--ink-2);margin-top:4px"><b>Interesses sugeridos:</b> ' + esc(a.publico.interesses_info) + '</div>' : '')
+      + '</div>'
+      + pjAdsFooter(2);
+  } else if (a.step === 3) {
+    const total = (parseFloat(a.orcamento.diario) || 0) * (parseInt(a.orcamento.dias, 10) || 0);
+    body.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">'
+      +   '<div><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Orçamento diário (R$)</label><input id="pjc-ads-orc" type="number" min="5" step="1" value="' + (a.orcamento.diario||10) + '" oninput="pjAdsOnOrcamento(\'diario\',this.value)" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:12px;box-sizing:border-box"></div>'
+      +   '<div><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Duração (dias)</label><input id="pjc-ads-dur" type="number" min="1" step="1" value="' + (a.orcamento.dias||7) + '" oninput="pjAdsOnOrcamento(\'dias\',this.value)" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:12px;box-sizing:border-box"></div>'
+      + '</div>'
+      + '<div style="padding:12px;background:var(--bg);border-radius:8px;margin-bottom:12px;text-align:center">'
+      +   '<div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em">Total estimado</div>'
+      +   '<div style="font-family:var(--serif);font-size:22px;font-weight:800;color:var(--accent,#22c55e)" id="pjc-ads-total">R$ ' + total.toLocaleString('pt-BR') + '</div>'
+      + '</div>'
+      + '<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Nome da campanha</label>'
+      +   '<input id="pjc-ads-nome" type="text" value="' + esc(a.orcamento.nome || '').replace(/"/g,'&quot;') + '" oninput="pjAdsOnOrcamento(\'nome\',this.value)" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:12px;box-sizing:border-box;font-family:var(--mono)"></div>'
+      + pjAdsFooter(3);
+  } else if (a.step === 4) {
+    const total = (parseFloat(a.orcamento.diario) || 0) * (parseInt(a.orcamento.dias, 10) || 0);
+    body.innerHTML = '<div style="background:var(--bg);border-radius:8px;padding:14px;margin-bottom:14px">'
+      + '<div style="display:grid;grid-template-columns:140px 1fr;gap:14px"><img src="' + esc(a.imagem_url) + '" style="width:140px;height:175px;object-fit:cover;border-radius:6px">'
+      +   '<div style="display:flex;flex-direction:column;gap:6px;font-size:12px">'
+      +     '<div style="font-weight:700">' + esc(a.orcamento.nome) + '</div>'
+      +     '<div style="color:var(--ink-3)"><b>Texto:</b> ' + esc(a.criativo.primary_text) + '</div>'
+      +     '<div style="color:var(--ink-3)"><b>Headline:</b> ' + esc(a.criativo.headline) + '</div>'
+      +     '<div style="color:var(--ink-3);font-family:var(--mono);font-size:10px;word-break:break-all">' + esc(a.criativo.url_destino) + '</div>'
+      +     '<div style="color:var(--ink-3);margin-top:4px"><b>Público:</b> BR · ' + a.publico.age_min + '-' + a.publico.age_max + ' anos · ' + a.publico.genero + '</div>'
+      +     '<div style="color:var(--ink-3)"><b>Orçamento:</b> R$ ' + (parseFloat(a.orcamento.diario)||0).toLocaleString('pt-BR') + '/dia × ' + a.orcamento.dias + ' dias = <b style="color:var(--accent,#22c55e)">R$ ' + total.toLocaleString('pt-BR') + '</b></div>'
+      +   '</div></div></div>'
+      + '<div style="padding:10px;background:rgba(245,200,66,.1);border:1px solid rgba(245,200,66,.3);border-radius:8px;margin-bottom:14px;font-size:11px;color:var(--ink-2);line-height:1.5">⚠️ A campanha vai ser criada <b>PAUSADA</b>. Revise tudo no Ads Manager e ative manualmente quando estiver pronto.</div>'
+      + '<div id="pjc-ads-status" style="font-size:12px;color:var(--ink-3);text-align:center;margin-bottom:10px;min-height:16px"></div>'
+      + pjAdsFooter(4);
+  }
+}
+
+function pjAdsFooter(step){
+  const labelProx = step === 4 ? '🚀 Criar campanha' : 'Avançar →';
+  const onProx = step === 4 ? 'pjAdsCriar()' : 'pjAdsAvancar()';
+  const back = step === 1 ? '<button onclick="pjAdsFecharModal()" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:8px 14px;font-size:12px;color:var(--ink-2);cursor:pointer">Cancelar</button>'
+    : '<button onclick="pjAdsVoltar()" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:8px 14px;font-size:12px;color:var(--ink-2);cursor:pointer">← Voltar</button>';
+  return '<div style="display:flex;justify-content:space-between;margin-top:14px">'
+    + back
+    + '<button id="pjc-ads-btn-proximo" onclick="' + onProx + '" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer">' + labelProx + '</button>'
+    + '</div>';
+}
+
+function pjAdsOnInput(field, val, counterId, max){
+  const a = _pjAdsState; if (!a) return;
+  a.criativo[field] = val;
+  if (counterId) {
+    const ctr = document.getElementById(counterId);
+    if (ctr) { ctr.textContent = val.length + '/' + max; ctr.style.color = val.length > max ? 'var(--alert,#ff6b5c)' : 'var(--ink-3)'; }
+  }
+}
+function pjAdsOnPublico(field, val){ const a = _pjAdsState; if (a) a.publico[field] = val; }
+function pjAdsOnOrcamento(field, val){
+  const a = _pjAdsState; if (!a) return;
+  a.orcamento[field] = val;
+  if (field === 'diario' || field === 'dias') {
+    const total = (parseFloat(a.orcamento.diario)||0) * (parseInt(a.orcamento.dias,10)||0);
+    const el = document.getElementById('pjc-ads-total');
+    if (el) el.textContent = 'R$ ' + total.toLocaleString('pt-BR');
+  }
+}
+
+function pjAdsAvancar(){
+  const a = _pjAdsState; if (!a) return;
+  if (a.step === 1) {
+    if (!a.criativo.primary_text?.trim()) { alert('Texto principal obrigatório'); return; }
+    if (!a.criativo.headline?.trim()) { alert('Headline obrigatória'); return; }
+  }
+  if (a.step === 3) {
+    if (!a.orcamento.diario || parseFloat(a.orcamento.diario) < 5) { alert('Orçamento diário mínimo R$ 5'); return; }
+    if (!a.orcamento.dias || parseInt(a.orcamento.dias, 10) < 1) { alert('Duração mínima 1 dia'); return; }
+  }
+  a.step++;
+  pjAdsRender();
+}
+function pjAdsVoltar(){ const a = _pjAdsState; if (a && a.step > 1) { a.step--; pjAdsRender(); } }
+
+async function pjAdsSugerirCopy(){
+  const a = _pjAdsState; if (!a) return;
+  const btn = document.getElementById('pjc-ads-btn-copy-ia');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando...'; }
+  try {
+    const neg = a.neg || {};
+    const prompt = 'Com base nos dados do negócio "' + (neg.titulo_anuncio||neg.nome||'') + '", setor "' + (neg.setor||'') + '", valor R$ ' + (neg.valor_pedido||neg.preco_pedido||'?') + ', cidade ' + (neg.cidade||'?') + ', gera um texto principal (max 125 chars) e headline (max 40 chars) para um anúncio Meta Ads de Lead Generation. Tom direto e factual, sem hype. Retorna JSON: {"primary_text":"...","headline":"..."}';
+    const r = await fetch(SB + '/functions/v1/tese-agente-chat', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modo: 'json_only', mensagem: prompt }),
+    });
+    const d = await r.json();
+    const txt = (d.resposta || '').toString().replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(txt.match(/\{[\s\S]*\}/)?.[0] || txt);
+    a.criativo.primary_text = (parsed.primary_text || '').slice(0, 125);
+    a.criativo.headline = (parsed.headline || '').slice(0, 40);
+    pjAdsRender();
+  } catch (e) {
+    alert('Erro ao gerar copy: ' + (e?.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✨ Sugerir copy com IA'; }
+  }
+}
+
+async function pjAdsSugerirPublico(){
+  const a = _pjAdsState; if (!a) return;
+  const btn = document.getElementById('pjc-ads-btn-pub-ia');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando...'; }
+  try {
+    const neg = a.neg || {};
+    const prompt = 'Negócio à venda: ' + (neg.titulo_anuncio||neg.nome||'') + ' · setor ' + (neg.setor||'?') + ' · ' + (neg.cidade||'') + '/' + (neg.estado||'') + ' · valor R$ ' + (neg.valor_pedido||'?') + '. Sugere público-alvo Meta Ads para Lead Gen. Retorna JSON: {"age_min":int,"age_max":int,"genero":"all|homens|mulheres","cidades":["cidade1","cidade2"],"interesses":["interesse1","interesse2"]}';
+    const r = await fetch(SB + '/functions/v1/tese-agente-chat', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modo: 'json_only', mensagem: prompt }),
+    });
+    const d = await r.json();
+    const txt = (d.resposta || '').toString().replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(txt.match(/\{[\s\S]*\}/)?.[0] || txt);
+    if (parsed.age_min) a.publico.age_min = parsed.age_min;
+    if (parsed.age_max) a.publico.age_max = parsed.age_max;
+    if (parsed.genero) a.publico.genero = parsed.genero;
+    if (Array.isArray(parsed.cidades)) a.publico.cidades_info = parsed.cidades.join(', ');
+    if (Array.isArray(parsed.interesses)) a.publico.interesses_info = parsed.interesses.join(', ');
+    pjAdsRender();
+  } catch (e) {
+    alert('Erro ao gerar público: ' + (e?.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '✨ Sugerir público com IA'; }
+  }
+}
+
+async function pjAdsCriar(){
+  const a = _pjAdsState; if (!a) return;
+  const status = document.getElementById('pjc-ads-status');
+  const btn = document.getElementById('pjc-ads-btn-proximo');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Criando...'; }
+  if (status) status.textContent = '⏳ Fazendo upload da imagem, criando form, campanha, adset, creative e ad...';
+  try {
+    const payload = {
+      negocio_id: a.negocio_id,
+      projeto_metadata_id: a.projeto_metadata_id,
+      imagem_url: a.imagem_url,
+      primary_text: a.criativo.primary_text,
+      headline: a.criativo.headline,
+      url_destino: a.criativo.url_destino,
+      publico: a.publico,
+      orcamento_diario: parseFloat(a.orcamento.diario),
+      duracao_dias: parseInt(a.orcamento.dias, 10),
+      nome_campanha: a.orcamento.nome,
+    };
+    const r = await fetch(SB + '/functions/v1/criar-campanha-meta', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.erro + (d.detalhe ? ' · ' + d.detalhe : ''));
+    if (status) status.innerHTML = '<div style="color:var(--accent,#22c55e);font-weight:700">✓ Campanha criada (PAUSED) · ID Meta: ' + d.campanha_id + '</div>';
+    try { typeof origToast === 'function' && origToast('✓ Campanha criada'); } catch(_){}
+    setTimeout(() => { pjAdsFecharModal(); pjAdsCarregarCampanhas(); }, 1500);
+  } catch (e) {
+    if (status) status.innerHTML = '<div style="color:var(--alert,#ff6b5c)">✗ Erro: ' + pjcEsc(e?.message || String(e)) + '</div>';
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 Criar campanha'; }
+  }
+}
+
+async function pjAdsCarregarCampanhas(){
+  const s = _pjConteudoState; if (!s) return;
+  const grid = document.getElementById('pjc-ads-grid');
+  if (!grid || !s.meta?.id) return;
+  try {
+    const r = await fetch(SB + '/rest/v1/projeto_ads?projeto_metadata_id=eq.' + s.meta.id + '&order=created_at.desc&select=*', { headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK) } });
+    const rows = r.ok ? await r.json() : [];
+    if (!Array.isArray(rows) || rows.length === 0) {
+      grid.innerHTML = '<div style="color:var(--ink-3);font-size:12px;padding:8px 0">Nenhuma campanha ainda. Clique em 🚀 Impulsionar numa mídia salva.</div>';
+      return;
+    }
+    const esc = pjcEsc;
+    grid.innerHTML = '<div style="display:flex;flex-direction:column;gap:8px">'
+      + rows.map(c => {
+          const isActive = c.status === 'ACTIVE';
+          const corStatus = isActive ? 'var(--accent,#22c55e)' : 'var(--ink-3)';
+          return '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:12px;display:flex;gap:12px;align-items:center">'
+            + (c.imagem_url ? '<img src="' + esc(c.imagem_url) + '" style="width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0">' : '')
+            + '<div style="flex:1;min-width:0">'
+            +   '<div style="font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(c.nome) + '</div>'
+            +   '<div style="font-size:10px;color:var(--ink-3);margin-top:2px">R$ ' + (parseFloat(c.orcamento_diario)||0).toLocaleString('pt-BR') + '/dia · ' + c.duracao_dias + ' dias · <span style="color:' + corStatus + ';font-weight:700">' + esc(c.status) + '</span></div>'
+            +   '<div style="font-size:10px;color:var(--ink-4);font-family:var(--mono)">' + esc(c.campanha_meta_id || '?') + '</div>'
+            + '</div>'
+            + '<div style="display:flex;gap:6px;flex-shrink:0">'
+            +   '<button onclick="pjAdsToggleStatus(\'' + c.id + '\',\'' + (isActive ? 'PAUSED' : 'ACTIVE') + '\')" style="background:' + (isActive ? 'transparent' : 'var(--accent,#22c55e)') + ';color:' + (isActive ? 'var(--ink-2)' : '#000') + ';border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer">' + (isActive ? '⏸ Pausar' : '▶ Ativar') + '</button>'
+            +   '<button onclick="pjAdsVerMetricas(\'' + c.id + '\',\'' + esc(c.nome).replace(/'/g, '%27') + '\')" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--ink-2);cursor:pointer">📊 Métricas</button>'
+            + '</div>'
+            + '</div>';
+        }).join('')
+      + '</div>';
+  } catch (e) {
+    grid.innerHTML = '<div style="color:var(--alert,#ff6b5c);font-size:11px">Erro: ' + pjcEsc(e?.message || '') + '</div>';
+  }
+}
+
+async function pjAdsToggleStatus(projetoAdsId, novoStatus){
+  if (!confirm((novoStatus === 'ACTIVE' ? 'Ativar' : 'Pausar') + ' a campanha agora?')) return;
+  try {
+    const r = await fetch(SB + '/functions/v1/gerenciar-campanha-meta', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_status', projeto_ads_id: projetoAdsId, status: novoStatus }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.erro + (d.detalhe ? ' · ' + d.detalhe : ''));
+    try { typeof origToast === 'function' && origToast('✓ Status: ' + novoStatus); } catch(_){}
+    pjAdsCarregarCampanhas();
+  } catch (e) {
+    alert('Erro: ' + (e?.message || e));
+  }
+}
+
+async function pjAdsVerMetricas(projetoAdsId, nome){
+  let modal = document.getElementById('pjc-ads-metrics');
+  if (!modal) { modal = document.createElement('div'); modal.id = 'pjc-ads-metrics'; document.body.appendChild(modal); }
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = '<div style="background:var(--surface);border-radius:14px;padding:22px;width:520px;max-width:96vw"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div style="font-size:14px;font-weight:700">📊 ' + pjcEsc(nome || 'Campanha') + '</div><button onclick="document.getElementById(\'pjc-ads-metrics\').style.display=\'none\'" style="background:transparent;border:none;font-size:18px;cursor:pointer;color:var(--ink-3)">×</button></div><div id="pjc-ads-metrics-body" style="font-size:12px;color:var(--ink-3)">⏳ Buscando insights no Meta...</div></div>';
+  try {
+    const r = await fetch(SB + '/functions/v1/gerenciar-campanha-meta', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'metrics', projeto_ads_id: projetoAdsId }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.erro + (d.detalhe ? ' · ' + d.detalhe : ''));
+    const fmtBR = v => (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtInt = v => (parseInt(v, 10) || 0).toLocaleString('pt-BR');
+    const body = document.getElementById('pjc-ads-metrics-body');
+    if (body) body.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'
+      + '<div style="background:var(--bg);padding:10px;border-radius:8px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase">Impressões</div><div style="font-size:18px;font-weight:700;color:var(--ink)">' + fmtInt(d.impressions) + '</div></div>'
+      + '<div style="background:var(--bg);padding:10px;border-radius:8px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase">Alcance</div><div style="font-size:18px;font-weight:700;color:var(--ink)">' + fmtInt(d.reach) + '</div></div>'
+      + '<div style="background:var(--bg);padding:10px;border-radius:8px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase">Cliques</div><div style="font-size:18px;font-weight:700;color:var(--ink)">' + fmtInt(d.clicks) + '</div></div>'
+      + '<div style="background:var(--bg);padding:10px;border-radius:8px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase">Gasto</div><div style="font-size:18px;font-weight:700;color:var(--ink)">R$ ' + fmtBR(d.spend) + '</div></div>'
+      + '<div style="background:var(--accent-soft,rgba(34,197,94,.1));padding:10px;border-radius:8px;border:1px solid var(--accent-line,rgba(34,197,94,.3))"><div style="font-size:10px;color:var(--accent,#22c55e);text-transform:uppercase;font-weight:700">Leads</div><div style="font-size:18px;font-weight:700;color:var(--accent,#22c55e)">' + fmtInt(d.leads) + '</div></div>'
+      + '<div style="background:var(--accent-soft,rgba(34,197,94,.1));padding:10px;border-radius:8px;border:1px solid var(--accent-line,rgba(34,197,94,.3))"><div style="font-size:10px;color:var(--accent,#22c55e);text-transform:uppercase;font-weight:700">CPL</div><div style="font-size:18px;font-weight:700;color:var(--accent,#22c55e)">R$ ' + fmtBR(d.cpl) + '</div></div>'
+      + '<div style="background:var(--bg);padding:10px;border-radius:8px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase">CTR</div><div style="font-size:18px;font-weight:700;color:var(--ink)">' + fmtBR(d.ctr) + '%</div></div>'
+      + '<div style="background:var(--bg);padding:10px;border-radius:8px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase">CPM</div><div style="font-size:18px;font-weight:700;color:var(--ink)">R$ ' + fmtBR(d.cpm) + '</div></div>'
+      + '</div>';
+  } catch (e) {
+    const body = document.getElementById('pjc-ads-metrics-body');
+    if (body) body.innerHTML = '<div style="color:var(--alert,#ff6b5c)">Erro: ' + pjcEsc(e?.message || String(e)) + '</div>';
+  }
+}
+
+window.pjAdsAbrirModal = pjAdsAbrirModal;
+window.pjAdsFecharModal = pjAdsFecharModal;
+window.pjAdsAvancar = pjAdsAvancar;
+window.pjAdsVoltar = pjAdsVoltar;
+window.pjAdsOnInput = pjAdsOnInput;
+window.pjAdsOnPublico = pjAdsOnPublico;
+window.pjAdsOnOrcamento = pjAdsOnOrcamento;
+window.pjAdsSugerirCopy = pjAdsSugerirCopy;
+window.pjAdsSugerirPublico = pjAdsSugerirPublico;
+window.pjAdsCriar = pjAdsCriar;
+window.pjAdsCarregarCampanhas = pjAdsCarregarCampanhas;
+window.pjAdsToggleStatus = pjAdsToggleStatus;
+window.pjAdsVerMetricas = pjAdsVerMetricas;
 
 async function pjConteudoNovo(templateId){
   const s = _pjConteudoState; if (!s) return;
