@@ -180,6 +180,14 @@ Deno.serve(async (req: Request) => {
     if (pubPlatformsFinal.includes("instagram")) targeting.instagram_positions = igPositionsFinal;
     if (genders) targeting.genders = genders;
 
+    // Interesses já resolvidos no frontend via /functions/v1/meta-search-interest
+    // Cada item: {id, name} · descarta strings legadas e entries sem id
+    const interessesIn: any[] = Array.isArray(publico?.interesses) ? publico.interesses : [];
+    const interestsResolved = interessesIn
+      .filter(i => i && typeof i === 'object' && i.id)
+      .map(i => ({ id: String(i.id), name: String(i.name || '') }));
+    if (interestsResolved.length) targeting.interests = interestsResolved;
+
     const adset = await metaPOST(`/${AD_ACCOUNT_ID}/adsets`, {
       name: `Adset · ${nome_campanha}`,
       campaign_id: campanha_meta_id,

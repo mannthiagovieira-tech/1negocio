@@ -13644,9 +13644,14 @@ function pjAdsRenderStep(){
     const cidadesHtml = (a.publico.cidades || []).map((c, idx) =>
       '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border-radius:999px;padding:3px 9px;font-size:11px;margin-right:6px;margin-bottom:4px">' + esc(c.nome) + ' · ' + (c.raio || 25) + 'km<button onclick="pjAdsRemoverCidade(' + idx + ')" style="background:none;border:none;color:var(--accent,#22c55e);cursor:pointer;font-size:12px;padding:0 0 0 2px;line-height:1">×</button></span>'
     ).join('');
-    const interessesHtml = (a.publico.interesses || []).map((i, idx) =>
-      '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface-2,var(--bg));color:var(--ink-2);border:1px solid var(--line-2);border-radius:999px;padding:3px 9px;font-size:11px;margin-right:6px;margin-bottom:4px">' + esc(i) + '<button onclick="pjAdsRemoverInteresse(' + idx + ')" style="background:none;border:none;color:var(--ink-3);cursor:pointer;font-size:12px;padding:0 0 0 2px;line-height:1">×</button></span>'
-    ).join('');
+    const interessesHtml = (a.publico.interesses || []).map((i, idx) => {
+      const nome = typeof i === 'object' ? (i.name || '') : i;
+      const temId = typeof i === 'object' && i.id;
+      const corBg = temId ? 'var(--accent-soft,rgba(34,197,94,.1))' : 'rgba(245,200,66,.15)';
+      const corTxt = temId ? 'var(--accent,#22c55e)' : '#d4a017';
+      const tip = temId ? ('ID Meta: ' + i.id) : 'Não resolvido — não será aplicado no targeting';
+      return '<span title="' + esc(tip) + '" style="display:inline-flex;align-items:center;gap:4px;background:' + corBg + ';color:' + corTxt + ';border:1px solid var(--line-2);border-radius:999px;padding:3px 9px;font-size:11px;margin-right:6px;margin-bottom:4px">' + esc(nome) + '<button onclick="pjAdsRemoverInteresse(' + idx + ')" style="background:none;border:none;color:inherit;cursor:pointer;font-size:12px;padding:0 0 0 2px;line-height:1">×</button></span>';
+    }).join('');
     body.innerHTML = '<div style="margin-bottom:14px">'
       + (a.publicoVeioDaInteligencia ? '<div style="display:inline-block;background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border:1px solid var(--accent-line,rgba(34,197,94,.3));border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;margin-bottom:8px">✓ Público sugerido pela Inteligência</div><br>' : '')
       + '<button onclick="pjAdsSugerirPublico()" id="pjc-ads-btn-pub-ia" style="background:transparent;border:1px solid var(--accent-line,rgba(34,197,94,.3));color:var(--accent,#22c55e);border-radius:6px;padding:7px 12px;font-size:11px;font-weight:600;cursor:pointer">✨ Sugerir público com IA</button>'
@@ -13725,7 +13730,7 @@ function pjAdsRenderStep(){
       +     '<div style="color:var(--ink-3)"><b>Headline:</b> ' + esc(a.criativo.headline) + '</div>'
       +     '<div style="color:var(--ink-3);font-family:var(--mono);font-size:10px;word-break:break-all">' + esc(a.criativo.url_destino) + '</div>'
       +     '<div style="color:var(--ink-3);margin-top:4px"><b>Público:</b> ' + ((a.publico.cidades && a.publico.cidades.length) ? a.publico.cidades.map(c=>esc(c.nome+' '+c.raio+'km')).join(' · ') : 'BR') + ' · ' + a.publico.age_min + '-' + a.publico.age_max + ' anos · ' + a.publico.genero + '</div>'
-      +     ((a.publico.interesses && a.publico.interesses.length) ? '<div style="color:var(--ink-3);font-size:11px"><b>Interesses:</b> ' + esc(a.publico.interesses.join(', ')) + '</div>' : '')
+      +     ((a.publico.interesses && a.publico.interesses.length) ? '<div style="color:var(--ink-3);font-size:11px"><b>Interesses:</b> ' + esc(a.publico.interesses.map(i => typeof i === 'object' ? (i.name||'') : i).join(', ')) + '</div>' : '')
       +     ((Object.values(a.publico.comportamentos||{}).some(Boolean)) ? '<div style="color:var(--ink-3);font-size:11px"><b>Comportamentos:</b> ' + esc(Object.entries(a.publico.comportamentos).filter(([,v])=>v).map(([k])=>k).join(', ')) + '</div>' : '')
       +     '<div style="color:var(--ink-3);font-size:11px"><b>Posicionamentos:</b> ' + esc(Object.entries(a.publico.posicionamentos||{}).filter(([,v])=>v).map(([k])=>k).join(', ') || '—') + '</div>'
       +     '<div style="color:var(--ink-3)"><b>Orçamento:</b> R$ ' + (parseFloat(a.orcamento.diario)||0).toLocaleString('pt-BR') + '/dia × ' + a.orcamento.dias + ' dias = <b style="color:var(--accent,#22c55e)">R$ ' + total.toLocaleString('pt-BR') + '</b></div>'
@@ -13784,16 +13789,36 @@ function pjAdsRemoverCidade(idx){
   a.publico.cidades.splice(idx, 1);
   pjAdsRender();
 }
-function pjAdsAdicionarInteresse(nomeArg){
+async function pjAdsAdicionarInteresse(nomeArg){
   const a = _pjAdsState; if (!a) return;
   const inp = document.getElementById('pjc-ads-int-input');
   const nome = (nomeArg || inp?.value || '').trim();
   if (!nome) return;
   if (!a.publico.interesses) a.publico.interesses = [];
-  if (a.publico.interesses.find(i => i.toLowerCase() === nome.toLowerCase())) return;
-  a.publico.interesses.push(nome);
-  if (inp) inp.value = '';
-  pjAdsRender();
+  if (a.publico.interesses.find(i => (i.name||i).toString().toLowerCase() === nome.toLowerCase())) return;
+  // Resolve termo → {id, name} via edge (token Meta fica server-side)
+  const addBtn = document.querySelector('button[onclick="pjAdsAdicionarInteresse()"]');
+  const origLabel = addBtn?.textContent;
+  if (addBtn) { addBtn.disabled = true; addBtn.textContent = '⏳'; }
+  try {
+    const r = await fetch(SB + '/functions/v1/meta-search-interest', {
+      method: 'POST',
+      headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: nome }),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      alert('Interesse "' + nome + '" não encontrado no Meta. Tente outro termo (ex: "Empreendedorismo", "Investimentos").');
+      return;
+    }
+    a.publico.interesses.push({ id: d.id, name: d.name });
+    if (inp) inp.value = '';
+    pjAdsRender();
+  } catch(e) {
+    alert('Erro ao buscar interesse: ' + (e?.message || e));
+  } finally {
+    if (addBtn) { addBtn.disabled = false; addBtn.textContent = origLabel || '+ Add'; }
+  }
 }
 function pjAdsRemoverInteresse(idx){
   const a = _pjAdsState; if (!a) return;
@@ -13873,7 +13898,23 @@ async function pjAdsSugerirPublico(){
         .filter(c => c.nome);
     }
     if (Array.isArray(parsed.interesses)) {
-      a.publico.interesses = parsed.interesses.filter(i => typeof i === 'string' && i.trim()).map(i => i.trim());
+      const termos = parsed.interesses.filter(i => typeof i === 'string' && i.trim()).map(i => i.trim());
+      if (termos.length) {
+        try {
+          const rB = await fetch(SB + '/functions/v1/meta-search-interest', {
+            method: 'POST',
+            headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ qs: termos.slice(0, 10) }),
+          });
+          const dB = await rB.json();
+          a.publico.interesses = (dB.results || [])
+            .filter(r => r.ok && r.id)
+            .map(r => ({ id: r.id, name: r.name }));
+        } catch(_) {
+          // fallback: deixa como strings sem id (visualmente amarelos, não vão pro targeting)
+          a.publico.interesses = termos.map(t => t);
+        }
+      }
     }
     if (Array.isArray(parsed.comportamentos)) {
       const VALID = ['pequenos_empresarios','proprietarios_negocio','alta_renda','compradores_online'];
