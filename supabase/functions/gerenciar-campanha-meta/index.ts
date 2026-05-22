@@ -84,7 +84,9 @@ Deno.serve(async (req: Request) => {
   try {
     // ─── NEW: list_campanhas ──────────────────────────────────────
     if (action === "list_campanhas") {
-      const fields = "id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time,created_time,buying_type,insights.date_preset(maximum){spend,impressions,clicks,reach,cpc,cpm,ctr,actions,cost_per_action_type}";
+      // Aceita ?periodo=today|maximum (default maximum + insights_hoje no payload)
+      const periodo = (body?.periodo || 'maximum').toString();
+      const fields = "id,name,status,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time,created_time,buying_type,insights.date_preset(maximum){spend,impressions,clicks,reach,cpc,cpm,ctr,actions,cost_per_action_type},insights_today:insights.date_preset(today){spend,impressions,clicks,actions,cost_per_action_type}";
       const d = await metaCall("GET", `/${AD_ACCOUNT_ID}/campaigns?fields=${encodeURIComponent(fields)}&limit=100`);
       const campanhas = (d?.data || []).map((c: any) => ({
         id: c.id,
@@ -99,6 +101,7 @@ Deno.serve(async (req: Request) => {
         created_time: c.created_time,
         buying_type: c.buying_type,
         insights: c.insights?.data ? parseInsights(c.insights.data) : null,
+        insights_today: c.insights_today?.data ? parseInsights(c.insights_today.data) : null,
       }));
       // Ordena: ACTIVE primeiro, depois por criação desc
       campanhas.sort((a: any, b: any) => {
@@ -237,6 +240,19 @@ Deno.serve(async (req: Request) => {
       const insights = await metaCall("GET", `/${pa.campanha_meta_id}/insights?fields=${fields}&date_preset=lifetime`);
       const parsed = parseInsights(insights?.data || []);
       return resp(200, { ok: true, ...parsed, raw_actions: insights?.data?.[0]?.actions || [] });
+    }
+
+    // ─── NEW: duplicate_campaign ──────────────────────────────────
+    if (action === "duplicate_campaign") {
+      const campaign_id = body?.campaign_id;
+      if (!campaign_id) return resp(400, { ok: false, erro: "campaign_id_obrigatorio" });
+      // POST /<campaign_id>/copies?deep_copy=true&status_option=PAUSED
+      // deep_copy copia adsets + ads. status_option=PAUSED garante que tudo cópia fica PAUSED.
+      const r = await metaCall("POST", `/${campaign_id}/copies`, {
+        deep_copy: "true",
+        status_option: "PAUSED",
+      });
+      return resp(200, { ok: true, copied_campaign_id: r?.copied_campaign_id || r?.id, raw: r });
     }
 
     return resp(400, { ok: false, erro: "action_desconhecida", action });
