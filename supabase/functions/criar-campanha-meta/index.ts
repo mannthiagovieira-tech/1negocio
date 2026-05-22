@@ -197,6 +197,19 @@ Deno.serve(async (req: Request) => {
       .map(i => ({ id: String(i.id), name: String(i.name || '') }));
     if (interestsResolved.length) targeting.interests = interestsResolved;
 
+    // Comportamentos · mapeia keys do frontend pra Meta behavior IDs reais
+    const BEHAVIOR_IDS: Record<string, { id: string; name: string }> = {
+      pequenos_empresarios: { id: "6002714898572", name: "Proprietários de pequenas empresas" },
+      proprietarios_negocio: { id: "6020530281783", name: "Administradores de página comercial" },
+      novo_negocio_ativo:    { id: "6273108107383", name: "Novo negócio ativo (< 24 meses)" },
+      admin_ig_empresarial:  { id: "6297846662583", name: "Administradores do perfil empresarial do Instagram" },
+    };
+    const compsIn: Record<string, boolean> = (publico?.comportamentos || {}) as any;
+    const behaviorsResolved = Object.entries(compsIn)
+      .filter(([k, v]) => v && BEHAVIOR_IDS[k])
+      .map(([k]) => ({ id: BEHAVIOR_IDS[k].id, name: BEHAVIOR_IDS[k].name }));
+    if (behaviorsResolved.length) targeting.behaviors = behaviorsResolved;
+
     const adsetPayload: any = {
       name: `Adset · ${nome_campanha}`,
       campaign_id: campanha_meta_id,

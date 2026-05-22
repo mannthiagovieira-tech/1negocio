@@ -13646,10 +13646,10 @@ function pjAdsRenderStep(){
     const sel = (v, opt) => 'value="' + opt + '"' + (v === opt ? ' selected' : '');
     const SUG_INT = ['Empreendedorismo','Investimentos','Franquias','Compra e venda de empresas','Pequenos negócios'];
     const COMPS = [
-      {key:'pequenos_empresarios', label:'Pequenos empresários'},
-      {key:'proprietarios_negocio', label:'Proprietários de negócio'},
-      {key:'alta_renda',            label:'Alta renda estimada'},
-      {key:'compradores_online',    label:'Compradores frequentes online'},
+      {key:'pequenos_empresarios', label:'Pequenos empresários',          sub:'Proprietários de pequenas empresas no Meta',                disponivel:true},
+      {key:'proprietarios_negocio', label:'Proprietários de negócio',      sub:'Admins de página comercial no Facebook',                   disponivel:true},
+      {key:'alta_renda',            label:'Alta renda estimada',           sub:'Indisponível no Brasil — não será aplicado',               disponivel:false},
+      {key:'compradores_online',    label:'Compradores frequentes online', sub:'Indisponível no Brasil — não será aplicado',               disponivel:false},
     ];
     const POS = [
       {key:'fb_feed',        label:'Facebook Feed'},
@@ -13660,9 +13660,10 @@ function pjAdsRenderStep(){
       {key:'fb_marketplace', label:'Facebook Marketplace'},
       {key:'fb_reels',       label:'Facebook Reels'},
     ];
-    const cidadesHtml = (a.publico.cidades || []).map((c, idx) =>
-      '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border-radius:999px;padding:3px 9px;font-size:11px;margin-right:6px;margin-bottom:4px">' + esc(c.nome) + ' · ' + (c.raio || 25) + 'km<button onclick="pjAdsRemoverCidade(' + idx + ')" style="background:none;border:none;color:var(--accent,#22c55e);cursor:pointer;font-size:12px;padding:0 0 0 2px;line-height:1">×</button></span>'
-    ).join('');
+    const cidadesHtml = (a.publico.cidades || []).map((c, idx) => {
+      const ufBadge = c.uf ? ' · ' + esc(c.uf) : '';
+      return '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border-radius:999px;padding:3px 9px;font-size:11px;margin-right:6px;margin-bottom:4px">' + esc(c.nome) + ufBadge + ' · ' + (c.raio || 25) + 'km<button onclick="pjAdsRemoverCidade(' + idx + ')" style="background:none;border:none;color:var(--accent,#22c55e);cursor:pointer;font-size:12px;padding:0 0 0 2px;line-height:1">×</button></span>';
+    }).join('');
     const interessesHtml = (a.publico.interesses || []).map((i, idx) => {
       const nome = typeof i === 'object' ? (i.name || '') : i;
       const temId = typeof i === 'object' && i.id;
@@ -13714,7 +13715,12 @@ function pjAdsRenderStep(){
       + '<div style="margin-bottom:14px;padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--line-2)">'
       +   '<div style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">👥 Comportamentos</div>'
       +   '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
-      +   COMPS.map(c => '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-2);cursor:pointer"><input type="checkbox" ' + (a.publico.comportamentos[c.key] ? 'checked' : '') + ' onchange="pjAdsToggleComp(\'' + c.key + '\',this.checked)">' + esc(c.label) + '</label>').join('')
+      +   COMPS.map(c => {
+            const opacity = c.disponivel ? '1' : '.5';
+            const cur = c.disponivel ? 'pointer' : 'not-allowed';
+            const dis = c.disponivel ? '' : ' disabled';
+            return '<label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--ink-2);cursor:' + cur + ';opacity:' + opacity + '"><div style="display:flex;align-items:center;gap:6px"><input type="checkbox"' + dis + ' ' + (c.disponivel && a.publico.comportamentos[c.key] ? 'checked' : '') + ' onchange="pjAdsToggleComp(\'' + c.key + '\',this.checked)" style="cursor:' + cur + '">' + esc(c.label) + '</div><div style="font-size:10px;color:var(--ink-4);margin-left:22px;line-height:1.3">' + esc(c.sub) + '</div></label>';
+          }).join('')
       +   '</div>'
       + '</div>'
 
@@ -13745,7 +13751,7 @@ function pjAdsRenderStep(){
     const obj = a.criativo.objetivo || 'leads';
     const OBJ_LABEL = { leads:'🎯 Leads', trafego:'🌐 Tráfego', engajamento:'📣 Engajamento' };
     const linha = (label, val, cor) => '<div style="display:grid;grid-template-columns:140px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid var(--line-2);font-size:12px"><div style="color:var(--ink-3);font-weight:600">' + label + '</div><div style="color:' + (cor||'var(--ink)') + '">' + val + '</div></div>';
-    const cidadesStr = (a.publico.cidades && a.publico.cidades.length) ? a.publico.cidades.map(c => esc(c.nome) + ' · ' + (c.raio||25) + 'km').join(' · ') : '<i style="color:var(--ink-3)">Brasil inteiro</i>';
+    const cidadesStr = (a.publico.cidades && a.publico.cidades.length) ? a.publico.cidades.map(c => esc(c.nome) + (c.uf ? ' · ' + esc(c.uf) : '') + ' · ' + (c.raio||25) + 'km').join(' · ') : '<i style="color:var(--ink-3)">Brasil inteiro</i>';
     const interStr = (a.publico.interesses && a.publico.interesses.length) ? a.publico.interesses.map(i => typeof i==='object' ? esc(i.name||'') : esc(i)).join(', ') : '<i style="color:var(--ink-3)">nenhum</i>';
     const compsAtivos = Object.entries(a.publico.comportamentos||{}).filter(([,v])=>v).map(([k])=>k);
     const compStr = compsAtivos.length ? compsAtivos.map(esc).join(', ') : '<i style="color:var(--ink-3)">nenhum</i>';
@@ -13809,7 +13815,7 @@ function pjAdsOnOrcamento(field, val){
   }
 }
 
-function pjAdsAdicionarCidade(nomeArg, raioArg, keyArg){
+function pjAdsAdicionarCidade(nomeArg, raioArg, keyArg, ufArg){
   const a = _pjAdsState; if (!a) return;
   const inp = document.getElementById('pjc-ads-cidade-input');
   const raioSel = document.getElementById('pjc-ads-cidade-raio');
@@ -13817,9 +13823,12 @@ function pjAdsAdicionarCidade(nomeArg, raioArg, keyArg){
   const raio = parseInt(raioArg || raioSel?.value || 25, 10);
   if (!nome) return;
   if (!a.publico.cidades) a.publico.cidades = [];
-  if (a.publico.cidades.find(c => c.nome.toLowerCase() === nome.toLowerCase())) return;
+  // De-dup por key se houver, senão por nome+uf
+  const dupKey = keyArg ? c => c.key === keyArg : c => c.nome.toLowerCase() === nome.toLowerCase() && (c.uf||'') === (ufArg||'');
+  if (a.publico.cidades.find(dupKey)) return;
   const obj = { nome, raio };
   if (keyArg) obj.key = keyArg;
+  if (ufArg) obj.uf = ufArg;
   a.publico.cidades.push(obj);
   if (inp) inp.value = '';
   const drop = document.getElementById('pjc-ads-cidade-dropdown');
@@ -13843,7 +13852,11 @@ async function pjAdsBuscarCidade(termo){
       const d = await r.json();
       const results = d.ok ? (d.results || []) : [];
       if (results.length === 0) { drop.innerHTML = '<div style="padding:8px 10px;font-size:11px;color:var(--ink-3)">Nenhuma cidade encontrada</div>'; drop.style.display = 'block'; return; }
-      drop.innerHTML = results.map((c, idx) => '<div onmousedown="pjAdsSelecionarCidade(' + idx + ')" data-idx="' + idx + '" style="padding:8px 10px;font-size:12px;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--line-2)" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'transparent\'">' + pjcEsc(c.name) + (c.region ? ' <span style="color:var(--ink-3);font-size:11px">· ' + pjcEsc(c.region) + '</span>' : '') + '</div>').join('');
+      drop.innerHTML = results.map((c, idx) => {
+        // Extrai sigla UF de "São Paulo (state)" → "SP"; mapeamento manual pros 27 estados BR
+        const UF = pjAdsRegiaoParaUF(c.region);
+        return '<div onmousedown="pjAdsSelecionarCidade(' + idx + ')" data-idx="' + idx + '" style="padding:8px 10px;font-size:12px;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--line-2)" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'transparent\'">' + pjcEsc(c.name) + (UF ? ' <span style="color:var(--ink-3);font-size:11px;font-weight:600">· ' + UF + '</span>' : '') + (c.region ? ' <span style="color:var(--ink-4);font-size:10px">(' + pjcEsc(c.region) + ')</span>' : '') + '</div>';
+      }).join('');
       window._pjAdsCidadeResults = results;
       drop.style.display = 'block';
     } catch(e) {
@@ -13855,7 +13868,24 @@ async function pjAdsBuscarCidade(termo){
 function pjAdsSelecionarCidade(idx){
   const c = (window._pjAdsCidadeResults || [])[idx];
   if (!c) return;
-  pjAdsAdicionarCidade(c.name, document.getElementById('pjc-ads-cidade-raio')?.value || 25, c.key);
+  const uf = pjAdsRegiaoParaUF(c.region);
+  pjAdsAdicionarCidade(c.name, document.getElementById('pjc-ads-cidade-raio')?.value || 25, c.key, uf);
+}
+
+// Mapeia "São Paulo (state)" / "São Paulo" → "SP"
+function pjAdsRegiaoParaUF(region){
+  if (!region) return '';
+  const r = String(region).replace(/\s*\(state\)\s*$/i, '').trim();
+  const MAP = {
+    'Acre':'AC','Alagoas':'AL','Amapá':'AP','Amazonas':'AM','Bahia':'BA',
+    'Ceará':'CE','Distrito Federal':'DF','Espírito Santo':'ES','Goiás':'GO',
+    'Maranhão':'MA','Mato Grosso':'MT','Mato Grosso do Sul':'MS','Minas Gerais':'MG',
+    'Pará':'PA','Paraíba':'PB','Paraná':'PR','Pernambuco':'PE','Piauí':'PI',
+    'Rio de Janeiro':'RJ','Rio Grande do Norte':'RN','Rio Grande do Sul':'RS',
+    'Rondônia':'RO','Roraima':'RR','Santa Catarina':'SC','São Paulo':'SP',
+    'Sergipe':'SE','Tocantins':'TO',
+  };
+  return MAP[r] || '';
 }
 
 function pjAdsSetObjetivo(obj){
