@@ -56,11 +56,13 @@ Deno.serve(async (req: Request) => {
     headline,
     descricao_form,
     url_destino,
-    publico,           // { age_min, age_max, genero }
+    publico,           // { age_min, age_max, genero, cidades, interesses, ... }
     orcamento_diario,  // R$
     duracao_dias,
     nome_campanha,
+    objetivo,          // 'leads' (default) | 'trafego' | 'engajamento'
   } = body || {};
+  const obj = (objetivo || 'leads').toString();
 
   if (!negocio_id || !projeto_metadata_id) return resp(400, { ok: false, erro: "ids_obrigatorios" });
   if (!imagem_url) return resp(400, { ok: false, erro: "imagem_url_obrigatoria" });
@@ -88,31 +90,38 @@ Deno.serve(async (req: Request) => {
     if (!image_hash) throw new Error("adimages sem hash retornado");
     console.log('[meta] image_hash:', image_hash);
 
-    // 2. Criar Lead Gen Form na página
-    const formData = await metaPOST(`/${PAGE_ID}/leadgen_forms`, {
-      name: `Form 1N · ${(nome_campanha || "").slice(0, 40)} · ${Date.now()}`,
-      locale: "pt_BR",
-      questions: [
-        { type: "FULL_NAME" },
-        { type: "PHONE" },
-      ],
-      privacy_policy: { url: PRIVACY_URL, link_text: "Política de Privacidade · 1Negócio" },
-      follow_up_action_url: url_destino || "https://1negocio.com.br/",
-      context_card: {
-        title: (headline || "").slice(0, 60),
-        content: [(primary_text || "").slice(0, 200)],
-        button_text: "Quero saber mais",
-        style: "PARAGRAPH_STYLE",
-      },
-    });
-    const leadgen_form_id = formData?.id;
-    if (!leadgen_form_id) throw new Error("leadgen_form sem id");
-    console.log('[meta] leadgen_form_id:', leadgen_form_id);
+    // 2. Criar Lead Gen Form na página (só pra objetivo 'leads')
+    let leadgen_form_id: string | null = null;
+    if (obj === 'leads') {
+      const formData = await metaPOST(`/${PAGE_ID}/leadgen_forms`, {
+        name: `Form 1N · ${(nome_campanha || "").slice(0, 40)} · ${Date.now()}`,
+        locale: "pt_BR",
+        questions: [ { type: "FULL_NAME" }, { type: "PHONE" } ],
+        privacy_policy: { url: PRIVACY_URL, link_text: "Política de Privacidade · 1Negócio" },
+        follow_up_action_url: url_destino || "https://1negocio.com.br/",
+        context_card: {
+          title: (headline || "").slice(0, 60),
+          content: [(primary_text || "").slice(0, 200)],
+          button_text: "Quero saber mais",
+          style: "PARAGRAPH_STYLE",
+        },
+      });
+      leadgen_form_id = formData?.id;
+      if (!leadgen_form_id) throw new Error("leadgen_form sem id");
+      console.log('[meta] leadgen_form_id:', leadgen_form_id);
+    }
 
-    // 3. Criar campanha PAUSED
+    // 3. Mapeia objetivo → params Meta
+    const OBJ_MAP: Record<string, { objective: string; optimization_goal: string; destination_type?: string; cta: string }> = {
+      leads:       { objective: "OUTCOME_LEADS",      optimization_goal: "LEAD_GENERATION", destination_type: "ON_AD",   cta: "SIGN_UP" },
+      trafego:     { objective: "OUTCOME_TRAFFIC",    optimization_goal: "LINK_CLICKS",     destination_type: "WEBSITE", cta: "LEARN_MORE" },
+      engajamento: { objective: "OUTCOME_ENGAGEMENT", optimization_goal: "POST_ENGAGEMENT", cta: "LEARN_MORE" },
+    };
+    const cfg = OBJ_MAP[obj] || OBJ_MAP.leads;
+
     const camp = await metaPOST(`/${AD_ACCOUNT_ID}/campaigns`, {
       name: nome_campanha,
-      objective: "OUTCOME_LEADS",
+      objective: cfg.objective,
       status: "PAUSED",
       special_ad_categories: [],
       is_adset_budget_sharing_enabled: false,
@@ -188,25 +197,30 @@ Deno.serve(async (req: Request) => {
       .map(i => ({ id: String(i.id), name: String(i.name || '') }));
     if (interestsResolved.length) targeting.interests = interestsResolved;
 
-    const adset = await metaPOST(`/${AD_ACCOUNT_ID}/adsets`, {
+    const adsetPayload: any = {
       name: `Adset · ${nome_campanha}`,
       campaign_id: campanha_meta_id,
-      daily_budget: Math.round(parseFloat(orcamento_diario) * 100), // BRL → centavos
+      daily_budget: Math.round(parseFloat(orcamento_diario) * 100),
       billing_event: "IMPRESSIONS",
-      optimization_goal: "LEAD_GENERATION",
+      optimization_goal: cfg.optimization_goal,
       bid_strategy: "LOWEST_COST_WITHOUT_CAP",
-      destination_type: "ON_AD",
-      promoted_object: { page_id: PAGE_ID },
       targeting,
       start_time: startTime,
       end_time: endTime,
       status: "PAUSED",
-    });
+    };
+    if (cfg.destination_type) adsetPayload.destination_type = cfg.destination_type;
+    // promoted_object só faz sentido pra Leads e Engajamento (sem promoted_object em Tráfego)
+    if (obj === 'leads' || obj === 'engajamento') adsetPayload.promoted_object = { page_id: PAGE_ID };
+    const adset = await metaPOST(`/${AD_ACCOUNT_ID}/adsets`, adsetPayload);
     const adset_meta_id = adset?.id;
     if (!adset_meta_id) throw new Error("adset sem id");
     console.log('[meta] adset_id:', adset?.id);
 
-    // 5. Criar creative
+    // 5. Criar creative · CTA depende do objetivo
+    const ctaValue: any = obj === 'leads'
+      ? { lead_gen_form_id: leadgen_form_id }
+      : { link: url_destino || "https://1negocio.com.br/" };
     const creative = await metaPOST(`/${AD_ACCOUNT_ID}/adcreatives`, {
       name: `Creative · ${nome_campanha}`,
       object_story_spec: {
@@ -216,10 +230,7 @@ Deno.serve(async (req: Request) => {
           link: url_destino || "https://1negocio.com.br/",
           message: primary_text,
           name: headline,
-          call_to_action: {
-            type: "SIGN_UP",
-            value: { lead_gen_form_id: leadgen_form_id },
-          },
+          call_to_action: { type: cfg.cta, value: ctaValue },
         },
       },
     });
@@ -258,7 +269,7 @@ Deno.serve(async (req: Request) => {
         primary_text,
         headline,
         url_destino,
-        publico_jsonb: publico || {},
+        publico_jsonb: { ...(publico || {}), objetivo: obj },
       })
       .select()
       .single();
