@@ -1932,6 +1932,7 @@ table.t .acoes { white-space: nowrap; }
           <div class="nav-item" data-secao="atendimento-ia" onclick="mostrarSecao('atendimento-ia')"><span class="nav-icon">🤖</span><span class="nav-label">Atendimento IA</span></div>
           <div class="nav-item" data-secao="op-ndas" onclick="mostrarSecao('op-ndas')"><span class="nav-icon">🔒</span><span class="nav-label">NDAs</span></div>
           <div class="nav-item" data-secao="backlog" onclick="mostrarSecao('backlog')"><span class="nav-icon">📋</span><span class="nav-label">Backlog</span></div>
+          <div class="nav-item" data-secao="campanhas-meta" onclick="mostrarSecao('campanhas-meta')"><span class="nav-icon">📢</span><span class="nav-label">Campanhas Meta</span></div>
         </div>
 
         <!-- FERRAMENTAS · SISTEMA (separador visual forte) -->
@@ -3688,6 +3689,23 @@ table.t .acoes { white-space: nowrap; }
 
 
         <section id="secao-atendimento-ia" class="secao"><header class="secao-header"><h1 class="secao-titulo">🤖 Atendimento IA</h1><p class="secao-subtitulo">Gestão do Chat IA da home pública (chat-ia v29)</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Painel de monitoramento e configuração do Chat IA.</p><ul><li>Versão atual (chat-ia v29)</li><li>System prompt editável (com versionamento)</li><li>Conversas em tempo real</li><li>Triggers de escalação</li><li>Métricas (volume · conversão pra lead · tokens consumidos)</li></ul><a class="legacy-cta" href="/admin-chat-ia.html" target="_blank">↗ Acessar Chat IA Admin atual</a></div></section>
+
+        <section id="secao-campanhas-meta" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">📢 Campanhas Meta</h1>
+            <p class="secao-subtitulo">Conta act_983335024007752 · status, gasto, métricas, ativar/pausar/editar</p>
+          </header>
+          <div class="secao-conteudo">
+            <div id="cmp-kpis" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">
+              <div class="bloco" style="padding:14px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em">Gasto total</div><div id="cmp-kpi-gasto" style="font-size:20px;font-weight:700;margin-top:4px">—</div></div>
+              <div class="bloco" style="padding:14px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em">Impressões</div><div id="cmp-kpi-imp" style="font-size:20px;font-weight:700;margin-top:4px">—</div></div>
+              <div class="bloco" style="padding:14px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em">Cliques</div><div id="cmp-kpi-cli" style="font-size:20px;font-weight:700;margin-top:4px">—</div></div>
+              <div class="bloco" style="padding:14px"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em">Campanhas ativas</div><div id="cmp-kpi-ativas" style="font-size:20px;font-weight:700;margin-top:4px">—</div></div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button onclick="cmpCarregar()" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:6px 12px;font-size:11px;color:var(--ink-3);cursor:pointer">↻ Recarregar</button></div>
+            <div id="cmp-lista" class="pa-loading">Carregando campanhas...</div>
+          </div>
+        </section>
 
         <section id="secao-backlog" class="secao">
           <header class="secao-header">
@@ -5775,6 +5793,7 @@ const SECAO_TITULOS = {
   'fluxos': {grupo:'MARKETING', titulo:'Fluxos Automáticos', icone:'🔄'},
   'atendimento-ia': {grupo:'MARKETING', titulo:'Atendimento IA', icone:'🤖'},
   'backlog':         {grupo:'OUTROS',    titulo:'Backlog',        icone:'📋'},
+  'campanhas-meta':  {grupo:'OUTROS',    titulo:'Campanhas Meta', icone:'📢'},
   'maquinaria': {grupo:'MARKETING', titulo:'Máquina de Anúncios', icone:'🏭'},
   'parametros': {grupo:'SISTEMA', titulo:'Parâmetros', icone:'⚙️'},
   'sys-templates': {grupo:'SISTEMA', titulo:'Templates de Documentos', icone:'📑'},
@@ -5835,6 +5854,7 @@ function mostrarSecao(id) {
     if (id === 'plano-dia') { cwLoadPlanoFull(); cwLoadPlanoHistorico(); }
     if (id === 'cowork-admin') cwAdmInit();
     if (id === 'backlog') bkCarregar();
+    if (id === 'campanhas-meta') cmpCarregar();
     if (id === 'triagem-olx') trInit();
     if (id === 'monitoramento-conteudo') mpInit();
     if (id === 'gerador-conteudo') { gcInit(); }
@@ -17167,6 +17187,330 @@ window.bkSalvar = bkSalvar;
 window.bkToggleExpand = bkToggleExpand;
 window.bkCarregarParaCockpit = bkCarregarParaCockpit;
 window.bkCockpitBlocoHtml = bkCockpitBlocoHtml;
+
+// ============================================================
+// CAMPANHAS META · gestão completa (v9.46.0)
+// ============================================================
+let _cmpCampanhas = [];
+let _cmpAdsetsCache = {}; // {campaign_id: [...]}
+let _cmpAdsCache = {};    // {adset_id: [...]}
+let _cmpExpand = { campanhas: new Set(), adsets: new Set() };
+
+function cmpHeaders(){ return { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' }; }
+function cmpEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function cmpFmtBRL(v){ return 'R$ ' + (parseFloat(v)||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function cmpFmtInt(v){ return (parseInt(v,10)||0).toLocaleString('pt-BR'); }
+function cmpStatusPill(s){
+  const STATUS = {
+    ACTIVE: { cor:'var(--accent,#22c55e)', bg:'rgba(34,197,94,.12)', txt:'ATIVA' },
+    PAUSED: { cor:'var(--ink-3)', bg:'var(--bg)', txt:'PAUSADA' },
+    ARCHIVED: { cor:'var(--ink-4)', bg:'var(--bg)', txt:'ARQUIVADA' },
+    DELETED: { cor:'var(--ink-4)', bg:'var(--bg)', txt:'DELETADA' },
+    DISAPPROVED: { cor:'#dc2626', bg:'rgba(220,38,38,.1)', txt:'REPROVADA' },
+    PENDING_REVIEW: { cor:'#d4a017', bg:'rgba(245,200,66,.12)', txt:'EM REVISÃO' },
+    IN_PROCESS: { cor:'#d4a017', bg:'rgba(245,200,66,.12)', txt:'PROCESSANDO' },
+    CAMPAIGN_PAUSED: { cor:'var(--ink-3)', bg:'var(--bg)', txt:'CAMPANHA PAUSADA' },
+    ADSET_PAUSED: { cor:'var(--ink-3)', bg:'var(--bg)', txt:'ADSET PAUSADO' },
+    WITH_ISSUES: { cor:'#dc2626', bg:'rgba(220,38,38,.1)', txt:'COM PROBLEMAS' },
+  };
+  const o = STATUS[s] || { cor:'var(--ink-3)', bg:'var(--bg)', txt: s||'—' };
+  return '<span style="background:'+o.bg+';color:'+o.cor+';border:1px solid '+o.cor+';font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:999px">'+o.txt+'</span>';
+}
+
+async function cmpCarregar(){
+  const lista = document.getElementById('cmp-lista');
+  if (lista) lista.innerHTML = '<div class="pa-loading">Carregando campanhas via Meta API…</div>';
+  try {
+    const r = await fetch(SB + '/functions/v1/gerenciar-campanha-meta', {
+      method: 'POST', headers: cmpHeaders(),
+      body: JSON.stringify({ action: 'list_campanhas' }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.erro + (d.detalhe ? ' · ' + d.detalhe : ''));
+    _cmpCampanhas = d.campanhas || [];
+    cmpRender();
+  } catch(e) {
+    if (lista) lista.innerHTML = '<div class="pa-empty" style="color:var(--alert,#ff6b5c)">Erro: '+cmpEsc(e?.message||'')+'</div>';
+  }
+}
+
+function cmpRender(){
+  // KPIs
+  let totalGasto = 0, totalImp = 0, totalCli = 0, ativas = 0;
+  _cmpCampanhas.forEach(c => {
+    if (c.effective_status === 'ACTIVE') ativas++;
+    if (c.insights) {
+      totalGasto += c.insights.spend || 0;
+      totalImp += c.insights.impressions || 0;
+      totalCli += c.insights.clicks || 0;
+    }
+  });
+  const setKpi = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setKpi('cmp-kpi-gasto', cmpFmtBRL(totalGasto));
+  setKpi('cmp-kpi-imp', cmpFmtInt(totalImp));
+  setKpi('cmp-kpi-cli', cmpFmtInt(totalCli));
+  setKpi('cmp-kpi-ativas', ativas + ' / ' + _cmpCampanhas.length);
+
+  const lista = document.getElementById('cmp-lista');
+  if (!lista) return;
+  if (!_cmpCampanhas.length) { lista.innerHTML = '<div class="pa-empty">Nenhuma campanha na conta.</div>'; return; }
+
+  lista.innerHTML = _cmpCampanhas.map(c => cmpCampanhaCard(c)).join('');
+}
+
+function cmpCampanhaCard(c){
+  const ins = c.insights || {};
+  const expanded = _cmpExpand.campanhas.has(c.id);
+  const isActive = c.effective_status === 'ACTIVE';
+  const dailyBudget = c.daily_budget ? cmpFmtBRL(c.daily_budget/100) + '/dia' : (c.lifetime_budget ? cmpFmtBRL(c.lifetime_budget/100) + ' total' : 'ABO (budget no adset)');
+  const periodo = (c.start_time ? new Date(c.start_time).toLocaleDateString('pt-BR') : '?') + ' → ' + (c.stop_time ? new Date(c.stop_time).toLocaleDateString('pt-BR') : 'sem fim');
+  const cpl = ins.cpl > 0 ? cmpFmtBRL(ins.cpl) : '—';
+  return '<div class="bloco" style="padding:14px;margin-bottom:10px">'
+    + '<div style="display:flex;align-items:flex-start;gap:12px">'
+    +   '<button onclick="cmpToggleAdsets(\''+c.id+'\')" style="background:transparent;border:none;font-size:16px;cursor:pointer;color:var(--ink-3);padding:0;line-height:1;margin-top:2px">'+(expanded?'▼':'▶')+'</button>'
+    +   '<div style="flex:1;min-width:0">'
+    +     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">'
+    +       '<div style="font-size:13px;font-weight:600;color:var(--ink)">'+cmpEsc(c.name)+'</div>'
+    +       cmpStatusPill(c.effective_status)
+    +       '<span style="font-size:10px;color:var(--ink-3);font-family:var(--mono)">'+cmpEsc(c.objective||'')+'</span>'
+    +     '</div>'
+    +     '<div style="font-size:11px;color:var(--ink-3);margin-bottom:8px">'+periodo+' · '+dailyBudget+'</div>'
+    +     '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;font-size:11px;background:var(--bg);padding:8px;border-radius:6px">'
+    +       '<div><div style="color:var(--ink-3);font-size:9px;text-transform:uppercase">Gasto</div><div style="font-weight:600">'+cmpFmtBRL(ins.spend||0)+'</div></div>'
+    +       '<div><div style="color:var(--ink-3);font-size:9px;text-transform:uppercase">Imp</div><div style="font-weight:600">'+cmpFmtInt(ins.impressions||0)+'</div></div>'
+    +       '<div><div style="color:var(--ink-3);font-size:9px;text-transform:uppercase">Cliques</div><div style="font-weight:600">'+cmpFmtInt(ins.clicks||0)+'</div></div>'
+    +       '<div><div style="color:var(--ink-3);font-size:9px;text-transform:uppercase">Leads</div><div style="font-weight:600;color:var(--accent,#22c55e)">'+cmpFmtInt(ins.leads||0)+'</div></div>'
+    +       '<div><div style="color:var(--ink-3);font-size:9px;text-transform:uppercase">CPL</div><div style="font-weight:600;color:var(--accent,#22c55e)">'+cpl+'</div></div>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'
+    +     (isActive
+        ? '<button onclick="cmpSetStatus(\'campanha\',\''+c.id+'\',\'PAUSED\')" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--ink-2);cursor:pointer">⏸ Pausar</button>'
+        : '<button onclick="cmpSetStatus(\'campanha\',\''+c.id+'\',\'ACTIVE\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">▶ Ativar</button>')
+    +     '<button onclick="cmpSetStatus(\'campanha\',\''+c.id+'\',\'ARCHIVED\')" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--alert,#ff6b5c);cursor:pointer">🗑 Arquivar</button>'
+    +   '</div>'
+    + '</div>'
+    + (expanded ? '<div id="cmp-adsets-'+c.id+'" style="margin-top:12px;padding-left:24px;border-left:2px solid var(--line-2)"><div class="pa-loading">Carregando adsets…</div></div>' : '')
+    + '</div>';
+}
+
+async function cmpToggleAdsets(campId){
+  if (_cmpExpand.campanhas.has(campId)) {
+    _cmpExpand.campanhas.delete(campId);
+    cmpRender();
+    return;
+  }
+  _cmpExpand.campanhas.add(campId);
+  cmpRender();
+  // Fetch se não tem cache
+  if (!_cmpAdsetsCache[campId]) {
+    try {
+      const r = await fetch(SB + '/functions/v1/gerenciar-campanha-meta', {
+        method: 'POST', headers: cmpHeaders(),
+        body: JSON.stringify({ action: 'list_adsets', campaign_id: campId }),
+      });
+      const d = await r.json();
+      _cmpAdsetsCache[campId] = d.ok ? (d.adsets || []) : [];
+    } catch(_) { _cmpAdsetsCache[campId] = []; }
+  }
+  cmpRenderAdsets(campId);
+}
+
+function cmpRenderAdsets(campId){
+  const cont = document.getElementById('cmp-adsets-'+campId);
+  if (!cont) return;
+  const adsets = _cmpAdsetsCache[campId] || [];
+  if (!adsets.length) { cont.innerHTML = '<div class="pa-empty" style="font-size:12px">Nenhum adset.</div>'; return; }
+  cont.innerHTML = adsets.map(a => cmpAdsetCard(a)).join('');
+}
+
+function cmpAdsetCard(a){
+  const ins = a.insights || {};
+  const expanded = _cmpExpand.adsets.has(a.id);
+  const isActive = a.effective_status === 'ACTIVE';
+  const t = a.targeting_resumo || {};
+  const dailyBudget = a.daily_budget ? cmpFmtBRL(a.daily_budget/100) + '/dia' : '—';
+  const endTime = a.end_time ? new Date(a.end_time).toLocaleDateString('pt-BR') : '—';
+  return '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:8px;padding:10px;margin-bottom:8px">'
+    + '<div style="display:flex;align-items:flex-start;gap:10px">'
+    +   '<button onclick="cmpToggleAds(\''+a.id+'\')" style="background:transparent;border:none;font-size:14px;cursor:pointer;color:var(--ink-3);padding:0;line-height:1;margin-top:2px">'+(expanded?'▼':'▶')+'</button>'
+    +   '<div style="flex:1;min-width:0">'
+    +     '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">'
+    +       '<div style="font-size:12px;font-weight:600;color:var(--ink)">'+cmpEsc(a.name)+'</div>'
+    +       cmpStatusPill(a.effective_status)
+    +     '</div>'
+    +     '<div style="font-size:11px;color:var(--ink-3);line-height:1.5">'
+    +       '📍 '+cmpEsc(t.geo||'—')+' · '+cmpEsc(t.idade)+' · '+cmpEsc(t.genero)
+    +       (t.behaviors_count ? ' · '+t.behaviors_count+' comp.' : '')
+    +       (t.interests_count ? ' · '+t.interests_count+' int.' : '')
+    +     '</div>'
+    +     '<div style="font-size:11px;color:var(--ink-3);margin-top:2px">'+dailyBudget+' · até '+endTime+' · '+cmpEsc(a.optimization_goal||'')+'</div>'
+    +     (ins.spend > 0 ? '<div style="font-size:11px;margin-top:4px"><span style="color:var(--ink-3)">Gasto:</span> '+cmpFmtBRL(ins.spend)+' · <span style="color:var(--ink-3)">Imp:</span> '+cmpFmtInt(ins.impressions)+' · <span style="color:var(--ink-3)">Cliques:</span> '+cmpFmtInt(ins.clicks)+(ins.leads>0?' · <span style="color:var(--accent,#22c55e)">Leads:</span> <b>'+ins.leads+'</b>':'')+'</div>' : '')
+    +   '</div>'
+    +   '<div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">'
+    +     (isActive
+        ? '<button onclick="cmpSetStatus(\'adset\',\''+a.id+'\',\'PAUSED\')" style="background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:3px 8px;font-size:10px;color:var(--ink-2);cursor:pointer">⏸</button>'
+        : '<button onclick="cmpSetStatus(\'adset\',\''+a.id+'\',\'ACTIVE\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:4px;padding:3px 8px;font-size:10px;font-weight:700;cursor:pointer">▶</button>')
+    +     '<button onclick="cmpAbrirEditarAdset(\''+a.id+'\')" style="background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:3px 8px;font-size:10px;color:var(--ink-2);cursor:pointer">✏️</button>'
+    +   '</div>'
+    + '</div>'
+    + (expanded ? '<div id="cmp-ads-'+a.id+'" style="margin-top:10px;padding-left:20px;border-left:1px dashed var(--line-2)"><div class="pa-loading" style="font-size:11px">Carregando ads…</div></div>' : '')
+    + '</div>';
+}
+
+async function cmpToggleAds(adsetId){
+  if (_cmpExpand.adsets.has(adsetId)) {
+    _cmpExpand.adsets.delete(adsetId);
+    cmpReRenderParent(adsetId);
+    return;
+  }
+  _cmpExpand.adsets.add(adsetId);
+  cmpReRenderParent(adsetId);
+  if (!_cmpAdsCache[adsetId]) {
+    try {
+      const r = await fetch(SB + '/functions/v1/gerenciar-campanha-meta', {
+        method: 'POST', headers: cmpHeaders(),
+        body: JSON.stringify({ action: 'list_ads', adset_id: adsetId }),
+      });
+      const d = await r.json();
+      _cmpAdsCache[adsetId] = d.ok ? (d.ads || []) : [];
+    } catch(_) { _cmpAdsCache[adsetId] = []; }
+  }
+  cmpRenderAds(adsetId);
+}
+
+function cmpReRenderParent(adsetId){
+  // Acha o campId que contém esse adset
+  for (const [campId, adsets] of Object.entries(_cmpAdsetsCache)) {
+    if (adsets.find(a => a.id === adsetId)) { cmpRenderAdsets(campId); return; }
+  }
+}
+
+function cmpRenderAds(adsetId){
+  const cont = document.getElementById('cmp-ads-'+adsetId);
+  if (!cont) return;
+  const ads = _cmpAdsCache[adsetId] || [];
+  if (!ads.length) { cont.innerHTML = '<div class="pa-empty" style="font-size:11px">Nenhum ad.</div>'; return; }
+  cont.innerHTML = ads.map(ad => {
+    const ins = ad.insights || {};
+    const isActive = ad.effective_status === 'ACTIVE';
+    const cr = ad.creative || {};
+    const bodyTrunc = (cr.body || '').slice(0, 80) + ((cr.body||'').length > 80 ? '…' : '');
+    return '<div style="background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:8px;margin-bottom:6px;display:flex;gap:10px;align-items:flex-start">'
+      + (cr.thumbnail_url || cr.image_url ? '<img src="'+cmpEsc(cr.thumbnail_url||cr.image_url)+'" style="width:50px;height:50px;object-fit:cover;border-radius:4px;flex-shrink:0">' : '')
+      + '<div style="flex:1;min-width:0">'
+      +   '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">'
+      +     '<div style="font-size:11px;font-weight:600">'+cmpEsc(ad.name)+'</div>'
+      +     cmpStatusPill(ad.effective_status)
+      +   '</div>'
+      +   '<div style="font-size:10px;color:var(--ink-3);line-height:1.4">'+cmpEsc(bodyTrunc)+'</div>'
+      +   (ins.impressions > 0 ? '<div style="font-size:10px;color:var(--ink-3);margin-top:2px">'+cmpFmtInt(ins.impressions)+' imp · '+cmpFmtInt(ins.clicks)+' cli · '+cmpFmtBRL(ins.spend)+'</div>' : '')
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">'
+      +   (isActive
+          ? '<button onclick="cmpSetStatus(\'ad\',\''+ad.id+'\',\'PAUSED\')" style="background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:2px 6px;font-size:10px;color:var(--ink-2);cursor:pointer">⏸</button>'
+          : '<button onclick="cmpSetStatus(\'ad\',\''+ad.id+'\',\'ACTIVE\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;cursor:pointer">▶</button>')
+      +   '<button onclick="cmpPreviewAd(\''+ad.id+'\')" style="background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:2px 6px;font-size:10px;color:var(--ink-2);cursor:pointer">👁</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+async function cmpSetStatus(tipo, id, novoStatus){
+  const label = novoStatus === 'ACTIVE' ? 'Ativar' : novoStatus === 'PAUSED' ? 'Pausar' : novoStatus === 'ARCHIVED' ? 'Arquivar' : novoStatus;
+  if (!confirm(label + ' ' + tipo + ' ' + id + '?')) return;
+  try {
+    const actionMap = { campanha: 'status_campanha', adset: 'status_adset', ad: 'status_ad' };
+    const idKey = tipo === 'campanha' ? 'campaign_id' : tipo === 'adset' ? 'adset_id' : 'ad_id';
+    const payload = { action: actionMap[tipo], status: novoStatus, [idKey]: id };
+    const r = await fetch(SB + '/functions/v1/gerenciar-campanha-meta', {
+      method: 'POST', headers: cmpHeaders(), body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.erro + (d.detalhe?' · '+d.detalhe:''));
+    try { typeof origToast === 'function' && origToast('✓ ' + label + ' ok'); } catch(_){}
+    // Invalida caches e recarrega
+    if (tipo === 'campanha') { _cmpAdsetsCache = {}; _cmpAdsCache = {}; cmpCarregar(); }
+    else if (tipo === 'adset') { _cmpAdsCache = {}; const campId = Object.keys(_cmpAdsetsCache).find(k => _cmpAdsetsCache[k].find(a => a.id === id)); if (campId) delete _cmpAdsetsCache[campId]; cmpCarregar(); }
+    else { const adsetId = Object.keys(_cmpAdsCache).find(k => _cmpAdsCache[k].find(a => a.id === id)); if (adsetId) delete _cmpAdsCache[adsetId]; cmpCarregar(); }
+  } catch(e) {
+    alert('Erro: ' + (e?.message || e));
+  }
+}
+
+async function cmpAbrirEditarAdset(adsetId){
+  let adset = null;
+  for (const adsets of Object.values(_cmpAdsetsCache)) {
+    adset = adsets.find(a => a.id === adsetId);
+    if (adset) break;
+  }
+  if (!adset) { alert('Adset não encontrado no cache'); return; }
+  let modal = document.getElementById('cmp-modal-adset');
+  if (!modal) { modal = document.createElement('div'); modal.id = 'cmp-modal-adset'; document.body.appendChild(modal); }
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  const orcAtual = adset.daily_budget ? (adset.daily_budget/100).toFixed(0) : '10';
+  const fimAtual = adset.end_time ? adset.end_time.slice(0,10) : '';
+  modal.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:22px;width:440px;max-width:96vw">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div style="font-size:14px;font-weight:700">✏️ Editar adset</div><button onclick="document.getElementById(\'cmp-modal-adset\').style.display=\'none\'" style="background:transparent;border:none;font-size:18px;cursor:pointer;color:var(--ink-3)">×</button></div>'
+    + '<div style="font-size:11px;color:var(--ink-3);margin-bottom:12px">'+cmpEsc(adset.name)+'</div>'
+    + '<div style="margin-bottom:12px"><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Orçamento diário (R$)</label><input id="cmp-m-orc" type="number" min="5" step="1" value="'+orcAtual+'" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--ink);box-sizing:border-box"></div>'
+    + '<div style="margin-bottom:14px"><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Data de encerramento</label><input id="cmp-m-fim" type="date" value="'+fimAtual+'" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--ink);box-sizing:border-box"></div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end"><button onclick="document.getElementById(\'cmp-modal-adset\').style.display=\'none\'" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:8px 14px;font-size:12px;color:var(--ink-2);cursor:pointer">Cancelar</button><button onclick="cmpSalvarAdset(\''+adsetId+'\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer">Salvar</button></div>'
+    + '</div>';
+}
+
+async function cmpSalvarAdset(adsetId){
+  const orc = parseInt(document.getElementById('cmp-m-orc')?.value || 0, 10);
+  const fim = document.getElementById('cmp-m-fim')?.value;
+  if (!orc || orc < 5) { alert('Orçamento mínimo R$ 5'); return; }
+  const payload = { action: 'update_adset', adset_id: adsetId, daily_budget: orc * 100 };
+  if (fim) payload.end_time = fim + 'T23:59:00-0300';
+  try {
+    const r = await fetch(SB + '/functions/v1/gerenciar-campanha-meta', {
+      method: 'POST', headers: cmpHeaders(), body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.erro + (d.detalhe?' · '+d.detalhe:''));
+    document.getElementById('cmp-modal-adset').style.display = 'none';
+    try { typeof origToast === 'function' && origToast('✓ Adset atualizado'); } catch(_){}
+    const campId = Object.keys(_cmpAdsetsCache).find(k => _cmpAdsetsCache[k].find(a => a.id === adsetId));
+    if (campId) delete _cmpAdsetsCache[campId];
+    cmpCarregar();
+  } catch(e) {
+    alert('Erro: ' + (e?.message || e));
+  }
+}
+
+async function cmpPreviewAd(adId){
+  let ad = null;
+  for (const ads of Object.values(_cmpAdsCache)) {
+    ad = ads.find(x => x.id === adId);
+    if (ad) break;
+  }
+  if (!ad) return;
+  let modal = document.getElementById('cmp-modal-ad');
+  if (!modal) { modal = document.createElement('div'); modal.id = 'cmp-modal-ad'; document.body.appendChild(modal); }
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  const cr = ad.creative || {};
+  modal.innerHTML = '<div style="background:var(--surface);border-radius:12px;padding:22px;width:520px;max-width:96vw;max-height:90vh;overflow-y:auto">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div style="font-size:14px;font-weight:700">👁 Preview do ad</div><button onclick="document.getElementById(\'cmp-modal-ad\').style.display=\'none\'" style="background:transparent;border:none;font-size:18px;cursor:pointer;color:var(--ink-3)">×</button></div>'
+    + (cr.image_url ? '<img src="'+cmpEsc(cr.image_url)+'" style="width:100%;max-height:340px;object-fit:contain;border-radius:8px;background:var(--bg);margin-bottom:12px">' : '')
+    + '<div style="font-size:12px;color:var(--ink-2);line-height:1.5;margin-bottom:8px"><b style="color:var(--ink)">Headline:</b> '+cmpEsc(cr.title||'—')+'</div>'
+    + '<div style="font-size:12px;color:var(--ink-2);line-height:1.5;margin-bottom:8px"><b style="color:var(--ink)">Texto:</b> '+cmpEsc(cr.body||'—')+'</div>'
+    + (cr.cta ? '<div style="font-size:12px;color:var(--ink-2);margin-bottom:8px"><b style="color:var(--ink)">CTA:</b> <span style="background:var(--accent-soft,rgba(34,197,94,.1));color:var(--accent,#22c55e);border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">'+cmpEsc(cr.cta)+'</span></div>' : '')
+    + (cr.link ? '<div style="font-size:10px;color:var(--ink-3);font-family:var(--mono);word-break:break-all;margin-bottom:8px">🔗 '+cmpEsc(cr.link)+'</div>' : '')
+    + '<div style="display:flex;justify-content:flex-end"><button onclick="document.getElementById(\'cmp-modal-ad\').style.display=\'none\'" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer">Fechar</button></div>'
+    + '</div>';
+}
+
+window.cmpCarregar = cmpCarregar;
+window.cmpRender = cmpRender;
+window.cmpToggleAdsets = cmpToggleAdsets;
+window.cmpToggleAds = cmpToggleAds;
+window.cmpSetStatus = cmpSetStatus;
+window.cmpAbrirEditarAdset = cmpAbrirEditarAdset;
+window.cmpSalvarAdset = cmpSalvarAdset;
+window.cmpPreviewAd = cmpPreviewAd;
 
 window.pjV347RenderInteligencia = pjV347RenderInteligencia;
 window.pjV347MontarInteligencia = pjV347MontarInteligencia;
