@@ -1931,6 +1931,7 @@ table.t .acoes { white-space: nowrap; }
           <div class="nav-label">Outros</div>
           <div class="nav-item" data-secao="atendimento-ia" onclick="mostrarSecao('atendimento-ia')"><span class="nav-icon">🤖</span><span class="nav-label">Atendimento IA</span></div>
           <div class="nav-item" data-secao="op-ndas" onclick="mostrarSecao('op-ndas')"><span class="nav-icon">🔒</span><span class="nav-label">NDAs</span></div>
+          <div class="nav-item" data-secao="backlog" onclick="mostrarSecao('backlog')"><span class="nav-icon">📋</span><span class="nav-label">Backlog</span></div>
         </div>
 
         <!-- FERRAMENTAS · SISTEMA (separador visual forte) -->
@@ -3687,6 +3688,37 @@ table.t .acoes { white-space: nowrap; }
 
 
         <section id="secao-atendimento-ia" class="secao"><header class="secao-header"><h1 class="secao-titulo">🤖 Atendimento IA</h1><p class="secao-subtitulo">Gestão do Chat IA da home pública (chat-ia v29)</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Painel de monitoramento e configuração do Chat IA.</p><ul><li>Versão atual (chat-ia v29)</li><li>System prompt editável (com versionamento)</li><li>Conversas em tempo real</li><li>Triggers de escalação</li><li>Métricas (volume · conversão pra lead · tokens consumidos)</li></ul><a class="legacy-cta" href="/admin-chat-ia.html" target="_blank">↗ Acessar Chat IA Admin atual</a></div></section>
+
+        <section id="secao-backlog" class="secao">
+          <header class="secao-header">
+            <h1 class="secao-titulo">📋 Backlog</h1>
+            <p class="secao-subtitulo">Roadmap interno · drag & drop pra reordenar · filtros por área e status</p>
+          </header>
+          <div class="secao-conteudo">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
+              <button onclick="bkAbrirModal()" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">+ Novo item</button>
+              <select id="bk-filtro-area" onchange="bkRender()" style="background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--ink)">
+                <option value="">Todas áreas</option>
+                <option value="Portal">Portal</option>
+                <option value="Ads">Ads</option>
+                <option value="Produto">Produto</option>
+                <option value="Operação">Operação</option>
+                <option value="Financeiro">Financeiro</option>
+                <option value="Marketing">Marketing</option>
+              </select>
+              <select id="bk-filtro-status" onchange="bkRender()" style="background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--ink)">
+                <option value="aberto">Apenas abertos</option>
+                <option value="em_progresso">Em progresso</option>
+                <option value="feito">Feitos</option>
+                <option value="descartado">Descartados</option>
+                <option value="">Todos status</option>
+              </select>
+              <button onclick="bkCarregar()" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:6px 12px;font-size:11px;color:var(--ink-3);cursor:pointer">↻ Recarregar</button>
+              <span id="bk-total" style="margin-left:auto;font-size:11px;color:var(--ink-3);font-family:var(--mono)"></span>
+            </div>
+            <div id="bk-conteudo" class="pa-loading">Carregando...</div>
+          </div>
+        </section>
 
 
         <section id="secao-parametros" class="secao"><header class="secao-header"><h1 class="secao-titulo">⚙️ Parâmetros</h1><p class="secao-subtitulo">Snapshot ativo: v2026.11-pool-9-categorias</p></header><div class="placeholder"><div class="ph-icone">🚧</div><h2>Em construção</h2><p>Tabela `parametros_versoes` controla múltiplos · pesos ISE · benchmarks · upsides.</p><ul><li>Snapshot ativo (atual: v2026.11-pool-9-categorias)</li><li>Histórico de versões</li><li>Editor visual (múltiplos · pesos · benchmarks)</li><li>Diff entre versões</li><li>Rollback rápido</li></ul></div></section>
@@ -5742,6 +5774,7 @@ const SECAO_TITULOS = {
   'campanhas': {grupo:'MARKETING', titulo:'Campanhas', icone:'📌'},
   'fluxos': {grupo:'MARKETING', titulo:'Fluxos Automáticos', icone:'🔄'},
   'atendimento-ia': {grupo:'MARKETING', titulo:'Atendimento IA', icone:'🤖'},
+  'backlog':         {grupo:'OUTROS',    titulo:'Backlog',        icone:'📋'},
   'maquinaria': {grupo:'MARKETING', titulo:'Máquina de Anúncios', icone:'🏭'},
   'parametros': {grupo:'SISTEMA', titulo:'Parâmetros', icone:'⚙️'},
   'sys-templates': {grupo:'SISTEMA', titulo:'Templates de Documentos', icone:'📑'},
@@ -5801,6 +5834,7 @@ function mostrarSecao(id) {
     if (id === 'cockpit') { carregarBloco1(); carregarBloco9(); paLoadKPIs(); cwLoadPlanoBloco(); lqInit(); saInit(); cockEntregaveisCarregar(); cockQuentesCarregar(); try { propsAtualizarCockpit(); } catch(e){} if (typeof cockpitRenderCompleto === 'function') cockpitRenderCompleto().catch(e=>console.warn('[cockpit novo]', e)); }
     if (id === 'plano-dia') { cwLoadPlanoFull(); cwLoadPlanoHistorico(); }
     if (id === 'cowork-admin') cwAdmInit();
+    if (id === 'backlog') bkCarregar();
     if (id === 'triagem-olx') trInit();
     if (id === 'monitoramento-conteudo') mpInit();
     if (id === 'gerador-conteudo') { gcInit(); }
@@ -16653,6 +16687,290 @@ window.pjV347ResolverNeg = pjV347ResolverNeg;
 window.pjV347PoolBlocoHtml = pjV347PoolBlocoHtml;
 window.pjV347SidebarItens = pjV347SidebarItens;
 window.pjV347PlaceholderEmBreve = pjV347PlaceholderEmBreve;
+
+// ============================================================
+// BACKLOG · CRUD + drag&drop + cockpit block (v9.45.0)
+// ============================================================
+let _bkItens = [];
+const BK_PRIO_LABEL = { P0:'🔴 P0 · crítico', P1:'🟠 P1 · alto', P2:'🟡 P2 · médio', P3:'🟢 P3 · baixo' };
+const BK_AREA_COR = {
+  Portal:'#60a5fa', Ads:'#f59e0b', Produto:'#a78bfa',
+  'Operação':'#22c55e', Financeiro:'#fbbf24', Marketing:'#ec4899'
+};
+const BK_STATUS_LABEL = { aberto:'aberto', em_progresso:'em progresso', feito:'feito', descartado:'descartado' };
+
+function bkHeaders(){ return { 'apikey': AK, 'Authorization': 'Bearer ' + (__token || AK), 'Content-Type': 'application/json' }; }
+function bkEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function bkCarregar(){
+  const cont = document.getElementById('bk-conteudo');
+  if (cont) cont.innerHTML = '<div class="pa-loading">Carregando backlog…</div>';
+  try {
+    const r = await fetch(SB + '/rest/v1/backlog_itens?order=prioridade.asc,ordem.asc', { headers: bkHeaders() });
+    _bkItens = r.ok ? await r.json() : [];
+  } catch(e) {
+    _bkItens = [];
+    if (cont) cont.innerHTML = '<div class="pa-empty" style="color:var(--alert)">Erro ao carregar: ' + bkEsc(e?.message||'') + '</div>';
+    return;
+  }
+  bkRender();
+  bkAtualizarCockpitBloco();
+}
+
+function bkRender(){
+  const cont = document.getElementById('bk-conteudo');
+  if (!cont) return;
+  const filtroArea = document.getElementById('bk-filtro-area')?.value || '';
+  const filtroStatus = document.getElementById('bk-filtro-status')?.value;
+  const filtered = _bkItens.filter(it => {
+    if (filtroArea && it.area !== filtroArea) return false;
+    if (filtroStatus !== '' && filtroStatus != null && it.status !== filtroStatus) return false;
+    return true;
+  });
+  const totalEl = document.getElementById('bk-total');
+  if (totalEl) totalEl.textContent = filtered.length + ' itens · ' + _bkItens.length + ' total';
+  if (filtered.length === 0) { cont.innerHTML = '<div class="pa-empty">Nenhum item bate com os filtros.</div>'; return; }
+  const grupos = { P0:[], P1:[], P2:[], P3:[] };
+  filtered.forEach(it => { if (grupos[it.prioridade]) grupos[it.prioridade].push(it); });
+  cont.innerHTML = Object.keys(grupos).map(prio => {
+    const itens = grupos[prio];
+    if (!itens.length) return '';
+    return '<div style="margin-bottom:24px">'
+      + '<div style="font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line-2)">' + BK_PRIO_LABEL[prio] + ' <span style="color:var(--ink-3);font-weight:500;margin-left:6px">' + itens.length + '</span></div>'
+      + '<div data-prio="' + prio + '" class="bk-grupo">' + itens.map(bkCardHtml).join('') + '</div>'
+      + '</div>';
+  }).join('') || '<div class="pa-empty">Nenhum item bate com os filtros.</div>';
+  // Liga handlers de drag & drop nos cards
+  cont.querySelectorAll('.bk-card').forEach(c => {
+    c.addEventListener('dragstart', bkDragStart);
+    c.addEventListener('dragover', bkDragOver);
+    c.addEventListener('drop', bkDrop);
+    c.addEventListener('dragend', bkDragEnd);
+  });
+}
+
+function bkCardHtml(it){
+  const areaCor = BK_AREA_COR[it.area] || 'var(--ink-3)';
+  const statusCor = it.status === 'feito' ? 'var(--accent,#22c55e)' : it.status === 'em_progresso' ? '#fbbf24' : it.status === 'descartado' ? 'var(--ink-4)' : 'var(--ink-3)';
+  const opacity = it.status === 'feito' || it.status === 'descartado' ? '.6' : '1';
+  return '<div class="bk-card" draggable="true" data-id="' + it.id + '" data-prio="' + it.prioridade + '" style="background:var(--surface);border:1px solid var(--line-2);border-radius:8px;padding:12px;margin-bottom:8px;opacity:' + opacity + ';cursor:grab" ondragstart="event.dataTransfer.effectAllowed=\'move\'">'
+    + '<div style="display:flex;align-items:flex-start;gap:10px">'
+    +   '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:' + areaCor + '20;color:' + areaCor + ';border-radius:4px;padding:2px 7px;flex-shrink:0;margin-top:2px">' + bkEsc(it.area || '—') + '</span>'
+    +   '<div style="flex:1;min-width:0">'
+    +     '<div onclick="bkToggleExpand(\'' + it.id + '\')" style="font-size:13px;font-weight:500;line-height:1.4;color:var(--ink);cursor:pointer">' + bkEsc(it.titulo) + '</div>'
+    +     (it.descricao ? '<div id="bk-desc-' + it.id + '" style="display:none;font-size:12px;color:var(--ink-3);margin-top:6px;line-height:1.5;white-space:pre-wrap">' + bkEsc(it.descricao) + '</div>' : '')
+    +   '</div>'
+    +   '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0">'
+    +     '<select onchange="bkSetPrioridade(\'' + it.id + '\',this.value)" style="background:var(--bg);border:1px solid var(--line-2);border-radius:4px;padding:3px 6px;font-size:11px;color:var(--ink)">'
+    +       ['P0','P1','P2','P3'].map(p => '<option value="' + p + '"' + (it.prioridade===p?' selected':'') + '>' + p + '</option>').join('')
+    +     '</select>'
+    +     '<select onchange="bkSetStatus(\'' + it.id + '\',this.value)" style="background:var(--bg);border:1px solid var(--line-2);border-radius:4px;padding:3px 6px;font-size:11px;color:' + statusCor + '">'
+    +       Object.keys(BK_STATUS_LABEL).map(s => '<option value="' + s + '"' + (it.status===s?' selected':'') + '>' + BK_STATUS_LABEL[s] + '</option>').join('')
+    +     '</select>'
+    +     '<button onclick="bkEditar(\'' + it.id + '\')" title="Editar" style="background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:3px 7px;font-size:11px;cursor:pointer">✏️</button>'
+    +     '<button onclick="bkDeletar(\'' + it.id + '\')" title="Deletar" style="background:transparent;border:1px solid var(--line-2);border-radius:4px;padding:3px 7px;font-size:11px;cursor:pointer;color:var(--alert,#ff6b5c)">🗑</button>'
+    +   '</div>'
+    + '</div></div>';
+}
+
+function bkToggleExpand(id){
+  const el = document.getElementById('bk-desc-' + id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// ========== Drag & drop ==========
+let _bkDrag = null;
+function bkDragStart(e){
+  _bkDrag = this;
+  this.style.opacity = '0.4';
+  e.dataTransfer.effectAllowed = 'move';
+}
+function bkDragOver(e){
+  if (!_bkDrag) return;
+  if (this.dataset.prio !== _bkDrag.dataset.prio) return; // só reordena dentro da mesma prio
+  e.preventDefault();
+  const rect = this.getBoundingClientRect();
+  const meio = (rect.top + rect.bottom) / 2;
+  if (e.clientY < meio) this.parentNode.insertBefore(_bkDrag, this);
+  else this.parentNode.insertBefore(_bkDrag, this.nextSibling);
+}
+function bkDrop(e){ e.preventDefault(); }
+async function bkDragEnd(){
+  if (!_bkDrag) return;
+  _bkDrag.style.opacity = '';
+  const prio = _bkDrag.dataset.prio;
+  _bkDrag = null;
+  // Persiste a nova ordem (PATCH ordem em cada card do grupo)
+  const grupoEl = document.querySelector('.bk-grupo[data-prio="' + prio + '"]');
+  if (!grupoEl) return;
+  const ids = Array.from(grupoEl.querySelectorAll('.bk-card')).map(c => c.dataset.id);
+  await Promise.all(ids.map((id, idx) => fetch(SB + '/rest/v1/backlog_itens?id=eq.' + id, {
+    method: 'PATCH',
+    headers: { ...bkHeaders(), 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ ordem: idx + 1, updated_at: new Date().toISOString() }),
+  })));
+  // Atualiza cache local sem refetch
+  ids.forEach((id, idx) => {
+    const it = _bkItens.find(x => x.id === id);
+    if (it) it.ordem = idx + 1;
+  });
+  try { typeof origToast === 'function' && origToast('✓ Ordem salva'); } catch(_){}
+}
+
+// ========== CRUD ==========
+async function bkSetPrioridade(id, novaPrio){
+  await fetch(SB + '/rest/v1/backlog_itens?id=eq.' + id, {
+    method: 'PATCH', headers: { ...bkHeaders(), 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ prioridade: novaPrio, updated_at: new Date().toISOString() }),
+  });
+  const it = _bkItens.find(x => x.id === id);
+  if (it) it.prioridade = novaPrio;
+  bkRender();
+  bkAtualizarCockpitBloco();
+}
+async function bkSetStatus(id, novoStatus){
+  await fetch(SB + '/rest/v1/backlog_itens?id=eq.' + id, {
+    method: 'PATCH', headers: { ...bkHeaders(), 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ status: novoStatus, updated_at: new Date().toISOString() }),
+  });
+  const it = _bkItens.find(x => x.id === id);
+  if (it) it.status = novoStatus;
+  bkRender();
+  bkAtualizarCockpitBloco();
+}
+async function bkDeletar(id){
+  const it = _bkItens.find(x => x.id === id);
+  if (!confirm('Deletar "' + (it?.titulo || id).slice(0, 60) + '"?')) return;
+  await fetch(SB + '/rest/v1/backlog_itens?id=eq.' + id, {
+    method: 'DELETE', headers: { ...bkHeaders(), 'Prefer': 'return=minimal' },
+  });
+  _bkItens = _bkItens.filter(x => x.id !== id);
+  bkRender();
+  bkAtualizarCockpitBloco();
+  try { typeof origToast === 'function' && origToast('✓ Item deletado'); } catch(_){}
+}
+
+function bkAbrirModal(itemExistente){
+  const it = itemExistente || { titulo:'', descricao:'', prioridade:'P2', area:'Portal', status:'aberto' };
+  let modal = document.getElementById('bk-modal');
+  if (!modal) { modal = document.createElement('div'); modal.id = 'bk-modal'; document.body.appendChild(modal); }
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  const esc = bkEsc;
+  modal.innerHTML = '<div style="background:var(--surface);border-radius:14px;padding:22px;width:560px;max-width:96vw;max-height:90vh;overflow-y:auto">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +   '<div style="font-size:16px;font-weight:700">' + (it.id ? '✏️ Editar item' : '+ Novo item') + '</div>'
+    +   '<button onclick="document.getElementById(\'bk-modal\').style.display=\'none\'" style="background:transparent;border:none;font-size:18px;cursor:pointer;color:var(--ink-3)">×</button>'
+    + '</div>'
+    + '<div style="margin-bottom:10px"><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Título *</label>'
+    +   '<input id="bk-m-titulo" type="text" value="' + esc(it.titulo).replace(/"/g,'&quot;') + '" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:8px 10px;color:var(--ink);font-size:13px;box-sizing:border-box"></div>'
+    + '<div style="margin-bottom:10px"><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Descrição</label>'
+    +   '<textarea id="bk-m-descricao" rows="4" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:8px 10px;color:var(--ink);font-size:12px;box-sizing:border-box;font-family:var(--sans);resize:vertical">' + esc(it.descricao || '') + '</textarea></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">'
+    +   '<div><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Prioridade</label><select id="bk-m-prioridade" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--ink);box-sizing:border-box">'
+    +     ['P0','P1','P2','P3'].map(p => '<option value="' + p + '"' + (it.prioridade===p?' selected':'') + '>' + p + '</option>').join('')
+    +   '</select></div>'
+    +   '<div><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Área</label><select id="bk-m-area" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--ink);box-sizing:border-box">'
+    +     ['Portal','Ads','Produto','Operação','Financeiro','Marketing'].map(a => '<option value="' + a + '"' + (it.area===a?' selected':'') + '>' + a + '</option>').join('')
+    +   '</select></div>'
+    +   '<div><label style="font-size:11px;font-weight:600;display:block;margin-bottom:4px">Status</label><select id="bk-m-status" style="width:100%;background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--ink);box-sizing:border-box">'
+    +     Object.keys(BK_STATUS_LABEL).map(s => '<option value="' + s + '"' + (it.status===s?' selected':'') + '>' + BK_STATUS_LABEL[s] + '</option>').join('')
+    +   '</select></div>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end">'
+    +   '<button onclick="document.getElementById(\'bk-modal\').style.display=\'none\'" style="background:transparent;border:1px solid var(--line-2);border-radius:6px;padding:8px 14px;font-size:12px;color:var(--ink-2);cursor:pointer">Cancelar</button>'
+    +   '<button onclick="bkSalvar(\'' + (it.id||'') + '\')" style="background:var(--accent,#22c55e);color:#000;border:none;border-radius:6px;padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer">' + (it.id ? 'Salvar' : 'Criar') + '</button>'
+    + '</div></div>';
+}
+
+function bkEditar(id){
+  const it = _bkItens.find(x => x.id === id);
+  if (!it) return;
+  bkAbrirModal(it);
+}
+
+async function bkSalvar(id){
+  const titulo = document.getElementById('bk-m-titulo')?.value?.trim();
+  if (!titulo) { alert('Título obrigatório'); return; }
+  const payload = {
+    titulo,
+    descricao: document.getElementById('bk-m-descricao')?.value?.trim() || null,
+    prioridade: document.getElementById('bk-m-prioridade')?.value || 'P2',
+    area: document.getElementById('bk-m-area')?.value || 'Portal',
+    status: document.getElementById('bk-m-status')?.value || 'aberto',
+    updated_at: new Date().toISOString(),
+  };
+  try {
+    if (id) {
+      await fetch(SB + '/rest/v1/backlog_itens?id=eq.' + id, {
+        method: 'PATCH', headers: { ...bkHeaders(), 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      // Pega próxima ordem na prioridade alvo
+      const maxOrd = Math.max(0, ..._bkItens.filter(x => x.prioridade === payload.prioridade).map(x => x.ordem || 0));
+      payload.ordem = maxOrd + 1;
+      await fetch(SB + '/rest/v1/backlog_itens', {
+        method: 'POST', headers: { ...bkHeaders(), 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload),
+      });
+    }
+    document.getElementById('bk-modal').style.display = 'none';
+    try { typeof origToast === 'function' && origToast(id ? '✓ Item atualizado' : '✓ Item criado'); } catch(_){}
+    bkCarregar();
+  } catch(e) {
+    alert('Erro: ' + (e?.message || e));
+  }
+}
+
+// ========== Cockpit block ==========
+async function bkCarregarParaCockpit(){
+  // Versão lite só pra cockpit · usa _bkItens se já carregado, senão fetch
+  if (!_bkItens.length) {
+    try {
+      const r = await fetch(SB + '/rest/v1/backlog_itens?order=prioridade.asc,ordem.asc', { headers: bkHeaders() });
+      _bkItens = r.ok ? await r.json() : [];
+    } catch(_) { _bkItens = []; }
+  }
+}
+
+function bkCockpitBlocoHtml(){
+  const abertos = _bkItens.filter(it => it.status === 'aberto');
+  const cnt = { P0:0, P1:0, P2:0, P3:0 };
+  abertos.forEach(it => { if (cnt[it.prioridade] !== undefined) cnt[it.prioridade]++; });
+  const p0s = abertos.filter(it => it.prioridade === 'P0');
+  return '<div style="margin-bottom:20px">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+    +   '<div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em">📋 Backlog</div>'
+    +   '<a href="#backlog" onclick="mostrarSecao(\'backlog\');return false" style="font-size:11px;color:var(--accent,#22c55e);text-decoration:none">Abrir backlog →</a>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">'
+    +   ['P0','P1','P2','P3'].map(p => '<div style="background:var(--surface);border:1px solid var(--line-2);border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em">' + p + '</div><div style="font-size:20px;font-weight:700;color:var(--ink);margin-top:2px">' + cnt[p] + '</div></div>').join('')
+    + '</div>'
+    + (p0s.length ? '<div style="background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:10px">'
+        + '<div style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">🔴 P0 abertos · ' + p0s.length + '</div>'
+        + p0s.slice(0, 5).map(it => '<div style="font-size:12px;color:var(--ink-2);padding:3px 0;line-height:1.4">• ' + bkEsc(it.titulo) + '</div>').join('')
+        + (p0s.length > 5 ? '<div style="font-size:11px;color:var(--ink-3);margin-top:4px">+ ' + (p0s.length - 5) + ' mais</div>' : '')
+      + '</div>' : '')
+    + '</div>';
+}
+
+function bkAtualizarCockpitBloco(){
+  const el = document.getElementById('cockpit-backlog-bloco');
+  if (el) el.innerHTML = bkCockpitBlocoHtml();
+}
+
+window.bkCarregar = bkCarregar;
+window.bkRender = bkRender;
+window.bkAbrirModal = bkAbrirModal;
+window.bkEditar = bkEditar;
+window.bkDeletar = bkDeletar;
+window.bkSetPrioridade = bkSetPrioridade;
+window.bkSetStatus = bkSetStatus;
+window.bkSalvar = bkSalvar;
+window.bkToggleExpand = bkToggleExpand;
+window.bkCarregarParaCockpit = bkCarregarParaCockpit;
+window.bkCockpitBlocoHtml = bkCockpitBlocoHtml;
+
 window.pjV347RenderInteligencia = pjV347RenderInteligencia;
 window.pjV347MontarInteligencia = pjV347MontarInteligencia;
 window.pjV347EnsureArsenalCache = pjV347EnsureArsenalCache;
@@ -17522,7 +17840,9 @@ async function cockpitRenderCompleto(){
   try {
     const d = await cockpitCarregarDados();
     const b4 = await cockpitBloco4Html(d);
-    cont.innerHTML = header + cockpitBloco1(d) + cockpitBloco2(d) + cockpitBloco3(d) + b4 + cockpitBloco5(d);
+    await bkCarregarParaCockpit();
+    const bkBloco = '<div id="cockpit-backlog-bloco">' + bkCockpitBlocoHtml() + '</div>';
+    cont.innerHTML = header + cockpitBloco1(d) + cockpitBloco2(d) + cockpitBloco3(d) + b4 + bkBloco + cockpitBloco5(d);
   } catch (e) {
     cont.innerHTML = header + '<div style="color:var(--alert,#ff6b5c);padding:20px">Erro ao carregar cockpit: ' + cockEsc(e && e.message ? e.message : 'desconhecido') + '</div>';
   }
