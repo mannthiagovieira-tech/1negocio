@@ -301,56 +301,106 @@ async function processarRespostaBoss(phone: string, texto: string): Promise<bool
 }
 
 // ─── Valuation (Grupo G) ──────────────────────────────────────────────
-const MULTIPLOS_SETOR: Record<string, [number, number]> = {
-  "servicos_empresariais": [1.5, 3], "servicos": [1.5, 3],
-  "varejo": [1, 2],
-  "saude": [2, 4], "clinica": [2, 4],
-  "alimentacao": [1, 2.5],
-  "beleza": [1.5, 3], "estetica": [1.5, 3],
-  "educacao": [2, 4],
-  "saas": [3, 8], "assinatura": [3, 8],
-  "industria": [1.5, 3], "fabricacao": [1.5, 3],
-  "construcao": [1, 2],
-  "logistica": [1, 2.5],
-  "hospedagem": [1.5, 3],
-  "bem_estar": [1.5, 3],
+// Múltiplos e margens operacionais da 1Negócio (skill avaliadora oficial)
+// Fonte: supabase/migrations/002_seed_parametros_v2026_04.sql · multiplos_setor + benchmarks_dre
+// Os múltiplos são aplicados sobre EBITDA estimado (faturamento × margem_op típica do setor)
+const SETORES_1N: Record<string, { multiplo: number; margem_op: number; label: string }> = {
+  servicos_empresas: { multiplo: 2.06, margem_op: 0.30, label: "Serviços B2B" },
+  educacao:          { multiplo: 2.18, margem_op: 0.28, label: "Educação" },
+  saude:             { multiplo: 2.12, margem_op: 0.25, label: "Saúde" },
+  bem_estar:         { multiplo: 1.87, margem_op: 0.22, label: "Bem-estar / academia" },
+  beleza_estetica:   { multiplo: 1.76, margem_op: 0.22, label: "Beleza e estética" },
+  industria:         { multiplo: 1.72, margem_op: 0.12, label: "Indústria" },
+  hospedagem:        { multiplo: 1.69, margem_op: 0.18, label: "Hospedagem" },
+  logistica:         { multiplo: 1.67, margem_op: 0.12, label: "Logística" },
+  alimentacao:       { multiplo: 1.58, margem_op: 0.15, label: "Alimentação" },
+  servicos_locais:   { multiplo: 1.58, margem_op: 0.18, label: "Serviços locais" },
+  varejo:            { multiplo: 1.52, margem_op: 0.10, label: "Varejo" },
+  construcao:        { multiplo: 1.46, margem_op: 0.10, label: "Construção" },
+};
+// Aliases pra tolerar variações coloquiais que o lead pode usar
+const SETOR_ALIAS: Record<string, string> = {
+  servicos: "servicos_locais", servico: "servicos_locais", "serv_b2b": "servicos_empresas",
+  consultoria: "servicos_empresas", contabilidade: "servicos_empresas", ti: "servicos_empresas",
+  clinica: "saude", odonto: "saude", veterinaria: "saude", fisio: "saude",
+  restaurante: "alimentacao", padaria: "alimentacao", bar: "alimentacao", delivery: "alimentacao",
+  salao: "beleza_estetica", barbearia: "beleza_estetica", estetica: "beleza_estetica", spa: "beleza_estetica",
+  escola: "educacao", curso: "educacao", idiomas: "educacao",
+  loja: "varejo", ecommerce: "varejo", revendedora: "varejo",
+  fabrica: "industria", manufatura: "industria", confeccao: "industria",
+  transporte: "logistica", deposito: "logistica", distribuidora: "logistica",
+  obra: "construcao", reforma: "construcao", incorporadora: "construcao",
+  academia: "bem_estar", studio: "bem_estar", personal: "bem_estar",
+  hotel: "hospedagem", pousada: "hospedagem", airbnb: "hospedagem", turismo: "hospedagem",
+  lavanderia: "servicos_locais", oficina: "servicos_locais", manutencao: "servicos_locais",
 };
 function setorKey(s: string): string {
-  return (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z]+/g, "_");
+  const norm = (s || "").toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/[^a-z]+/g, "_").replace(/^_+|_+$/g, "");
+  if (SETORES_1N[norm]) return norm;
+  if (SETOR_ALIAS[norm]) return SETOR_ALIAS[norm];
+  // tenta substring (ex: "servicos_empresariais" contém "servicos_empresas")
+  for (const k of Object.keys(SETORES_1N)) if (norm.includes(k)) return k;
+  for (const k of Object.keys(SETOR_ALIAS)) if (norm.includes(k)) return SETOR_ALIAS[k];
+  return "servicos_locais"; // fallback conservador
 }
 function calcularValuationRapido({ setor, faturamento_mensal, anos_operacao }: any) {
   const fatA = (Number(faturamento_mensal) || 0) * 12;
   const sk = setorKey(setor);
-  const [mn, mx] = MULTIPLOS_SETOR[sk] || [1, 2.5]; // fallback conservador
-  let aMin = mn, aMax = mx;
+  const s = SETORES_1N[sk];
+  const ebitda = fatA * s.margem_op;
+  let mult = s.multiplo;
   const anos = Number(anos_operacao) || 0;
-  if (anos >= 5) { aMin += 0.5; aMax += 0.5; }
-  if (anos < 2) { aMin = Math.max(0.5, aMin - 0.5); aMax = Math.max(0.5, aMax - 0.5); }
-  const valor_min = Math.round(fatA * aMin);
-  const valor_max = Math.round(fatA * aMax);
-  return { valor_min, valor_max, faturamento_anual: fatA, multiplo_min: aMin, multiplo_max: aMax, setor_normalizado: sk };
+  if (anos >= 5) mult *= 1.10;       // tempo de mercado consolida valor
+  else if (anos < 2) mult *= 0.85;   // negócio novo é mais arriscado
+  const central = ebitda * mult;
+  return {
+    valor_min: Math.round(central * 0.85),
+    valor_max: Math.round(central * 1.15),
+    valor_central: Math.round(central),
+    faturamento_anual: fatA,
+    ebitda_estimado: Math.round(ebitda),
+    multiplo_aplicado: Number(mult.toFixed(2)),
+    setor_normalizado: sk,
+    setor_label: s.label,
+    margem_op_setor: s.margem_op,
+  };
 }
 function calcularValuationCompleto(d: any) {
   const base = calcularValuationRapido({
     setor: d.setor, faturamento_mensal: d.faturamento_mensal, anos_operacao: d.anos_operacao,
   });
-  let aMin = base.multiplo_min, aMax = base.multiplo_max;
+  let mult = base.multiplo_aplicado;
   const fatores: string[] = [];
-  if (d.tem_socios === false) { aMin += 0.3; aMax += 0.3; fatores.push("+0.3x sem sócios (gestão centralizada)"); }
-  if (d.situacao_financeira && /divid|atras|deve/i.test(d.situacao_financeira)) {
-    aMin = Math.max(0.5, aMin - 0.3); aMax = Math.max(0.5, aMax - 0.3); fatores.push("-0.3x dívidas relevantes");
+  if (d.tem_socios === false) { mult *= 1.10; fatores.push("+10% sem sócios (gestão centralizada)"); }
+  if (d.situacao_financeira && /saud|sem divid|sem deuda|sem deve|controlad/i.test(d.situacao_financeira)) {
+    mult *= 1.05; fatores.push("+5% situação financeira saudável");
   }
-  if (d.motivo_venda && /aposent|novo|outro projeto|estrate/i.test(d.motivo_venda)) {
-    aMin += 0.2; aMax += 0.2; fatores.push("+0.2x motivo estratégico");
+  if (d.situacao_financeira && /divid|atras|deve|inadimpl/i.test(d.situacao_financeira)) {
+    mult *= 0.85; fatores.push("-15% dívidas relevantes");
+  }
+  if (d.motivo_venda && /aposent|novo projeto|outro projeto|estrate|mudan[çc]a/i.test(d.motivo_venda)) {
+    mult *= 1.05; fatores.push("+5% motivo estratégico");
   }
   if (d.motivo_venda && /urgen|dificu|saude|problema|press/i.test(d.motivo_venda)) {
-    aMin = Math.max(0.5, aMin - 0.2); aMax = Math.max(0.5, aMax - 0.2); fatores.push("-0.2x motivo de urgência");
+    mult *= 0.90; fatores.push("-10% motivo de urgência");
   }
+  // Momento de venda também influencia (qualificação B8b)
+  if (d.momento_venda === "URGENTE") { mult *= 0.95; fatores.push("-5% momento urgente"); }
+  if (d.momento_venda === "SEM_PRESSA") { mult *= 1.03; fatores.push("+3% sem pressa"); }
   const fatA = base.faturamento_anual;
+  const ebitda = base.ebitda_estimado;
+  const central = ebitda * mult;
   return {
-    valor_min: Math.round(fatA * aMin), valor_max: Math.round(fatA * aMax),
-    faturamento_anual: fatA, multiplo_min_ajustado: aMin, multiplo_max_ajustado: aMax,
-    setor_normalizado: base.setor_normalizado, fatores_aplicados: fatores,
+    valor_min: Math.round(central * 0.85),
+    valor_max: Math.round(central * 1.15),
+    valor_central: Math.round(central),
+    faturamento_anual: fatA,
+    ebitda_estimado: ebitda,
+    multiplo_aplicado: Number(mult.toFixed(2)),
+    setor_normalizado: base.setor_normalizado,
+    setor_label: base.setor_label,
+    margem_op_setor: base.margem_op_setor,
+    fatores_aplicados: fatores,
   };
 }
 
@@ -444,6 +494,9 @@ const TOOLS = [
   }},
   { name: "db_buscar_leads_recentes", description: "Lista usuários criados nas últimas N horas.", input_schema: {
     type: "object", properties: { horas: { type: "integer", default: 24 }, limit: { type: "integer", default: 50 } }, required: [],
+  }},
+  { name: "db_atividade_recente_portal", description: "Resumo consolidado de atividade do portal nas últimas N horas: leads novos, negócios criados, solicitações de informação. USE quando Boss perguntar sobre 'novidades', 'o que aconteceu', 'leads de hoje', 'essa noite', 'teve algo novo'.", input_schema: {
+    type: "object", properties: { horas: { type: "integer", default: 24 } }, required: [],
   }},
   { name: "db_buscar_negocios_por_status", description: "Lista negócios por status (string ou array).", input_schema: {
     type: "object", properties: {
@@ -645,6 +698,33 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
         if (error) return { ok: false, erro: error.message };
         return { ok: true, leads: data, total: data?.length || 0 };
       }
+      case "db_atividade_recente_portal": {
+        const horas = args.horas || 24;
+        const desde = new Date(Date.now() - horas * 3600 * 1000).toISOString();
+        const [usuariosR, negociosR, solicitacoesR, conversasR] = await Promise.all([
+          sb.from("usuarios").select("id,nome,whatsapp,tipo,created_at").gte("created_at", desde).order("created_at", { ascending: false }).limit(30),
+          sb.from("negocios").select("id,codigo,codigo_diagnostico,nome_negocio,titulo_anuncio,setor,cidade,estado,status,created_at,vendedor_id").gte("created_at", desde).order("created_at", { ascending: false }).limit(30),
+          sb.from("solicitacoes_info").select("id,negocio_id,nome_solicitante,whatsapp_solicitante,mensagem,status,created_at").gte("created_at", desde).order("created_at", { ascending: false }).limit(30),
+          sb.from("hermes_sessoes").select("phone,perfil,fluxo_ativo,step_atual,ultima_atividade").gte("ultima_atividade", desde).eq("is_boss", false).eq("arquivada", false).order("ultima_atividade", { ascending: false }).limit(30),
+        ]);
+        const leads = usuariosR.data || [];
+        const negocios = negociosR.data || [];
+        const solicitacoes = solicitacoesR.data || [];
+        const conversas = conversasR.data || [];
+        return {
+          ok: true, horas,
+          resumo: {
+            leads_total: leads.length,
+            leads_vendedores: leads.filter((u: any) => u.tipo === "sell").length,
+            leads_compradores: leads.filter((u: any) => u.tipo === "buy").length,
+            negocios_criados: negocios.length,
+            negocios_por_status: negocios.reduce((acc: any, n: any) => { acc[n.status || "?"] = (acc[n.status || "?"] || 0) + 1; return acc; }, {}),
+            solicitacoes_info: solicitacoes.length,
+            conversas_hermes: conversas.length,
+          },
+          leads, negocios, solicitacoes, conversas,
+        };
+      }
       case "db_buscar_negocios_por_status": {
         const status = Array.isArray(args.status) ? args.status : [args.status];
         const { data, error } = await sb.from("negocios")
@@ -762,7 +842,16 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
 
       // ─── Comunicação direta ───────────────
       case "notificar_boss": {
-        const enviado = await notificarBoss(args.mensagem);
+        // Defesa em profundidade: se estamos numa conversa com lead (não Boss),
+        // garante que o número correto do lead apareça no topo. Hermes às vezes
+        // escreve o próprio número do Boss por confusão de contexto.
+        let mensagem = args.mensagem;
+        if (!ctx.isBoss && ctx.phone) {
+          // tira qualquer linha "Lead: ..." que Hermes tenha tentado escrever
+          mensagem = mensagem.replace(/^\s*Lead:\s*\S+.*$/im, "").trim();
+          mensagem = `Lead: ${ctx.phone}\n\n${mensagem}`;
+        }
+        const enviado = await notificarBoss(mensagem);
         return { ok: enviado };
       }
       case "outbound_enviar_individual": return await outboundEnviarIndividual(args);
@@ -829,7 +918,7 @@ NUNCA pergunte o nome. Cumprimente pelo nome direto. Pergunte se chegou como don
 
 ## Sobre a 1Negócio
 Primeira plataforma brasileira de M&A pra PMEs.
-Mesa de negociação digital com avaliação técnica (DCF + ISE), sigilo absoluto, curadoria humana.
+Mesa de negociação digital com avaliação técnica própria, sigilo absoluto, curadoria humana.
 Tagline: "Quanto vale o seu negócio? Nós sabemos."
 Posicionamento: "Não publicamos negócios, publicamos diagnósticos."
 
@@ -842,10 +931,11 @@ Produtos secundários (NÃO oferecer como CTA principal, só se o cliente pergun
 - Laudo PDF: R$99 (documento técnico avulso)
 - Avaliação Profissional: R$397 (análise aprofundada avulsa)
 
-## Metodologia
-DCF + ISE · 8 dimensões. Múltiplos por setor (faturamento anual):
-- Varejo 1-2x · Serviços 1.5-3x · Saúde 2-4x · SaaS 3-8x · Alimentação 1-2.5x
-- Educação 2-4x · Beleza 1.5-3x · Indústria 1.5-3x
+## Metodologia (quando perguntarem como calculamos)
+Resposta padrão, sem variações:
+"Usamos metodologia própria 1Negócio — combinamos múltiplos de mercado com análise de capacidade de geração de caixa, taxa de risco do negócio e retorno esperado pelo comprador. É uma abordagem desenvolvida internamente, não divulgamos os detalhes do modelo."
+
+NUNCA mencione DCF, ISE, "8 dimensões" ou nomes técnicos específicos. Nunca cite múltiplos exatos por setor.
 
 ## Identidade e tom
 Nome: Hermes. Tom: direto, humano, experiente. Sem robótica, sem menus numerados, sem "como posso te ajudar?".
@@ -871,47 +961,69 @@ Estimativa rápida — respondo em 2 minutos com uma faixa de valor de mercado.
 Diagnóstico completo — a avaliação que usamos antes de anunciar. Leva uns 5 minutos e já cadastra seu negócio.
 Qual faz mais sentido agora?"
 
-## Diagnóstico B1-B11 · REGRA RÍGIDA
+## Diagnóstico vendedor · REGRA RÍGIDA
 UMA pergunta por mensagem. Nunca pula um step. Nunca deduz informação. Nunca combina duas perguntas na mesma mensagem.
 Aguarda a resposta do lead antes de avançar pro próximo step.
 Mesmo se o lead já tiver dado parte da informação espontaneamente, faça a pergunta do step formalmente — peça confirmação ao invés de deduzir.
 
 Ordem exata:
-- B1: "Me conta um pouco sobre o negócio. Que tipo é?" (capta setor/modelo/descrição breve)
+- B1: "Me conta um pouco sobre o negócio. Que tipo é?" (capta setor — use uma das chaves: alimentacao, saude, beleza_estetica, educacao, varejo, industria, logistica, construcao, servicos_empresas, bem_estar, hospedagem, servicos_locais)
 - B2: "Fica em qual cidade e estado?"
 - B3: "Há quantos anos está funcionando?"
-- B4: "Qual o faturamento médio mensal? Pode ser aproximado."
+- B4: "Qual o faturamento médio mensal? Pode ser aproximado." (salva em dados_coletados.faturamento_mensal)
+- B4b · EXPECTATIVA: "Antes de te passar nossa avaliação — qual é a sua expectativa de valor para o negócio?" (salva em dados_coletados.expectativa_valor; aceita coloquial: "uns 500k" = 500000)
 - B5: "O negócio presta serviço, revende produtos, fabrica, ou é outro modelo?"
 - B6: "Quantos funcionários? E tem sócios?"
 - B7: "Tem dívidas relevantes ou está financeiramente saudável?"
-- B8: "O que te fez pensar em vender agora?"
+- B8: "O que te fez pensar em vender agora?" (salva em dados_coletados.motivo_venda)
+- B8b · MOMENTO: "Você está querendo vender logo ou ainda está avaliando as opções com calma?"
+  Classifica em dados_coletados.momento_venda:
+    URGENTE = quer vender rápido ("logo", "preciso", "rápido", "tô apertado")
+    SEM_PRESSA = vender se aparecer algo bom ("se aparecer", "sem pressa")
+    PENSANDO = ainda avaliando se vale a pena ("não sei", "tô vendo")
+    EXPLORANDO = só quer saber o valor ("curiosidade", "só pra saber")
 - B9: "Como você se chama?" (PULAR se usuário já está identificado na base; só confirma o whatsapp)
-- B10: Confirmação. Lista resumo dos dados coletados em bullets e pergunta "Tá certo?"
+- B10: Confirmação. Lista resumo dos dados coletados em texto corrido (sem bullets markdown) e pergunta "Tá certo?"
 - B11: Após "tá certo", executa as ações:
   1) db_buscar_usuario (pra confirmar se já existe)
   2) db_criar_usuario se não existe (perfil: vendedor)
   3) db_criar_negocio (status: rascunho, todos os campos coletados)
   4) db_transferir_titularidade
-  5) calcular_valuation_completo
-  6) notificar_boss (resumo do diagnóstico)
-  7) Mensagem final com os 3 CTAs (ver abaixo)
+  5) calcular_valuation_completo (passa setor, faturamento_mensal, anos_operacao, tem_socios, situacao_financeira, motivo_venda, momento_venda)
+  6) notificar_boss com resumo do diagnóstico — o sistema injeta "Lead: <numero>" automaticamente no topo; NUNCA escreva "Lead:" no texto da mensagem nem repita o número do lead manualmente
+  7) Mensagem final com os 3 CTAs (ver abaixo, ajustando o destaque conforme momento_venda)
 
-## CTAs finais do diagnóstico (EXATAMENTE estes 3, sem emojis, sem laudo/avaliação)
-Após o valuation, apresente assim:
+## Entrega do valuation · calibração pela expectativa
+Antes de entregar a faixa, compare expectativa_valor com valor_min e valor_max retornados:
+- expectativa DENTRO da faixa: entrega direto, valida que está alinhado com mercado
+- expectativa ACIMA do teto: prepara terreno antes ("O mercado tem premiado negócios assim entre X e Y. Tem alguns fatores que puxam pra cima — recorrência, gestão sem dependência do dono, crescimento. Vou te mostrar onde seu negócio se encaixa hoje, e dá pra trabalhar pra subir.")
+- expectativa ABAIXO do piso: confirma positivo ("Boa notícia: o mercado paga mais do que você imagina por isso.")
 
-"Pronto, [Nome]! Cadastrado como [codigo].
+## CTAs finais do diagnóstico
+Após o valuation, apresente os 3 caminhos. A ORDEM DE DESTAQUE muda conforme dados_coletados.momento_venda:
+
+- URGENTE: destaca Venda Assessorada primeiro (agilidade, time dedicado), depois Guiado, por último Gratuito.
+- SEM_PRESSA: destaca Anúncio Gratuito primeiro (sem compromisso, comissão só se vender), depois Guiado, por último Assessorada.
+- PENSANDO: tom mais educativo, sem pressão. Apresenta os 3 em ordem neutra (Gratuito, Guiado, Assessorada) e pergunta o que faz sentido descobrir mais.
+- EXPLORANDO: entrega o valor, planta semente sem hard-sell ("Quando fizer sentido olhar com mais cuidado, esses são os caminhos:"). Lista os 3 brevemente.
+
+Formato base dos 3 CTAs (sem emojis, sem markdown, sem listas com -):
+
+"Pronto, [Nome]. Cadastrado como [codigo].
+
 Valor estimado do seu negócio: R$ [min] a R$ [max].
-Metodologia DCF + ISE, os mesmos critérios dos nossos laudos profissionais.
 
-Agora você tem 3 caminhos:
+[parágrafo curto de calibração baseado em expectativa_valor]
 
-1) Anúncio gratuito — publicamos seu negócio, cuidamos de tudo, você paga 10% só se vender. Sem custo inicial.
+Você tem 3 caminhos:
 
-2) Anúncio guiado (R$588/ano) — acompanhamento ativo na venda, estratégia de precificação, mais visibilidade, comissão de 5%.
+1) Anúncio gratuito. Publicamos seu negócio, cuidamos de tudo, você paga 10% só se vender. Sem custo inicial.
 
-3) Venda assessorada — time dedicado, gestão completa do processo. Ideal para negócios acima de R$500k. A partir de R$500/mês.
+2) Anúncio guiado por R$588 por ano. Acompanhamento ativo na venda, estratégia de precificação, mais visibilidade, comissão de 5%.
 
-Qual faz mais sentido pra você agora?"
+3) Venda assessorada. Time dedicado, gestão completa do processo. Ideal para negócios acima de R$500 mil. A partir de R$500 por mês.
+
+[fechamento adaptado ao momento_venda: pergunta direta pra urgente, suave pra explorando]"
 
 NÃO ofereça Laudo R$99 nem Avaliação R$397 como caminho principal. Só mencione se o cliente perguntar especificamente por documento técnico avulso.
 
@@ -923,12 +1035,23 @@ Coleta:
 4) Opera o negócio pessoalmente ou só investe?
 5) Nome (PULAR se já cadastrado) + confirma número do whatsapp
 
-Ao final:
+Ao final, OBRIGATORIAMENTE nesta ordem:
 1) db_criar_usuario (perfil: comprador) se não existe
-2) db_criar_tese com setores, localização, valor_investimento, formas_atuacao — OBRIGATÓRIO chamar essa tool, é o que ativa o matching automático
-3) Confirma pro lead: "Tese de investimento criada. Você vai ser notificado assim que aparecer um negócio compatível na plataforma."
-4) db_buscar_negocios filtrando pelos critérios da tese e apresenta até 3 cards se houver match
-5) notificar_boss (resumo da tese)
+2) db_criar_tese — é o que ativa o matching automático. Passa setores (array), cidade, estado, valor_investimento, formas_atuacao (array), tese_descricao.
+3) Confirma pro lead: "Tese de investimento criada. Você vai ser notificado por aqui assim que aparecer um negócio compatível na plataforma."
+4) db_buscar_negocios filtrando pelos critérios da tese; apresenta até 3 cards se houver match (formato: nome, setor, cidade, valor de venda — sem markdown).
+5) notificar_boss com resumo da tese.
+
+## Origem do lead
+A origem fica em dados_coletados.origem (já é detectada automaticamente):
+- ad_quanto_vale: lead chegou pelo anúncio "Quanto vale meu negócio?". Já está em modo valuation. Vai direto pra bifurcação.
+- ad_noticia_boa: lead chegou pelo anúncio de venda de empresa. Confirma o interesse e pergunta se é dono querendo vender ou comprador.
+- ad_ja_pensou: lead já está cogitando vender. Acolhe o momento, entra na bifurcação suave.
+- qr_evento: referencia o evento se o lead mencionou. Tom mais quente.
+- qr_material: referencia o material. Tom consultivo.
+- organico: qualificação inicial antes de entrar no fluxo ("Você chegou como dono querendo vender ou como comprador?").
+
+NÃO repita pra o lead qual a origem dele. Use a info pra ajustar o tom de abertura.
 
 ## Ações sensíveis → solicitar_autorizacao_boss ANTES de executar
 - NDA liberar dossiê (tipo: nda_liberar_dossie)
@@ -954,8 +1077,11 @@ NUNCA execute essas ações sem autorização prévia.
 ${treinamentoDinamico}
 
 ## Sessão atual
+Lead phone (whatsapp do interlocutor): ${sessao?.phone || "—"}
 Perfil: ${sessao?.perfil || "desconhecido"} · Fluxo: ${sessao?.fluxo_ativo || "—"} · Step: ${sessao?.step_atual || 0}
 Dados coletados: ${JSON.stringify(sessao?.dados_coletados || {})}
+
+IMPORTANTE sobre notificar_boss: o sistema injeta "Lead: ${sessao?.phone || ""}" automaticamente no topo da mensagem. NUNCA escreva linha "Lead:" no texto. NUNCA repita o número do lead no corpo. Se mencionar contato no resumo pro Boss, use o nome (ou só "lead novo").
 ${usuarioBlock}${simulBlock}${bossBlock}`;
 }
 
@@ -1042,7 +1168,7 @@ async function handleComandosBoss(phone: string, texto: string, sessao: any, isB
       is_simulating: false,
       fluxo_ativo: null, step_atual: 0, dados_coletados: {},
     }).eq("phone", phone);
-    await replyBoss("Modo Boss restaurado. Voltei a operar como administrador da plataforma.");
+    await replyBoss("Voltei ao modo Boss. O que precisa?");
     return true;
   }
 
@@ -1070,7 +1196,7 @@ async function handleComandosBoss(phone: string, texto: string, sessao: any, isB
       is_simulating: true, perfil: "desconhecido",
       fluxo_ativo: null, step_atual: 0, dados_coletados: {},
     }).eq("phone", phone);
-    await replyBoss("Modo simulação ativo. Vou te tratar como lead novo a partir de agora. Manda /astheboss pra sair.");
+    await replyBoss("Modo cliente ativo. Pode começar.");
     return true;
   }
 
@@ -1089,6 +1215,27 @@ async function handleComandosBoss(phone: string, texto: string, sessao: any, isB
   }
 
   return false;
+}
+
+// ─── Detecção de origem do lead (primeira mensagem) ──────────────────
+function detectarOrigem(texto: string): string {
+  const t = (texto || "").toLowerCase();
+  if (/quanto vale|valor do (meu )?neg[óo]cio/.test(t)) return "ad_quanto_vale";
+  if (/not[íi]cia boa|vi que voc[êe]s vendem/.test(t)) return "ad_noticia_boa";
+  if (/tenho pensado em vender|j[áa] pensei em vender/.test(t)) return "ad_ja_pensou";
+  if (/vim pelo evento|venho do evento|do evento\s+\S+/i.test(t)) return "qr_evento";
+  if (/vim pelo material|venho do material|do material\s+\S+/i.test(t)) return "qr_material";
+  return "organico";
+}
+async function registrarOrigemSeNova(phone: string, texto: string, sessao: any, historicoCount: number): Promise<string | null> {
+  // Só registra na PRIMEIRA mensagem (sem histórico) e se origem ainda não está salva
+  if (historicoCount > 0) return sessao?.dados_coletados?.origem || null;
+  if (sessao?.dados_coletados?.origem) return sessao.dados_coletados.origem;
+  const origem = detectarOrigem(texto);
+  const novosDados = { ...(sessao?.dados_coletados || {}), origem };
+  await sb.from("hermes_sessoes").update({ dados_coletados: novosDados }).eq("phone", phone);
+  if (sessao) sessao.dados_coletados = novosDados;
+  return origem;
 }
 
 // ─── Identificação de usuário já cadastrado ───────────────────────────
@@ -1189,6 +1336,12 @@ Deno.serve(async (req: Request) => {
 
   const historico = await getHistorico(phone, historicoLimit);
   const treinamento = await getTreinamento();
+
+  // Detecta origem do lead na primeira mensagem (só não-Boss)
+  if (!isBossEffective) {
+    try { await registrarOrigemSeNova(phone, texto, sessao, historico.length); }
+    catch (e) { console.error("[hermes] registrarOrigem erro", e); }
+  }
 
   await salvarMensagem(phone, "user", texto);
   await atualizarAtividade(phone);
