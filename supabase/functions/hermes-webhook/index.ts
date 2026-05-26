@@ -185,7 +185,7 @@ async function criarAutorizacao(args: {
   }).select().single();
   if (error) throw new Error(`criarAutorizacao: ${error.message}`);
   // Notifica Boss
-  const msg = `🔐 Autorização necessária · #${data.codigo}\n\n${args.descricao}\n\nPosso prosseguir? sim/não`;
+  const msg = `Autorização necessária · #${data.codigo}\n\n${args.descricao}\n\nPosso prosseguir? sim/não`;
   await enviarWhatsApp(BOSS_PHONE, msg);
   return data;
 }
@@ -248,8 +248,8 @@ async function processarRespostaBoss(phone: string, texto: string): Promise<bool
     const exec = await executarAcaoAutorizada(auth);
     await marcarAutorizacao(auth.id, "aprovada");
     const conf = exec.ok
-      ? `✅ Executado · #${auth.codigo}\n${exec.detalhe || auth.descricao_curta}`
-      : `⚠ Aprovado mas falhou ao executar · #${auth.codigo}\n${exec.detalhe || ""}`;
+      ? `Executado · #${auth.codigo}\n${exec.detalhe || auth.descricao_curta}`
+      : `Aprovado mas falhou ao executar · #${auth.codigo}\n${exec.detalhe || ""}`;
     await enviarWhatsApp(phone, conf);
     await salvarMensagem(phone, "user", texto);
     await salvarMensagem(phone, "assistant", conf);
@@ -257,7 +257,7 @@ async function processarRespostaBoss(phone: string, texto: string): Promise<bool
   }
   // rejeitado
   await marcarAutorizacao(auth.id, "rejeitada");
-  let msg = `❌ Cancelado · #${auth.codigo}`;
+  let msg = `Cancelado · #${auth.codigo}`;
   if (auth.negocio_id) msg += `\nNegócio mantido no estado atual.`;
   await enviarWhatsApp(phone, msg);
   if (auth.lead_phone) {
@@ -744,8 +744,13 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
 }
 
 // ─── SYSTEM PROMPT ────────────────────────────────────────────────────
-function buildSystemPrompt(opts: { isBoss: boolean; sessao: any; treinamentoDinamico: string }): string {
-  const { isBoss, sessao, treinamentoDinamico } = opts;
+function buildSystemPrompt(opts: {
+  isBoss: boolean; sessao: any; treinamentoDinamico: string;
+  usuarioExistente?: any; perfilExistente?: string | null;
+  simulando?: boolean;
+}): string {
+  const { isBoss, sessao, treinamentoDinamico, usuarioExistente, perfilExistente, simulando } = opts;
+
   const bossBlock = isBoss ? `
 ## Modo Boss ATIVO
 Thiago · CEO 1Negócio · autoridade máxima.
@@ -754,6 +759,39 @@ Executa qualquer ação solicitada. Confirma antes de destrutivas (apagar, alter
 Boss pode pedir leitura ("leads de hoje", "backlog P0"), escrita ("publica o 1N-XXXX", "pausa campanha X"),
 treinamento ("adiciona ao treinamento: ..."), outbound, e autorizações ("autorizações pendentes").
 ` : "";
+
+  const simulBlock = simulando ? `
+## Modo simulação
+Você está em modo simulação. Trate este número exatamente como um lead novo, mesmo que seja o Boss.
+Siga todos os fluxos sem atalhos. O Boss vai mandar /astheboss quando quiser sair.
+` : "";
+
+  let usuarioBlock = "";
+  if (usuarioExistente) {
+    const nome = usuarioExistente.nome || "(sem nome)";
+    if (perfilExistente === "vendedor") {
+      usuarioBlock = `
+## Usuário identificado na base
+Nome: ${nome}
+Tipo: vendedor (já cadastrado)
+NUNCA pergunte o nome. Cumprimente pelo nome direto. Pode usar db_buscar_negocio_por_id (ou db_buscar_negocios_por_status com vendedor_id) pra mostrar status do negócio dele se ele perguntar. Pergunte o que ele precisa.
+`;
+    } else if (perfilExistente === "comprador") {
+      usuarioBlock = `
+## Usuário identificado na base
+Nome: ${nome}
+Tipo: comprador (já cadastrado)
+NUNCA pergunte o nome. Cumprimente pelo nome direto. Ofereça novidades da tese ou negócios compatíveis (db_buscar_negocios filtrando pelos setores/região da tese dele).
+`;
+    } else {
+      usuarioBlock = `
+## Usuário identificado na base
+Nome: ${nome}
+Tipo: desconhecido (existe na base mas sem perfil definido)
+NUNCA pergunte o nome. Cumprimente pelo nome direto. Pergunte se chegou como dono ou comprador.
+`;
+    }
+  }
 
   return `Você é Hermes, o agente operacional da 1Negócio via WhatsApp.
 
@@ -764,45 +802,95 @@ Tagline: "Quanto vale o seu negócio? Nós sabemos."
 Posicionamento: "Não publicamos negócios, publicamos diagnósticos."
 
 ## Produtos
-- Plano Gratuito: R$0 · 10% comissão na venda
-- Plano Guiado: R$588/ano · 5% comissão
-- Laudo PDF: R$99
-- Avaliação Profissional: R$397
-- Venda Assessorada: R$500+/mês · 5% taxa sucesso
+- Anúncio Gratuito: R$0 inicial · 10% de comissão só se vender · cuidamos de tudo
+- Anúncio Guiado: R$588/ano · 5% de comissão · acompanhamento ativo, estratégia de precificação, mais visibilidade
+- Venda Assessorada: a partir de R$500/mês · 5% de taxa de sucesso · time dedicado, gestão completa, ideal para negócios acima de R$500k
+
+Produtos secundários (NÃO oferecer como CTA principal, só se o cliente perguntar):
+- Laudo PDF: R$99 (documento técnico avulso)
+- Avaliação Profissional: R$397 (análise aprofundada avulsa)
 
 ## Metodologia
 DCF + ISE · 8 dimensões. Múltiplos por setor (faturamento anual):
 - Varejo 1-2x · Serviços 1.5-3x · Saúde 2-4x · SaaS 3-8x · Alimentação 1-2.5x
 - Educação 2-4x · Beleza 1.5-3x · Indústria 1.5-3x
 
-## Identidade
-Nome: Hermes. Tom: direto, humano, experiente. SEM robótica, menus numerados, "como posso te ajudar?".
-Uma pergunta por mensagem. Mensagens curtas (WhatsApp, não e-mail).
-Sempre próximo passo — nunca deixa morrer. Áudio = texto (não menciona transcrição).
+## Identidade e tom
+Nome: Hermes. Tom: direto, humano, experiente. Sem robótica, sem menus numerados, sem "como posso te ajudar?".
+Mensagens curtas (WhatsApp, não e-mail). Sempre próximo passo concreto. Áudio = texto (não menciona transcrição).
 Tolera coloquial: "uns 80k" → 80.000.
+
+NUNCA use emojis. Tom limpo, sem decoração.
 
 ## Fluxo principal · BIFURCAÇÃO DE VALUATION
 Quando o lead pergunta valor/quer vender, sempre oferece bifurcação:
-- ⚡ Estimativa rápida (3 perguntas, retorna faixa via calcular_valuation_rapido)
-- 📋 Diagnóstico completo B1-B11 (5min, cadastra negócio + valuation completo)
+- Estimativa rápida (3 perguntas, retorna faixa via calcular_valuation_rapido)
+- Diagnóstico completo B1-B11 (5min, cadastra negócio + valuation completo)
 
-Bifurcação inicial padrão:
+Bifurcação inicial padrão (sem emojis):
 "Tenho duas formas de te ajudar com isso:
-⚡ *Estimativa rápida* — respondo em 2 minutos com uma faixa de valor.
-📋 *Diagnóstico completo* — a avaliação que usamos antes de anunciar. Leva uns 5 minutos.
+Estimativa rápida — respondo em 2 minutos com uma faixa de valor de mercado.
+Diagnóstico completo — a avaliação que usamos antes de anunciar. Leva uns 5 minutos e já cadastra seu negócio.
 Qual faz mais sentido agora?"
 
-## Diagnóstico B1-B11 (sempre uma pergunta por vez)
-B1 tipo · B2 cidade/estado · B3 anos · B4 faturamento mensal · B5 modelo
-B6 funcionários+sócios · B7 saúde financeira · B8 motivo de venda
-B9 nome (confirma número do WA) · B10 confirmação (lista resumo, "tá certo?")
-B11 ações:
-  1) db_criar_usuario (se não existe)
-  2) db_criar_negocio (status: rascunho)
-  3) db_transferir_titularidade
-  4) calcular_valuation_completo
-  5) notificar_boss (resumo)
-  6) Mensagem final com 3 caminhos (Publicar grátis, Laudo R$99, Avaliação R$397)
+## Diagnóstico B1-B11 · REGRA RÍGIDA
+UMA pergunta por mensagem. Nunca pula um step. Nunca deduz informação. Nunca combina duas perguntas na mesma mensagem.
+Aguarda a resposta do lead antes de avançar pro próximo step.
+Mesmo se o lead já tiver dado parte da informação espontaneamente, faça a pergunta do step formalmente — peça confirmação ao invés de deduzir.
+
+Ordem exata:
+- B1: "Me conta um pouco sobre o negócio. Que tipo é?" (capta setor/modelo/descrição breve)
+- B2: "Fica em qual cidade e estado?"
+- B3: "Há quantos anos está funcionando?"
+- B4: "Qual o faturamento médio mensal? Pode ser aproximado."
+- B5: "O negócio presta serviço, revende produtos, fabrica, ou é outro modelo?"
+- B6: "Quantos funcionários? E tem sócios?"
+- B7: "Tem dívidas relevantes ou está financeiramente saudável?"
+- B8: "O que te fez pensar em vender agora?"
+- B9: "Como você se chama?" (PULAR se usuário já está identificado na base; só confirma o whatsapp)
+- B10: Confirmação. Lista resumo dos dados coletados em bullets e pergunta "Tá certo?"
+- B11: Após "tá certo", executa as ações:
+  1) db_buscar_usuario (pra confirmar se já existe)
+  2) db_criar_usuario se não existe (perfil: vendedor)
+  3) db_criar_negocio (status: rascunho, todos os campos coletados)
+  4) db_transferir_titularidade
+  5) calcular_valuation_completo
+  6) notificar_boss (resumo do diagnóstico)
+  7) Mensagem final com os 3 CTAs (ver abaixo)
+
+## CTAs finais do diagnóstico (EXATAMENTE estes 3, sem emojis, sem laudo/avaliação)
+Após o valuation, apresente assim:
+
+"Pronto, [Nome]! Cadastrado como [codigo].
+Valor estimado do seu negócio: R$ [min] a R$ [max].
+Metodologia DCF + ISE, os mesmos critérios dos nossos laudos profissionais.
+
+Agora você tem 3 caminhos:
+
+1) Anúncio gratuito — publicamos seu negócio, cuidamos de tudo, você paga 10% só se vender. Sem custo inicial.
+
+2) Anúncio guiado (R$588/ano) — acompanhamento ativo na venda, estratégia de precificação, mais visibilidade, comissão de 5%.
+
+3) Venda assessorada — time dedicado, gestão completa do processo. Ideal para negócios acima de R$500k. A partir de R$500/mês.
+
+Qual faz mais sentido pra você agora?"
+
+NÃO ofereça Laudo R$99 nem Avaliação R$397 como caminho principal. Só mencione se o cliente perguntar especificamente por documento técnico avulso.
+
+## Fluxo Comprador
+Coleta:
+1) Tipo/setor que busca
+2) Região (cidade/estado)
+3) Faixa de investimento
+4) Opera o negócio pessoalmente ou só investe?
+5) Nome (PULAR se já cadastrado) + confirma número do whatsapp
+
+Ao final:
+1) db_criar_usuario (perfil: comprador) se não existe
+2) db_criar_tese com setores, localização, valor_investimento, formas_atuacao — OBRIGATÓRIO chamar essa tool, é o que ativa o matching automático
+3) Confirma pro lead: "Tese de investimento criada. Você vai ser notificado assim que aparecer um negócio compatível na plataforma."
+4) db_buscar_negocios filtrando pelos critérios da tese e apresenta até 3 cards se houver match
+5) notificar_boss (resumo da tese)
 
 ## Ações sensíveis → solicitar_autorizacao_boss ANTES de executar
 - NDA liberar dossiê (tipo: nda_liberar_dossie)
@@ -816,11 +904,13 @@ NUNCA execute essas ações sem autorização prévia.
 1. Nunca invente dados, negócios ou preços
 2. Nunca prometa o que não está no produto
 3. Não revele número ou identidade do Boss
-4. Confirme dados antes de salvar (resumo → "tá certo?")
+4. Confirme dados antes de salvar (resumo, "tá certo?")
 5. Ações destrutivas: autorização Boss
 6. Escala se: lead pede humano, negociação ativa, reclamação grave, erro técnico
 7. Áudio = texto (sem mencionar transcrição)
-8. "uns 80k" = 80.000
+8. Coloquial OK: "uns 80k" = 80.000
+9. NUNCA use emojis em nenhuma mensagem
+10. No diagnóstico: uma pergunta por vez, nunca pula step, nunca combina perguntas
 
 ## Treinamento adicional (Boss)
 ${treinamentoDinamico}
@@ -828,7 +918,7 @@ ${treinamentoDinamico}
 ## Sessão atual
 Perfil: ${sessao?.perfil || "desconhecido"} · Fluxo: ${sessao?.fluxo_ativo || "—"} · Step: ${sessao?.step_atual || 0}
 Dados coletados: ${JSON.stringify(sessao?.dados_coletados || {})}
-${bossBlock}`;
+${usuarioBlock}${simulBlock}${bossBlock}`;
 }
 
 // ─── Claude loop ──────────────────────────────────────────────────────
@@ -836,10 +926,16 @@ async function chamarClaude(opts: {
   phone: string; isBoss: boolean; sessao: any;
   historico: { role: "user" | "assistant"; content: any }[];
   treinamento: string; texto: string;
+  usuarioExistente?: any; perfilExistente?: string | null;
+  simulando?: boolean;
 }): Promise<{ resposta: string }> {
   if (!ANTHROPIC_KEY) return { resposta: "Sistema indisponível no momento (sem chave Claude). Tente novamente em alguns minutos." };
 
-  const system = buildSystemPrompt({ isBoss: opts.isBoss, sessao: opts.sessao, treinamentoDinamico: opts.treinamento });
+  const system = buildSystemPrompt({
+    isBoss: opts.isBoss, sessao: opts.sessao, treinamentoDinamico: opts.treinamento,
+    usuarioExistente: opts.usuarioExistente, perfilExistente: opts.perfilExistente,
+    simulando: opts.simulando,
+  });
   const messages: any[] = [
     ...opts.historico.map(h => ({ role: h.role, content: h.content })),
     { role: "user", content: opts.texto },
@@ -892,6 +988,71 @@ async function chamarClaude(opts: {
   return { resposta: textoFinal };
 }
 
+// ─── Comandos Boss · pausa/ativa/simulação ────────────────────────────
+async function handleComandosBoss(phone: string, texto: string, sessao: any, isBoss: boolean): Promise<boolean> {
+  if (!isBoss) return false;
+  const t = (texto || "").trim().toLowerCase();
+
+  // /astheboss funciona MESMO em simulação (precisa pra sair)
+  if (t === "/astheboss" || t === "/asboss") {
+    await sb.from("hermes_sessoes").update({
+      is_simulating: false,
+      fluxo_ativo: null, step_atual: 0, dados_coletados: {},
+    }).eq("phone", phone);
+    const msg = "Modo Boss restaurado. Voltei a operar como administrador da plataforma.";
+    await salvarMensagem(phone, "user", texto);
+    await salvarMensagem(phone, "assistant", msg);
+    await enviarWhatsApp(phone, msg);
+    return true;
+  }
+
+  // Em simulação, demais comandos Boss ficam desligados (passa como lead)
+  if (sessao?.is_simulating) return false;
+
+  if (t === "/asclient") {
+    await sb.from("hermes_sessoes").update({
+      is_simulating: true, perfil: "desconhecido",
+      fluxo_ativo: null, step_atual: 0, dados_coletados: {},
+    }).eq("phone", phone);
+    const msg = "Modo simulação ativo. Vou te tratar como lead novo a partir de agora. Manda /astheboss pra sair.";
+    await salvarMensagem(phone, "user", texto);
+    await salvarMensagem(phone, "assistant", msg);
+    await enviarWhatsApp(phone, msg);
+    return true;
+  }
+
+  if (/^(pausa|pausar|para|parar)( o)? hermes$/.test(t)) {
+    await sb.from("hermes_config").update({ value: "false", updated_at: new Date().toISOString() }).eq("key", "hermes_ativo");
+    const msg = "Hermes pausado. Não vou responder mensagens até você ativar de novo.";
+    await salvarMensagem(phone, "user", texto);
+    await salvarMensagem(phone, "assistant", msg);
+    await enviarWhatsApp(phone, msg);
+    return true;
+  }
+  // "ativa o Hermes" é tratado no main handler ANTES do gate hermes_ativo
+  return false;
+}
+
+// ─── Identificação de usuário já cadastrado ───────────────────────────
+async function identificarUsuarioExistente(phone: string, sessao: any): Promise<{ usuario: any | null; perfil: string | null }> {
+  if (sessao?.usuario_id) {
+    // já vinculado — só carrega
+    const { data: u } = await sb.from("usuarios").select("id,nome,whatsapp,tipo").eq("id", sessao.usuario_id).maybeSingle();
+    if (!u) return { usuario: null, perfil: null };
+    const perfil = u.tipo === "sell" ? "vendedor" : (u.tipo === "buy" ? "comprador" : null);
+    return { usuario: u, perfil };
+  }
+  const { data: u } = await sb.from("usuarios").select("id,nome,whatsapp,tipo").eq("whatsapp", phone).maybeSingle();
+  if (!u) return { usuario: null, perfil: null };
+  const perfil = u.tipo === "sell" ? "vendedor" : (u.tipo === "buy" ? "comprador" : null);
+  await sb.from("hermes_sessoes").update({
+    usuario_id: u.id, perfil: perfil || sessao?.perfil || "desconhecido",
+  }).eq("phone", phone);
+  sessao.usuario_id = u.id;
+  if (perfil) sessao.perfil = perfil;
+  return { usuario: u, perfil };
+}
+
 // ─── MAIN HANDLER ─────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -913,20 +1074,54 @@ Deno.serve(async (req: Request) => {
   if (!texto.trim()) return ok();
 
   const cfg = await getConfig();
-  if ((cfg.hermes_ativo || "true") === "false") return ok();
   const bossCfg = cfg.boss_phone || BOSS_PHONE;
   const isBoss = phone === bossCfg;
-  const historicoLimit = parseInt(cfg.historico_limit || "30", 10);
 
-  // Boss respondendo autorização? Processa antes de qualquer outra coisa
-  if (isBoss) {
+  // Pré-gate: Boss "ativa o Hermes" funciona mesmo com hermes_ativo=false
+  if (isBoss && /^(ativa|ativar|liga|ligar)( o)? hermes$/.test((texto || "").trim().toLowerCase())) {
+    await sb.from("hermes_config").update({ value: "true", updated_at: new Date().toISOString() }).eq("key", "hermes_ativo");
+    const msg = "Hermes ativado. Voltei a atender mensagens.";
+    await salvarMensagem(phone, "user", texto);
+    await salvarMensagem(phone, "assistant", msg);
+    await enviarWhatsApp(phone, msg);
+    return ok();
+  }
+
+  // Gate normal de hermes_ativo
+  if ((cfg.hermes_ativo || "true") === "false") return ok();
+
+  const historicoLimit = parseInt(cfg.historico_limit || "30", 10);
+  const sessao = await getOuCriarSessao(phone, isBoss);
+
+  // isBossEffective: se Boss está em simulação, trata como lead
+  const isBossEffective = isBoss && !sessao?.is_simulating;
+
+  // Comandos Boss (pausa, /asclient, /astheboss) — usa isBoss raw pra /astheboss sair de simulação
+  try {
+    const handled = await handleComandosBoss(phone, texto, sessao, isBoss);
+    if (handled) return ok();
+  } catch (e) { console.error("[hermes] handleComandosBoss erro", e); }
+
+  // Boss respondendo autorização (só se efetivamente em modo Boss)
+  if (isBossEffective) {
     try {
       const foi = await processarRespostaBoss(phone, texto);
       if (foi) return ok();
     } catch (e) { console.error("[hermes] processarRespostaBoss erro", e); }
   }
 
-  const sessao = await getOuCriarSessao(phone, isBoss);
+  // Identificar usuário já cadastrado (cumprimenta pelo nome, pula coleta)
+  // Pula em modo Boss efetivo (Boss não é "usuário")
+  let usuarioExistente: any = null;
+  let perfilExistente: string | null = null;
+  if (!isBossEffective) {
+    try {
+      const r = await identificarUsuarioExistente(phone, sessao);
+      usuarioExistente = r.usuario;
+      perfilExistente = r.perfil;
+    } catch (e) { console.error("[hermes] identificarUsuarioExistente erro", e); }
+  }
+
   const historico = await getHistorico(phone, historicoLimit);
   const treinamento = await getTreinamento();
 
@@ -935,7 +1130,11 @@ Deno.serve(async (req: Request) => {
 
   let resposta = "";
   try {
-    const r = await chamarClaude({ phone, isBoss, sessao, historico, treinamento, texto });
+    const r = await chamarClaude({
+      phone, isBoss: isBossEffective, sessao, historico, treinamento, texto,
+      usuarioExistente, perfilExistente,
+      simulando: !!sessao?.is_simulating,
+    });
     resposta = r.resposta;
   } catch (e) {
     console.error("[hermes] chamarClaude erro", e);
