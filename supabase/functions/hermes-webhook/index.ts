@@ -53,15 +53,34 @@ type ZapiBody = any;
 // Aceita: "5548999279320", "48999279320", "5548999279320@c.us", "+5548999279320",
 //         "0048999279320", "55 48 99927-9320" → todos viram "5548999279320"
 function phoneClean(raw: string): string {
-  let p = (raw || "").replace(/@c\.us|@g\.us/g, "").replace(/\D/g, "");
+  let p = (raw || "").replace(/@c\.us|@g\.us|@s\.whatsapp\.net/g, "").replace(/\D/g, "");
   if (!p) return "";
   p = p.replace(/^0+/, ""); // tira zeros à esquerda (00, 0)
-  // já no formato canônico BR (55 + 10 ou 11 dígitos = 12 ou 13 totais)
-  if (p.startsWith("55") && (p.length === 12 || p.length === 13)) return p;
-  // sem código do país (10 ou 11 dígitos) → assume BR e prepende 55
+  // Já canônico mobile BR (55 + DDD + 9 + 8 dígitos = 13)
+  if (p.startsWith("55") && p.length === 13) return p;
+  // 12 dígitos com prefix 55: pode ser celular sem o 9 (Z-API quirk) ou landline
+  // Heurística: se os últimos 8 dígitos começam com 9, é celular que perdeu o 9 → injeta
+  if (p.startsWith("55") && p.length === 12) {
+    const rest8 = p.slice(4);
+    if (rest8[0] === "9") return p.slice(0, 4) + "9" + rest8;
+    return p; // landline 55+DDD+8dig
+  }
+  // Sem CC: 11 (celular com 9) ou 10 (landline) → prepende 55
   if (p.length === 10 || p.length === 11) return "55" + p;
-  // formato fora do esperado — retorna como veio (pode ser número internacional)
   return p;
+}
+
+// Comparação tolerante de telefones — aceita variação do "9" prefix do celular BR
+function samePhone(a: string, b: string): boolean {
+  if (a === b) return true;
+  // Tenta normalizar ambos pelo phoneClean (idempotente)
+  const ca = phoneClean(a);
+  const cb = phoneClean(b);
+  if (ca === cb) return true;
+  // Defesa extra: 12 dígitos vs 13 dígitos com 9 (caso phoneClean não tenha consertado)
+  const removerNove = (x: string) =>
+    x.length === 13 && x.startsWith("55") && x[4] === "9" ? x.slice(0, 4) + x.slice(5) : x;
+  return removerNove(ca) === removerNove(cb);
 }
 
 async function processarMensagem(body: ZapiBody): Promise<string> {
@@ -276,6 +295,7 @@ async function processarRespostaBoss(phone: string, texto: string): Promise<bool
   const rejeitado = ["não", "nao", "n", "nega", "recusa", "espera", "segura", "cancela", "não pode"].some(p => t.includes(p));
   if (!aprovado && !rejeitado) return false;
 
+  // user msg já foi salva no main handler (logo após dedup) — aqui só assistant + envio
   if (aprovado) {
     const exec = await executarAcaoAutorizada(auth);
     await marcarAutorizacao(auth.id, "aprovada");
@@ -283,7 +303,6 @@ async function processarRespostaBoss(phone: string, texto: string): Promise<bool
       ? `Executado · #${auth.codigo}\n${exec.detalhe || auth.descricao_curta}`
       : `Aprovado mas falhou ao executar · #${auth.codigo}\n${exec.detalhe || ""}`;
     await enviarWhatsApp(phone, conf);
-    await salvarMensagem(phone, "user", texto);
     await salvarMensagem(phone, "assistant", conf);
     return true;
   }
@@ -295,7 +314,6 @@ async function processarRespostaBoss(phone: string, texto: string): Promise<bool
   if (auth.lead_phone) {
     await enviarWhatsApp(auth.lead_phone, "Nossa equipe está revisando sua solicitação. Você recebe retorno em breve.");
   }
-  await salvarMensagem(phone, "user", texto);
   await salvarMensagem(phone, "assistant", msg);
   return true;
 }
@@ -1352,8 +1370,8 @@ async function chamarClaude(opts: {
 async function handleComandosBoss(phone: string, texto: string, sessao: any, isBoss: boolean): Promise<boolean> {
   if (!isBoss) return false;
   const t = (texto || "").trim().toLowerCase();
+  // user msg já foi salva no main handler (logo após dedup) — aqui só assistant + envio
   const replyBoss = async (msg: string) => {
-    await salvarMensagem(phone, "user", texto);
     await salvarMensagem(phone, "assistant", msg);
     await enviarWhatsApp(phone, msg);
   };
@@ -1516,15 +1534,15 @@ Deno.serve(async (req: Request) => {
   if (!texto.trim()) return ok();
 
   const cfg = await getConfig();
-  const bossCfg = phoneClean(cfg.boss_phone || BOSS_PHONE); // normaliza pra evitar mismatch por formato
-  const isBoss = phone === bossCfg;
+  const bossCfg = phoneClean(cfg.boss_phone || BOSS_PHONE);
+  // samePhone tolera diferença do 9-prefix do celular BR (Z-API às vezes droppa o 9)
+  const isBoss = samePhone(phone, bossCfg);
   console.log(`[hermes] incoming · raw='${rawPhone}' · phoneClean='${phone}' · boss='${bossCfg}' · isBoss=${isBoss} · texto='${texto.slice(0, 60).replace(/\n/g, " ")}'`);
 
-  // Idempotência · Z-API às vezes faz retry do webhook em 5-15s
-  // Comparação case-insensitive + trim · janela de 30s
+  // Idempotência · janela 30s · case-insensitive + trim
+  const conteudoNorm = (texto || "").trim();
   try {
     const cutoff = new Date(Date.now() - 30_000).toISOString();
-    const conteudoNorm = (texto || "").trim();
     const { data: dup } = await sb.from("hermes_conversas")
       .select("id")
       .eq("phone", phone).eq("role", "user")
@@ -1532,13 +1550,23 @@ Deno.serve(async (req: Request) => {
       .gte("created_at", cutoff)
       .limit(1);
     if (dup?.length) {
-      console.log(`[hermes] dedup · ignorando retry do Z-API · phone=${phone} content='${conteudoNorm.slice(0, 40)}'`);
+      console.log(`[hermes] dedup · ignorando retry · phone=${phone} content='${conteudoNorm.slice(0, 40)}'`);
       return ok();
     }
   } catch (e) { console.error("[hermes] dedup check erro", e); /* segue adiante */ }
 
-  // Gate: hermes_ativo=false pausa público mas Boss sempre passa (modo teste)
-  if ((cfg.hermes_ativo || "true") === "false" && !isBoss) return ok();
+  // GATE público · hermes_ativo=false bloqueia tudo MENOS Boss
+  // Log estruturado pra diagnóstico
+  const hermesAtivo = cfg.hermes_ativo;
+  console.log(`[hermes] gate:`, JSON.stringify({ hermes_ativo: hermesAtivo, isBoss, phone, bossCfg }));
+  if ((hermesAtivo || "true") === "false" && !isBoss) {
+    console.log(`[hermes] gate · BLOQUEADO · público pausado, lead=${phone}`);
+    return ok();
+  }
+
+  // Salva user msg AGORA (logo após dedup + gate) pra minimizar race window
+  // de retries Z-API. Antes ficava no fim — janela de race de >1s.
+  await salvarMensagem(phone, "user", conteudoNorm);
 
   const historicoLimit = parseInt(cfg.historico_limit || "30", 10);
   const sessao = await getOuCriarSessao(phone, isBoss);
@@ -1581,8 +1609,8 @@ Deno.serve(async (req: Request) => {
     catch (e) { console.error("[hermes] registrarOrigem erro", e); }
   }
 
-  await salvarMensagem(phone, "user", texto);
   await atualizarAtividade(phone);
+  // (user msg já foi salva logo após o gate, pra evitar race condition com retry Z-API)
 
   let resposta = "";
   try {
@@ -1597,7 +1625,7 @@ Deno.serve(async (req: Request) => {
     resposta = "Tive um problema técnico agora. Volta a falar comigo em alguns segundos.";
   }
 
-  // Salva histórico com [[SPLIT]] colapsado em quebra dupla — Claude não precisa ver o marcador
+  // Salva histórico com [[SPLIT]] colapsado em quebra dupla
   const respostaLimpa = resposta.replace(/\[\[SPLIT\]\]/g, "\n\n");
   await salvarMensagem(phone, "assistant", respostaLimpa);
   // Envia com delay humano + split em N mensagens se o marcador estiver presente
