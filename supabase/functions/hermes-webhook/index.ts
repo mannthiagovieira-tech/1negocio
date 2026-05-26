@@ -172,6 +172,24 @@ async function enviarWhatsApp(phone: string, mensagem: string): Promise<boolean>
   } catch (e) { console.error("[hermes] enviarWhatsApp erro", e); return false; }
 }
 
+// Delay humano antes de enviar — simula tempo de digitação
+// Base 1.5s fixo + 30ms por char · clamp [1500ms, 8000ms]
+function humanDelayMs(texto: string): number {
+  const calc = 1500 + 30 * (texto || "").length;
+  return Math.max(1500, Math.min(8000, calc));
+}
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// Envio com split em até 2 mensagens via marcador [[SPLIT]] + delay humano antes de cada parte
+async function enviarRespostaHermes(phone: string, resposta: string): Promise<void> {
+  const partes = resposta.split("[[SPLIT]]").map(p => p.trim()).filter(Boolean);
+  const lista = partes.length ? partes : [resposta];
+  for (const parte of lista) {
+    await sleep(humanDelayMs(parte));
+    await enviarWhatsApp(phone, parte);
+  }
+}
+
 // ─── Autorizações (Grupo H) ───────────────────────────────────────────
 async function getAutorizacaoPendente(): Promise<any | null> {
   const { data } = await sb.from("hermes_autorizacoes")
@@ -836,6 +854,12 @@ Tolera coloquial: "uns 80k" → 80.000.
 
 NUNCA use emojis. Tom limpo, sem decoração.
 
+## Formatação das mensagens
+- ZERO markdown. Nada de asterisco para negrito, nada de underscore para itálico, nada de hashtag, nada de listas com - ou *. Texto puro.
+- Frases curtas. Uma ideia por vez. Tom conversacional, não corporativo.
+- Parágrafos separados por uma única linha em branco quando precisar respirar entre ideias.
+- Quando fizer sentido natural (uma pergunta separada do contexto, uma pausa antes de informação importante, ou um piscar de olhos antes de pedir uma decisão), você PODE dividir a resposta em duas mensagens usando o marcador literal [[SPLIT]] entre elas — o sistema vai converter em duas mensagens WhatsApp separadas. Use no máximo um split por turno. Não force se a quebra não fizer sentido natural.
+
 ## Fluxo principal · BIFURCAÇÃO DE VALUATION
 Quando o lead pergunta valor/quer vender, sempre oferece bifurcação:
 - Estimativa rápida (3 perguntas, retorna faixa via calcular_valuation_rapido)
@@ -1093,6 +1117,21 @@ Deno.serve(async (req: Request) => {
   const isBoss = phone === bossCfg;
   console.log(`[hermes] incoming · raw='${rawPhone}' · phoneClean='${phone}' · boss='${bossCfg}' · isBoss=${isBoss} · texto='${texto.slice(0, 60).replace(/\n/g, " ")}'`);
 
+  // Idempotência · Z-API às vezes faz retry do webhook em 5-15s
+  // Se a mesma mensagem (phone + content) já foi processada nos últimos 30s, descarta.
+  try {
+    const cutoff = new Date(Date.now() - 30_000).toISOString();
+    const { data: dup } = await sb.from("hermes_conversas")
+      .select("id")
+      .eq("phone", phone).eq("role", "user").eq("content", texto)
+      .gte("created_at", cutoff)
+      .limit(1);
+    if (dup?.length) {
+      console.log(`[hermes] dedup · ignorando retry do Z-API · phone=${phone} content='${texto.slice(0, 40)}'`);
+      return ok();
+    }
+  } catch (e) { console.error("[hermes] dedup check erro", e); /* segue adiante */ }
+
   // Pré-gate: Boss "ativa o Hermes" funciona mesmo com hermes_ativo=false
   if (isBoss && /^(ativa|ativar|liga|ligar)( o)? hermes$/.test((texto || "").trim().toLowerCase())) {
     await sb.from("hermes_config").update({ value: "true", updated_at: new Date().toISOString() }).eq("key", "hermes_ativo");
@@ -1157,8 +1196,11 @@ Deno.serve(async (req: Request) => {
     resposta = "Tive um problema técnico agora. Volta a falar comigo em alguns segundos.";
   }
 
-  await salvarMensagem(phone, "assistant", resposta);
-  await enviarWhatsApp(phone, resposta);
+  // Salva histórico com [[SPLIT]] colapsado em quebra dupla — Claude não precisa ver o marcador
+  const respostaLimpa = resposta.replace(/\[\[SPLIT\]\]/g, "\n\n");
+  await salvarMensagem(phone, "assistant", respostaLimpa);
+  // Envia com delay humano + split em N mensagens se o marcador estiver presente
+  await enviarRespostaHermes(phone, resposta);
 
   return ok();
 });
