@@ -1319,8 +1319,9 @@ Coletar OBRIGATORIAMENTE (uma pergunta por vez):
 1. Tipo de negócio que busca (setor)
 2. Região de interesse (cidade/estado)
 3. Faixa de investimento
-4. Vai operar pessoalmente ou só investir?
-5. Nome (PULAR se cadastrado) + confirma whatsapp
+4. Nome (PULAR se já cadastrado · whatsapp já temos)
+
+NÃO pergunte "vai operar ou investir" — comprador é comprador, todo mundo quer retorno. A pergunta atrasa o fluxo sem agregar.
 
 Após coletar, OBRIGATORIAMENTE nesta ordem:
 
@@ -1335,9 +1336,8 @@ Após coletar, OBRIGATORIAMENTE nesta ordem:
    - setores (ARRAY de strings · use chaves canônicas: alimentacao, saude, varejo, beleza_estetica, educacao, servicos_empresas, etc.)
    - cidade, estado
    - valor_investimento (string · pode ser "até R$500k", "500000-1000000", etc.)
-   - formas_atuacao (ARRAY · ex: ["operar"], ["investir"], ["operar","investir"])
    - tese_descricao (resumo curto da tese em 1-2 frases)
-   - observacoes (qualquer detalhe extra que o lead mencionou)
+   - observacoes (qualquer detalhe extra que o lead mencionou espontaneamente)
 
    A tool db_criar_tese AUTOMATICAMENTE notifica o Boss após criar — VOCÊ NÃO precisa chamar notificar_boss separadamente. O resumo enviado ao Boss tem o formato:
      "Tese cadastrada · [codigo]
