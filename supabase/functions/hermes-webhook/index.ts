@@ -48,7 +48,21 @@ function ok(b: unknown = { ok: true }) {
 
 // ─── Processamento de mensagem ────────────────────────────────────────
 type ZapiBody = any;
-function phoneClean(raw: string): string { return (raw || "").replace(/@c\.us|@g\.us/g, "").replace(/\D/g, ""); }
+
+// phoneClean: normaliza para formato canônico BR (55 + DDD + número)
+// Aceita: "5548999279320", "48999279320", "5548999279320@c.us", "+5548999279320",
+//         "0048999279320", "55 48 99927-9320" → todos viram "5548999279320"
+function phoneClean(raw: string): string {
+  let p = (raw || "").replace(/@c\.us|@g\.us/g, "").replace(/\D/g, "");
+  if (!p) return "";
+  p = p.replace(/^0+/, ""); // tira zeros à esquerda (00, 0)
+  // já no formato canônico BR (55 + 10 ou 11 dígitos = 12 ou 13 totais)
+  if (p.startsWith("55") && (p.length === 12 || p.length === 13)) return p;
+  // sem código do país (10 ou 11 dígitos) → assume BR e prepende 55
+  if (p.length === 10 || p.length === 11) return "55" + p;
+  // formato fora do esperado — retorna como veio (pode ser número internacional)
+  return p;
+}
 
 async function processarMensagem(body: ZapiBody): Promise<string> {
   if (body?.text?.message) return String(body.text.message);
@@ -1065,7 +1079,8 @@ Deno.serve(async (req: Request) => {
   if (body?.fromMe) return ok();
   if (!body?.phone) return ok();
 
-  const phone = phoneClean(body.phone);
+  const rawPhone = body.phone;
+  const phone = phoneClean(rawPhone);
   if (!phone) return ok();
 
   let texto = "";
@@ -1074,8 +1089,9 @@ Deno.serve(async (req: Request) => {
   if (!texto.trim()) return ok();
 
   const cfg = await getConfig();
-  const bossCfg = cfg.boss_phone || BOSS_PHONE;
+  const bossCfg = phoneClean(cfg.boss_phone || BOSS_PHONE); // normaliza pra evitar mismatch por formato
   const isBoss = phone === bossCfg;
+  console.log(`[hermes] incoming · raw='${rawPhone}' · phoneClean='${phone}' · boss='${bossCfg}' · isBoss=${isBoss} · texto='${texto.slice(0, 60).replace(/\n/g, " ")}'`);
 
   // Pré-gate: Boss "ativa o Hermes" funciona mesmo com hermes_ativo=false
   if (isBoss && /^(ativa|ativar|liga|ligar)( o)? hermes$/.test((texto || "").trim().toLowerCase())) {
