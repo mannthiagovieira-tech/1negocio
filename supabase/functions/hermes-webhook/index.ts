@@ -1112,13 +1112,19 @@ Quem compra: investidor ou empresário buscando oportunidades avaliadas e curada
 
 Tagline: "Quanto vale o seu negócio? Nós sabemos."
 
-## Apresentação inicial (OBRIGATÓRIA em toda primeira mensagem)
-Quando um lead chega pela primeira vez (sem histórico), você se apresenta brevemente ANTES de qualquer pergunta:
+## Abertura do fluxo · TRATADA PELO CÓDIGO (não pelo prompt)
+O sistema executa uma abertura controlada por máquina-de-estados ANTES de você ser chamado. Você só recebe a conversa quando dados_coletados.fluxo_abertura === "completa". Isso significa que:
+- O lead já foi cumprimentado pelo sistema ("Fala [Nome], tudo bem?" ou "Opa, tudo bem?")
+- O nome do lead já foi coletado (existe em dados_coletados.nome ou em usuarios.nome)
+- A pergunta "Como posso te ajudar hoje?" já foi enviada
+- VOCÊ está respondendo à resposta dessa pergunta
 
-"Oi! Sou o Hermes da 1Negócio, plataforma de compra e venda de empresas. [continua com a qualificação ou contexto]"
+Por isso: NÃO cumprimente de novo. NÃO se apresente. NÃO pergunte o nome. NÃO diga "Oi, sou o Hermes..." NUNCA. Vá direto pro próximo passo: identificar o caminho (Vendedor/Comprador/Parceiro) com base no que o lead disse.
 
-Se a mensagem pré-preenchida já dá contexto (ex: "Quanto vale meu negócio?"), a apresentação pode ser mais curta:
-"Oi! Sou da 1Negócio. [responde direto ao contexto]"
+Se o lead respondeu "quero vender meu negócio" → vai direto pro Caminho A.
+Se "quero comprar uma empresa" → Caminho B.
+Se "quero ser parceiro" → Caminho C.
+Se ambíguo → "Você chegou aqui como dono de negócio, está buscando comprar uma empresa, ou tem interesse em ser parceiro 1Negócio?"
 
 ## Produtos
 Anúncio gratuito: publicamos com curadoria, 10% só se vender.
@@ -1607,6 +1613,97 @@ async function handleComandosBoss(phone: string, texto: string, sessao: any, isB
   return false;
 }
 
+// ─── Abertura controlada · estado-máquina determinístico ─────────────
+function primeiroNome(nomeCompleto: string): string {
+  const palavra = (nomeCompleto || "").trim().split(/\s+/)[0] || "";
+  if (!palavra) return "amigo";
+  return palavra.charAt(0).toUpperCase() + palavra.slice(1).toLowerCase();
+}
+function extrairNomeDeResposta(texto: string): string {
+  let t = (texto || "").trim();
+  // Tira prefixos comuns: "meu nome é", "me chamo", "sou o/a", "chamo-me", "prazer, sou"
+  t = t.replace(/^(meu nome [eé]\s+|me chamo\s+|sou\s+(o\s+|a\s+)?|eu sou\s+(o\s+|a\s+)?|prazer[,\s]+(meu nome [eé]\s+|sou\s+)?|chamo[-\s]me\s+)/i, "").trim();
+  // Aceita no máximo 4 palavras (cobre nome composto)
+  const partes = t.split(/\s+/).slice(0, 4);
+  return partes.join(" ").trim() || "amigo";
+}
+
+async function tratarAbertura(phone: string, texto: string, sessao: any, usuarioExistente: any): Promise<boolean> {
+  const dados = sessao?.dados_coletados || {};
+  const fluxoAbertura = dados.fluxo_abertura;
+  if (fluxoAbertura === "completa") return false; // Claude assume daqui
+
+  // ESTADO INICIAL · primeira mensagem (não importa o conteúdo)
+  if (!fluxoAbertura) {
+    if (usuarioExistente?.nome) {
+      const pn = primeiroNome(usuarioExistente.nome);
+      const msg = `Fala ${pn}, tudo bem?`;
+      await enviarWhatsApp(phone, msg);
+      await salvarMensagem(phone, "assistant", msg);
+      await atualizarSessao(phone, { dados_coletados: { ...dados, fluxo_abertura: "saudacao_existente" } });
+    } else {
+      const msg = "Opa, tudo bem?";
+      await enviarWhatsApp(phone, msg);
+      await salvarMensagem(phone, "assistant", msg);
+      await atualizarSessao(phone, { dados_coletados: { ...dados, fluxo_abertura: "saudacao_novo" } });
+    }
+    return true;
+  }
+
+  // ESTADO existente respondeu "tudo bem?" → pergunta "Como posso ajudar?"
+  if (fluxoAbertura === "saudacao_existente") {
+    const msg = "Como posso te ajudar hoje?";
+    await enviarWhatsApp(phone, msg);
+    await salvarMensagem(phone, "assistant", msg);
+    await atualizarSessao(phone, { dados_coletados: { ...dados, fluxo_abertura: "completa" } });
+    return true;
+  }
+
+  // ESTADO novo respondeu "tudo bem?" → pede o nome
+  if (fluxoAbertura === "saudacao_novo") {
+    const msg = "Como posso te chamar?";
+    await enviarWhatsApp(phone, msg);
+    await salvarMensagem(phone, "assistant", msg);
+    await atualizarSessao(phone, { dados_coletados: { ...dados, fluxo_abertura: "aguardando_nome" } });
+    return true;
+  }
+
+  // ESTADO novo respondeu com o nome → boas-vindas + (1.5s) + "Como posso ajudar?"
+  if (fluxoAbertura === "aguardando_nome") {
+    const nome = extrairNomeDeResposta(texto);
+    const pn = primeiroNome(nome);
+    // Cria usuario na base (idempotente por whatsapp)
+    let usuarioId: string | null = null;
+    try {
+      const { data: existing } = await sb.from("usuarios").select("id").eq("whatsapp", phone).maybeSingle();
+      if (existing) {
+        usuarioId = existing.id;
+        await sb.from("usuarios").update({ nome }).eq("id", existing.id);
+      } else {
+        const { data: u } = await sb.from("usuarios").insert({
+          nome, whatsapp: phone, tipo: "buy", email: null,
+        }).select("id").single();
+        usuarioId = u?.id || null;
+      }
+    } catch (e) { console.error("[hermes] tratarAbertura · criar usuario erro", e); }
+
+    const msg1 = `Seja bem-vindo à 1Negócio, ${pn}. Somos uma plataforma de avaliação, compra e venda de empresas.`;
+    const msg2 = "Como posso te ajudar hoje?";
+    await enviarWhatsApp(phone, msg1);
+    await sleep(1500);
+    await enviarWhatsApp(phone, msg2);
+    // Salva como um único turno (com \n\n entre) pra histórico ficar conciso
+    await salvarMensagem(phone, "assistant", `${msg1}\n\n${msg2}`);
+    await atualizarSessao(phone, {
+      usuario_id: usuarioId || sessao?.usuario_id || null,
+      dados_coletados: { ...dados, nome, fluxo_abertura: "completa" },
+    });
+    return true;
+  }
+
+  return false;
+}
+
 // ─── Detecção de origem do lead (primeira mensagem) ──────────────────
 function detectarOrigem(texto: string): string {
   const t = (texto || "").toLowerCase();
@@ -1734,6 +1831,14 @@ Deno.serve(async (req: Request) => {
       usuarioExistente = r.usuario;
       perfilExistente = r.perfil;
     } catch (e) { console.error("[hermes] identificarUsuarioExistente erro", e); }
+  }
+
+  // Abertura controlada (estado-máquina determinístico) · só pra leads, não Boss
+  if (!isBossEffective) {
+    try {
+      const tratada = await tratarAbertura(phone, conteudoNorm, sessao, usuarioExistente);
+      if (tratada) return ok();
+    } catch (e) { console.error("[hermes] tratarAbertura erro", e); }
   }
 
   const historico = await getHistorico(phone, historicoLimit);
