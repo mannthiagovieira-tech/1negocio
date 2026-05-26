@@ -385,6 +385,22 @@ function mapearSetorCanonico(input: string): string | null {
   return null;
 }
 
+// Categorias afins · usadas no fallback quando a categoria exata não retorna resultados
+const CATEGORIAS_RELACIONADAS: Record<string, string[]> = {
+  alimentacao:      ["alimentacao", "varejo", "hospedagem"],
+  varejo:           ["varejo", "alimentacao"],
+  saude:            ["saude", "bem_estar", "beleza_estetica"],
+  bem_estar:        ["bem_estar", "saude", "beleza_estetica"],
+  beleza_estetica:  ["beleza_estetica", "bem_estar", "saude"],
+  educacao:         ["educacao", "servicos_locais", "servicos_empresas"],
+  servicos_empresas:["servicos_empresas", "servicos_locais"],
+  servicos_locais:  ["servicos_locais", "servicos_empresas", "varejo"],
+  hospedagem:       ["hospedagem", "alimentacao"],
+  industria:        ["industria", "logistica"],
+  logistica:        ["logistica", "industria"],
+  construcao:       ["construcao", "industria"],
+};
+
 // Aliases pra tolerar variações coloquiais que o lead pode usar
 const SETOR_ALIAS: Record<string, string> = {
   servicos: "servicos_locais", servico: "servicos_locais", "serv_b2b": "servicos_empresas",
@@ -697,30 +713,64 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
     switch (name) {
       // ─── Grupo A ──────────────────────────
       case "db_buscar_negocios": {
-        // Coluna canônica: categoria (não setor). Display name: nome (não titulo).
-        // Filtro de preço: preco_pedido (não avaliacao_max).
-        let q = sb.from("negocios").select("id,codigo,nome,categoria,subcategoria,cidade,estado,preco_pedido,valor_venda,status")
-          .limit(Math.min(50, args.limit || 10));
+        // Busca em camadas: cidade → estado → categoria → categorias relacionadas
+        // NUNCA retorna vazio sem tentar todas as camadas.
         const categoriaCanonica = args.setor ? mapearSetorCanonico(args.setor) : null;
-        if (categoriaCanonica) q = q.eq("categoria", categoriaCanonica);
-        else if (args.setor) q = q.ilike("categoria", `%${args.setor}%`); // fallback ilike se não mapeou
-        if (args.cidade) q = q.ilike("cidade", `%${args.cidade}%`);
-        if (args.estado) q = q.eq("estado", args.estado.toUpperCase());
-        if (args.status) q = q.eq("status", args.status);
-        else q = q.eq("status", "publicado");
-        if (args.faixa_preco_min) q = q.gte("preco_pedido", args.faixa_preco_min);
-        if (args.faixa_preco_max) q = q.lte("preco_pedido", args.faixa_preco_max);
-        const { data, error } = await q;
-        if (error) return { ok: false, erro: error.message };
-        const vazio = !data?.length;
+        const limit = Math.min(50, args.limit || 10);
+        const select = "id,codigo,nome,categoria,subcategoria,cidade,estado,preco_pedido,valor_venda,status";
+
+        const baseQuery = (opts: { categorias?: string[]; cidade?: boolean; estado?: boolean }) => {
+          let q = sb.from("negocios").select(select).limit(limit);
+          if (opts.categorias && opts.categorias.length) {
+            q = opts.categorias.length === 1 ? q.eq("categoria", opts.categorias[0]) : q.in("categoria", opts.categorias);
+          } else if (args.setor && !categoriaCanonica) {
+            q = q.ilike("categoria", `%${args.setor}%`); // não mapeou → tenta ilike
+          }
+          if (opts.cidade && args.cidade) q = q.ilike("cidade", `%${args.cidade}%`);
+          if (opts.estado && args.estado) q = q.eq("estado", args.estado.toUpperCase());
+          q = args.status ? q.eq("status", args.status) : q.eq("status", "publicado");
+          if (args.faixa_preco_min) q = q.gte("preco_pedido", args.faixa_preco_min);
+          if (args.faixa_preco_max) q = q.lte("preco_pedido", args.faixa_preco_max);
+          return q;
+        };
+
+        const tentativas: { tentativa: string; categorias: string[]; cidade: boolean; estado: boolean }[] = [];
+        const catBase = categoriaCanonica ? [categoriaCanonica] : [];
+        const catRelacionadas = categoriaCanonica
+          ? (CATEGORIAS_RELACIONADAS[categoriaCanonica] || [categoriaCanonica])
+          : [];
+
+        if (args.cidade && catBase.length) tentativas.push({ tentativa: "categoria+cidade+estado", categorias: catBase, cidade: true, estado: !!args.estado });
+        if (args.estado && catBase.length) tentativas.push({ tentativa: "categoria+estado", categorias: catBase, cidade: false, estado: true });
+        if (catBase.length) tentativas.push({ tentativa: "categoria_exata", categorias: catBase, cidade: false, estado: false });
+        if (catRelacionadas.length > 1) tentativas.push({ tentativa: "categorias_relacionadas", categorias: catRelacionadas, cidade: false, estado: false });
+        if (!tentativas.length) tentativas.push({ tentativa: "sem_filtros_extras", categorias: [], cidade: false, estado: false });
+
+        let resultado: any[] = [];
+        let tentativaUsada = "vazio";
+        for (const t of tentativas) {
+          const { data, error } = await baseQuery({ categorias: t.categorias, cidade: t.cidade, estado: t.estado });
+          if (error) { console.error("[hermes] busca · erro", t.tentativa, error.message); continue; }
+          console.log(`[hermes] busca:`, JSON.stringify({ tentativa: t.tentativa, count: data?.length || 0, categorias: t.categorias, cidade: t.cidade, estado: t.estado }));
+          if (data?.length) { resultado = data; tentativaUsada = t.tentativa; break; }
+        }
+
+        const vazio = resultado.length === 0;
         return {
           ok: true,
-          negocios: data || [],
-          total: data?.length || 0,
+          negocios: resultado,
+          total: resultado.length,
           categoria_consultada: categoriaCanonica || args.setor || null,
+          tentativa_que_retornou: tentativaUsada,
+          ampliou_busca: tentativaUsada !== "categoria+cidade+estado" && tentativaUsada !== "vazio",
           mensagem_se_vazio: vazio
-            ? "No momento nao temos nada publicado nesse perfil especifico, mas acabamos de registrar sua tese. Assim que surgir algo compativel voce e o primeiro a saber."
+            ? "No momento nao temos algo exato nesse perfil, mas vou registrar sua tese. Assim que surgir voce e o primeiro a saber."
             : null,
+          mensagem_se_ampliou: tentativaUsada === "categoria+estado"
+            ? "Nao achei nada exatamente na cidade que voce mencionou, mas tenho algumas opcoes no estado:"
+            : tentativaUsada === "categoria_exata" || tentativaUsada === "categorias_relacionadas"
+              ? "Nao achei nada na regiao especifica, mas tenho opcoes parecidas que podem servir:"
+              : null,
         };
       }
       case "db_buscar_negocio_por_id": {
@@ -1319,44 +1369,61 @@ Coletar OBRIGATORIAMENTE (uma pergunta por vez):
 1. Tipo de negócio que busca (setor)
 2. Região de interesse (cidade/estado)
 3. Faixa de investimento
-4. Nome (PULAR se já cadastrado · whatsapp já temos)
 
 NÃO pergunte "vai operar ou investir" — comprador é comprador, todo mundo quer retorno. A pergunta atrasa o fluxo sem agregar.
 
-Após coletar, OBRIGATORIAMENTE nesta ordem:
+Não precisa perguntar nome agora — já foi coletado na abertura.
 
-1) db_buscar_usuario({ telefone }) — verifica se já existe pelo whatsapp.
+ORDEM RÍGIDA após os 3 dados:
 
-2) Se não existe → db_criar_usuario({ nome, telefone, perfil: 'comprador' }). Pega o usuario_id retornado.
+1) db_buscar_negocios passando os filtros (setor, cidade/estado, faixa). A tool faz fallback automático em 4 camadas:
+   - categoria + cidade + estado (mais específico)
+   - categoria + estado (amplia região)
+   - categoria exata (sem geo)
+   - categorias relacionadas (ex: alimentacao + varejo + hospedagem)
+   Os retornos importantes:
+   - negocios: array com até 3 resultados
+   - tentativa_que_retornou: indica qual camada respondeu
+   - ampliou_busca: true se precisou abrir além de cidade+estado
+   - mensagem_se_ampliou: frase pronta pra contextualizar quando ampliou (use literal)
+   - mensagem_se_vazio: frase pronta pra usar quando 0 resultados (use literal)
 
-3) db_criar_tese — passa OBRIGATORIAMENTE:
-   - usuario_id (do passo anterior)
-   - nome (do comprador)
-   - whatsapp (whatsapp do comprador)
-   - setores (ARRAY de strings · use chaves canônicas: alimentacao, saude, varejo, beleza_estetica, educacao, servicos_empresas, etc.)
+2) APRESENTA OS RESULTADOS NA ORDEM CERTA:
+   - Se ampliou_busca === true → comece com a mensagem_se_ampliou literal, depois liste os negócios
+   - Se houver match exato → apenas liste os negócios
+   - Se vazio → use a mensagem_se_vazio literal
+
+   Formato de cada negócio (sem markdown, texto corrido):
+   "[nome] · [categoria]
+    [cidade]/[estado]
+    Valor pedido: R$[preco_pedido]"
+
+3) DEPOIS DE APRESENTAR (TEM resultado OU NÃO), proponha cadastrar a tese:
+   - Com resultados:
+     "Quer que eu registre sua tese também? Assim te aviso quando surgir algo novo nesse perfil."
+   - Sem resultados (já usou mensagem_se_vazio):
+     "Posso registrar sua tese pra te avisar assim que surgir? É rápido."
+
+4) Após confirmação do lead, chama db_criar_tese — passa OBRIGATORIAMENTE:
+   - usuario_id (já está em sessao.usuario_id pela abertura)
+   - nome (já em dados_coletados.nome ou usuarios.nome)
+   - whatsapp (o phone da sessão)
+   - setores (ARRAY · use chaves canônicas: alimentacao, saude, varejo, beleza_estetica, educacao, servicos_empresas, etc.)
    - cidade, estado
-   - valor_investimento (string · pode ser "até R$500k", "500000-1000000", etc.)
-   - tese_descricao (resumo curto da tese em 1-2 frases)
+   - valor_investimento (string · ex: "até R$500k")
+   - tese_descricao (resumo em 1-2 frases · ex: "Busca emporio/loja de produtos naturais em SC, até R$500k, com fluxo de caixa operando.")
    - observacoes (qualquer detalhe extra que o lead mencionou espontaneamente)
 
-   A tool db_criar_tese AUTOMATICAMENTE notifica o Boss após criar — VOCÊ NÃO precisa chamar notificar_boss separadamente. O resumo enviado ao Boss tem o formato:
-     "Tese cadastrada · [codigo]
-      Comprador: [nome] · [whatsapp]
-      Setores: [setores]
-      Região: [cidade/estado]
-      Investimento: até R$[valor]"
+   A tool db_criar_tese AUTOMATICAMENTE notifica o Boss — VOCÊ NÃO chama notificar_boss separadamente.
 
-4) Confirma pro lead com o código retornado:
-   "Sua tese foi registrada. [Se houver codigo: 'Código: [codigo].'] Vou te avisar por aqui assim que surgir algo compatível na plataforma."
+5) Confirma pro lead com o código retornado:
+   "Tese registrada · [codigo]. Te aviso por aqui assim que surgir algo compatível."
 
-5) db_buscar_negocios passando os filtros da tese (setor, cidade/estado, faixa de preço).
+6) FECHAMENTO ABERTO (regra geral · ver Comportamento abaixo):
+   "Enquanto isso, se quiser olhar outros perfis ou ajustar algo da busca, é só me chamar."
 
-6) Se houver match → apresenta até 3 negócios em texto corrido (nome, categoria, cidade, valor) — sem markdown.
-
-7) Se vazio → use LITERAL o campo "mensagem_se_vazio" retornado pela tool. Já vem pronta. Não invente alternativa.
-
-NUNCA afirme que não há negócios sem ter chamado db_buscar_negocios primeiro.
-NUNCA pule a etapa 3 (db_criar_tese) — é a etapa que ativa o matching futuro.
+NUNCA afirme "não temos nada" — a tool tenta 4 camadas, sempre tem o que dizer.
+NUNCA pule a etapa 4 (db_criar_tese) — mesmo se o lead não confirmar com palavras claras, se ele engajou e tem dados mínimos (setor + região + faixa), CRIA a tese. É melhor errar criando do que perder o lead.
 
 ## Caminho C · Parceiro
 Três perfis dentro do Caminho C:
@@ -1372,11 +1439,24 @@ SÓCIO-ASSESSOR — quer operar a 1Negócio na sua região (modelo 50/50).
 "Esse modelo é o sócio-assessor regional. Você opera a 1Negócio na sua cidade ou região, com nossa estrutura, nossa marca, nosso método. Divisão 50/50 da operação. Posso agendar uma conversa com o time para te apresentar o modelo?"
 Use agendar_reuniao com plano_interesse=socio_assessor, caminho=parceiro.
 
-## Comportamento quando lead recusa ou some
-NUNCA encerrar com "Boa sorte com tudo!" ou frases definitivas de despedida.
-Sempre deixar porta aberta: "Sem problema. Quando quiser saber mais, é só chamar."
+## Comportamento de encerramento · REGRA RÍGIDA
+NUNCA encerre uma mensagem sem deixar porta aberta. Toda mensagem deve terminar com:
+- Uma pergunta concreta · OU
+- Um próximo passo claro · OU
+- Um convite explícito pra retomar ("é só chamar quando...")
+
+PROIBIDO encerrar com: "Boa sorte!", "Até mais!", "Obrigado pelo contato!", "Tenha um ótimo dia!", ou qualquer despedida definitiva.
+
+Exemplos de fechamento aberto:
+- "Sem problema. Quando quiser saber mais, é só chamar."
+- "Posso te ajudar com mais alguma coisa nesse setor?"
+- "Quer que eu te avise quando surgir algo mais alinhado?"
+- "Se mudar de ideia, é só voltar aqui que eu retomo de onde paramos."
+- "Te aviso assim que tiver novidade. Qualquer coisa, é só chamar."
 
 Se lead some depois de qualificação parcial, retomar em 24h: "Oi [Nome], você estava no meio da avaliação do seu negócio. Continuamos quando quiser."
+
+Se lead diz "obrigado", "valeu", "depois eu vejo": NÃO encerre. Responda com porta aberta e ofereça próximo passo.
 
 ## Origem do lead
 A origem fica em dados_coletados.origem (já é detectada automaticamente):
