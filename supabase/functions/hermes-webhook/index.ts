@@ -13,6 +13,7 @@ const SB_SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
 const GROQ_KEY = Deno.env.get("GROQ_API_KEY") || "";
 const ZAPI_URL = Deno.env.get("ZAPI_URL") || ""; // ex: https://api.z-api.io/instances/XXX/token/YYY
+const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN") || ""; // header Client-Token obrigatório nas requisições Z-API
 const META_TOKEN = Deno.env.get("META_ACCESS_TOKEN") || "";
 const STRIPE_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const APIFY_TOKEN = Deno.env.get("APIFY_API_TOKEN") || "";
@@ -22,6 +23,7 @@ const RESEND_KEY = Deno.env.get("RESEND_API_KEY") || "";
 if (!ANTHROPIC_KEY) console.error("[hermes] ANTHROPIC_API_KEY ausente — Claude não responderá");
 if (!GROQ_KEY) console.warn("[hermes] GROQ_API_KEY ausente — áudios não serão transcritos");
 if (!ZAPI_URL) console.warn("[hermes] ZAPI_URL ausente — mensagens de resposta não serão enviadas");
+if (!ZAPI_CLIENT_TOKEN) console.warn("[hermes] ZAPI_CLIENT_TOKEN ausente — Z-API vai rejeitar as chamadas");
 if (!META_TOKEN) console.warn("[hermes] META_ACCESS_TOKEN ausente — tools meta_* falharão");
 if (!STRIPE_KEY) console.warn("[hermes] STRIPE_SECRET_KEY ausente — tools stripe_* falharão");
 if (!APIFY_TOKEN) console.warn("[hermes] APIFY_API_TOKEN ausente — tools apify_* falharão");
@@ -144,9 +146,11 @@ async function getTreinamento(): Promise<string> {
 async function enviarWhatsApp(phone: string, mensagem: string): Promise<boolean> {
   if (!ZAPI_URL) { console.warn("[hermes] enviarWhatsApp: ZAPI_URL ausente, skip"); return false; }
   try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (ZAPI_CLIENT_TOKEN) headers["Client-Token"] = ZAPI_CLIENT_TOKEN;
     const r = await fetch(`${ZAPI_URL}/send-text`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ phone, message: mensagem }),
     });
     if (!r.ok) { console.error(`[hermes] z-api ${r.status}: ${(await r.text()).slice(0, 200)}`); return false; }

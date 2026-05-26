@@ -7,10 +7,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ZAPI_URL = Deno.env.get("ZAPI_URL") || "";
+const ZAPI_CLIENT_TOKEN = Deno.env.get("ZAPI_CLIENT_TOKEN") || "";
 const APIFY_TOKEN = Deno.env.get("APIFY_API_TOKEN") || "";
 const META_TOKEN = Deno.env.get("META_ACCESS_TOKEN") || "";
 
 if (!ZAPI_URL) console.warn("[hermes-cron] ZAPI_URL ausente — relatório/followup não chegará ao WhatsApp");
+if (!ZAPI_CLIENT_TOKEN) console.warn("[hermes-cron] ZAPI_CLIENT_TOKEN ausente — Z-API vai rejeitar as chamadas");
 if (!APIFY_TOKEN) console.warn("[hermes-cron] APIFY_API_TOKEN ausente — apify_poll vai pular");
 if (!META_TOKEN) console.warn("[hermes-cron] META_ACCESS_TOKEN ausente — relatório sem dados de Meta Ads");
 
@@ -24,8 +26,10 @@ const sb = createClient(SB_URL, SB_SRK, { auth: { persistSession: false } });
 async function enviarWhatsApp(phone: string, mensagem: string): Promise<boolean> {
   if (!ZAPI_URL) return false;
   try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (ZAPI_CLIENT_TOKEN) headers["Client-Token"] = ZAPI_CLIENT_TOKEN;
     const r = await fetch(`${ZAPI_URL}/send-text`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers,
       body: JSON.stringify({ phone, message: mensagem }),
     });
     return r.ok;
