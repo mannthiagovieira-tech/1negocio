@@ -1,11 +1,17 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-// v9.21 · Z-API via envs (Supabase secrets) · hardcode antigo revogado causava 403
+// v9.22 · Z-API com header 'Client-Token' (CamelCase, conforme docs Z-API)
+// + try/catch explícito no branch novo_diagnostico
 const ZAPI_INSTANCE   = Deno.env.get('ZAPI_INSTANCE') ?? '';
 const ZAPI_TOKEN      = Deno.env.get('ZAPI_TOKEN') ?? '';
 const ZAPI_CLIENT     = Deno.env.get('ZAPI_CLIENT_TOKEN') ?? '';
 const THIAGO_PHONE    = '5548999279320';
 const BASE_URL        = 'https://1negocio.com.br';
+
+// Aviso de boot · faz ruído no log se faltar alguma env (em vez de só na primeira request)
+if (!ZAPI_INSTANCE) console.error('[notificar-diagnostico][boot] ZAPI_INSTANCE ausente');
+if (!ZAPI_TOKEN)    console.error('[notificar-diagnostico][boot] ZAPI_TOKEN ausente');
+if (!ZAPI_CLIENT)   console.error('[notificar-diagnostico][boot] ZAPI_CLIENT_TOKEN ausente · Z-API vai rejeitar');
 
 const MOTIVACAO_MAP: Record<string, string> = {
   curiosidade:  'Curiosidade',
@@ -24,22 +30,30 @@ async function zapiSend(phone: string, message: string) {
       tem_token: !!ZAPI_TOKEN,
       tem_client: !!ZAPI_CLIENT,
     });
-    throw new Error('envs Z-API ausentes');
+    throw new Error('envs Z-API ausentes (ZAPI_INSTANCE / ZAPI_TOKEN / ZAPI_CLIENT_TOKEN)');
   }
-  const r = await fetch(
-    `https://api.z-api.io/instances/${ZAPI_INSTANCE}/token/${ZAPI_TOKEN}/send-text`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'client-token': ZAPI_CLIENT },
-      body: JSON.stringify({ phone, message }),
-    }
-  );
+  const url = `https://api.z-api.io/instances/${ZAPI_INSTANCE}/token/${ZAPI_TOKEN}/send-text`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Client-Token': ZAPI_CLIENT, // CamelCase conforme docs Z-API (alinhado com hermes-webhook)
+    },
+    body: JSON.stringify({ phone, message }),
+  });
   if (!r.ok) {
     const txt = await r.text();
-    console.error(`[notificar-diagnostico] Z-API falhou: ${r.status} ${txt.slice(0, 200)}`);
+    console.error(`[notificar-diagnostico][zapiSend] FALHA HTTP ${r.status} · phone=${phone} · resposta='${txt.slice(0, 300)}'`);
     throw new Error(`Z-API ${r.status}: ${txt.slice(0, 200)}`);
   }
-  return r.json();
+  const data = await r.json();
+  // Z-API às vezes retorna 200 mas com erro no body — checa estrutura típica
+  if (data?.error || data?.value === false) {
+    console.error(`[notificar-diagnostico][zapiSend] 200 mas com erro no body · phone=${phone} · body=${JSON.stringify(data).slice(0, 300)}`);
+    throw new Error(`Z-API body indica erro: ${JSON.stringify(data).slice(0, 200)}`);
+  }
+  console.log(`[notificar-diagnostico][zapiSend] OK · phone=${phone} · msgId=${data?.messageId || data?.id || '?'}`);
+  return data;
 }
 
 function brl(v: number): string {
@@ -181,8 +195,16 @@ Deno.serve(async (req: Request) => {
       `📄 Laudo pago:\n${BASE_URL}/laudo-pago.html?id=${negId}\n\n` +
       `🔒 Laudo admin:\n${BASE_URL}/laudo-admin.html?id=${negId}`;
 
-    await zapiSend(THIAGO_PHONE, mensagem);
-    console.log('[notificar-diagnostico] enviado:', nome, brl(fatMensal));
+    try {
+      await zapiSend(THIAGO_PHONE, mensagem);
+      console.log('[notificar-diagnostico][novo_diagnostico] enviado:', nome, brl(fatMensal));
+    } catch (zErr) {
+      console.error('[notificar-diagnostico][novo_diagnostico] Z-API falhou · negócio:', nome, '· id:', negId, '· detalhe:', String(zErr));
+      return new Response(
+        JSON.stringify({ ok: false, error: 'envio Z-API falhou', detalhe: String(zErr), negocio_id: negId, nome }),
+        { status: 502, headers: cors },
+      );
+    }
 
     return new Response(JSON.stringify({ ok: true, nome, fat: brl(fatMensal) }), { headers: cors });
 
