@@ -318,6 +318,47 @@ const SETORES_1N: Record<string, { multiplo: number; margem_op: number; label: s
   varejo:            { multiplo: 1.52, margem_op: 0.10, label: "Varejo" },
   construcao:        { multiplo: 1.46, margem_op: 0.10, label: "Construção" },
 };
+// MAPA_SETORES · mapeia setor livre digitado pelo lead para os valores
+// aceitos pelo CHECK constraint da tabela negocios.
+// Usado em db_buscar_negocios para evitar busca vazia por mismatch.
+const MAPA_SETORES: Record<string, string> = {
+  "ti": "servicos_empresas", "tecnologia": "servicos_empresas",
+  "informatica": "servicos_empresas", "software": "servicos_empresas",
+  "consultoria": "servicos_empresas", "contabilidade": "servicos_empresas",
+  "saude": "saude", "clinica": "saude", "medico": "saude",
+  "odonto": "saude", "veterinaria": "saude", "fisio": "saude",
+  "alimentacao": "alimentacao", "restaurante": "alimentacao",
+  "lanchonete": "alimentacao", "padaria": "alimentacao",
+  "bar": "alimentacao", "delivery": "alimentacao",
+  "beleza": "beleza_estetica", "estetica": "beleza_estetica",
+  "salao": "beleza_estetica", "barbearia": "beleza_estetica", "spa": "beleza_estetica",
+  "educacao": "educacao", "escola": "educacao", "curso": "educacao", "idiomas": "educacao",
+  "varejo": "varejo", "loja": "varejo", "comercio": "varejo",
+  "ecommerce": "varejo", "revendedora": "varejo",
+  "industria": "industria", "fabricacao": "industria", "manufatura": "industria",
+  "construcao": "construcao", "obra": "construcao", "reforma": "construcao",
+  "incorporadora": "construcao",
+  "logistica": "logistica", "transporte": "logistica",
+  "deposito": "logistica", "distribuidora": "logistica",
+  "hospedagem": "hospedagem", "hotel": "hospedagem", "pousada": "hospedagem",
+  "airbnb": "hospedagem", "turismo": "hospedagem",
+  "bem_estar": "bem_estar", "academia": "bem_estar",
+  "fitness": "bem_estar", "studio": "bem_estar", "personal": "bem_estar",
+  "servicos": "servicos_locais", "servico": "servicos_locais",
+  "lavanderia": "servicos_locais", "oficina": "servicos_locais",
+  "manutencao": "servicos_locais",
+};
+function mapearSetorCanonico(input: string): string | null {
+  if (!input) return null;
+  const lower = (input).toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").trim();
+  // match exato primeiro
+  if (MAPA_SETORES[lower]) return MAPA_SETORES[lower];
+  // substring (mais longo primeiro pra evitar "servicos" pegar antes de "servicos_empresas")
+  const keys = Object.keys(MAPA_SETORES).sort((a, b) => b.length - a.length);
+  for (const k of keys) if (lower.includes(k)) return MAPA_SETORES[k];
+  return null;
+}
+
 // Aliases pra tolerar variações coloquiais que o lead pode usar
 const SETOR_ALIAS: Record<string, string> = {
   servicos: "servicos_locais", servico: "servicos_locais", "serv_b2b": "servicos_empresas",
@@ -343,22 +384,32 @@ function setorKey(s: string): string {
   for (const k of Object.keys(SETOR_ALIAS)) if (norm.includes(k)) return SETOR_ALIAS[k];
   return "servicos_locais"; // fallback conservador
 }
-function calcularValuationRapido({ setor, faturamento_mensal, anos_operacao }: any) {
+function calcularValuationRapido(input: any) {
+  const { setor, faturamento_mensal, anos_operacao, sobra_mensal, ativos_relevantes, dividas_relevantes } = input;
   const fatA = (Number(faturamento_mensal) || 0) * 12;
   const sk = setorKey(setor);
   const s = SETORES_1N[sk];
-  const ebitda = fatA * s.margem_op;
+  // Prefere sobra real (informada pelo lead) sobre estimativa setorial
+  const sobraInformada = Number(sobra_mensal) > 0;
+  const ebitda = sobraInformada ? Number(sobra_mensal) * 12 : fatA * s.margem_op;
   let mult = s.multiplo;
   const anos = Number(anos_operacao) || 0;
   if (anos >= 5) mult *= 1.10;       // tempo de mercado consolida valor
   else if (anos < 2) mult *= 0.85;   // negócio novo é mais arriscado
-  const central = ebitda * mult;
+  const operacional = ebitda * mult;
+  const ativos = Math.max(0, Number(ativos_relevantes) || 0);
+  const dividas = Math.max(0, Number(dividas_relevantes) || 0);
+  const central = Math.max(0, operacional + ativos - dividas);
   return {
     valor_min: Math.round(central * 0.85),
     valor_max: Math.round(central * 1.15),
     valor_central: Math.round(central),
+    valor_operacional: Math.round(operacional),
+    ativos_somados: ativos,
+    dividas_subtraidas: dividas,
     faturamento_anual: fatA,
-    ebitda_estimado: Math.round(ebitda),
+    ebitda_usado: Math.round(ebitda),
+    ebitda_fonte: sobraInformada ? "sobra_informada" : "margem_setorial_estimada",
     multiplo_aplicado: Number(mult.toFixed(2)),
     setor_normalizado: sk,
     setor_label: s.label,
@@ -368,6 +419,7 @@ function calcularValuationRapido({ setor, faturamento_mensal, anos_operacao }: a
 function calcularValuationCompleto(d: any) {
   const base = calcularValuationRapido({
     setor: d.setor, faturamento_mensal: d.faturamento_mensal, anos_operacao: d.anos_operacao,
+    sobra_mensal: d.sobra_mensal, ativos_relevantes: d.ativos_relevantes, dividas_relevantes: d.dividas_relevantes,
   });
   let mult = base.multiplo_aplicado;
   const fatores: string[] = [];
@@ -376,7 +428,7 @@ function calcularValuationCompleto(d: any) {
     mult *= 1.05; fatores.push("+5% situação financeira saudável");
   }
   if (d.situacao_financeira && /divid|atras|deve|inadimpl/i.test(d.situacao_financeira)) {
-    mult *= 0.85; fatores.push("-15% dívidas relevantes");
+    mult *= 0.85; fatores.push("-15% dívidas na operação");
   }
   if (d.motivo_venda && /aposent|novo projeto|outro projeto|estrate|mudan[çc]a/i.test(d.motivo_venda)) {
     mult *= 1.05; fatores.push("+5% motivo estratégico");
@@ -384,18 +436,23 @@ function calcularValuationCompleto(d: any) {
   if (d.motivo_venda && /urgen|dificu|saude|problema|press/i.test(d.motivo_venda)) {
     mult *= 0.90; fatores.push("-10% motivo de urgência");
   }
-  // Momento de venda também influencia (qualificação B8b)
   if (d.momento_venda === "URGENTE") { mult *= 0.95; fatores.push("-5% momento urgente"); }
   if (d.momento_venda === "SEM_PRESSA") { mult *= 1.03; fatores.push("+3% sem pressa"); }
-  const fatA = base.faturamento_anual;
-  const ebitda = base.ebitda_estimado;
-  const central = ebitda * mult;
+  const ebitda = base.ebitda_usado;
+  const operacional = ebitda * mult;
+  const ativos = base.ativos_somados;
+  const dividas = base.dividas_subtraidas;
+  const central = Math.max(0, operacional + ativos - dividas);
   return {
     valor_min: Math.round(central * 0.85),
     valor_max: Math.round(central * 1.15),
     valor_central: Math.round(central),
-    faturamento_anual: fatA,
-    ebitda_estimado: ebitda,
+    valor_operacional: Math.round(operacional),
+    ativos_somados: ativos,
+    dividas_subtraidas: dividas,
+    faturamento_anual: base.faturamento_anual,
+    ebitda_usado: ebitda,
+    ebitda_fonte: base.ebitda_fonte,
     multiplo_aplicado: Number(mult.toFixed(2)),
     setor_normalizado: base.setor_normalizado,
     setor_label: base.setor_label,
@@ -536,17 +593,28 @@ const TOOLS = [
   }},
 
   // ─── Grupo G · Valuation ───
-  { name: "calcular_valuation_rapido", description: "Estimativa rápida (3 inputs). Retorna faixa.", input_schema: {
+  { name: "calcular_valuation_rapido", description: "Estimativa rápida — exige os 6 dados mínimos: setor, faturamento_mensal, sobra_mensal (lucro/margem), ativos_relevantes (em R$), dividas_relevantes (em R$) e anos_operacao. Se sobra_mensal informada, usa real; caso contrário usa margem setorial estimada. Ativos somam ao valor, dívidas subtraem.", input_schema: {
     type: "object", properties: {
-      setor: { type: "string" }, faturamento_mensal: { type: "number" }, anos_operacao: { type: "integer" },
+      setor: { type: "string" },
+      faturamento_mensal: { type: "number" },
+      sobra_mensal: { type: "number", description: "Quanto sobra por mês (margem/lucro operacional). Se não informado, usa estimativa setorial." },
+      ativos_relevantes: { type: "number", description: "Valor total de ativos (equipamentos, estoque, imóvel próprio etc.) em R$. Use 0 se não houver." },
+      dividas_relevantes: { type: "number", description: "Total de dívidas / passivos em R$. Use 0 se não houver." },
+      anos_operacao: { type: "integer" },
     }, required: ["setor", "faturamento_mensal", "anos_operacao"],
   }},
-  { name: "calcular_valuation_completo", description: "Valuation com fatores de ajuste (diagnóstico B1-B11).", input_schema: {
+  { name: "calcular_valuation_completo", description: "Valuation com fatores de ajuste (diagnóstico B1-B15). Aceita os 6 dados + qualificadores qualitativos (sócios, dívidas, motivo, momento de venda).", input_schema: {
     type: "object", properties: {
-      setor: { type: "string" }, faturamento_mensal: { type: "number" }, anos_operacao: { type: "integer" },
+      setor: { type: "string" },
+      faturamento_mensal: { type: "number" },
+      sobra_mensal: { type: "number" },
+      ativos_relevantes: { type: "number" },
+      dividas_relevantes: { type: "number" },
+      anos_operacao: { type: "integer" },
       tem_socios: { type: "boolean" }, num_funcionarios: { type: "integer" },
       situacao_financeira: { type: "string" }, motivo_venda: { type: "string" },
       modelo_negocio: { type: "string" },
+      momento_venda: { type: "string", enum: ["URGENTE", "SEM_PRESSA", "PENSANDO", "EXPLORANDO"] },
     }, required: ["setor", "faturamento_mensal", "anos_operacao"],
   }},
 
@@ -569,6 +637,17 @@ const TOOLS = [
   { name: "notificar_boss", description: "Envia notificação direta ao Boss via WhatsApp.", input_schema: {
     type: "object", properties: { mensagem: { type: "string" } }, required: ["mensagem"],
   }},
+  { name: "agendar_reuniao", description: "Registra pedido de reunião / Anúncio Guiado / Venda Assessorada / Parceria. Cria entrada em hermes_agendamentos e notifica Boss automaticamente. Use quando lead aceitar um plano que envolve conversar com a equipe.", input_schema: {
+    type: "object", properties: {
+      lead_nome: { type: "string" },
+      lead_telefone: { type: "string", description: "Whatsapp do lead. Se vazio, usa o phone da sessão atual." },
+      negocio_id: { type: "string", description: "UUID do negócio relacionado, se houver." },
+      caminho: { type: "string", enum: ["vendedor", "comprador", "parceiro"] },
+      plano_interesse: { type: "string", description: "Ex: anuncio_guiado, venda_assessorada, filiado, parceiro_pontual, socio_assessor" },
+      horario_preferido: { type: "string", description: "Texto livre informado pelo lead (ex: 'amanhã de manhã')" },
+      contexto: { type: "string", description: "Resumo livre da conversa que motivou o agendamento" },
+    }, required: ["lead_telefone", "caminho", "plano_interesse"],
+  }},
   { name: "outbound_enviar_individual", description: "Envia mensagem ativa para um telefone específico. Respeita opt-out e loga.", input_schema: {
     type: "object", properties: {
       telefone: { type: "string" }, mensagem: { type: "string" }, contexto: { type: "string" },
@@ -584,7 +663,9 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
       case "db_buscar_negocios": {
         let q = sb.from("negocios").select("id,codigo,nome_negocio,setor,cidade,estado,preco_pedido,valor_venda,status,titulo_anuncio")
           .limit(Math.min(50, args.limit || 10));
-        if (args.setor) q = q.ilike("setor", `%${args.setor}%`);
+        const setorCanonico = args.setor ? mapearSetorCanonico(args.setor) : null;
+        if (setorCanonico) q = q.eq("setor", setorCanonico);
+        else if (args.setor) q = q.ilike("setor", `%${args.setor}%`); // fallback ilike se não mapeou
         if (args.cidade) q = q.ilike("cidade", `%${args.cidade}%`);
         if (args.estado) q = q.eq("estado", args.estado.toUpperCase());
         if (args.status) q = q.eq("status", args.status);
@@ -593,7 +674,17 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
         if (args.faixa_preco_max) q = q.lte("preco_pedido", args.faixa_preco_max);
         const { data, error } = await q;
         if (error) return { ok: false, erro: error.message };
-        return { ok: true, negocios: data };
+        // Resposta cuidadosa quando vazio — Hermes nunca pode dizer "nao temos nada"
+        const vazio = !data?.length;
+        return {
+          ok: true,
+          negocios: data || [],
+          total: data?.length || 0,
+          setor_consultado: setorCanonico || args.setor || null,
+          mensagem_se_vazio: vazio
+            ? "No momento nao temos nada publicado nesse perfil especifico, mas acabamos de registrar sua tese. Assim que surgir algo compativel voce e o primeiro a saber."
+            : null,
+        };
       }
       case "db_buscar_negocio_por_id": {
         let q = sb.from("negocios").select("*").limit(1);
@@ -854,6 +945,29 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
         const enviado = await notificarBoss(mensagem);
         return { ok: enviado };
       }
+      case "agendar_reuniao": {
+        const tel = phoneClean(args.lead_telefone || ctx.phone);
+        const ins: any = {
+          lead_nome: args.lead_nome || null,
+          lead_telefone: tel,
+          negocio_id: args.negocio_id || null,
+          caminho: args.caminho || null,
+          plano_interesse: args.plano_interesse || null,
+          horario_preferido: args.horario_preferido || null,
+          contexto: args.contexto || null,
+        };
+        const { data, error } = await sb.from("hermes_agendamentos").insert(ins).select("id,created_at").single();
+        if (error) return { ok: false, erro: error.message };
+        // Notifica Boss automaticamente
+        const msg = `Lead: ${tel}\n\nAgendamento solicitado\n`
+          + `Caminho: ${args.caminho || "—"}\n`
+          + `Plano: ${args.plano_interesse || "—"}\n`
+          + (args.lead_nome ? `Nome: ${args.lead_nome}\n` : "")
+          + (args.horario_preferido ? `Horário preferido: ${args.horario_preferido}\n` : "")
+          + (args.contexto ? `\nContexto:\n${args.contexto}` : "");
+        await notificarBoss(msg);
+        return { ok: true, agendamento_id: data.id };
+      }
       case "outbound_enviar_individual": return await outboundEnviarIndividual(args);
 
       default: return { ok: false, erro: `tool_desconhecida: ${name}` };
@@ -914,144 +1028,226 @@ NUNCA pergunte o nome. Cumprimente pelo nome direto. Pergunte se chegou como don
     }
   }
 
-  return `Você é Hermes, o agente operacional da 1Negócio via WhatsApp.
+  return `Você é Hermes, agente da 1Negócio.
 
-## Sobre a 1Negócio
-Primeira plataforma brasileira de M&A pra PMEs.
-Mesa de negociação digital com avaliação técnica própria, sigilo absoluto, curadoria humana.
+## O que é a 1Negócio
+A 1Negócio é a primeira plataforma brasileira especializada em compra e venda de empresas para pequenos e médios negócios.
+
+Não é um classificado. É uma mesa de negociação com avaliação técnica, sigilo absoluto e curadoria humana em cada anúncio.
+
+Quem vende: empresário que quer vender seu negócio com apoio profissional, sem expor sua identidade antes da hora.
+Quem compra: investidor ou empresário buscando oportunidades avaliadas e curadas — não chute de dono.
+
 Tagline: "Quanto vale o seu negócio? Nós sabemos."
-Posicionamento: "Não publicamos negócios, publicamos diagnósticos."
+
+## Apresentação inicial (OBRIGATÓRIA em toda primeira mensagem)
+Quando um lead chega pela primeira vez (sem histórico), você se apresenta brevemente ANTES de qualquer pergunta:
+
+"Oi! Sou o Hermes da 1Negócio, plataforma de compra e venda de empresas. [continua com a qualificação ou contexto]"
+
+Se a mensagem pré-preenchida já dá contexto (ex: "Quanto vale meu negócio?"), a apresentação pode ser mais curta:
+"Oi! Sou da 1Negócio. [responde direto ao contexto]"
 
 ## Produtos
-- Anúncio Gratuito: R$0 inicial · 10% de comissão só se vender · cuidamos de tudo
-- Anúncio Guiado: R$588/ano · 5% de comissão · acompanhamento ativo, estratégia de precificação, mais visibilidade
-- Venda Assessorada: a partir de R$500/mês · 5% de taxa de sucesso · time dedicado, gestão completa, ideal para negócios acima de R$500k
+Anúncio gratuito: publicamos com curadoria, 10% só se vender.
+Anúncio guiado: R$588/ano, reunião com consultor, 5% comissão.
+Venda assessorada: a partir de R$500/mês, time dedicado, 5%.
+Laudo PDF: R$99 (só mencionar se perguntarem).
+Avaliação Profissional: R$397 (só mencionar se perguntarem).
 
-Produtos secundários (NÃO oferecer como CTA principal, só se o cliente perguntar):
-- Laudo PDF: R$99 (documento técnico avulso)
-- Avaliação Profissional: R$397 (análise aprofundada avulsa)
+## Os 3 caminhos
+Todo lead é identificado em um dos 3 caminhos:
 
-## Metodologia (quando perguntarem como calculamos)
-Resposta padrão, sem variações:
-"Usamos metodologia própria 1Negócio — combinamos múltiplos de mercado com análise de capacidade de geração de caixa, taxa de risco do negócio e retorno esperado pelo comprador. É uma abordagem desenvolvida internamente, não divulgamos os detalhes do modelo."
+CAMINHO A — VENDEDOR: dono de negócio querendo avaliar ou vender
+CAMINHO B — COMPRADOR: buscando comprar uma empresa
+CAMINHO C — PARCEIRO: quer indicar negócios e ganhar comissão, ou ser sócio-assessor
 
-NUNCA mencione DCF, ISE, "8 dimensões" ou nomes técnicos específicos. Nunca cite múltiplos exatos por setor.
+Se não identificado pela mensagem inicial:
+"Você chegou aqui como dono de negócio, está buscando comprar uma empresa, ou tem interesse em ser parceiro 1Negócio?"
 
-## Identidade e tom
-Nome: Hermes. Tom: direto, humano, experiente. Sem robótica, sem menus numerados, sem "como posso te ajudar?".
-Mensagens curtas (WhatsApp, não e-mail). Sempre próximo passo concreto. Áudio = texto (não menciona transcrição).
-Tolera coloquial: "uns 80k" → 80.000.
+## Caminho A · Vendedor · Avaliação rápida
+Dados MÍNIMOS obrigatórios (não dar valor sem todos eles):
+1. Nome do negócio
+2. Setor de atuação
+3. Faturamento mensal
+4. Quanto sobra por mês (margem / lucro operacional)
+5. Ativos relevantes (equipamentos, estoque, imóvel próprio?)
+6. Passivos / dívidas relevantes
 
-NUNCA use emojis. Tom limpo, sem decoração.
+Perguntar um por vez. Nunca juntar. Nunca deduzir. Se o lead não souber um dado, aceite "não sei" e siga.
 
-## Formatação das mensagens
-- ZERO markdown. Nada de asterisco para negrito, nada de underscore para itálico, nada de hashtag, nada de listas com - ou *. Texto puro.
-- Frases curtas. Uma ideia por vez. Tom conversacional, não corporativo.
-- Parágrafos separados por uma única linha em branco quando precisar respirar entre ideias.
-- Quando fizer sentido natural (uma pergunta separada do contexto, uma pausa antes de informação importante, ou um piscar de olhos antes de pedir uma decisão), você PODE dividir a resposta em duas mensagens usando o marcador literal [[SPLIT]] entre elas — o sistema vai converter em duas mensagens WhatsApp separadas. Use no máximo um split por turno. Não force se a quebra não fizer sentido natural.
+Após coletar os 6 dados → calcular_valuation_rapido passando setor, faturamento_mensal, sobra_mensal, ativos_relevantes, dividas_relevantes, anos_operacao (estime se não souber, ex: setor padrão = 5 anos).
 
-## Fluxo principal · BIFURCAÇÃO DE VALUATION
-Quando o lead pergunta valor/quer vender, sempre oferece bifurcação:
-- Estimativa rápida (3 perguntas, retorna faixa via calcular_valuation_rapido)
-- Diagnóstico completo B1-B11 (5min, cadastra negócio + valuation completo)
+Apresentar resultado com contexto:
+"Com base no que você me passou:
+[resumo curto dos dados]
 
-Bifurcação inicial padrão (sem emojis):
-"Tenho duas formas de te ajudar com isso:
-Estimativa rápida — respondo em 2 minutos com uma faixa de valor de mercado.
-Diagnóstico completo — a avaliação que usamos antes de anunciar. Leva uns 5 minutos e já cadastra seu negócio.
-Qual faz mais sentido agora?"
+O valor estimado fica entre R$ [min] e R$ [max].
 
-## Diagnóstico vendedor · REGRA RÍGIDA
-UMA pergunta por mensagem. Nunca pula um step. Nunca deduz informação. Nunca combina duas perguntas na mesma mensagem.
-Aguarda a resposta do lead antes de avançar pro próximo step.
-Mesmo se o lead já tiver dado parte da informação espontaneamente, faça a pergunta do step formalmente — peça confirmação ao invés de deduzir.
+Essa é uma faixa inicial. O diagnóstico completo vai refinar isso com precisão."
 
-Ordem exata:
-- B1: "Me conta um pouco sobre o negócio. Que tipo é?" (capta setor — use uma das chaves: alimentacao, saude, beleza_estetica, educacao, varejo, industria, logistica, construcao, servicos_empresas, bem_estar, hospedagem, servicos_locais)
-- B2: "Fica em qual cidade e estado?"
-- B3: "Há quantos anos está funcionando?"
-- B4: "Qual o faturamento médio mensal? Pode ser aproximado." (salva em dados_coletados.faturamento_mensal)
-- B4b · EXPECTATIVA: "Antes de te passar nossa avaliação — qual é a sua expectativa de valor para o negócio?" (salva em dados_coletados.expectativa_valor; aceita coloquial: "uns 500k" = 500000)
-- B5: "O negócio presta serviço, revende produtos, fabrica, ou é outro modelo?"
-- B6: "Quantos funcionários? E tem sócios?"
-- B7: "Tem dívidas relevantes ou está financeiramente saudável?"
-- B8: "O que te fez pensar em vender agora?" (salva em dados_coletados.motivo_venda)
-- B8b · MOMENTO: "Você está querendo vender logo ou ainda está avaliando as opções com calma?"
-  Classifica em dados_coletados.momento_venda:
-    URGENTE = quer vender rápido ("logo", "preciso", "rápido", "tô apertado")
-    SEM_PRESSA = vender se aparecer algo bom ("se aparecer", "sem pressa")
-    PENSANDO = ainda avaliando se vale a pena ("não sei", "tô vendo")
-    EXPLORANDO = só quer saber o valor ("curiosidade", "só pra saber")
-- B9: "Como você se chama?" (PULAR se usuário já está identificado na base; só confirma o whatsapp)
-- B10: Confirmação. Lista resumo dos dados coletados em texto corrido (sem bullets markdown) e pergunta "Tá certo?"
-- B11: Após "tá certo", executa as ações:
-  1) db_buscar_usuario (pra confirmar se já existe)
+## Caminho A · Vendedor · Diagnóstico completo · REGRA RÍGIDA
+UMA pergunta por mensagem. Nunca pula um step. Nunca deduz. Nunca combina duas perguntas. Aguarda a resposta antes de avançar.
+
+Fluxo B1-B15:
+- B1: Nome e tipo do negócio (capta setor — chaves canônicas: alimentacao, saude, beleza_estetica, educacao, varejo, industria, logistica, construcao, servicos_empresas, bem_estar, hospedagem, servicos_locais)
+- B2: Cidade e estado
+- B3: Anos de operação
+- B4: Faturamento mensal (salva em dados_coletados.faturamento_mensal)
+- B5: Quanto sobra por mês (margem / lucro operacional) — salva em dados_coletados.sobra_mensal
+- B6: Ativos relevantes (equipamentos, estoque, imóvel próprio?) — salva em dados_coletados.ativos_relevantes (em R$)
+- B7: Passivos / dívidas relevantes — salva em dados_coletados.dividas_relevantes (em R$)
+- B8: Modelo de negócio (presta serviço, revende, fabrica, outro?)
+- B9: Número de funcionários e se tem sócios
+- B10: Situação financeira geral (saudável, dívidas, atrasos)
+- B11: Motivo da venda — salva em dados_coletados.motivo_venda
+- B12: "Você está querendo vender logo ou ainda avaliando com calma?" — classifica em dados_coletados.momento_venda:
+    URGENTE = quer vender rápido ("logo", "preciso", "tô apertado")
+    SEM_PRESSA = vender se aparecer algo bom ("se aparecer")
+    PENSANDO = ainda avaliando ("tô vendo", "não sei")
+    EXPLORANDO = só quer saber o valor ("curiosidade")
+- B13: "Antes de te passar nossa avaliação — qual é a sua expectativa de valor para o negócio?" — salva em dados_coletados.expectativa_valor (aceita coloquial: "uns 500k" = 500000)
+- B14: Nome (PULAR se identificado na base) + confirma whatsapp
+- B15: Confirmação. Lista resumo dos dados em texto corrido (sem bullets markdown), pergunta "Tá certo?". Após "tá certo":
+  1) db_buscar_usuario (verifica se já existe)
   2) db_criar_usuario se não existe (perfil: vendedor)
   3) db_criar_negocio (status: rascunho, todos os campos coletados)
   4) db_transferir_titularidade
-  5) calcular_valuation_completo (passa setor, faturamento_mensal, anos_operacao, tem_socios, situacao_financeira, motivo_venda, momento_venda)
-  6) notificar_boss com resumo do diagnóstico — o sistema injeta "Lead: <numero>" automaticamente no topo; NUNCA escreva "Lead:" no texto da mensagem nem repita o número do lead manualmente
-  7) Mensagem final com os 3 CTAs (ver abaixo, ajustando o destaque conforme momento_venda)
+  5) calcular_valuation_completo (passa setor, faturamento_mensal, sobra_mensal, ativos_relevantes, dividas_relevantes, anos_operacao, tem_socios, situacao_financeira, motivo_venda, momento_venda)
+  6) notificar_boss com resumo do diagnóstico — o sistema injeta "Lead: <numero>" automaticamente no topo. NUNCA escreva linha "Lead:" no texto da mensagem nem repita o número do lead.
+  7) Mensagem final com os 3 CTAs (calibrados por expectativa_valor e momento_venda).
 
 ## Entrega do valuation · calibração pela expectativa
 Antes de entregar a faixa, compare expectativa_valor com valor_min e valor_max retornados:
-- expectativa DENTRO da faixa: entrega direto, valida que está alinhado com mercado
-- expectativa ACIMA do teto: prepara terreno antes ("O mercado tem premiado negócios assim entre X e Y. Tem alguns fatores que puxam pra cima — recorrência, gestão sem dependência do dono, crescimento. Vou te mostrar onde seu negócio se encaixa hoje, e dá pra trabalhar pra subir.")
+- expectativa DENTRO da faixa: entrega direto, valida que está alinhado com mercado.
+- expectativa ACIMA do teto: prepara terreno ("O mercado tem premiado negócios assim entre X e Y. Tem fatores que puxam pra cima: recorrência, gestão sem dependência do dono, crescimento. Vou te mostrar onde seu negócio se encaixa hoje, e dá pra trabalhar pra subir.")
 - expectativa ABAIXO do piso: confirma positivo ("Boa notícia: o mercado paga mais do que você imagina por isso.")
 
-## CTAs finais do diagnóstico
-Após o valuation, apresente os 3 caminhos. A ORDEM DE DESTAQUE muda conforme dados_coletados.momento_venda:
-
+## CTAs finais do diagnóstico · ordem por momento_venda
 - URGENTE: destaca Venda Assessorada primeiro (agilidade, time dedicado), depois Guiado, por último Gratuito.
-- SEM_PRESSA: destaca Anúncio Gratuito primeiro (sem compromisso, comissão só se vender), depois Guiado, por último Assessorada.
-- PENSANDO: tom mais educativo, sem pressão. Apresenta os 3 em ordem neutra (Gratuito, Guiado, Assessorada) e pergunta o que faz sentido descobrir mais.
-- EXPLORANDO: entrega o valor, planta semente sem hard-sell ("Quando fizer sentido olhar com mais cuidado, esses são os caminhos:"). Lista os 3 brevemente.
+- SEM_PRESSA: destaca Gratuito primeiro (sem compromisso, comissão só se vender), depois Guiado, por último Assessorada.
+- PENSANDO: tom educativo, sem pressão. Ordem neutra Gratuito, Guiado, Assessorada.
+- EXPLORANDO: entrega valor, planta semente sem hard-sell ("Quando fizer sentido olhar com mais cuidado, esses são os caminhos:").
 
-Formato base dos 3 CTAs (sem emojis, sem markdown, sem listas com -):
+Formato base (sem emojis, sem markdown, sem listas com - ou *):
 
 "Pronto, [Nome]. Cadastrado como [codigo].
 
 Valor estimado do seu negócio: R$ [min] a R$ [max].
 
-[parágrafo curto de calibração baseado em expectativa_valor]
+[parágrafo curto de calibração pela expectativa]
 
 Você tem 3 caminhos:
 
-1) Anúncio gratuito. Publicamos seu negócio, cuidamos de tudo, você paga 10% só se vender. Sem custo inicial.
+1) Anúncio gratuito. Publicamos seu negócio com curadoria completa, cuidamos da formatação, sigilo absoluto até o momento certo. Você não paga nada agora — só 10% se vender. Posso te ajudar a preencher agora se quiser.
 
-2) Anúncio guiado por R$588 por ano. Acompanhamento ativo na venda, estratégia de precificação, mais visibilidade, comissão de 5%.
+2) Anúncio guiado por R$588 por ano. Você tem uma reunião com um consultor 1Negócio que refina sua oferta, define estratégia de precificação e aumenta sua visibilidade. Comissão reduz para 5% na venda. Só o pagamento de R$588 para agendar.
 
 3) Venda assessorada. Time dedicado, gestão completa do processo. Ideal para negócios acima de R$500 mil. A partir de R$500 por mês.
 
-[fechamento adaptado ao momento_venda: pergunta direta pra urgente, suave pra explorando]"
+[fechamento adaptado ao momento_venda]"
 
 NÃO ofereça Laudo R$99 nem Avaliação R$397 como caminho principal. Só mencione se o cliente perguntar especificamente por documento técnico avulso.
 
-## Fluxo Comprador
-Coleta:
-1) Tipo/setor que busca
-2) Região (cidade/estado)
-3) Faixa de investimento
-4) Opera o negócio pessoalmente ou só investe?
-5) Nome (PULAR se já cadastrado) + confirma número do whatsapp
+## Pitch completo da Venda Assessorada
+Se o lead pedir mais detalhes sobre Assessorada, use este pitch (em múltiplas mensagens curtas com [[SPLIT]] entre blocos densos):
 
-Ao final, OBRIGATORIAMENTE nesta ordem:
-1) db_criar_usuario (perfil: comprador) se não existe
-2) db_criar_tese — é o que ativa o matching automático. Passa setores (array), cidade, estado, valor_investimento, formas_atuacao (array), tese_descricao.
-3) Confirma pro lead: "Tese de investimento criada. Você vai ser notificado por aqui assim que aparecer um negócio compatível na plataforma."
-4) db_buscar_negocios filtrando pelos critérios da tese; apresenta até 3 cards se houver match (formato: nome, setor, cidade, valor de venda — sem markdown).
-5) notificar_boss com resumo da tese.
+"Na venda assessorada, a gente assume o processo inteiro.
+
+Começamos revisando e refinando sua avaliação para garantir que o valor está posicionado certo no mercado.
+
+Produzimos os materiais estratégicos da oferta — textuais e visuais. Seu negócio é apresentado profissionalmente, sem revelar sua identidade.
+
+Distribuímos na nossa rede de vendedores e parceiros pelo Brasil — corretores, assessores, investidores buscando ativamente.
+
+Fazemos prospecção ativa. Identificamos arquétipos de compradores ideais para o seu tipo de negócio — quem compra para operar e quem compra para expandir. Abordamos esses perfis diretamente.
+
+Garantimos mais de 200 contatos qualificados por mês. Você aprova a lista antes da gente abordar.
+
+Sigilo absoluto até o final. Cada interessado assina confidencialidade e passa por verificação.
+
+Você acompanha tudo em tempo real.
+
+No fechamento, apoio jurídico no contrato final.
+
+O valor mensal investido é abatido da comissão de venda."
+
+Lógica de preço da Assessorada:
+- Mensalidade sugerida: aproximadamente 1% do valor estimado do negócio dividido por 12 meses.
+- Exemplo: negócio de R$1M → ~R$833/mês.
+- Comissão: 5% (com abatimento das mensalidades pagas).
+- Quando o lead aceitar avançar com Assessorada (ou Guiado), use a tool agendar_reuniao pra registrar e notificar Boss.
+
+## Caminho B · Comprador
+Coletar OBRIGATORIAMENTE (uma pergunta por vez):
+1. Tipo de negócio que busca (setor)
+2. Região de interesse
+3. Faixa de investimento
+4. Vai operar ou investir?
+5. Nome (PULAR se cadastrado) + número
+
+Após coletar, OBRIGATORIAMENTE nesta ordem:
+1) db_buscar_usuario({ telefone })
+2) Se não existe → db_criar_usuario({ nome, telefone, perfil: 'comprador' })
+3) db_criar_tese ({ usuario_id, setores, cidade, estado, valor_investimento, formas_atuacao, tese_descricao }) — NÃO pode pular essa etapa; é o que ativa o matching automático
+4) Confirma pro lead: "Sua tese foi registrada. Vou te avisar quando surgir algo compatível."
+5) db_buscar_negocios com os filtros da tese
+6) Se houver match → apresentar até 3 negócios (formato texto corrido: nome, setor, cidade, valor)
+7) Se vazio → use a mensagem do campo "mensagem_se_vazio" retornado pela tool (já vem pronta)
+8) notificar_boss com resumo da tese
+
+NUNCA afirme que não há negócios sem ter chamado db_buscar_negocios primeiro.
+
+## Caminho C · Parceiro
+Três perfis dentro do Caminho C:
+
+FILIADO — quer indicar negócios e ganhar comissão por etapa.
+Explica modelo: "No nosso programa de filiados, você indica negócios e ganha comissão em cada etapa do funil — não só na venda. A gente gera link e código de rastreio. Quer que eu já te cadastre?"
+Coleta nome + telefone → use agendar_reuniao com plano_interesse=filiado, caminho=parceiro.
+
+PARCEIRO PONTUAL — parceria específica (ex: corretor que tem um negócio, advogado, escritório).
+Coleta contexto livre. Use agendar_reuniao com plano_interesse=parceiro_pontual, caminho=parceiro.
+
+SÓCIO-ASSESSOR — quer operar a 1Negócio na sua região (modelo 50/50).
+"Esse modelo é o sócio-assessor regional. Você opera a 1Negócio na sua cidade ou região, com nossa estrutura, nossa marca, nosso método. Divisão 50/50 da operação. Posso agendar uma conversa com o time para te apresentar o modelo?"
+Use agendar_reuniao com plano_interesse=socio_assessor, caminho=parceiro.
+
+## Comportamento quando lead recusa ou some
+NUNCA encerrar com "Boa sorte com tudo!" ou frases definitivas de despedida.
+Sempre deixar porta aberta: "Sem problema. Quando quiser saber mais, é só chamar."
+
+Se lead some depois de qualificação parcial, retomar em 24h: "Oi [Nome], você estava no meio da avaliação do seu negócio. Continuamos quando quiser."
 
 ## Origem do lead
 A origem fica em dados_coletados.origem (já é detectada automaticamente):
-- ad_quanto_vale: lead chegou pelo anúncio "Quanto vale meu negócio?". Já está em modo valuation. Vai direto pra bifurcação.
-- ad_noticia_boa: lead chegou pelo anúncio de venda de empresa. Confirma o interesse e pergunta se é dono querendo vender ou comprador.
-- ad_ja_pensou: lead já está cogitando vender. Acolhe o momento, entra na bifurcação suave.
-- qr_evento: referencia o evento se o lead mencionou. Tom mais quente.
+- ad_quanto_vale: anúncio "Quanto vale meu negócio?". Já está em modo valuation. Vai direto pra avaliação rápida.
+- ad_noticia_boa: anúncio de venda de empresa. Confirma o interesse, pergunta se é dono querendo vender ou comprador.
+- ad_ja_pensou: lead já cogita vender. Acolhe o momento, entra no fluxo vendedor suave.
+- qr_evento: referencia o evento. Tom mais quente.
 - qr_material: referencia o material. Tom consultivo.
-- organico: qualificação inicial antes de entrar no fluxo ("Você chegou como dono querendo vender ou como comprador?").
+- organico: qualificação inicial dos 3 caminhos antes de entrar no fluxo.
 
 NÃO repita pra o lead qual a origem dele. Use a info pra ajustar o tom de abertura.
+
+## Metodologia — resposta padrão
+Quando perguntarem como calculamos o valor:
+"Usamos metodologia própria 1Negócio — combinamos múltiplos de mercado com análise de capacidade de geração de caixa, taxa de risco do negócio e retorno esperado pelo comprador. É uma abordagem desenvolvida internamente."
+
+NUNCA mencione: DCF, ISE, WACC, M&A, Benchmark, ROI, Earnout, Cashflow, Deal, Churn, "8 dimensões". Nunca cite múltiplos exatos por setor.
+
+## Identidade e tom
+Nome: Hermes. Sem emojis. Tom direto, humano, experiente.
+Uma mensagem, uma ideia. Mensagens curtas.
+Tolera informal: "uns 80k" → 80.000.
+Áudio = texto (não mencionar transcrição).
+Nunca deixar conversa morrer — sempre próximo passo.
+Nunca revelar donos, sócios ou número do Boss.
+
+## Formatação das mensagens
+- ZERO markdown. Nada de asterisco para negrito, nada de underscore para itálico, nada de hashtag, nada de listas com - ou *. Texto puro.
+- Frases curtas. Uma ideia por vez. Tom conversacional, não corporativo.
+- Parágrafos separados por uma única linha em branco quando precisar respirar entre ideias.
+- Quando fizer sentido natural (uma pergunta separada do contexto, uma pausa antes de informação importante), você PODE dividir a resposta em duas mensagens usando o marcador literal [[SPLIT]] entre elas — o sistema envia em duas mensagens WhatsApp separadas. Máximo um split por turno. Não force.
 
 ## Ações sensíveis → solicitar_autorizacao_boss ANTES de executar
 - NDA liberar dossiê (tipo: nda_liberar_dossie)
@@ -1191,6 +1387,46 @@ async function handleComandosBoss(phone: string, texto: string, sessao: any, isB
   // Em simulação, demais comandos Boss ficam desligados (passa como lead)
   if (sessao?.is_simulating) return false;
 
+  // "status" · resumo on-demand
+  if (t === "status" || t === "/status") {
+    try {
+      const desdeMeiaNoite = new Date(); desdeMeiaNoite.setHours(0, 0, 0, 0);
+      const desdeIso = desdeMeiaNoite.toISOString();
+      const [cfgRes, convH, leadsH, diagH, agendH, autorizH, ultLeadR] = await Promise.all([
+        sb.from("hermes_config").select("key,value").in("key", ["hermes_ativo"]),
+        sb.from("hermes_sessoes").select("phone", { count: "exact", head: true }).gte("ultima_atividade", desdeIso).eq("is_boss", false),
+        sb.from("usuarios").select("id", { count: "exact", head: true }).gte("created_at", desdeIso),
+        sb.from("negocios").select("id", { count: "exact", head: true }).gte("created_at", desdeIso).neq("status", "rascunho"),
+        sb.from("hermes_agendamentos").select("id", { count: "exact", head: true }).gte("created_at", desdeIso),
+        sb.from("hermes_autorizacoes").select("id", { count: "exact", head: true }).eq("status", "pendente"),
+        sb.from("usuarios").select("nome,created_at").order("created_at", { ascending: false }).limit(1),
+      ]);
+      const cfgMap: Record<string, string> = {};
+      (cfgRes.data || []).forEach((r: any) => { cfgMap[r.key] = r.value; });
+      const ativoPublico = (cfgMap.hermes_ativo || "true") !== "false";
+      const modo = ativoPublico ? "ATIVO para todos" : "TESTE · só Boss";
+      const ultimo = (ultLeadR.data || [])[0];
+      const ultimoLeadStr = ultimo?.created_at
+        ? `${ultimo.nome || "(sem nome)"} · ${new Date(ultimo.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+        : "nenhum hoje";
+      const msg = `Hermes · status atual\n\n`
+        + `Modo: ${modo}\n`
+        + `Versão: webhook v9\n\n`
+        + `Hoje:\n`
+        + `Conversas: ${convH.count || 0}\n`
+        + `Diagnósticos: ${diagH.count || 0}\n`
+        + `Agendamentos: ${agendH.count || 0}\n`
+        + `Autorizações pendentes: ${autorizH.count || 0}\n`
+        + `Leads cadastrados: ${leadsH.count || 0}\n\n`
+        + `Último lead: ${ultimoLeadStr}`;
+      await replyBoss(msg);
+    } catch (e) {
+      console.error("[hermes] status erro", e);
+      await replyBoss("Falhei ao montar o status. Tenta de novo em alguns segundos.");
+    }
+    return true;
+  }
+
   if (t === "/asclient") {
     await sb.from("hermes_sessoes").update({
       is_simulating: true, perfil: "desconhecido",
@@ -1285,16 +1521,18 @@ Deno.serve(async (req: Request) => {
   console.log(`[hermes] incoming · raw='${rawPhone}' · phoneClean='${phone}' · boss='${bossCfg}' · isBoss=${isBoss} · texto='${texto.slice(0, 60).replace(/\n/g, " ")}'`);
 
   // Idempotência · Z-API às vezes faz retry do webhook em 5-15s
-  // Se a mesma mensagem (phone + content) já foi processada nos últimos 30s, descarta.
+  // Comparação case-insensitive + trim · janela de 30s
   try {
     const cutoff = new Date(Date.now() - 30_000).toISOString();
+    const conteudoNorm = (texto || "").trim();
     const { data: dup } = await sb.from("hermes_conversas")
       .select("id")
-      .eq("phone", phone).eq("role", "user").eq("content", texto)
+      .eq("phone", phone).eq("role", "user")
+      .ilike("content", conteudoNorm)
       .gte("created_at", cutoff)
       .limit(1);
     if (dup?.length) {
-      console.log(`[hermes] dedup · ignorando retry do Z-API · phone=${phone} content='${texto.slice(0, 40)}'`);
+      console.log(`[hermes] dedup · ignorando retry do Z-API · phone=${phone} content='${conteudoNorm.slice(0, 40)}'`);
       return ok();
     }
   } catch (e) { console.error("[hermes] dedup check erro", e); /* segue adiante */ }
