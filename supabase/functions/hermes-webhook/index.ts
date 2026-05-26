@@ -1026,10 +1026,15 @@ async function chamarClaude(opts: {
   return { resposta: textoFinal };
 }
 
-// ─── Comandos Boss · pausa/ativa/simulação ────────────────────────────
+// ─── Comandos Boss · simulação/teste/público ──────────────────────────
 async function handleComandosBoss(phone: string, texto: string, sessao: any, isBoss: boolean): Promise<boolean> {
   if (!isBoss) return false;
   const t = (texto || "").trim().toLowerCase();
+  const replyBoss = async (msg: string) => {
+    await salvarMensagem(phone, "user", texto);
+    await salvarMensagem(phone, "assistant", msg);
+    await enviarWhatsApp(phone, msg);
+  };
 
   // /astheboss funciona MESMO em simulação (precisa pra sair)
   if (t === "/astheboss" || t === "/asboss") {
@@ -1037,8 +1042,21 @@ async function handleComandosBoss(phone: string, texto: string, sessao: any, isB
       is_simulating: false,
       fluxo_ativo: null, step_atual: 0, dados_coletados: {},
     }).eq("phone", phone);
-    const msg = "Modo Boss restaurado. Voltei a operar como administrador da plataforma.";
+    await replyBoss("Modo Boss restaurado. Voltei a operar como administrador da plataforma.");
+    return true;
+  }
+
+  // /comecar /recomecar · só faz sentido DENTRO da simulação
+  // zera histórico + reseta sessão (mantém is_simulating=true)
+  if (sessao?.is_simulating && (t === "/comecar" || t === "/recomecar" || t === "/começar")) {
+    await sb.from("hermes_conversas").delete().eq("phone", phone);
+    await sb.from("hermes_sessoes").update({
+      fluxo_ativo: null, step_atual: 0, dados_coletados: {},
+      perfil: "desconhecido", is_simulating: true, usuario_id: null,
+    }).eq("phone", phone);
+    // Não chama replyBoss aqui pra não recriar histórico — só salva o novo turno limpo
     await salvarMensagem(phone, "user", texto);
+    const msg = "Conversa zerada. Pode começar.";
     await salvarMensagem(phone, "assistant", msg);
     await enviarWhatsApp(phone, msg);
     return true;
@@ -1052,22 +1070,24 @@ async function handleComandosBoss(phone: string, texto: string, sessao: any, isB
       is_simulating: true, perfil: "desconhecido",
       fluxo_ativo: null, step_atual: 0, dados_coletados: {},
     }).eq("phone", phone);
-    const msg = "Modo simulação ativo. Vou te tratar como lead novo a partir de agora. Manda /astheboss pra sair.";
-    await salvarMensagem(phone, "user", texto);
-    await salvarMensagem(phone, "assistant", msg);
-    await enviarWhatsApp(phone, msg);
+    await replyBoss("Modo simulação ativo. Vou te tratar como lead novo a partir de agora. Manda /astheboss pra sair.");
     return true;
   }
 
-  if (/^(pausa|pausar|para|parar)( o)? hermes$/.test(t)) {
+  // Toggle público OFF · "modo teste" + aliases ("pausa o Hermes")
+  if (/^modo teste$/.test(t) || /^(pausa|pausar|para|parar)( o)? hermes$/.test(t)) {
     await sb.from("hermes_config").update({ value: "false", updated_at: new Date().toISOString() }).eq("key", "hermes_ativo");
-    const msg = "Hermes pausado. Não vou responder mensagens até você ativar de novo.";
-    await salvarMensagem(phone, "user", texto);
-    await salvarMensagem(phone, "assistant", msg);
-    await enviarWhatsApp(phone, msg);
+    await replyBoss("Modo teste ativo. Só você me acessa agora.");
     return true;
   }
-  // "ativa o Hermes" é tratado no main handler ANTES do gate hermes_ativo
+
+  // Toggle público ON · "modo publico" + aliases ("ativa o Hermes")
+  if (/^modo p[uú]blico$/.test(t) || /^(ativa|ativar|liga|ligar)( o)? hermes$/.test(t)) {
+    await sb.from("hermes_config").update({ value: "true", updated_at: new Date().toISOString() }).eq("key", "hermes_ativo");
+    await replyBoss("Hermes ativo para todos.");
+    return true;
+  }
+
   return false;
 }
 
@@ -1132,18 +1152,8 @@ Deno.serve(async (req: Request) => {
     }
   } catch (e) { console.error("[hermes] dedup check erro", e); /* segue adiante */ }
 
-  // Pré-gate: Boss "ativa o Hermes" funciona mesmo com hermes_ativo=false
-  if (isBoss && /^(ativa|ativar|liga|ligar)( o)? hermes$/.test((texto || "").trim().toLowerCase())) {
-    await sb.from("hermes_config").update({ value: "true", updated_at: new Date().toISOString() }).eq("key", "hermes_ativo");
-    const msg = "Hermes ativado. Voltei a atender mensagens.";
-    await salvarMensagem(phone, "user", texto);
-    await salvarMensagem(phone, "assistant", msg);
-    await enviarWhatsApp(phone, msg);
-    return ok();
-  }
-
-  // Gate normal de hermes_ativo
-  if ((cfg.hermes_ativo || "true") === "false") return ok();
+  // Gate: hermes_ativo=false pausa público mas Boss sempre passa (modo teste)
+  if ((cfg.hermes_ativo || "true") === "false" && !isBoss) return ok();
 
   const historicoLimit = parseInt(cfg.historico_limit || "30", 10);
   const sessao = await getOuCriarSessao(phone, isBoss);
