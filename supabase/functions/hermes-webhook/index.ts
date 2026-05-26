@@ -558,15 +558,25 @@ const TOOLS = [
       nome: { type: "string" }, telefone: { type: "string" }, negocio_id: { type: "string" },
     }, required: ["telefone", "negocio_id"],
   }},
-  { name: "db_criar_tese", description: "Cria tese de investimento pra comprador (teses_investimento).", input_schema: {
+  { name: "db_criar_tese", description: "Cria tese de investimento pra comprador na tabela teses_investimento. Após criar, NOTIFICA o Boss automaticamente — você NÃO precisa chamar notificar_boss separadamente pra isso. OBRIGATÓRIO no Caminho B após coletar dados do comprador.", input_schema: {
     type: "object", properties: {
-      usuario_id: { type: "string" }, nome: { type: "string" }, whatsapp: { type: "string" },
-      setores: { type: "array", items: { type: "string" } },
-      cidade: { type: "string" }, estado: { type: "string" },
-      valor_investimento: { type: "string" }, valor_alvo: { type: "number" },
-      formas_atuacao: { type: "array", items: { type: "string" } },
-      tese_descricao: { type: "string" }, descricao_curta: { type: "string" },
-    }, required: [],
+      usuario_id: { type: "string", description: "UUID do usuario criado/encontrado em db_criar_usuario" },
+      nome: { type: "string", description: "Nome do comprador" },
+      whatsapp: { type: "string", description: "Whatsapp do comprador" },
+      email: { type: "string" },
+      setores: { type: "array", items: { type: "string" }, description: "Lista de setores de interesse (use chaves canônicas: alimentacao, saude, varejo, etc.)" },
+      formas_atuacao: { type: "array", items: { type: "string" }, description: "Como pretende atuar: operar, investir, etc." },
+      cidade: { type: "string" },
+      estado: { type: "string" },
+      localizacao_tipo: { type: "string", description: "Ex: regiao_especifica, qualquer, etc." },
+      valor_investimento: { type: "string", description: "Faixa de investimento em texto (ex: 'até R$500k', '500000-1000000'). Coluna é text." },
+      valor_alvo: { type: "number", description: "Valor alvo numérico em R$, se o lead deu número exato." },
+      tese_descricao: { type: "string", description: "Resumo da tese (1-3 frases)." },
+      descricao_curta: { type: "string" },
+      descricao_adicional: { type: "string" },
+      observacoes: { type: "string", description: "Observações livres do Hermes sobre o lead." },
+      titulo: { type: "string" },
+    }, required: ["whatsapp"],
   }},
   { name: "db_criar_solicitacao_info", description: "Cria solicitação de informação de um comprador para um negócio.", input_schema: {
     type: "object", properties: {
@@ -724,13 +734,16 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
       }
       case "db_criar_usuario": {
         const tel = phoneClean(args.telefone);
+        // Idempotência por whatsapp (coluna real, não 'telefone')
         const { data: existing } = await sb.from("usuarios").select("id,nome,whatsapp,tipo").eq("whatsapp", tel).maybeSingle();
         if (existing) return { ok: true, usuario_id: existing.id, ja_existia: true, usuario: existing };
-        const tipoMap: Record<string, string> = { vendedor: "sell", comprador: "buy", desconhecido: "sell" };
+        // usuarios.nome é NOT NULL — fallback se Hermes não tiver coletado o nome ainda
+        const nomeFinal = (args.nome && String(args.nome).trim()) || `Lead ${tel.slice(-4)}`;
+        const tipoMap: Record<string, string> = { vendedor: "sell", comprador: "buy", desconhecido: "buy" };
         const { data, error } = await sb.from("usuarios").insert({
-          nome: args.nome || null, whatsapp: tel,
-          email: args.email || tel,
-          tipo: tipoMap[args.perfil || "desconhecido"] || "sell",
+          nome: nomeFinal, whatsapp: tel,
+          email: args.email || null,
+          tipo: tipoMap[args.perfil || "desconhecido"] || "buy",
         }).select().single();
         if (error) return { ok: false, erro: error.message };
         return { ok: true, usuario_id: data.id, ja_existia: false };
@@ -777,8 +790,10 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
         const tel = phoneClean(args.telefone);
         let { data: u } = await sb.from("usuarios").select("id").eq("whatsapp", tel).maybeSingle();
         if (!u) {
+          // usuarios.nome é NOT NULL — fallback se ausente
+          const nomeFinal = (args.nome && String(args.nome).trim()) || `Lead ${tel.slice(-4)}`;
           const { data: novo, error } = await sb.from("usuarios").insert({
-            nome: args.nome || null, whatsapp: tel, email: tel, tipo: "sell",
+            nome: nomeFinal, whatsapp: tel, email: null, tipo: "sell",
           }).select("id").single();
           if (error) return { ok: false, erro: error.message };
           u = novo;
@@ -788,13 +803,43 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
         return { ok: true, usuario_id: u.id, negocio_id: args.negocio_id };
       }
       case "db_criar_tese": {
-        const ins: any = { status: "novo", origem: "hermes" };
-        const map = ["usuario_id", "nome", "whatsapp", "setores", "cidade", "estado", "valor_investimento", "valor_alvo", "formas_atuacao", "tese_descricao", "descricao_curta"];
+        // Colunas reais da tabela teses_investimento — não passar 'status' (default 'ativa')
+        const ins: any = { origem: "hermes" };
+        const map = [
+          "usuario_id", "nome", "whatsapp", "email",
+          "setores", "formas_atuacao",
+          "cidade", "estado", "localizacao_tipo",
+          "valor_investimento", "valor_alvo",
+          "tese_descricao", "descricao_curta", "descricao_adicional",
+          "observacoes", "titulo",
+        ];
         for (const k of map) if (args[k] !== undefined) ins[k] = args[k];
         if (ins.whatsapp) ins.whatsapp = phoneClean(ins.whatsapp);
-        const { data, error } = await sb.from("teses_investimento").insert(ins).select("id,codigo").single();
-        if (error) return { ok: false, erro: error.message };
-        return { ok: true, tese: data };
+        // setores/formas_atuacao precisam ser arrays
+        if (ins.setores && !Array.isArray(ins.setores)) ins.setores = [ins.setores];
+        if (ins.formas_atuacao && !Array.isArray(ins.formas_atuacao)) ins.formas_atuacao = [ins.formas_atuacao];
+        // valor_investimento é TEXT na tabela — converte número se vier numérico
+        if (ins.valor_investimento !== undefined && typeof ins.valor_investimento === "number") {
+          ins.valor_investimento = String(ins.valor_investimento);
+        }
+        const { data, error } = await sb.from("teses_investimento")
+          .insert(ins).select("id,codigo,nome,whatsapp,setores,cidade,estado,valor_investimento").single();
+        if (error) {
+          console.error("[hermes] db_criar_tese falhou:", error.message, "payload:", JSON.stringify(ins).slice(0, 400));
+          return { ok: false, erro: error.message };
+        }
+        // OBRIGATÓRIO: notificar Boss com resumo da tese
+        const setoresStr = Array.isArray(data.setores) ? data.setores.join(", ") : (data.setores || "—");
+        const regiaoStr = [data.cidade, data.estado].filter(Boolean).join("/") || "—";
+        const valorStr = data.valor_investimento ? `até R$${data.valor_investimento}` : "não informado";
+        const msgBoss = `Tese cadastrada${data.codigo ? ` · ${data.codigo}` : ""}\n`
+          + `Comprador: ${data.nome || "(sem nome)"} · ${data.whatsapp || ctx.phone}\n`
+          + `Setores: ${setoresStr}\n`
+          + `Região: ${regiaoStr}\n`
+          + `Investimento: ${valorStr}`;
+        try { await notificarBoss(msgBoss); }
+        catch (e) { console.error("[hermes] db_criar_tese · notificar_boss falhou:", e); }
+        return { ok: true, tese: data, codigo: data.codigo || null };
       }
       case "db_criar_solicitacao_info": {
         const ins: any = { negocio_id: args.negocio_id };
@@ -1266,22 +1311,46 @@ Beleza/Estética:
 ## Caminho B · Comprador
 Coletar OBRIGATORIAMENTE (uma pergunta por vez):
 1. Tipo de negócio que busca (setor)
-2. Região de interesse
+2. Região de interesse (cidade/estado)
 3. Faixa de investimento
-4. Vai operar ou investir?
-5. Nome (PULAR se cadastrado) + número
+4. Vai operar pessoalmente ou só investir?
+5. Nome (PULAR se cadastrado) + confirma whatsapp
 
 Após coletar, OBRIGATORIAMENTE nesta ordem:
-1) db_buscar_usuario({ telefone })
-2) Se não existe → db_criar_usuario({ nome, telefone, perfil: 'comprador' })
-3) db_criar_tese ({ usuario_id, setores, cidade, estado, valor_investimento, formas_atuacao, tese_descricao }) — NÃO pode pular essa etapa; é o que ativa o matching automático
-4) Confirma pro lead: "Sua tese foi registrada. Vou te avisar quando surgir algo compatível."
-5) db_buscar_negocios com os filtros da tese
-6) Se houver match → apresentar até 3 negócios (formato texto corrido: nome, setor, cidade, valor)
-7) Se vazio → use a mensagem do campo "mensagem_se_vazio" retornado pela tool (já vem pronta)
-8) notificar_boss com resumo da tese
+
+1) db_buscar_usuario({ telefone }) — verifica se já existe pelo whatsapp.
+
+2) Se não existe → db_criar_usuario({ nome, telefone, perfil: 'comprador' }). Pega o usuario_id retornado.
+
+3) db_criar_tese — passa OBRIGATORIAMENTE:
+   - usuario_id (do passo anterior)
+   - nome (do comprador)
+   - whatsapp (whatsapp do comprador)
+   - setores (ARRAY de strings · use chaves canônicas: alimentacao, saude, varejo, beleza_estetica, educacao, servicos_empresas, etc.)
+   - cidade, estado
+   - valor_investimento (string · pode ser "até R$500k", "500000-1000000", etc.)
+   - formas_atuacao (ARRAY · ex: ["operar"], ["investir"], ["operar","investir"])
+   - tese_descricao (resumo curto da tese em 1-2 frases)
+   - observacoes (qualquer detalhe extra que o lead mencionou)
+
+   A tool db_criar_tese AUTOMATICAMENTE notifica o Boss após criar — VOCÊ NÃO precisa chamar notificar_boss separadamente. O resumo enviado ao Boss tem o formato:
+     "Tese cadastrada · [codigo]
+      Comprador: [nome] · [whatsapp]
+      Setores: [setores]
+      Região: [cidade/estado]
+      Investimento: até R$[valor]"
+
+4) Confirma pro lead com o código retornado:
+   "Sua tese foi registrada. [Se houver codigo: 'Código: [codigo].'] Vou te avisar por aqui assim que surgir algo compatível na plataforma."
+
+5) db_buscar_negocios passando os filtros da tese (setor, cidade/estado, faixa de preço).
+
+6) Se houver match → apresenta até 3 negócios em texto corrido (nome, categoria, cidade, valor) — sem markdown.
+
+7) Se vazio → use LITERAL o campo "mensagem_se_vazio" retornado pela tool. Já vem pronta. Não invente alternativa.
 
 NUNCA afirme que não há negócios sem ter chamado db_buscar_negocios primeiro.
+NUNCA pule a etapa 3 (db_criar_tese) — é a etapa que ativa o matching futuro.
 
 ## Caminho C · Parceiro
 Três perfis dentro do Caminho C:
