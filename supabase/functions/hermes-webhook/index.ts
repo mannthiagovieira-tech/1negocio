@@ -348,6 +348,14 @@ const MAPA_SETORES: Record<string, string> = {
   "alimentacao": "alimentacao", "restaurante": "alimentacao",
   "lanchonete": "alimentacao", "padaria": "alimentacao",
   "bar": "alimentacao", "delivery": "alimentacao",
+  "alimentacao_saudavel": "alimentacao", "saudavel": "alimentacao",
+  "natural": "alimentacao", "naturais": "alimentacao",
+  "organico": "alimentacao", "organicos": "alimentacao",
+  "hortifruti": "alimentacao", "emporio": "alimentacao",
+  "vegano": "alimentacao", "vegetariano": "alimentacao",
+  "cafe": "alimentacao", "cafeteria": "alimentacao",
+  "doceria": "alimentacao", "confeitaria": "alimentacao",
+  "acai": "alimentacao", "pizzaria": "alimentacao",
   "beleza": "beleza_estetica", "estetica": "beleza_estetica",
   "salao": "beleza_estetica", "barbearia": "beleza_estetica", "spa": "beleza_estetica",
   "educacao": "educacao", "escola": "educacao", "curso": "educacao", "idiomas": "educacao",
@@ -679,11 +687,13 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
     switch (name) {
       // ─── Grupo A ──────────────────────────
       case "db_buscar_negocios": {
-        let q = sb.from("negocios").select("id,codigo,nome_negocio,setor,cidade,estado,preco_pedido,valor_venda,status,titulo_anuncio")
+        // Coluna canônica: categoria (não setor). Display name: nome (não titulo).
+        // Filtro de preço: preco_pedido (não avaliacao_max).
+        let q = sb.from("negocios").select("id,codigo,nome,categoria,subcategoria,cidade,estado,preco_pedido,valor_venda,status")
           .limit(Math.min(50, args.limit || 10));
-        const setorCanonico = args.setor ? mapearSetorCanonico(args.setor) : null;
-        if (setorCanonico) q = q.eq("setor", setorCanonico);
-        else if (args.setor) q = q.ilike("setor", `%${args.setor}%`); // fallback ilike se não mapeou
+        const categoriaCanonica = args.setor ? mapearSetorCanonico(args.setor) : null;
+        if (categoriaCanonica) q = q.eq("categoria", categoriaCanonica);
+        else if (args.setor) q = q.ilike("categoria", `%${args.setor}%`); // fallback ilike se não mapeou
         if (args.cidade) q = q.ilike("cidade", `%${args.cidade}%`);
         if (args.estado) q = q.eq("estado", args.estado.toUpperCase());
         if (args.status) q = q.eq("status", args.status);
@@ -692,13 +702,12 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
         if (args.faixa_preco_max) q = q.lte("preco_pedido", args.faixa_preco_max);
         const { data, error } = await q;
         if (error) return { ok: false, erro: error.message };
-        // Resposta cuidadosa quando vazio — Hermes nunca pode dizer "nao temos nada"
         const vazio = !data?.length;
         return {
           ok: true,
           negocios: data || [],
           total: data?.length || 0,
-          setor_consultado: setorCanonico || args.setor || null,
+          categoria_consultada: categoriaCanonica || args.setor || null,
           mensagem_se_vazio: vazio
             ? "No momento nao temos nada publicado nesse perfil especifico, mas acabamos de registrar sua tese. Assim que surgir algo compativel voce e o primeiro a saber."
             : null,
@@ -812,7 +821,7 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
         const desde = new Date(Date.now() - horas * 3600 * 1000).toISOString();
         const [usuariosR, negociosR, solicitacoesR, conversasR] = await Promise.all([
           sb.from("usuarios").select("id,nome,whatsapp,tipo,created_at").gte("created_at", desde).order("created_at", { ascending: false }).limit(30),
-          sb.from("negocios").select("id,codigo,codigo_diagnostico,nome_negocio,titulo_anuncio,setor,cidade,estado,status,created_at,vendedor_id").gte("created_at", desde).order("created_at", { ascending: false }).limit(30),
+          sb.from("negocios").select("id,codigo,codigo_diagnostico,nome,categoria,subcategoria,cidade,estado,status,created_at,vendedor_id").gte("created_at", desde).order("created_at", { ascending: false }).limit(30),
           sb.from("solicitacoes_info").select("id,negocio_id,nome_solicitante,whatsapp_solicitante,mensagem,status,created_at").gte("created_at", desde).order("created_at", { ascending: false }).limit(30),
           sb.from("hermes_sessoes").select("phone,perfil,fluxo_ativo,step_atual,ultima_atividade").gte("ultima_atividade", desde).eq("is_boss", false).eq("arquivada", false).order("ultima_atividade", { ascending: false }).limit(30),
         ]);
@@ -837,7 +846,7 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
       case "db_buscar_negocios_por_status": {
         const status = Array.isArray(args.status) ? args.status : [args.status];
         const { data, error } = await sb.from("negocios")
-          .select("id,codigo,nome_negocio,titulo_anuncio,setor,cidade,estado,status,preco_pedido,created_at")
+          .select("id,codigo,nome,categoria,subcategoria,cidade,estado,status,preco_pedido,created_at")
           .in("status", status).order("created_at", { ascending: false })
           .limit(Math.min(100, args.limit || 30));
         if (error) return { ok: false, erro: error.message };
