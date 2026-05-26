@@ -804,7 +804,9 @@ async function executarTool(name: string, args: any, ctx: { phone: string; isBos
         return { ok: true, usuario: data || null };
       }
       case "db_criar_negocio": {
-        const ins: any = { status: "rascunho" };
+        // origem='hermes' faz o trigger notificar-boss-portal pular
+        // (Hermes já chama notificar_boss no fluxo B15 — evita duplicação)
+        const ins: any = { status: "rascunho", origem: "hermes" };
         const map: Record<string, string> = {
           vendedor_id: "vendedor_id", nome_negocio: "nome_negocio", setor: "setor",
           cidade: "cidade", estado: "estado", anos_operacao: "tempo_operacao_anos",
