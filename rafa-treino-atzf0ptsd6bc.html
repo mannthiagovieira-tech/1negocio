@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Rafa · Sandbox de Treino</title>
+<style>
+  :root{
+    --bg:#0e1418; --panel:#151c22; --line:#22303a;
+    --me:#005c4b; --rafa:#1f2c34; --ink:#e8edef; --ink2:#8696a0; --accent:#00a884;
+    --warn:#c75c3c; --ok:#2ecc71;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{display:grid;grid-template-rows:auto 1fr auto;height:100vh;max-width:980px;margin:0 auto;background:var(--panel)}
+  header{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--rafa);border-bottom:1px solid var(--line)}
+  .avatar{width:40px;height:40px;border-radius:50%;background:var(--accent);
+    display:flex;align-items:center;justify-content:center;font-weight:700;color:#0e1418}
+  .who{flex:1}
+  .name{font-weight:600;font-size:15px}
+  .meta{font-size:11px;color:var(--ink2)}
+  header button{background:transparent;color:var(--ink2);border:1px solid var(--line);
+    padding:6px 10px;border-radius:6px;font-size:12px;cursor:pointer}
+  header button:hover{color:var(--ink);border-color:var(--ink2)}
+  header button.danger{color:var(--warn);border-color:var(--warn)}
+  header button.danger:hover{background:var(--warn);color:#fff}
+
+  main{overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:6px;
+    background:#0b141a url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><circle cx='2' cy='2' r='1' fill='%2316222a'/></svg>")}
+  .row{display:flex;align-items:flex-end;gap:6px;max-width:80%}
+  .row.me{align-self:flex-end;flex-direction:row-reverse}
+  .row.rafa{align-self:flex-start}
+  .bubble{padding:8px 12px;border-radius:8px;font-size:14px;line-height:1.4;white-space:pre-wrap;word-wrap:break-word}
+  .me .bubble{background:var(--me);border-bottom-right-radius:2px}
+  .rafa .bubble{background:var(--rafa);border-bottom-left-radius:2px}
+  .time{font-size:10px;color:var(--ink2);margin:0 4px}
+  .anot-btn{background:transparent;color:var(--ink2);border:none;font-size:14px;cursor:pointer;padding:2px 4px}
+  .anot-btn:hover{color:var(--accent)}
+  .anot-tag{display:inline-block;font-size:10px;background:#3a2418;color:#e8a17d;padding:1px 6px;border-radius:8px;margin-left:6px}
+  .empty{color:var(--ink2);text-align:center;padding:24px;font-size:13px}
+
+  footer{display:flex;gap:8px;padding:10px 12px;background:var(--rafa);border-top:1px solid var(--line)}
+  textarea{flex:1;background:#2a3942;color:var(--ink);border:none;border-radius:18px;padding:10px 14px;
+    font-size:14px;resize:none;outline:none;font-family:inherit;min-height:38px;max-height:160px}
+  .send{background:var(--accent);color:#0e1418;border:none;border-radius:50%;width:42px;height:42px;
+    font-size:18px;cursor:pointer;font-weight:700}
+  .send:disabled{opacity:.4;cursor:wait}
+
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+  .modal.show{display:flex}
+  .modal-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px;max-width:520px;width:100%}
+  .modal-title{font-size:14px;color:var(--ink2);margin-bottom:8px}
+  .modal-context{font-size:12px;color:var(--ink2);background:#0b141a;border-radius:6px;padding:8px;margin-bottom:10px;max-height:120px;overflow:auto;white-space:pre-wrap}
+  .modal textarea{background:#0b141a;border:1px solid var(--line);border-radius:6px;width:100%;min-height:80px;padding:8px;color:var(--ink)}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+  .modal-actions button{padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+  .modal-actions button.primary{background:var(--accent);color:#0e1418;border-color:var(--accent);font-weight:600}
+
+  .notes-panel{position:fixed;top:0;right:0;width:340px;height:100%;background:var(--panel);border-left:1px solid var(--line);transform:translateX(100%);transition:transform .2s;z-index:40;display:flex;flex-direction:column}
+  .notes-panel.show{transform:translateX(0)}
+  .notes-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  .notes-list{flex:1;overflow-y:auto;padding:10px 14px}
+  .note-card{background:#0b141a;border:1px solid var(--line);border-radius:6px;padding:10px;margin-bottom:8px;font-size:12px}
+  .note-card .when{color:var(--ink2);font-size:10px;margin-bottom:4px}
+  .note-card .obs{color:#e8a17d;font-weight:600;margin-bottom:6px}
+  .note-card .what{color:var(--ink2);font-size:11px;background:#16222a;border-radius:4px;padding:6px;white-space:pre-wrap;max-height:80px;overflow:auto}
+
+  .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1f2c34;border:1px solid var(--line);
+    padding:8px 14px;border-radius:20px;font-size:13px;color:var(--ink);opacity:0;transition:opacity .15s;z-index:60}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="avatar">R</div>
+    <div class="who">
+      <div class="name">Rafa · 1Negócio</div>
+      <div class="meta">Sandbox · 5500000000001 · não vai pro WhatsApp</div>
+    </div>
+    <button id="btn-notes">📝 Anotações</button>
+    <button id="btn-reset" class="danger">↻ Resetar</button>
+  </header>
+  <main id="chat">
+    <div class="empty">Sandbox limpa. Digite uma mensagem pra começar.</div>
+  </main>
+  <footer>
+    <textarea id="input" placeholder="Mensagem pro Rafa…" rows="1"></textarea>
+    <button id="send" class="send">▶</button>
+  </footer>
+</div>
+
+<div class="modal" id="modal-anot">
+  <div class="modal-card">
+    <div class="modal-title">Anotação sobre esta resposta</div>
+    <div class="modal-context" id="anot-context"></div>
+    <textarea id="anot-obs" placeholder="O que você quer registrar?"></textarea>
+    <div class="modal-actions">
+      <button id="anot-cancel">Cancelar</button>
+      <button id="anot-save" class="primary">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="notes-panel" id="notes-panel">
+  <div class="notes-head">
+    <strong style="font-size:14px">Anotações</strong>
+    <button id="notes-close" style="background:transparent;border:none;color:#8696a0;font-size:18px;cursor:pointer">×</button>
+  </div>
+  <div class="notes-list" id="notes-list"><div class="empty">Carregando…</div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// === CONFIG ===========================================================
+const PROJECT = "dbijmgqlcrgjlcfrastg";
+const PHONE = "5500000000001";
+const HERMES_URL = `https://${PROJECT}.supabase.co/functions/v1/hermes-webhook`;
+const OPS_URL = `https://${PROJECT}.supabase.co/functions/v1/rafa-sandbox-ops`;
+const SANDBOX_KEY = "46c435d2205adfe892d1fca89a2eb690";
+// =====================================================================
+
+const chat = document.getElementById("chat");
+const input = document.getElementById("input");
+const sendBtn = document.getElementById("send");
+const btnReset = document.getElementById("btn-reset");
+const btnNotes = document.getElementById("btn-notes");
+const modalAnot = document.getElementById("modal-anot");
+const anotContext = document.getElementById("anot-context");
+const anotObs = document.getElementById("anot-obs");
+const anotCancel = document.getElementById("anot-cancel");
+const anotSave = document.getElementById("anot-save");
+const notesPanel = document.getElementById("notes-panel");
+const notesList = document.getElementById("notes-list");
+const notesClose = document.getElementById("notes-close");
+const toast = document.getElementById("toast");
+
+let turnos = []; // [{role:"user"|"rafa", content, t, anotado?:boolean}]
+let pending = null; // mensagem do rafa pendente de anotação
+
+function showToast(msg){
+  toast.textContent = msg;
+  toast.classList.add("show");
+  setTimeout(()=> toast.classList.remove("show"), 1400);
+}
+
+function fmtHora(d){
+  return new Date(d).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+}
+
+function render(){
+  chat.innerHTML = "";
+  if (turnos.length === 0) {
+    chat.innerHTML = '<div class="empty">Sandbox limpa. Digite uma mensagem pra começar.</div>';
+    return;
+  }
+  turnos.forEach((t, idx) => {
+    const row = document.createElement("div");
+    row.className = "row " + (t.role === "user" ? "me" : "rafa");
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = t.content;
+    const time = document.createElement("span");
+    time.className = "time";
+    time.textContent = fmtHora(t.t);
+    row.appendChild(bubble);
+    row.appendChild(time);
+
+    if (t.role === "rafa") {
+      const btn = document.createElement("button");
+      btn.className = "anot-btn";
+      btn.title = "Anotar esta resposta";
+      btn.textContent = t.anotado ? "📝" : "✏️";
+      btn.onclick = () => abrirAnotacao(idx);
+      row.appendChild(btn);
+    }
+    chat.appendChild(row);
+  });
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function enviar(){
+  const txt = input.value.trim();
+  if (!txt) return;
+  input.value = "";
+  input.style.height = "auto";
+  turnos.push({ role: "user", content: txt, t: Date.now() });
+  render();
+  sendBtn.disabled = true;
+  try {
+    const r = await fetch(HERMES_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: PHONE, text: { message: txt }, sandbox: true }),
+    });
+    const data = await r.json();
+    const resposta = data.resposta_limpa || data.resposta || "(sem resposta)";
+    turnos.push({ role: "rafa", content: resposta, t: Date.now(), anotado: false });
+    render();
+  } catch (e) {
+    turnos.push({ role: "rafa", content: "[erro de rede] " + (e.message || e), t: Date.now() });
+    render();
+  } finally {
+    sendBtn.disabled = false;
+    input.focus();
+  }
+}
+
+function abrirAnotacao(idx){
+  const turno = turnos[idx];
+  if (!turno || turno.role !== "rafa") return;
+  pending = { idx, mensagem_rafa: turno.content, mensagem_user_anterior: null };
+  for (let i = idx - 1; i >= 0; i--) {
+    if (turnos[i].role === "user") { pending.mensagem_user_anterior = turnos[i].content; break; }
+  }
+  anotContext.textContent =
+    (pending.mensagem_user_anterior ? "Você: " + pending.mensagem_user_anterior + "\n\n" : "") +
+    "Rafa: " + turno.content;
+  anotObs.value = "";
+  modalAnot.classList.add("show");
+  setTimeout(()=> anotObs.focus(), 80);
+}
+
+async function salvarAnotacao(){
+  const obs = anotObs.value.trim();
+  if (!obs || !pending) return;
+  try {
+    const r = await fetch(OPS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Rafa-Sandbox-Key": SANDBOX_KEY },
+      body: JSON.stringify({
+        action: "anotar",
+        mensagem_rafa: pending.mensagem_rafa,
+        mensagem_user_anterior: pending.mensagem_user_anterior,
+        obs,
+        turno_idx: pending.idx,
+      }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || "erro");
+    turnos[pending.idx].anotado = true;
+    render();
+    showToast("Anotação salva");
+    modalAnot.classList.remove("show");
+    pending = null;
+  } catch (e) {
+    showToast("Falhou: " + (e.message || e));
+  }
+}
+
+async function resetar(){
+  if (!confirm("Apagar TODA a conversa, sessão, negócios, teses e usuário desse phone fake?\n(Anotações são preservadas.)")) return;
+  try {
+    const r = await fetch(OPS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Rafa-Sandbox-Key": SANDBOX_KEY },
+      body: JSON.stringify({ action: "reset" }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || "erro");
+    turnos = [];
+    render();
+    const total = (data.passos || []).reduce((s, p) => s + (p.deletados || 0), 0);
+    showToast("Resetado · " + total + " rows apagadas");
+  } catch (e) {
+    showToast("Falhou: " + (e.message || e));
+  }
+}
+
+async function carregarAnotacoes(){
+  notesList.innerHTML = '<div class="empty">Carregando…</div>';
+  try {
+    const r = await fetch(OPS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Rafa-Sandbox-Key": SANDBOX_KEY },
+      body: JSON.stringify({ action: "listar_anotacoes" }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    if (!data.anotacoes.length) {
+      notesList.innerHTML = '<div class="empty">Nenhuma anotação ainda.</div>';
+      return;
+    }
+    notesList.innerHTML = data.anotacoes.map(a => `
+      <div class="note-card">
+        <div class="when">${new Date(a.created_at).toLocaleString("pt-BR")}${a.turno_idx != null ? " · turno #" + a.turno_idx : ""}</div>
+        <div class="obs">${escapeHtml(a.obs)}</div>
+        <div class="what"><strong>Rafa:</strong> ${escapeHtml(a.mensagem_rafa)}${a.mensagem_user_anterior ? "\n\n<strong>Você:</strong> " + escapeHtml(a.mensagem_user_anterior) : ""}</div>
+      </div>
+    `).join("");
+  } catch (e) {
+    notesList.innerHTML = '<div class="empty">Erro: ' + (e.message || e) + '</div>';
+  }
+}
+
+function escapeHtml(s){return (s||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+
+input.addEventListener("input", () => {
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 160) + "px";
+});
+input.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); }
+});
+sendBtn.onclick = enviar;
+btnReset.onclick = resetar;
+btnNotes.onclick = () => { notesPanel.classList.add("show"); carregarAnotacoes(); };
+notesClose.onclick = () => notesPanel.classList.remove("show");
+anotCancel.onclick = () => { modalAnot.classList.remove("show"); pending = null; };
+anotSave.onclick = salvarAnotacao;
+modalAnot.addEventListener("click", e => { if (e.target === modalAnot) anotCancel.click(); });
+
+render();
+input.focus();
+</script>
+</body>
+</html>
