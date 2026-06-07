@@ -247,6 +247,12 @@ textarea.form-inp{min-height:60px;resize:vertical}
             <textarea class="form-inp" id="f-desc" oninput="updPreview()"></textarea>
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-grp form-full">
+            <div class="form-lbl">Palavras-chave de busca (OCULTO do público) — sinônimos e termos correlatos que um comprador procuraria. Ex: para loja de produtos naturais → orgânicos, suplementos, ervas, vegano, granola, integral</div>
+            <textarea class="form-inp" id="f-keywords" placeholder="Separe por vírgula ou espaço"></textarea>
+          </div>
+        </div>
       </div>
 
       <!-- SEÇÃO 2: Valores -->
@@ -395,6 +401,14 @@ async function carregarDiag(){
     if(Array.isArray(d2)&&d2[0])calcData=d2[0].calc_json||{};
   }catch(e){}
 
+  // F1 · busca keywords_busca em anuncios_v2 (campo oculto do público — só consultor edita)
+  window._anuncioV2={};
+  try{
+    const r3=await fetch(SB+'/rest/v1/anuncios_v2?negocio_id=eq.'+negData.id+'&select=id,keywords_busca',{headers:H});
+    const d3=await r3.json();
+    if(Array.isArray(d3)&&d3[0]) window._anuncioV2=d3[0];
+  }catch(e){}
+
   st.innerHTML='<span style="color:var(--gd)">✓ '+codigo+' carregado</span>';
   preencherForm();
 }
@@ -424,6 +438,7 @@ function preencherForm(){
   document.getElementById('f-plano').value=n.plano_comissao||'gratuito';
   document.getElementById('f-comissao').value=n.comissao_pct||(n.plano_comissao==='guiado'?5:10);
   document.getElementById('f-desc').value=n.descricao||d.descricao_final||'';
+  document.getElementById('f-keywords').value=(window._anuncioV2&&window._anuncioV2.keywords_busca)||'';
   document.getElementById('f-val1n').value=Math.round(val1n);
   document.getElementById('f-preco').value=n.preco_pedido||'';
   document.getElementById('f-score').value=ise;
@@ -743,6 +758,11 @@ async function salvarAnuncio(publicar){
   if(publicar){const dt=new Date();dt.setFullYear(dt.getFullYear()+1);body.anuncio_valido_ate=dt.toISOString()}
   Object.keys(body).forEach(k=>{if(body[k]===null||body[k]===undefined)delete body[k]});
   const r=await fetch(SB+'/rest/v1/negocios?id=eq.'+id,{method:'PATCH',headers:HW,body:JSON.stringify(body)});
+  // F1 · grava keywords_busca em anuncios_v2 (campo oculto, só consultor edita).
+  try{
+    const kw=document.getElementById('f-keywords').value.trim();
+    await fetch(SB+'/rest/v1/anuncios_v2?negocio_id=eq.'+id,{method:'PATCH',headers:HW,body:JSON.stringify({keywords_busca:kw||null})});
+  }catch(e){console.warn('[salvar keywords]',e)}
   if(r.ok){
     toast(publicar?'✓ Salvo — envie o termo de adesão ao vendedor':'✓ Rascunho salvo');
     if(publicar){
