@@ -1843,6 +1843,99 @@ async function backfillLeadsExistentes(): Promise<Response> {
   });
 }
 
+// F2 · captura de rascunho ofertável.
+// Cria/atualiza um negocio + anuncios_v2 com status='rascunho' a partir da faixa rápida,
+// pra o Rafa poder oferecer como "fora da vitrine" a compradores compatíveis.
+// SIGILO: não publica nada — fica em rascunho. Origem marcada distingue de anúncio real.
+async function criarOuAtualizarRascunhoDoLead(
+  supabase: any,
+  chatLeadId: string,
+  dados: any,
+  valuation: any,
+): Promise<void> {
+  const nomeNegocio = String(dados?.nome_negocio || '').trim();
+  const valCentral = Number(valuation?.valor_central) || 0;
+
+  // Validação anti-lixo: precisa de nome textual (>=2 chars não-numéricos) e valuation > 0.
+  if (!nomeNegocio || nomeNegocio.length < 2) return;
+  if (!/[a-zà-ú]/i.test(nomeNegocio)) return; // descarta "12345", "----"
+  if (valCentral <= 0) return;
+
+  const setor = String(dados?.setor_code || '').trim() || null;
+  const cidadeUf = String(dados?.cidade_uf || '').trim();
+  const [cidadeRaw, estadoRaw] = cidadeUf.split('/').map((s: string) => (s || '').trim());
+  const cidade = cidadeRaw || null;
+  const estado = estadoRaw ? estadoRaw.toUpperCase().slice(0, 2) : null;
+
+  const fatAnual = Number(dados?.faturamento_anual) || null;
+  const valMin = Number(valuation?.valor_min) || null;
+  const valMax = Number(valuation?.valor_max) || null;
+
+  // Já existe rascunho vinculado? UPDATE em vez de INSERT.
+  const { data: lead } = await supabase
+    .from('chat_ia_leads')
+    .select('negocio_rascunho_id')
+    .eq('id', chatLeadId)
+    .maybeSingle();
+  const negocioExistenteId: string | null = lead?.negocio_rascunho_id || null;
+
+  const camposNegocio: any = {
+    nome: nomeNegocio,
+    setor,
+    cidade,
+    estado,
+    fat_anual: fatAnual,
+    valor_venda_sugerido: valCentral,
+    valor_venda_min: valMin,
+    valor_venda_max: valMax,
+    valor_negocio: valCentral,
+    status: 'rascunho',
+    origem: 'chat_ia_faixa_rapida',
+  };
+
+  let negocioId = negocioExistenteId;
+  if (negocioExistenteId) {
+    await supabase.from('negocios').update(camposNegocio).eq('id', negocioExistenteId);
+  } else {
+    const { data: novo, error: errN } = await supabase
+      .from('negocios')
+      .insert(camposNegocio)
+      .select('id')
+      .single();
+    if (errN || !novo?.id) { console.warn('[rascunho insert negocios]', errN?.message); return; }
+    negocioId = novo.id;
+    // Vincula no chat_ia_leads pra idempotência futura
+    await supabase.from('chat_ia_leads').update({ negocio_rascunho_id: negocioId }).eq('id', chatLeadId);
+  }
+
+  // Upsert do anuncios_v2 (status='rascunho'). Idempotente por negocio_id.
+  // codigo: gera 1N-AN-XXXXX se for novo; mantém se já existe.
+  const { data: anuncioExistente } = await supabase
+    .from('anuncios_v2')
+    .select('id,codigo')
+    .eq('negocio_id', negocioId)
+    .maybeSingle();
+
+  if (anuncioExistente?.id) {
+    await supabase.from('anuncios_v2').update({
+      valor_pedido: valCentral,
+      status: 'rascunho',
+      origem: 'chat_ia_faixa_rapida',
+    }).eq('id', anuncioExistente.id);
+  } else {
+    const hex = Array.from(crypto.getRandomValues(new Uint8Array(3)))
+      .map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase().slice(0, 5);
+    const codigo = `1N-AN-${hex}`;
+    await supabase.from('anuncios_v2').insert({
+      codigo,
+      negocio_id: negocioId,
+      status: 'rascunho',
+      origem: 'chat_ia_faixa_rapida',
+      valor_pedido: valCentral,
+    });
+  }
+}
+
 async function persistirAvaliacao(leadId: string | undefined, dados: any, valuation: any, messages: any[], paginaOrigem: string | undefined, usuarioLogado: any) {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -1883,6 +1976,16 @@ async function persistirAvaliacao(leadId: string | undefined, dados: any, valuat
   } else {
     const { data: novo } = await supabase.from('chat_ia_leads').insert(payload).select('id').single();
     chatLeadId = novo?.id || null;
+  }
+
+  // F2 · captura de rascunho ofertável ao Rafa.
+  // Só roda quando há valuation_central e nome_negocio válido (texto, não só dígitos).
+  // Origem='chat_ia_faixa_rapida' pra distinguir de anúncio real depois.
+  // Idempotente por chat_ia_leads.negocio_rascunho_id.
+  if (chatLeadId) {
+    try {
+      await criarOuAtualizarRascunhoDoLead(supabase, chatLeadId, dados, valuation);
+    } catch (e) { console.warn('[criar rascunho]', e); }
   }
 
   // B66/B67 · sincroniza com leads_google (mesmo path que saveLead) se temos nome/wa
