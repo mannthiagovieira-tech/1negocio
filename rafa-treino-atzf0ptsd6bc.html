@@ -197,8 +197,17 @@ async function enviar(){
       body: JSON.stringify({ phone: PHONE, text: { message: txt }, sandbox: true }),
     });
     const data = await r.json();
-    const resposta = data.resposta_limpa || data.resposta || "(sem resposta)";
-    turnos.push({ role: "rafa", content: resposta, t: Date.now(), anotado: false });
+    // Renderiza [[SPLIT]] como balões separados (estilo WhatsApp), igual o Rafa enviaria
+    // de verdade. Cada chunk vira um turno próprio, com seu botão de anotação.
+    const respostaRaw = data.resposta || data.resposta_limpa || "(sem resposta)";
+    const chunks = respostaRaw.split(/\[\[SPLIT\]\]/g)
+      .map(s => s.trim()).filter(s => s.length > 0);
+    if (chunks.length === 0) chunks.push(respostaRaw);
+    const baseT = Date.now();
+    chunks.forEach((c, i) => {
+      // Pequeno delta no timestamp pra mensagens ficarem ordenadas e legíveis
+      turnos.push({ role: "rafa", content: c, t: baseT + i, anotado: false });
+    });
     render();
   } catch (e) {
     turnos.push({ role: "rafa", content: "[erro de rede] " + (e.message || e), t: Date.now() });
