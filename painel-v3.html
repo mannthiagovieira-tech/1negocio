@@ -20714,7 +20714,7 @@ async function dpCarregarAtivas() {
           <div style="flex:1;min-width:0">
             <div style="font-weight:600">${escapeHtml(c.nome)}</div>
             <div class="pa-muted" style="font-size:12px">${(c.lista_origens||[]).join(' · ')} · status: <span style="color:${c.status==='rodando'?'var(--ok)':'var(--ink-3)'}">${c.status}</span></div>
-            <div class="pa-muted" style="font-size:11px;margin-top:4px">Enviados ${c.total_enviado||0} · falhas ${c.total_falhas||0} · próximo ${prox} · cadência ${cad.msgs_por_hora||'?'}/h</div>
+            <div class="pa-muted" style="font-size:11px;margin-top:4px">Enviados ${c.total_enviados||0} · falhas ${c.total_erros||0} · próximo ${prox} · cadência ${cad.msgs_por_hora||'?'}/h</div>
           </div>
           <div style="display:flex;gap:6px">
             ${c.status==='rodando' ? `<button class="btn btn-mini btn-ghost" onclick="dpStatus('${c.id}','pausada')">⏸</button>` : ''}
@@ -20730,14 +20730,14 @@ async function dpCarregarHistorico() {
   const list = document.getElementById('dp-hist-list');
   if (!list) return;
   try {
-    const data = await sbFetch('/rest/v1/disparador_campanhas?status=eq.concluida&order=finished_at.desc&limit=30&select=*');
+    const data = await sbFetch('/rest/v1/disparador_campanhas?status=eq.concluida&order=concluido_em.desc&limit=30&select=*');
     if (!data.length) { list.innerHTML = '<div class="pa-empty">Nenhuma concluída ainda.</div>'; return; }
     list.innerHTML = paRenderTable([
       {key:'nome', label:'Nome'},
       {key:'lista_origens', label:'Listas', render: r => (r.lista_origens||[]).join(', ')},
-      {key:'total_enviado', label:'Enviados'},
-      {key:'total_falhas', label:'Falhas'},
-      {key:'finished_at', label:'Concluída', type:'date'},
+      {key:'total_enviados', label:'Enviados'},
+      {key:'total_erros', label:'Falhas'},
+      {key:'concluido_em', label:'Concluída', type:'date'},
     ], data, 'Sem histórico');
   } catch(e) { list.innerHTML = `<div class="pa-alert pa-alert-danger">${escapeHtml(e.message)}</div>`; }
 }
@@ -20747,7 +20747,7 @@ async function dpStatus(id, novo) {
     const res = await fetch(SB + `/rest/v1/disparador_campanhas?id=eq.${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: { 'apikey': AK, 'Authorization': 'Bearer ' + (__token||AK), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ status: novo, ...(novo==='rodando' && { started_at: new Date().toISOString() }) }),
+      body: JSON.stringify({ status: novo, ...(novo==='rodando' && { iniciado_em: new Date().toISOString() }) }),
     });
     if (!res.ok) throw new Error('PATCH ' + res.status);
     await dpCarregarAtivas();
