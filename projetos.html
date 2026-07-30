@@ -977,11 +977,12 @@ function toggleTrail(){
 }
 
 const GESTAO_ITENS = [
-  { chave:'gestao_orcamento',  titulo:'Orçamento',  sub:'crédito · ritmo · razão' },
-  { chave:'gestao_kanban',     titulo:'Kanban',     sub:'contatos · funil' },
-  { chave:'gestao_funil',      titulo:'Funil',      sub:'conversão · arquétipos' },
-  { chave:'gestao_cadencia',   titulo:'Cadência',   sub:'templates · fila · disparo' },
-  { chave:'gestao_relatorios', titulo:'Relatórios', sub:'em breve' },
+  { chave:'gestao_orcamento',   titulo:'Orçamento',   sub:'crédito · ritmo · razão' },
+  { chave:'gestao_kanban',      titulo:'Kanban',      sub:'contatos · funil' },
+  { chave:'gestao_funil',       titulo:'Funil',       sub:'conversão · arquétipos' },
+  { chave:'gestao_cadencia',    titulo:'Cadência',    sub:'templates · fila · disparo' },
+  { chave:'gestao_atendimento', titulo:'Atendimento', sub:'canais · NDA · dossiê' },
+  { chave:'gestao_relatorios',  titulo:'Relatórios',  sub:'em breve' },
 ];
 
 function desenhaStepGestao(g){
@@ -1019,8 +1020,9 @@ function desenhaAba(){
   if (_abaChave === 'gestao_orcamento')  { stage.innerHTML = htmlOrcamento();  vincularOrcamento(); return; }
   if (_abaChave === 'gestao_kanban')     { stage.innerHTML = htmlKanban();     vincularKanban();    return; }
   if (_abaChave === 'gestao_funil')      { stage.innerHTML = htmlFunil();                           return; }
-  if (_abaChave === 'gestao_cadencia')   { htmlCadencia();                                          return; }
-  if (_abaChave === 'gestao_relatorios') { stage.innerHTML = htmlGestaoPlaceholder('Relatórios','Consumo, ROI da onda, exportáveis pro cliente.'); return; }
+  if (_abaChave === 'gestao_cadencia')    { htmlCadencia();                                          return; }
+  if (_abaChave === 'gestao_atendimento') { htmlAtendimento();                                       return; }
+  if (_abaChave === 'gestao_relatorios')  { stage.innerHTML = htmlGestaoPlaceholder('Relatórios','Consumo, ROI da onda, exportáveis pro cliente.'); return; }
   // SETUP
   const e = _pj.etapas.find(x => x.chave === _abaChave) || _pj.etapas[0];
   if (!e) { stage.innerHTML = '<div class="empty"><h2>Etapa não encontrada</h2></div>'; return; }
@@ -3500,6 +3502,326 @@ async function aprovarTemplate(id){
   await htmlCadencia();
 }
 
+// ═════════════════════════════════════════════════════════════════
+// SLICE 8 · ATENDIMENTO (canais · atendimentos · NDA · dossiê)
+// ═════════════════════════════════════════════════════════════════
+
+async function htmlAtendimento(){
+  const stage = document.getElementById('stage');
+  const id = _pj.projeto.id;
+  stage.innerHTML = '<div class="empty"><h2>Carregando atendimento…</h2></div>';
+  const [canais, atends, ndas, dossies, telsAtend] = await Promise.all([
+    sb.from('va_canais_origem').select('*').eq('projeto_id', id).order('criado_em'),
+    sb.from('va_atendimentos').select('*').eq('projeto_id', id).order('iniciado_em', {ascending:false}),
+    sb.from('va_ndas').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}),
+    sb.from('va_dossie_acessos').select('*').eq('projeto_id', id).order('liberado_em', {ascending:false}),
+    sb.from('zapi_telefones').select('numero').eq('ativo', true).limit(1).maybeSingle(),
+  ]);
+  _pj.canais = canais.data || [];
+  _pj.atendimentos = atends.data || [];
+  _pj.ndas = ndas.data || [];
+  _pj.dossies = dossies.data || [];
+  _pj.numeroAtend = telsAtend.data?.numero || null;
+  desenharAtendimento();
+}
+
+function desenharAtendimento(){
+  const stage = document.getElementById('stage');
+  const p = _pj.projeto;
+  stage.innerHTML = `
+    <div class="stage-head">
+      <div>
+        <div class="meta">gestão</div>
+        <h2>Atendimento</h2>
+        <div class="muted" style="margin-top:6px;font-size:13.5px">Código do projeto: <strong style="color:var(--accent-2);font-family:var(--mono);font-size:16px;letter-spacing:.05em">#${esc(p.codigo_atendimento || '—')}</strong></div>
+      </div>
+    </div>
+    ${cardAtCanais()}
+    ${cardAtAtendimentos()}
+    ${cardAtNdas()}
+    ${cardAtDossies()}`;
+  vincularAtendimento();
+}
+
+function linkWaMe(sufixo){
+  const num = _pj.numeroAtend || '';
+  const cod = _pj.projeto.codigo_atendimento || '';
+  const texto = encodeURIComponent(`Quero saber sobre o negócio #${cod}-${sufixo}`);
+  return num ? `https://wa.me/${num}?text=${texto}` : '#';
+}
+
+function cardAtCanais(){
+  const canais = _pj.canais || [];
+  const contBySuf = {};
+  (_pj.atendimentos||[]).forEach(a => { if (a.canal_sufixo) contBySuf[a.canal_sufixo] = (contBySuf[a.canal_sufixo]||0) + 1; });
+  const rows = canais.length ? canais.map(c => {
+    const link = linkWaMe(c.sufixo);
+    return `<tr>
+      <td><strong>${esc(c.sufixo)}</strong></td>
+      <td>${esc(c.rotulo)}<div class="mono" style="font-size:10px;color:var(--ink-3)">${esc(c.tipo||'—')}</div></td>
+      <td class="num">${contBySuf[c.sufixo] || 0}</td>
+      <td>
+        <input type="text" value="${esc(link)}" readonly style="font-family:var(--mono);font-size:11px;padding:6px 10px;width:280px">
+        <button class="btn btn-ghost btn-sm" onclick="copiarLink('${esc(link)}')">copiar</button>
+      </td>
+      <td><button class="btn btn-ghost btn-sm" onclick="removerCanal('${esc(c.id)}')">×</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--ink-3);padding:16px;font-style:italic">Sem canais. Adicione o primeiro.</td></tr>';
+
+  const avisoNum = _pj.numeroAtend ? '' : '<div class="aviso" style="margin-top:10px">Nenhum <code>zapi_telefones</code> ativo — os links wa.me não podem ser gerados até cadastrar um número de atendimento.</div>';
+
+  return `
+    <div class="k-card">
+      <div class="lbl">01 · canais de origem</div>
+      <h3>Sufixos por criativo / campanha / parceiro</h3>
+      <p class="motivo">Cada canal vira um link wa.me com "Quero saber sobre o negócio #${esc(_pj.projeto.codigo_atendimento||'—')}-{sufixo}". Copie e cole no criativo, campanha ou material.</p>
+      <table class="orc-tab" style="margin-top:12px">
+        <thead><tr><th>sufixo</th><th>rótulo</th><th class="num">atends</th><th>link wa.me</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${avisoNum}
+      <div class="orc-adicionar-linha" style="grid-template-columns:100px 1fr 160px auto">
+        <div class="fld"><span class="lbl">sufixo</span><input id="cn-suf" placeholder="A" maxlength="8"></div>
+        <div class="fld"><span class="lbl">rótulo</span><input id="cn-rot" placeholder="Campanha Meta · A1 Estratégico"></div>
+        <div class="fld"><span class="lbl">tipo</span>
+          <select id="cn-tipo">
+            <option value="campanha">campanha</option>
+            <option value="criativo">criativo</option>
+            <option value="parceiro">parceiro</option>
+            <option value="organico">orgânico</option>
+            <option value="outro">outro</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="adicionarCanal()">+ canal</button>
+      </div>
+    </div>`;
+}
+
+function cardAtAtendimentos(){
+  const at = _pj.atendimentos || [];
+  const total = at.length;
+  const qual = at.filter(x => x.desfecho === 'qualificado' || x.desfecho === 'nda_enviado').length;
+  const tempos = at.filter(x => x.tempo_resposta_min != null).map(x => x.tempo_resposta_min);
+  const medio = tempos.length ? Math.round(tempos.reduce((s,v) => s+v, 0) / tempos.length) : null;
+
+  const rows = at.slice(0, 30).map(a => {
+    const c = (_pj.contatos||[]).find(x => x.id === a.contato_id) || {};
+    return `<tr>
+      <td class="mono" style="font-size:11px">${dataBR((a.iniciado_em||'').slice(0,10))}</td>
+      <td>${esc(a.canal_sufixo || '—')}</td>
+      <td>${esc(c.nome || c.empresa || '—')}<div class="muted mono" style="font-size:10px">${esc(c.telefone||'')}</div></td>
+      <td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(a.primeira_mensagem||'')}">"${esc((a.primeira_mensagem||'').slice(0,50))}"</td>
+      <td><span class="badge ${a.desfecho==='qualificado'||a.desfecho==='nda_enviado'?'ativo':(a.desfecho==='descartado'?'pausado':'setup')}">${esc(a.desfecho)}</span></td>
+      <td class="num mono" style="font-size:11px">${a.tempo_resposta_min != null ? a.tempo_resposta_min+'min' : '—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--ink-3);padding:16px;font-style:italic">Nenhum atendimento registrado.</td></tr>';
+
+  return `
+    <div class="k-card">
+      <div class="lbl" style="display:flex;justify-content:space-between;align-items:baseline">
+        <span>02 · atendimentos</span>
+        <button class="btn btn-primary btn-sm" onclick="abrirNovoAtendimento()">+ registrar</button>
+      </div>
+      <div class="orc-resumo" style="margin-top:12px">
+        <div class="orc-kpi"><div class="k">total</div><div class="v">${total}</div></div>
+        <div class="orc-kpi ${qual>0?'destaque':''}"><div class="k">qualificados</div><div class="v">${qual}</div></div>
+        <div class="orc-kpi"><div class="k">tempo médio</div><div class="v" style="font-size:18px">${medio!=null?medio+'min':'—'}</div></div>
+        <div class="orc-kpi"><div class="k">taxa qualif</div><div class="v" style="font-size:18px">${total>0?Math.round(qual*100/total)+'%':'—'}</div></div>
+      </div>
+      <table class="orc-tab" style="margin-top:12px">
+        <thead><tr><th>data</th><th>canal</th><th>contato</th><th>1ª msg</th><th>desfecho</th><th class="num">resp</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function cardAtNdas(){
+  const ndas = _pj.ndas || [];
+  const rows = ndas.length ? ndas.map(n => {
+    const c = (_pj.contatos||[]).find(x => x.id === n.contato_id) || {};
+    const link = `https://www.1negocio.com.br/nda.html?t=${n.token_publico}`;
+    return `<tr>
+      <td>${esc(c.nome || c.empresa || '#'+String(n.contato_id).slice(0,6))}</td>
+      <td><span class="badge ${n.status==='assinado'?'ativo':(n.status==='recusado'?'pausado':'setup')}">${esc(n.status)}</span></td>
+      <td class="mono" style="font-size:11px">${dataBR((n.enviado_em||n.criado_em||'').slice(0,10))}${n.assinado_em?' · assin '+dataBR(n.assinado_em.slice(0,10)):''}</td>
+      <td>
+        <input type="text" value="${esc(link)}" readonly style="font-family:var(--mono);font-size:11px;padding:6px 10px;width:240px">
+        <button class="btn btn-ghost btn-sm" onclick="copiarLink('${esc(link)}')">copiar</button>
+      </td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--ink-3);padding:16px;font-style:italic">Nenhum NDA emitido.</td></tr>';
+
+  // Contatos elegíveis pra gerar NDA (estagio >= apresentado, sem NDA ativo)
+  const elegiveis = (_pj.contatos || []).filter(c =>
+    ['apresentado','nda_assinado','em_negociacao','proposta'].includes(c.estagio) &&
+    !ndas.some(n => n.contato_id === c.id && n.status !== 'recusado' && n.status !== 'expirado')
+  );
+
+  return `
+    <div class="k-card">
+      <div class="lbl">03 · NDAs</div>
+      <h3>${ndas.length} termo${ndas.length===1?'':'s'} emitido${ndas.length===1?'':'s'}</h3>
+      <table class="orc-tab" style="margin-top:12px">
+        <thead><tr><th>contato</th><th>status</th><th>datas</th><th>link público</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${elegiveis.length ? `
+        <div class="orc-adicionar-linha" style="grid-template-columns:1fr auto">
+          <div class="fld"><span class="lbl">gerar NDA pra contato apresentado</span>
+            <select id="nda-contato">
+              <option value="">— escolher —</option>
+              ${elegiveis.map(c => `<option value="${esc(c.id)}">${esc(c.nome || c.empresa || '#'+String(c.id).slice(0,6))} · ${esc(c.estagio)}</option>`).join('')}
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="gerarNda()">gerar NDA</button>
+        </div>
+      ` : '<div class="orc-nota" style="margin-top:10px">Nenhum contato em estágio "apresentado" ou adiante sem NDA. Mova alguém para "apresentado" no Kanban primeiro.</div>'}
+    </div>`;
+}
+
+function cardAtDossies(){
+  const doss = _pj.dossies || [];
+  const rows = doss.length ? doss.map(d => {
+    const c = (_pj.contatos||[]).find(x => x.id === d.contato_id) || {};
+    return `<tr>
+      <td>${esc(c.nome || c.empresa || '#'+String(d.contato_id).slice(0,6))}</td>
+      <td><span class="badge ${d.nivel==='completo'?'ativo':'setup'}">${esc(d.nivel)}</span></td>
+      <td class="mono" style="font-size:11px">${dataBR((d.liberado_em||'').slice(0,10))}</td>
+      <td class="num mono" style="font-size:11px">${d.visualizacoes||0}</td>
+      <td class="mono" style="font-size:10px;color:var(--ink-3)">${esc(d.liberado_por||'—')}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--ink-3);padding:16px;font-style:italic">Nenhum dossiê liberado.</td></tr>';
+
+  // Contatos com NDA assinado que ainda não têm dossiê completo
+  const podemCompleto = (_pj.contatos || []).filter(c =>
+    (_pj.ndas||[]).some(n => n.contato_id === c.id && n.status === 'assinado') &&
+    !doss.some(d => d.contato_id === c.id && d.nivel === 'completo')
+  );
+
+  return `
+    <div class="k-card">
+      <div class="lbl">04 · dossiê</div>
+      <h3>${doss.length} liberaç${doss.length===1?'ão':'ões'}</h3>
+      <table class="orc-tab" style="margin-top:12px">
+        <thead><tr><th>contato</th><th>nível</th><th>liberado em</th><th class="num">views</th><th>por</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${podemCompleto.length ? `
+        <div class="orc-adicionar-linha" style="grid-template-columns:1fr auto">
+          <div class="fld"><span class="lbl">liberar dossiê completo</span>
+            <select id="doss-contato">
+              <option value="">— escolher —</option>
+              ${podemCompleto.map(c => `<option value="${esc(c.id)}">${esc(c.nome || c.empresa || '#'+String(c.id).slice(0,6))}</option>`).join('')}
+            </select>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="liberarCompleto()">liberar completo</button>
+        </div>
+      ` : '<div class="orc-nota" style="margin-top:10px">Nível completo exige NDA assinado. Aguarde alguém assinar.</div>'}
+    </div>`;
+}
+
+function vincularAtendimento(){ /* handlers via onclick global; nada extra */ }
+
+async function copiarLink(url){
+  try {
+    await navigator.clipboard.writeText(url);
+    toast('Link copiado', 'ok');
+  } catch { toast('Copie manualmente', 'err'); }
+}
+
+async function adicionarCanal(){
+  const suf = document.getElementById('cn-suf').value.trim().toUpperCase();
+  const rot = document.getElementById('cn-rot').value.trim();
+  const tipo = document.getElementById('cn-tipo').value;
+  if (!suf || !rot) { toast('Sufixo e rótulo obrigatórios', 'err'); return; }
+  const { error } = await sb.from('va_canais_origem').insert({
+    projeto_id: _pj.projeto.id, sufixo: suf, rotulo: rot, tipo
+  });
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  toast('Canal adicionado', 'ok');
+  await htmlAtendimento();
+}
+
+async function removerCanal(id){
+  if (!confirm('Remover canal?')) return;
+  const { error } = await sb.from('va_canais_origem').delete().eq('id', id);
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  await htmlAtendimento();
+}
+
+function abrirNovoAtendimento(){
+  const canais = _pj.canais || [];
+  const canaisOpts = canais.map(c => `<option value="${esc(c.sufixo)}">${esc(c.sufixo)} · ${esc(c.rotulo)}</option>`).join('');
+  const mb = document.getElementById('modal-back');
+  mb.innerHTML = `
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="lbl">novo atendimento</div>
+      <h3>Registrar contato que chegou</h3>
+      <p class="muted" style="font-size:12.5px;margin-top:-4px;margin-bottom:14px">O contato é criado ou vinculado automaticamente (origem=anuncio, trilha=quente).</p>
+      <div class="col" style="gap:10px">
+        <div class="fld"><span class="lbl">canal (sufixo)</span>
+          <select id="at-canal"><option value="">— desconhecido —</option>${canaisOpts}</select>
+        </div>
+        <div class="form-grid">
+          <div class="fld"><span class="lbl">nome</span><input id="at-nome" placeholder="ex. Roberto Alves"></div>
+          <div class="fld"><span class="lbl">telefone *</span><input id="at-tel" placeholder="ex. 48 99999-0000"></div>
+        </div>
+        <div class="fld"><span class="lbl">1ª mensagem que ele mandou</span><textarea id="at-msg" rows="3" placeholder="ex. Quero saber sobre o negócio #1970-A"></textarea></div>
+      </div>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:20px">
+        <button class="btn btn-ghost btn-sm" onclick="fecharModal()">cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="salvarAtendimento()">registrar</button>
+      </div>
+    </div>`;
+  mb.classList.add('on');
+}
+
+async function salvarAtendimento(){
+  const canal = document.getElementById('at-canal').value || null;
+  const nome  = document.getElementById('at-nome').value.trim();
+  const tel   = document.getElementById('at-tel').value.trim();
+  const msg   = document.getElementById('at-msg').value.trim();
+  if (!tel) { toast('Telefone obrigatório', 'err'); return; }
+  // 1. Cria/vincula contato
+  const detalhe = canal ? `atendimento canal ${canal}` : 'atendimento';
+  const { data: reg, error: e1 } = await sb.rpc('va_registrar_contato', {
+    p_projeto: _pj.projeto.id, p_nome: nome || null, p_telefone: tel,
+    p_empresa: null, p_cidade: null, p_origem: 'anuncio',
+    p_origem_detalhe: detalhe, p_arquetipo: null, p_debitar: false,
+  });
+  if (e1) { toast('Falhou: ' + e1.message, 'err'); return; }
+  const contatoId = reg?.contato_id;
+  // 2. Cria atendimento
+  const { error: e2 } = await sb.from('va_atendimentos').insert({
+    projeto_id: _pj.projeto.id, contato_id: contatoId,
+    canal_sufixo: canal, primeira_mensagem: msg || null,
+  });
+  if (e2) { toast('Contato ok mas atendimento falhou: ' + e2.message, 'err'); return; }
+  fecharModal();
+  toast(reg?.status === 'duplicado' ? 'Atendimento registrado (contato já existia)' : 'Atendimento registrado', 'ok');
+  await htmlAtendimento();
+}
+
+async function gerarNda(){
+  const cid = document.getElementById('nda-contato').value;
+  if (!cid) { toast('Escolha um contato', 'err'); return; }
+  const { data, error } = await sb.rpc('va_gerar_nda', { p_contato: cid });
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  toast('NDA gerado', 'ok');
+  await htmlAtendimento();
+  // copia link automaticamente
+  if (data?.link) { try { await navigator.clipboard.writeText(data.link); toast('Link copiado pro clipboard', 'ok'); } catch(_){} }
+}
+
+async function liberarCompleto(){
+  const cid = document.getElementById('doss-contato').value;
+  if (!cid) { toast('Escolha um contato', 'err'); return; }
+  const { error } = await sb.rpc('va_liberar_dossie', { p_contato: cid, p_nivel: 'completo' });
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  toast('Dossiê completo liberado', 'ok');
+  await htmlAtendimento();
+}
+
 // ─── boot ─────────────────────────────────────────────────────────
 window.toggleEtapa = toggleEtapa;
 window.trocarAba = trocarAba;
@@ -3534,6 +3856,13 @@ window.salvarNovoTemplate = salvarNovoTemplate;
 window.editarTemplate = editarTemplate;
 window.salvarEditTemplate = salvarEditTemplate;
 window.aprovarTemplate = aprovarTemplate;
+window.copiarLink = copiarLink;
+window.adicionarCanal = adicionarCanal;
+window.removerCanal = removerCanal;
+window.abrirNovoAtendimento = abrirNovoAtendimento;
+window.salvarAtendimento = salvarAtendimento;
+window.gerarNda = gerarNda;
+window.liberarCompleto = liberarCompleto;
 
 (async function boot(){
   await initAuth();
