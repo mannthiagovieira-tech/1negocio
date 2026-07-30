@@ -86,10 +86,18 @@ module.exports = async (req, res) => {
   const authRaw = req.headers.authorization || '';
   const tok = authRaw.replace(/^Bearer\s+/i,'').trim();
   const headerSecret = req.headers['x-cron-secret'] || '';
-  // Vercel Cron manda Authorization: Bearer <CRON_SECRET>. Também aceitamos x-cron-secret.
   const okCron = cronSecret && (tok === cronSecret || headerSecret === cronSecret);
   const okAdmin = !okCron && tok && (await ehAdmin(tok));
-  if (!okCron && !okAdmin) return json(res, 403, { ok:false, erro:'não autorizado' });
+  if (!okCron && !okAdmin) {
+    if (req.headers['x-debug-auth'] === '1') {
+      const crypto = require('crypto');
+      const h = v => v ? crypto.createHash('md5').update(v).digest('hex').slice(0,10) : 'undef';
+      return json(res, 403, { ok:false, erro:'não autorizado',
+        _dbg:{ env_cs_hash:h(cronSecret), env_cs_len:(cronSecret||'').length,
+               tok_hash:h(tok), tok_len:(tok||'').length, hdr_secret_hash:h(headerSecret) } });
+    }
+    return json(res, 403, { ok:false, erro:'não autorizado' });
+  }
 
   const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!SB_SERVICE) return json(res, 500, { ok:false, erro:'SUPABASE_SERVICE_ROLE_KEY ausente' });
