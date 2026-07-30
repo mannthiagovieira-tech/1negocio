@@ -56,12 +56,13 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST' && req.method !== 'GET') return json(res, 405, { ok:false, erro:'method not allowed' });
 
-  // Autoriza via CRON_SECRET OU JWT admin
+  // Vercel Cron manda Authorization: Bearer <CRON_SECRET>. Também aceitamos x-cron-secret.
   const cronSecret = process.env.CRON_SECRET;
-  const headerSecret = req.headers['x-cron-secret'] || req.headers['x-vercel-cron-secret'] || '';
-  const tok = (req.headers.authorization || '').replace(/^Bearer\s+/i,'').trim();
-  const okCron = cronSecret && headerSecret === cronSecret;
-  const okAdmin = tok && (await ehAdmin(tok));
+  const authRaw = req.headers.authorization || '';
+  const tok = authRaw.replace(/^Bearer\s+/i,'').trim();
+  const headerSecret = req.headers['x-cron-secret'] || '';
+  const okCron = cronSecret && (tok === cronSecret || headerSecret === cronSecret);
+  const okAdmin = !okCron && tok && (await ehAdmin(tok));
   if (!okCron && !okAdmin) return json(res, 403, { ok:false, erro:'não autorizado' });
 
   const KEY = process.env.KIPFLOW_API_KEY;
