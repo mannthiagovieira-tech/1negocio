@@ -141,8 +141,13 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Probe · testar shape {cnpjs:[]} (talvez POST /search seja lookup em massa)
-    const kipBody = filtros?.debug ? { cnpjs: ['33000167000101','20770891000105'] } : {
+    // Body shape · placeholder até a doc oficial da Kipflow chegar.
+    // Sem doc, testei snake_case, camelCase (cnaeCode/revenueMin/etc),
+    // wrapper filters:{...}, body vazio, cnpjs:[...] — todas rejeitadas
+    // pelo class-validator com "property X should not exist".
+    // Este bloco será substituído assim que tivermos Postman/OpenAPI da
+    // Kipflow ou email do suporte com o schema exato.
+    const kipBody = {
       cnaeCode: filtrosFinais.cnae,
       state: filtrosFinais.uf_diferente ? undefined : filtrosFinais.uf,
       revenueMin: filtrosFinais.faturamento_min,
