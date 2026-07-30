@@ -58,25 +58,22 @@ não está exposto em nenhuma variável; ação em UI de terceiro sem API
 programática; ação irreversível de escopo alto onde a confirmação
 humana é a política de segurança.
 
-### Disparo · execução no front (sem edge nova)
+### Disparo · Z-API vive só no secret do edge
 
-O projeto está no limite do plano de edge functions (118). Enquanto
-assim, o **processamento da fila de disparo é feito pelo botão
-"Processar fila agora"** em `/projetos.html · Cadência`, chamando
-Z-API direto do browser + `va_confirmar_disparo` a cada envio.
+Credencial Z-API (`ZAPI_INSTANCE`, `ZAPI_TOKEN`, `CLIENT_TOKEN`) fica
+**exclusivamente** em `zapi_telefones` (tabela lida por edge function
+com `service_role`) e/ou em secrets de edge. **Nunca** aparece no
+front, `localStorage`, `sessionStorage`, arquivo commitado, ou qualquer
+lugar que devtools/XSS consiga capturar.
 
-A config Z-API não fica hardcoded no HTML — o operador cola no console
-do browser:
-```js
-localStorage.setItem('va_zapi', JSON.stringify({
-  instance: '...', token: '...', clientToken: '...'
-}))
-```
+O botão "Processar fila agora" em `/projetos.html · Cadência` chama
+`disparador-rodar-campanha` (edge existente, cron 5min) com
+`{ action:'processar_va', projeto_id }` autenticado como admin.
+A edge lê `va_disparo_fila`, envia via Z-API server-side, e chama
+`va_confirmar_disparo` por item. **Front nunca fala Z-API.**
 
-O código de `processarFila()` está isolado e recebe a config via
-`zapiConfig()`. Quando houver espaço pra edge, migrar a lógica pra
-uma `Deno.serve` com `pg_cron` a cada 15 min, mantendo o botão como
-fallback manual. Não haverá reescrita — só copiar o loop.
+O cron do `disparador-rodar-campanha` já processa `va_disparo_fila`
+automaticamente a cada 5 min — o botão é só pra despachar sob demanda.
 
 ### /projetos.html não pode ficar inacessível
 

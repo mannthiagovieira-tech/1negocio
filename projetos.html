@@ -3076,15 +3076,14 @@ function htmlFunilArquetipos(){
 
 // ═════════════════════════════════════════════════════════════════
 // SLICE 7 · CADÊNCIA (templates, config, fila, histórico)
+// Credencial Z-API vive APENAS em edge function secret. Front nunca vê.
+// Botão "Processar agora" chama edge disparador-rodar-campanha com
+// { action:'processar_va', projeto_id } · autenticado como admin.
 // ═════════════════════════════════════════════════════════════════
 
-// Config Z-API do projeto (por ora hardcoded no admin · troque quando expuser)
-// Como o painel é vanilla e o token é sensível, deixamos placeholder e
-// o operador cola no localStorage: window.localStorage.setItem('va_zapi',
-// JSON.stringify({instance:'...', token:'...', clientToken:'...'}))
-function zapiConfig(){
-  try { return JSON.parse(localStorage.getItem('va_zapi') || 'null'); } catch { return null; }
-}
+// Limpa qualquer credencial que possa ter sido colada em localStorage
+// durante testes anteriores. Ação silenciosa idempotente a cada load.
+try { localStorage.removeItem('va_zapi'); } catch(_){}
 
 async function htmlCadencia(){
   const stage = document.getElementById('stage');
@@ -3255,7 +3254,6 @@ function cardCadTemplates(){
 function cardCadFila(){
   const fila = _pj.fila || [];
   const agend = fila.filter(f => f.status === 'agendado');
-  const zc = zapiConfig();
 
   const rows = agend.length ? agend.slice(0, 30).map(f => {
     const c = (_pj.contatos||[]).find(x => x.id === f.contato_id) || {};
@@ -3275,13 +3273,13 @@ function cardCadFila(){
       <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">
         <input type="number" id="cad-qtd" min="1" max="50" value="10" style="width:80px">
         <button class="btn btn-primary btn-sm" onclick="enfileirar()">enfileirar próximos N</button>
-        <button class="btn btn-ghost btn-sm" onclick="processarFila()" ${zc?'':'title="Configure Z-API no localStorage: va_zapi = {instance, token, clientToken}" disabled'}>▶ processar fila agora ${zc?'':'(sem Z-API)'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="processarFila()">▶ processar fila agora</button>
       </div>
       <table class="orc-tab" style="margin-top:12px">
         <thead><tr><th>agendado</th><th>contato</th><th>corpo</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      ${zc ? '' : '<div class="orc-nota" style="margin-top:10px">Pra despachar de verdade, cole a config Z-API no console: <code>localStorage.setItem(\'va_zapi\', JSON.stringify({instance:\'...\', token:\'...\', clientToken:\'...\'}))</code>. Enquanto isso, os itens ficam agendados na fila esperando cron/edge.</div>'}
+      <div class="orc-nota" style="margin-top:10px">O envio é executado pelo <code>disparador-rodar-campanha</code> (edge com secret Z-API). Cron a cada 5 min processa a fila automaticamente. O botão acima dispara a mesma edge sob demanda como admin autenticado — <strong>o front não vê nem transmite credencial de WhatsApp</strong>.</div>
     </div>`;
 }
 
@@ -3395,43 +3393,23 @@ async function cancelarFila(id){
   await htmlCadencia();
 }
 
-// PROCESSAR FILA · executa os agendados vencidos via Z-API direto do front.
-// Estruturado pra virar cron/edge depois sem reescrita.
+// PROCESSAR FILA · chama a edge disparador-rodar-campanha com o JWT
+// do admin logado. Credencial Z-API vive só no secret da edge.
 async function processarFila(){
-  const zc = zapiConfig();
-  if (!zc || !zc.instance || !zc.token) { toast('Configure Z-API no localStorage', 'err'); return; }
   const agora = new Date().toISOString();
   const vencidos = (_pj.fila||[]).filter(f => f.status === 'agendado' && f.agendado_para && f.agendado_para <= agora);
   if (!vencidos.length) { toast('Nenhum item vencido na fila', 'ok'); return; }
-  if (!confirm(`Enviar ${vencidos.length} disparos agora via Z-API?`)) return;
-  let ok=0, err=0;
-  for (const f of vencidos) {
-    const contato = (_pj.contatos||[]).find(c => c.id === f.contato_id);
-    if (!contato || !contato.telefone_normalizado) {
-      await sb.rpc('va_confirmar_disparo', { p_fila_id: f.id, p_sucesso:false, p_zapi_id:null, p_erro:'sem telefone' });
-      err++; continue;
-    }
-    try {
-      const url = `https://api.z-api.io/instances/${zc.instance}/token/${zc.token}/send-text`;
-      const resp = await fetch(url, {
-        method:'POST',
-        headers: { 'Content-Type':'application/json', ...(zc.clientToken?{'Client-Token':zc.clientToken}:{}) },
-        body: JSON.stringify({ phone: contato.telefone_normalizado, message: f.corpo_resolvido })
-      });
-      const j = await resp.json().catch(()=>({}));
-      if (resp.ok && j.messageId) {
-        await sb.rpc('va_confirmar_disparo', { p_fila_id: f.id, p_sucesso:true, p_zapi_id:j.messageId, p_erro:null });
-        ok++;
-      } else {
-        await sb.rpc('va_confirmar_disparo', { p_fila_id: f.id, p_sucesso:false, p_zapi_id:null, p_erro: `zapi ${resp.status}: ${JSON.stringify(j).slice(0,120)}` });
-        err++;
-      }
-    } catch (e) {
-      await sb.rpc('va_confirmar_disparo', { p_fila_id: f.id, p_sucesso:false, p_zapi_id:null, p_erro: String(e).slice(0,120) });
-      err++;
-    }
-  }
-  toast(`${ok} enviados · ${err} falhas`, ok>0?'ok':'err');
+  if (!confirm(`Processar ${vencidos.length} disparos agora?`)) return;
+  const btn = document.querySelector('#stage button[onclick="processarFila()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'processando…'; }
+  const { data, error } = await sb.functions.invoke('disparador-rodar-campanha', {
+    body: { action: 'processar_va', projeto_id: _pj.projeto.id }
+  });
+  if (btn) { btn.disabled = false; btn.textContent = '▶ processar fila agora'; }
+  if (error) { toast('Falha ao chamar edge: ' + error.message, 'err'); return; }
+  if (data && data.ok === false) { toast('Edge: ' + (data.erro || 'falhou'), 'err'); return; }
+  const s = data?.sucessos ?? 0, f = data?.falhas ?? 0, p = data?.processados ?? 0;
+  toast(`${p} processados · ${s} sucessos · ${f} falhas`, s>0?'ok':'err');
   await htmlCadencia();
 }
 
