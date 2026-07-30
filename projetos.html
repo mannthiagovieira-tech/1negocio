@@ -170,6 +170,49 @@
   .toast.err{background:var(--danger)}
   .toast.ok{background:var(--accent-2)}
 
+  /* SIGILO CARDS */
+  .sig-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:6px 0 14px}
+  @media(max-width:720px){.sig-grid{grid-template-columns:1fr}}
+  .sig-card{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r);padding:16px 16px 14px;cursor:pointer;transition:all .22s var(--ease);text-align:left}
+  .sig-card:hover{border-color:var(--line-2);transform:translateY(-1px);box-shadow:var(--sh)}
+  .sig-card.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:var(--sh-accent)}
+  .sig-card .nm{font-family:var(--serif);font-weight:700;font-size:15px;color:var(--ink);letter-spacing:-.005em;text-transform:capitalize}
+  .sig-card .ds{font-size:12.5px;color:var(--ink-3);margin-top:6px;line-height:1.45}
+  .sig-card.on .nm{color:var(--accent-2)}
+  .sig-card .tag{display:inline-block;font-family:var(--mono);font-size:9.5px;color:var(--ink-4);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+  .sig-card.on .tag{color:var(--accent)}
+
+  /* BLACKLIST */
+  .bl-form{display:grid;grid-template-columns:1.5fr 1fr 1fr 1.5fr auto;gap:8px;align-items:end;margin-bottom:14px}
+  @media(max-width:800px){.bl-form{grid-template-columns:1fr 1fr}}
+  .bl-form input{padding:9px 12px;font-size:13px}
+  .bl-list{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+  .bl-item{background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:11px 14px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+  .bl-item-info{display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;font-size:13px}
+  .bl-item-info .n{font-weight:600;color:var(--ink)}
+  .bl-item-info .m{font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
+  .bl-item-info .mot{color:var(--ink-2);font-style:italic;font-size:12.5px}
+  .bl-empty{padding:16px;border:1px dashed var(--line-2);border-radius:var(--r);text-align:center;color:var(--ink-3);font-size:13px;font-style:italic}
+  .aviso-red{background:rgba(194,43,63,.06);border:1px solid rgba(194,43,63,.25);color:var(--danger);border-radius:var(--r);padding:12px 16px;font-size:12.5px;line-height:1.5;margin-top:14px}
+  .aviso-red strong{font-weight:700}
+
+  /* LAUDO */
+  .laudo-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  @media(max-width:700px){.laudo-grid{grid-template-columns:1fr}}
+  .laudo-central{border-color:var(--accent);background:var(--accent-soft)}
+  .faixa-box{background:linear-gradient(135deg,rgba(10,157,85,.08),rgba(10,157,85,.02));border:1px solid var(--accent-ring);border-radius:var(--r-lg);padding:22px 24px;margin-top:18px;text-align:center}
+  .faixa-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:600}
+  .faixa-val{font-family:var(--serif);font-weight:800;font-size:28px;color:var(--ink);margin-top:8px;letter-spacing:-.015em}
+  .faixa-central{color:var(--accent-2);font-size:32px}
+  .faixa-sep{color:var(--ink-4);font-weight:400;margin:0 8px;font-size:22px}
+
+  /* PREÇO */
+  .desvio-box{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-top:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .desvio-val{font-family:var(--serif);font-weight:700;font-size:20px;letter-spacing:-.01em}
+  .desvio-pos{color:var(--amber)}
+  .desvio-neg{color:var(--ink-2)}
+  .desvio-neutro{color:var(--accent-2)}
+
   /* utilities */
   .hidden{display:none!important}
   .space{margin-top:20px}
@@ -465,15 +508,53 @@ let _abaChave = 'kickoff';
 
 async function renderProjeto(id){
   app.innerHTML = `<div class="empty"><h2>Carregando projeto…</h2></div>`;
-  const [proj, etapas, kickoff] = await Promise.all([
+  const [proj, etapas, kickoff, blk] = await Promise.all([
     sb.from('va_projetos_resumo').select('*').eq('id', id).maybeSingle(),
     sb.from('va_projeto_etapas').select('*').eq('projeto_id', id).order('ordem'),
     sb.from('va_projeto_kickoff').select('*').eq('projeto_id', id).maybeSingle(),
+    sb.from('va_projeto_blacklist').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}),
   ]);
   if (proj.error || !proj.data) { renderErr(proj.error?.message || 'Projeto não encontrado'); return; }
-  _pj = { projeto: proj.data, etapas: etapas.data || [], kickoff: kickoff.data || null };
+  _pj = {
+    projeto: proj.data,
+    etapas: etapas.data || [],
+    kickoff: kickoff.data || null,
+    blacklist: blk.data || [],
+  };
   if (!_pj.kickoff) _pj.kickoff = { projeto_id: id, itens: {} };
   desenhaProjeto();
+}
+
+// aplica um patch no projeto local (evita re-fetch pra saves rápidos)
+function patchProjetoLocal(patch){
+  Object.assign(_pj.projeto, patch);
+}
+
+// checa auto-conclusão de uma etapa após mudança
+async function checarAutoConclusao(chave){
+  const et = _pj.etapas.find(x => x.chave === chave);
+  if (!et || et.status === 'concluida') return;
+  const p = _pj.projeto;
+  let condMet = false;
+  if (chave === 'laudo') {
+    condMet = p.valor_avaliacao != null && p.valor_avaliacao_min != null && p.valor_avaliacao_max != null;
+  } else if (chave === 'preco') {
+    condMet = p.valor_venda != null && !!p.valor_venda_decidido_por && !!(p.valor_venda_justificativa||'').trim();
+  } else if (chave === 'regras') {
+    // sigilo sempre tem default; consideramos que basta o usuário ter
+    // interagido explicitamente (nivel_sigilo!==null é sempre true).
+    // Para não auto-marcar sem intenção, só marcamos via botão.
+    return;
+  }
+  if (condMet) {
+    const hoje = new Date().toISOString().slice(0,10);
+    const { error } = await sb.from('va_projeto_etapas').update({ status:'concluida', data_real: hoje }).eq('id', et.id);
+    if (error) return;
+    et.status = 'concluida'; et.data_real = hoje;
+    _pj.projeto.etapas_ok = (_pj.projeto.etapas_ok || 0) + 1;
+    toast('Etapa concluída automaticamente', 'ok');
+    desenhaProjeto();
+  }
 }
 
 function desenhaProjeto(){
@@ -521,6 +602,9 @@ function desenhaAba(){
   const e = _pj.etapas.find(x => x.chave === _abaChave) || _pj.etapas[0];
   if (!e) { stage.innerHTML = '<div class="empty"><h2>Etapa não encontrada</h2></div>'; return; }
   if (e.chave === 'kickoff') { stage.innerHTML = htmlKickoff(e); vincularKickoff(); return; }
+  if (e.chave === 'regras')  { stage.innerHTML = htmlRegras(e);  vincularRegras();  return; }
+  if (e.chave === 'laudo')   { stage.innerHTML = htmlLaudo(e);   vincularLaudo();   return; }
+  if (e.chave === 'preco')   { stage.innerHTML = htmlPreco(e);   vincularPreco();   return; }
   stage.innerHTML = htmlEtapaGenerica(e);
 }
 
@@ -678,11 +762,332 @@ async function toggleEtapa(id, atualmenteOk){
   renderProjeto(_pj.projeto.id);
 }
 
+// ═════════════════════════════════════════════════════════════════
+// SLICE 2 · etapas regras / laudo / preço
+// ═════════════════════════════════════════════════════════════════
+
+// ─── ETAPA: REGRAS ───────────────────────────────────────────────
+const SIGILO_OPCOES = [
+  { chave:'rigoroso', nome:'Rigoroso',  desc:'Nome só após NDA e sua aprovação caso a caso.' },
+  { chave:'padrao',   nome:'Padrão',    desc:'Nome após NDA assinado.' },
+  { chave:'flexivel', nome:'Flexível',  desc:'Nome pode ser dito em conversa qualificada.' },
+];
+
+function htmlRegras(e){
+  const p = _pj.projeto;
+  const ok = e.status === 'concluida';
+  const sig = p.nivel_sigilo || 'padrao';
+  const blk = _pj.blacklist || [];
+
+  const sigCards = SIGILO_OPCOES.map(o => `
+    <button type="button" class="sig-card ${o.chave===sig?'on':''}" data-sig="${o.chave}">
+      <span class="tag">${o.chave===sig?'selecionado':'clicar pra escolher'}</span>
+      <div class="nm">${esc(o.nome)}</div>
+      <div class="ds">${esc(o.desc)}</div>
+    </button>`).join('');
+
+  const listaBlk = blk.length ? blk.map(b => `
+    <div class="bl-item">
+      <div class="bl-item-info">
+        <span class="n">${esc(b.nome || '—')}</span>
+        ${b.cnpj ? `<span class="m">CNPJ ${esc(b.cnpj)}</span>` : ''}
+        ${b.telefone ? `<span class="m">tel ${esc(b.telefone)}</span>` : ''}
+        ${b.motivo ? `<span class="mot">"${esc(b.motivo)}"</span>` : ''}
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="removerBlacklist('${b.id}')">remover</button>
+    </div>`).join('') : '<div class="bl-empty">Nenhum bloqueio registrado. Se de fato não há ninguém a bloquear, deixe explícito.</div>';
+
+  return `
+    <div class="stage-head">
+      <div>
+        <div class="meta">Etapa ${e.ordem}/15 · ${esc(e.responsavel||'—')}</div>
+        <h2>${esc(e.titulo)}</h2>
+        <div class="muted" style="margin-top:6px;font-size:13.5px">Prevista para <strong style="color:var(--ink-2)">${dataBR(e.data_prevista)}</strong>${e.data_real ? ' · concluída em '+dataBR(e.data_real) : ''}</div>
+      </div>
+      <button class="btn ${ok?'btn-ghost':'btn-primary'}" onclick="toggleEtapa('${e.id}',${ok?'true':'false'})">
+        ${ok ? '↻ Reabrir' : '✓ Concluir etapa'}
+      </button>
+    </div>
+
+    <div class="k-card">
+      <div class="lbl">01 · nível de sigilo</div>
+      <h3>Quanto o mercado pode saber</h3>
+      <p class="motivo">Define como o negócio aparece em campanhas, disparos e conversas.</p>
+      <div class="sig-grid">${sigCards}</div>
+      <div class="aviso">Sigilo rigoroso reduz o volume de conversas. É troca consciente entre alcance e proteção.</div>
+    </div>
+
+    <div class="k-card">
+      <div class="lbl">02 · blacklist</div>
+      <h3>Quem não pode chegar até esse negócio</h3>
+      <p class="motivo">Concorrentes, ex-sócios, clientes específicos — quem estiver aqui é bloqueio duro.</p>
+
+      <div class="bl-form">
+        <input id="bl-nome" placeholder="nome / empresa">
+        <input id="bl-cnpj" placeholder="CNPJ (opcional)">
+        <input id="bl-tel"  placeholder="telefone (opcional)">
+        <input id="bl-mot"  placeholder="motivo (opcional)">
+        <button class="btn btn-primary btn-sm" id="bl-add">adicionar</button>
+      </div>
+
+      <div class="bl-list">${listaBlk}</div>
+
+      <div class="aviso-red"><strong>Bloqueio duro.</strong> Nenhum disparo, campanha ou onda de prospecção pode alcançar quem está nesta lista.</div>
+    </div>`;
+}
+
+function vincularRegras(){
+  document.querySelectorAll('#stage .sig-card').forEach(el => {
+    el.addEventListener('click', () => salvarSigilo(el.dataset.sig));
+  });
+  const btn = document.getElementById('bl-add');
+  if (btn) btn.addEventListener('click', adicionarBlacklist);
+}
+
+async function salvarSigilo(chave){
+  const id = _pj.projeto.id;
+  if (_pj.projeto.nivel_sigilo === chave) return;
+  const { error } = await sb.from('va_projetos').update({ nivel_sigilo: chave }).eq('id', id);
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  patchProjetoLocal({ nivel_sigilo: chave });
+  toast('Sigilo salvo', 'ok');
+  desenhaAba();
+}
+
+async function adicionarBlacklist(){
+  const id = _pj.projeto.id;
+  const nome = document.getElementById('bl-nome').value.trim();
+  const cnpj = document.getElementById('bl-cnpj').value.trim();
+  const tel  = document.getElementById('bl-tel').value.replace(/\D/g,'');
+  const mot  = document.getElementById('bl-mot').value.trim();
+  if (!nome && !cnpj && !tel) { toast('Preencha nome, CNPJ ou telefone', 'err'); return; }
+  const payload = { projeto_id: id, nome: nome||null, cnpj: cnpj||null, telefone: tel||null, motivo: mot||null };
+  const { data, error } = await sb.from('va_projeto_blacklist').insert(payload).select('*').single();
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  _pj.blacklist.unshift(data);
+  toast('Bloqueio adicionado', 'ok');
+  desenhaAba();
+}
+
+async function removerBlacklist(id){
+  if (!confirm('Remover este bloqueio?')) return;
+  const { error } = await sb.from('va_projeto_blacklist').delete().eq('id', id);
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  _pj.blacklist = _pj.blacklist.filter(b => b.id !== id);
+  toast('Removido', 'ok');
+  desenhaAba();
+}
+
+// ─── ETAPA: LAUDO ────────────────────────────────────────────────
+function htmlLaudo(e){
+  const p = _pj.projeto;
+  const ok = e.status === 'concluida';
+  const vc = p.valor_avaliacao, vmin = p.valor_avaliacao_min, vmax = p.valor_avaliacao_max;
+  const completo = vc != null && vmin != null && vmax != null;
+
+  const faixa = completo ? `
+    <div class="faixa-box">
+      <div class="faixa-lbl">Faixa de avaliação</div>
+      <div class="faixa-val">
+        ${brlNice(vmin)}
+        <span class="faixa-sep">·</span>
+        <span class="faixa-central">${brlNice(vc)}</span>
+        <span class="faixa-sep">·</span>
+        ${brlNice(vmax)}
+      </div>
+    </div>` : '';
+
+  return `
+    <div class="stage-head">
+      <div>
+        <div class="meta">Etapa ${e.ordem}/15 · ${esc(e.responsavel||'—')}</div>
+        <h2>${esc(e.titulo)}</h2>
+        <div class="muted" style="margin-top:6px;font-size:13.5px">Prevista para <strong style="color:var(--ink-2)">${dataBR(e.data_prevista)}</strong>${e.data_real ? ' · concluída em '+dataBR(e.data_real) : ''}</div>
+      </div>
+      <button class="btn ${ok?'btn-ghost':'btn-primary'}" ${completo||ok?'':'disabled title="Preencha mínima, central e máxima"'} onclick="toggleEtapa('${e.id}',${ok?'true':'false'})">
+        ${ok ? '↻ Reabrir' : '✓ Concluir etapa'}
+      </button>
+    </div>
+
+    <div class="k-card">
+      <div class="lbl">avaliação</div>
+      <h3>Faixa de valor do negócio</h3>
+      <p class="motivo">A faixa é o que sustenta a negociação. Valor único vira posição; faixa vira argumento.</p>
+
+      <div class="laudo-grid" style="margin-top:14px">
+        <div class="fld"><span class="lbl">mínima (R$)</span><input type="number" min="0" step="1000" id="la-min" value="${vmin ?? ''}" placeholder="ex: 400000"></div>
+        <div class="fld"><span class="lbl">central (R$) · destaque</span><input type="number" min="0" step="1000" id="la-central" value="${vc ?? ''}" placeholder="ex: 500000" class="laudo-central"></div>
+        <div class="fld"><span class="lbl">máxima (R$)</span><input type="number" min="0" step="1000" id="la-max" value="${vmax ?? ''}" placeholder="ex: 650000"></div>
+      </div>
+
+      ${faixa}
+    </div>`;
+}
+
+function vincularLaudo(){
+  const map = { 'la-min':'valor_avaliacao_min', 'la-central':'valor_avaliacao', 'la-max':'valor_avaliacao_max' };
+  Object.keys(map).forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('blur', () => salvarLaudoCampo(map[id], el.value));
+  });
+}
+
+async function salvarLaudoCampo(campo, raw){
+  const val = (raw==='' || raw==null) ? null : Number(raw);
+  if (val != null && !isFinite(val)) { toast('Valor inválido', 'err'); return; }
+  if (_pj.projeto[campo] === val) return;
+  const id = _pj.projeto.id;
+  const patch = {}; patch[campo] = val;
+  const { error } = await sb.from('va_projetos').update(patch).eq('id', id);
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  patchProjetoLocal(patch);
+  toast('Salvo', 'ok');
+  await checarAutoConclusao('laudo');
+  // se ainda não auto-completou mas os 3 estão preenchidos → mostra faixa
+  if (_pj.projeto.valor_avaliacao != null && _pj.projeto.valor_avaliacao_min != null && _pj.projeto.valor_avaliacao_max != null) {
+    if (_abaChave === 'laudo') desenhaAba();
+  }
+}
+
+// ─── ETAPA: PREÇO ────────────────────────────────────────────────
+const DECIDIDO_OPCOES = [
+  { v:'cliente_conforme',  l:'cliente, de acordo com a recomendação' },
+  { v:'cliente_contra',    l:'cliente, contra a recomendação' },
+  { v:'em_conjunto',       l:'definido em conjunto' },
+];
+
+function htmlPreco(e){
+  const p = _pj.projeto;
+  const ok = e.status === 'concluida';
+
+  if (p.valor_avaliacao == null) {
+    return `
+      <div class="stage-head">
+        <div>
+          <div class="meta">Etapa ${e.ordem}/15 · ${esc(e.responsavel||'—')}</div>
+          <h2>${esc(e.titulo)}</h2>
+          <div class="muted" style="margin-top:6px;font-size:13.5px">Prevista para <strong style="color:var(--ink-2)">${dataBR(e.data_prevista)}</strong></div>
+        </div>
+      </div>
+      <div class="k-card" style="text-align:center;padding:44px 30px">
+        <div class="lbl" style="margin-bottom:12px">bloqueado</div>
+        <h3>Defina a faixa de avaliação primeiro</h3>
+        <p class="motivo" style="margin:10px auto 20px;max-width:440px">Sem valor de referência não há como decidir preço nem calcular desvio.</p>
+        <button class="btn btn-primary" onclick="trocarAba('laudo')">Ir para etapa laudo →</button>
+      </div>`;
+  }
+
+  const vv  = p.valor_venda;
+  const vd  = p.valor_venda_decidido_por || '';
+  const vj  = p.valor_venda_justificativa || '';
+  const vc  = Number(p.valor_avaliacao) || 0;
+  const cpc = Number(p.comissao_percent) || 0;
+
+  const completo = vv != null && !!vd && !!vj.trim();
+
+  let desvioHtml = '';
+  if (vv != null && vc > 0) {
+    const desvio = ((vv - vc) / vc) * 100;
+    const cls = Math.abs(desvio) < 1 ? 'desvio-neutro' : (desvio > 0 ? 'desvio-pos' : 'desvio-neg');
+    const sinal = desvio > 0 ? '+' : (desvio < 0 ? '' : '');
+    desvioHtml = `
+      <div class="desvio-box">
+        <div>
+          <div class="lbl">Desvio vs central</div>
+          <div class="muted" style="margin-top:2px;font-size:12px">Central era ${brlNice(vc)}</div>
+        </div>
+        <div class="desvio-val ${cls}">${sinal}${desvio.toFixed(1).replace('.',',')}%</div>
+      </div>
+      ${desvio > 10 ? `<div class="aviso">Preço <strong>acima da faixa</strong>. Registre a justificativa — é o que transforma a conversa do dia 60 em replanejamento em vez de discussão.</div>` : ''}`;
+  }
+
+  const comissaoProj = vv != null ? vv * (cpc/100) : null;
+
+  return `
+    <div class="stage-head">
+      <div>
+        <div class="meta">Etapa ${e.ordem}/15 · ${esc(e.responsavel||'—')}</div>
+        <h2>${esc(e.titulo)}</h2>
+        <div class="muted" style="margin-top:6px;font-size:13.5px">Prevista para <strong style="color:var(--ink-2)">${dataBR(e.data_prevista)}</strong>${e.data_real ? ' · concluída em '+dataBR(e.data_real) : ''}</div>
+      </div>
+      <button class="btn ${ok?'btn-ghost':'btn-primary'}" ${completo||ok?'':'disabled title="Preencha valor, decisor e justificativa"'} onclick="toggleEtapa('${e.id}',${ok?'true':'false'})">
+        ${ok ? '↻ Reabrir' : '✓ Concluir etapa'}
+      </button>
+    </div>
+
+    <div class="k-card">
+      <div class="lbl">01 · valor</div>
+      <h3>Preço de venda decidido</h3>
+      <p class="motivo">A recomendação está em ${brlNice(vc)}. Você pode ficar dentro, acima ou abaixo — o que importa é registrar por quê.</p>
+
+      <div class="form-grid" style="margin-top:14px">
+        <div class="fld"><span class="lbl">valor de venda (R$)</span><input type="number" min="0" step="1000" id="pr-valor" value="${vv ?? ''}" placeholder="ex: 550000"></div>
+        <div class="fld"><span class="lbl">decisão</span>
+          <select id="pr-decidido">
+            <option value="">— escolher —</option>
+            ${DECIDIDO_OPCOES.map(o => `<option value="${o.v}" ${vd===o.v?'selected':''}>${esc(o.l)}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      ${desvioHtml}
+    </div>
+
+    <div class="k-card">
+      <div class="lbl">02 · justificativa</div>
+      <h3>Por que esse valor</h3>
+      <p class="motivo">O que sustenta esse preço no mercado — comparativos, urgência, ativos, potencial. É esse texto que o cliente relê no dia 60.</p>
+      <textarea id="pr-just" rows="5" placeholder="Ex: preço 10% acima da faixa por conta de ponto comercial em rota crescente + contrato de aluguel prorrogado por 5 anos…">${esc(vj)}</textarea>
+    </div>
+
+    ${comissaoProj != null ? `
+      <div class="k-card" style="background:linear-gradient(135deg,rgba(10,157,85,.05),transparent)">
+        <div class="lbl">projeção</div>
+        <div class="row" style="justify-content:space-between;margin-top:6px">
+          <div>
+            <div class="h3">Comissão projetada</div>
+            <div class="muted" style="margin-top:4px;font-size:12.5px">${brlNice(vv)} × ${String(cpc).replace('.',',')}%</div>
+          </div>
+          <div class="calc-val big">${brlNice(comissaoProj)}</div>
+        </div>
+      </div>` : ''}`;
+}
+
+function vincularPreco(){
+  const v = document.getElementById('pr-valor');
+  const d = document.getElementById('pr-decidido');
+  const j = document.getElementById('pr-just');
+  if (v) v.addEventListener('blur', () => salvarPrecoCampo('valor_venda', v.value));
+  if (d) d.addEventListener('change', () => salvarPrecoCampo('valor_venda_decidido_por', d.value));
+  if (j) j.addEventListener('blur', () => salvarPrecoCampo('valor_venda_justificativa', j.value));
+}
+
+async function salvarPrecoCampo(campo, raw){
+  let val;
+  if (campo === 'valor_venda') {
+    val = (raw==='' || raw==null) ? null : Number(raw);
+    if (val != null && !isFinite(val)) { toast('Valor inválido', 'err'); return; }
+  } else {
+    val = (raw||'').trim() || null;
+  }
+  if (_pj.projeto[campo] === val) return;
+  const id = _pj.projeto.id;
+  const patch = {}; patch[campo] = val;
+  const { error } = await sb.from('va_projetos').update(patch).eq('id', id);
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  patchProjetoLocal(patch);
+  toast('Salvo', 'ok');
+  await checarAutoConclusao('preco');
+  if (_abaChave === 'preco') desenhaAba();
+}
+
 // ─── boot ─────────────────────────────────────────────────────────
 window.toggleEtapa = toggleEtapa;
 window.trocarAba = trocarAba;
 window.rota = rota;
 window.logout = logout;
+window.removerBlacklist = removerBlacklist;
 
 (async function boot(){
   await initAuth();
