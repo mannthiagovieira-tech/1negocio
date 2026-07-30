@@ -141,19 +141,13 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Kipflow usa camelCase (ex: costFormatted na response). Tentando
-    // shape mais provável em camelCase + wrapper "filters".
-    const kipBody = {
-      filters: {
-        cnaeCode: filtrosFinais.cnae,
-        state:    filtrosFinais.uf_diferente ? undefined : filtrosFinais.uf,
-        excludeStates: filtrosFinais.uf_diferente ? [filtrosFinais.uf] : undefined,
-        revenueMin: filtrosFinais.faturamento_min,
-        revenueMax: filtrosFinais.faturamento_max,
-        excludeCnpjs: [cnpjSemente],
-      },
-      pageSize: filtrosFinais.limit,
-      datasets: ['basic', 'address'],
+    // Probe · body vazio pra ver o que a Kipflow pede como obrigatório
+    const kipBody = filtros?.debug ? {} : {
+      cnaeCode: filtrosFinais.cnae,
+      state: filtrosFinais.uf_diferente ? undefined : filtrosFinais.uf,
+      revenueMin: filtrosFinais.faturamento_min,
+      revenueMax: filtrosFinais.faturamento_max,
+      excludeCnpjs: [cnpjSemente],
     };
 
     let kip;
