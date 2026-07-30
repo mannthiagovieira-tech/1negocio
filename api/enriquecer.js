@@ -114,7 +114,9 @@ module.exports = async (req, res) => {
   // 4. Kipflow · GET /companies/v1/search?cnpj=xxx (enriquecimento direto)
   let kip;
   try {
-    const r = await fetch(`https://api.kipflow.io/companies/v1/search?cnpj=${cnpj}&datasets=complete,partners,contacts`, {
+    // Datasets válidos (descobertos empiricamente): basic, complete, address,
+    // online_presence, partners, debts, ecommerce. Escolhemos os úteis pro VA.
+    const r = await fetch(`https://api.kipflow.io/companies/v1/search?cnpj=${cnpj}&datasets=complete,partners,address,online_presence`, {
       headers: { 'X-API-Key': KEY, Accept: 'application/json' },
     });
     const status = r.status;
