@@ -76,7 +76,15 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return json(res, 405, { ok: false, erro: 'method not allowed' });
 
-  // 1. Chave Kipflow
+  // 1. AUTH ANTES DE TUDO · anônimo/inválido não pode nem saber quais
+  //    env vars estão configuradas (evita enumeração de config).
+  const auth = req.headers.authorization || '';
+  const userToken = auth.replace(/^Bearer\s+/i, '').trim();
+  if (!userToken) return json(res, 401, { ok: false, erro: 'não autorizado' });
+  const admin = await ehAdmin(userToken);
+  if (!admin) return json(res, 403, { ok: false, erro: 'não autorizado' });
+
+  // 2. Só admin passa daqui em diante · agora sim checa env vars
   const KEY = process.env.KIPFLOW_API_KEY;
   if (!KEY) return json(res, 503, {
     ok: false,
@@ -85,13 +93,6 @@ module.exports = async (req, res) => {
 
   const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!SB_SERVICE) return json(res, 500, { ok: false, erro: 'SUPABASE_SERVICE_ROLE_KEY não configurada no Vercel' });
-
-  // 2. Auth admin
-  const auth = req.headers.authorization || '';
-  const userToken = auth.replace(/^Bearer\s+/i, '').trim();
-  if (!userToken) return json(res, 401, { ok: false, erro: 'sem token' });
-  const admin = await ehAdmin(userToken);
-  if (!admin) return json(res, 403, { ok: false, erro: 'não autorizado' });
 
   // 3. Body
   let body;
