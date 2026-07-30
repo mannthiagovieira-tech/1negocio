@@ -707,7 +707,17 @@ function renderNovo(){
             <div class="fld" data-fld="nome"><span class="lbl">cliente ·  nome *</span><input required id="f-nome" placeholder="ex. João Marques"><span class="fld-err-msg">nome obrigatório</span></div>
             <div class="fld" data-fld="wp"><span class="lbl">cliente · whatsapp *</span><input required id="f-wp" placeholder="ex. 5548999999999"><span class="fld-err-msg">whatsapp obrigatório</span></div>
             <div class="fld form-full"><span class="lbl">título do negócio</span><input id="f-tit" placeholder="ex. Clínica de estética 8 anos · faturamento 90k/mês"></div>
-            <div class="fld"><span class="lbl">cidade</span><input id="f-cid" placeholder="ex. Florianópolis"></div>
+            <div class="fld form-full" data-fld="cnpj">
+              <span class="lbl">CNPJ do negócio *</span>
+              <div class="row" style="gap:8px">
+                <input required id="f-cnpj" placeholder="14 dígitos · só números" style="flex:1">
+                <button type="button" class="btn btn-ghost" id="f-enriquecer">enriquecer</button>
+              </div>
+              <span class="fld-err-msg">CNPJ obrigatório · 14 dígitos</span>
+              <div id="f-enriq-status" class="muted" style="font-size:12px;margin-top:4px"></div>
+            </div>
+            <div class="fld" data-fld="cid"><span class="lbl">cidade *</span><input required id="f-cid" placeholder="ex. Florianópolis"><span class="fld-err-msg">cidade obrigatória</span></div>
+            <div class="fld" data-fld="uf"><span class="lbl">UF *</span><input required id="f-uf" placeholder="ex. SC" maxlength="2" style="text-transform:uppercase"><span class="fld-err-msg">UF obrigatória (2 letras)</span></div>
             <div class="fld" data-fld="dt"><span class="lbl">data de início *</span><input required type="date" id="f-dt" value="${hoje}"><span class="fld-err-msg">data obrigatória</span></div>
           </div>
           <div class="form-grid">
@@ -759,10 +769,46 @@ function renderNovo(){
   upd();
 
   // limpa erro visual ao digitar
-  ['f-nome','f-wp','f-mens','f-dt'].forEach(id => {
+  ['f-nome','f-wp','f-mens','f-dt','f-cnpj','f-cid','f-uf'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', () => el.closest('.fld')?.classList.remove('err'));
   });
+
+  // Botão enriquecer · chama /api/enriquecer com CNPJ e pré-popula campos
+  document.getElementById('f-enriquecer').onclick = async () => {
+    const cnpj = (document.getElementById('f-cnpj').value || '').replace(/\D/g, '');
+    const st = document.getElementById('f-enriq-status');
+    if (cnpj.length !== 14) { st.textContent = 'CNPJ inválido (14 dígitos)'; st.style.color = '#c00'; return; }
+    st.textContent = 'consultando Kipflow…'; st.style.color = '';
+    try {
+      const sess = (await sb.auth.getSession()).data.session;
+      const r = await fetch('/api/enriquecer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (sess?.access_token || '') },
+        body: JSON.stringify({ cnpj }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) { st.textContent = d.erro || 'erro no enriquecimento'; st.style.color = '#c00'; return; }
+      const c = d.campos_extraidos || {};
+      if (c.razao_social && !document.getElementById('f-tit').value) document.getElementById('f-tit').value = c.razao_social;
+      if (c.cidade) document.getElementById('f-cid').value = c.cidade;
+      if (c.estado) {
+        // Kipflow devolve extenso ("SANTA CATARINA") · convertemos p/ sigla no form
+        const map = { 'ACRE':'AC','ALAGOAS':'AL','AMAPA':'AP','AMAZONAS':'AM','BAHIA':'BA','CEARA':'CE',
+          'DISTRITO FEDERAL':'DF','ESPIRITO SANTO':'ES','GOIAS':'GO','MARANHAO':'MA','MATO GROSSO':'MT',
+          'MATO GROSSO DO SUL':'MS','MINAS GERAIS':'MG','PARA':'PA','PARAIBA':'PB','PARANA':'PR',
+          'PERNAMBUCO':'PE','PIAUI':'PI','RIO DE JANEIRO':'RJ','RIO GRANDE DO NORTE':'RN',
+          'RIO GRANDE DO SUL':'RS','RONDONIA':'RO','RORAIMA':'RR','SANTA CATARINA':'SC','SAO PAULO':'SP',
+          'SERGIPE':'SE','TOCANTINS':'TO' };
+        const uf = map[String(c.estado).toUpperCase().trim()] || String(c.estado).slice(0,2).toUpperCase();
+        document.getElementById('f-uf').value = uf;
+      }
+      st.textContent = `ok · ${c.razao_social || cnpj}${c.cnae_codigo ? ' · CNAE ' + c.cnae_codigo : ''}`;
+      st.style.color = 'green';
+    } catch (e) {
+      st.textContent = 'erro de rede'; st.style.color = '#c00';
+    }
+  };
 
   document.getElementById('new-form').onsubmit = async (ev) => {
     ev.preventDefault();
@@ -775,11 +821,17 @@ function renderNovo(){
     const wpBruto = document.getElementById('f-wp').value.replace(/\D/g,'');
     const dt = document.getElementById('f-dt').value;
     const mens = Number(document.getElementById('f-mens').value);
+    const cnpjBruto = (document.getElementById('f-cnpj').value || '').replace(/\D/g,'');
+    const cidade = document.getElementById('f-cid').value.trim();
+    const uf = document.getElementById('f-uf').value.trim().toUpperCase();
 
     const invalidos = [];
     document.querySelectorAll('#new-form .fld.err').forEach(el => el.classList.remove('err'));
     if (!nome) { invalidos.push('nome'); document.querySelector('[data-fld=nome]')?.classList.add('err'); }
     if (!wpBruto || wpBruto.length < 8) { invalidos.push('wp'); document.querySelector('[data-fld=wp]')?.classList.add('err'); }
+    if (cnpjBruto.length !== 14) { invalidos.push('cnpj'); document.querySelector('[data-fld=cnpj]')?.classList.add('err'); }
+    if (!cidade) { invalidos.push('cid'); document.querySelector('[data-fld=cid]')?.classList.add('err'); }
+    if (!uf || uf.length !== 2) { invalidos.push('uf'); document.querySelector('[data-fld=uf]')?.classList.add('err'); }
     if (!dt) { invalidos.push('dt'); document.querySelector('[data-fld=dt]')?.classList.add('err'); }
     if (!isFinite(mens) || mens <= 0) { invalidos.push('mens'); document.querySelector('[data-fld=mens]')?.classList.add('err'); }
     if (invalidos.length) {
@@ -794,7 +846,9 @@ function renderNovo(){
       cliente_nome: nome,
       cliente_whatsapp: wpBruto,
       negocio_titulo: document.getElementById('f-tit').value.trim() || null,
-      cidade: document.getElementById('f-cid').value.trim() || null,
+      cnpj: cnpjBruto,
+      cidade,
+      uf,
       valor_mensal: mens,
       fidelidade_meses: Number(document.getElementById('f-fid').value) || 3,
       comissao_percent: Number(document.getElementById('f-com').value) || 5,

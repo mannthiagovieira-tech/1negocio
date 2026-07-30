@@ -58,6 +58,30 @@ function faixaPadrao(arq) {
   return FAIXA_POR_ARQUETIPO[arq] || { min: 0.5, max: 5, uf_diferente: false, aviso: null };
 }
 
+// Escolhe o sócio decisor (regra: ADMINISTRADOR > mais antigo > primeiro)
+function escolherDecisor(socios) {
+  if (!Array.isArray(socios) || socios.length === 0) return { decisor: null, extras: null };
+  const admins = socios.filter(s => (s.qualificacao_socio || '').toUpperCase().includes('ADMINISTRADOR'));
+  const pool = admins.length > 0 ? admins : socios;
+  const ordenado = [...pool].sort((a, b) => {
+    const da = a.data_entrada_sociedade ? new Date(a.data_entrada_sociedade).getTime() : Infinity;
+    const db = b.data_entrada_sociedade ? new Date(b.data_entrada_sociedade).getTime() : Infinity;
+    return da - db;
+  });
+  const decisor = ordenado[0] || socios[0];
+  const extras = socios.filter(s => s !== decisor);
+  return { decisor, extras: extras.length > 0 ? extras : null };
+}
+
+// Enriquece 1 CNPJ pelo Kipflow (subset mínimo pra montar contato)
+async function enriquecerLite(KEY, cnpj) {
+  const r = await fetch(`https://api.kipflow.io/companies/v1/search?cnpj=${cnpj}&datasets=complete,partners,address`, {
+    headers: { 'X-API-Key': KEY, Accept: 'application/json' },
+  });
+  if (!r.ok) return null;
+  return await r.json();
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -78,6 +102,20 @@ module.exports = async (req, res) => {
   if (!projeto_id) return json(res, 400, { ok: false, erro: 'projeto_id obrigatório' });
 
   const sbHeaders = { apikey: SB_SERVICE, Authorization: 'Bearer ' + SB_SERVICE, 'Content-Type': 'application/json' };
+
+  // Gate por arquétipo · só alcancavel_por_cnpj passa
+  if (arquetipo_codigo) {
+    const rArq = await fetch(`${SB_URL}/rest/v1/va_arquetipos_catalogo?codigo=eq.${arquetipo_codigo}&select=alcancavel_por_cnpj,canal_recomendado,nome`, { headers: sbHeaders });
+    const [arqCat] = await rArq.json();
+    if (arqCat && arqCat.alcancavel_por_cnpj === false) {
+      return json(res, 422, {
+        ok: false,
+        erro: 'arquetipo_nao_alcancavel_por_cnpj',
+        detalhe: `Arquétipo ${arquetipo_codigo} (${arqCat.nome}) não é alcançável por busca de CNPJ. Use canal: ${arqCat.canal_recomendado}.`,
+        canal_recomendado: arqCat.canal_recomendado,
+      });
+    }
+  }
 
   const rP = await fetch(`${SB_URL}/rest/v1/va_projetos?id=eq.${projeto_id}&select=cnpj,setor,cidade`, { headers: sbHeaders });
   const [proj] = await rP.json();
@@ -228,20 +266,51 @@ module.exports = async (req, res) => {
       continue;
     }
 
-    let empresaId;
-    const rEmp = await fetch(`${SB_URL}/rest/v1/va_empresas?cnpj=eq.${cnpj}&select=id`, { headers: sbHeaders });
+    let empresaId, empresaRow;
+    const rEmp = await fetch(`${SB_URL}/rest/v1/va_empresas?cnpj=eq.${cnpj}&select=id,socios,razao_social,cidade,estado,enriquecido_em`, { headers: sbHeaders });
     const [empEx] = await rEmp.json();
     if (empEx) {
       empresaId = empEx.id;
-    } else {
-      const rIns = await fetch(`${SB_URL}/rest/v1/va_empresas`, {
-        method: 'POST',
-        headers: { ...sbHeaders, Prefer: 'return=representation' },
-        body: JSON.stringify({ cnpj }),
-      });
-      const [empIns] = await rIns.json();
-      empresaId = empIns?.id;
+      empresaRow = empEx;
     }
+
+    // Se não está enriquecida, chama Kipflow (partners+complete+address)
+    // custo ~R$ 0,39 · já contemplado em similares_import (R$ 0,78 cobrado)
+    if (!empresaRow?.enriquecido_em) {
+      const kipRaw = await enriquecerLite(KEY, cnpj);
+      const kipData = kipRaw?.data?.[0] || kipRaw?.data || kipRaw || {};
+      const upsertBody = {
+        cnpj,
+        razao_social: kipData.razao_social || null,
+        nome_fantasia: kipData.nome_fantasia || null,
+        cidade: kipData.municipio || null,
+        estado: kipData.uf || null,
+        cnae_codigo: String(kipData.cnae_principal_classe || '') || null,
+        cnae_descricao: kipData.cnae_principal_desc_classe || null,
+        porte_categoria: kipData.porte || null,
+        porte_faturamento: typeof kipData.faturamento === 'number' ? kipData.faturamento : null,
+        faixa_faturamento: kipData.faixa_faturamento_grupo || null,
+        faixa_funcionarios: kipData.faixa_funcionarios_grupo || null,
+        segmento: kipData.segmento || null,
+        ramo_atividade: kipData.ramo_de_atividade || null,
+        situacao_cadastral: kipData.situacao_cadastral || null,
+        data_abertura: kipData.data_inicio_atividade || null,
+        socios: Array.isArray(kipData.socios) ? kipData.socios : null,
+        enriquecido_em: new Date().toISOString(),
+        enriquecido_por: 'kipflow',
+        enriquecimento_bruto: kipRaw || null,
+      };
+      const up = await fetch(`${SB_URL}/rest/v1/va_empresas?on_conflict=cnpj`, {
+        method: 'POST',
+        headers: { ...sbHeaders, Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify(upsertBody),
+      });
+      const [upRow] = await up.json();
+      empresaRow = upRow || upsertBody;
+      empresaId = upRow?.id || empresaId;
+    }
+
+    const { decisor, extras } = escolherDecisor(empresaRow?.socios || null);
 
     const rCt = await fetch(`${SB_URL}/rest/v1/va_contatos`, {
       method: 'POST',
@@ -250,6 +319,15 @@ module.exports = async (req, res) => {
         projeto_id, empresa_id: empresaId, cnpj,
         origem: 'prospeccao', origem_detalhe: ref,
         arquetipo_codigo, trilha: 'fria', estagio: 'novo',
+        empresa: empresaRow?.razao_social || null,
+        cidade: empresaRow?.cidade || null,
+        estado: empresaRow?.estado || null,
+        nome: decisor?.nome_socio || null,
+        cargo: decisor?.qualificacao_socio || null,
+        socio_faixa_etaria: decisor?.faixa_etaria_socio || null,
+        socio_data_entrada: decisor?.data_entrada_sociedade || null,
+        socio_identificador: decisor?.nome_com_cnpj_cpf || decisor?.cnpj_cpf_socio || null,
+        socios_extras: extras,
       }),
     });
     const arrCt = await rCt.json();
