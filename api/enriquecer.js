@@ -39,8 +39,6 @@ async function ehAdmin(userToken) {
 }
 
 function extraiCampos(data) {
-  // A doc do Kipflow não lista os nomes exatos. Tentamos os mais prováveis
-  // com fallback. Sempre gravamos o payload cru em enriquecimento_bruto.
   const g = (obj, ...keys) => {
     for (const k of keys) {
       const parts = k.split('.');
@@ -51,18 +49,32 @@ function extraiCampos(data) {
     return null;
   };
   const socios = g(data, 'socios', 'partners', 'quadro_societario', 'qsa');
+  const porteRaw = g(data, 'faturamento_estimado', 'porte_faturamento', 'revenue_estimated', 'estimated_revenue', 'porte');
+  // Kipflow devolve numeric OU string categórica ("DEMAIS", "ME", "EPP")
+  let porte_faturamento = null, porte_categoria = null;
+  if (typeof porteRaw === 'number' && isFinite(porteRaw)) porte_faturamento = porteRaw;
+  else if (typeof porteRaw === 'string') {
+    const asNum = Number(porteRaw.replace(/[^\d.,-]/g, '').replace(',', '.'));
+    if (isFinite(asNum) && asNum > 0) porte_faturamento = asNum;
+    else porte_categoria = porteRaw;
+  }
+  const capRaw = g(data, 'capital_social', 'capitalSocial', 'share_capital');
+  const capital_social = (typeof capRaw === 'number' && isFinite(capRaw)) ? capRaw
+    : (typeof capRaw === 'string' && !isNaN(Number(capRaw))) ? Number(capRaw) : null;
+  const funcRaw = g(data, 'funcionarios', 'employees', 'employee_count');
+  const funcionarios = Number.isInteger(funcRaw) ? funcRaw
+    : (typeof funcRaw === 'string' && /^\d+$/.test(funcRaw)) ? parseInt(funcRaw, 10) : null;
   return {
     razao_social:       g(data, 'razao_social', 'razaoSocial', 'legal_name', 'nome'),
     nome_fantasia:      g(data, 'nome_fantasia', 'nomeFantasia', 'trade_name', 'fantasia'),
     cnpj:               g(data, 'cnpj', 'document', 'documento'),
     cidade:             g(data, 'cidade', 'city', 'address.city', 'endereco.cidade', 'municipio'),
     estado:             g(data, 'estado', 'state', 'uf', 'address.state', 'endereco.uf'),
-    cnae_codigo:        g(data, 'cnae_codigo', 'cnae.codigo', 'cnae.code', 'main_cnae.code', 'atividade_principal.codigo'),
-    cnae_descricao:     g(data, 'cnae_descricao', 'cnae.descricao', 'cnae.description', 'main_cnae.description', 'atividade_principal.descricao'),
+    cnae_codigo:        g(data, 'cnae_codigo', 'cnae.codigo', 'cnae.code', 'main_cnae.code', 'atividade_principal.codigo', 'cnae_fiscal', 'cnae_principal.codigo'),
+    cnae_descricao:     g(data, 'cnae_descricao', 'cnae.descricao', 'cnae.description', 'main_cnae.description', 'atividade_principal.descricao', 'cnae_fiscal_descricao'),
     situacao_cadastral: g(data, 'situacao_cadastral', 'situacaoCadastral', 'registration_status', 'status'),
-    porte_faturamento:  g(data, 'faturamento_estimado', 'porte_faturamento', 'revenue_estimated', 'estimated_revenue', 'porte'),
-    funcionarios:       g(data, 'funcionarios', 'employees', 'employee_count'),
-    capital_social:     g(data, 'capital_social', 'capitalSocial', 'share_capital'),
+    porte_faturamento, porte_categoria,
+    funcionarios, capital_social,
     data_abertura:      g(data, 'data_abertura', 'dataAbertura', 'opened_at', 'founded_at'),
     socios: Array.isArray(socios) ? socios : null,
     site:               g(data, 'site', 'website', 'url'),
@@ -146,25 +158,29 @@ module.exports = async (req, res) => {
     atualizado_em: new Date().toISOString(),
   };
 
-  // Se veio empresa_id, PATCH direto
-  let empresa = null;
+  // Se veio empresa_id, PATCH direto; senão upsert por cnpj.
+  let empresa = null; let upErrText = null; let upStatus = null;
   if (empresa_id) {
     const up = await fetch(`${SB_URL}/rest/v1/va_empresas?id=eq.${empresa_id}`, {
       method: 'PATCH',
       headers: { ...sbHeaders, Prefer: 'return=representation' },
       body: JSON.stringify(patch),
     });
-    const arr = await up.json();
-    empresa = Array.isArray(arr) ? arr[0] : arr;
+    upStatus = up.status;
+    if (!up.ok) upErrText = (await up.text()).slice(0, 300);
+    else { const arr = await up.json(); empresa = Array.isArray(arr) ? arr[0] : arr; }
   } else {
-    // Sem empresa_id: upsert por cnpj (cria ou atualiza a linha global)
     const up = await fetch(`${SB_URL}/rest/v1/va_empresas?on_conflict=cnpj`, {
       method: 'POST',
       headers: { ...sbHeaders, Prefer: 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify(patch),
     });
-    const arr = await up.json();
-    empresa = Array.isArray(arr) ? arr[0] : arr;
+    upStatus = up.status;
+    if (!up.ok) upErrText = (await up.text()).slice(0, 300);
+    else { const arr = await up.json(); empresa = Array.isArray(arr) ? arr[0] : arr; }
+  }
+  if (upErrText) {
+    return json(res, 500, { ok: false, erro: 'upsert_falhou', http: upStatus, detalhe: upErrText, campos_extraidos: campos });
   }
 
   // 6. Debita se projeto_id
