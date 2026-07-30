@@ -982,6 +982,7 @@ const GESTAO_ITENS = [
   { chave:'gestao_funil',       titulo:'Funil',       sub:'conversão · arquétipos' },
   { chave:'gestao_cadencia',    titulo:'Cadência',    sub:'templates · fila · disparo' },
   { chave:'gestao_atendimento', titulo:'Atendimento', sub:'canais · NDA · dossiê' },
+  { chave:'gestao_campanhas',   titulo:'Campanhas',   sub:'criativos · métricas · atribuição' },
   { chave:'gestao_relatorios',  titulo:'Relatórios',  sub:'em breve' },
 ];
 
@@ -1022,6 +1023,7 @@ function desenhaAba(){
   if (_abaChave === 'gestao_funil')      { stage.innerHTML = htmlFunil();                           return; }
   if (_abaChave === 'gestao_cadencia')    { htmlCadencia();                                          return; }
   if (_abaChave === 'gestao_atendimento') { htmlAtendimento();                                       return; }
+  if (_abaChave === 'gestao_campanhas')   { htmlCampanhas();                                          return; }
   if (_abaChave === 'gestao_relatorios')  { stage.innerHTML = htmlGestaoPlaceholder('Relatórios','Consumo, ROI da onda, exportáveis pro cliente.'); return; }
   // SETUP
   const e = _pj.etapas.find(x => x.chave === _abaChave) || _pj.etapas[0];
@@ -3822,6 +3824,374 @@ async function liberarCompleto(){
   await htmlAtendimento();
 }
 
+// ═════════════════════════════════════════════════════════════════
+// SLICE 9 · CAMPANHAS (criativos · campanhas · métricas · atribuição)
+// ═════════════════════════════════════════════════════════════════
+
+async function htmlCampanhas(){
+  const stage = document.getElementById('stage');
+  const id = _pj.projeto.id;
+  stage.innerHTML = '<div class="empty"><h2>Carregando campanhas…</h2></div>';
+  const [criativos, camps, camp_cri, metricas, desemp, canais] = await Promise.all([
+    sb.from('va_criativos').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}),
+    sb.from('va_campanhas').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}),
+    sb.from('va_campanha_criativos').select('*'),
+    sb.from('va_campanha_metricas').select('*').order('data', {ascending:false}).limit(200),
+    sb.from('va_projeto_canal_desempenho').select('*').eq('projeto_id', id).order('canal_sufixo'),
+    sb.from('va_canais_origem').select('*').eq('projeto_id', id).order('sufixo'),
+  ]);
+  _pj.criativos = criativos.data || [];
+  _pj.campanhas = camps.data || [];
+  _pj.campCri = camp_cri.data || [];
+  _pj.metricas = metricas.data || [];
+  _pj.desempCanal = desemp.data || [];
+  _pj.canais = canais.data || _pj.canais || [];
+  desenharCampanhas();
+}
+
+function desenharCampanhas(){
+  const stage = document.getElementById('stage');
+  stage.innerHTML = `
+    <div class="stage-head">
+      <div>
+        <div class="meta">gestão</div>
+        <h2>Campanhas e criativos</h2>
+        <div class="muted" style="margin-top:6px;font-size:13.5px">Registra e mede — a operação continua no painel da Meta. Meta API entra depois.</div>
+      </div>
+    </div>
+    ${cardCriativos()}
+    ${cardCampanhasList()}
+    ${cardLancarMetricas()}
+    ${cardDesempCanal()}`;
+  vincularCampanhas();
+}
+
+function cardCriativos(){
+  const cri = _pj.criativos || [];
+  const canaisOpts = (_pj.canais||[]).map(c => `<option value="${esc(c.sufixo)}">${esc(c.sufixo)} · ${esc(c.rotulo)}</option>`).join('');
+  const arqOpts = (_pj.arquetipos||[]).map(a => `<option value="${esc(a.codigo)}">${esc(a.codigo)}</option>`).join('');
+
+  const rows = cri.length ? cri.map(c => {
+    const canal = (_pj.canais||[]).find(x => x.sufixo === c.canal_sufixo);
+    return `<tr>
+      <td>
+        <strong>${esc(c.nome)}</strong>
+        <div class="muted mono" style="font-size:10px;margin-top:2px">${esc(c.tipo)}${c.arquetipo_codigo?` · ${esc(c.arquetipo_codigo)}`:''}${c.teaser_versao?` · teaser v${c.teaser_versao}`:''}</div>
+      </td>
+      <td class="mono" style="font-size:11px">${c.canal_sufixo ? '#'+esc(c.canal_sufixo)+(canal?' · '+esc(canal.rotulo):'') : '<span style="color:var(--danger)">sem canal</span>'}</td>
+      <td><span class="badge ${c.status==='no_ar'?'ativo':(c.status==='aprovado'?'concluido':(c.status==='pausado'?'pausado':'setup'))}">${esc(c.status)}</span></td>
+      <td>
+        ${c.status === 'rascunho' ? `<button class="btn btn-primary btn-sm" onclick="aprovarCriativo('${esc(c.id)}')">aprovar</button>` : ''}
+        ${c.status === 'aprovado' ? `<button class="btn btn-primary btn-sm" onclick="mudarCriativoStatus('${esc(c.id)}','no_ar')">colocar no ar</button>` : ''}
+        ${c.status === 'no_ar' ? `<button class="btn btn-ghost btn-sm" onclick="mudarCriativoStatus('${esc(c.id)}','pausado')">pausar</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="removerCriativo('${esc(c.id)}')">×</button>
+      </td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--ink-3);padding:16px;font-style:italic">Nenhum criativo. Crie o primeiro abaixo.</td></tr>';
+
+  return `
+    <div class="k-card">
+      <div class="lbl">01 · criativos</div>
+      <h3>${cri.length} peça${cri.length===1?'':'s'}</h3>
+      <div class="aviso" style="margin-top:12px">Todo criativo deriva do teaser cego. Confira que não há nome, fachada, endereço ou qualquer identificação do negócio antes de aprovar.</div>
+      <table class="orc-tab" style="margin-top:12px">
+        <thead><tr><th>criativo</th><th>canal</th><th>status</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="orc-adicionar-linha" style="grid-template-columns:1fr 120px 100px 1fr auto">
+        <div class="fld"><span class="lbl">nome</span><input id="cri-nome" placeholder="ex. Estático 1080 A2 v1"></div>
+        <div class="fld"><span class="lbl">tipo</span>
+          <select id="cri-tipo">
+            <option value="estatico">estático</option>
+            <option value="video">vídeo</option>
+            <option value="carrossel">carrossel</option>
+          </select>
+        </div>
+        <div class="fld"><span class="lbl">arquétipo</span><select id="cri-arq"><option value="">—</option>${arqOpts}</select></div>
+        <div class="fld"><span class="lbl">canal de origem</span><select id="cri-canal"><option value="">— nenhum —</option>${canaisOpts}</select></div>
+        <button class="btn btn-primary btn-sm" onclick="salvarCriativo()">+ criativo</button>
+      </div>
+    </div>`;
+}
+
+function cardCampanhasList(){
+  const camps = _pj.campanhas || [];
+  const camp_cri = _pj.campCri || [];
+  const canaisOpts = (_pj.canais||[]).map(c => `<option value="${esc(c.sufixo)}">${esc(c.sufixo)} · ${esc(c.rotulo)}</option>`).join('');
+
+  const rows = camps.length ? camps.map(c => {
+    const canal = c.canal_sufixo ? (_pj.canais||[]).find(x => x.sufixo === c.canal_sufixo) : null;
+    const wa = c.canal_sufixo ? linkWaMe(c.canal_sufixo) : null;
+    const critsIds = camp_cri.filter(cc => cc.campanha_id === c.id).map(cc => cc.criativo_id);
+    const critNomes = critsIds.map(id => (_pj.criativos||[]).find(x => x.id === id)?.nome || '?').filter(Boolean);
+    return `<tr>
+      <td>
+        <strong>${esc(c.nome)}</strong>
+        <div class="muted mono" style="font-size:10px;margin-top:2px">${esc(c.plataforma)}${c.objetivo?` · ${esc(c.objetivo)}`:''}</div>
+      </td>
+      <td class="mono" style="font-size:11px">
+        ${c.canal_sufixo ? `#${esc(c.canal_sufixo)} · ${esc(canal?.rotulo||'—')}${wa?`<div style="margin-top:4px"><a href="${esc(wa)}" target="_blank" style="color:var(--accent-2);font-size:10px">wa.me ↗</a></div>`:''}` : '<span style="color:var(--danger);font-weight:600">SEM CANAL</span>'}
+      </td>
+      <td style="font-size:11.5px;color:var(--ink-3)">${critNomes.length?esc(critNomes.slice(0,2).join(' · '))+(critNomes.length>2?` +${critNomes.length-2}`:''):'—'}</td>
+      <td class="num mono" style="font-size:11px">${c.orcamento_diario?'R$'+c.orcamento_diario+'/d':'—'}</td>
+      <td><span class="badge ${c.status==='ativa'?'ativo':(c.status==='pausada'?'pausado':'setup')}">${esc(c.status)}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="editarCampanhaCri('${esc(c.id)}')">criativos</button>
+        <button class="btn btn-ghost btn-sm" onclick="removerCampanha('${esc(c.id)}')">×</button>
+      </td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--ink-3);padding:16px;font-style:italic">Nenhuma campanha. Crie a primeira abaixo.</td></tr>';
+
+  const semCanalAlerta = camps.some(c => !c.canal_sufixo)
+    ? '<div class="aviso-red" style="margin-top:12px"><strong>Campanha sem canal de origem</strong> não gera atribuição — você não vai saber de onde vieram as conversas.</div>'
+    : '';
+
+  return `
+    <div class="k-card">
+      <div class="lbl">02 · campanhas</div>
+      <h3>${camps.length} campanha${camps.length===1?'':'s'}</h3>
+      <table class="orc-tab" style="margin-top:12px">
+        <thead><tr><th>campanha</th><th>canal</th><th>criativos</th><th class="num">orça/dia</th><th>status</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${semCanalAlerta}
+      <div class="orc-adicionar-linha" style="grid-template-columns:1fr 1fr 120px auto">
+        <div class="fld"><span class="lbl">nome</span><input id="camp-nome" placeholder="ex. Onda 1 · Aquisição"></div>
+        <div class="fld"><span class="lbl">canal de origem *</span><select id="camp-canal"><option value="">— sem canal (⚠) —</option>${canaisOpts}</select></div>
+        <div class="fld"><span class="lbl">orça/dia (R$)</span><input type="number" min="0" step="10" id="camp-orc" placeholder="50"></div>
+        <button class="btn btn-primary btn-sm" onclick="salvarCampanha()">+ campanha</button>
+      </div>
+    </div>`;
+}
+
+function cardLancarMetricas(){
+  const camps = _pj.campanhas || [];
+  const opts = camps.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}${c.canal_sufixo?' · #'+esc(c.canal_sufixo):''}</option>`).join('');
+  return `
+    <div class="k-card">
+      <div class="lbl">03 · lançar métricas</div>
+      <h3>Do export da Meta pro razão</h3>
+      <p class="motivo">Relançar o mesmo dia com valor maior debita SÓ a diferença. Menor não estorna. O razão do orçamento reflete o extrato Meta linha a linha.</p>
+
+      <div class="form-grid" style="margin-top:14px">
+        <div class="fld"><span class="lbl">campanha *</span><select id="met-camp"><option value="">— escolher —</option>${opts}</select></div>
+        <div class="fld"><span class="lbl">data *</span><input type="date" id="met-data" value="${new Date().toISOString().slice(0,10)}"></div>
+      </div>
+      <div class="form-grid">
+        <div class="fld"><span class="lbl">impressões</span><input type="number" min="0" step="1" id="met-imp" value="0"></div>
+        <div class="fld"><span class="lbl">cliques</span><input type="number" min="0" step="1" id="met-clk" value="0"></div>
+      </div>
+      <div class="fld"><span class="lbl">custo (R$)</span><input type="number" min="0" step="0.01" id="met-custo" placeholder="ex. 40.00"></div>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px">
+        <button class="btn btn-ghost btn-sm" onclick="abrirBulkMetricas()">colar várias linhas</button>
+        <button class="btn btn-primary btn-sm" onclick="lancarMetrica()">lançar</button>
+      </div>
+    </div>`;
+}
+
+function cardDesempCanal(){
+  const rows = _pj.desempCanal || [];
+  if (!rows.length) {
+    return `<div class="k-card"><div class="lbl">04 · desempenho por canal</div><h3 class="h3">Sem dados ainda</h3><p class="muted" style="margin-top:8px;font-size:13px">Assim que houver canais + atendimentos + métricas, o custo por interessado aparece aqui.</p></div>`;
+  }
+  const validos = rows.filter(r => r.custo_por_interessado != null);
+  const min = validos.length ? Math.min(...validos.map(r => Number(r.custo_por_interessado))) : null;
+  const max = validos.length ? Math.max(...validos.map(r => Number(r.custo_por_interessado))) : null;
+
+  const tr = rows.map(r => {
+    const cpi = r.custo_por_interessado != null ? Number(r.custo_por_interessado) : null;
+    let cls = '';
+    if (cpi != null && validos.length > 1) {
+      if (cpi === min) cls = 'style="background:var(--accent-soft)"';
+      else if (cpi === max) cls = 'style="background:var(--amber-soft)"';
+    }
+    return `<tr ${cls}>
+      <td><strong>#${esc(r.canal_sufixo)}</strong><div class="muted mono" style="font-size:10px">${esc(r.rotulo)}</div></td>
+      <td class="num">${brlNice(r.investido)}</td>
+      <td class="num">${r.cliques||0}</td>
+      <td class="num">${r.conversas||0}</td>
+      <td class="num">${r.contatos_gerados||0}</td>
+      <td class="num">${r.interessados||0}</td>
+      <td class="num" style="font-family:var(--mono);font-size:12px">${r.custo_por_conversa != null ? brlNice(r.custo_por_conversa) : '—'}</td>
+      <td class="num" style="font-family:var(--serif);font-weight:700;font-size:14px;${cpi != null && cpi === min ? 'color:var(--accent-2)' : (cpi != null && cpi === max ? 'color:var(--amber)' : '')}">${cpi != null ? brlNice(cpi) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="k-card">
+      <div class="lbl">04 · desempenho por canal</div>
+      <h3>${rows.length} canal${rows.length===1?'':'is'}</h3>
+      <table class="orc-tab" style="margin-top:12px">
+        <thead><tr>
+          <th>canal</th><th class="num">investido</th><th class="num">cliques</th>
+          <th class="num">conversas</th><th class="num">contatos</th><th class="num">interessados</th>
+          <th class="num">custo/conversa</th><th class="num">custo/interessado</th>
+        </tr></thead>
+        <tbody>${tr}</tbody>
+      </table>
+      <div class="orc-nota" style="margin-top:10px">O <strong>custo por interessado</strong> é o número que decide onde colocar a verba do próximo ciclo. Verde é o melhor · âmbar é o pior.</div>
+    </div>`;
+}
+
+function vincularCampanhas(){ /* handlers via window.* */ }
+
+async function salvarCriativo(){
+  const nome = document.getElementById('cri-nome').value.trim();
+  const tipo = document.getElementById('cri-tipo').value;
+  const arq  = document.getElementById('cri-arq').value || null;
+  const canal = document.getElementById('cri-canal').value || null;
+  if (!nome) { toast('Nome obrigatório', 'err'); return; }
+  const { data, error } = await sb.from('va_criativos').insert({
+    projeto_id: _pj.projeto.id, nome, tipo,
+    arquetipo_codigo: arq, canal_sufixo: canal, status: 'rascunho',
+  }).select('id').single();
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  // Debita produção
+  const tipoDebito = tipo === 'video' ? 'criativo_video' : 'criativo_estatico';
+  const { error: eDb } = await sb.rpc('va_debitar', {
+    p_projeto: _pj.projeto.id, p_tipo: tipoDebito, p_qtd: 1,
+    p_referencia: `Criativo ${nome}`, p_ciclo: null,
+  });
+  if (eDb) console.warn('débito criativo falhou:', eDb.message);
+  toast('Criativo criado (rascunho) · débito ' + tipoDebito, 'ok');
+  await htmlCampanhas();
+}
+
+async function aprovarCriativo(id){
+  const { error } = await sb.from('va_criativos').update({ status:'aprovado', aprovado_em: new Date().toISOString() }).eq('id', id);
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  toast('Aprovado', 'ok');
+  await htmlCampanhas();
+}
+
+async function mudarCriativoStatus(id, novo){
+  const { error } = await sb.from('va_criativos').update({ status: novo }).eq('id', id);
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  await htmlCampanhas();
+}
+
+async function removerCriativo(id){
+  if (!confirm('Remover criativo?')) return;
+  const { error } = await sb.from('va_criativos').delete().eq('id', id);
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  await htmlCampanhas();
+}
+
+async function salvarCampanha(){
+  const nome = document.getElementById('camp-nome').value.trim();
+  const canal = document.getElementById('camp-canal').value || null;
+  const orc = document.getElementById('camp-orc').value ? Number(document.getElementById('camp-orc').value) : null;
+  if (!nome) { toast('Nome obrigatório', 'err'); return; }
+  const { error } = await sb.from('va_campanhas').insert({
+    projeto_id: _pj.projeto.id, nome, canal_sufixo: canal, orcamento_diario: orc,
+    status: 'rascunho', plataforma: 'meta',
+  });
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  toast(canal ? 'Campanha criada' : 'Campanha criada SEM canal (⚠ sem atribuição)', canal?'ok':'err');
+  await htmlCampanhas();
+}
+
+async function removerCampanha(id){
+  if (!confirm('Remover campanha? Métricas também serão apagadas.')) return;
+  const { error } = await sb.from('va_campanhas').delete().eq('id', id);
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  await htmlCampanhas();
+}
+
+async function editarCampanhaCri(campId){
+  const camp = (_pj.campanhas||[]).find(x => x.id === campId);
+  const cri = _pj.criativos || [];
+  const jaVinc = new Set((_pj.campCri||[]).filter(cc => cc.campanha_id === campId).map(cc => cc.criativo_id));
+  const chks = cri.length ? cri.map(c => `
+    <label class="k-check" style="display:flex;gap:8px;padding:6px 0"><input type="checkbox" data-cri="${esc(c.id)}" ${jaVinc.has(c.id)?'checked':''}> <strong>${esc(c.nome)}</strong> <span style="color:var(--ink-3);font-size:12px">· ${esc(c.status)}</span></label>`).join('') : '<div class="muted" style="font-size:12px;font-style:italic">Nenhum criativo criado ainda.</div>';
+  const mb = document.getElementById('modal-back');
+  mb.innerHTML = `
+    <div class="modal-card" onclick="event.stopPropagation()" style="max-width:520px">
+      <div class="lbl">criativos da campanha</div>
+      <h3>${esc(camp.nome)}</h3>
+      <div class="col" style="gap:4px;margin-top:14px">${chks}</div>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:20px">
+        <button class="btn btn-ghost btn-sm" onclick="fecharModal()">cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="salvarCampanhaCri('${esc(campId)}')">salvar</button>
+      </div>
+    </div>`;
+  mb.classList.add('on');
+}
+
+async function salvarCampanhaCri(campId){
+  const marcados = Array.from(document.querySelectorAll('.modal-card [data-cri]:checked')).map(el => el.dataset.cri);
+  // Substitui tudo: delete existentes + insere novos
+  await sb.from('va_campanha_criativos').delete().eq('campanha_id', campId);
+  if (marcados.length) {
+    await sb.from('va_campanha_criativos').insert(marcados.map(cid => ({ campanha_id: campId, criativo_id: cid })));
+  }
+  fecharModal();
+  toast(`${marcados.length} criativo(s) vinculado(s)`, 'ok');
+  await htmlCampanhas();
+}
+
+async function lancarMetrica(){
+  const camp = document.getElementById('met-camp').value;
+  const data = document.getElementById('met-data').value;
+  const custo = Number(document.getElementById('met-custo').value) || 0;
+  const imp = Number(document.getElementById('met-imp').value) || 0;
+  const clk = Number(document.getElementById('met-clk').value) || 0;
+  if (!camp || !data) { toast('Campanha e data obrigatórios', 'err'); return; }
+  const { error } = await sb.rpc('va_lancar_gasto_midia', {
+    p_campanha: camp, p_data: data, p_custo: custo, p_impressoes: imp, p_cliques: clk,
+  });
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  toast('Métrica lançada · razão debita só o delta', 'ok');
+  await htmlCampanhas();
+}
+
+function abrirBulkMetricas(){
+  const camps = _pj.campanhas || [];
+  const opts = camps.map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`).join('');
+  const mb = document.getElementById('modal-back');
+  mb.innerHTML = `
+    <div class="modal-card" onclick="event.stopPropagation()" style="max-width:560px">
+      <div class="lbl">bulk · colar do Meta</div>
+      <h3>Várias linhas de métrica de uma vez</h3>
+      <p class="muted" style="font-size:12.5px;margin-top:-4px;margin-bottom:12px">Formato: <code>YYYY-MM-DD;impressoes;cliques;custo</code> — uma por linha. Aceita TAB ou ; entre colunas.</p>
+      <div class="fld"><span class="lbl">campanha</span><select id="bk-camp">${opts}</select></div>
+      <div class="fld" style="margin-top:10px"><span class="lbl">linhas</span>
+        <textarea id="bk-txt" rows="10" placeholder="2026-07-28;1200;35;40.00
+2026-07-29;1600;48;55.00
+2026-07-30;900;22;30.00"></textarea>
+      </div>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px">
+        <button class="btn btn-ghost btn-sm" onclick="fecharModal()">cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="salvarBulkMetricas()">importar</button>
+      </div>
+    </div>`;
+  mb.classList.add('on');
+}
+
+async function salvarBulkMetricas(){
+  const camp = document.getElementById('bk-camp').value;
+  const txt = document.getElementById('bk-txt').value.trim();
+  if (!camp || !txt) { toast('Escolha campanha e cole linhas', 'err'); return; }
+  const linhas = txt.split(/\n/).map(l => l.trim()).filter(Boolean);
+  let ok = 0, erro = 0;
+  for (const l of linhas) {
+    const partes = l.split(/[;\t]/).map(s => s.trim());
+    if (partes.length < 4) { erro++; continue; }
+    const [data, imp, clk, custo] = partes;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { erro++; continue; }
+    const { error } = await sb.rpc('va_lancar_gasto_midia', {
+      p_campanha: camp, p_data: data,
+      p_custo: Number(String(custo).replace(',', '.')) || 0,
+      p_impressoes: parseInt(imp, 10) || 0,
+      p_cliques: parseInt(clk, 10) || 0,
+    });
+    if (error) erro++; else ok++;
+  }
+  fecharModal();
+  toast(`${ok} lançado(s) · ${erro} erro(s)`, ok>0?'ok':'err');
+  await htmlCampanhas();
+}
+
 // ─── boot ─────────────────────────────────────────────────────────
 window.toggleEtapa = toggleEtapa;
 window.trocarAba = trocarAba;
@@ -3863,6 +4233,17 @@ window.abrirNovoAtendimento = abrirNovoAtendimento;
 window.salvarAtendimento = salvarAtendimento;
 window.gerarNda = gerarNda;
 window.liberarCompleto = liberarCompleto;
+window.salvarCriativo = salvarCriativo;
+window.aprovarCriativo = aprovarCriativo;
+window.mudarCriativoStatus = mudarCriativoStatus;
+window.removerCriativo = removerCriativo;
+window.salvarCampanha = salvarCampanha;
+window.removerCampanha = removerCampanha;
+window.editarCampanhaCri = editarCampanhaCri;
+window.salvarCampanhaCri = salvarCampanhaCri;
+window.lancarMetrica = lancarMetrica;
+window.abrirBulkMetricas = abrirBulkMetricas;
+window.salvarBulkMetricas = salvarBulkMetricas;
 
 (async function boot(){
   await initAuth();
