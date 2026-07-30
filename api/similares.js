@@ -171,7 +171,7 @@ module.exports = async (req, res) => {
       let parsed = null;
       try { parsed = JSON.parse(raw); } catch {}
       if (!r.ok) {
-        return json(res, 502, { ok: false, erro: `kipflow_http_${r.status}`, resposta_amostra: raw.slice(0, 500) });
+        return json(res, 502, { ok: false, erro: `kipflow_http_${r.status}`, resposta_amostra: raw.slice(0, 2000), body_enviado: filtros?.debug ? kipBody : undefined });
       }
       kip = parsed || {};
     } catch (e) {
