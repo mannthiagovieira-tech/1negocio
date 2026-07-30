@@ -178,6 +178,21 @@ module.exports = async (req, res) => {
       }))
       .filter(e => e.cnpj && e.cnpj !== cnpjSemente);
 
+    // Debita similares_preview por resultado retornado (0.05 cobrado / 0.02 custo)
+    if (amostra.length > 0) {
+      try {
+        await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+          method: 'POST', headers: sbHeaders,
+          body: JSON.stringify({
+            p_projeto: projeto_id, p_tipo: 'similares_preview',
+            p_qtd: amostra.length,
+            p_referencia: `similares preview · ${arquetipo_codigo || 'sem_arquetipo'} · ${amostra.length} resultado(s)`,
+            p_ciclo: null,
+          }),
+        });
+      } catch (_) { /* não bloqueia retorno */ }
+    }
+
     return json(res, 200, {
       ok: true,
       cnpj_semente: cnpjSemente,
@@ -244,7 +259,7 @@ module.exports = async (req, res) => {
       await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
         method: 'POST', headers: sbHeaders,
         body: JSON.stringify({
-          p_projeto: projeto_id, p_tipo: 'lead_scrapper', p_qtd: 1,
+          p_projeto: projeto_id, p_tipo: 'similares_import', p_qtd: 1,
           p_referencia: `${ref} · CNPJ ${cnpj}`, p_ciclo: null,
         }),
       });

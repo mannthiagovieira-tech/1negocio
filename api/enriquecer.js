@@ -49,37 +49,62 @@ function extraiCampos(data) {
     return null;
   };
   const socios = g(data, 'socios', 'partners', 'quadro_societario', 'qsa');
-  const porteRaw = g(data, 'faturamento_estimado', 'porte_faturamento', 'revenue_estimated', 'estimated_revenue', 'porte');
+  // Kipflow devolve porte como categoria ("MICRO EMPRESA", "DEMAIS") e
+  // `faturamento` numérico como campo separado. `faixa_faturamento_grupo`
+  // é a faixa textual ("81K A 360K").
+  const porteRaw = g(data, 'porte', 'faturamento_estimado', 'porte_faturamento', 'revenue_estimated', 'estimated_revenue');
+  const faturamentoNum = g(data, 'faturamento', 'faturamento_grupo');
+  const faixaFat = g(data, 'faixa_faturamento_grupo');
+  const faixaFunc = g(data, 'faixa_funcionarios_grupo');
+  const segmento = g(data, 'segmento');
+  const ramoAtividade = g(data, 'ramo_de_atividade');
+  const divida = g(data, 'divida');
   // Kipflow devolve numeric OU string categórica ("DEMAIS", "ME", "EPP")
   let porte_faturamento = null, porte_categoria = null;
-  if (typeof porteRaw === 'number' && isFinite(porteRaw)) porte_faturamento = porteRaw;
-  else if (typeof porteRaw === 'string') {
-    const asNum = Number(porteRaw.replace(/[^\d.,-]/g, '').replace(',', '.'));
+  if (typeof faturamentoNum === 'number' && isFinite(faturamentoNum) && faturamentoNum > 0) {
+    porte_faturamento = faturamentoNum;
+  } else if (typeof faturamentoNum === 'string' && faturamentoNum.trim() !== '') {
+    const asNum = Number(String(faturamentoNum).replace(/[^\d.,-]/g, '').replace(',', '.'));
     if (isFinite(asNum) && asNum > 0) porte_faturamento = asNum;
-    else porte_categoria = porteRaw;
   }
+  if (typeof porteRaw === 'string' && porteRaw.trim() !== '') porte_categoria = porteRaw;
   const capRaw = g(data, 'capital_social', 'capitalSocial', 'share_capital');
   const capital_social = (typeof capRaw === 'number' && isFinite(capRaw)) ? capRaw
     : (typeof capRaw === 'string' && !isNaN(Number(capRaw))) ? Number(capRaw) : null;
   const funcRaw = g(data, 'funcionarios', 'employees', 'employee_count');
   const funcionarios = Number.isInteger(funcRaw) ? funcRaw
     : (typeof funcRaw === 'string' && /^\d+$/.test(funcRaw)) ? parseInt(funcRaw, 10) : null;
+  // Dívida (dataset debts). Objeto ausente = sem dívida cadastrada.
+  const divTotal = divida && typeof divida === 'object' ? Number(divida.total) : null;
+  const divPrev  = divida && typeof divida === 'object' ? Number(divida.total_previdenciaria) : null;
+  const divNPrev = divida && typeof divida === 'object' ? Number(divida.total_nao_previdenciaria) : null;
+  const divFgts  = divida && typeof divida === 'object' ? Number(divida.total_fgts) : null;
   return {
     razao_social:       g(data, 'razao_social', 'razaoSocial', 'legal_name', 'nome'),
     nome_fantasia:      g(data, 'nome_fantasia', 'nomeFantasia', 'trade_name', 'fantasia'),
     cnpj:               g(data, 'cnpj', 'document', 'documento'),
-    cidade:             g(data, 'cidade', 'city', 'address.city', 'endereco.cidade', 'municipio'),
-    estado:             g(data, 'estado', 'state', 'uf', 'address.state', 'endereco.uf'),
-    cnae_codigo:        g(data, 'cnae_codigo', 'cnae.codigo', 'cnae.code', 'main_cnae.code', 'atividade_principal.codigo', 'cnae_fiscal', 'cnae_principal.codigo'),
-    cnae_descricao:     g(data, 'cnae_descricao', 'cnae.descricao', 'cnae.description', 'main_cnae.description', 'atividade_principal.descricao', 'cnae_fiscal_descricao'),
+    cidade:             g(data, 'municipio', 'cidade', 'city', 'address.city', 'endereco.cidade'),
+    estado:             g(data, 'uf', 'estado', 'state', 'address.state', 'endereco.uf'),
+    cnae_codigo:        g(data, 'cnae_principal_classe', 'cnae_codigo', 'cnae.codigo', 'main_cnae.code'),
+    cnae_descricao:     g(data, 'cnae_principal_desc_classe', 'cnae_descricao', 'cnae.descricao', 'main_cnae.description'),
     situacao_cadastral: g(data, 'situacao_cadastral', 'situacaoCadastral', 'registration_status', 'status'),
     porte_faturamento, porte_categoria,
+    faixa_faturamento:  typeof faixaFat === 'string' ? faixaFat : null,
+    faixa_funcionarios: typeof faixaFunc === 'string' ? faixaFunc : null,
+    segmento:           typeof segmento === 'string' ? segmento : null,
+    ramo_atividade:     typeof ramoAtividade === 'string' ? ramoAtividade : null,
     funcionarios, capital_social,
-    data_abertura:      g(data, 'data_abertura', 'dataAbertura', 'opened_at', 'founded_at'),
+    data_abertura:      g(data, 'data_inicio_atividade', 'data_abertura', 'dataAbertura', 'opened_at', 'founded_at'),
     socios: Array.isArray(socios) ? socios : null,
-    site:               g(data, 'site', 'website', 'url'),
+    site:               g(data, 'sites.0', 'site', 'website', 'url'),
     instagram:          g(data, 'instagram', 'social.instagram'),
-    linkedin:           g(data, 'linkedin', 'social.linkedin'),
+    linkedin:           g(data, 'linkedin_url', 'linkedin', 'social.linkedin'),
+    divida_total:              isFinite(divTotal) ? divTotal : null,
+    divida_previdenciaria:     isFinite(divPrev)  ? divPrev  : null,
+    divida_nao_previdenciaria: isFinite(divNPrev) ? divNPrev : null,
+    divida_fgts:               isFinite(divFgts)  ? divFgts  : null,
+    divida_bruto:              divida && typeof divida === 'object' ? divida : null,
+    divida_consultada_em:      new Date().toISOString(),
   };
 }
 
@@ -127,8 +152,8 @@ module.exports = async (req, res) => {
   let kip;
   try {
     // Datasets válidos (descobertos empiricamente): basic, complete, address,
-    // online_presence, partners, debts, ecommerce. Escolhemos os úteis pro VA.
-    const r = await fetch(`https://api.kipflow.io/companies/v1/search?cnpj=${cnpj}&datasets=complete,partners,address,online_presence`, {
+    // online_presence, partners, debts, ecommerce. `debts` traz objeto `divida`.
+    const r = await fetch(`https://api.kipflow.io/companies/v1/search?cnpj=${cnpj}&datasets=complete,partners,address,online_presence,debts`, {
       headers: { 'X-API-Key': KEY, Accept: 'application/json' },
     });
     const status = r.status;
