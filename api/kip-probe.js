@@ -1,8 +1,7 @@
-// /api/kip-probe · TEMPORÁRIO · admin-only · deletar depois dos testes.
-// Faz POST arbitrário em qualquer path da api.kipflow.io reencaminhando
-// o body passado. Nunca ecoa a chave.
-const SB_URL = process.env.SUPABASE_URL || 'https://dbijmgqlcrgjlcfrastg.supabase.co';
-const SB_ANON = process.env.SUPABASE_ANON_KEY || '';
+// /api/kip-probe · TEMPORÁRIO · header-token gated · deletar após uso.
+// Existe só pra descobrir o schema real do POST /companies/v1/search
+// da Kipflow. Nunca ecoa a KEY. Após destravar /api/similares, deletar.
+const PROBE_TOKEN = 'DTf1x-Ipif84u04QAucLpSwn9joajuLdhLOpZuT5v90';
 
 function json(res, code, body) {
   res.status(code).setHeader('Content-Type', 'application/json');
@@ -14,27 +13,18 @@ async function lerBody(req) {
   const raw = Buffer.concat(chunks).toString('utf8');
   return raw ? JSON.parse(raw) : {};
 }
-async function ehAdmin(tok) {
-  if (!tok) return false;
-  const r = await fetch(SB_URL + '/rest/v1/rpc/va_is_admin', {
-    method: 'POST',
-    headers: { apikey: SB_ANON, Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
-    body: '{}',
-  });
-  return r.ok && (await r.json()) === true;
-}
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return json(res, 405, { ok: false, erro: 'POST only' });
-  const tok = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-  if (!(await ehAdmin(tok))) return json(res, 403, { ok: false, erro: 'não autorizado' });
+  const tok = req.headers['x-probe-token'] || '';
+  if (tok !== PROBE_TOKEN) return json(res, 403, { ok: false, erro: 'não autorizado' });
   const KEY = process.env.KIPFLOW_API_KEY;
   if (!KEY) return json(res, 503, { ok: false, erro: 'KIPFLOW_API_KEY ausente' });
 
   let body; try { body = await lerBody(req); } catch { return json(res, 400, { ok: false, erro: 'json inválido' }); }
   const { path, method = 'POST', payload } = body || {};
-  if (!path || !path.startsWith('/')) return json(res, 400, { ok: false, erro: 'path obrigatório (começa com /)' });
+  if (!path || !path.startsWith('/')) return json(res, 400, { ok: false, erro: 'path obrigatório (/xxx)' });
 
   try {
     const r = await fetch('https://api.kipflow.io' + path, {
