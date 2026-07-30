@@ -141,8 +141,8 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Probe · body vazio pra ver o que a Kipflow pede como obrigatório
-    const kipBody = filtros?.debug ? {} : {
+    // Probe · testar shape {cnpjs:[]} (talvez POST /search seja lookup em massa)
+    const kipBody = filtros?.debug ? { cnpjs: ['33000167000101','20770891000105'] } : {
       cnaeCode: filtrosFinais.cnae,
       state: filtrosFinais.uf_diferente ? undefined : filtrosFinais.uf,
       revenueMin: filtrosFinais.faturamento_min,
