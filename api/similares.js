@@ -141,22 +141,18 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Body Kipflow · defensivo com chaves prováveis
+    // Kipflow usa camelCase (ex: costFormatted na response). Tentando
+    // shape mais provável em camelCase + wrapper "filters".
     const kipBody = {
-      cnae: filtrosFinais.cnae,
-      cnae_codigo: filtrosFinais.cnae,
-      main_cnae: filtrosFinais.cnae,
-      uf: filtrosFinais.uf_diferente ? undefined : filtrosFinais.uf,
-      estado: filtrosFinais.uf_diferente ? undefined : filtrosFinais.uf,
-      uf_diferente_de: filtrosFinais.uf_diferente ? filtrosFinais.uf : undefined,
-      faturamento_min: filtrosFinais.faturamento_min,
-      faturamento_max: filtrosFinais.faturamento_max,
-      revenue_min: filtrosFinais.faturamento_min,
-      revenue_max: filtrosFinais.faturamento_max,
-      excluir_cnpj: [cnpjSemente],
-      exclude_cnpj: [cnpjSemente],
-      limit: filtrosFinais.limit,
-      page_size: filtrosFinais.limit,
+      filters: {
+        cnaeCode: filtrosFinais.cnae,
+        state:    filtrosFinais.uf_diferente ? undefined : filtrosFinais.uf,
+        excludeStates: filtrosFinais.uf_diferente ? [filtrosFinais.uf] : undefined,
+        revenueMin: filtrosFinais.faturamento_min,
+        revenueMax: filtrosFinais.faturamento_max,
+        excludeCnpjs: [cnpjSemente],
+      },
+      pageSize: filtrosFinais.limit,
       datasets: ['basic', 'address'],
     };
 
