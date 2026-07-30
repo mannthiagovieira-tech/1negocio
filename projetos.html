@@ -980,6 +980,7 @@ const GESTAO_ITENS = [
   { chave:'gestao_orcamento',  titulo:'Orçamento',  sub:'crédito · ritmo · razão' },
   { chave:'gestao_kanban',     titulo:'Kanban',     sub:'contatos · funil' },
   { chave:'gestao_funil',      titulo:'Funil',      sub:'conversão · arquétipos' },
+  { chave:'gestao_cadencia',   titulo:'Cadência',   sub:'templates · fila · disparo' },
   { chave:'gestao_relatorios', titulo:'Relatórios', sub:'em breve' },
 ];
 
@@ -1018,6 +1019,7 @@ function desenhaAba(){
   if (_abaChave === 'gestao_orcamento')  { stage.innerHTML = htmlOrcamento();  vincularOrcamento(); return; }
   if (_abaChave === 'gestao_kanban')     { stage.innerHTML = htmlKanban();     vincularKanban();    return; }
   if (_abaChave === 'gestao_funil')      { stage.innerHTML = htmlFunil();                           return; }
+  if (_abaChave === 'gestao_cadencia')   { htmlCadencia();                                          return; }
   if (_abaChave === 'gestao_relatorios') { stage.innerHTML = htmlGestaoPlaceholder('Relatórios','Consumo, ROI da onda, exportáveis pro cliente.'); return; }
   // SETUP
   const e = _pj.etapas.find(x => x.chave === _abaChave) || _pj.etapas[0];
@@ -3072,6 +3074,454 @@ function htmlFunilArquetipos(){
   <div class="orc-nota">Custo por arquétipo ainda não é atribuído — a coluna ficará em branco até o razão ganhar tag por arquétipo.</div>`;
 }
 
+// ═════════════════════════════════════════════════════════════════
+// SLICE 7 · CADÊNCIA (templates, config, fila, histórico)
+// ═════════════════════════════════════════════════════════════════
+
+// Config Z-API do projeto (por ora hardcoded no admin · troque quando expuser)
+// Como o painel é vanilla e o token é sensível, deixamos placeholder e
+// o operador cola no localStorage: window.localStorage.setItem('va_zapi',
+// JSON.stringify({instance:'...', token:'...', clientToken:'...'}))
+function zapiConfig(){
+  try { return JSON.parse(localStorage.getItem('va_zapi') || 'null'); } catch { return null; }
+}
+
+async function htmlCadencia(){
+  const stage = document.getElementById('stage');
+  const id = _pj.projeto.id;
+  stage.innerHTML = '<div class="empty"><h2>Carregando cadência…</h2></div>';
+  const [cad, tpls, fila] = await Promise.all([
+    sb.from('va_disparo_cadencia').select('*').eq('projeto_id', id).maybeSingle(),
+    sb.from('va_disparo_templates').select('*').or(`projeto_id.eq.${id},projeto_id.is.null`).order('criado_em', {ascending:false}),
+    sb.from('va_disparo_fila').select('*').eq('projeto_id', id).order('agendado_para'),
+  ]);
+  _pj.cadencia = cad.data || null;
+  _pj.templates = tpls.data || [];
+  _pj.fila = fila.data || [];
+  desenharCadencia();
+}
+
+function desenharCadencia(){
+  const stage = document.getElementById('stage');
+  stage.innerHTML = `
+    <div class="stage-head">
+      <div>
+        <div class="meta">gestão</div>
+        <h2>Cadência de disparo</h2>
+        <div class="muted" style="margin-top:6px;font-size:13.5px">Templates aprovados + janela + fila. Blacklist é checagem obrigatória. Falha nunca consome crédito.</div>
+      </div>
+    </div>
+    ${cardCadEstado()}
+    ${cardCadConfig()}
+    ${cardCadTemplates()}
+    ${cardCadFila()}
+    ${cardCadHistorico()}`;
+  vincularCadencia();
+}
+
+function cardCadEstado(){
+  const cad = _pj.cadencia;
+  const fila = _pj.fila || [];
+  const razao = _pj.razao || [];
+  const p = _pj.projeto;
+
+  const hoje = new Date().toISOString().slice(0,10);
+  const enviadosHoje = fila.filter(f => f.status==='entregue' && (f.enviado_em||'').slice(0,10) === hoje).length;
+  const agendados = fila.filter(f => f.status==='agendado').length;
+
+  // ciclo atual
+  const cicloAtual = calcularCicloAtual();
+  const disparosCiclo = razao.filter(r => r.tipo === 'disparo_whatsapp' && r.ciclo_numero === cicloAtual).length;
+  const meta = cad?.meta_ciclo || 0;
+  const restante = Math.max(0, meta - disparosCiclo);
+  const porDia = cad?.mensagens_por_dia || 0;
+  const diasProjetados = porDia > 0 ? Math.ceil(restante / porDia) : null;
+  const dtProj = diasProjetados != null
+    ? new Date(Date.now() + diasProjetados*86400000).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'})
+    : '—';
+
+  const ativa = !!cad?.ativa;
+
+  return `
+    <div class="k-card">
+      <div class="lbl" style="display:flex;justify-content:space-between;align-items:center">
+        <span>01 · estado</span>
+        <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-family:var(--sans);font-size:13px;color:var(--ink);text-transform:none;letter-spacing:0;font-weight:600">
+          <input type="checkbox" id="cad-ativa" ${ativa?'checked':''} style="width:18px;height:18px;accent-color:var(--accent);margin:0">
+          cadência ${ativa?'ativa':'inativa'}
+        </label>
+      </div>
+      <div class="orc-resumo" style="margin-top:14px">
+        <div class="orc-kpi"><div class="k">enviados hoje</div><div class="v">${enviadosHoje}<span style="font-family:var(--sans);font-size:14px;color:var(--ink-3);font-weight:500"> / ${porDia}</span></div></div>
+        <div class="orc-kpi"><div class="k">na fila</div><div class="v">${agendados}</div></div>
+        <div class="orc-kpi ${disparosCiclo>=meta?'destaque':''}"><div class="k">ciclo ${cicloAtual}</div><div class="v">${disparosCiclo}<span style="font-family:var(--sans);font-size:14px;color:var(--ink-3);font-weight:500"> / ${meta}</span></div></div>
+        <div class="orc-kpi"><div class="k">projeção meta</div><div class="v" style="font-size:16px">${dtProj}</div></div>
+      </div>
+    </div>`;
+}
+
+function cardCadConfig(){
+  const cad = _pj.cadencia || {};
+  const DIAS = [['1','seg'],['2','ter'],['3','qua'],['4','qui'],['5','sex'],['6','sáb'],['7','dom']];
+  const setDias = new Set((cad.dias_semana || [1,2,3,4,5]).map(String));
+  const diasHtml = DIAS.map(([n,l]) => `
+    <label class="k-check" style="padding:4px 10px;background:${setDias.has(n)?'var(--accent-soft)':'var(--surface-2)'};border-radius:8px;border:1px solid ${setDias.has(n)?'var(--accent-ring)':'var(--line)'}">
+      <input type="checkbox" data-dia="${n}" ${setDias.has(n)?'checked':''}> ${l}
+    </label>`).join('');
+
+  const tpls = (_pj.templates || []).filter(t => t.status === 'aprovado');
+  const opts = tpls.map(t => `<option value="${esc(t.id)}" ${cad.template_id===t.id?'selected':''}>${esc(t.nome)} · v${t.versao}</option>`).join('');
+
+  // aviso de meta
+  const porDia = cad.mensagens_por_dia || 4;
+  const meta = cad.meta_ciclo || 50;
+  const p = _pj.projeto;
+  const fimOnda = new Date(new Date(p.data_inicio).getTime() + (p.fidelidade_meses||3)*30*86400000);
+  const hoje = new Date();
+  const cicloDiasRestantes = Math.max(0, Math.round((fimOnda - hoje)/86400000));
+  const diasUteis = Math.round(cicloDiasRestantes * (setDias.size/7));
+  const capacidade = porDia * diasUteis;
+  const disparosCiclo = (_pj.razao||[]).filter(r => r.tipo==='disparo_whatsapp' && r.ciclo_numero === calcularCicloAtual()).length;
+  const faltamMeta = meta - disparosCiclo;
+  let avisoMeta = '';
+  if (capacidade < faltamMeta) {
+    avisoMeta = `<div class="aviso" style="margin-top:12px">Com ${porDia}/dia em ${diasUteis} dias úteis restantes você entrega ${capacidade}. Faltam ${faltamMeta - capacidade} pra bater a meta.</div>`;
+  } else if (capacidade > faltamMeta && faltamMeta > 0) {
+    const diasNec = Math.ceil(faltamMeta / porDia);
+    const dtMeta = new Date(Date.now() + diasNec*86400000).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'});
+    avisoMeta = `<div class="orc-nota" style="margin-top:12px;color:var(--accent-2)">No ritmo atual, meta esgota em <strong>${dtMeta}</strong> (${diasNec} dias).</div>`;
+  }
+
+  return `
+    <div class="k-card">
+      <div class="lbl">02 · configuração</div>
+      <h3>Janela e volume</h3>
+      <div class="form-grid" style="margin-top:14px">
+        <div class="fld"><span class="lbl">mensagens por dia</span><input type="number" min="1" max="200" id="cad-msg" value="${porDia}"></div>
+        <div class="fld"><span class="lbl">intervalo mínimo (min)</span><input type="number" min="1" max="1440" id="cad-int" value="${cad.intervalo_minimo_min||60}"></div>
+        <div class="fld"><span class="lbl">hora início</span><input type="time" id="cad-ini" value="${(cad.hora_inicio||'09:00:00').slice(0,5)}"></div>
+        <div class="fld"><span class="lbl">hora fim</span><input type="time" id="cad-fim" value="${(cad.hora_fim||'18:00:00').slice(0,5)}"></div>
+        <div class="fld"><span class="lbl">ordem da fila</span>
+          <select id="cad-ordem">
+            <option value="fifo" ${cad.ordem_fila==='fifo'?'selected':''}>FIFO (mais antigo primeiro)</option>
+            <option value="manual_primeiro" ${cad.ordem_fila==='manual_primeiro'?'selected':''}>Manual primeiro</option>
+          </select>
+        </div>
+        <div class="fld"><span class="lbl">meta do ciclo</span><input type="number" min="1" id="cad-meta" value="${meta}"></div>
+        <div class="fld form-full"><span class="lbl">dias da semana</span>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">${diasHtml}</div>
+        </div>
+        <div class="fld form-full"><span class="lbl">template ativo (só aprovados aparecem)</span>
+          <select id="cad-tpl">
+            <option value="">— nenhum —</option>
+            ${opts}
+          </select>
+        </div>
+      </div>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px">
+        <button class="btn btn-primary btn-sm" onclick="salvarCadencia()">💾 salvar</button>
+      </div>
+      ${avisoMeta}
+    </div>`;
+}
+
+function cardCadTemplates(){
+  const tpls = _pj.templates || [];
+  const rows = tpls.length ? tpls.map(t => `
+    <tr>
+      <td><strong>${esc(t.nome)}</strong>${t.arquetipo_codigo?` <span class="mono" style="font-size:10px;color:var(--ink-3)">${esc(t.arquetipo_codigo)}</span>`:''}</td>
+      <td class="num mono" style="font-size:11px">v${t.versao} · ${t.usos||0} usos</td>
+      <td><span class="badge ${t.status==='aprovado'?'ativo':(t.status==='arquivado'?'pausado':'setup')}">${esc(t.status)}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="editarTemplate('${esc(t.id)}')">editar</button>
+        ${t.status!=='aprovado'?`<button class="btn btn-primary btn-sm" onclick="aprovarTemplate('${esc(t.id)}')">aprovar</button>`:''}
+      </td>
+    </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--ink-3);padding:16px;font-style:italic">Nenhum template. Crie o primeiro abaixo.</td></tr>';
+
+  return `
+    <div class="k-card">
+      <div class="lbl" style="display:flex;justify-content:space-between;align-items:baseline">
+        <span>03 · templates</span>
+        <button class="btn btn-primary btn-sm" onclick="novoTemplate()">+ template</button>
+      </div>
+      <h3>Mensagens · aceite {{primeiro_nome}} {{empresa}} {{cidade}} {{setor}}</h3>
+      <table class="orc-tab" style="margin-top:14px">
+        <thead><tr><th>nome</th><th class="num">versão / usos</th><th>status</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function cardCadFila(){
+  const fila = _pj.fila || [];
+  const agend = fila.filter(f => f.status === 'agendado');
+  const zc = zapiConfig();
+
+  const rows = agend.length ? agend.slice(0, 30).map(f => {
+    const c = (_pj.contatos||[]).find(x => x.id === f.contato_id) || {};
+    const nome = c.nome || c.empresa || '#'+String(f.contato_id).slice(0,6);
+    return `<tr>
+      <td class="mono" style="font-size:11px">${dataBR((f.agendado_para||'').slice(0,10))} ${(f.agendado_para||'').slice(11,16)}</td>
+      <td>${esc(nome)}<div class="muted mono" style="font-size:10px">${esc(c.telefone||'')}</div></td>
+      <td style="font-size:12px;color:var(--ink-2);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(f.corpo_resolvido||'')}">"${esc((f.corpo_resolvido||'').slice(0,80))}"</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="cancelarFila('${esc(f.id)}')">cancelar</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--ink-3);padding:16px;font-style:italic">Fila vazia. Clique em "Enfileirar" abaixo.</td></tr>';
+
+  return `
+    <div class="k-card">
+      <div class="lbl">04 · fila</div>
+      <h3>${agend.length} agendado${agend.length===1?'':'s'}</h3>
+      <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">
+        <input type="number" id="cad-qtd" min="1" max="50" value="10" style="width:80px">
+        <button class="btn btn-primary btn-sm" onclick="enfileirar()">enfileirar próximos N</button>
+        <button class="btn btn-ghost btn-sm" onclick="processarFila()" ${zc?'':'title="Configure Z-API no localStorage: va_zapi = {instance, token, clientToken}" disabled'}>▶ processar fila agora ${zc?'':'(sem Z-API)'}</button>
+      </div>
+      <table class="orc-tab" style="margin-top:12px">
+        <thead><tr><th>agendado</th><th>contato</th><th>corpo</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${zc ? '' : '<div class="orc-nota" style="margin-top:10px">Pra despachar de verdade, cole a config Z-API no console: <code>localStorage.setItem(\'va_zapi\', JSON.stringify({instance:\'...\', token:\'...\', clientToken:\'...\'}))</code>. Enquanto isso, os itens ficam agendados na fila esperando cron/edge.</div>'}
+    </div>`;
+}
+
+function cardCadHistorico(){
+  const fila = _pj.fila || [];
+  const feitos = fila.filter(f => f.status === 'entregue' || f.status === 'falhou').slice(0, 30);
+  if (feitos.length === 0) {
+    return `<div class="k-card"><div class="lbl">05 · histórico</div><h3 class="h3">Nenhum disparo processado ainda</h3></div>`;
+  }
+  const rows = feitos.map(f => {
+    const c = (_pj.contatos||[]).find(x => x.id === f.contato_id) || {};
+    const nome = c.nome || c.empresa || '#'+String(f.contato_id).slice(0,6);
+    return `<tr>
+      <td class="mono" style="font-size:11px">${dataBR((f.enviado_em||f.criado_em||'').slice(0,10))} ${(f.enviado_em||f.criado_em||'').slice(11,16)}</td>
+      <td>${esc(nome)}</td>
+      <td><span class="badge ${f.status==='entregue'?'ativo':'pausado'}" style="${f.status==='falhou'?'background:rgba(194,43,63,.08);color:var(--danger);border-color:rgba(194,43,63,.20)':''}">${esc(f.status)}</span></td>
+      <td class="mono" style="font-size:11px;color:var(--ink-3)">${esc(f.zapi_message_id||f.erro||'')}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <div class="k-card">
+      <div class="lbl">05 · histórico</div>
+      <table class="orc-tab" style="margin-top:12px">
+        <thead><tr><th>quando</th><th>contato</th><th>status</th><th>id / erro</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function vincularCadencia(){
+  const ativa = document.getElementById('cad-ativa');
+  if (ativa) ativa.addEventListener('change', () => salvarCadenciaCampo('ativa', ativa.checked));
+}
+
+async function salvarCadenciaCampo(campo, valor){
+  const id = _pj.projeto.id;
+  const cad = _pj.cadencia;
+  if (campo === 'ativa' && valor && (!cad || !cad.template_id)) {
+    toast('Selecione um template aprovado antes de ativar', 'err');
+    document.getElementById('cad-ativa').checked = false;
+    return;
+  }
+  if (campo === 'ativa' && valor) {
+    // valida que template é aprovado
+    const tpl = (_pj.templates||[]).find(t => t.id === cad.template_id);
+    if (!tpl || tpl.status !== 'aprovado') {
+      toast('Template selecionado não está aprovado', 'err');
+      document.getElementById('cad-ativa').checked = false;
+      return;
+    }
+  }
+  const patch = {}; patch[campo] = valor;
+  patch.atualizado_em = new Date().toISOString();
+  const { error } = cad
+    ? await sb.from('va_disparo_cadencia').update(patch).eq('projeto_id', id)
+    : await sb.from('va_disparo_cadencia').upsert({ projeto_id: id, ...patch });
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  toast('Salvo', 'ok');
+  await htmlCadencia();
+}
+
+async function salvarCadencia(){
+  const id = _pj.projeto.id;
+  const dias = Array.from(document.querySelectorAll('#stage input[data-dia]:checked')).map(el => Number(el.dataset.dia)).sort();
+  const tpl_id = document.getElementById('cad-tpl').value || null;
+  // gate: se template escolhido não é aprovado, avisa
+  if (tpl_id) {
+    const t = (_pj.templates||[]).find(x => x.id === tpl_id);
+    if (t && t.status !== 'aprovado') {
+      toast('Escolha um template aprovado', 'err');
+      return;
+    }
+  }
+  const payload = {
+    projeto_id: id,
+    ativa: document.getElementById('cad-ativa')?.checked || false,
+    mensagens_por_dia: Number(document.getElementById('cad-msg').value)||4,
+    intervalo_minimo_min: Number(document.getElementById('cad-int').value)||60,
+    hora_inicio: document.getElementById('cad-ini').value + ':00',
+    hora_fim:    document.getElementById('cad-fim').value + ':00',
+    dias_semana: dias.length ? dias : [1,2,3,4,5],
+    ordem_fila: document.getElementById('cad-ordem').value,
+    meta_ciclo: Number(document.getElementById('cad-meta').value)||50,
+    template_id: tpl_id,
+    atualizado_em: new Date().toISOString(),
+  };
+  const { error } = await sb.from('va_disparo_cadencia').upsert(payload);
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  toast('Cadência salva', 'ok');
+  await htmlCadencia();
+}
+
+async function enfileirar(){
+  const qtd = Number(document.getElementById('cad-qtd').value) || 10;
+  const { data, error } = await sb.rpc('va_enfileirar_disparos', { p_projeto: _pj.projeto.id, p_qtd: qtd });
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  const r = data || {};
+  if (r.status === 'inativa')          { toast('Cadência inativa', 'err'); return; }
+  if (r.status === 'sem_saldo')        { toast('Sem saldo de mídia', 'err'); return; }
+  if (r.status === 'meta_atingida')    { toast(`Meta do ciclo já atingida (${r.atingido}/${r.meta})`, 'err'); return; }
+  if (r.status === 'template_invalido'){ toast('Template não aprovado', 'err'); return; }
+  toast(`${r.enfileirados} enfileirados · ${r.bloqueados_blacklist} bloqueados por blacklist`, 'ok');
+  await htmlCadencia();
+}
+
+async function cancelarFila(id){
+  if (!confirm('Cancelar este disparo?')) return;
+  const { error } = await sb.from('va_disparo_fila').update({ status:'cancelado' }).eq('id', id);
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  toast('Cancelado', 'ok');
+  await htmlCadencia();
+}
+
+// PROCESSAR FILA · executa os agendados vencidos via Z-API direto do front.
+// Estruturado pra virar cron/edge depois sem reescrita.
+async function processarFila(){
+  const zc = zapiConfig();
+  if (!zc || !zc.instance || !zc.token) { toast('Configure Z-API no localStorage', 'err'); return; }
+  const agora = new Date().toISOString();
+  const vencidos = (_pj.fila||[]).filter(f => f.status === 'agendado' && f.agendado_para && f.agendado_para <= agora);
+  if (!vencidos.length) { toast('Nenhum item vencido na fila', 'ok'); return; }
+  if (!confirm(`Enviar ${vencidos.length} disparos agora via Z-API?`)) return;
+  let ok=0, err=0;
+  for (const f of vencidos) {
+    const contato = (_pj.contatos||[]).find(c => c.id === f.contato_id);
+    if (!contato || !contato.telefone_normalizado) {
+      await sb.rpc('va_confirmar_disparo', { p_fila_id: f.id, p_sucesso:false, p_zapi_id:null, p_erro:'sem telefone' });
+      err++; continue;
+    }
+    try {
+      const url = `https://api.z-api.io/instances/${zc.instance}/token/${zc.token}/send-text`;
+      const resp = await fetch(url, {
+        method:'POST',
+        headers: { 'Content-Type':'application/json', ...(zc.clientToken?{'Client-Token':zc.clientToken}:{}) },
+        body: JSON.stringify({ phone: contato.telefone_normalizado, message: f.corpo_resolvido })
+      });
+      const j = await resp.json().catch(()=>({}));
+      if (resp.ok && j.messageId) {
+        await sb.rpc('va_confirmar_disparo', { p_fila_id: f.id, p_sucesso:true, p_zapi_id:j.messageId, p_erro:null });
+        ok++;
+      } else {
+        await sb.rpc('va_confirmar_disparo', { p_fila_id: f.id, p_sucesso:false, p_zapi_id:null, p_erro: `zapi ${resp.status}: ${JSON.stringify(j).slice(0,120)}` });
+        err++;
+      }
+    } catch (e) {
+      await sb.rpc('va_confirmar_disparo', { p_fila_id: f.id, p_sucesso:false, p_zapi_id:null, p_erro: String(e).slice(0,120) });
+      err++;
+    }
+  }
+  toast(`${ok} enviados · ${err} falhas`, ok>0?'ok':'err');
+  await htmlCadencia();
+}
+
+// TEMPLATES · modal simples
+function novoTemplate(){
+  const mb = document.getElementById('modal-back');
+  const arqOpts = (_pj.arquetipos||[]).map(a => `<option value="${esc(a.codigo)}">${esc(a.codigo)}</option>`).join('');
+  mb.innerHTML = `
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="lbl">novo template</div>
+      <h3>Mensagem de abordagem</h3>
+      <div class="col" style="gap:10px;margin-top:14px">
+        <div class="fld"><span class="lbl">nome interno</span><input id="tp-nome" placeholder="ex. Abordagem fria A2 v1"></div>
+        <div class="fld"><span class="lbl">arquétipo (opcional)</span><select id="tp-arq"><option value="">—</option>${arqOpts}</select></div>
+        <div class="fld"><span class="lbl">corpo · aceita {{primeiro_nome}} {{empresa}} {{cidade}} {{setor}}</span>
+          <textarea id="tp-corpo" rows="5" placeholder="Olá {{primeiro_nome}}, sou da 1Negócio…"></textarea>
+        </div>
+      </div>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:20px">
+        <button class="btn btn-ghost btn-sm" onclick="fecharModal()">cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="salvarNovoTemplate()">criar rascunho</button>
+      </div>
+    </div>`;
+  mb.classList.add('on');
+}
+
+async function salvarNovoTemplate(){
+  const nome = document.getElementById('tp-nome').value.trim();
+  const corpo = document.getElementById('tp-corpo').value.trim();
+  const arq = document.getElementById('tp-arq').value || null;
+  if (!nome || !corpo) { toast('Nome e corpo obrigatórios', 'err'); return; }
+  const { error } = await sb.from('va_disparo_templates').insert({
+    projeto_id: _pj.projeto.id, nome, corpo, arquetipo_codigo: arq, status: 'rascunho'
+  });
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  fecharModal();
+  toast('Template criado como rascunho', 'ok');
+  await htmlCadencia();
+}
+
+async function editarTemplate(id){
+  const t = (_pj.templates||[]).find(x => x.id === id);
+  if (!t) return;
+  const contato = (_pj.contatos||[])[0];
+  const preview = (t.corpo||'')
+    .replace('{{primeiro_nome}}', contato?.nome?.split(' ')[0] || '{primeiro_nome}')
+    .replace('{{empresa}}', contato?.empresa || '{empresa}')
+    .replace('{{cidade}}', contato?.cidade || '{cidade}')
+    .replace('{{setor}}', _pj.projeto.setor || '{setor}');
+  const mb = document.getElementById('modal-back');
+  mb.innerHTML = `
+    <div class="modal-card" onclick="event.stopPropagation()" style="max-width:560px">
+      <div class="lbl">editar template</div>
+      <h3>${esc(t.nome)} · v${t.versao} · ${esc(t.status)}</h3>
+      <div class="col" style="gap:10px;margin-top:14px">
+        <div class="fld"><span class="lbl">nome</span><input id="tpe-nome" value="${esc(t.nome)}"></div>
+        <div class="fld"><span class="lbl">corpo</span>
+          <textarea id="tpe-corpo" rows="5">${esc(t.corpo)}</textarea>
+        </div>
+        <div class="fld"><span class="lbl">preview com contato real</span>
+          <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-family:var(--mono);font-size:12.5px;color:var(--ink-2);line-height:1.55">${esc(preview)}</div>
+        </div>
+      </div>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:20px">
+        <button class="btn btn-ghost btn-sm" onclick="fecharModal()">cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="salvarEditTemplate('${esc(id)}')">salvar</button>
+      </div>
+    </div>`;
+  mb.classList.add('on');
+}
+
+async function salvarEditTemplate(id){
+  const patch = {
+    nome: document.getElementById('tpe-nome').value.trim(),
+    corpo: document.getElementById('tpe-corpo').value.trim(),
+  };
+  const { error } = await sb.from('va_disparo_templates').update(patch).eq('id', id);
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  fecharModal();
+  toast('Salvo', 'ok');
+  await htmlCadencia();
+}
+
+async function aprovarTemplate(id){
+  const { error } = await sb.from('va_disparo_templates').update({ status:'aprovado' }).eq('id', id);
+  if (error) { toast('Falhou: ' + error.message, 'err'); return; }
+  toast('Template aprovado', 'ok');
+  await htmlCadencia();
+}
+
 // ─── boot ─────────────────────────────────────────────────────────
 window.toggleEtapa = toggleEtapa;
 window.trocarAba = trocarAba;
@@ -3097,6 +3547,15 @@ window.salvarNota = salvarNota;
 window.mudarEstagioDoDrawer = mudarEstagioDoDrawer;
 window.toggleSecao = toggleSecao;
 window.onMoverSelect = onMoverSelect;
+window.salvarCadencia = salvarCadencia;
+window.enfileirar = enfileirar;
+window.cancelarFila = cancelarFila;
+window.processarFila = processarFila;
+window.novoTemplate = novoTemplate;
+window.salvarNovoTemplate = salvarNovoTemplate;
+window.editarTemplate = editarTemplate;
+window.salvarEditTemplate = salvarEditTemplate;
+window.aprovarTemplate = aprovarTemplate;
 
 (async function boot(){
   await initAuth();

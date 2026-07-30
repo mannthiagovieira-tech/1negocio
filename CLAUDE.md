@@ -58,6 +58,26 @@ não está exposto em nenhuma variável; ação em UI de terceiro sem API
 programática; ação irreversível de escopo alto onde a confirmação
 humana é a política de segurança.
 
+### Disparo · execução no front (sem edge nova)
+
+O projeto está no limite do plano de edge functions (118). Enquanto
+assim, o **processamento da fila de disparo é feito pelo botão
+"Processar fila agora"** em `/projetos.html · Cadência`, chamando
+Z-API direto do browser + `va_confirmar_disparo` a cada envio.
+
+A config Z-API não fica hardcoded no HTML — o operador cola no console
+do browser:
+```js
+localStorage.setItem('va_zapi', JSON.stringify({
+  instance: '...', token: '...', clientToken: '...'
+}))
+```
+
+O código de `processarFila()` está isolado e recebe a config via
+`zapiConfig()`. Quando houver espaço pra edge, migrar a lógica pra
+uma `Deno.serve` com `pg_cron` a cada 15 min, mantendo o botão como
+fallback manual. Não haverá reescrita — só copiar o loop.
+
 ### /projetos.html não pode ficar inacessível
 
 `/projetos.html` é o painel operacional do usuário. Qualquer mudança
