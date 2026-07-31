@@ -248,6 +248,10 @@ module.exports = async (req, res) => {
   }
 
   // ── AÇÃO: importar ────────────────────────────────────────────
+  // NOVO FLUXO (slice 12e): insere em va_prospeccao_bruta (antessala),
+  // NÃO em va_contatos. Enriquecimento e promoção viram passos explícitos
+  // na tela de TRIAGEM. Nenhum débito aqui — Kipflow só é cobrado no preview
+  // (já debitado) e no futuro action=enriquecer da triagem.
   if (!Array.isArray(cnpjs_importar) || cnpjs_importar.length === 0) {
     return json(res, 400, { ok: false, erro: 'cnpjs_importar (array) obrigatório na ação importar' });
   }
@@ -259,102 +263,49 @@ module.exports = async (req, res) => {
     if (cnpj.length !== 14) { resultados.push({ cnpj: cnpjRaw, status: 'invalido' }); continue; }
     if (cnpj === cnpjSemente) { resultados.push({ cnpj, status: 'proprio_cnpj_ignorado' }); continue; }
 
-    const rDup = await fetch(`${SB_URL}/rest/v1/va_contatos?projeto_id=eq.${projeto_id}&cnpj=eq.${cnpj}&select=id`, { headers: sbHeaders });
-    const dupArr = await rDup.json();
-    if (Array.isArray(dupArr) && dupArr.length > 0) {
-      resultados.push({ cnpj, status: 'ja_no_projeto', contato_id: dupArr[0].id });
-      continue;
+    // Dedup na antessala + no kanban
+    const rDupAnt = await fetch(`${SB_URL}/rest/v1/va_prospeccao_bruta?projeto_id=eq.${projeto_id}&cnpj=eq.${cnpj}&select=id,status`, { headers: sbHeaders });
+    const dupAnt = await rDupAnt.json();
+    if (Array.isArray(dupAnt) && dupAnt.length > 0) {
+      resultados.push({ cnpj, status: 'ja_na_antessala', prospeccao_id: dupAnt[0].id }); continue;
+    }
+    const rDupKb = await fetch(`${SB_URL}/rest/v1/va_contatos?projeto_id=eq.${projeto_id}&cnpj=eq.${cnpj}&select=id`, { headers: sbHeaders });
+    const dupKb = await rDupKb.json();
+    if (Array.isArray(dupKb) && dupKb.length > 0) {
+      resultados.push({ cnpj, status: 'ja_no_kanban', contato_id: dupKb[0].id }); continue;
     }
 
-    let empresaId, empresaRow;
-    const rEmp = await fetch(`${SB_URL}/rest/v1/va_empresas?cnpj=eq.${cnpj}&select=id,socios,razao_social,cidade,estado,enriquecido_em`, { headers: sbHeaders });
-    const [empEx] = await rEmp.json();
-    if (empEx) {
-      empresaId = empEx.id;
-      empresaRow = empEx;
-    }
-
-    // Se não está enriquecida, chama Kipflow (partners+complete+address)
-    // custo ~R$ 0,39 · já contemplado em similares_import (R$ 0,78 cobrado)
-    if (!empresaRow?.enriquecido_em) {
-      const kipRaw = await enriquecerLite(KEY, cnpj);
-      const kipData = kipRaw?.data?.[0] || kipRaw?.data || kipRaw || {};
-      const upsertBody = {
-        cnpj,
-        razao_social: kipData.razao_social || null,
-        nome_fantasia: kipData.nome_fantasia || null,
-        cidade: kipData.municipio || null,
-        estado: kipData.uf || null,
-        cnae_codigo: String(kipData.cnae_principal_classe || '') || null,
-        cnae_descricao: kipData.cnae_principal_desc_classe || null,
-        porte_categoria: kipData.porte || null,
-        porte_faturamento: typeof kipData.faturamento === 'number' ? kipData.faturamento : null,
-        faixa_faturamento: kipData.faixa_faturamento_grupo || null,
-        faixa_funcionarios: kipData.faixa_funcionarios_grupo || null,
-        segmento: kipData.segmento || null,
-        ramo_atividade: kipData.ramo_de_atividade || null,
-        situacao_cadastral: kipData.situacao_cadastral || null,
-        data_abertura: kipData.data_inicio_atividade || null,
-        socios: Array.isArray(kipData.socios) ? kipData.socios : null,
-        enriquecido_em: new Date().toISOString(),
-        enriquecido_por: 'kipflow',
-        enriquecimento_bruto: kipRaw || null,
-      };
-      const up = await fetch(`${SB_URL}/rest/v1/va_empresas?on_conflict=cnpj`, {
-        method: 'POST',
-        headers: { ...sbHeaders, Prefer: 'resolution=merge-duplicates,return=representation' },
-        body: JSON.stringify(upsertBody),
-      });
-      const [upRow] = await up.json();
-      empresaRow = upRow || upsertBody;
-      empresaId = upRow?.id || empresaId;
-    }
-
-    const { decisor, extras } = escolherDecisor(empresaRow?.socios || null);
-
-    const rCt = await fetch(`${SB_URL}/rest/v1/va_contatos`, {
-      method: 'POST',
-      headers: { ...sbHeaders, Prefer: 'return=representation' },
+    // Insere BRUTO (sem enriquecer). Enriquecimento acontece na triagem.
+    const rIns = await fetch(`${SB_URL}/rest/v1/va_prospeccao_bruta`, {
+      method:'POST', headers: { ...sbHeaders, Prefer:'return=representation' },
       body: JSON.stringify({
-        projeto_id, empresa_id: empresaId, cnpj,
-        origem: 'prospeccao', origem_detalhe: ref,
-        arquetipo_codigo, trilha: 'fria', estagio: 'novo',
-        empresa: empresaRow?.razao_social || null,
-        cidade: empresaRow?.cidade || null,
-        estado: empresaRow?.estado || null,
-        nome: decisor?.nome_socio || null,
-        cargo: decisor?.qualificacao_socio || null,
-        socio_faixa_etaria: decisor?.faixa_etaria_socio || null,
-        socio_data_entrada: decisor?.data_entrada_sociedade || null,
-        socio_identificador: decisor?.nome_com_cnpj_cpf || decisor?.cnpj_cpf_socio || null,
-        socios_extras: extras,
+        projeto_id, arquetipo_codigo, fonte:'kipflow', fonte_detalhe: ref,
+        cnpj, payload_bruto: { origem:'similares', preview: true },
       }),
     });
-    const arrCt = await rCt.json();
-    const contatoId = Array.isArray(arrCt) ? arrCt[0]?.id : null;
-
-    if (contatoId) {
-      await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
-        method: 'POST', headers: sbHeaders,
-        body: JSON.stringify({
-          p_projeto: projeto_id, p_tipo: 'similares_import', p_qtd: 1,
-          p_referencia: `${ref} · CNPJ ${cnpj}`, p_ciclo: null,
-        }),
+    const arrIns = await rIns.json();
+    const prospId = Array.isArray(arrIns) ? arrIns[0]?.id : null;
+    if (prospId) {
+      // Qualificação inicial (vai marcar sem_telefone/sem_cidade etc)
+      await fetch(`${SB_URL}/rest/v1/rpc/va_qualificar_prospeccao`, {
+        method:'POST', headers: sbHeaders, body: JSON.stringify({ p_id: prospId }),
       });
-      resultados.push({ cnpj, status: 'importado', contato_id: contatoId, empresa_id: empresaId });
+      resultados.push({ cnpj, status: 'inserido_antessala', prospeccao_id: prospId });
     } else {
-      resultados.push({ cnpj, status: 'erro_ao_criar_contato', detalhe: JSON.stringify(arrCt).slice(0, 300) });
+      resultados.push({ cnpj, status: 'erro_insert_antessala', detalhe: JSON.stringify(arrIns).slice(0,300) });
     }
   }
 
-  const importados = resultados.filter(r => r.status === 'importado').length;
+  const inseridos = resultados.filter(r => r.status === 'inserido_antessala').length;
   return json(res, 200, {
     ok: true,
     total_solicitados: cnpjs_importar.length,
-    importados,
-    ja_no_projeto: resultados.filter(r => r.status === 'ja_no_projeto').length,
-    outros: resultados.filter(r => !['importado','ja_no_projeto'].includes(r.status)).length,
+    inseridos_antessala: inseridos,
+    ja_na_antessala: resultados.filter(r => r.status === 'ja_na_antessala').length,
+    ja_no_kanban: resultados.filter(r => r.status === 'ja_no_kanban').length,
+    outros: resultados.filter(r => !['inserido_antessala','ja_na_antessala','ja_no_kanban'].includes(r.status)).length,
     resultados,
-    debitados: importados,
+    debitados: 0,
+    aviso: 'Kipflow similares agora vai pra antessala (va_prospeccao_bruta). Enriquecimento sob demanda na tela de TRIAGEM. Débito só ao promover.',
   });
 };

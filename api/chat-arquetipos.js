@@ -66,7 +66,26 @@ QUANDO O OPERADOR DIZ "propor teses" OU "gere as teses", devolva um bloco JSON d
 ]
 <<<FIM>>>
 
-O operador vê o JSON e pode pedir contagem de universo por tese, editar, ou aprovar. Se ele pede ajustes, gere o bloco novamente com as mudanças. Cada bloco novo é o snapshot final.`;
+O operador vê o JSON e pode pedir contagem de universo por tese, editar, ou aprovar. Se ele pede ajustes, gere o bloco novamente com as mudanças. Cada bloco novo é o snapshot final.
+
+QUANDO O OPERADOR DIZ "propor canais" OU "mapa de canais", devolva também um bloco JSON delimitado por <<<CANAIS>>> e <<<FIMCANAIS>>> com onde o comprador ESTÁ (associações, feiras, grupos, influenciadores, publicações). Formato:
+<<<CANAIS>>>
+[
+  {
+    "tipo": "associacao|evento|grupo|influenciador|publicacao|outro",
+    "nome": "Nome da associação/grupo/etc",
+    "url": "https://... (se souber)",
+    "descricao": "1 linha sobre o que é",
+    "periodicidade": "anual/mensal/semanal/permanente (se aplicar)",
+    "proxima_ocorrencia": "YYYY-MM-DD (se for evento e souber)",
+    "arquetipo_codigo": "T1|T2|... (a qual tese pertence, opcional)",
+    "observacao": "por que este canal serve pra buscar esse comprador"
+  }
+]
+<<<FIMCANAIS>>>
+
+Motivo: quando o CNAE é residual (categoria "outros"), a lista de associados de uma associação vale mais que qualquer filtro. Sindicato de despachantes é lista de despachantes. Feira do setor é diretório vivo.
+Só sugira canais REAIS que você tem confiança que existem. Se não souber URL exata, diga "buscar como '<termo>' no Google" na url — nunca invente domínio.`;
 
 async function chamarAnthropic(mensagens) {
   const ANTH = process.env.ANTHROPIC_API_KEY;
@@ -94,6 +113,11 @@ async function chamarAnthropic(mensagens) {
 // Extrai teses do último bloco <<<TESES>>>...<<<FIM>>>
 function extrairTeses(texto) {
   const m = /<<<TESES>>>\s*([\s\S]*?)\s*<<<FIM>>>/.exec(texto);
+  if (!m) return null;
+  try { return JSON.parse(m[1]); } catch { return null; }
+}
+function extrairCanais(texto) {
+  const m = /<<<CANAIS>>>\s*([\s\S]*?)\s*<<<FIMCANAIS>>>/.exec(texto);
   if (!m) return null;
   try { return JSON.parse(m[1]); } catch { return null; }
 }
@@ -200,12 +224,13 @@ module.exports = async (req, res) => {
       { role:'assistant', content: ia.texto, ts: new Date().toISOString() },
     ];
     const teses0 = extrairTeses(ia.texto);
+    const canais0 = extrairCanais(ia.texto);
     const rIns = await fetch(`${SB_URL}/rest/v1/va_arquetipos_chat_sessao`, {
       method:'POST', headers: { ...sbHeaders, Prefer:'return=representation' },
       body: JSON.stringify({ projeto_id, status:'aberta', mensagens: mensagensFinal, teses_propostas: teses0, custo_ia_total: ia.custo_real }),
     });
     const [ses] = await rIns.json();
-    return json(res, 200, { ok:true, sessao_id: ses.id, resposta: ia.texto, teses: teses0, custo_ia_real: ia.custo_real });
+    return json(res, 200, { ok:true, sessao_id: ses.id, resposta: ia.texto, teses: teses0, canais: canais0, custo_ia_real: ia.custo_real });
   }
 
   // Carrega sessão pras próximas ações
@@ -225,6 +250,7 @@ module.exports = async (req, res) => {
     const ia = await chamarAnthropic(historico);
     if (ia.erro) return json(res, 502, { ok:false, erro: ia.erro, detalhe: ia.detalhe });
     const novaTeses = extrairTeses(ia.texto);
+    const novosCanais = extrairCanais(ia.texto);
     const mensagensAtual = [
       ...sessao.mensagens,
       { role:'user', content: mensagem, ts: new Date().toISOString() },
@@ -239,7 +265,31 @@ module.exports = async (req, res) => {
         atualizado_em: new Date().toISOString(),
       }),
     });
-    return json(res, 200, { ok:true, resposta: ia.texto, teses: novaTeses, custo_ia_real: ia.custo_real });
+    return json(res, 200, { ok:true, resposta: ia.texto, teses: novaTeses, canais: novosCanais, custo_ia_real: ia.custo_real });
+  }
+
+  // ── ACTION: aprovar_canais ──────────────────────────
+  if (action === 'aprovar_canais') {
+    const { canais } = body;
+    if (!Array.isArray(canais) || canais.length === 0) return json(res, 400, { ok:false, erro:'canais obrigatório (array)' });
+    const inseridos = [];
+    for (const c of canais) {
+      const insBody = {
+        projeto_id: sessao.projeto_id,
+        arquetipo_codigo: c.arquetipo_codigo || null,
+        tipo: c.tipo || 'outro',
+        nome: c.nome, url: c.url || null, descricao: c.descricao || null,
+        periodicidade: c.periodicidade || null,
+        proxima_ocorrencia: c.proxima_ocorrencia || null,
+        origem: 'ia',
+        observacao: c.observacao || null,
+      };
+      const r = await fetch(`${SB_URL}/rest/v1/va_projeto_canais_manuais`, {
+        method:'POST', headers: { ...sbHeaders, Prefer:'return=representation' }, body: JSON.stringify(insBody),
+      });
+      if (r.ok) { const [row] = await r.json(); inseridos.push(row.id); }
+    }
+    return json(res, 200, { ok:true, canais_inseridos: inseridos.length, ids: inseridos });
   }
 
   // ── ACTION: contagem ────────────────────────────────

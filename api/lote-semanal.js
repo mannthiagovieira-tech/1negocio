@@ -197,74 +197,73 @@ module.exports = async (req, res) => {
       .slice()
       .sort((a,b) => (Number(b.faturamento)||0) - (Number(a.faturamento)||0));
 
-    // 4) importa até meta_quantidade — regra dura: SEM telefone com WhatsApp, NÃO importa
-    // (Kipflow /companies/v1/search não expõe telefones[] em nenhum dataset — bloqueio conhecido.
-    //  Enquanto não houver fonte de telefone, todos serão skip_sem_telefone e lote vai zerar.)
-    let importados = 0; let skipSemTel = 0; const cnpjsImp = [];
-    const refFiltros = `lote ${semanaAlvo} · ${lote.arquetipo_codigo} · cnae=${valorCnae}(${chaveCnae}) · fat[${filtrosSnapshot.fat_min}-${filtrosSnapshot.fat_max}] · uf=${semUf||''}${fx.uf_diff?'(diff)':''}`;
+    // 4) INSERE EM va_prospeccao_bruta (antessala) — NÃO cria contato, NÃO debita.
+    // Enriquecimento e promoção passam pela tela de TRIAGEM.
+    let inseridosAntessala = 0; let dupAntessala = 0; const cnpjsIns = [];
+    const refFiltros = `lote ${semanaAlvo} · ${lote.arquetipo_codigo} · queries=[${queries.join('|')}] · fat[${filtrosSnapshot.fat_min}-${filtrosSnapshot.fat_max}] · uf=${semUf||''}${fx.uf_diff?'(diff)':''}`;
     for (const e of lista) {
-      if (importados >= lote.meta_quantidade) break;
+      if (inseridosAntessala >= lote.meta_quantidade) break;
       const cnpj = String(e.cnpj||'').replace(/\D/g,'');
       if (cnpj.length !== 14 || cnpj === String(p.cnpj).replace(/\D/g,'')) continue;
 
-      // Extrai telefone (Kipflow pode devolver em telefones[] se dataset expor; hoje sempre vazio)
+      // Dedup na antessala + kanban
+      const rDupAnt = await fetch(`${SB_URL}/rest/v1/va_prospeccao_bruta?projeto_id=eq.${p.id}&cnpj=eq.${cnpj}&select=id`, { headers: sbHeaders });
+      if (((await rDupAnt.json())||[]).length>0) { dupAntessala++; continue; }
+      const rDupKb = await fetch(`${SB_URL}/rest/v1/va_contatos?projeto_id=eq.${p.id}&cnpj=eq.${cnpj}&select=id`, { headers: sbHeaders });
+      if (((await rDupKb.json())||[]).length>0) { dupAntessala++; continue; }
+
+      // Extrai telefone se veio (Kipflow /companies/v1/search hoje não expõe — mas guardamos se aparecer)
       const telefones = Array.isArray(e.telefones) ? e.telefones : [];
       const telWpp = telefones.find(t => t.whatsapp === true && t.pertence_contador === false)
                  || telefones.find(t => t.whatsapp === true)
-                 || null;
-      if (!telWpp) { skipSemTel++; continue; }
+                 || telefones[0] || null;
+      const decisorPre = escolherDecisor(Array.isArray(e.socios) ? e.socios : null);
 
-      const rDup = await fetch(`${SB_URL}/rest/v1/va_contatos?projeto_id=eq.${p.id}&cnpj=eq.${cnpj}&select=id`, { headers: sbHeaders });
-      if (((await rDup.json())||[]).length>0) continue;
-
-      const upEmp = {
-        cnpj, razao_social: e.razao_social || null, nome_fantasia: e.nome_fantasia || null,
+      const insBody = {
+        projeto_id: p.id, arquetipo_codigo: lote.arquetipo_codigo,
+        fonte:'kipflow', fonte_detalhe: refFiltros, lote_id: lote.id,
+        razao_social: e.razao_social || null,
+        cnpj,
+        telefone: telWpp?.telefone_completo || null,
+        telefone_normalizado: telWpp ? (telWpp.telefone_completo||'').replace(/\D/g,'') : null,
         cidade: e.municipio || null, estado: e.uf || null,
-        cnae_codigo: String(e.cnae_principal_classe||'')||null,
-        cnae_descricao: e.cnae_principal_desc_classe || null,
-        porte_categoria: e.porte || null,
+        cnae: String(e.cnae_principal_classe||'')||null,
         porte_faturamento: typeof e.faturamento === 'number' ? e.faturamento : null,
         socios: Array.isArray(e.socios) ? e.socios : null,
-        enriquecido_em: new Date().toISOString(), enriquecido_por: 'kipflow',
+        nome: decisorPre?.decisor?.nome_socio || null,
+        payload_bruto: {
+          fonte:'kipflow', filtros: filtrosSnapshot,
+          cnae_principal_desc_classe: e.cnae_principal_desc_classe || null,
+          faixa_faturamento_grupo: e.faixa_faturamento_grupo || null,
+          porte: e.porte || null,
+          whatsapp: telWpp?.whatsapp === true,
+        },
       };
-      const rUp = await fetch(`${SB_URL}/rest/v1/va_empresas?on_conflict=cnpj`, {
-        method:'POST', headers:{...sbHeaders, Prefer:'resolution=merge-duplicates,return=representation'},
-        body: JSON.stringify(upEmp),
-      });
-      const [empRow] = await rUp.json();
-
-      const { decisor, extras } = escolherDecisor(empRow?.socios || null);
-      const rCt = await fetch(`${SB_URL}/rest/v1/va_contatos`, {
+      const rIns = await fetch(`${SB_URL}/rest/v1/va_prospeccao_bruta`, {
         method:'POST', headers:{...sbHeaders, Prefer:'return=representation'},
-        body: JSON.stringify({
-          projeto_id: p.id, empresa_id: empRow?.id, cnpj,
-          origem:'prospeccao',
-          origem_detalhe: refFiltros,
-          telefone: telWpp.telefone_completo || null,
-          telefone_normalizado: (telWpp.telefone_completo||'').replace(/\D/g,''),
-          arquetipo_codigo: lote.arquetipo_codigo, trilha:'fria', estagio:'novo',
-          empresa: empRow?.razao_social || null, cidade: empRow?.cidade || null, estado: empRow?.estado || null,
-          nome: decisor?.nome_socio || null, cargo: decisor?.qualificacao_socio || null,
-          socio_faixa_etaria: decisor?.faixa_etaria_socio || null,
-          socio_data_entrada: decisor?.data_entrada_sociedade || null,
-          socio_identificador: decisor?.nome_com_cnpj_cpf || null,
-          socios_extras: extras,
-        }),
+        body: JSON.stringify(insBody),
       });
-      if (rCt.ok) {
-        importados++; cnpjsImp.push(cnpj);
-        await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
-          method:'POST', headers: sbHeaders,
-          body: JSON.stringify({ p_projeto:p.id, p_tipo:'similares_import', p_qtd:1, p_referencia:refFiltros+` · ${cnpj}`, p_ciclo:null }),
+      const arrIns = await rIns.json();
+      const prospId = Array.isArray(arrIns) ? arrIns[0]?.id : null;
+      if (prospId) {
+        inseridosAntessala++; cnpjsIns.push(cnpj);
+        // Qualifica imediatamente (marca sem_telefone etc)
+        await fetch(`${SB_URL}/rest/v1/rpc/va_qualificar_prospeccao`, {
+          method:'POST', headers: sbHeaders, body: JSON.stringify({ p_id: prospId }),
         });
       }
     }
 
     // 5) atualiza lote + grava AUDIT imutável (sem FK)
-    const custo = (importados * 0.39).toFixed(2);
+    // Nada foi debitado aqui — apenas raspagem Kipflow gerou custo (não medimos aqui);
+    // enriquecimento/promoção ficam pra triagem e cobram na hora certa.
     await fetch(`${SB_URL}/rest/v1/va_projeto_lote_semanal?id=eq.${lote.id}`, {
       method:'PATCH', headers: sbHeaders,
-      body: JSON.stringify({ importados, gerados: lista.length, custo_total: custo, cnpjs_importados: cnpjsImp, status: importados>0 ? 'importado' : 'gerado' }),
+      body: JSON.stringify({
+        importados: 0, gerados: lista.length, custo_total: 0, cnpjs_importados: cnpjsIns,
+        status: inseridosAntessala>0 ? 'gerado' : 'sem_match',
+        observacao: `antessala · inseridos=${inseridosAntessala} dup=${dupAntessala}`,
+      }),
     });
     await fetch(`${SB_URL}/rest/v1/va_lote_audit`, {
       method:'POST', headers: sbHeaders,
@@ -273,25 +272,24 @@ module.exports = async (req, res) => {
         cnpj_semente: String(p.cnpj).replace(/\D/g,''),
         filtros_aplicados: filtrosSnapshot, breakdown: lote.breakdown,
         meta_quantidade: lote.meta_quantidade, gerados: lista.length,
-        importados, skip_sem_telefone: skipSemTel, custo_total: custo,
-        cnpjs_importados: cnpjsImp,
+        importados: inseridosAntessala, skip_sem_telefone: 0, custo_total: 0,
+        cnpjs_importados: cnpjsIns,
         kipflow_response_amostra: lista.slice(0,3).map(e => ({ cnpj:e.cnpj, razao:e.razao_social, fat:e.faturamento, municipio:e.municipio, uf:e.uf })),
-        status: importados>0 ? 'importado' : (skipSemTel>0 ? 'todos_sem_telefone' : 'sem_match'),
+        status: inseridosAntessala>0 ? 'inserido_antessala' : 'sem_match',
       }),
     });
 
-    // Contexto da abertura (sem nomes de empresa; região agregada)
-    const regioes = [...new Set(lista.slice(0, importados).map(e=>e.uf).filter(Boolean))].join(' e ');
+    // Aviso de segunda: menciona que N leads brutos foram pra triagem (não importados)
     const setor = sement.ramo_de_atividade || sement.segmento || p.setor || 'segmento compatível';
-    const corpo = importados > 0
-      ? `Bom dia. Semana começando com ${importados} nova(s) empresa(s) identificada(s) para abordagem — ${setor.toLowerCase()} em ${regioes || 'diversas regiões'}, todas com porte compatível.\n\nVou trabalhar essas ao longo da semana e te aviso qualquer retorno relevante.`
+    const corpo = inseridosAntessala > 0
+      ? `Bom dia. Semana começando com ${inseridosAntessala} lead(s) brutos identificados na base — ${setor.toLowerCase()}, dentro da faixa de porte compatível.\n\nVou triar essa lista, enriquecer os que fizerem sentido e te aviso qualquer retorno relevante.`
       : `Bom dia. Esta semana não abrimos novo lote de prospecção (${lote.status === 'sem_saldo' ? 'saldo insuficiente' : 'sem match no filtro'}).\n\nVou seguir com os contatos que já estão em andamento e retomo a captação assim que possível.`;
 
     await fetch(`${SB_URL}/rest/v1/rpc/va_notificar`, {
       method:'POST', headers: sbHeaders,
-      body: JSON.stringify({ p_projeto_id:p.id, p_tipo:'programada', p_subtipo:'abertura_semana', p_corpo:corpo, p_meta:{ lote_id: lote.id, importados } }),
+      body: JSON.stringify({ p_projeto_id:p.id, p_tipo:'programada', p_subtipo:'abertura_semana', p_corpo:corpo, p_meta:{ lote_id: lote.id, brutos: inseridosAntessala } }),
     });
-    resultado.push({ projeto_id:p.id, lote_id:lote.id, status:'ok', importados, custo });
+    resultado.push({ projeto_id:p.id, lote_id:lote.id, status:'ok', brutos_antessala: inseridosAntessala, duplicados: dupAntessala });
   }
 
   return json(res, 200, { ok:true, semana_inicio:semanaAlvo, projetos:resultado });
