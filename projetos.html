@@ -173,6 +173,22 @@
 
   /* KICKOFF */
   .k-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-xl);padding:24px;box-shadow:var(--sh);margin-bottom:18px}
+  /* slice 12f · chat, teses, triagem */
+  .chat-container{display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto;padding:10px;background:var(--surface-2);border-radius:8px}
+  .chat-msg{padding:8px 12px;border-radius:10px;font-size:13.5px;line-height:1.4;max-width:85%}
+  .chat-msg.msg-user{background:var(--accent-soft);color:var(--ink-2);align-self:flex-end;border:1px solid var(--accent-ring)}
+  .chat-msg.msg-ia{background:var(--surface);color:var(--ink);align-self:flex-start;border:1px solid var(--line)}
+  .tese-card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px}
+  .chip{display:inline-block;padding:2px 8px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;font-size:11px;margin:2px 0}
+  .pill{display:inline-block;padding:2px 8px;background:var(--surface-2);border:1px solid var(--line);border-radius:4px;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+  .tri-row{border-bottom:1px solid var(--line)}
+  .tri-row td{padding:8px 6px;vertical-align:middle}
+  .tri-row:hover{background:var(--surface-2)}
+  @media (max-width:768px){
+    .chat-container{max-height:300px}
+    .chat-msg{max-width:100%;font-size:13px}
+    .tri-row td{padding:6px 4px;font-size:12px}
+  }
   .k-card .lbl{margin-bottom:10px}
   .k-card h3{font-family:var(--serif);font-weight:700;font-size:18px;color:var(--ink);letter-spacing:-.01em;margin-bottom:6px}
   .k-card .motivo{color:var(--ink-3);font-size:13px;margin-bottom:12px}
@@ -873,7 +889,7 @@ let _abaChave = 'kickoff';
 
 async function renderProjeto(id){
   app.innerHTML = `<div class="empty"><h2>Carregando projeto…</h2></div>`;
-  const [proj, etapas, kickoff, blk, arqCat, arqProj, anx, teas, fin, plano, razao, parcelas, precos, contatos, funil] = await Promise.all([
+  const [proj, etapas, kickoff, blk, arqCat, arqProj, anx, teas, fin, plano, razao, parcelas, precos, contatos, funil, canaisM, chatArqRow, prospBruta, fonteDesemp] = await Promise.all([
     sb.from('va_projetos_resumo').select('*').eq('id', id).maybeSingle(),
     sb.from('va_projeto_etapas').select('*').eq('projeto_id', id).order('ordem'),
     sb.from('va_projeto_kickoff').select('*').eq('projeto_id', id).maybeSingle(),
@@ -889,6 +905,10 @@ async function renderProjeto(id){
     sb.from('va_precos').select('*').order('ordem'),
     sb.from('va_contatos').select('*').eq('projeto_id', id).order('atualizado_em', {ascending:false}),
     sb.from('va_projeto_funil').select('*').eq('projeto_id', id),
+    sb.from('va_projeto_canais_manuais').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}),
+    sb.from('va_arquetipos_chat_sessao').select('*').eq('projeto_id', id).eq('status','aberta').order('atualizado_em', {ascending:false}).limit(1).maybeSingle(),
+    sb.from('va_prospeccao_bruta').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}).limit(500),
+    sb.from('va_projeto_fonte_desempenho').select('*').eq('projeto_id', id),
   ]);
   if (proj.error || !proj.data) { renderErr(proj.error?.message || 'Projeto não encontrado'); return; }
   if (arqCat.data) window._catalogoArq = arqCat.data;
@@ -915,6 +935,18 @@ async function renderProjeto(id){
     kanbanBusca: '',
     drawerContatoId: null,
     drawerInteracoes: [],
+    canaisManuais: canaisM?.data || [],
+    chatArq: chatArqRow?.data ? {
+      id: chatArqRow.data.id, status: chatArqRow.data.status,
+      mensagens: chatArqRow.data.mensagens || [],
+      teses_propostas: chatArqRow.data.teses_propostas || [],
+      canaisPropostos: [], // preenchido nas próximas msgs
+      custo_ia_total: chatArqRow.data.custo_ia_total, custo_kipflow_contagem: chatArqRow.data.custo_kipflow_contagem,
+    } : null,
+    prospBruta: prospBruta?.data || [],
+    fonteDesemp: fonteDesemp?.data || [],
+    triFiltros: { status: 'todos', fonte: 'todas', arq: 'todos', busca: '', score: 0 },
+    triSelecionados: new Set(),
   };
   if (!_pj.kickoff) _pj.kickoff = { projeto_id: id, itens: {} };
   desenhaProjeto();
@@ -1037,6 +1069,7 @@ const GESTAO_ITENS = [
   { chave:'gestao_cadencia',    titulo:'Cadência',    sub:'templates · fila · disparo' },
   { chave:'gestao_atendimento', titulo:'Atendimento', sub:'canais · NDA · dossiê' },
   { chave:'gestao_campanhas',   titulo:'Campanhas',   sub:'criativos · métricas · atribuição' },
+  { chave:'gestao_triagem',     titulo:'Triagem',     sub:'antessala · qualificação · aprovar' },
   { chave:'gestao_relatorios',  titulo:'Relatórios',  sub:'em breve' },
 ];
 
@@ -1078,6 +1111,7 @@ function desenhaAba(){
   if (_abaChave === 'gestao_cadencia')    { htmlCadencia();                                          return; }
   if (_abaChave === 'gestao_atendimento') { htmlAtendimento();                                       return; }
   if (_abaChave === 'gestao_campanhas')   { htmlCampanhas();                                          return; }
+  if (_abaChave === 'gestao_triagem')     { htmlTriagem();                                              return; }
   if (_abaChave === 'gestao_relatorios')  { stage.innerHTML = htmlGestaoPlaceholder('Relatórios','Consumo, ROI da onda, exportáveis pro cliente.'); return; }
   // SETUP
   const e = _pj.etapas.find(x => x.chave === _abaChave) || _pj.etapas[0];
@@ -1653,9 +1687,11 @@ function htmlArquetipos(e){
       </button>
     </div>
 
+    ${cardChatArquetipos()}
+
     <div class="k-card">
       <div class="lbl" style="display:flex;justify-content:space-between;align-items:baseline">
-        <span>01 · seleção</span>
+        <span>02 · seleção</span>
         <span class="mono" style="font-size:11px;color:var(--ink-3);letter-spacing:.05em">${qtd} de 9 selecionados</span>
       </div>
       <h3>Quem pode comprar esse negócio</h3>
@@ -1665,12 +1701,467 @@ function htmlArquetipos(e){
     </div>
 
     <div class="k-card">
-      <div class="lbl">02 · calibragem</div>
+      <div class="lbl">03 · calibragem</div>
       <h3>Prioridade, meta e queries por arquétipo</h3>
       <p class="motivo">A query é o que instrui o scrapper ou orienta o disparo. Sem query, o arquétipo é decorativo.</p>
       <div style="margin-top:14px">${calibragem}</div>
       ${avisoSemQuery}
+    </div>
+
+    ${cardCanaisManuais()}
+    ${cardBuscaMaps()}`;
+}
+
+// ═══ SLICE 12f · Chat, canais, Maps na aba Arquétipos ═══════════
+let _chatArqSessao = null;
+
+function cardChatArquetipos(){
+  const s = _pj.chatArq;
+  if (!s) {
+    return `<div class="k-card">
+      <div class="lbl">01 · assistente IA</div>
+      <h3>Definir teses de comprador com IA</h3>
+      <p class="motivo">A IA usa o kickoff, o laudo e o teaser aprovado pra propor 4 a 5 teses de quem compraria — com CNAEs, keywords e faixa de porte. Você conversa, ajusta, e aprova. Também sugere onde o comprador está (associações, feiras, grupos).</p>
+      <div class="row" style="gap:8px;margin-top:12px">
+        <button class="btn btn-primary" onclick="chatArqIniciar()">Definir arquétipos com IA</button>
+      </div>
+      <div id="chat-arq-status" class="muted" style="font-size:12px;margin-top:6px"></div>
     </div>`;
+  }
+  const msgs = (s.mensagens||[]).map(m => {
+    const cls = m.role === 'user' ? 'msg-user' : 'msg-ia';
+    // remove blocos de JSON do texto (mostramos em cards)
+    let txt = m.content.replace(/<<<TESES>>>[\s\S]*?<<<FIM>>>/g,'').replace(/<<<CANAIS>>>[\s\S]*?<<<FIMCANAIS>>>/g,'').trim();
+    if (!txt) txt = '(propostas atualizadas nos cards abaixo)';
+    return `<div class="chat-msg ${cls}">${esc(txt).replace(/\n/g,'<br>')}</div>`;
+  }).join('');
+  const teses = (s.teses_propostas||[]).map((t,i) => `
+    <div class="tese-card">
+      <div class="row" style="justify-content:space-between;align-items:baseline">
+        <div><span class="mono" style="color:var(--ink-3);font-size:12px">${esc(t.codigo||('T'+(i+1)))}</span> <strong>${esc(t.nome||'—')}</strong></div>
+        <button class="btn btn-ghost btn-sm" onclick="chatArqContar(${i})">contar universo</button>
+      </div>
+      <div class="muted" style="font-size:13px;margin-top:4px">${esc(t.raciocinio||'')}</div>
+      <div style="margin-top:6px;font-size:12px">
+        <b>queries:</b> ${(t.queries_busca||[]).map(q => `<span class="chip">${esc(q)}</span>`).join(' ')}
+        &nbsp;·&nbsp; <b>porte:</b> ${t.faixa_porte_multiplo?.min||'?'}×–${t.faixa_porte_multiplo?.max||'?'}× semente
+      </div>
+      <div id="tese-universo-${i}" class="muted" style="font-size:12px;margin-top:4px"></div>
+    </div>`).join('');
+  const canais = (s.canaisPropostos||[]).length ? `
+    <div style="margin-top:12px">
+      <div class="lbl" style="margin-bottom:6px">canais sugeridos pela IA</div>
+      ${s.canaisPropostos.map(c => `
+        <div class="tese-card">
+          <div><span class="chip">${esc(c.tipo)}</span> <strong>${esc(c.nome)}</strong></div>
+          ${c.url?`<div style="font-size:12px"><a href="${esc(c.url)}" target="_blank">${esc(c.url)}</a></div>`:''}
+          ${c.descricao?`<div class="muted" style="font-size:12px">${esc(c.descricao)}</div>`:''}
+        </div>`).join('')}
+    </div>` : '';
+  const isAprovada = s.status !== 'aberta';
+  return `<div class="k-card">
+    <div class="lbl" style="display:flex;justify-content:space-between">
+      <span>01 · assistente IA</span>
+      <span class="mono" style="font-size:11px;color:var(--ink-3)">R$ ${Number(s.custo_ia_total||0).toFixed(2)} IA · R$ ${Number(s.custo_kipflow_contagem||0).toFixed(2)} Kipflow</span>
+    </div>
+    <div class="chat-container" style="margin-top:10px">${msgs}</div>
+    ${!isAprovada ? `
+      <div class="row" style="gap:6px;margin-top:10px">
+        <input id="chat-arq-input" placeholder="Contradiga, ajuste, peça mais teses…" style="flex:1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatArqEnviar();}">
+        <button class="btn btn-ghost btn-sm" onclick="chatArqEnviar()">enviar</button>
+      </div>` : `<div class="aviso" style="margin-top:10px">Sessão ${esc(s.status)}. <button class="btn btn-ghost btn-sm" onclick="chatArqIniciar()">nova sessão</button></div>`}
+    ${teses ? `<div style="margin-top:14px"><div class="lbl" style="margin-bottom:6px">teses propostas</div>${teses}</div>` : ''}
+    ${canais}
+    ${!isAprovada && (s.teses_propostas||[]).length ? `
+      <div class="row" style="gap:6px;margin-top:12px;justify-content:flex-end">
+        <button class="btn btn-ghost btn-sm" onclick="chatArqDescartar()">descartar sessão</button>
+        ${(s.canaisPropostos||[]).length ? `<button class="btn btn-ghost btn-sm" onclick="chatArqAprovarCanais()">aprovar canais</button>` : ''}
+        <button class="btn btn-primary btn-sm" onclick="chatArqAprovarTeses()">aprovar teses</button>
+      </div>` : ''}
+    <div id="chat-arq-status" class="muted" style="font-size:12px;margin-top:8px"></div>
+  </div>`;
+}
+
+async function chatArqIniciar(){
+  const st = document.getElementById('chat-arq-status');
+  if (st) { st.textContent = 'iniciando…'; st.style.color=''; }
+  const sess = (await sb.auth.getSession()).data.session;
+  const r = await fetch('/api/chat-arquetipos', {
+    method:'POST', headers:{'Content-Type':'application/json',Authorization:'Bearer '+(sess?.access_token||'')},
+    body: JSON.stringify({ action:'iniciar', projeto_id: _pj.projeto.id }),
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) { toast(d.erro || 'erro', 'err'); return; }
+  _pj.chatArq = {
+    id: d.sessao_id, status:'aberta',
+    mensagens: [{role:'assistant',content:d.resposta}],
+    teses_propostas: d.teses || [], canaisPropostos: d.canais || [],
+    custo_ia_total: d.custo_ia_real || 0, custo_kipflow_contagem: 0,
+  };
+  desenhaAba();
+}
+async function chatArqEnviar(){
+  const input = document.getElementById('chat-arq-input'); if (!input) return;
+  const txt = input.value.trim(); if (!txt) return;
+  input.value = ''; const st = document.getElementById('chat-arq-status');
+  if (st) st.textContent = 'pensando…';
+  const sess = (await sb.auth.getSession()).data.session;
+  const r = await fetch('/api/chat-arquetipos', {
+    method:'POST', headers:{'Content-Type':'application/json',Authorization:'Bearer '+(sess?.access_token||'')},
+    body: JSON.stringify({ action:'mensagem', sessao_id: _pj.chatArq.id, mensagem: txt }),
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) { toast(d.erro||'erro','err'); return; }
+  _pj.chatArq.mensagens.push({role:'user',content:txt});
+  _pj.chatArq.mensagens.push({role:'assistant',content:d.resposta});
+  if (d.teses) _pj.chatArq.teses_propostas = d.teses;
+  if (d.canais) _pj.chatArq.canaisPropostos = d.canais;
+  _pj.chatArq.custo_ia_total = Number(_pj.chatArq.custo_ia_total||0) + Number(d.custo_ia_real||0);
+  desenhaAba();
+}
+async function chatArqContar(idx){
+  const tese = _pj.chatArq.teses_propostas[idx]; if (!tese) return;
+  const el = document.getElementById('tese-universo-'+idx);
+  if (el) el.textContent = 'consultando Kipflow…';
+  const sess = (await sb.auth.getSession()).data.session;
+  const r = await fetch('/api/chat-arquetipos', {
+    method:'POST', headers:{'Content-Type':'application/json',Authorization:'Bearer '+(sess?.access_token||'')},
+    body: JSON.stringify({ action:'contagem', sessao_id: _pj.chatArq.id, tese }),
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) { if (el) el.textContent = 'erro: '+(d.erro||''); return; }
+  _pj.chatArq.custo_kipflow_contagem = Number(_pj.chatArq.custo_kipflow_contagem||0) + Number(d.custo_kipflow||0);
+  if (el) {
+    const cor = d.universo >= 500 ? 'green' : d.universo >= 50 ? '#c60' : '#c00';
+    el.style.color = cor;
+    el.textContent = `universo: ${d.universo} empresas · custo R$ ${Number(d.custo_kipflow||0).toFixed(3)}`;
+  }
+}
+async function chatArqAprovarTeses(){
+  if (!confirm(`Aprovar ${_pj.chatArq.teses_propostas.length} teses? Elas viram arquétipos calibrados e a sessão se fecha.`)) return;
+  const sess = (await sb.auth.getSession()).data.session;
+  const r = await fetch('/api/chat-arquetipos', {
+    method:'POST', headers:{'Content-Type':'application/json',Authorization:'Bearer '+(sess?.access_token||'')},
+    body: JSON.stringify({ action:'aprovar', sessao_id: _pj.chatArq.id, teses: _pj.chatArq.teses_propostas }),
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) { toast(d.erro||'erro','err'); return; }
+  toast(`${d.aprovadas} arquétipos gerados`, 'ok');
+  await renderProjeto(_pj.projeto.id);
+}
+async function chatArqAprovarCanais(){
+  const sess = (await sb.auth.getSession()).data.session;
+  const r = await fetch('/api/chat-arquetipos', {
+    method:'POST', headers:{'Content-Type':'application/json',Authorization:'Bearer '+(sess?.access_token||'')},
+    body: JSON.stringify({ action:'aprovar_canais', sessao_id: _pj.chatArq.id, canais: _pj.chatArq.canaisPropostos }),
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) { toast(d.erro||'erro','err'); return; }
+  toast(`${d.canais_inseridos} canais gravados`, 'ok');
+  await renderProjeto(_pj.projeto.id);
+}
+async function chatArqDescartar(){
+  if (!confirm('Descartar sessão? A conversa fica registrada.')) return;
+  const sess = (await sb.auth.getSession()).data.session;
+  await fetch('/api/chat-arquetipos', {
+    method:'POST', headers:{'Content-Type':'application/json',Authorization:'Bearer '+(sess?.access_token||'')},
+    body: JSON.stringify({ action:'descartar', sessao_id: _pj.chatArq.id }),
+  });
+  _pj.chatArq = null; desenhaAba();
+}
+
+function cardCanaisManuais(){
+  const canais = _pj.canaisManuais || [];
+  if (canais.length === 0) return `<div class="k-card">
+    <div class="lbl">04 · canais manuais</div>
+    <h3>Onde o comprador está</h3>
+    <p class="motivo">Quando o CNAE é residual, a lista de uma associação vale mais que qualquer filtro. Use o chat da IA acima pra sugerir, ou adicione manualmente.</p>
+    <button class="btn btn-ghost btn-sm" onclick="canalAdd()" style="margin-top:8px">adicionar canal</button>
+  </div>`;
+  const grupos = {};
+  for (const c of canais) { (grupos[c.tipo] = grupos[c.tipo] || []).push(c); }
+  const html = Object.entries(grupos).map(([tipo, arr]) => `
+    <div style="margin-top:14px">
+      <div class="lbl" style="margin-bottom:6px">${esc(tipo)}</div>
+      ${arr.map(c => {
+        const proximo = c.proxima_ocorrencia && new Date(c.proxima_ocorrencia) >= new Date();
+        return `
+        <div class="tese-card" ${proximo?'style="border-left:3px solid var(--accent)"':''}>
+          <div class="row" style="justify-content:space-between">
+            <div><strong>${esc(c.nome)}</strong> ${c.contatos_gerados>0?`<span class="chip">${c.contatos_gerados} contatos</span>`:''}</div>
+            <select onchange="canalStatus('${c.id}',this.value)" style="font-size:12px;padding:2px 4px">
+              ${['sugerido','a_trabalhar','em_contato','produtivo','descartado'].map(s => `<option value="${s}" ${c.status===s?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          ${c.url?`<div style="font-size:12px"><a href="${esc(c.url)}" target="_blank">${esc(c.url)}</a></div>`:''}
+          ${c.descricao?`<div class="muted" style="font-size:12px">${esc(c.descricao)}</div>`:''}
+          ${c.periodicidade||c.proxima_ocorrencia?`<div class="muted" style="font-size:12px">${esc(c.periodicidade||'')} ${c.proxima_ocorrencia?'· próxima: '+dataBR(c.proxima_ocorrencia):''}</div>`:''}
+          <textarea rows="2" placeholder="observação" onblur="canalObs('${c.id}',this.value)" style="width:100%;margin-top:4px;font-size:12px">${esc(c.observacao||'')}</textarea>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+  return `<div class="k-card">
+    <div class="lbl" style="display:flex;justify-content:space-between">
+      <span>04 · canais manuais</span>
+      <button class="btn btn-ghost btn-sm" onclick="canalAdd()">+ adicionar</button>
+    </div>
+    <h3>Onde o comprador está</h3>
+    ${html}
+  </div>`;
+}
+async function canalStatus(id, val){
+  await sb.from('va_projeto_canais_manuais').update({ status: val, atualizado_em: new Date().toISOString() }).eq('id', id);
+  const c = (_pj.canaisManuais||[]).find(x=>x.id===id); if (c) c.status = val;
+  toast('status atualizado','ok');
+}
+async function canalObs(id, val){
+  await sb.from('va_projeto_canais_manuais').update({ observacao: val.trim()||null, atualizado_em: new Date().toISOString() }).eq('id', id);
+}
+async function canalAdd(){
+  const nome = prompt('Nome do canal:'); if (!nome) return;
+  const tipo = prompt('Tipo (associacao|evento|grupo|influenciador|publicacao|outro):','outro') || 'outro';
+  const url = prompt('URL (opcional):') || null;
+  const { data, error } = await sb.from('va_projeto_canais_manuais').insert({
+    projeto_id: _pj.projeto.id, tipo, nome, url, origem: 'manual',
+  }).select('*').single();
+  if (error) { toast(error.message,'err'); return; }
+  (_pj.canaisManuais = _pj.canaisManuais||[]).push(data);
+  desenhaAba();
+}
+
+function cardBuscaMaps(){
+  return `<div class="k-card">
+    <div class="lbl">05 · busca Google Maps</div>
+    <h3>Prospectar por termo em linguagem natural</h3>
+    <p class="motivo">O que o Kipflow não entrega (telefone), o Maps entrega. Resultado cai na Triagem, não no kanban.</p>
+    <div class="form-grid" style="margin-top:12px">
+      <div class="fld"><span class="lbl">termo</span><input id="maps-termo" placeholder="ex: despachante de trânsito"></div>
+      <div class="fld"><span class="lbl">região</span><input id="maps-regiao" placeholder="ex: Florianópolis SC"></div>
+      <div class="fld"><span class="lbl">limite</span><input id="maps-limite" type="number" min="1" max="50" value="10"></div>
+    </div>
+    <div class="row" style="gap:8px;margin-top:10px">
+      <button class="btn btn-primary btn-sm" onclick="mapsBuscar()">buscar</button>
+      <span id="maps-status" class="muted" style="font-size:12px"></span>
+    </div>
+  </div>`;
+}
+async function mapsBuscar(){
+  const termo = document.getElementById('maps-termo').value.trim();
+  const regiao = document.getElementById('maps-regiao').value.trim();
+  const limite = Math.min(50, Number(document.getElementById('maps-limite').value)||10);
+  if (!termo) { toast('termo obrigatório','err'); return; }
+  const custoEstimado = (limite * 0.01).toFixed(2);
+  if (!confirm(`Buscar até ${limite} lugares no Maps? Custo estimado: R$ ${custoEstimado}. Resultado cai na Triagem.`)) return;
+  const st = document.getElementById('maps-status'); if (st) st.textContent = 'consultando Apify…';
+  const sess = (await sb.auth.getSession()).data.session;
+  const r = await fetch('/api/maps-busca', {
+    method:'POST', headers:{'Content-Type':'application/json',Authorization:'Bearer '+(sess?.access_token||'')},
+    body: JSON.stringify({ projeto_id: _pj.projeto.id, termo, regiao, limite }),
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) { toast(d.erro||'erro','err'); if (st) st.textContent=''; return; }
+  const cont = Object.entries(d.contagem_por_status||{}).map(([s,n])=>`${s}:${n}`).join(' · ');
+  if (st) st.textContent = `${d.raspados} raspados · ${d.inseridos} inseridos · ${cont} · R$ ${(d.debitado_lead_maps*0.01).toFixed(2)} debitado`;
+  toast('busca concluída · ver Triagem','ok');
+}
+
+// ═══ SLICE 12f · TRIAGEM ═══════════════════════════════════════
+async function htmlTriagem(){
+  const stage = document.getElementById('stage');
+  stage.innerHTML = '<div class="empty"><h2>Carregando triagem…</h2></div>';
+  // recarrega sempre (dados dinâmicos)
+  const [pb, fd] = await Promise.all([
+    sb.from('va_prospeccao_bruta').select('*').eq('projeto_id', _pj.projeto.id).order('criado_em', {ascending:false}).limit(500),
+    sb.from('va_projeto_fonte_desempenho').select('*').eq('projeto_id', _pj.projeto.id),
+  ]);
+  _pj.prospBruta = pb.data || [];
+  _pj.fonteDesemp = fd.data || [];
+  stage.innerHTML = desenhaTriagem();
+  vincularTriagem();
+}
+
+function desenhaTriagem(){
+  const list = _pj.prospBruta || [];
+  const f = _pj.triFiltros;
+
+  const cont = {};
+  for (const b of list) cont[b.status] = (cont[b.status]||0)+1;
+  const custoEnriq = (_pj.razao||[])
+    .filter(r => ['similares_import','lead_scrapper','lead_maps'].includes(r.tipo))
+    .reduce((s,r) => s + Number(r.valor_total||0), 0);
+
+  const filtered = list.filter(b => {
+    if (f.status !== 'todos' && b.status !== f.status) return false;
+    if (f.fonte !== 'todas' && b.fonte !== f.fonte) return false;
+    if (f.arq !== 'todos' && b.arquetipo_codigo !== f.arq) return false;
+    if (f.score && (b.score||0) < f.score) return false;
+    if (f.busca) {
+      const s = (f.busca||'').toLowerCase();
+      const hay = ((b.razao_social||'')+' '+(b.nome||'')+' '+(b.cidade||'')+' '+(b.cnpj||'')+' '+(b.telefone||'')).toLowerCase();
+      if (!hay.includes(s)) return false;
+    }
+    return true;
+  });
+
+  const kpi = (l, v, cor) => `<div class="orc-kpi"${cor?` style="color:${cor}"`:''}><div class="k">${l}</div><div class="v">${v}</div></div>`;
+  const kpis = `
+    <div class="orc-resumo">
+      ${kpi('bruto', cont.bruto||0)}
+      ${kpi('qualificado', cont.qualificado||0, 'green')}
+      ${kpi('descartado', cont.descartado||0, '#c60')}
+      ${kpi('duplicado', cont.duplicado||0, '#c60')}
+      ${kpi('bloqueado', cont.bloqueado||0, '#c00')}
+      ${kpi('aprovado', cont.aprovado||0, 'green')}
+      ${kpi('custo enriq', 'R$ '+custoEnriq.toFixed(2))}
+    </div>`;
+
+  const arqs = [...new Set(list.map(b=>b.arquetipo_codigo).filter(Boolean))];
+  const fontes = [...new Set(list.map(b=>b.fonte))];
+
+  const sel = _pj.triSelecionados;
+  const rows = filtered.map(b => {
+    const on = sel.has(b.id);
+    const whats = (b.payload_bruto?.whatsapp === true || b.payload_bruto?.whatsapp === 'true') ? ' 📱' : '';
+    const motivos = Array.isArray(b.motivos_falha) ? b.motivos_falha.join(', ') : (b.motivo_descarte||'');
+    const scoreCor = b.score >= 70 ? 'green' : b.score >= 50 ? '#c60' : '#c00';
+    return `<tr class="tri-row" data-id="${b.id}">
+      <td><input type="checkbox" ${on?'checked':''} onchange="triToggleSel('${b.id}',this.checked)"></td>
+      <td>${esc(b.razao_social||b.nome||'—')}</td>
+      <td>${esc(b.cidade||'')}${b.estado?'/'+esc(b.estado):''}</td>
+      <td class="mono" style="font-size:12px">${esc(b.telefone||'')}${whats}</td>
+      <td>${b.porte_faturamento ? 'R$ '+Number(b.porte_faturamento).toLocaleString('pt-BR') : '—'}</td>
+      <td><span class="chip">${esc(b.fonte)}</span></td>
+      <td style="color:${scoreCor};font-weight:600">${b.score ?? '—'}</td>
+      <td><span class="pill">${esc(b.status)}</span></td>
+      <td style="font-size:11px;color:var(--ink-3)">${esc(motivos)}</td>
+    </tr>`;
+  }).join('');
+
+  const desemp = (_pj.fonteDesemp||[]);
+  let melhor=null, pior=null;
+  desemp.forEach(d => {
+    if (d.custo_por_aprovado != null) {
+      if (!melhor || Number(d.custo_por_aprovado) < Number(melhor.custo_por_aprovado)) melhor = d;
+      if (!pior || Number(d.custo_por_aprovado) > Number(pior.custo_por_aprovado)) pior = d;
+    }
+  });
+  const desempHtml = desemp.length ? `
+    <table style="width:100%;font-size:13px;margin-top:8px">
+      <thead><tr style="text-align:left;color:var(--ink-3)"><th>fonte</th><th>trazidos</th><th>qualif</th><th>aprov</th><th>taxa</th><th>custo total</th><th>custo/aprov</th></tr></thead>
+      <tbody>${desemp.map(d=>{
+        const cor = d===melhor?'green':(d===pior?'#c60':'inherit');
+        return `<tr style="color:${cor}">
+          <td><b>${esc(d.fonte)}</b></td><td>${d.trazidos}</td><td>${d.qualificados}</td>
+          <td>${d.aprovados}</td><td>${d.taxa_aproveitamento_pct}%</td>
+          <td>R$ ${Number(d.custo_total).toFixed(2)}</td>
+          <td>${d.custo_por_aprovado!=null?'R$ '+Number(d.custo_por_aprovado).toFixed(2):'—'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>` : '<div class="muted">Sem dados de fonte ainda.</div>';
+
+  const nSel = sel.size;
+  return `
+    <div class="stage-head">
+      <div>
+        <div class="meta">gestão</div>
+        <h2>Triagem · antessala da prospecção</h2>
+        <div class="muted" style="margin-top:6px;font-size:13.5px">Kipflow, Maps e canais manuais chegam aqui como lead BRUTO. Só o que passa na qualificação e é aprovado vira contato no kanban.</div>
+      </div>
+    </div>
+
+    <div class="k-card">${kpis}</div>
+
+    <div class="k-card">
+      <div class="lbl">filtros</div>
+      <div class="form-grid" style="margin-top:8px">
+        <div class="fld"><span class="lbl">status</span><select id="tri-status">${['todos','bruto','qualificado','descartado','duplicado','bloqueado','aprovado'].map(s=>`<option value="${s}" ${f.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+        <div class="fld"><span class="lbl">fonte</span><select id="tri-fonte"><option value="todas" ${f.fonte==='todas'?'selected':''}>todas</option>${fontes.map(x=>`<option value="${x}" ${f.fonte===x?'selected':''}>${x}</option>`).join('')}</select></div>
+        <div class="fld"><span class="lbl">arquétipo</span><select id="tri-arq"><option value="todos" ${f.arq==='todos'?'selected':''}>todos</option>${arqs.map(x=>`<option value="${x}" ${f.arq===x?'selected':''}>${x}</option>`).join('')}</select></div>
+        <div class="fld"><span class="lbl">score mín.</span><input id="tri-score" type="number" min="0" max="100" value="${f.score||0}"></div>
+        <div class="fld form-full"><span class="lbl">busca</span><input id="tri-busca" placeholder="nome, cnpj, cidade, tel" value="${esc(f.busca||'')}"></div>
+      </div>
+    </div>
+
+    ${nSel>0 ? `<div class="k-card" style="background:var(--accent-soft)">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <div><strong>${nSel}</strong> selecionado(s)</div>
+        <div class="row" style="gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="triQualificar()">re-qualificar</button>
+          <button class="btn btn-ghost btn-sm" onclick="triAprovar()">aprovar → kanban</button>
+          <button class="btn btn-ghost btn-sm" onclick="triDescartar()">descartar</button>
+        </div>
+      </div>
+    </div>` : ''}
+
+    <div class="k-card" style="overflow-x:auto">
+      <div class="lbl" style="margin-bottom:8px">${filtered.length} de ${list.length}</div>
+      <table style="width:100%;font-size:13px;border-collapse:collapse">
+        <thead><tr style="text-align:left;color:var(--ink-3);border-bottom:1px solid var(--line)">
+          <th></th><th>nome/razão</th><th>cidade</th><th>telefone</th><th>porte</th><th>fonte</th><th>score</th><th>status</th><th>motivos</th>
+        </tr></thead>
+        <tbody>${rows || '<tr><td colspan="9" class="muted" style="text-align:center;padding:20px">Sem registros com esse filtro.</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <div class="k-card">
+      <div class="lbl">desempenho por fonte</div>
+      ${desempHtml}
+    </div>`;
+}
+function vincularTriagem(){
+  ['tri-status','tri-fonte','tri-arq','tri-score','tri-busca'].forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    el.addEventListener('change', triAtualizarFiltros);
+    if (id==='tri-busca') el.addEventListener('input', triAtualizarFiltros);
+  });
+}
+function triAtualizarFiltros(){
+  _pj.triFiltros = {
+    status: document.getElementById('tri-status').value,
+    fonte:  document.getElementById('tri-fonte').value,
+    arq:    document.getElementById('tri-arq').value,
+    score:  Number(document.getElementById('tri-score').value)||0,
+    busca:  document.getElementById('tri-busca').value,
+  };
+  const stage = document.getElementById('stage');
+  stage.innerHTML = desenhaTriagem();
+  vincularTriagem();
+}
+function triToggleSel(id, on){
+  if (on) _pj.triSelecionados.add(id); else _pj.triSelecionados.delete(id);
+  const stage = document.getElementById('stage');
+  stage.innerHTML = desenhaTriagem();
+  vincularTriagem();
+}
+async function triQualificar(){
+  const ids = [..._pj.triSelecionados];
+  for (const id of ids) {
+    await sb.rpc('va_qualificar_prospeccao', { p_id: id });
+  }
+  _pj.triSelecionados.clear();
+  toast(`${ids.length} re-qualificados`,'ok');
+  htmlTriagem();
+}
+async function triAprovar(){
+  const ids = [..._pj.triSelecionados];
+  const arq = prompt('Código do arquétipo (existente no catálogo, ex A1):') || null;
+  if (!confirm(`Promover ${ids.length} pra kanban como ${arq||'(usa arquétipo do bruto)'}?`)) return;
+  let ok=0, err=0;
+  for (const id of ids) {
+    const { error } = await sb.rpc('va_promover_prospeccao_para_contato', { p_id: id, p_arquetipo: arq });
+    if (error) err++; else ok++;
+  }
+  toast(`${ok} promovidos${err?' · '+err+' erros':''}`, err?'err':'ok');
+  _pj.triSelecionados.clear();
+  htmlTriagem();
+}
+async function triDescartar(){
+  const ids = [..._pj.triSelecionados];
+  const motivo = prompt('Motivo do descarte:'); if (!motivo) return;
+  await sb.from('va_prospeccao_bruta').update({ status:'descartado', motivo_descarte: motivo, triado_em: new Date().toISOString() }).in('id', ids);
+  toast(`${ids.length} descartados`, 'ok');
+  _pj.triSelecionados.clear();
+  htmlTriagem();
 }
 
 function vincularArquetipos(){
