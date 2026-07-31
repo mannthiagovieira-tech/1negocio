@@ -96,6 +96,7 @@ module.exports = async (req, res) => {
     if (!emp?.enriquecimento_bruto) { resultado.push({projeto_id:p.id, status:'skipped_semente_nao_enriquecida'}); continue; }
     const sement = emp.enriquecimento_bruto.data || emp.enriquecimento_bruto;
     const semCnae = sement.cnae_principal_classe;
+    const semSubclasse = sement.cnae_principal_subclasse;
     const semUf = ufExtenso(sement.uf || p.uf);
     const semFat = Number(sement.faturamento) || 0;
 
@@ -116,52 +117,73 @@ module.exports = async (req, res) => {
       continue;
     }
 
-    // 3) Kipflow · busca similares com faixas do arquétipo (A1 padrão: 3x-15x)
-    // simplificação: usa arquétipo do lote; faixa fixa por código
+    // 3) Kipflow · busca similares com faixas do arquétipo
+    // GATE: sem faturamento na semente, sem âncora de porte — não gera lote
+    if (semFat <= 0) {
+      resultado.push({projeto_id:p.id, lote_id:loteId, status:'skipped_semente_sem_faturamento'});
+      continue;
+    }
     const FX = { A1:{min:3,max:15,uf_diff:false}, A2:{min:0.8,max:3,uf_diff:false}, A5:{min:2,max:10,uf_diff:true}, A6:{min:1,max:5,uf_diff:false} };
     const fx = FX[lote.arquetipo_codigo] || { min:0.5, max:5, uf_diff:false };
+    // Preferimos subclasse (mais específica); cai pra classe se não houver
+    const chaveCnae = semSubclasse ? 'cnae_principal_subclasse' : 'cnae_principal_classe';
+    const valorCnae = semSubclasse || semCnae;
     const andBlocks = [
       { $or: [{ situacao_cadastral: 'ATIVA' }] },
       { $or: [{ matriz: true }] },
-      { $or: [{ cnae_principal_classe: semCnae }] },
+      { $or: [{ [chaveCnae]: valorCnae }] },
+      { $or: [{ faturamento: { $gte: Math.round(semFat*fx.min) } }] },
+      { $or: [{ faturamento: { $lte: Math.round(semFat*fx.max) } }] },
       { $or: [{ cnpj: { $nin: [String(p.cnpj).replace(/\D/g,'')] } }] },
     ];
-    if (semFat > 0) {
-      andBlocks.push({ $or: [{ faturamento: { $gte: Math.round(semFat*fx.min) } }] });
-      andBlocks.push({ $or: [{ faturamento: { $lte: Math.round(semFat*fx.max) } }] });
-    }
     if (semUf) andBlocks.push({ $or: [{ uf: fx.uf_diff ? { $nin:[semUf] } : semUf }] });
 
-    // Pede sem ao Kipflow: meta_quantidade + 30% de folga (pra descontar duplicados)
-    const size = Math.min(1000, Math.max(1, Math.ceil(lote.meta_quantidade * 1.3)));
+    // Kipflow não aceita $sort. Buscamos até 3× a meta pra ordenar do nosso lado por fat desc.
+    // datasets basic+complete+address são necessários pra ter faturamento/porte/cidade/uf. partners é pra sócio decisor.
+    const size = Math.min(1000, Math.max(5, lote.meta_quantidade * 3));
+    const filtrosSnapshot = { chaveCnae, valorCnae, fat_min: Math.round(semFat*fx.min), fat_max: Math.round(semFat*fx.max), uf: semUf, uf_diferente: fx.uf_diff, arquetipo: lote.arquetipo_codigo, size };
     const rK = await fetch('https://api.kipflow.io/companies/v1/search', {
       method:'POST',
       headers: { 'X-API-Key':KEY, 'Content-Type':'application/json', Accept:'application/json' },
-      body: JSON.stringify({ $filter:{$and:andBlocks}, $page:0, $size:size, datasets:['basic','partners'] }),
+      body: JSON.stringify({ $filter:{$and:andBlocks}, $page:0, $size:size, datasets:['basic','complete','address','partners'] }),
     });
     if (!rK.ok) {
       resultado.push({projeto_id:p.id, lote_id:loteId, status:'kipflow_erro', http:rK.status, detalhe:(await rK.text()).slice(0,200)});
       continue;
     }
     const kip = await rK.json();
-    const lista = Array.isArray(kip.data) ? kip.data : [];
+    // Ordena por faturamento desc (aproximação de "maiores primeiro")
+    const lista = (Array.isArray(kip.data) ? kip.data : [])
+      .slice()
+      .sort((a,b) => (Number(b.faturamento)||0) - (Number(a.faturamento)||0));
 
-    // 4) importa até meta_quantidade (dedup: skip se já contato no projeto)
-    let importados = 0; const cnpjsImp = [];
+    // 4) importa até meta_quantidade — regra dura: SEM telefone com WhatsApp, NÃO importa
+    // (Kipflow /companies/v1/search não expõe telefones[] em nenhum dataset — bloqueio conhecido.
+    //  Enquanto não houver fonte de telefone, todos serão skip_sem_telefone e lote vai zerar.)
+    let importados = 0; let skipSemTel = 0; const cnpjsImp = [];
+    const refFiltros = `lote ${semanaAlvo} · ${lote.arquetipo_codigo} · cnae=${valorCnae}(${chaveCnae}) · fat[${filtrosSnapshot.fat_min}-${filtrosSnapshot.fat_max}] · uf=${semUf||''}${fx.uf_diff?'(diff)':''}`;
     for (const e of lista) {
       if (importados >= lote.meta_quantidade) break;
       const cnpj = String(e.cnpj||'').replace(/\D/g,'');
       if (cnpj.length !== 14 || cnpj === String(p.cnpj).replace(/\D/g,'')) continue;
+
+      // Extrai telefone (Kipflow pode devolver em telefones[] se dataset expor; hoje sempre vazio)
+      const telefones = Array.isArray(e.telefones) ? e.telefones : [];
+      const telWpp = telefones.find(t => t.whatsapp === true && t.pertence_contador === false)
+                 || telefones.find(t => t.whatsapp === true)
+                 || null;
+      if (!telWpp) { skipSemTel++; continue; }
+
       const rDup = await fetch(`${SB_URL}/rest/v1/va_contatos?projeto_id=eq.${p.id}&cnpj=eq.${cnpj}&select=id`, { headers: sbHeaders });
       if (((await rDup.json())||[]).length>0) continue;
 
-      // upsert empresa com dados do basic+partners
       const upEmp = {
         cnpj, razao_social: e.razao_social || null, nome_fantasia: e.nome_fantasia || null,
         cidade: e.municipio || null, estado: e.uf || null,
         cnae_codigo: String(e.cnae_principal_classe||'')||null,
         cnae_descricao: e.cnae_principal_desc_classe || null,
         porte_categoria: e.porte || null,
+        porte_faturamento: typeof e.faturamento === 'number' ? e.faturamento : null,
         socios: Array.isArray(e.socios) ? e.socios : null,
         enriquecido_em: new Date().toISOString(), enriquecido_por: 'kipflow',
       };
@@ -176,7 +198,10 @@ module.exports = async (req, res) => {
         method:'POST', headers:{...sbHeaders, Prefer:'return=representation'},
         body: JSON.stringify({
           projeto_id: p.id, empresa_id: empRow?.id, cnpj,
-          origem:'prospeccao', origem_detalhe:`lote semanal ${semanaAlvo} · ${lote.arquetipo_codigo}`,
+          origem:'prospeccao',
+          origem_detalhe: refFiltros,
+          telefone: telWpp.telefone_completo || null,
+          telefone_normalizado: (telWpp.telefone_completo||'').replace(/\D/g,''),
           arquetipo_codigo: lote.arquetipo_codigo, trilha:'fria', estagio:'novo',
           empresa: empRow?.razao_social || null, cidade: empRow?.cidade || null, estado: empRow?.estado || null,
           nome: decisor?.nome_socio || null, cargo: decisor?.qualificacao_socio || null,
@@ -190,16 +215,29 @@ module.exports = async (req, res) => {
         importados++; cnpjsImp.push(cnpj);
         await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
           method:'POST', headers: sbHeaders,
-          body: JSON.stringify({ p_projeto:p.id, p_tipo:'similares_import', p_qtd:1, p_referencia:`lote ${semanaAlvo} · CNPJ ${cnpj}`, p_ciclo:null }),
+          body: JSON.stringify({ p_projeto:p.id, p_tipo:'similares_import', p_qtd:1, p_referencia:refFiltros+` · ${cnpj}`, p_ciclo:null }),
         });
       }
     }
 
-    // 5) atualiza lote + monta notificação programada 'abertura_semana'
+    // 5) atualiza lote + grava AUDIT imutável (sem FK)
     const custo = (importados * 0.39).toFixed(2);
     await fetch(`${SB_URL}/rest/v1/va_projeto_lote_semanal?id=eq.${lote.id}`, {
       method:'PATCH', headers: sbHeaders,
       body: JSON.stringify({ importados, gerados: lista.length, custo_total: custo, cnpjs_importados: cnpjsImp, status: importados>0 ? 'importado' : 'gerado' }),
+    });
+    await fetch(`${SB_URL}/rest/v1/va_lote_audit`, {
+      method:'POST', headers: sbHeaders,
+      body: JSON.stringify({
+        projeto_id: p.id, semana_inicio: semanaAlvo, arquetipo_codigo: lote.arquetipo_codigo,
+        cnpj_semente: String(p.cnpj).replace(/\D/g,''),
+        filtros_aplicados: filtrosSnapshot, breakdown: lote.breakdown,
+        meta_quantidade: lote.meta_quantidade, gerados: lista.length,
+        importados, skip_sem_telefone: skipSemTel, custo_total: custo,
+        cnpjs_importados: cnpjsImp,
+        kipflow_response_amostra: lista.slice(0,3).map(e => ({ cnpj:e.cnpj, razao:e.razao_social, fat:e.faturamento, municipio:e.municipio, uf:e.uf })),
+        status: importados>0 ? 'importado' : (skipSemTel>0 ? 'todos_sem_telefone' : 'sem_match'),
+      }),
     });
 
     // Contexto da abertura (sem nomes de empresa; região agregada)
