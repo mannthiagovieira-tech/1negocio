@@ -3168,7 +3168,108 @@ function htmlTeaser(e){
         ${ctxItem('cliente que teme perder', k.q_cliente)}
         ${ctxItem('o que faria diferente hoje', k.q_diferente)}
       </aside>
+    </div>
+    ${cardLanding()}`;
+}
+
+// ═══ LANDING · card na etapa Teaser ═══════════════════════════
+function cardLanding(){
+  const lp = _pj.landing;
+  const teaserAp = (_pj.teasers||[]).find(t => t.status === 'aprovado');
+  const anexosImg = (_pj.anexos||[]).filter(a =>
+    (a.mime_type||'').startsWith('image/') || /\.(png|jpg|jpeg|webp|gif)$/i.test(a.nome||'')
+  );
+
+  if (!lp) {
+    if (!teaserAp) return `<div class="k-card">
+      <div class="lbl">landing pública</div>
+      <div class="muted" style="margin-top:8px;font-size:13px">Aprove um teaser primeiro pra derivar a landing.</div>
     </div>`;
+    return `<div class="k-card">
+      <div class="lbl">landing pública</div>
+      <p class="muted" style="font-size:13px;margin-top:6px">Cria a landing derivada do teaser aprovado v${teaserAp.versao}. Slug não-adivinhável, noindex+nofollow.</p>
+      <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="landingCriar()">criar landing</button>
+    </div>`;
+  }
+
+  const url = `${location.origin}/lp/${lp.slug}`;
+  return `<div class="k-card">
+    <div class="lbl" style="display:flex;justify-content:space-between">
+      <span>landing pública</span>
+      <span class="mono" style="font-size:11px;color:var(--ink-3)">👁 ${lp.visualizacoes||0} visualizações</span>
+    </div>
+
+    <label style="margin-top:12px;display:block"><span class="lbl">título</span>
+      <input id="lp-titulo" value="${esc(lp.titulo||'')}" onblur="landingSalvar('titulo',this.value)"></label>
+    <label style="margin-top:8px;display:block"><span class="lbl">subtítulo</span>
+      <input id="lp-subt" value="${esc(lp.subtitulo||'')}" onblur="landingSalvar('subtitulo',this.value)"></label>
+    <label style="margin-top:8px;display:block"><span class="lbl">corpo (derivado do teaser)</span>
+      <textarea id="lp-corpo" rows="6" onblur="landingSalvar('corpo',this.value)">${esc(lp.corpo||'')}</textarea></label>
+    <label style="margin-top:8px;display:block"><span class="lbl">destaques (1 por linha)</span>
+      <textarea id="lp-dest" rows="3" onblur="landingSalvarDestaques(this.value)">${(lp.destaques||[]).join('\n')}</textarea></label>
+
+    <div style="margin-top:12px">
+      <div class="lbl" style="margin-bottom:6px">imagens (anexos)</div>
+      ${anexosImg.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px">
+        ${anexosImg.map(a => {
+          const ativo = (lp.imagens||[]).includes(a.url_publica || a.storage_path);
+          return `<div style="border:2px solid ${ativo?'var(--accent)':'var(--line)'};border-radius:6px;padding:4px;cursor:pointer" onclick="landingToggleImg('${esc(a.url_publica || a.storage_path)}')">
+            <img src="${esc(a.url_publica || '')}" style="width:100%;height:60px;object-fit:cover;border-radius:4px" alt="">
+          </div>`;
+        }).join('')}
+      </div>` : '<div class="muted" style="font-size:12px">Sem anexos de imagem. Adicione na etapa Anexos.</div>'}
+    </div>
+
+    <label style="margin-top:12px;display:block"><span class="lbl">sufixo do canal (atribuição wa.me)</span>
+      <input id="lp-canal" value="${esc(lp.canal_sufixo||'LP')}" placeholder="LP" onblur="landingSalvar('canal_sufixo',this.value)"></label>
+
+    <div class="row" style="gap:12px;margin-top:14px;align-items:center;flex-wrap:wrap">
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" ${lp.aprovada_admin?'checked':''} onchange="landingSalvar('aprovada_admin',this.checked)"> aprovada</label>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" ${lp.ativa?'checked':''} onchange="landingSalvar('ativa',this.checked)"> ativa</label>
+    </div>
+
+    <div class="row" style="gap:8px;margin-top:12px;align-items:center">
+      <input readonly value="${esc(url)}" style="flex:1;font-family:var(--mono);font-size:11px" onclick="this.select()">
+      <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${url}').then(()=>toast('link copiado','ok'))">copiar</button>
+      <a href="${url}" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none">abrir</a>
+    </div>
+    ${!lp.aprovada_admin || !lp.ativa ? '<div class="aviso" style="margin-top:8px;font-size:12px">Link só funciona quando aprovada E ativa estão marcadas.</div>' : ''}
+  </div>`;
+}
+async function landingCriar(){
+  const teaserAp = (_pj.teasers||[]).find(t => t.status === 'aprovado');
+  const insBody = {
+    projeto_id: _pj.projeto.id,
+    titulo: _pj.projeto.negocio_titulo || _pj.projeto.setor || 'Oportunidade',
+    subtitulo: `${_pj.projeto.setor||''}${_pj.projeto.cidade?' · '+_pj.projeto.cidade:''}`,
+    corpo: teaserAp?.texto || '',
+    canal_sufixo: 'LP',
+    aprovada_admin: false, ativa: false,
+  };
+  const { error } = await sb.from('va_projeto_landing').insert(insBody);
+  if (error) { toast(error.message,'err'); return; }
+  toast('landing criada','ok'); await renderProjeto(_pj.projeto.id);
+}
+async function landingSalvar(campo, val){
+  const patch = {}; patch[campo] = val; patch.atualizado_em = new Date().toISOString();
+  const { error } = await sb.from('va_projeto_landing').update(patch).eq('projeto_id', _pj.projeto.id);
+  if (error) { toast(error.message,'err'); return; }
+  if (_pj.landing) _pj.landing[campo] = val;
+  toast('salvo','ok');
+  if (campo === 'aprovada_admin' || campo === 'ativa') {
+    // Re-renderiza pra mostrar/esconder aviso
+    if (_abaChave.startsWith('teaser') || _pj.etapas.find(e=>e.chave==='teaser')) desenhaAba();
+  }
+}
+async function landingSalvarDestaques(raw){
+  const arr = raw.split('\n').map(s=>s.trim()).filter(Boolean);
+  await landingSalvar('destaques', arr);
+}
+async function landingToggleImg(url){
+  const atuais = _pj.landing?.imagens || [];
+  const nova = atuais.includes(url) ? atuais.filter(x=>x!==url) : [...atuais, url];
+  await landingSalvar('imagens', nova);
+  desenhaAba();
 }
 
 function vincularTeaser(){
