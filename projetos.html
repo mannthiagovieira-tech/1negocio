@@ -919,7 +919,7 @@ let _abaChave = 'kickoff';
 
 async function renderProjeto(id){
   app.innerHTML = `<div class="empty"><h2>Carregando projeto…</h2></div>`;
-  const [proj, etapas, kickoff, blk, arqCat, arqProj, anx, teas, fin, plano, razao, parcelas, precos, contatos, funil, canaisM, chatArqRow, prospBruta, fonteDesemp, ondas, pausas, aditivos, gateOnda] = await Promise.all([
+  const [proj, etapas, kickoff, blk, arqCat, arqProj, anx, teas, fin, plano, razao, parcelas, precos, contatos, funil, canaisM, chatArqRow, prospBruta, fonteDesemp, ondas, pausas, aditivos, gateOnda, ndas, cartas] = await Promise.all([
     sb.from('va_projetos_resumo').select('*').eq('id', id).maybeSingle(),
     sb.from('va_projeto_etapas').select('*').eq('projeto_id', id).order('ordem'),
     sb.from('va_projeto_kickoff').select('*').eq('projeto_id', id).maybeSingle(),
@@ -943,6 +943,8 @@ async function renderProjeto(id){
     sb.from('va_projeto_pausas').select('*').eq('projeto_id', id).order('pausado_em', {ascending:false}),
     sb.from('va_projeto_aditivos').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}),
     sb.rpc('va_onda_operacional', { p_projeto_id: id }),
+    sb.from('va_ndas').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}),
+    sb.from('va_cartas_intencao').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}),
   ]);
   if (proj.error || !proj.data) { renderErr(proj.error?.message || 'Projeto não encontrado'); return; }
   if (arqCat.data) window._catalogoArq = arqCat.data;
@@ -985,6 +987,8 @@ async function renderProjeto(id){
     pausas: pausas?.data || [],
     aditivos: aditivos?.data || [],
     gateOnda: gateOnda?.data || { operacional: true },
+    ndas: ndas?.data || [],
+    cartas: cartas?.data || [],
   };
   if (!_pj.kickoff) _pj.kickoff = { projeto_id: id, itens: {} };
   desenhaProjeto();
@@ -1616,6 +1620,26 @@ function htmlPreco(e){
       <textarea id="pr-just" rows="5" placeholder="Ex: preço 10% acima da faixa por conta de ponto comercial em rota crescente + contrato de aluguel prorrogado por 5 anos…">${esc(vj)}</textarea>
     </div>
 
+    <div class="k-card">
+      <div class="lbl">flexibilidade de negociação</div>
+      <h3>Até onde você aceita ceder</h3>
+      <p class="motivo">Serve pra comparar automaticamente uma carta de intenções que chegar. Sem isso, cada carta vira decisão do zero.</p>
+      <div class="form-grid" style="margin-top:10px">
+        <div class="fld"><span class="lbl">flexibilidade abaixo do valor (%)</span><input id="pr-flex" type="number" min="0" max="100" step="0.5" value="${p.flexibilidade_percent ?? ''}" placeholder="ex: 10"></div>
+        <div class="fld"><span class="lbl">entrada mínima (%)</span><input id="pr-entmin" type="number" min="0" max="100" step="0.5" value="${p.entrada_minima_percent ?? ''}" placeholder="ex: 30"></div>
+        <div class="fld"><span class="lbl">aceita parcelamento?</span>
+          <select id="pr-parc">
+            <option value="false" ${!p.aceita_parcelamento?'selected':''}>não</option>
+            <option value="true" ${p.aceita_parcelamento?'selected':''}>sim</option>
+          </select>
+        </div>
+        <div class="fld"><span class="lbl">meses máximos</span><input id="pr-parcmax" type="number" min="0" max="60" value="${p.parcelamento_max_meses ?? ''}" placeholder="ex: 24" ${!p.aceita_parcelamento?'disabled':''}></div>
+      </div>
+      <label style="margin-top:12px;display:block"><span class="lbl">observações sobre negociação</span>
+        <textarea id="pr-obsn" rows="2" placeholder="Ex: aceita earnout até 20% do valor · não aceita permuta">${esc(p.observacoes_negociacao||'')}</textarea>
+      </label>
+    </div>
+
     ${comissaoProj != null ? `
       <div class="k-card" style="background:linear-gradient(135deg,rgba(10,157,85,.05),transparent)">
         <div class="lbl">projeção</div>
@@ -1636,15 +1660,27 @@ function vincularPreco(){
   if (v) v.addEventListener('blur', () => salvarPrecoCampo('valor_venda', v.value));
   if (d) d.addEventListener('change', () => salvarPrecoCampo('valor_venda_decidido_por', d.value));
   if (j) j.addEventListener('blur', () => salvarPrecoCampo('valor_venda_justificativa', j.value));
+  const flex = document.getElementById('pr-flex');
+  const ent  = document.getElementById('pr-entmin');
+  const parc = document.getElementById('pr-parc');
+  const parcM= document.getElementById('pr-parcmax');
+  const obsn = document.getElementById('pr-obsn');
+  if (flex) flex.addEventListener('blur', () => salvarPrecoCampo('flexibilidade_percent', flex.value));
+  if (ent) ent.addEventListener('blur',   () => salvarPrecoCampo('entrada_minima_percent', ent.value));
+  if (parc) parc.addEventListener('change',() => { salvarPrecoCampo('aceita_parcelamento', parc.value==='true'); if(parcM) parcM.disabled = parc.value!=='true'; });
+  if (parcM) parcM.addEventListener('blur',() => salvarPrecoCampo('parcelamento_max_meses', parcM.value));
+  if (obsn) obsn.addEventListener('blur',  () => salvarPrecoCampo('observacoes_negociacao', obsn.value));
 }
 
 async function salvarPrecoCampo(campo, raw){
   let val;
-  if (campo === 'valor_venda') {
+  if (campo === 'valor_venda' || campo === 'flexibilidade_percent' || campo === 'entrada_minima_percent' || campo === 'parcelamento_max_meses') {
     val = (raw==='' || raw==null) ? null : Number(raw);
     if (val != null && !isFinite(val)) { toast('Valor inválido', 'err'); return; }
+  } else if (campo === 'aceita_parcelamento') {
+    val = !!raw;
   } else {
-    val = (raw||'').trim() || null;
+    val = (typeof raw === 'string' ? raw.trim() : raw) || null;
   }
   if (_pj.projeto[campo] === val) return;
   const id = _pj.projeto.id;
@@ -2349,27 +2385,205 @@ async function ondaRetomar(ondaId){
   toast(`retomada · +${data.dias}d, novo fim ${dataBR(data.nova_data_fim)}`,'ok');
   await renderProjeto(_pj.projeto.id);
 }
-async function ondaRenovar(ondaId, tipo){
-  const meses = Number(prompt('Meses da nova onda (mínimo 1):', '3')); if (!meses || meses < 1) return;
+async function ondaRenovar(ondaId, tipo){ abrirPainelRenovacao(ondaId, tipo); }
+async function ondaEncerrar(ondaId){ abrirPainelRenovacao(ondaId, 'encerrar'); }
+
+// Painel de renovação/repactuação/encerramento · substitui prompts do slice ondas
+async function abrirPainelRenovacao(ondaId, tipo){
   const atual = _pj.ondas.find(o => o.id === ondaId);
-  const valor = Number(prompt('Valor mensal (R$):', String(atual?.valor_mensal||0)));
-  const comissao = Number(prompt('Comissão (%):', String(atual?.comissao_percent||5)));
-  if (tipo==='repactuacao') {
-    const just = prompt('Justificativa da repactuação (obrigatória):'); if (!just) { toast('justificativa obrigatória','err'); return; }
-  }
-  const { data, error } = await sb.rpc('va_criar_onda_renovacao', {
-    p_projeto_id: _pj.projeto.id, p_meses: meses, p_valor_mensal: valor, p_comissao_percent: comissao, p_tipo: tipo
+  const contatos = _pj.contatos || [];
+  const razao = _pj.razao || [];
+  const cartas = (_pj.cartas || []);
+
+  // O QUE FOI FEITO
+  const alcancados = contatos.length;
+  const abordados = contatos.filter(c => c.estagio !== 'novo').length;
+  const responderam = contatos.filter(c => c.respondeu_toque1_em).length;
+  const interessados = contatos.filter(c => ['interesse_inicial','apresentado','nda_assinado','em_negociacao','proposta'].includes(c.estagio)).length;
+  const ndas = (_pj.ndas || []).filter(n => n.assinado_em).length;
+  const propostas = contatos.filter(c => c.estagio === 'proposta').length;
+  const invest = razao.filter(r => r.onda_id === ondaId).reduce((s,r) => s + Number(r.valor_total||0), 0);
+
+  // O QUE ESTÁ QUENTE
+  const quentes = contatos.filter(c => ['em_negociacao','proposta'].includes(c.estagio)).map(c => {
+    const dias = Math.ceil((Date.now() - new Date(c.atualizado_em)) / 86400000);
+    return { nome: c.nome || c.empresa || '(sem nome)', estagio: c.estagio, dias };
   });
-  if (error) { toast(error.message,'err'); return; }
-  toast('onda criada · aguardando pagamento','ok');
+  const cartasAbertas = cartas.filter(c => ['gerada','enviada','assinada'].includes(c.status));
+
+  // SALDO A TRANSFERIR
+  const saldo = Number(_pj.financeiro?.saldo || 0);
+
+  // O QUE MORRE SE PARAR
+  const emAndamento = contatos.filter(c => ['interesse_inicial','apresentado','em_negociacao','proposta','nda_assinado'].includes(c.estagio)).length;
+  const filaNaoTrab = (_pj.prospBruta || []).filter(b => b.status === 'qualificado').length;
+
+  const tituloMap = { renovacao:'Renovar mandato', repactuacao:'Repactuar mandato', encerrar:'Encerrar mandato' };
+  const titulo = tituloMap[tipo] || 'Renovar';
+
+  const html = `
+    <div id="painel-ren-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998" onclick="fecharPainelRen()"></div>
+    <div id="painel-ren" style="position:fixed;top:5%;left:50%;transform:translateX(-50%);width:95%;max-width:900px;max-height:90vh;overflow-y:auto;background:var(--surface);border-radius:12px;padding:24px;z-index:9999;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+      <div class="row" style="justify-content:space-between;align-items:baseline">
+        <h2 style="margin:0">${titulo}</h2>
+        <button class="btn btn-ghost btn-sm" onclick="fecharPainelRen()">×</button>
+      </div>
+      <p class="muted" style="margin-top:6px">Onda ${atual?.numero} · fim ${dataBR(atual?.data_fim)}</p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:16px">
+        <div class="k-card" style="margin:0;padding:14px">
+          <div class="lbl" style="font-size:10px">o que foi feito</div>
+          <div style="font-size:13px;line-height:1.6;margin-top:6px">
+            ${alcancados} alcançados<br>${abordados} abordados<br>${responderam} responderam<br>${interessados} interessados<br>${ndas} NDA${ndas!==1?'s':''} · ${propostas} propostas
+            <div style="margin-top:8px;font-weight:700">R$ ${invest.toLocaleString('pt-BR',{minimumFractionDigits:2})} investido</div>
+          </div>
+        </div>
+        <div class="k-card" style="margin:0;padding:14px">
+          <div class="lbl" style="font-size:10px">o que está quente</div>
+          <div style="font-size:12px;line-height:1.5;margin-top:6px">
+            ${quentes.length ? quentes.slice(0,6).map(q => `${esc(q.nome)} · ${q.estagio} · ${q.dias}d`).join('<br>') : '<span class="muted">nenhum contato em negociação</span>'}
+            ${cartasAbertas.length ? `<div style="margin-top:6px;color:var(--accent-2)"><b>${cartasAbertas.length} carta(s) de intenção em aberto</b></div>` : ''}
+          </div>
+        </div>
+        <div class="k-card" style="margin:0;padding:14px">
+          <div class="lbl" style="font-size:10px">saldo a transferir</div>
+          <div style="font-size:20px;font-weight:700;color:${saldo>0?'green':'#c60'};margin-top:6px">R$ ${saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+          <div class="muted" style="font-size:11px;margin-top:4px">${saldo>0?'crédito vai pra nova onda':'sem saldo pra transferir'}</div>
+        </div>
+        <div class="k-card" style="margin:0;padding:14px;${quentes.length||filaNaoTrab?'border-color:#f08060;background:#fff5f0':''}">
+          <div class="lbl" style="font-size:10px">o que morre se parar</div>
+          <div style="font-size:13px;line-height:1.6;margin-top:6px">
+            ${emAndamento} contato(s) em andamento<br>${filaNaoTrab} qualificados na fila<br>${cartasAbertas.length} carta(s) em aberto<br>Cadência para no dia
+          </div>
+        </div>
+      </div>
+
+      <div class="k-card" style="margin-top:16px">
+        ${tipo === 'encerrar' ? `
+          <label>Motivo do encerramento (obrigatório)<textarea id="pr-motivo" rows="2"></textarea></label>
+          <label>Recomendação escrita para o cliente<textarea id="pr-rec" rows="3" placeholder="O que o cliente deveria fazer daqui?"></textarea></label>
+        ` : `
+          <div class="form-grid">
+            <div class="fld"><span class="lbl">meses</span><input id="pr-meses" type="number" min="1" value="3"></div>
+            <div class="fld"><span class="lbl">valor mensal (R$)</span><input id="pr-valor" type="number" min="0" value="${atual?.valor_mensal||0}"></div>
+            <div class="fld"><span class="lbl">comissão (%)</span><input id="pr-com" type="number" min="0" max="100" step="0.5" value="${atual?.comissao_percent||5}"></div>
+          </div>
+          ${tipo === 'repactuacao' ? `<label>Justificativa da repactuação (obrigatória)<textarea id="pr-just" rows="2"></textarea></label>` : ''}
+        `}
+      </div>
+
+      <div class="row" style="gap:8px;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-ghost" onclick="fecharPainelRen()">cancelar</button>
+        <button class="btn btn-primary" onclick="confirmarPainelRen('${ondaId}','${tipo}')">${tipo==='encerrar'?'encerrar mandato':'criar nova onda'}</button>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function fecharPainelRen(){
+  document.getElementById('painel-ren-backdrop')?.remove();
+  document.getElementById('painel-ren')?.remove();
+}
+async function confirmarPainelRen(ondaId, tipo){
+  if (tipo === 'encerrar') {
+    const motivo = document.getElementById('pr-motivo').value.trim();
+    if (!motivo) { toast('motivo obrigatório','err'); return; }
+    const rec = document.getElementById('pr-rec').value.trim();
+    const { error } = await sb.from('va_projeto_ondas').update({ status:'encerrada', encerrada_em: new Date().toISOString(), observacao: motivo + (rec?' · rec: '+rec:'') }).eq('id', ondaId);
+    if (error) { toast(error.message,'err'); return; }
+    toast('encerrada','ok');
+  } else {
+    const meses = Number(document.getElementById('pr-meses').value);
+    const valor = Number(document.getElementById('pr-valor').value);
+    const com = Number(document.getElementById('pr-com').value);
+    if (!meses || meses < 1) { toast('meses inválido','err'); return; }
+    if (tipo === 'repactuacao') {
+      const just = document.getElementById('pr-just').value.trim();
+      if (!just) { toast('justificativa obrigatória','err'); return; }
+    }
+    const { error } = await sb.rpc('va_criar_onda_renovacao', {
+      p_projeto_id: _pj.projeto.id, p_meses: meses, p_valor_mensal: valor, p_comissao_percent: com, p_tipo: tipo
+    });
+    if (error) { toast(error.message,'err'); return; }
+    toast('onda criada · aguardando pagamento','ok');
+  }
+  fecharPainelRen();
   await renderProjeto(_pj.projeto.id);
 }
-async function ondaEncerrar(ondaId){
-  const motivo = prompt('Motivo do encerramento:'); if (!motivo) return;
-  const rec = prompt('Recomendação para o cliente:') || null;
-  const { error } = await sb.from('va_projeto_ondas').update({ status:'encerrada', encerrada_em: new Date().toISOString(), observacao: motivo + (rec?' · rec: '+rec:'') }).eq('id', ondaId);
+
+// ═══ CARTAS DE INTENÇÃO · handlers admin ═══════════════════════
+async function cartaGerar(contatoId){
+  const { data, error } = await sb.rpc('va_gerar_carta_intencao', { p_contato_id: contatoId });
   if (error) { toast(error.message,'err'); return; }
-  toast('encerrada','ok'); await renderProjeto(_pj.projeto.id);
+  const carta = await sb.from('va_cartas_intencao').select('token_publico').eq('id', data).single();
+  const url = `${location.origin}/carta/${carta.data.token_publico}`;
+  try { await navigator.clipboard.writeText(url); toast('link copiado · '+url,'ok'); } catch { alert('Link: '+url); }
+  await renderProjeto(_pj.projeto.id);
+}
+async function cartaDecidir(cartaId, decisao){
+  const just = prompt(`Justificativa da ${decisao==='aceitar'?'aceitação':'recusa'}:`); if (!just) return;
+  const { error } = await sb.rpc('va_decidir_carta', { p_carta_id: cartaId, p_decisao: decisao, p_justificativa: just });
+  if (error) { toast(error.message,'err'); return; }
+  toast(decisao==='aceitar'?'carta aceita':'carta recusada','ok');
+  await renderProjeto(_pj.projeto.id);
+}
+
+function cardAtCartas(){
+  const cartas = _pj.cartas || [];
+  const contatosNDA = (_pj.contatos||[]).filter(c => (_pj.ndas||[]).some(n => n.contato_id === c.id && n.assinado_em));
+  const valorVenda = Number(_pj.projeto?.valor_venda || 0);
+  const flex = Number(_pj.projeto?.flexibilidade_percent || 0);
+  const valorMinimo = valorVenda * (1 - flex/100);
+
+  const compara = c => {
+    if (!c.valor_ofertado || !valorVenda) return '';
+    const desvio = ((c.valor_ofertado - valorVenda) / valorVenda * 100).toFixed(1);
+    const dentro = c.valor_ofertado >= valorMinimo;
+    const cor = dentro ? 'green' : '#c60';
+    return `<span style="color:${cor};font-size:12px">${desvio>0?'+':''}${desvio}% ${dentro?'· dentro da flexibilidade':'· ABAIXO do mínimo (R$ '+valorMinimo.toLocaleString('pt-BR')+')'}</span>`;
+  };
+
+  const rows = cartas.length ? cartas.map(c => {
+    const ct = (_pj.contatos||[]).find(x => x.id === c.contato_id);
+    return `<div style="border-top:1px solid var(--line);padding:10px 0">
+      <div class="row" style="justify-content:space-between">
+        <div><strong>${esc(ct?.nome || ct?.empresa || '(contato)')} </strong> <span class="pill">${esc(c.status)}</span></div>
+        <div>R$ ${Number(c.valor_ofertado||0).toLocaleString('pt-BR')}</div>
+      </div>
+      <div style="font-size:12px;margin-top:4px">${compara(c)}</div>
+      <div class="muted" style="font-size:12px;margin-top:2px">${c.forma_pagamento?esc(c.forma_pagamento).slice(0,80):'—'}</div>
+      <div class="row" style="gap:6px;margin-top:6px">
+        <button class="btn btn-ghost btn-sm" onclick="cartaAbrirLink('${c.token_publico}')">link público</button>
+        ${c.status==='assinada'?`
+          <button class="btn btn-ghost btn-sm" onclick="cartaDecidir('${c.id}','aceitar')">aceitar</button>
+          <button class="btn btn-ghost btn-sm" onclick="cartaDecidir('${c.id}','recusar')">recusar</button>
+        `:''}
+      </div>
+    </div>`;
+  }).join('') : '<div class="bl-empty">Sem cartas geradas ainda.</div>';
+
+  const gerarBox = contatosNDA.length ? `
+    <div style="margin-top:12px">
+      <div class="lbl" style="margin-bottom:6px">gerar carta para</div>
+      <select id="carta-ct" style="padding:8px 10px;font-size:13px">
+        <option value="">— escolher contato com NDA assinado —</option>
+        ${contatosNDA.map(c => `<option value="${c.id}">${esc(c.nome || c.empresa || c.id)}</option>`).join('')}
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="if(document.getElementById('carta-ct').value)cartaGerar(document.getElementById('carta-ct').value);else toast('escolha um contato','err')">+ gerar carta</button>
+    </div>` : '<div class="muted" style="margin-top:12px;font-size:12px">Nenhum contato com NDA assinado. Só é possível gerar carta após NDA.</div>';
+
+  return `<div class="k-card">
+    <div class="lbl">Cartas de Intenção</div>
+    <div class="aviso" style="margin:8px 0;background:#fff8e1;font-size:12px">
+      ⚠ Modelo NÃO revisado juridicamente. Submeta a um advogado antes do primeiro uso real.
+    </div>
+    ${gerarBox}
+    <div style="margin-top:12px">${rows}</div>
+  </div>`;
+}
+function cartaAbrirLink(token){
+  const url = `${location.origin}/carta/${token}`;
+  navigator.clipboard.writeText(url).then(()=>toast('link copiado','ok')).catch(()=>alert('Link: '+url));
+  window.open(url, '_blank');
 }
 async function aditivoNovo(ondaId){
   const valor = Number(prompt('Valor (R$):')); if (!valor || valor <= 0) return;
@@ -4437,6 +4651,7 @@ function desenharAtendimento(){
     ${cardAtCanais()}
     ${cardAtAtendimentos()}
     ${cardAtNdas()}
+    ${cardAtCartas()}
     ${cardAtDossies()}`;
   vincularAtendimento();
 }

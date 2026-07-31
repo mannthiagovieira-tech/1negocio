@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Carta de Intenções · 1Negócio</title>
+<style>
+  :root{--ink:#1a1a1a;--ink-2:#333;--ink-3:#666;--line:#e0e0e0;--accent:#3b6fd6;--surface:#fff;--surface-2:#f7f8fa;--r:12px;--sh:0 1px 3px rgba(0,0,0,.04)}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;color:var(--ink);background:var(--surface-2);line-height:1.5}
+  .wrap{max-width:640px;margin:0 auto;padding:24px 16px 80px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px;margin-bottom:16px;box-shadow:var(--sh)}
+  h1{font-size:22px;margin:0 0 6px}
+  h2{font-size:16px;margin:0 0 12px}
+  .muted{color:var(--ink-3);font-size:13.5px}
+  .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600}
+  label{display:block;font-size:13px;color:var(--ink-2);margin-top:14px;font-weight:500}
+  input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;margin-top:4px}
+  textarea{resize:vertical;min-height:70px}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row > *{flex:1;min-width:140px}
+  .btn{padding:12px 24px;border-radius:8px;border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed}
+  .btn-ghost{background:var(--surface);color:var(--ink-2);border:1px solid var(--line)}
+  .stepper{display:flex;gap:6px;margin-bottom:20px}
+  .step-dot{flex:1;height:4px;background:var(--line);border-radius:2px}
+  .step-dot.on{background:var(--accent)}
+  .aviso{background:#fff8e1;border:1px solid #f0c040;border-radius:8px;padding:12px;font-size:13px;color:#7a5a00;margin:16px 0}
+  .aviso-red{background:#ffe8e0;border:1px solid #f08060;border-radius:8px;padding:12px;font-size:13px;color:#800}
+  .doc{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:16px;font-size:13.5px;line-height:1.7;white-space:pre-wrap;font-family:'Georgia',serif;max-height:400px;overflow-y:auto}
+  .cond{display:none}
+  .cond.on{display:block}
+  .success{background:#e8f5e8;border:1px solid #4a8a4a;color:#265426;padding:20px;border-radius:8px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="card"><h2>Carregando…</h2></div>
+</div>
+<script>
+const API = '/api/carta-publica';
+const params = new URLSearchParams(location.search);
+const token = params.get('t');
+let carta = null, dados = {}, passo = 1;
+
+async function init(){
+  if (!token) return renderErro('Link inválido — token ausente.');
+  const r = await fetch(API+'?t='+encodeURIComponent(token));
+  const d = await r.json();
+  if (!r.ok || !d.ok) return renderErro(d.erro || 'Carta não encontrada');
+  carta = d.carta;
+  if (carta.status === 'assinada' || carta.status === 'aceita_pelo_vendedor' || carta.status === 'recusada_pelo_vendedor') {
+    return renderJaAssinada();
+  }
+  passo = 1;
+  render();
+}
+
+function renderErro(msg){
+  document.getElementById('app').innerHTML = `<div class="card"><h1>⚠ ${esc(msg)}</h1><p class="muted">Se acha que é engano, entre em contato com quem enviou o link.</p></div>`;
+}
+function renderJaAssinada(){
+  document.getElementById('app').innerHTML = `<div class="card"><div class="success"><h2 style="margin:0 0 8px">Carta já assinada</h2><p style="margin:0">Esta carta de intenções já foi registrada e enviada ao vendedor. Você será contatado sobre a decisão dentro do prazo de validade.</p></div></div>`;
+}
+
+function render(){
+  const stepper = `<div class="stepper">${[1,2,3,4].map(n=>`<div class="step-dot ${passo>=n?'on':''}"></div>`).join('')}</div>`;
+  if (passo === 1) renderPasso1(stepper);
+  else if (passo === 2) renderPasso2(stepper);
+  else if (passo === 3) renderPasso3(stepper);
+  else if (passo === 4) renderPasso4(stepper);
+}
+
+function renderPasso1(sh){
+  document.getElementById('app').innerHTML = `${sh}
+    <div class="card">
+      <div class="lbl">passo 1 de 4</div>
+      <h1>Dados do ofertante</h1>
+      <p class="muted">Você está iniciando uma Carta de Intenções não vinculante para negócio identificado sob código sigiloso. Todos os campos são obrigatórios.</p>
+      <label>Você é pessoa física ou jurídica?
+        <select id="tipo" onchange="onTipo()">
+          <option value="pf">Pessoa Física (CPF)</option>
+          <option value="pj">Pessoa Jurídica (CNPJ)</option>
+        </select>
+      </label>
+      <label>Nome completo ou razão social <input id="nome"></label>
+      <label>CPF ou CNPJ <input id="documento"></label>
+      <label>Endereço completo <input id="endereco"></label>
+      <div class="row">
+        <label>E-mail <input id="email" type="email"></label>
+        <label>Telefone <input id="telefone"></label>
+      </div>
+      <div id="camposPJ" class="cond">
+        <label>Representante legal (nome) <input id="representante"></label>
+        <label>CPF do representante <input id="representante_cpf"></label>
+      </div>
+      <div style="margin-top:20px;text-align:right"><button class="btn btn-primary" onclick="salvarP1()">Próximo →</button></div>
+    </div>`;
+  document.getElementById('tipo').value = dados.ofertante_tipo || 'pf';
+  ['nome','documento','endereco','email','telefone','representante','representante_cpf'].forEach(k => {
+    const el = document.getElementById(k);
+    if (el && dados['ofertante_'+k.replace('_cpf','_cpf')] !== undefined) el.value = dados['ofertante_'+k.replace('_cpf','_cpf')] || '';
+  });
+  onTipo();
+}
+function onTipo(){
+  const t = document.getElementById('tipo').value;
+  document.getElementById('camposPJ').classList.toggle('on', t === 'pj');
+}
+function salvarP1(){
+  const t = document.getElementById('tipo').value;
+  const req = ['nome','documento','endereco','email','telefone'];
+  if (t === 'pj') req.push('representante','representante_cpf');
+  for (const k of req) if (!document.getElementById(k).value.trim()) { alert('Preencha todos os campos'); return; }
+  dados.ofertante_tipo = t;
+  dados.ofertante_nome = document.getElementById('nome').value.trim();
+  dados.ofertante_documento = document.getElementById('documento').value.trim();
+  dados.ofertante_endereco = document.getElementById('endereco').value.trim();
+  dados.ofertante_email = document.getElementById('email').value.trim();
+  dados.ofertante_telefone = document.getElementById('telefone').value.trim();
+  dados.ofertante_representante = t==='pj' ? document.getElementById('representante').value.trim() : null;
+  dados.ofertante_representante_cpf = t==='pj' ? document.getElementById('representante_cpf').value.trim() : null;
+  passo = 2; render();
+}
+
+function renderPasso2(sh){
+  document.getElementById('app').innerHTML = `${sh}
+    <div class="card">
+      <div class="lbl">passo 2 de 4</div>
+      <h1>Termos da oferta</h1>
+      <label>Valor ofertado (R$) <input id="valor" type="number" min="1" step="1000"></label>
+      <div class="row">
+        <label>% de entrada <input id="entrada" type="number" min="0" max="100" value="30"></label>
+        <label>Parcelamento (meses) <input id="parcelas" type="number" min="0" value="0"></label>
+      </div>
+      <label>Forma de pagamento <textarea id="forma" placeholder="Ex: entrada à vista + N parcelas mensais em conta corrente, permuta parcial, earnout etc."></textarea></label>
+      <label>Condições suspensivas <textarea id="condicoes" placeholder="Ex: aprovação de crédito, resultado de due diligence sem passivos ocultos > R$X"></textarea></label>
+      <div class="row">
+        <label>Due diligence (dias) <input id="dd" type="number" min="7" value="30"></label>
+        <label>Validade da carta (dias) <input id="validade" type="number" min="7" value="30"></label>
+      </div>
+      <label>Transição desejada (meses de acompanhamento pelo vendedor) <input id="transicao" type="number" min="0" value="3"></label>
+      <label>Observações <textarea id="obs" placeholder="Opcional"></textarea></label>
+      <div style="margin-top:20px;display:flex;justify-content:space-between">
+        <button class="btn btn-ghost" onclick="passo=1;render()">← voltar</button>
+        <button class="btn btn-primary" onclick="salvarP2()">Próximo →</button>
+      </div>
+    </div>`;
+  const set = (id,k)=>{const el=document.getElementById(id);if(el&&dados[k]!==undefined)el.value=dados[k]||''};
+  set('valor','valor_ofertado');set('entrada','percentual_entrada');set('parcelas','prazo_parcelamento_meses');
+  set('forma','forma_pagamento');set('condicoes','condicoes_suspensivas');set('dd','prazo_due_diligence_dias');
+  set('validade','prazo_validade_dias');set('transicao','transicao_desejada_meses');set('obs','observacoes');
+}
+function salvarP2(){
+  const v = Number(document.getElementById('valor').value);
+  if (!v || v <= 0) { alert('Informe o valor ofertado'); return; }
+  dados.valor_ofertado = v;
+  dados.percentual_entrada = Number(document.getElementById('entrada').value) || 0;
+  dados.prazo_parcelamento_meses = Number(document.getElementById('parcelas').value) || 0;
+  dados.forma_pagamento = document.getElementById('forma').value.trim();
+  dados.condicoes_suspensivas = document.getElementById('condicoes').value.trim();
+  dados.prazo_due_diligence_dias = Number(document.getElementById('dd').value) || 30;
+  dados.prazo_validade_dias = Number(document.getElementById('validade').value) || 30;
+  dados.transicao_desejada_meses = Number(document.getElementById('transicao').value) || 3;
+  dados.observacoes = document.getElementById('obs').value.trim();
+  passo = 3; render();
+}
+
+function renderPasso3(sh){
+  const tpl = carta.template || '';
+  const tipoExt = dados.ofertante_tipo === 'pj' ? 'pessoa jurídica' : 'pessoa física';
+  const repr = dados.ofertante_representante ? ', representado por '+dados.ofertante_representante+' (CPF '+dados.ofertante_representante_cpf+')' : '';
+  let corpo = tpl
+    .replaceAll('{{ofertante_nome}}', dados.ofertante_nome||'')
+    .replaceAll('{{ofertante_tipo_extenso}}', tipoExt)
+    .replaceAll('{{ofertante_documento}}', dados.ofertante_documento||'')
+    .replaceAll('{{ofertante_endereco}}', dados.ofertante_endereco||'')
+    .replaceAll('{{ofertante_email}}', dados.ofertante_email||'')
+    .replaceAll('{{ofertante_telefone}}', dados.ofertante_telefone||'')
+    .replaceAll('{{representante_bloco}}', repr)
+    .replaceAll('{{codigo_atendimento}}', '(sigiloso — código do vendedor)')
+    .replaceAll('{{valor_ofertado}}', Number(dados.valor_ofertado||0).toLocaleString('pt-BR',{minimumFractionDigits:2}))
+    .replaceAll('{{forma_pagamento}}', dados.forma_pagamento||'')
+    .replaceAll('{{percentual_entrada}}', dados.percentual_entrada||0)
+    .replaceAll('{{prazo_parcelamento_meses}}', dados.prazo_parcelamento_meses||0)
+    .replaceAll('{{condicoes_suspensivas}}', dados.condicoes_suspensivas||'—')
+    .replaceAll('{{prazo_due_diligence_dias}}', dados.prazo_due_diligence_dias||30)
+    .replaceAll('{{prazo_validade_dias}}', dados.prazo_validade_dias||30)
+    .replaceAll('{{transicao_desejada_meses}}', dados.transicao_desejada_meses||3)
+    .replaceAll('{{observacoes}}', dados.observacoes||'')
+    .replaceAll('{{nda_id}}', '(referência interna)')
+    .replaceAll('{{data_assinatura}}', '(será preenchido na assinatura)')
+    .replaceAll('{{ip}}', '(registrado na assinatura)')
+    .replaceAll('{{ofertante_nome_assinatura}}', dados.ofertante_nome||'');
+
+  document.getElementById('app').innerHTML = `${sh}
+    <div class="card">
+      <div class="lbl">passo 3 de 4</div>
+      <h1>Revisão do documento</h1>
+      <p class="muted">Confira o texto abaixo. Ao avançar, você será solicitado a assinar.</p>
+      <div class="doc" id="doc"></div>
+      <div style="margin-top:20px;display:flex;justify-content:space-between">
+        <button class="btn btn-ghost" onclick="passo=2;render()">← voltar</button>
+        <button class="btn btn-primary" onclick="passo=4;render()">Ler e assinar →</button>
+      </div>
+    </div>`;
+  document.getElementById('doc').textContent = corpo;
+}
+
+function renderPasso4(sh){
+  document.getElementById('app').innerHTML = `${sh}
+    <div class="card">
+      <div class="lbl">passo 4 de 4</div>
+      <h1>Aceite e assinatura</h1>
+      <div class="aviso-red">
+        Esta carta expressa intenção de negociação e <b>não constitui obrigação de compra</b>. Vinculam-se apenas as cláusulas de sigilo, exclusividade e prazo de validade.
+      </div>
+      <p style="font-size:14px">Ao confirmar abaixo, você declara que:</p>
+      <ul style="font-size:13.5px;color:var(--ink-2);line-height:1.7">
+        <li>Leu o documento na íntegra na etapa anterior;</li>
+        <li>Os dados informados são verdadeiros;</li>
+        <li>Está ciente da não-vinculância da compra e da vinculância das cláusulas de sigilo/exclusividade;</li>
+        <li>Está ciente que sua assinatura, IP e data serão registrados.</li>
+      </ul>
+      <label><input type="checkbox" id="aceite" style="width:auto;margin-right:8px"> Li, entendi e concordo com todos os termos.</label>
+      <div style="margin-top:20px;display:flex;justify-content:space-between">
+        <button class="btn btn-ghost" onclick="passo=3;render()">← voltar</button>
+        <button class="btn btn-primary" id="btn-assinar" onclick="assinar()">Assinar e enviar</button>
+      </div>
+      <div id="status" class="muted" style="margin-top:10px;text-align:center"></div>
+    </div>`;
+}
+
+async function assinar(){
+  if (!document.getElementById('aceite').checked) { alert('Confirme o aceite antes de assinar'); return; }
+  const btn = document.getElementById('btn-assinar'); btn.disabled = true;
+  const st = document.getElementById('status'); st.textContent = 'enviando…';
+  const r = await fetch(API, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ token, dados }),
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) { st.textContent = 'erro: '+(d.erro||'?'); btn.disabled = false; return; }
+  document.getElementById('app').innerHTML = `<div class="card"><div class="success"><h2 style="margin:0 0 8px">Carta assinada com sucesso ✓</h2><p style="margin:0">Registramos sua Carta de Intenções. O vendedor será notificado e retornará dentro do prazo de validade que você definiu. Guarde este link — ele mostra o status.</p></div></div>`;
+}
+
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c])}
+init();
+</script>
+</body>
+</html>
