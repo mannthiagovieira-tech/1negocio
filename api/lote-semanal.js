@@ -117,31 +117,71 @@ module.exports = async (req, res) => {
       continue;
     }
 
-    // 3) Kipflow · busca similares com faixas do arquétipo
-    // GATE: sem faturamento na semente, sem âncora de porte — não gera lote
+    // 3) Kipflow · busca similares
+    // GATE 1: sem faturamento na semente → sem âncora de porte
     if (semFat <= 0) {
       resultado.push({projeto_id:p.id, lote_id:loteId, status:'skipped_semente_sem_faturamento'});
       continue;
     }
+    // GATE 2 (novo): queries_busca do arquétipo é obrigatório · não deduzimos CNAE da semente
+    const rArq = await fetch(`${SB_URL}/rest/v1/va_projeto_arquetipos?projeto_id=eq.${p.id}&codigo=eq.${lote.arquetipo_codigo}&select=queries_busca`, { headers: sbHeaders });
+    const [arqRow] = await rArq.json();
+    const queries = Array.isArray(arqRow?.queries_busca) ? arqRow.queries_busca.filter(Boolean) : [];
+    if (queries.length === 0) {
+      // arquétipo não calibrado — grava audit + notifica admin (imediata)
+      await fetch(`${SB_URL}/rest/v1/rpc/va_notificar`, {
+        method:'POST', headers: sbHeaders,
+        body: JSON.stringify({
+          p_projeto_id: p.id, p_tipo: 'imediata', p_subtipo: 'arquetipo_nao_calibrado',
+          p_corpo: `Arquétipo ${lote.arquetipo_codigo} sem queries_busca — lote da semana ${semanaAlvo} não foi gerado. Calibre o arquétipo com CNAEs (número) ou palavras-chave (texto) na tela de arquétipos.`,
+          p_meta: { projeto_id: p.id, lote_id: lote.id, arquetipo: lote.arquetipo_codigo },
+        }),
+      });
+      await fetch(`${SB_URL}/rest/v1/va_projeto_lote_semanal?id=eq.${lote.id}`, {
+        method:'PATCH', headers: sbHeaders,
+        body: JSON.stringify({ status:'cancelado', observacao:'arquetipo_nao_calibrado_queries_busca_vazio' }),
+      });
+      resultado.push({projeto_id:p.id, lote_id:lote.id, status:'arquetipo_nao_calibrado'});
+      continue;
+    }
+
     const FX = { A1:{min:3,max:15,uf_diff:false}, A2:{min:0.8,max:3,uf_diff:false}, A5:{min:2,max:10,uf_diff:true}, A6:{min:1,max:5,uf_diff:false} };
     const fx = FX[lote.arquetipo_codigo] || { min:0.5, max:5, uf_diff:false };
-    // Preferimos subclasse (mais específica); cai pra classe se não houver
-    const chaveCnae = semSubclasse ? 'cnae_principal_subclasse' : 'cnae_principal_classe';
-    const valorCnae = semSubclasse || semCnae;
+
+    // Monta $or com queries do arquétipo: número vira CNAE (classe/subclasse),
+    // string vira $fuzzy em razao_social.
+    const orQueries = [];
+    for (const q of queries) {
+      const s = String(q).trim();
+      if (/^\d{4,7}$/.test(s)) {
+        // CNAE — 4-5 dígitos = classe; 7 dígitos = subclasse
+        const chave = s.length >= 7 ? 'cnae_principal_subclasse' : 'cnae_principal_classe';
+        orQueries.push({ [chave]: Number(s) });
+      } else if (s.length > 0) {
+        orQueries.push({ razao_social: { $fuzzy: s } });
+      }
+    }
+    if (orQueries.length === 0) {
+      resultado.push({projeto_id:p.id, lote_id:lote.id, status:'arquetipo_queries_invalidas'});
+      continue;
+    }
+
     const andBlocks = [
       { $or: [{ situacao_cadastral: 'ATIVA' }] },
       { $or: [{ matriz: true }] },
-      { $or: [{ [chaveCnae]: valorCnae }] },
+      { $or: orQueries }, // ← queries do arquétipo (CNAE numérico ou keyword fuzzy)
       { $or: [{ faturamento: { $gte: Math.round(semFat*fx.min) } }] },
       { $or: [{ faturamento: { $lte: Math.round(semFat*fx.max) } }] },
       { $or: [{ cnpj: { $nin: [String(p.cnpj).replace(/\D/g,'')] } }] },
     ];
     if (semUf) andBlocks.push({ $or: [{ uf: fx.uf_diff ? { $nin:[semUf] } : semUf }] });
 
-    // Kipflow não aceita $sort. Buscamos até 3× a meta pra ordenar do nosso lado por fat desc.
-    // datasets basic+complete+address são necessários pra ter faturamento/porte/cidade/uf. partners é pra sócio decisor.
     const size = Math.min(1000, Math.max(5, lote.meta_quantidade * 3));
-    const filtrosSnapshot = { chaveCnae, valorCnae, fat_min: Math.round(semFat*fx.min), fat_max: Math.round(semFat*fx.max), uf: semUf, uf_diferente: fx.uf_diff, arquetipo: lote.arquetipo_codigo, size };
+    const filtrosSnapshot = {
+      queries_do_arquetipo: queries,
+      fat_min: Math.round(semFat*fx.min), fat_max: Math.round(semFat*fx.max),
+      uf: semUf, uf_diferente: fx.uf_diff, arquetipo: lote.arquetipo_codigo, size,
+    };
     const rK = await fetch('https://api.kipflow.io/companies/v1/search', {
       method:'POST',
       headers: { 'X-API-Key':KEY, 'Content-Type':'application/json', Accept:'application/json' },
