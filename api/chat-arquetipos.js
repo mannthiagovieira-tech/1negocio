@@ -296,6 +296,12 @@ module.exports = async (req, res) => {
   if (action === 'contagem') {
     if (!tese) return json(res, 400, { ok:false, erro:'tese obrigatória' });
     if (!KEY) return json(res, 503, { ok:false, erro:'KIPFLOW_API_KEY ausente' });
+    // GATE ONDA · contagem gasta Kipflow
+    const rGate = await fetch(SB_URL+'/rest/v1/rpc/va_onda_operacional', {
+      method:'POST', headers: sbHeaders, body: JSON.stringify({ p_projeto_id: sessao.projeto_id }),
+    });
+    const gate = await rGate.json();
+    if (!gate?.operacional) return json(res, 402, { ok:false, erro:'onda_nao_operacional', detalhe: gate?.mensagem });
     // Puxa semente
     const rPj = await safeCall(`${SB_URL}/rest/v1/va_projetos?id=eq.${sessao.projeto_id}&select=cnpj`, { headers: sbHeaders });
     const [proj] = await rPj.json();

@@ -103,6 +103,13 @@ module.exports = async (req, res) => {
 
   const sbHeaders = { apikey: SB_SERVICE, Authorization: 'Bearer ' + SB_SERVICE, 'Content-Type': 'application/json' };
 
+  // GATE ONDA · nada gasta se onda não está operacional
+  const rGate = await fetch(SB_URL+'/rest/v1/rpc/va_onda_operacional', {
+    method:'POST', headers: sbHeaders, body: JSON.stringify({ p_projeto_id: projeto_id }),
+  });
+  const gate = await rGate.json();
+  if (!gate?.operacional) return json(res, 402, { ok:false, erro:'onda_nao_operacional', detalhe: gate?.mensagem, onda_status: gate?.status });
+
   // Gate por arquétipo · só alcancavel_por_cnpj passa
   if (arquetipo_codigo) {
     const rArq = await fetch(`${SB_URL}/rest/v1/va_arquetipos_catalogo?codigo=eq.${arquetipo_codigo}&select=alcancavel_por_cnpj,canal_recomendado,nome`, { headers: sbHeaders });

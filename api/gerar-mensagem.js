@@ -66,6 +66,13 @@ module.exports = async (req, res) => {
   const [projeto] = await rPj.json();
   if (!projeto) return json(res, 404, { ok: false, erro: 'projeto não encontrado' });
 
+  // GATE ONDA
+  const rGate = await fetch(SB_URL+'/rest/v1/rpc/va_onda_operacional', {
+    method:'POST', headers: sbHeaders, body: JSON.stringify({ p_projeto_id: contato.projeto_id }),
+  });
+  const gate = await rGate.json();
+  if (!gate?.operacional) return json(res, 402, { ok:false, erro:'onda_nao_operacional', detalhe: gate?.mensagem });
+
   const rTs = await fetch(`${SB_URL}/rest/v1/va_projeto_teaser?projeto_id=eq.${contato.projeto_id}&status=eq.aprovado&order=versao.desc&limit=1&select=texto`, { headers: sbHeaders });
   const [teaser] = await rTs.json();
 

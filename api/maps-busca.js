@@ -44,6 +44,13 @@ module.exports = async (req, res) => {
   if (!projeto_id) return json(res, 400, { ok:false, erro:'projeto_id obrigatório' });
   if (!termo || !termo.trim()) return json(res, 400, { ok:false, erro:'termo obrigatório' });
 
+  // GATE ONDA
+  const rGate = await fetch(SB_URL+'/rest/v1/rpc/va_onda_operacional', {
+    method:'POST', headers: sbHeaders, body: JSON.stringify({ p_projeto_id: projeto_id }),
+  });
+  const gate = await rGate.json();
+  if (!gate?.operacional) return json(res, 402, { ok:false, erro:'onda_nao_operacional', detalhe: gate?.mensagem });
+
   const size = Math.min(50, Math.max(1, Number(limite) || 10));
   const searchStr = regiao ? `${termo.trim()} em ${regiao.trim()}` : termo.trim();
 

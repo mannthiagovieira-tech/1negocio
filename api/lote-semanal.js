@@ -83,6 +83,13 @@ module.exports = async (req, res) => {
 
   const resultado = [];
   for (const p of (Array.isArray(projetos)?projetos:[])) {
+    // GATE ONDA · pula projetos não operacionais
+    const rGate = await fetch(SB_URL+'/rest/v1/rpc/va_onda_operacional', {
+      method:'POST', headers: sbHeaders, body: JSON.stringify({ p_projeto_id: p.id }),
+    });
+    const gate = await rGate.json();
+    if (!gate?.operacional) { resultado.push({projeto_id:p.id, status:'skipped_onda_'+(gate?.status||'?'), mensagem: gate?.mensagem}); continue; }
+
     // 1a. cadência do projeto (skip se gerar_automaticamente=false, salvo em modo força)
     if (!forcaProjetoId) {
       const rC = await fetch(`${SB_URL}/rest/v1/va_disparo_cadencia?projeto_id=eq.${p.id}&select=gerar_automaticamente`, { headers: sbHeaders });
