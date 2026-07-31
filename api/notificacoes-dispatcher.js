@@ -7,8 +7,8 @@
 // Também executa va_notificar_parcelas_vencendo() a cada rodada.
 // Autoriza via x-cron-secret == CRON_SECRET ou JWT admin.
 
-const SB_URL = process.env.SUPABASE_URL || 'https://dbijmgqlcrgjlcfrastg.supabase.co';
-const SB_ANON = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+const SB_URL = process.env.SUPABASE_URL;
+const SB_ANON = process.env.SUPABASE_ANON_KEY;
 
 function json(res, code, body) { res.status(code).setHeader('Content-Type','application/json'); res.send(JSON.stringify(body)); }
 async function ehAdmin(tok) {

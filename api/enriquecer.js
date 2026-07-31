@@ -4,10 +4,9 @@
 // Segurança: KIPFLOW_API_KEY vive só como env var do Vercel. NUNCA
 //   é retornada no corpo, NUNCA é logada — nem em mensagem de erro.
 
-const SB_URL = process.env.SUPABASE_URL || 'https://dbijmgqlcrgjlcfrastg.supabase.co';
-// Anon key é pública por design — usada só como apikey pra hit no PostgREST.
-// Autorização de fato vem do Authorization: Bearer <jwt_admin> validado via RPC.
-const SB_ANON = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiaWptZ3FsY3JnamxjZnJhc3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNzYxNjMsImV4cCI6MjA4ODY1MjE2M30.mV2rANZ8Nb_AbifTmkEvdfX_nsm8zeT6Al_bPrCzNAA';
+const SB_URL = process.env.SUPABASE_URL;
+// Anon key vem só de env. Autorização real: Bearer <jwt_admin> via RPC.
+const SB_ANON = process.env.SUPABASE_ANON_KEY;
 
 function json(res, code, body) {
   res.status(code).setHeader('Content-Type', 'application/json');

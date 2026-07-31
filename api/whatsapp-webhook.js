@@ -11,7 +11,7 @@
 // Segurança: exige ZAPI_WEBHOOK_TOKEN no header 'x-webhook-token' OU query ?token=
 // comparado com env var. Sem token ou token errado → 200 mas descarta.
 
-const SB_URL = process.env.SUPABASE_URL || 'https://dbijmgqlcrgjlcfrastg.supabase.co';
+const SB_URL = process.env.SUPABASE_URL;
 
 async function lerBody(req) {
   if (req.body) return typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
