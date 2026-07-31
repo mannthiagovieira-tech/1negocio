@@ -2400,7 +2400,86 @@ function htmlContrato(){
     </div>
     ${cardAtual}
     ${acoes}
-    ${cardAditivos}`;
+    ${cardAditivos}
+    ${cardRevisoes()}`;
+}
+
+// ═══ REVISÃO D+60 · card na aba Contrato ══════════════════════
+function cardRevisoes(){
+  const revs = _pj.revisoes || [];
+  if (!revs.length) return `<div class="k-card">
+    <div class="lbl">05 · revisões D+60</div>
+    <div class="muted" style="margin-top:8px;font-size:13px">Nenhuma revisão gerada ainda. O cron cria automaticamente quando a onda atingir 60 dias, ou gere agora:</div>
+    ${(_pj.ondas||[]).filter(o=>o.status==='ativa').map(o=>`
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="revisaoGerar('${o.id}')">gerar revisão · onda ${o.numero}</button>`).join('')}
+  </div>`;
+
+  return `<div class="k-card">
+    <div class="lbl">05 · revisões D+60</div>
+    ${revs.map(r => cardUmaRevisao(r)).join('')}
+    ${(_pj.ondas||[]).filter(o=>o.status==='ativa' && !revs.some(r=>r.onda_id===o.id)).map(o=>`
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="revisaoGerar('${o.id}')">+ gerar revisão · onda ${o.numero}</button>`).join('')}
+  </div>`;
+}
+
+function cardUmaRevisao(r){
+  const p = r.payload || {};
+  const ondaN = p.ondas?.numero;
+  const acima = p.preco?.acima_faixa;
+  const eixos = [
+    { key:'preco', titulo:'preço', evid: `venda R$ ${Number(p.preco?.valor_venda||0).toLocaleString('pt-BR')} · faixa ${p.preco?.valor_avaliacao_min?'R$ '+Number(p.preco.valor_avaliacao_min).toLocaleString('pt-BR'):'?'} → ${p.preco?.valor_avaliacao_max?'R$ '+Number(p.preco.valor_avaliacao_max).toLocaleString('pt-BR'):'?'} · ${p.preco?.cartas_recebidas||0} cartas`, opts:['manter','ajustar','reavaliar'] },
+    { key:'teaser', titulo:'teaser', evid: `${p.teaser?.versoes||0} versões · ${p.teaser?.aprovados||0} aprovada(s)`, opts:['manter','ajustar','refazer'] },
+    { key:'arquetipos', titulo:'arquétipos', evid: `${p.arquetipos?.ativos||0} ativos · ${p.arquetipos?.com_query||0} com query calibrada`, opts:['manter','ajustar','refazer'] },
+    { key:'campanhas', titulo:'campanhas', evid: `${p.campanhas?.ativas||0} ativa(s)`, opts:['manter','ajustar','encerrar'] },
+    { key:'estrategia', titulo:'estratégia', evid: `${p.estrategia?.alcancados||0} alcançados · ${p.estrategia?.interessados||0} interessados · ${p.estrategia?.em_negociacao||0} em negociação · R$ ${Number(p.estrategia?.consumido||0).toLocaleString('pt-BR')} consumido`, opts:['manter','ajustar','repactuar'] },
+  ];
+  return `<div style="border:1px solid var(--line);border-radius:8px;padding:14px;margin-top:12px;background:${r.status==='realizada'?'#f7fdf7':'var(--surface)'}">
+    <div class="row" style="justify-content:space-between;align-items:baseline">
+      <strong>Onda ${ondaN||'?'} · revisão prevista ${dataBR(r.data_prevista)}</strong>
+      <span class="pill">${esc(r.status)}</span>
+    </div>
+    ${acima?`<div class="aviso-red" style="margin-top:8px;background:#ffe8e0;border:1px solid #f08060;color:#800;padding:8px;border-radius:6px;font-size:12.5px">⚠ Preço acima da faixa da avaliação. Revise com atenção — cartas recebidas: ${p.preco?.cartas_recebidas||0}</div>`:''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px">
+      ${eixos.map(e => {
+        const val = r['decisao_'+e.key];
+        return `<div style="border:1px solid var(--line);border-radius:6px;padding:10px;background:var(--surface-2)">
+          <div class="lbl" style="font-size:10px;color:var(--ink-3)">${esc(e.titulo)}</div>
+          <div style="font-size:12px;margin-top:4px;line-height:1.4">${esc(e.evid)}</div>
+          <select onchange="revisaoDecidir('${r.id}','decisao_${e.key}',this.value)" style="width:100%;margin-top:8px;font-size:12px;padding:4px 6px" ${r.status==='realizada'?'disabled':''}>
+            <option value="">— decisão —</option>
+            ${e.opts.map(o=>`<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}
+          </select>
+        </div>`;
+      }).join('')}
+    </div>
+    <label style="display:block;margin-top:10px"><span class="lbl">observações</span>
+      <textarea rows="2" onblur="revisaoObs('${r.id}',this.value)" ${r.status==='realizada'?'disabled':''}>${esc(r.observacoes||'')}</textarea>
+    </label>
+    ${r.status!=='realizada'?`<div style="text-align:right;margin-top:8px">
+      <button class="btn btn-primary btn-sm" onclick="revisaoConcluir('${r.id}')">concluir revisão</button>
+    </div>`:`<div class="muted" style="font-size:11px;margin-top:6px">Concluída em ${r.data_realizada?dataBR(r.data_realizada):'—'}</div>`}
+  </div>`;
+}
+
+async function revisaoGerar(ondaId){
+  const { error } = await sb.rpc('va_gerar_revisao_d60', { p_onda_id: ondaId });
+  if (error) { toast(error.message,'err'); return; }
+  toast('revisão gerada','ok'); await renderProjeto(_pj.projeto.id);
+}
+async function revisaoDecidir(id, campo, valor){
+  const patch = {}; patch[campo] = valor || null;
+  const { error } = await sb.from('va_projeto_revisoes').update(patch).eq('id', id);
+  if (error) { toast(error.message,'err'); return; }
+  const r = (_pj.revisoes||[]).find(x=>x.id===id); if (r) r[campo] = valor;
+  toast('decisão salva','ok');
+}
+async function revisaoObs(id, val){
+  await sb.from('va_projeto_revisoes').update({ observacoes: val.trim()||null }).eq('id', id);
+}
+async function revisaoConcluir(id){
+  if (!confirm('Concluir revisão? Fica travada após isso.')) return;
+  await sb.from('va_projeto_revisoes').update({ status:'realizada', data_realizada: new Date().toISOString().slice(0,10) }).eq('id', id);
+  toast('revisão concluída','ok'); await renderProjeto(_pj.projeto.id);
 }
 
 async function parcelaPagar(id){
