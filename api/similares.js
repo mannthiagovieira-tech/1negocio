@@ -110,6 +110,13 @@ module.exports = async (req, res) => {
   const gate = await rGate.json();
   if (!gate?.operacional) return json(res, 402, { ok:false, erro:'onda_nao_operacional', detalhe: gate?.mensagem, onda_status: gate?.status });
 
+  // GATE MODALIDADE · similares (arquétipos) só na assessorada
+  const rMod = await fetch(SB_URL+'/rest/v1/rpc/va_etapa_ativa', {
+    method:'POST', headers: sbHeaders, body: JSON.stringify({ p_projeto_id: projeto_id, p_etapa_chave: 'arquetipos' }),
+  });
+  const modOk = await rMod.json();
+  if (!modOk) return json(res, 403, { ok:false, erro:'modalidade_nao_libera', detalhe:'Busca de similares está disponível na Venda Assessorada.' });
+
   // Gate por arquétipo · só alcancavel_por_cnpj passa
   if (arquetipo_codigo) {
     const rArq = await fetch(`${SB_URL}/rest/v1/va_arquetipos_catalogo?codigo=eq.${arquetipo_codigo}&select=alcancavel_por_cnpj,canal_recomendado,nome`, { headers: sbHeaders });

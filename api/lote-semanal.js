@@ -89,6 +89,11 @@ module.exports = async (req, res) => {
     });
     const gate = await rGate.json();
     if (!gate?.operacional) { resultado.push({projeto_id:p.id, status:'skipped_onda_'+(gate?.status||'?'), mensagem: gate?.mensagem}); continue; }
+    // GATE MODALIDADE
+    const rMod = await fetch(SB_URL+'/rest/v1/rpc/va_etapa_ativa', {
+      method:'POST', headers: sbHeaders, body: JSON.stringify({ p_projeto_id: p.id, p_etapa_chave: 'operacao' }),
+    });
+    if (!(await rMod.json())) { resultado.push({projeto_id:p.id, status:'skipped_modalidade_nao_libera'}); continue; }
 
     // 1a. cadência do projeto (skip se gerar_automaticamente=false, salvo em modo força)
     if (!forcaProjetoId) {

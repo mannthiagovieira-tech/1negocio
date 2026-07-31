@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!-- TODO · ARQUITETURA DE NÚMEROS
+     Hoje: 1 número para tudo.
+     Alvo: 1 receptivo permanente (nunca banido, links apontam aqui)
+           + N de prospecção rotacionáveis, 1 para cada X projetos.
+     Migrar antes da primeira campanha real de cliente. -->
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -978,7 +983,7 @@ let _abaChave = 'kickoff';
 
 async function renderProjeto(id){
   app.innerHTML = `<div class="empty"><h2>Carregando projeto…</h2></div>`;
-  const [proj, etapas, kickoff, blk, arqCat, arqProj, anx, teas, fin, plano, razao, parcelas, precos, contatos, funil, canaisM, chatArqRow, prospBruta, fonteDesemp, ondas, pausas, aditivos, gateOnda, ndas, cartas, parcMatch, parcEnvios, parcIndic, revisoes, landing] = await Promise.all([
+  const [proj, etapas, kickoff, blk, arqCat, arqProj, anx, teas, fin, plano, razao, parcelas, precos, contatos, funil, canaisM, chatArqRow, prospBruta, fonteDesemp, ondas, pausas, aditivos, gateOnda, ndas, cartas, parcMatch, parcEnvios, parcIndic, revisoes, landing, modEtapas, zapiTels] = await Promise.all([
     sb.from('va_projetos_resumo').select('*').eq('id', id).maybeSingle(),
     sb.from('va_projeto_etapas').select('*').eq('projeto_id', id).order('ordem'),
     sb.from('va_projeto_kickoff').select('*').eq('projeto_id', id).maybeSingle(),
@@ -1009,6 +1014,8 @@ async function renderProjeto(id){
     sb.from('va_parceiro_indicacoes').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}),
     sb.from('va_projeto_revisoes').select('*').eq('projeto_id', id).order('data_prevista', {ascending:false}),
     sb.from('va_projeto_landing').select('*').eq('projeto_id', id).maybeSingle(),
+    sb.from('va_modalidade_etapas').select('etapa_chave, ativa, observacao'),
+    sb.from('va_zapi_telefones').select('*').eq('ativo', true),
   ]);
   if (proj.error || !proj.data) { renderErr(proj.error?.message || 'Projeto não encontrado'); return; }
   if (arqCat.data) window._catalogoArq = arqCat.data;
@@ -1058,6 +1065,8 @@ async function renderProjeto(id){
     parcIndic: parcIndic?.data || [],
     revisoes: revisoes?.data || [],
     landing: landing?.data || null,
+    modEtapas: modEtapas?.data || [],
+    zapiTels: zapiTels?.data || [],
     listaOrdem: 'urgencia',
     listaFiltroStatus: 'todos',
     listaFiltroProposta: false,
@@ -1204,11 +1213,17 @@ function desenhaStep(e){
   const ok = e.status === 'concluida';
   const now = e.status === 'em_andamento';
   const respCls = e.responsavel === 'cliente' ? 'cliente' : '';
+  const mod = _pj.projeto.modalidade || 'assessorada';
+  const etapaModal = (_pj.modEtapas||[]).find(x => x.etapa_chave === e.chave);
+  const bloqueada = etapaModal && !etapaModal.ativa;
+  const lockStyle = bloqueada ? 'opacity:.5;' : '';
+  const lockIcon = bloqueada ? '🔒 ' : '';
+  const tooltip = bloqueada ? ` title="${esc(etapaModal.observacao || 'disponível na Venda Assessorada')}"` : '';
   return `
-    <div class="step ${ok?'ok':''} ${now?'now':''} ${isActive?'active':''}" onclick="trocarAba('${e.chave}')">
+    <div class="step ${ok?'ok':''} ${now?'now':''} ${isActive?'active':''}" onclick="trocarAba('${e.chave}')" style="${lockStyle}"${tooltip}>
       <span class="bul"></span>
-      <span class="tit">${esc(e.titulo)}</span>
-      <span class="meta ${respCls}">${dataBR(e.data_prevista)} · ${esc(e.responsavel||'—')}</span>
+      <span class="tit">${lockIcon}${esc(e.titulo)}</span>
+      <span class="meta ${respCls}">${dataBR(e.data_prevista)} · ${esc(e.responsavel||'—')}${bloqueada?' · '+esc(etapaModal.observacao||'assessorada'):''}</span>
     </div>`;
 }
 
@@ -1238,6 +1253,7 @@ function desenhaAba(){
   if (e.chave === 'laudo')      { stage.innerHTML = htmlLaudo(e);      vincularLaudo();      return; }
   if (e.chave === 'preco')      { stage.innerHTML = htmlPreco(e);      vincularPreco();      return; }
   if (e.chave === 'arquetipos') { stage.innerHTML = htmlArquetipos(e); vincularArquetipos(); return; }
+  if (e.chave === 'publicacao') { stage.innerHTML = htmlPublicacao(e); return; }
   if (e.chave === 'anexos')     { stage.innerHTML = htmlAnexos(e);     vincularAnexos();     return; }
   if (e.chave === 'teaser')     { stage.innerHTML = htmlTeaser(e);     vincularTeaser();     return; }
   stage.innerHTML = htmlEtapaGenerica(e);
@@ -2434,6 +2450,7 @@ function htmlContrato(){
     ${cardAtual}
     ${acoes}
     ${cardAditivos}
+    ${cardConfigNumeros()}
     ${cardRevisoes()}`;
 }
 
@@ -3303,6 +3320,107 @@ async function landingToggleImg(url){
   const nova = atuais.includes(url) ? atuais.filter(x=>x!==url) : [...atuais, url];
   await landingSalvar('imagens', nova);
   desenhaAba();
+}
+
+// ═══ PUBLICAÇÃO NO PORTAL · nova etapa ═══════════════════════
+function htmlPublicacao(e){
+  const p = _pj.projeto;
+  const teaserAp = (_pj.teasers||[]).find(t => t.status === 'aprovado');
+  const publicado = !!p.publicado_em;
+  const link = p.negocio_publicado_id ? `${location.origin}/negocios/${p.negocio_publicado_id}` : null;
+
+  const bloco = publicado ? `
+    <div class="k-card" style="background:linear-gradient(135deg,rgba(10,157,85,.05),transparent)">
+      <div class="lbl">publicado</div>
+      <h3 style="margin-top:6px">Negócio no ar desde ${dataBR(p.publicado_em)}</h3>
+      <div class="row" style="gap:8px;margin-top:12px;align-items:center">
+        <input readonly value="${esc(link)}" style="flex:1;font-family:var(--mono);font-size:11px" onclick="this.select()">
+        <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${link}').then(()=>toast('link copiado','ok'))">copiar</button>
+        <a href="${link}" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none">abrir</a>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="portalDespublicar()">despublicar</button>
+    </div>` : `
+    <div class="k-card">
+      <div class="lbl">status</div>
+      ${teaserAp ? `
+        <h3 style="margin-top:6px">Pronto para publicar</h3>
+        <p class="motivo">Deriva do teaser aprovado v${teaserAp.versao} + laudo + anexos com visibilidade pública. Respeita o nível de sigilo (${esc(p.nivel_sigilo||'padrão')}).</p>
+        <button class="btn btn-primary" style="margin-top:12px" onclick="portalPublicar()">publicar no portal</button>
+      ` : `
+        <div class="aviso">Aprove um teaser primeiro pra publicar.</div>
+      `}
+    </div>`;
+
+  return `
+    <div class="stage-head">
+      <div>
+        <div class="meta">Etapa ${e.ordem}/16 · ${esc(e.responsavel||'—')}</div>
+        <h2>${esc(e.titulo)}</h2>
+        <div class="muted" style="margin-top:6px;font-size:13.5px">Publica o negócio no portal público. Link do card aponta pro WhatsApp receptivo com sufixo identificador.</div>
+      </div>
+      <button class="btn ${e.status==='concluida'?'btn-ghost':'btn-primary'}" onclick="toggleEtapa('${e.id}',${e.status==='concluida'?'true':'false'})">
+        ${e.status === 'concluida' ? '↻ Reabrir' : '✓ Concluir etapa'}
+      </button>
+    </div>
+    ${bloco}`;
+}
+async function portalPublicar(){
+  if (!confirm('Publicar no portal? Fica visível publicamente respeitando o nível de sigilo.')) return;
+  const sess = (await sb.auth.getSession()).data.session;
+  const r = await fetch('/api/publicar-portal', {
+    method:'POST', headers:{'Content-Type':'application/json',Authorization:'Bearer '+(sess?.access_token||'')},
+    body: JSON.stringify({ projeto_id: _pj.projeto.id, action: 'publicar' }),
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) { toast(d.erro||'erro','err'); return; }
+  toast('publicado · '+d.link,'ok'); await renderProjeto(_pj.projeto.id);
+}
+async function portalDespublicar(){
+  if (!confirm('Despublicar? O link deixa de funcionar.')) return;
+  const sess = (await sb.auth.getSession()).data.session;
+  await fetch('/api/publicar-portal', {
+    method:'POST', headers:{'Content-Type':'application/json',Authorization:'Bearer '+(sess?.access_token||'')},
+    body: JSON.stringify({ projeto_id: _pj.projeto.id, action: 'despublicar' }),
+  });
+  toast('despublicado','ok'); await renderProjeto(_pj.projeto.id);
+}
+
+// ═══ CONFIG · números por projeto + modalidade ═══════════════
+function cardConfigNumeros(){
+  const p = _pj.projeto;
+  const tels = _pj.zapiTels || [];
+  const telsSaida = tels.filter(t => t.tipo === 'prospeccao' || t.tipo === null);
+  const telsRecep = tels.filter(t => t.tipo === 'receptivo' || t.tipo === null);
+  const opt = (arr, sel) => `<option value="">— não definido —</option>` +
+    arr.map(t => `<option value="${t.id}" ${sel===t.id?'selected':''}>${esc(t.numero)}${t.observacao?' · '+esc(t.observacao):''}</option>`).join('');
+
+  return `<div class="k-card">
+    <div class="lbl">config · números e modalidade</div>
+    <div class="form-grid" style="margin-top:10px">
+      <div class="fld"><span class="lbl">modalidade</span>
+        <select onchange="salvarProjeto('modalidade',this.value)">
+          <option value="gratuito" ${p.modalidade==='gratuito'?'selected':''}>Gratuito (10%)</option>
+          <option value="guiado" ${p.modalidade==='guiado'?'selected':''}>Guiado (R$ 588 + 5%)</option>
+          <option value="assessorada" ${p.modalidade==='assessorada'?'selected':''}>Assessorada (mensal + 5%)</option>
+        </select>
+      </div>
+      <div class="fld"><span class="lbl">número de saída (prospecção)</span>
+        <select onchange="salvarProjeto('zapi_telefone_saida_id',this.value||null)">${opt(telsSaida, p.zapi_telefone_saida_id)}</select>
+      </div>
+      <div class="fld"><span class="lbl">número receptivo (anúncios/landing)</span>
+        <select onchange="salvarProjeto('zapi_telefone_receptivo_id',this.value||null)">${opt(telsRecep, p.zapi_telefone_receptivo_id)}</select>
+      </div>
+    </div>
+    <p class="muted" style="font-size:12px;margin-top:8px">Links wa.me da landing e portal apontam pro RECEPTIVO. Cadência usa o de SAÍDA.</p>
+  </div>`;
+}
+async function salvarProjeto(campo, val){
+  const patch = {}; patch[campo] = val;
+  const { error } = await sb.from('va_projetos').update(patch).eq('id', _pj.projeto.id);
+  if (error) { toast(error.message,'err'); return; }
+  Object.assign(_pj.projeto, patch);
+  toast('salvo','ok');
+  if (campo === 'modalidade') desenhaProjeto(); // re-renderiza pra atualizar trilha esmaecida
 }
 
 function vincularTeaser(){

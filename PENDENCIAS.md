@@ -20,6 +20,12 @@ Rodando slices A/B/C/D em sequência. Bloqueios anotados aqui, prossigo pro pró
 
 ## SLICE D · Revisão D+60
 
-- **UI da tela de revisão** (5 eixos com evidência e botões manter/ajustar/refazer): apenas backend + cron. Sem tela pra rever/decidir. `va_projeto_revisoes.payload` fica congelado, mas ninguém pode preencher `decisao_*` via UI. Precisa card `cardRevisoes` em algum lugar (Contrato?).
-- **Aviso "preço acima da faixa"** no eixo preço: incluído no payload (`payload.preco.acima_faixa boolean`) mas UI que consome ainda não existe.
+- **UI da tela de revisão** (5 eixos com evidência e botões manter/ajustar/refazer): apenas backend + cron. Sem tela pra rever/decidir. `va_projeto_revisoes.payload` fica congelado, mas ninguém pode preencher `decisao_*` via UI. Precisa card `cardRevisoes` em algum lugar (Contrato?). **RESOLVIDO em slice UI 2/4.**
+- **Aviso "preço acima da faixa"** no eixo preço: incluído no payload (`payload.preco.acima_faixa boolean`) mas UI que consome ainda não existe. **RESOLVIDO em slice UI 2/4.**
+
+## SLICE MODALIDADES · Motor de upsell no relatório cliente
+
+- View `va_upsell_metrica_assessorada` (média alcançados/ciclo dos assessorados, base_projetos) está pronta pra consumo.
+- **Bloco NÃO adicionado ao /meu-projeto.html.** Regra: só mostrar se `base_projetos >= 3` (senão número inventado destrói credibilidade). Precisa inserir em `abaInvestimento` ou aba dedicada de Relatório. Estimado 30 linhas JS.
+- **Motivo:** escopo grande do slice; motor upsell é factual mas não bloqueia operação, dá pra fazer no próximo turno junto com o Slice 13 do Relatório Congelado (que também está backend-only).
 

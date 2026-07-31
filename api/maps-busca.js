@@ -50,6 +50,11 @@ module.exports = async (req, res) => {
   });
   const gate = await rGate.json();
   if (!gate?.operacional) return json(res, 402, { ok:false, erro:'onda_nao_operacional', detalhe: gate?.mensagem });
+  // GATE MODALIDADE
+  const rMod = await fetch(SB_URL+'/rest/v1/rpc/va_etapa_ativa', {
+    method:'POST', headers: sbHeaders, body: JSON.stringify({ p_projeto_id: projeto_id, p_etapa_chave: 'arquetipos' }),
+  });
+  if (!(await rMod.json())) return json(res, 403, { ok:false, erro:'modalidade_nao_libera', detalhe:'Busca Maps está disponível na Venda Assessorada.' });
 
   const size = Math.min(50, Math.max(1, Number(limite) || 10));
   const searchStr = regiao ? `${termo.trim()} em ${regiao.trim()}` : termo.trim();
