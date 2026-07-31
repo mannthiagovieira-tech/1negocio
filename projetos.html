@@ -832,7 +832,7 @@ function renderNovo(){
           </div>
           <div class="form-grid">
             <div class="fld" data-fld="mens"><span class="lbl">mensalidade (R$) *</span><input required type="number" min="1" step="100" id="f-mens" placeholder="ex. 3.000"><span class="fld-err-msg">mensalidade obrigatória e maior que zero</span></div>
-            <div class="fld"><span class="lbl">fidelidade (meses)</span><input type="number" min="1" max="24" id="f-fid" value="3"></div>
+            <div class="fld" data-fld="fid"><span class="lbl">fidelidade (meses) *</span><input required type="number" min="3" max="24" id="f-fid" value="6"><span class="fld-err-msg">mínimo 3 meses</span></div>
             <div class="fld"><span class="lbl">comissão (%)</span><input type="number" min="0" max="100" step="0.5" id="f-com" value="5"></div>
             <div class="fld"><span class="lbl">expectativa valor venda</span><input type="number" min="0" step="1000" id="f-exp" placeholder="ex. 500.000"></div>
           </div>
@@ -846,34 +846,25 @@ function renderNovo(){
 
       <div class="calc-sticky">
         <div class="card">
-          <div class="lbl" style="margin-bottom:14px">projeção da onda</div>
-          <div id="calc-body">
-            <div class="calc-row"><div><div class="calc-lbl">Contrato da onda</div><div class="calc-hint">mensal × fidelidade</div></div><div class="calc-val big" id="c-onda">R$ 0</div></div>
-            <div class="calc-row"><div class="calc-lbl">Impostos <span class="calc-hint" style="margin-left:4px">· 20%</span></div><div class="calc-val" id="c-imp">R$ 0</div></div>
-            <div class="calc-row"><div class="calc-lbl">Gestão <span class="calc-hint" style="margin-left:4px">· 30%</span></div><div class="calc-val" id="c-gest">R$ 0</div></div>
-          </div>
-          <div class="calc-highlight">
-            <div class="calc-row" style="border:none;padding:0">
-              <div><div class="calc-lbl" style="color:var(--accent-2);font-weight:600">Ferramentas · crédito</div><div class="calc-hint" style="color:var(--accent)">· 50% liberado conforme pagamento</div></div>
-              <div class="calc-val big" id="c-fer">R$ 0</div>
-            </div>
-          </div>
-          <div class="calc-row"><div><div class="calc-lbl">Comissão projetada</div><div class="calc-hint">expectativa × %</div></div><div class="calc-val" id="c-com">R$ 0</div></div>
+          <div class="lbl" style="margin-bottom:14px">simulação da onda</div>
+          <div id="calc-sim"><div class="muted" style="font-size:12px">preencha mensalidade e prazo</div></div>
+          <div class="calc-row" style="margin-top:12px"><div><div class="calc-lbl">Comissão projetada</div><div class="calc-hint">expectativa × %</div></div><div class="calc-val" id="c-com">R$ 0</div></div>
         </div>
       </div>
     </div>`;
 
+  let simTimer;
   const upd = () => {
     const mens = Number(document.getElementById('f-mens').value)||0;
     const fid  = Number(document.getElementById('f-fid').value)||0;
     const com  = Number(document.getElementById('f-com').value)||0;
     const exp  = Number(document.getElementById('f-exp').value)||0;
-    const onda = mens*fid;
-    document.getElementById('c-onda').textContent = brlNice(onda);
-    document.getElementById('c-imp').textContent  = brlNice(onda*0.20);
-    document.getElementById('c-gest').textContent = brlNice(onda*0.30);
-    document.getElementById('c-fer').textContent  = brlNice(onda*0.50);
-    document.getElementById('c-com').textContent  = brlNice(exp*(com/100));
+    document.getElementById('c-com').textContent = brlNice(exp*(com/100));
+    clearTimeout(simTimer);
+    const cont = document.getElementById('calc-sim');
+    if (!mens || !fid) { cont.innerHTML = '<div class="muted" style="font-size:12px">preencha mensalidade e prazo</div>'; return; }
+    if (fid < 3) { cont.innerHTML = '<div class="aviso" style="background:#fee;color:#800;padding:10px;border-radius:6px;font-size:12.5px">Prazo mínimo é 3 meses — a avaliação e os setups não cabem em ondas curtas.</div>'; return; }
+    simTimer = setTimeout(() => renderSimulador('novo', mens, fid, null, 'calc-sim'), 300);
   };
   ['f-mens','f-fid','f-com','f-exp'].forEach(id => document.getElementById(id).addEventListener('input', upd));
   upd();
@@ -935,6 +926,7 @@ function renderNovo(){
     const cidade = document.getElementById('f-cid').value.trim();
     const uf = document.getElementById('f-uf').value.trim().toUpperCase();
 
+    const fid = Number(document.getElementById('f-fid').value) || 0;
     const invalidos = [];
     document.querySelectorAll('#new-form .fld.err').forEach(el => el.classList.remove('err'));
     if (!nome) { invalidos.push('nome'); document.querySelector('[data-fld=nome]')?.classList.add('err'); }
@@ -944,6 +936,7 @@ function renderNovo(){
     if (!uf || uf.length !== 2) { invalidos.push('uf'); document.querySelector('[data-fld=uf]')?.classList.add('err'); }
     if (!dt) { invalidos.push('dt'); document.querySelector('[data-fld=dt]')?.classList.add('err'); }
     if (!isFinite(mens) || mens <= 0) { invalidos.push('mens'); document.querySelector('[data-fld=mens]')?.classList.add('err'); }
+    if (!fid || fid < 3) { invalidos.push('fid'); document.querySelector('[data-fld=fid]')?.classList.add('err'); }
     if (invalidos.length) {
       err.textContent = 'Preencha os campos destacados em vermelho.';
       err.classList.remove('hidden');
@@ -2041,7 +2034,10 @@ function cardCanaisManuais(){
     <div class="lbl">04 · canais manuais</div>
     <h3>Onde o comprador está</h3>
     <p class="motivo">Quando o CNAE é residual, a lista de uma associação vale mais que qualquer filtro. Use o chat da IA acima pra sugerir, ou adicione manualmente.</p>
-    <button class="btn btn-ghost btn-sm" onclick="canalAdd()" style="margin-top:8px">adicionar canal</button>
+    <div class="row" style="gap:8px;margin-top:8px">
+      <button class="btn btn-ghost btn-sm" onclick="canalAdd()">adicionar canal</button>
+      <button class="btn btn-ghost btn-sm" onclick="canalSugerirEventos()">🤖 sugerir eventos IA · ~R$ 0,10</button>
+    </div>
   </div>`;
   const grupos = {};
   for (const c of canais) { (grupos[c.tipo] = grupos[c.tipo] || []).push(c); }
@@ -2066,13 +2062,32 @@ function cardCanaisManuais(){
       }).join('')}
     </div>`).join('');
   return `<div class="k-card">
-    <div class="lbl" style="display:flex;justify-content:space-between">
+    <div class="lbl" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
       <span>04 · canais manuais</span>
-      <button class="btn btn-ghost btn-sm" onclick="canalAdd()">+ adicionar</button>
+      <div class="row" style="gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="canalSugerirEventos()">🤖 sugerir eventos · ~R$ 0,10</button>
+        <button class="btn btn-ghost btn-sm" onclick="canalAdd()">+ adicionar</button>
+      </div>
     </div>
     <h3>Onde o comprador está</h3>
     ${html}
   </div>`;
+}
+async function canalSugerirEventos(){
+  if (!confirm('Sugerir eventos com IA?\nCusto estimado: R$ 0,10 (uma chamada Claude).\nResultado cai como tipo="evento" com status "sugerido".')) return;
+  const sess = (await sb.auth.getSession()).data.session;
+  const r = await fetch('/api/canais-sugerir-eventos', {
+    method:'POST', headers:{'Content-Type':'application/json',Authorization:'Bearer '+(sess?.access_token||'')},
+    body: JSON.stringify({ projeto_id: _pj.projeto.id }),
+  });
+  const d = await r.json();
+  if (!r.ok) { toast('erro: '+(d.erro||'?'), 'err'); return; }
+  if (d.erro === 'edge_indisponivel') {
+    toast('Edge sugerir-eventos-gtm precisa aceitar contexto_ad_hoc — reporte ao dev.', 'err');
+    return;
+  }
+  toast(`${d.inseridos||0}/${d.sugeridos||0} eventos inseridos`, 'ok');
+  await renderProjeto(_pj.projeto.id);
 }
 async function canalStatus(id, val){
   await sb.from('va_projeto_canais_manuais').update({ status: val, atualizado_em: new Date().toISOString() }).eq('id', id);
@@ -2556,12 +2571,113 @@ async function ondaRetomar(ondaId){
 async function ondaRenovar(ondaId, tipo){ abrirPainelRenovacao(ondaId, tipo); }
 async function ondaEncerrar(ondaId){ abrirPainelRenovacao(ondaId, 'encerrar'); }
 
+// ═══ SIMULADOR VISUAL · reutilizável ═════════════════════════════
+// Uso: htmlSimulador(container_id, valor_default, meses_default, projeto_id?)
+window._simState = {};
+async function simularAsync(prefix, valor, meses, projetoId){
+  if (meses < 3) return { erro: 'prazo minimo 3 meses' };
+  const { data, error } = await sb.rpc('va_simular_orcamento', {
+    p_valor_mensal: valor, p_meses: meses, p_projeto_id: projetoId || null,
+  });
+  return error ? { erro: error.message } : data;
+}
+function renderSimulador(prefix, valor, meses, projetoId, cont) {
+  const el = document.getElementById(cont); if (!el) return;
+  el.innerHTML = '<div class="muted" style="font-size:12px">calculando…</div>';
+  // Simula na atual e no comparativo (3 ou 6 · o oposto)
+  const cmpMeses = meses === 3 ? 6 : (meses === 6 ? 3 : (meses < 6 ? 6 : 3));
+  Promise.all([
+    simularAsync(prefix, valor, meses, projetoId),
+    simularAsync(prefix, valor, cmpMeses, projetoId),
+  ]).then(([s, cmp]) => {
+    if (s.erro) { el.innerHTML = `<div class="aviso-red" style="background:#fee;color:#800;padding:10px;border-radius:6px">${esc(s.erro)}</div>`; return; }
+    el.innerHTML = simHtml(s, cmp, cmpMeses);
+  });
+}
+function simHtml(s, cmp, cmpMeses){
+  const brl = v => 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const pct = v => (Number(v||0)*100/s.total_contrato).toFixed(1)+'%';
+  const fixos = Number(s.avaliacao||0)+Number(s.setup_arquetipos||0)+Number(s.combo_criativos||0)+Number(s.setup_campanha||0)+Number(s.anuncio_total||0);
+
+  const linhaFixo = (label, val, extra='') => `<tr><td>${label}</td><td class="mono" style="text-align:right">${brl(val)}</td><td class="muted" style="text-align:right;font-size:11px">${extra||pct(val)}</td></tr>`;
+
+  const avalRow = s.avaliacao_ja_paga
+    ? `<tr style="color:var(--ink-3);text-decoration:line-through"><td>Avaliação (já paga)</td><td class="mono" style="text-align:right;text-decoration:none">R$ 588,00</td><td class="muted" style="text-align:right;font-size:11px;text-decoration:none">válida até ${dataBR(s.avaliacao_valida_ate)}</td></tr>`
+    : linhaFixo('Avaliação', s.avaliacao);
+
+  const bA = `
+    <div class="k-card" style="margin:0;padding:12px">
+      <div class="lbl">A · onde vai o dinheiro</div>
+      <table style="width:100%;font-size:12.5px;margin-top:8px">
+        ${linhaFixo('Impostos', s.impostos)}
+        ${linhaFixo('Gestão', s.gestao)}
+        ${avalRow}
+        ${linhaFixo('Setup arquétipos', s.setup_arquetipos)}
+        ${linhaFixo('Combo criativos', s.combo_criativos)}
+        ${linhaFixo('Setup campanha', s.setup_campanha)}
+        ${linhaFixo('Anúncio plataforma', s.anuncio_total)}
+        <tr style="border-top:1px solid var(--line);font-weight:600"><td>Fixos</td><td class="mono" style="text-align:right">${brl(fixos)}</td><td class="muted" style="text-align:right;font-size:11px">${(fixos/s.total_contrato*100).toFixed(1)}%</td></tr>
+        <tr style="font-weight:700;color:${s.sobra_operacional>0?'green':'#c00'}"><td>Sobra operacional</td><td class="mono" style="text-align:right">${brl(s.sobra_operacional)}</td><td class="muted" style="text-align:right;font-size:11px">${brl(s.sobra_operacional_mensal)}/mês</td></tr>
+      </table>
+    </div>`;
+
+  const impPct = Number(s.percent_impulsionamento||0);
+  const leadPct = Number(s.percent_lead||0);
+  const impVal = s.sobra_operacional * (impPct/100);
+  const leadVal = s.sobra_operacional * (leadPct/100);
+  const aviso = s.aviso ? `<div class="aviso" style="margin-top:8px;font-size:12px;background:${s.impulsionamento_desligado?'#ffe8e0':'#fff8e1'};padding:8px;border-radius:6px">${esc(s.aviso)}</div>` : '';
+  const bB = `
+    <div class="k-card" style="margin:0;padding:12px">
+      <div class="lbl">B · alocação</div>
+      ${s.sobra_operacional > 0 ? `
+        <div style="display:flex;height:36px;margin-top:8px;border-radius:6px;overflow:hidden">
+          ${impPct>0?`<div style="flex:${impPct};background:linear-gradient(135deg,#3b6fd6,#2450a8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600" title="Impulsionamento">Imp ${impPct}%</div>`:''}
+          ${leadPct>0?`<div style="flex:${leadPct};background:linear-gradient(135deg,#0a9d55,#087a43);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600" title="Prospecção">Lead ${leadPct}%</div>`:''}
+        </div>
+        <div class="row" style="justify-content:space-between;font-size:11px;color:var(--ink-3);margin-top:4px">
+          <span>Impulsionamento ${brl(impVal)}</span>
+          <span>Prospecção ${brl(leadVal)}</span>
+        </div>
+      ` : '<div class="muted" style="margin-top:8px;font-size:12px">Sem sobra pra alocar.</div>'}
+      ${aviso}
+    </div>`;
+
+  const bC = `
+    <div class="k-card" style="margin:0;padding:12px">
+      <div class="lbl">C · o que isso produz</div>
+      <div style="margin-top:8px;font-size:13px;line-height:1.7">
+        <div><b>${s.projecao_leads||0}</b> contato(s) previstos no total <span class="muted" style="font-size:11px">· ${((s.projecao_leads||0)/s.entrada.meses).toFixed(1)}/mês</span></div>
+        <div><b>${s.projecao_disparos||0}</b> disparo(s) WhatsApp</div>
+        <div><b>${impPct>0 && s.piso_impulsionamento ? Math.round(impVal/s.piso_impulsionamento*30) : 0}</b> dias de mídia</div>
+      </div>
+    </div>`;
+
+  // Comparativo prazo
+  let comp = '';
+  if (cmp && !cmp.erro && s.entrada.meses !== cmpMeses) {
+    const fixosCmp = Number(cmp.avaliacao||0)+Number(cmp.setup_arquetipos||0)+Number(cmp.combo_criativos||0)+Number(cmp.setup_campanha||0)+Number(cmp.anuncio_total||0);
+    const linhaComp = (m, x, fx) => `${m}m: ${Number(x.percent_impulsionamento||0)}% mídia / ${Number(x.percent_lead||0)}% prospecção · fixos ${(fx/x.total_contrato*100).toFixed(0)}% · sobra ${brl(x.sobra_operacional_mensal)}/mês`;
+    comp = `<div class="k-card" style="margin:0;padding:12px;background:var(--surface-2)">
+      <div class="lbl">comparativo de prazo</div>
+      <div style="font-size:12px;line-height:1.7;margin-top:6px">
+        <div>${linhaComp(s.entrada.meses, s, fixos)}</div>
+        <div>${linhaComp(cmpMeses, cmp, fixosCmp)}</div>
+        <div class="muted" style="font-size:11px;margin-top:6px;font-style:italic">A mesma mensalidade rende mais em prospecção na onda longa — a avaliação e os setups são valor absoluto e diluem com o prazo.</div>
+      </div>
+    </div>`;
+  }
+
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px">${bA}${bB}${bC}</div>${comp}`;
+}
+
 // Painel de renovação/repactuação/encerramento · substitui prompts do slice ondas
+window._prSug = null; // sugestão de alocação carregada
 async function abrirPainelRenovacao(ondaId, tipo){
   const atual = _pj.ondas.find(o => o.id === ondaId);
   const contatos = _pj.contatos || [];
   const razao = _pj.razao || [];
   const cartas = (_pj.cartas || []);
+  window._prSug = null;
 
   // O QUE FOI FEITO
   const alcancados = contatos.length;
@@ -2624,21 +2740,33 @@ async function abrirPainelRenovacao(ondaId, tipo){
             ${emAndamento} contato(s) em andamento<br>${filaNaoTrab} qualificados na fila<br>${cartasAbertas.length} carta(s) em aberto<br>Cadência para no dia
           </div>
         </div>
+        <div class="k-card" style="margin:0;padding:14px;grid-column:1/-1">
+          <div class="lbl" style="font-size:10px">balanço do ciclo · gasto vs interessados por pilar</div>
+          <div id="pr-balanco" style="margin-top:6px;font-size:12.5px"><div class="muted">carregando…</div></div>
+        </div>
       </div>
 
-      <div class="k-card" style="margin-top:16px">
-        ${tipo === 'encerrar' ? `
+      ${tipo === 'encerrar' ? `
+        <div class="k-card" style="margin-top:16px">
           <label>Motivo do encerramento (obrigatório)<textarea id="pr-motivo" rows="2"></textarea></label>
           <label>Recomendação escrita para o cliente<textarea id="pr-rec" rows="3" placeholder="O que o cliente deveria fazer daqui?"></textarea></label>
-        ` : `
-          <div class="form-grid">
-            <div class="fld"><span class="lbl">meses</span><input id="pr-meses" type="number" min="1" value="3"></div>
+        </div>
+      ` : `
+        <div class="k-card" style="margin-top:16px">
+          <div class="lbl">nova onda</div>
+          <div class="form-grid" style="margin-top:8px">
+            <div class="fld"><span class="lbl">meses</span><input id="pr-meses" type="number" min="3" value="6"></div>
             <div class="fld"><span class="lbl">valor mensal (R$)</span><input id="pr-valor" type="number" min="0" value="${atual?.valor_mensal||0}"></div>
             <div class="fld"><span class="lbl">comissão (%)</span><input id="pr-com" type="number" min="0" max="100" step="0.5" value="${atual?.comissao_percent||5}"></div>
           </div>
-          ${tipo === 'repactuacao' ? `<label>Justificativa da repactuação (obrigatória)<textarea id="pr-just" rows="2"></textarea></label>` : ''}
-        `}
-      </div>
+          ${tipo === 'repactuacao' ? `<label style="margin-top:10px;display:block">Justificativa da repactuação (obrigatória)<textarea id="pr-just" rows="2"></textarea></label>` : ''}
+          <div style="margin-top:14px">
+            <div class="lbl">simulação da próxima onda</div>
+            <div id="pr-sim" style="margin-top:8px"><div class="muted" style="font-size:12px">preencha valor e meses</div></div>
+          </div>
+          <div id="pr-alocacao" style="margin-top:14px"></div>
+        </div>
+      `}
 
       <div class="row" style="gap:8px;justify-content:flex-end;margin-top:16px">
         <button class="btn btn-ghost" onclick="fecharPainelRen()">cancelar</button>
@@ -2646,6 +2774,117 @@ async function abrirPainelRenovacao(ondaId, tipo){
       </div>
     </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
+  // Carrega balanço + sugestão de alocação da onda que está fechando
+  carregarBalancoPainel(ondaId);
+  if (tipo !== 'encerrar') {
+    // Simulador reativo aos inputs
+    let t;
+    const updSim = () => {
+      clearTimeout(t);
+      const m = Number(document.getElementById('pr-meses').value)||0;
+      const v = Number(document.getElementById('pr-valor').value)||0;
+      const cont = document.getElementById('pr-sim'); if (!cont) return;
+      if (!m || !v) { cont.innerHTML = '<div class="muted" style="font-size:12px">preencha valor e meses</div>'; return; }
+      if (m < 3) { cont.innerHTML = '<div class="aviso" style="background:#fee;color:#800;padding:10px;border-radius:6px;font-size:12.5px">Prazo mínimo é 3 meses.</div>'; return; }
+      t = setTimeout(() => renderSimulador('pr', v, m, _pj.projeto.id, 'pr-sim'), 300);
+    };
+    document.getElementById('pr-meses').addEventListener('input', updSim);
+    document.getElementById('pr-valor').addEventListener('input', updSim);
+    updSim();
+  }
+}
+async function carregarBalancoPainel(ondaId){
+  const contBal = document.getElementById('pr-balanco');
+  const contAloc = document.getElementById('pr-alocacao');
+  try {
+    const { error: eGen } = await sb.rpc('va_gerar_balanco_onda', { p_onda_id: ondaId });
+    if (eGen) throw eGen;
+    const { data: bal } = await sb.from('va_onda_balanco').select('payload,alocacao_sugerida').eq('onda_id', ondaId).single();
+    if (contBal) contBal.innerHTML = renderBalancoHtml(bal?.payload);
+    window._prSug = bal?.alocacao_sugerida || null;
+    if (contAloc) contAloc.innerHTML = renderAlocacaoSugeridaHtml(window._prSug, bal?.payload);
+  } catch (e) {
+    if (contBal) contBal.innerHTML = '<div class="muted" style="font-size:12px">sem dados suficientes pra balanço</div>';
+    if (contAloc) contAloc.innerHTML = '';
+  }
+}
+function renderBalancoHtml(p){
+  if (!p) return '<div class="muted">sem dados</div>';
+  const brl = v => v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const cell = (titulo, obj) => `
+    <div style="flex:1;min-width:180px;border:1px solid var(--line);border-radius:8px;padding:10px">
+      <div style="font-weight:600;font-size:12px;margin-bottom:4px">${titulo}</div>
+      <div style="font-size:12px;line-height:1.6">
+        gasto <b>${brl(obj?.gasto)}</b><br>
+        ${obj?.interessados||0} interessado(s)<br>
+        custo/interessado <b>${brl(obj?.custo_por_interessado)}</b>
+      </div>
+    </div>`;
+  const melhor = p.melhor_pilar && p.melhor_pilar !== 'indefinido'
+    ? `<div style="margin-top:8px;font-size:12.5px;color:var(--accent-2)"><b>melhor rendimento neste ciclo:</b> ${p.melhor_pilar==='impulsionamento'?'impulsionamento (mídia paga)':'prospecção ativa'}</div>`
+    : '<div style="margin-top:8px;font-size:12px" class="muted">Sem dados suficientes pra apontar o pilar melhor.</div>';
+  return `
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      ${cell('impulsionamento', p.impulsionamento)}
+      ${cell('prospecção', p.prospeccao)}
+    </div>
+    ${melhor}`;
+}
+function renderAlocacaoSugeridaHtml(sug, bal){
+  if (!sug) return '';
+  const imp = Number(sug.percent_impulsionamento||0);
+  const lead = Number(sug.percent_lead||0);
+  const ev = sug.evidencia || {};
+  const brl = v => v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const bar = `
+    <div style="display:flex;height:28px;margin-top:6px;border-radius:6px;overflow:hidden">
+      ${imp>0?`<div style="flex:${imp};background:linear-gradient(135deg,#3b6fd6,#2450a8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">Imp ${imp}%</div>`:''}
+      ${lead>0?`<div style="flex:${lead};background:linear-gradient(135deg,#0a9d55,#087a43);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">Lead ${lead}%</div>`:''}
+    </div>`;
+  const evLine = (ev.cpi_impulsionamento!=null||ev.cpi_lead!=null)
+    ? `<div class="muted" style="font-size:11px;margin-top:6px">evidência: CPI impulsionamento ${brl(ev.cpi_impulsionamento)} · CPI prospecção ${brl(ev.cpi_lead)}</div>`
+    : '';
+  return `
+    <div class="k-card" style="margin:0;padding:12px;background:#f6faff;border-color:#c8dcf5">
+      <div class="lbl">alocação sugerida para a próxima onda</div>
+      ${bar}
+      <div style="font-size:12.5px;margin-top:8px">${esc(sug.motivo||'')}</div>
+      <div style="font-size:11px;margin-top:4px" class="muted">base: ${esc(sug.base||'—')}</div>
+      ${evLine}
+      <div class="row" style="gap:8px;margin-top:10px">
+        <button class="btn btn-primary btn-sm" onclick="aplicarAlocacaoSugerida()">aplicar sugestão na nova onda</button>
+        <button class="btn btn-ghost btn-sm" onclick="ajustarAlocacaoManual()">ajustar manual</button>
+      </div>
+      <div id="pr-aloc-manual" style="margin-top:10px;display:none">
+        <div class="form-grid">
+          <div class="fld"><span class="lbl">% impulsionamento</span><input id="pr-al-imp" type="number" min="0" max="100" step="1" value="${imp}"></div>
+          <div class="fld"><span class="lbl">% prospecção</span><input id="pr-al-lead" type="number" min="0" max="100" step="1" value="${lead}"></div>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:4px">total deve somar 100</div>
+      </div>
+    </div>`;
+}
+function ajustarAlocacaoManual(){
+  const el = document.getElementById('pr-aloc-manual'); if (el) el.style.display = el.style.display==='none'?'block':'none';
+}
+async function aplicarAlocacaoSugerida(){
+  // Marca a sugestão como pronta pra ser aplicada no confirmarPainelRen; a aplicação real
+  // (INSERT em va_projeto_alocacao com onda_id da NOVA onda) acontece após criar a nova onda.
+  const manual = document.getElementById('pr-aloc-manual');
+  const usaManual = manual && manual.style.display !== 'none';
+  let imp, lead, origem;
+  if (usaManual) {
+    imp = Number(document.getElementById('pr-al-imp').value);
+    lead = Number(document.getElementById('pr-al-lead').value);
+    origem = 'manual';
+    if (imp + lead !== 100) { toast('imp + lead deve somar 100','err'); return; }
+  } else {
+    imp = Number(window._prSug?.percent_impulsionamento||0);
+    lead = Number(window._prSug?.percent_lead||0);
+    origem = 'sugerida';
+  }
+  window._prAlocPendente = { percent_impulsionamento: imp, percent_lead: lead, origem, base_calculo: window._prSug };
+  toast('sugestão marcada · será gravada ao criar a nova onda','ok');
 }
 function fecharPainelRen(){
   document.getElementById('painel-ren-backdrop')?.remove();
@@ -2663,15 +2902,27 @@ async function confirmarPainelRen(ondaId, tipo){
     const meses = Number(document.getElementById('pr-meses').value);
     const valor = Number(document.getElementById('pr-valor').value);
     const com = Number(document.getElementById('pr-com').value);
-    if (!meses || meses < 1) { toast('meses inválido','err'); return; }
+    if (!meses || meses < 3) { toast('mínimo 3 meses','err'); return; }
     if (tipo === 'repactuacao') {
       const just = document.getElementById('pr-just').value.trim();
       if (!just) { toast('justificativa obrigatória','err'); return; }
     }
-    const { error } = await sb.rpc('va_criar_onda_renovacao', {
+    const { data: novaOndaId, error } = await sb.rpc('va_criar_onda_renovacao', {
       p_projeto_id: _pj.projeto.id, p_meses: meses, p_valor_mensal: valor, p_comissao_percent: com, p_tipo: tipo
     });
     if (error) { toast(error.message,'err'); return; }
+    // Persiste alocação pendente (se marcada) na nova onda
+    if (window._prAlocPendente && novaOndaId) {
+      await sb.from('va_projeto_alocacao').insert({
+        projeto_id: _pj.projeto.id, onda_id: novaOndaId,
+        percent_impulsionamento: window._prAlocPendente.percent_impulsionamento,
+        percent_lead: window._prAlocPendente.percent_lead,
+        origem: window._prAlocPendente.origem,
+        base_calculo: window._prAlocPendente.base_calculo || null,
+        aplicada: false,
+      });
+      window._prAlocPendente = null;
+    }
     toast('onda criada · aguardando pagamento','ok');
   }
   fecharPainelRen();
