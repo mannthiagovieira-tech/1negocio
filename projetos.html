@@ -8,7 +8,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Projetos · Venda Assessorada · 1Negócio</title>
+<title>Projetos · Venda Assessorada · 1NEGÓCIO</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -527,7 +527,7 @@
 <header class="top">
   <div class="brand">
     <span class="dot"></span>
-    <span>1Negócio <small>· Venda Assessorada</small></span>
+    <span>1NEGÓCIO <small>· Venda Assessorada</small></span>
   </div>
   <div class="row">
     <span id="conn" class="conn">conectando…</span>
@@ -598,7 +598,12 @@ let _session = null;
 async function initAuth(){
   const { data: { session } } = await sb.auth.getSession();
   _session = session;
-  sb.auth.onAuthStateChange((_e, s) => { _session = s; router(); });
+  // Só re-rota quando login/logout de fato acontece.
+  // TOKEN_REFRESHED / INITIAL_SESSION / USER_UPDATED disparariam re-render e apagariam formulários.
+  sb.auth.onAuthStateChange((event, s) => {
+    _session = s;
+    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') router();
+  });
   return session;
 }
 async function logout(){ await sb.auth.signOut(); location.hash = '#/'; }
@@ -611,7 +616,7 @@ function renderLogin(errMsg){
       <div class="auth-card">
         <div class="lbl" style="margin-bottom:8px">acesso</div>
         <h1 class="h2" style="margin-bottom:6px">Entrar</h1>
-        <p class="muted" style="margin-bottom:22px;font-size:13px">Use as credenciais do painel admin do 1Negócio.</p>
+        <p class="muted" style="margin-bottom:22px;font-size:13px">Use as credenciais do painel admin do 1NEGÓCIO.</p>
         ${errMsg ? `<div class="err-box" style="margin-bottom:14px">${esc(errMsg)}</div>` : ''}
         <form id="login-form" class="col" style="gap:14px">
           <div class="fld"><span class="lbl">e-mail</span><input type="email" id="lg-email" required autocomplete="email" placeholder="voce@1negocio.com.br"></div>
@@ -735,28 +740,30 @@ async function renderLista(){
     </div>`;
   app.innerHTML = `
     ${cockpitHtml}
-    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px;flex-wrap:wrap;gap:12px">
-      <div>
-        <div class="lbl" style="margin-bottom:6px">carteira</div>
-        <h1 class="h1">Projetos</h1>
-        <p class="muted" style="margin-top:6px">${dataFiltrada.length} de ${data.length} mandato${data.length===1?'':'s'}.</p>
-      </div>
-      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
-        <select id="lst-ordem" style="padding:8px 10px;font-size:13px;border:1px solid var(--line);border-radius:6px">
+    <div style="margin-bottom:12px">
+      <div class="lbl" style="margin-bottom:6px">carteira</div>
+      <h1 class="h1">Projetos</h1>
+      <p class="muted" style="margin-top:6px">${dataFiltrada.length} de ${data.length} mandato${data.length===1?'':'s'}.</p>
+    </div>
+    <div class="lst-filters" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:20px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px">
+      <label style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-2);text-transform:uppercase">ordenar
+        <select id="lst-ordem" style="padding:6px 10px;font-size:13px;border:1px solid var(--line);border-radius:6px;background:var(--surface)">
           <option value="urgencia" ${ordem==='urgencia'?'selected':''}>urgência</option>
           <option value="comissao" ${ordem==='comissao'?'selected':''}>comissão projetada</option>
           <option value="dia_onda" ${ordem==='dia_onda'?'selected':''}>dia da onda</option>
           <option value="nome" ${ordem==='nome'?'selected':''}>nome</option>
         </select>
-        <select id="lst-status" style="padding:8px 10px;font-size:13px;border:1px solid var(--line);border-radius:6px">
-          <option value="todos" ${filtroStatus==='todos'?'selected':''}>todos status</option>
+      </label>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-2);text-transform:uppercase">status
+        <select id="lst-status" style="padding:6px 10px;font-size:13px;border:1px solid var(--line);border-radius:6px;background:var(--surface)">
+          <option value="todos" ${filtroStatus==='todos'?'selected':''}>todos</option>
           <option value="ativo" ${filtroStatus==='ativo'?'selected':''}>ativo</option>
           <option value="setup" ${filtroStatus==='setup'?'selected':''}>setup</option>
           <option value="pausado" ${filtroStatus==='pausado'?'selected':''}>pausado</option>
           <option value="encerrado" ${filtroStatus==='encerrado'?'selected':''}>encerrado</option>
         </select>
-        <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" id="lst-prop" ${filtroProp?'checked':''}> com proposta</label>
-      </div>
+      </label>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-2);text-transform:uppercase;white-space:nowrap"><input type="checkbox" id="lst-prop" ${filtroProp?'checked':''} style="margin:0"> com proposta em aberto</label>
     </div>
     <div class="grid">${dataFiltrada.map(cardProjeto).join('')}</div>`;
 
@@ -819,9 +826,10 @@ function renderNovo(){
             <div class="fld form-full"><span class="lbl">título do negócio</span><input id="f-tit" placeholder="ex. Clínica de estética 8 anos · faturamento 90k/mês"></div>
             <div class="fld form-full" data-fld="cnpj">
               <span class="lbl">CNPJ do negócio *</span>
-              <div class="row" style="gap:8px">
-                <input required id="f-cnpj" placeholder="14 dígitos · só números" style="flex:1">
-                <button type="button" class="btn btn-ghost" id="f-enriquecer">enriquecer</button>
+              <div class="row" style="gap:8px;flex-wrap:wrap">
+                <input required id="f-cnpj" placeholder="14 dígitos · só números" style="flex:1;min-width:200px">
+                <button type="button" class="btn btn-ghost" id="f-enriquecer" title="BrasilAPI · gratuita">enriquecer · grátis</button>
+                <button type="button" class="btn btn-ghost" id="f-enriquecer-plus" title="Kipflow · faturamento, funcionários, dívida">+ dados de porte · R$ 0,39</button>
               </div>
               <span class="fld-err-msg">CNPJ obrigatório · 14 dígitos</span>
               <div id="f-enriq-status" class="muted" style="font-size:12px;margin-top:4px"></div>
@@ -875,41 +883,44 @@ function renderNovo(){
     if (el) el.addEventListener('input', () => el.closest('.fld')?.classList.remove('err'));
   });
 
-  // Botão enriquecer · chama /api/enriquecer com CNPJ e pré-popula campos
-  document.getElementById('f-enriquecer').onclick = async () => {
+  // Enriquecimento · 2 fontes
+  //   f-enriquecer      → BrasilAPI grátis (razão, endereço, CNAE, situação, capital, sócios básicos)
+  //   f-enriquecer-plus → BrasilAPI + Kipflow (faturamento, funcionários, dívida — R$ 0,39)
+  const enriquecerCNPJ = async (comKipflow) => {
     const cnpj = (document.getElementById('f-cnpj').value || '').replace(/\D/g, '');
     const st = document.getElementById('f-enriq-status');
     if (cnpj.length !== 14) { st.textContent = 'CNPJ inválido (14 dígitos)'; st.style.color = '#c00'; return; }
-    st.textContent = 'consultando Kipflow…'; st.style.color = '';
+    st.textContent = comKipflow ? 'consultando BrasilAPI + Kipflow…' : 'consultando BrasilAPI…';
+    st.style.color = '';
     try {
       const sess = (await sb.auth.getSession()).data.session;
       const r = await fetch('/api/enriquecer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (sess?.access_token || '') },
-        body: JSON.stringify({ cnpj }),
+        body: JSON.stringify({ cnpj, com_kipflow: !!comKipflow }),
       });
       const d = await r.json();
       if (!r.ok || !d.ok) { st.textContent = d.erro || 'erro no enriquecimento'; st.style.color = '#c00'; return; }
       const c = d.campos_extraidos || {};
       if (c.razao_social && !document.getElementById('f-tit').value) document.getElementById('f-tit').value = c.razao_social;
       if (c.cidade) document.getElementById('f-cid').value = c.cidade;
-      if (c.estado) {
-        // Kipflow devolve extenso ("SANTA CATARINA") · convertemos p/ sigla no form
-        const map = { 'ACRE':'AC','ALAGOAS':'AL','AMAPA':'AP','AMAZONAS':'AM','BAHIA':'BA','CEARA':'CE',
-          'DISTRITO FEDERAL':'DF','ESPIRITO SANTO':'ES','GOIAS':'GO','MARANHAO':'MA','MATO GROSSO':'MT',
-          'MATO GROSSO DO SUL':'MS','MINAS GERAIS':'MG','PARA':'PA','PARAIBA':'PB','PARANA':'PR',
-          'PERNAMBUCO':'PE','PIAUI':'PI','RIO DE JANEIRO':'RJ','RIO GRANDE DO NORTE':'RN',
-          'RIO GRANDE DO SUL':'RS','RONDONIA':'RO','RORAIMA':'RR','SANTA CATARINA':'SC','SAO PAULO':'SP',
-          'SERGIPE':'SE','TOCANTINS':'TO' };
-        const uf = map[String(c.estado).toUpperCase().trim()] || String(c.estado).slice(0,2).toUpperCase();
-        document.getElementById('f-uf').value = uf;
-      }
-      st.textContent = `ok · ${c.razao_social || cnpj}${c.cnae_codigo ? ' · CNAE ' + c.cnae_codigo : ''}`;
+      if (c.estado) document.getElementById('f-uf').value = String(c.estado).slice(0,2).toUpperCase();
+      const fontes = d.fontes || {};
+      const nBA = (fontes.brasilapi || []).length;
+      const nKip = (fontes.kipflow || []).length;
+      const custo = d.kipflow?.costFormatted || (d.kipflow?.cost != null ? 'R$ '+Number(d.kipflow.cost).toFixed(2) : '');
+      let msg = `ok · ${c.razao_social || cnpj}${c.cnae_codigo ? ' · CNAE '+c.cnae_codigo : ''}`;
+      msg += ` · ${nBA} campo(s) BrasilAPI`;
+      if (nKip > 0) msg += ` + ${nKip} campo(s) Kipflow${custo?' · '+custo:''}`;
+      if (d.kipflow?.erro) msg += ` · ⚠ Kipflow falhou: ${d.kipflow.erro.erro || d.kipflow.erro}`;
+      st.textContent = msg;
       st.style.color = 'green';
     } catch (e) {
       st.textContent = 'erro de rede'; st.style.color = '#c00';
     }
   };
+  document.getElementById('f-enriquecer').onclick = () => enriquecerCNPJ(false);
+  document.getElementById('f-enriquecer-plus').onclick = () => enriquecerCNPJ(true);
 
   document.getElementById('new-form').onsubmit = async (ev) => {
     ev.preventDefault();
@@ -2596,28 +2607,62 @@ function renderSimulador(prefix, valor, meses, projetoId, cont) {
 }
 function simHtml(s, cmp, cmpMeses){
   const brl = v => 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const pct = v => (Number(v||0)*100/s.total_contrato).toFixed(1)+'%';
-  const fixos = Number(s.avaliacao||0)+Number(s.setup_arquetipos||0)+Number(s.combo_criativos||0)+Number(s.setup_campanha||0)+Number(s.anuncio_total||0);
+  const total = Number(s.total_contrato||0);
+  const pct = v => total ? (Number(v||0)*100/total).toFixed(1)+'%' : '—';
+  const setupsAtivacoes = Number(s.avaliacao||0)+Number(s.setup_arquetipos||0)+Number(s.combo_criativos||0)+Number(s.setup_campanha||0)+Number(s.anuncio_total||0);
 
-  const linhaFixo = (label, val, extra='') => `<tr><td>${label}</td><td class="mono" style="text-align:right">${brl(val)}</td><td class="muted" style="text-align:right;font-size:11px">${extra||pct(val)}</td></tr>`;
+  // linha padrão em uma tabela · label (mono cinza) · valor mono · % cinza
+  const lin = (label, val, opts={}) => {
+    const cor = opts.cor || '';
+    const style = opts.style || '';
+    return `<tr style="${style}">
+      <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;color:${cor||'var(--ink-2)'};padding:4px 0">${label}</td>
+      <td class="mono" style="text-align:right;padding:4px 0;color:${cor||'var(--ink-1)'}">${brl(val)}</td>
+      <td class="mono" style="text-align:right;font-size:10.5px;padding:4px 0;color:var(--ink-3)">${opts.extra||pct(val)}</td>
+    </tr>`;
+  };
+  const sep = `<tr><td colspan="3" style="padding:2px 0"><div style="border-top:1px solid var(--line)"></div></td></tr>`;
 
   const avalRow = s.avaliacao_ja_paga
-    ? `<tr style="color:var(--ink-3);text-decoration:line-through"><td>Avaliação (já paga)</td><td class="mono" style="text-align:right;text-decoration:none">R$ 588,00</td><td class="muted" style="text-align:right;font-size:11px;text-decoration:none">válida até ${dataBR(s.avaliacao_valida_ate)}</td></tr>`
-    : linhaFixo('Avaliação', s.avaliacao);
+    ? `<tr>
+        <td style="font-family:var(--mono);font-size:11.5px;color:var(--ink-3);padding:4px 0;text-decoration:line-through">Avaliação (já paga)</td>
+        <td class="mono" style="text-align:right;padding:4px 0;color:var(--ink-3);text-decoration:line-through">R$ 588,00</td>
+        <td class="mono" style="text-align:right;font-size:10.5px;padding:4px 0;color:var(--ink-3)">até ${dataBR(s.avaliacao_valida_ate)}</td>
+      </tr>`
+    : lin('Avaliação', s.avaliacao);
 
   const bA = `
-    <div class="k-card" style="margin:0;padding:12px">
+    <div class="k-card" style="margin:0;padding:14px">
       <div class="lbl">A · onde vai o dinheiro</div>
-      <table style="width:100%;font-size:12.5px;margin-top:8px">
-        ${linhaFixo('Impostos', s.impostos)}
-        ${linhaFixo('Gestão', s.gestao)}
+      <table style="width:100%;margin-top:10px;border-collapse:collapse">
+        <tr>
+          <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;color:var(--ink-1);padding:4px 0;font-weight:600">Contrato da onda</td>
+          <td class="mono" style="text-align:right;padding:4px 0;font-family:var(--syne,inherit);font-weight:600;font-size:15px">${brl(total)}</td>
+          <td class="mono" style="text-align:right;font-size:10.5px;padding:4px 0;color:var(--ink-3)">100%</td>
+        </tr>
+        ${sep}
+        ${lin('Impostos', s.impostos)}
+        ${lin('Gestão e atendimento', s.gestao)}
+        ${sep}
         ${avalRow}
-        ${linhaFixo('Setup arquétipos', s.setup_arquetipos)}
-        ${linhaFixo('Combo criativos', s.combo_criativos)}
-        ${linhaFixo('Setup campanha', s.setup_campanha)}
-        ${linhaFixo('Anúncio plataforma', s.anuncio_total)}
-        <tr style="border-top:1px solid var(--line);font-weight:600"><td>Fixos</td><td class="mono" style="text-align:right">${brl(fixos)}</td><td class="muted" style="text-align:right;font-size:11px">${(fixos/s.total_contrato*100).toFixed(1)}%</td></tr>
-        <tr style="font-weight:700;color:${s.sobra_operacional>0?'green':'#c00'}"><td>Sobra operacional</td><td class="mono" style="text-align:right">${brl(s.sobra_operacional)}</td><td class="muted" style="text-align:right;font-size:11px">${brl(s.sobra_operacional_mensal)}/mês</td></tr>
+        ${lin('Setup de arquétipos', s.setup_arquetipos)}
+        ${lin('Combo de criativos', s.combo_criativos)}
+        ${lin('Setup de campanha', s.setup_campanha)}
+        ${lin('Anúncio na plataforma', s.anuncio_total)}
+        <tr>
+          <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;color:var(--ink-1);padding:4px 0;font-weight:600">Setups e ativações</td>
+          <td class="mono" style="text-align:right;padding:4px 0;font-weight:600">${brl(setupsAtivacoes)}</td>
+          <td class="mono" style="text-align:right;font-size:10.5px;padding:4px 0;color:var(--ink-3)">${total ? (setupsAtivacoes/total*100).toFixed(1)+'%' : '—'}</td>
+        </tr>
+        ${sep}
+        <tr>
+          <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:${s.sobra_operacional>0?'#0a7d3d':'#c00'};padding:8px 0 4px;font-weight:700;text-transform:uppercase">Sobra operacional</td>
+          <td class="mono" style="text-align:right;padding:8px 0 4px;font-family:var(--syne,inherit);font-weight:700;font-size:17px;color:${s.sobra_operacional>0?'#0a7d3d':'#c00'}">${brl(s.sobra_operacional)}</td>
+          <td class="mono" style="text-align:right;font-size:10.5px;padding:8px 0 4px;color:${s.sobra_operacional>0?'#0a7d3d':'#c00'};font-weight:600">${total ? (s.sobra_operacional/total*100).toFixed(1)+'%' : '—'}</td>
+        </tr>
+        <tr>
+          <td colspan="3" style="text-align:right;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);padding:0 0 6px">${brl(s.sobra_operacional_mensal)}/mês</td>
+        </tr>
       </table>
     </div>`;
 
@@ -2627,47 +2672,65 @@ function simHtml(s, cmp, cmpMeses){
   const leadVal = s.sobra_operacional * (leadPct/100);
   const aviso = s.aviso ? `<div class="aviso" style="margin-top:8px;font-size:12px;background:${s.impulsionamento_desligado?'#ffe8e0':'#fff8e1'};padding:8px;border-radius:6px">${esc(s.aviso)}</div>` : '';
   const bB = `
-    <div class="k-card" style="margin:0;padding:12px">
+    <div class="k-card" style="margin:0;padding:14px">
       <div class="lbl">B · alocação</div>
       ${s.sobra_operacional > 0 ? `
-        <div style="display:flex;height:36px;margin-top:8px;border-radius:6px;overflow:hidden">
-          ${impPct>0?`<div style="flex:${impPct};background:linear-gradient(135deg,#3b6fd6,#2450a8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600" title="Impulsionamento">Imp ${impPct}%</div>`:''}
-          ${leadPct>0?`<div style="flex:${leadPct};background:linear-gradient(135deg,#0a9d55,#087a43);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600" title="Prospecção">Lead ${leadPct}%</div>`:''}
+        <div style="display:flex;height:36px;margin-top:10px;border-radius:6px;overflow:hidden">
+          ${impPct>0?`<div style="flex:${impPct};background:linear-gradient(135deg,#3b6fd6,#2450a8);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;font-weight:600" title="Mídia paga">Mídia paga ${impPct}%</div>`:''}
+          ${leadPct>0?`<div style="flex:${leadPct};background:linear-gradient(135deg,#0a9d55,#087a43);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;font-weight:600" title="Prospecção ativa">Prospecção ativa ${leadPct}%</div>`:''}
         </div>
-        <div class="row" style="justify-content:space-between;font-size:11px;color:var(--ink-3);margin-top:4px">
-          <span>Impulsionamento ${brl(impVal)}</span>
-          <span>Prospecção ${brl(leadVal)}</span>
+        <div class="row" style="justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:6px">
+          <span>Mídia paga ${brl(impVal)}</span>
+          <span>Prospecção ativa ${brl(leadVal)}</span>
         </div>
       ` : '<div class="muted" style="margin-top:8px;font-size:12px">Sem sobra pra alocar.</div>'}
       ${aviso}
     </div>`;
 
+  const diasMidia = impPct>0 && s.piso_impulsionamento ? Math.round(impVal/s.piso_impulsionamento*30) : 0;
   const bC = `
-    <div class="k-card" style="margin:0;padding:12px">
-      <div class="lbl">C · o que isso produz</div>
-      <div style="margin-top:8px;font-size:13px;line-height:1.7">
-        <div><b>${s.projecao_leads||0}</b> contato(s) previstos no total <span class="muted" style="font-size:11px">· ${((s.projecao_leads||0)/s.entrada.meses).toFixed(1)}/mês</span></div>
-        <div><b>${s.projecao_disparos||0}</b> disparo(s) WhatsApp</div>
-        <div><b>${impPct>0 && s.piso_impulsionamento ? Math.round(impVal/s.piso_impulsionamento*30) : 0}</b> dias de mídia</div>
+    <div class="k-card" style="margin:0;padding:14px">
+      <div class="lbl">entrega prevista</div>
+      <div style="margin-top:10px;font-size:13px;line-height:1.9">
+        <div><span style="font-family:var(--syne,inherit);font-weight:700;font-size:17px">${(s.projecao_leads||0).toLocaleString('pt-BR')}</span> <span style="font-family:var(--mono);font-size:11px;color:var(--ink-2);letter-spacing:.02em">contatos qualificados · teto teórico</span></div>
+        <div><span style="font-family:var(--syne,inherit);font-weight:700;font-size:17px">${(s.projecao_disparos||0).toLocaleString('pt-BR')}</span> <span style="font-family:var(--mono);font-size:11px;color:var(--ink-2);letter-spacing:.02em">disparos WhatsApp</span></div>
+        <div><span style="font-family:var(--syne,inherit);font-weight:700;font-size:17px">${diasMidia}</span> <span style="font-family:var(--mono);font-size:11px;color:var(--ink-2);letter-spacing:.02em">dias de mídia paga</span></div>
       </div>
+      <div class="muted" style="font-size:11px;margin-top:8px;font-family:var(--mono);letter-spacing:.02em">Teto teórico = orçamento ÷ preço do lead. Volume real depende de oferta do setor e conversão do funil.</div>
     </div>`;
 
-  // Comparativo prazo
+  // Comparativo prazo · tabela 2 colunas 3m vs 6m
   let comp = '';
   if (cmp && !cmp.erro && s.entrada.meses !== cmpMeses) {
-    const fixosCmp = Number(cmp.avaliacao||0)+Number(cmp.setup_arquetipos||0)+Number(cmp.combo_criativos||0)+Number(cmp.setup_campanha||0)+Number(cmp.anuncio_total||0);
-    const linhaComp = (m, x, fx) => `${m}m: ${Number(x.percent_impulsionamento||0)}% mídia / ${Number(x.percent_lead||0)}% prospecção · fixos ${(fx/x.total_contrato*100).toFixed(0)}% · sobra ${brl(x.sobra_operacional_mensal)}/mês`;
-    comp = `<div class="k-card" style="margin:0;padding:12px;background:var(--surface-2)">
+    const [curM, cmpM] = [Number(s.entrada.meses), Number(cmpMeses)];
+    const setupsCmp = Number(cmp.avaliacao||0)+Number(cmp.setup_arquetipos||0)+Number(cmp.combo_criativos||0)+Number(cmp.setup_campanha||0)+Number(cmp.anuncio_total||0);
+    const cell = v => `<td class="mono" style="text-align:right;padding:5px 8px;font-size:12px">${v}</td>`;
+    const cellPct = v => `<td class="mono" style="text-align:right;padding:5px 8px;font-size:11px;color:var(--ink-3)">${v}</td>`;
+    const label = t => `<td style="font-family:var(--mono);font-size:11px;letter-spacing:.02em;color:var(--ink-2);padding:5px 8px">${t}</td>`;
+    const [ordCur, ordCmp] = curM < cmpM ? [{s, m: curM, setups: setupsAtivacoes}, {s: cmp, m: cmpM, setups: setupsCmp}] : [{s: cmp, m: cmpM, setups: setupsCmp}, {s, m: curM, setups: setupsAtivacoes}];
+    comp = `<div class="k-card" style="margin:0;padding:14px;background:var(--surface-2)">
       <div class="lbl">comparativo de prazo</div>
-      <div style="font-size:12px;line-height:1.7;margin-top:6px">
-        <div>${linhaComp(s.entrada.meses, s, fixos)}</div>
-        <div>${linhaComp(cmpMeses, cmp, fixosCmp)}</div>
-        <div class="muted" style="font-size:11px;margin-top:6px;font-style:italic">A mesma mensalidade rende mais em prospecção na onda longa — a avaliação e os setups são valor absoluto e diluem com o prazo.</div>
-      </div>
+      <table style="width:100%;margin-top:10px;border-collapse:collapse">
+        <thead>
+          <tr style="border-bottom:1px solid var(--line)">
+            ${label('')}
+            <th style="text-align:right;padding:5px 8px;font-family:var(--syne,inherit);font-size:14px;font-weight:700">${ordCur.m} meses</th>
+            <th style="text-align:right;padding:5px 8px;font-family:var(--syne,inherit);font-size:14px;font-weight:700">${ordCmp.m} meses</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>${label('Contrato total')}${cell(brl(ordCur.s.total_contrato))}${cell(brl(ordCmp.s.total_contrato))}</tr>
+          <tr>${label('Setups e ativações')}${cellPct(brl(ordCur.setups)+' · '+(ordCur.setups/ordCur.s.total_contrato*100).toFixed(0)+'%')}${cellPct(brl(ordCmp.setups)+' · '+(ordCmp.setups/ordCmp.s.total_contrato*100).toFixed(0)+'%')}</tr>
+          <tr>${label('Sobra operacional')}${cell(brl(ordCur.s.sobra_operacional_mensal)+'/mês')}${cell(brl(ordCmp.s.sobra_operacional_mensal)+'/mês')}</tr>
+          <tr>${label('Mídia paga')}${cellPct(Number(ordCur.s.percent_impulsionamento||0)+'%')}${cellPct(Number(ordCmp.s.percent_impulsionamento||0)+'%')}</tr>
+          <tr>${label('Prospecção ativa')}${cellPct(Number(ordCur.s.percent_lead||0)+'%')}${cellPct(Number(ordCmp.s.percent_lead||0)+'%')}</tr>
+        </tbody>
+      </table>
+      <div class="muted" style="font-size:11px;margin-top:8px;font-family:var(--mono);letter-spacing:.02em">A onda longa dilui o custo fixo · a mesma mensalidade rende mais em operação.</div>
     </div>`;
   }
 
-  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px">${bA}${bB}${bC}</div>${comp}`;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">${bA}${bB}${bC}</div>${comp}`;
 }
 
 // Painel de renovação/repactuação/encerramento · substitui prompts do slice ondas
@@ -2825,8 +2888,8 @@ function renderBalancoHtml(p){
     : '<div style="margin-top:8px;font-size:12px" class="muted">Sem dados suficientes pra apontar o pilar melhor.</div>';
   return `
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      ${cell('impulsionamento', p.impulsionamento)}
-      ${cell('prospecção', p.prospeccao)}
+      ${cell('mídia paga', p.impulsionamento)}
+      ${cell('prospecção ativa', p.prospeccao)}
     </div>
     ${melhor}`;
 }
@@ -2838,11 +2901,11 @@ function renderAlocacaoSugeridaHtml(sug, bal){
   const brl = v => v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const bar = `
     <div style="display:flex;height:28px;margin-top:6px;border-radius:6px;overflow:hidden">
-      ${imp>0?`<div style="flex:${imp};background:linear-gradient(135deg,#3b6fd6,#2450a8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">Imp ${imp}%</div>`:''}
-      ${lead>0?`<div style="flex:${lead};background:linear-gradient(135deg,#0a9d55,#087a43);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">Lead ${lead}%</div>`:''}
+      ${imp>0?`<div style="flex:${imp};background:linear-gradient(135deg,#3b6fd6,#2450a8);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;font-weight:600">Mídia paga ${imp}%</div>`:''}
+      ${lead>0?`<div style="flex:${lead};background:linear-gradient(135deg,#0a9d55,#087a43);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;font-weight:600">Prospecção ativa ${lead}%</div>`:''}
     </div>`;
   const evLine = (ev.cpi_impulsionamento!=null||ev.cpi_lead!=null)
-    ? `<div class="muted" style="font-size:11px;margin-top:6px">evidência: CPI impulsionamento ${brl(ev.cpi_impulsionamento)} · CPI prospecção ${brl(ev.cpi_lead)}</div>`
+    ? `<div class="muted" style="font-size:11px;margin-top:6px">evidência: CPI mídia paga ${brl(ev.cpi_impulsionamento)} · CPI prospecção ${brl(ev.cpi_lead)}</div>`
     : '';
   return `
     <div class="k-card" style="margin:0;padding:12px;background:#f6faff;border-color:#c8dcf5">
@@ -2857,8 +2920,8 @@ function renderAlocacaoSugeridaHtml(sug, bal){
       </div>
       <div id="pr-aloc-manual" style="margin-top:10px;display:none">
         <div class="form-grid">
-          <div class="fld"><span class="lbl">% impulsionamento</span><input id="pr-al-imp" type="number" min="0" max="100" step="1" value="${imp}"></div>
-          <div class="fld"><span class="lbl">% prospecção</span><input id="pr-al-lead" type="number" min="0" max="100" step="1" value="${lead}"></div>
+          <div class="fld"><span class="lbl">% mídia paga</span><input id="pr-al-imp" type="number" min="0" max="100" step="1" value="${imp}"></div>
+          <div class="fld"><span class="lbl">% prospecção ativa</span><input id="pr-al-lead" type="number" min="0" max="100" step="1" value="${lead}"></div>
         </div>
         <div class="muted" style="font-size:11px;margin-top:4px">total deve somar 100</div>
       </div>
@@ -3041,7 +3104,7 @@ function cardAtParceiros(){
       <span>Parceiros</span>
       <button class="btn btn-ghost btn-sm" onclick="parceiroCadastrar()">+ cadastrar parceiro</button>
     </div>
-    <p class="muted" style="font-size:13px;margin-top:6px">Prospecção de parceiros não debita crédito do cliente — é investimento da 1Negócio.</p>
+    <p class="muted" style="font-size:13px;margin-top:6px">Prospecção de parceiros não debita crédito do cliente — é investimento da 1NEGÓCIO.</p>
 
     <div style="margin-top:14px">
       <div class="lbl" style="margin-bottom:6px">match automático (${match.length})</div>
@@ -5259,7 +5322,7 @@ function novoTemplate(){
         <div class="fld"><span class="lbl">nome interno</span><input id="tp-nome" placeholder="ex. Abordagem fria A2 v1"></div>
         <div class="fld"><span class="lbl">arquétipo (opcional)</span><select id="tp-arq"><option value="">—</option>${arqOpts}</select></div>
         <div class="fld"><span class="lbl">corpo · aceita {{primeiro_nome}} {{empresa}} {{cidade}} {{setor}}</span>
-          <textarea id="tp-corpo" rows="5" placeholder="Olá {{primeiro_nome}}, sou da 1Negócio…"></textarea>
+          <textarea id="tp-corpo" rows="5" placeholder="Olá {{primeiro_nome}}, sou da 1NEGÓCIO…"></textarea>
         </div>
       </div>
       <div class="row" style="justify-content:flex-end;gap:8px;margin-top:20px">
