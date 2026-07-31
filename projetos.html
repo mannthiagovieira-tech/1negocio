@@ -673,7 +673,10 @@ async function renderLista(){
   const carteiraMap = Object.fromEntries(carteira.map(x => [x.projeto_id, x]));
   for (const p of data) p._c = carteiraMap[p.id] || {};
   for (const p of data) p._onda = p._c.onda_status ? { status: p._c.onda_status, data_fim: p._c.onda_fim, dias_pausados: p._c.dias_pausados, numero: p._c.onda_numero } : null;
-  // Ordenação por urgência: renova em <=15d primeiro, depois pausado, depois aguardando, depois normal
+  // Ordenação · escolhida no dropdown (default urgência)
+  const ordem = window._listaOrdem || 'urgencia';
+  const filtroStatus = window._listaFiltroStatus || 'todos';
+  const filtroProp = window._listaFiltroProposta || false;
   const urgencia = p => {
     const o = p._onda; if (!o) return 4;
     if (o.status === 'aguardando_pagamento') return 1;
@@ -686,7 +689,17 @@ async function renderLista(){
     if (o.status === 'encerrada') return 5;
     return 4;
   };
-  data.sort((a,b) => urgencia(a) - urgencia(b));
+  const dataFiltrada = data.filter(p => {
+    if (filtroStatus !== 'todos' && p.status !== filtroStatus) return false;
+    if (filtroProp && (Number(p._c?.propostas)||0) === 0) return false;
+    return true;
+  });
+  dataFiltrada.sort((a,b) => {
+    if (ordem === 'comissao') return (Number(b._c?.comissao_liquida_projetada)||0) - (Number(a._c?.comissao_liquida_projetada)||0);
+    if (ordem === 'dia_onda') return (Number(a.dia_atual)||0) - (Number(b.dia_atual)||0);
+    if (ordem === 'nome') return String(a.cliente_nome||'').localeCompare(String(b.cliente_nome||''));
+    return urgencia(a) - urgencia(b);
+  });
   if (!data.length) {
     app.innerHTML = `
       <div class="empty">
@@ -717,14 +730,34 @@ async function renderLista(){
     </div>`;
   app.innerHTML = `
     ${cockpitHtml}
-    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px;flex-wrap:wrap;gap:12px">
       <div>
         <div class="lbl" style="margin-bottom:6px">carteira</div>
         <h1 class="h1">Projetos</h1>
-        <p class="muted" style="margin-top:6px">${data.length} mandato${data.length===1?'':'s'} em curso.</p>
+        <p class="muted" style="margin-top:6px">${dataFiltrada.length} de ${data.length} mandato${data.length===1?'':'s'}.</p>
+      </div>
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="lst-ordem" style="padding:8px 10px;font-size:13px;border:1px solid var(--line);border-radius:6px">
+          <option value="urgencia" ${ordem==='urgencia'?'selected':''}>urgência</option>
+          <option value="comissao" ${ordem==='comissao'?'selected':''}>comissão projetada</option>
+          <option value="dia_onda" ${ordem==='dia_onda'?'selected':''}>dia da onda</option>
+          <option value="nome" ${ordem==='nome'?'selected':''}>nome</option>
+        </select>
+        <select id="lst-status" style="padding:8px 10px;font-size:13px;border:1px solid var(--line);border-radius:6px">
+          <option value="todos" ${filtroStatus==='todos'?'selected':''}>todos status</option>
+          <option value="ativo" ${filtroStatus==='ativo'?'selected':''}>ativo</option>
+          <option value="setup" ${filtroStatus==='setup'?'selected':''}>setup</option>
+          <option value="pausado" ${filtroStatus==='pausado'?'selected':''}>pausado</option>
+          <option value="encerrado" ${filtroStatus==='encerrado'?'selected':''}>encerrado</option>
+        </select>
+        <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" id="lst-prop" ${filtroProp?'checked':''}> com proposta</label>
       </div>
     </div>
-    <div class="grid">${data.map(cardProjeto).join('')}</div>`;
+    <div class="grid">${dataFiltrada.map(cardProjeto).join('')}</div>`;
+
+  document.getElementById('lst-ordem').addEventListener('change', e => { window._listaOrdem = e.target.value; renderLista(); });
+  document.getElementById('lst-status').addEventListener('change', e => { window._listaFiltroStatus = e.target.value; renderLista(); });
+  document.getElementById('lst-prop').addEventListener('change', e => { window._listaFiltroProposta = e.target.checked; renderLista(); });
 }
 
 function cardProjeto(p){
