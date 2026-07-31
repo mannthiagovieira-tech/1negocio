@@ -411,18 +411,24 @@ function renderErro(msg){
 async function renderProjeto(){
   const id = _projeto.projeto_id;
   app.innerHTML = `<div style="padding:40px 20px;text-align:center;color:var(--ink-3)">carregando…</div>`;
-  const [etapas, funil, interessados, investimento, parcelas] = await Promise.all([
+  const [etapas, funil, interessados, investimento, parcelas, ondas, pausas, aditivos] = await Promise.all([
     sb.rpc('va_cli_etapas',        { p_projeto: id }),
     sb.rpc('va_cli_funil',         { p_projeto: id }),
     sb.rpc('va_cli_interessados',  { p_projeto: id }),
     sb.rpc('va_cli_investimento',  { p_projeto: id }),
     sb.rpc('va_cli_parcelas',      { p_projeto: id }),
+    sb.from('va_projeto_ondas').select('numero,tipo,data_inicio,data_fim,meses,valor_mensal,dias_pausados,status').eq('projeto_id', id).order('numero'),
+    sb.from('va_projeto_pausas').select('motivo,pausado_em,retomado_em,solicitado_por').eq('projeto_id', id).order('pausado_em', {ascending:false}),
+    sb.from('va_projeto_aditivos').select('valor,motivo,vencimento,status').eq('projeto_id', id).order('criado_em', {ascending:false}),
   ]);
   _dados = {
     etapas: etapas.data || [],
     funil: funil.data || [],
     interessados: interessados.data || [],
     investimento: investimento.data || [],
+    ondas: ondas?.data || [],
+    pausas: pausas?.data || [],
+    aditivos: aditivos?.data || [],
     parcelas: parcelas.data || [],
   };
   desenharProjeto();
@@ -666,6 +672,49 @@ function abaInvestimento(){
 function abaContrato(){
   const p = _projeto;
   const parcelas = _dados.parcelas || [];
+  const ondas = _dados.ondas || [];
+  const pausas = _dados.pausas || [];
+  const aditivos = _dados.aditivos || [];
+  const ondaAtual = ondas.slice().reverse()[0];
+  const hoje = new Date().toISOString().slice(0,10);
+  const diasRest = ondaAtual ? Math.ceil((new Date(ondaAtual.data_fim) - new Date(hoje)) / 86400000) : 0;
+
+  const cardOndas = ondas.length ? `
+    <div class="card">
+      <div class="lbl" style="margin-bottom:8px">ondas contratadas</div>
+      ${ondas.map(o => `
+        <div style="padding:10px 0;border-top:1px solid var(--line)">
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <strong>Onda ${o.numero} · ${esc(o.tipo)}</strong>
+            <span style="font-size:12px;color:${o.status==='ativa'?'green':o.status==='pausada'?'#c60':'var(--ink-3)'}">${esc(o.status)}</span>
+          </div>
+          <div class="muted" style="font-size:13px;margin-top:3px">${dataBR(o.data_inicio)} → ${dataBR(o.data_fim)} · ${o.meses}m · ${brl(o.valor_mensal)}/mês
+            ${o.dias_pausados>0?` · ${o.dias_pausados} dia(s) pausado(s)`:''}</div>
+          ${o.numero===ondaAtual?.numero && o.status==='ativa'?`<div style="margin-top:4px;font-size:13px;color:var(--accent-2)"><strong>${diasRest>0?diasRest:0}</strong> dias restantes</div>`:''}
+        </div>`).join('')}
+    </div>` : '';
+
+  const cardPausas = pausas.length ? `
+    <div class="card">
+      <div class="lbl" style="margin-bottom:8px">pausas</div>
+      ${pausas.map(pz => {
+        const dias = pz.retomado_em ? Math.ceil((new Date(pz.retomado_em) - new Date(pz.pausado_em))/86400000) : null;
+        return `<div style="padding:8px 0;border-top:1px solid var(--line);font-size:13.5px">
+          Mandato pausado de <strong>${dataBR(pz.pausado_em)}</strong>${pz.retomado_em?` a <strong>${dataBR(pz.retomado_em)}</strong>`:' (em curso)'} a pedido de <strong>${esc(pz.solicitado_por)}</strong>.
+          ${dias?` Prazo estendido em ${dias} dia(s).`:''}
+          <div class="muted" style="font-size:12px;margin-top:2px">${esc(pz.motivo)}</div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
+  const cardAditivos = aditivos.length ? `
+    <div class="card">
+      <div class="lbl" style="margin-bottom:8px">aditivos · crédito extra</div>
+      ${aditivos.map(a => `<div style="padding:8px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between">
+        <div><strong>${brl(a.valor)}</strong> · ${esc(a.motivo)}</div>
+        <div style="font-size:12px;color:${a.status==='pago'?'green':'#c60'}">${esc(a.status)}${a.vencimento?' · '+dataBR(a.vencimento):''}</div>
+      </div>`).join('')}
+    </div>` : '';
   const linhasParc = parcelas.map(pa => `
     <div class="parc">
       <span class="parc-num">#${pa.numero}</span>
@@ -696,6 +745,10 @@ function abaContrato(){
       <div class="lbl" style="margin-bottom:12px">parcelas</div>
       ${linhasParc || '<div class="muted" style="padding:12px;font-style:italic;font-size:13px">sem parcelas geradas</div>'}
     </div>
+
+    ${cardOndas}
+    ${cardPausas}
+    ${cardAditivos}
 
     <div class="card">
       <div class="lbl" style="margin-bottom:8px">nível de sigilo</div>

@@ -662,6 +662,25 @@ async function renderLista(){
   app.innerHTML = `<div class="empty"><h2>Carregando projetos…</h2></div>`;
   const { data, error } = await sb.from('va_projetos_resumo').select('*').order('criado_em', {ascending:false});
   if (error) { renderErr(error.message); return; }
+  // Enriquece cada projeto com onda ativa/última pra tags
+  const { data: ondasAll } = await sb.from('va_projeto_ondas').select('projeto_id,numero,status,data_fim,dias_pausados').order('numero');
+  const ondaByProj = {};
+  for (const o of (ondasAll||[])) ondaByProj[o.projeto_id] = o; // pega a maior numero por sobrescrita
+  for (const p of data) p._onda = ondaByProj[p.id] || null;
+  // Ordenação por urgência: renova em <=15d primeiro, depois pausado, depois aguardando, depois normal
+  const urgencia = p => {
+    const o = p._onda; if (!o) return 4;
+    if (o.status === 'aguardando_pagamento') return 1;
+    if (o.status === 'pausada') return 2;
+    if (o.status === 'ativa') {
+      const dias = Math.ceil((new Date(o.data_fim) - new Date()) / 86400000);
+      if (dias <= 15) return 0;
+      return 3;
+    }
+    if (o.status === 'encerrada') return 5;
+    return 4;
+  };
+  data.sort((a,b) => urgencia(a) - urgencia(b));
   if (!data.length) {
     app.innerHTML = `
       <div class="empty">
@@ -686,12 +705,23 @@ function cardProjeto(p){
   const pct = p.etapas_total ? Math.round(p.etapas_ok * 100 / p.etapas_total) : 0;
   const mensal = Number(p.valor_mensal||0), fid = p.fidelidade_meses||3;
   const dia = p.dia_atual||0;
+  const o = p._onda;
+  let tags = '';
+  if (o) {
+    if (o.status === 'aguardando_pagamento') tags = `<span class="chip" style="background:#fff8e1;border-color:#f0c040;color:#c60">aguardando pagamento</span>`;
+    else if (o.status === 'pausada') tags = `<span class="chip" style="background:#fff8e1;border-color:#f0c040;color:#c60">pausado</span>`;
+    else if (o.status === 'ativa') {
+      const dias = Math.ceil((new Date(o.data_fim) - new Date()) / 86400000);
+      if (dias <= 15 && dias >= 0) tags = `<span class="chip" style="background:#ffe8e0;border-color:#f08060;color:#c00">renova em ${dias}d</span>`;
+    } else if (o.status === 'encerrada') tags = `<span class="chip" style="background:#eee;color:#666">encerrado</span>`;
+  }
   return `
     <div class="card proj-card" onclick="rota('#/p/${p.id}')">
       <div class="top">
         <div>
           <h3>${esc(p.cliente_nome)}</h3>
           <div class="sub">${esc(p.negocio_titulo || p.setor || 'Negócio sem título')}${p.cidade ? ' · ' + esc(p.cidade) : ''}</div>
+          ${tags?`<div style="margin-top:6px">${tags}</div>`:''}
         </div>
         <span class="badge ${esc(p.status)}">${esc(p.status)}</span>
       </div>
@@ -889,7 +919,7 @@ let _abaChave = 'kickoff';
 
 async function renderProjeto(id){
   app.innerHTML = `<div class="empty"><h2>Carregando projeto…</h2></div>`;
-  const [proj, etapas, kickoff, blk, arqCat, arqProj, anx, teas, fin, plano, razao, parcelas, precos, contatos, funil, canaisM, chatArqRow, prospBruta, fonteDesemp] = await Promise.all([
+  const [proj, etapas, kickoff, blk, arqCat, arqProj, anx, teas, fin, plano, razao, parcelas, precos, contatos, funil, canaisM, chatArqRow, prospBruta, fonteDesemp, ondas, pausas, aditivos, gateOnda] = await Promise.all([
     sb.from('va_projetos_resumo').select('*').eq('id', id).maybeSingle(),
     sb.from('va_projeto_etapas').select('*').eq('projeto_id', id).order('ordem'),
     sb.from('va_projeto_kickoff').select('*').eq('projeto_id', id).maybeSingle(),
@@ -909,6 +939,10 @@ async function renderProjeto(id){
     sb.from('va_arquetipos_chat_sessao').select('*').eq('projeto_id', id).eq('status','aberta').order('atualizado_em', {ascending:false}).limit(1).maybeSingle(),
     sb.from('va_prospeccao_bruta').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}).limit(500),
     sb.from('va_projeto_fonte_desempenho').select('*').eq('projeto_id', id),
+    sb.from('va_projeto_ondas').select('*').eq('projeto_id', id).order('numero'),
+    sb.from('va_projeto_pausas').select('*').eq('projeto_id', id).order('pausado_em', {ascending:false}),
+    sb.from('va_projeto_aditivos').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}),
+    sb.rpc('va_onda_operacional', { p_projeto_id: id }),
   ]);
   if (proj.error || !proj.data) { renderErr(proj.error?.message || 'Projeto não encontrado'); return; }
   if (arqCat.data) window._catalogoArq = arqCat.data;
@@ -947,6 +981,10 @@ async function renderProjeto(id){
     fonteDesemp: fonteDesemp?.data || [],
     triFiltros: { status: 'todos', fonte: 'todas', arq: 'todos', busca: '', score: 0 },
     triSelecionados: new Set(),
+    ondas: ondas?.data || [],
+    pausas: pausas?.data || [],
+    aditivos: aditivos?.data || [],
+    gateOnda: gateOnda?.data || { operacional: true },
   };
   if (!_pj.kickoff) _pj.kickoff = { projeto_id: id, itens: {} };
   desenhaProjeto();
@@ -1016,6 +1054,7 @@ function desenhaProjeto(){
   const p = _pj.projeto;
   const et = _pj.etapas;
   app.innerHTML = `
+    ${bannerOndaEstado()}
     <div style="margin-bottom:22px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
       <div>
         <a onclick="rota('#/')" style="font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer">← voltar para projetos</a>
@@ -1070,6 +1109,7 @@ const GESTAO_ITENS = [
   { chave:'gestao_atendimento', titulo:'Atendimento', sub:'canais · NDA · dossiê' },
   { chave:'gestao_campanhas',   titulo:'Campanhas',   sub:'criativos · métricas · atribuição' },
   { chave:'gestao_triagem',     titulo:'Triagem',     sub:'antessala · qualificação · aprovar' },
+  { chave:'gestao_contrato',    titulo:'Contrato',    sub:'ondas · pausas · aditivos · renovação' },
   { chave:'gestao_relatorios',  titulo:'Relatórios',  sub:'em breve' },
 ];
 
@@ -1112,6 +1152,7 @@ function desenhaAba(){
   if (_abaChave === 'gestao_atendimento') { htmlAtendimento();                                       return; }
   if (_abaChave === 'gestao_campanhas')   { htmlCampanhas();                                          return; }
   if (_abaChave === 'gestao_triagem')     { htmlTriagem();                                              return; }
+  if (_abaChave === 'gestao_contrato')    { htmlContrato();                                             return; }
   if (_abaChave === 'gestao_relatorios')  { stage.innerHTML = htmlGestaoPlaceholder('Relatórios','Consumo, ROI da onda, exportáveis pro cliente.'); return; }
   // SETUP
   const e = _pj.etapas.find(x => x.chave === _abaChave) || _pj.etapas[0];
@@ -2162,6 +2203,189 @@ async function triDescartar(){
   toast(`${ids.length} descartados`, 'ok');
   _pj.triSelecionados.clear();
   htmlTriagem();
+}
+
+// ═══ SLICE ondas · Banner + Contrato ═══════════════════════════
+function bannerOndaEstado(){
+  const g = _pj?.gateOnda;
+  if (!g || g.operacional) return '';
+  const cor = g.status === 'encerrada' ? '#c00' : '#c60';
+  const bg  = g.status === 'encerrada' ? '#fee' : '#fff8e1';
+  return `<div style="background:${bg};border:1px solid ${cor};border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+    <div style="color:${cor};font-weight:600;font-size:14px">⚠ ${esc(g.mensagem||'Operação bloqueada')}</div>
+    <button class="btn btn-primary btn-sm" onclick="trocarAba('gestao_contrato')">Ir para Contrato →</button>
+  </div>`;
+}
+
+function htmlContrato(){
+  const stage = document.getElementById('stage');
+  const ondas = _pj.ondas || [];
+  const pausas = _pj.pausas || [];
+  const aditivos = _pj.aditivos || [];
+  const parcelas = _pj.parcelas || [];
+  const hoje = new Date().toISOString().slice(0,10);
+  const ondaAtual = ondas.slice().reverse()[0]; // última
+  const diasRestantes = ondaAtual ? Math.ceil((new Date(ondaAtual.data_fim) - new Date(hoje)) / 86400000) : 0;
+
+  const timeline = ondas.map(o => {
+    const pauseIn = pausas.filter(p => p.onda_id === o.id);
+    const cor = o.status==='ativa'?'var(--accent)':o.status==='pausada'?'#c60':o.status==='aguardando_pagamento'?'#f0c040':o.status==='encerrada'?'#999':'var(--ink-3)';
+    return `<div style="border-left:4px solid ${cor};padding:10px 12px;background:${o.numero===ondaAtual?.numero?'var(--surface-2)':'transparent'};margin-bottom:6px">
+      <div class="row" style="justify-content:space-between">
+        <strong>Onda ${o.numero} · ${esc(o.tipo)}</strong>
+        <span class="pill" style="color:${cor}">${esc(o.status)}</span>
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:3px">
+        ${dataBR(o.data_inicio)} → ${dataBR(o.data_fim)} · ${o.meses}m · R$ ${Number(o.valor_mensal).toLocaleString('pt-BR')}/mês · comissão ${o.comissao_percent}%
+        ${o.dias_pausados>0?` · <b>${o.dias_pausados}d pausado</b>`:''}
+      </div>
+      ${pauseIn.length?`<div style="margin-top:4px;font-size:11px;color:var(--ink-3)">${pauseIn.map(p=>`⏸ ${dataBR(p.pausado_em)}${p.retomado_em?'→'+dataBR(p.retomado_em):' (aberta)'} · ${esc(p.motivo)}`).join(' · ')}</div>`:''}
+    </div>`;
+  }).join('') || '<div class="bl-empty">Sem ondas registradas.</div>';
+
+  const parcelasOnda = ondaAtual ? parcelas.filter(p => p.onda_id === ondaAtual.id) : [];
+  const cardAtual = ondaAtual ? `
+    <div class="k-card">
+      <div class="lbl">02 · onda atual</div>
+      <div class="orc-resumo" style="margin-top:10px">
+        <div class="orc-kpi"><div class="k">valor mensal</div><div class="v">R$ ${Number(ondaAtual.valor_mensal).toLocaleString('pt-BR')}</div></div>
+        <div class="orc-kpi"><div class="k">comissão</div><div class="v">${ondaAtual.comissao_percent}%</div></div>
+        <div class="orc-kpi ${diasRestantes<=15?'destaque':''}"><div class="k">dias restantes</div><div class="v">${diasRestantes>0?diasRestantes:0}</div></div>
+        <div class="orc-kpi"><div class="k">dias pausados</div><div class="v">${ondaAtual.dias_pausados||0}</div></div>
+      </div>
+      ${parcelasOnda.length?`
+      <div style="margin-top:14px">
+        <div class="lbl" style="margin-bottom:6px">parcelas</div>
+        <table style="width:100%;font-size:13px">
+          <thead><tr style="text-align:left;color:var(--ink-3)"><th>#</th><th>vencimento</th><th>valor</th><th>status</th><th></th></tr></thead>
+          <tbody>${parcelasOnda.map(p => `
+            <tr style="border-top:1px solid var(--line)">
+              <td>${p.numero}</td><td>${dataBR(p.vencimento)}</td>
+              <td>R$ ${Number(p.valor).toLocaleString('pt-BR')}</td>
+              <td>${esc(p.status)}</td>
+              <td>${p.status!=='pago'?`<button class="btn btn-ghost btn-sm" onclick="parcelaPagar('${p.id}')">marcar paga</button>`:''}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`:''}
+    </div>` : '';
+
+  // Card 3 · ações condicionadas
+  let acoes = '';
+  if (ondaAtual) {
+    const s = ondaAtual.status;
+    const btns = [];
+    if (s === 'aguardando_pagamento') {
+      btns.push('<div class="aviso" style="background:#fff8e1">Marque a primeira parcela como paga acima para ativar. A onda se ativa automaticamente.</div>');
+    } else if (s === 'pausada') {
+      btns.push('<button class="btn btn-primary" onclick="ondaRetomar(\''+ondaAtual.id+'\')">↻ Retomar onda</button>');
+    } else if (s === 'ativa') {
+      btns.push('<button class="btn btn-ghost" onclick="ondaPausar(\''+ondaAtual.id+'\')">⏸ Pausar</button>');
+      btns.push('<button class="btn btn-ghost" onclick="aditivoNovo(\''+ondaAtual.id+'\')">+ Aditivo</button>');
+      if (diasRestantes <= 15) {
+        btns.push('<button class="btn btn-primary" onclick="ondaRenovar(\''+ondaAtual.id+'\',\'renovacao\')">↻ Renovar</button>');
+        btns.push('<button class="btn btn-primary" onclick="ondaRenovar(\''+ondaAtual.id+'\',\'repactuacao\')">↻ Repactuar</button>');
+        btns.push('<button class="btn btn-ghost" onclick="ondaEncerrar(\''+ondaAtual.id+'\')">Encerrar</button>');
+      }
+    }
+    acoes = `<div class="k-card">
+      <div class="lbl">03 · ações</div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px">${btns.join('')}</div>
+    </div>`;
+  }
+
+  const cardAditivos = `<div class="k-card">
+    <div class="lbl" style="display:flex;justify-content:space-between">
+      <span>04 · aditivos</span>
+      ${ondaAtual?.status==='ativa'?`<button class="btn btn-ghost btn-sm" onclick="aditivoNovo('${ondaAtual.id}')">+ aditivo</button>`:''}
+    </div>
+    ${aditivos.length?`
+    <table style="width:100%;font-size:13px;margin-top:8px">
+      <thead><tr style="text-align:left;color:var(--ink-3)"><th>valor</th><th>motivo</th><th>venc</th><th>status</th><th></th></tr></thead>
+      <tbody>${aditivos.map(a => `
+        <tr style="border-top:1px solid var(--line)">
+          <td>R$ ${Number(a.valor).toLocaleString('pt-BR')}</td><td>${esc(a.motivo)}</td>
+          <td>${a.vencimento?dataBR(a.vencimento):'—'}</td><td>${esc(a.status)}</td>
+          <td>${a.status==='pendente'?`<button class="btn btn-ghost btn-sm" onclick="aditivoMarcarPago('${a.id}')">marcar pago</button>`:''}</td>
+        </tr>`).join('')}</tbody>
+    </table>`:'<div class="bl-empty" style="margin-top:8px">Sem aditivos.</div>'}
+  </div>`;
+
+  stage.innerHTML = `
+    <div class="stage-head">
+      <div>
+        <div class="meta">gestão</div>
+        <h2>Contrato · ondas do mandato</h2>
+        <div class="muted" style="margin-top:6px;font-size:13.5px">Cada onda tem seu período, valor e status próprios. Renovação mínima mensal, pausa estende o prazo, aditivo credita sem mexer no prazo.</div>
+      </div>
+    </div>
+    <div class="k-card">
+      <div class="lbl">01 · linha do tempo</div>
+      <div style="margin-top:10px">${timeline}</div>
+    </div>
+    ${cardAtual}
+    ${acoes}
+    ${cardAditivos}`;
+}
+
+async function parcelaPagar(id){
+  if (!confirm('Marcar parcela como paga? Isso ativa a onda automaticamente.')) return;
+  const { error } = await sb.from('va_projeto_parcelas').update({ status:'pago', pago_em: new Date().toISOString() }).eq('id', id);
+  if (error) { toast(error.message,'err'); return; }
+  toast('parcela paga','ok'); await renderProjeto(_pj.projeto.id);
+}
+async function ondaPausar(ondaId){
+  const motivo = prompt('Motivo da pausa:'); if (!motivo) return;
+  const quem = prompt('Solicitado por (cliente|operador):', 'cliente') || 'cliente';
+  if (!['cliente','operador'].includes(quem)) { toast('valor inválido','err'); return; }
+  const { error } = await sb.rpc('va_onda_pausar', { p_onda_id: ondaId, p_motivo: motivo, p_solicitado_por: quem });
+  if (error) { toast(error.message,'err'); return; }
+  toast('onda pausada','ok'); await renderProjeto(_pj.projeto.id);
+}
+async function ondaRetomar(ondaId){
+  if (!confirm('Retomar onda? O prazo será estendido pelos dias pausados.')) return;
+  const { data, error } = await sb.rpc('va_onda_retomar', { p_onda_id: ondaId });
+  if (error) { toast(error.message,'err'); return; }
+  toast(`retomada · +${data.dias}d, novo fim ${dataBR(data.nova_data_fim)}`,'ok');
+  await renderProjeto(_pj.projeto.id);
+}
+async function ondaRenovar(ondaId, tipo){
+  const meses = Number(prompt('Meses da nova onda (mínimo 1):', '3')); if (!meses || meses < 1) return;
+  const atual = _pj.ondas.find(o => o.id === ondaId);
+  const valor = Number(prompt('Valor mensal (R$):', String(atual?.valor_mensal||0)));
+  const comissao = Number(prompt('Comissão (%):', String(atual?.comissao_percent||5)));
+  if (tipo==='repactuacao') {
+    const just = prompt('Justificativa da repactuação (obrigatória):'); if (!just) { toast('justificativa obrigatória','err'); return; }
+  }
+  const { data, error } = await sb.rpc('va_criar_onda_renovacao', {
+    p_projeto_id: _pj.projeto.id, p_meses: meses, p_valor_mensal: valor, p_comissao_percent: comissao, p_tipo: tipo
+  });
+  if (error) { toast(error.message,'err'); return; }
+  toast('onda criada · aguardando pagamento','ok');
+  await renderProjeto(_pj.projeto.id);
+}
+async function ondaEncerrar(ondaId){
+  const motivo = prompt('Motivo do encerramento:'); if (!motivo) return;
+  const rec = prompt('Recomendação para o cliente:') || null;
+  const { error } = await sb.from('va_projeto_ondas').update({ status:'encerrada', encerrada_em: new Date().toISOString(), observacao: motivo + (rec?' · rec: '+rec:'') }).eq('id', ondaId);
+  if (error) { toast(error.message,'err'); return; }
+  toast('encerrada','ok'); await renderProjeto(_pj.projeto.id);
+}
+async function aditivoNovo(ondaId){
+  const valor = Number(prompt('Valor (R$):')); if (!valor || valor <= 0) return;
+  const motivo = prompt('Motivo:'); if (!motivo) return;
+  const venc = prompt('Vencimento (YYYY-MM-DD, opcional):') || null;
+  const { error } = await sb.from('va_projeto_aditivos').insert({
+    projeto_id: _pj.projeto.id, onda_id: ondaId, valor, motivo, vencimento: venc,
+  });
+  if (error) { toast(error.message,'err'); return; }
+  toast('aditivo criado','ok'); await renderProjeto(_pj.projeto.id);
+}
+async function aditivoMarcarPago(id){
+  if (!confirm('Marcar aditivo como pago? Isso credita na onda.')) return;
+  const { error } = await sb.rpc('va_aditivo_marcar_pago', { p_aditivo_id: id });
+  if (error) { toast(error.message,'err'); return; }
+  toast('pago','ok'); await renderProjeto(_pj.projeto.id);
 }
 
 function vincularArquetipos(){
