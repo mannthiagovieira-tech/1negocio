@@ -945,7 +945,7 @@ let _abaChave = 'kickoff';
 
 async function renderProjeto(id){
   app.innerHTML = `<div class="empty"><h2>Carregando projeto…</h2></div>`;
-  const [proj, etapas, kickoff, blk, arqCat, arqProj, anx, teas, fin, plano, razao, parcelas, precos, contatos, funil, canaisM, chatArqRow, prospBruta, fonteDesemp, ondas, pausas, aditivos, gateOnda, ndas, cartas] = await Promise.all([
+  const [proj, etapas, kickoff, blk, arqCat, arqProj, anx, teas, fin, plano, razao, parcelas, precos, contatos, funil, canaisM, chatArqRow, prospBruta, fonteDesemp, ondas, pausas, aditivos, gateOnda, ndas, cartas, parcMatch, parcEnvios, parcIndic, revisoes, landing] = await Promise.all([
     sb.from('va_projetos_resumo').select('*').eq('id', id).maybeSingle(),
     sb.from('va_projeto_etapas').select('*').eq('projeto_id', id).order('ordem'),
     sb.from('va_projeto_kickoff').select('*').eq('projeto_id', id).maybeSingle(),
@@ -971,6 +971,11 @@ async function renderProjeto(id){
     sb.rpc('va_onda_operacional', { p_projeto_id: id }),
     sb.from('va_ndas').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}),
     sb.from('va_cartas_intencao').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}),
+    sb.rpc('va_parceiros_match', { p_projeto_id: id, p_limit: 20 }),
+    sb.from('va_parceiro_envios').select('*, va_parceiros(nome,tipo,estado)').eq('projeto_id', id).order('criado_em', {ascending:false}),
+    sb.from('va_parceiro_indicacoes').select('*').eq('projeto_id', id).order('criado_em', {ascending:false}),
+    sb.from('va_projeto_revisoes').select('*').eq('projeto_id', id).order('data_prevista', {ascending:false}),
+    sb.from('va_projeto_landing').select('*').eq('projeto_id', id).maybeSingle(),
   ]);
   if (proj.error || !proj.data) { renderErr(proj.error?.message || 'Projeto não encontrado'); return; }
   if (arqCat.data) window._catalogoArq = arqCat.data;
@@ -1015,6 +1020,14 @@ async function renderProjeto(id){
     gateOnda: gateOnda?.data || { operacional: true },
     ndas: ndas?.data || [],
     cartas: cartas?.data || [],
+    parcMatch: parcMatch?.data || [],
+    parcEnvios: parcEnvios?.data || [],
+    parcIndic: parcIndic?.data || [],
+    revisoes: revisoes?.data || [],
+    landing: landing?.data || null,
+    listaOrdem: 'urgencia',
+    listaFiltroStatus: 'todos',
+    listaFiltroProposta: false,
   };
   if (!_pj.kickoff) _pj.kickoff = { projeto_id: id, itens: {} };
   desenhaProjeto();
@@ -2610,6 +2623,105 @@ function cartaAbrirLink(token){
   const url = `${location.origin}/carta/${token}`;
   navigator.clipboard.writeText(url).then(()=>toast('link copiado','ok')).catch(()=>alert('Link: '+url));
   window.open(url, '_blank');
+}
+
+// ═══ PARCEIROS · card admin ═══════════════════════════════════
+function cardAtParceiros(){
+  const match = _pj.parcMatch || [];
+  const envios = _pj.parcEnvios || [];
+  const indics = _pj.parcIndic || [];
+  const indicPorEnvio = {};
+  for (const i of indics) (indicPorEnvio[i.envio_id] = indicPorEnvio[i.envio_id] || []).push(i);
+
+  const rowsMatch = match.length ? match.map(m => `
+    <tr>
+      <td><input type="checkbox" data-parc="${m.parceiro_id}"></td>
+      <td><strong>${esc(m.nome)}</strong>${m.empresa?'<br><span class="muted" style="font-size:11px">'+esc(m.empresa)+'</span>':''}</td>
+      <td>${esc(m.tipo||'—')}</td>
+      <td>${esc(m.cidade||'')}${m.estado?'/'+esc(m.estado):''}</td>
+      <td style="font-weight:600;color:${m.score>=60?'green':m.score>=40?'#c60':'#c00'}">${m.score}</td>
+      <td style="font-size:11px;color:var(--ink-3)">${esc(m.motivos||'')}</td>
+    </tr>`).join('') : '<tr><td colspan="6" class="muted" style="text-align:center;padding:16px">Nenhum parceiro homologado com match. Cadastre parceiros ou revise perfil deste projeto.</td></tr>';
+
+  const rowsEnvios = envios.length ? envios.map(e => {
+    const parc = e.va_parceiros || {};
+    const inds = indicPorEnvio[e.id] || [];
+    return `<tr>
+      <td>${esc(parc.nome||'?')}<br><span class="muted" style="font-size:11px">${esc(parc.tipo||'—')} · ${esc(parc.estado||'')}</span></td>
+      <td><span class="pill">${esc(e.status)}</span></td>
+      <td>${e.percentual_ofertado||0}%</td>
+      <td>${dataBR(e.enviado_em)}</td>
+      <td>${inds.length?inds.map(i=>`${esc(i.nome||'?')} <span class="chip">${esc(i.status)}</span>`).join('<br>'):'<span class="muted">—</span>'}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="parceiroCopiarLink('${e.token_publico}')">copiar link</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6" class="muted" style="text-align:center;padding:12px">Nenhum envio ainda.</td></tr>';
+
+  return `<div class="k-card">
+    <div class="lbl" style="display:flex;justify-content:space-between">
+      <span>Parceiros</span>
+      <button class="btn btn-ghost btn-sm" onclick="parceiroCadastrar()">+ cadastrar parceiro</button>
+    </div>
+    <p class="muted" style="font-size:13px;margin-top:6px">Prospecção de parceiros não debita crédito do cliente — é investimento da 1Negócio.</p>
+
+    <div style="margin-top:14px">
+      <div class="lbl" style="margin-bottom:6px">match automático (${match.length})</div>
+      <table style="width:100%;font-size:13px">
+        <thead><tr style="text-align:left;color:var(--ink-3);border-bottom:1px solid var(--line)">
+          <th></th><th>nome</th><th>tipo</th><th>região</th><th>score</th><th>motivo</th>
+        </tr></thead>
+        <tbody>${rowsMatch}</tbody>
+      </table>
+      ${match.length ? `
+        <div class="row" style="gap:8px;margin-top:10px;align-items:center">
+          <input id="parc-perc" type="number" min="0" max="100" step="0.5" value="3" placeholder="% comissão" style="width:100px">
+          <button class="btn btn-primary btn-sm" onclick="parceiroEnviarSelecionados()">enviar convite aos selecionados</button>
+        </div>` : ''}
+    </div>
+
+    <div style="margin-top:20px">
+      <div class="lbl" style="margin-bottom:6px">envios (${envios.length})</div>
+      <table style="width:100%;font-size:13px">
+        <thead><tr style="text-align:left;color:var(--ink-3);border-bottom:1px solid var(--line)">
+          <th>parceiro</th><th>status</th><th>%</th><th>enviado</th><th>indicações</th><th></th>
+        </tr></thead>
+        <tbody>${rowsEnvios}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+async function parceiroEnviarSelecionados(){
+  const ids = [...document.querySelectorAll('[data-parc]:checked')].map(el => el.dataset.parc);
+  if (!ids.length) { toast('selecione ao menos 1 parceiro','err'); return; }
+  const perc = Number(document.getElementById('parc-perc').value) || 3;
+  if (!confirm(`Enviar convite pra ${ids.length} parceiro(s) com ${perc}% de comissão?`)) return;
+  let ok = 0;
+  for (const pid of ids) {
+    const { data, error } = await sb.rpc('va_parceiro_enviar', { p_projeto_id: _pj.projeto.id, p_parceiro_id: pid, p_percentual: perc });
+    if (!error) ok++;
+  }
+  toast(`${ok}/${ids.length} convites enviados`, 'ok');
+  await renderProjeto(_pj.projeto.id);
+}
+function parceiroCopiarLink(token){
+  const url = `${location.origin}/parceiro/${token}`;
+  navigator.clipboard.writeText(url).then(()=>toast('link copiado · '+url,'ok')).catch(()=>alert('Link: '+url));
+}
+async function parceiroCadastrar(){
+  const nome = prompt('Nome do parceiro:'); if (!nome) return;
+  const tipo = prompt('Tipo (corretor|contador|advogado|consultoria|outro):','contador') || 'outro';
+  const telefone = prompt('Telefone:'); if (!telefone) return;
+  const estado = prompt('UF (2 letras):','SC') || null;
+  const cidade = prompt('Cidade:') || null;
+  const empresa = prompt('Empresa/escritório (opcional):') || null;
+  const email = prompt('E-mail (opcional):') || null;
+  const tel_norm = String(telefone).replace(/\D/g,'');
+  const { error } = await sb.from('va_parceiros').insert({
+    nome, tipo, telefone, telefone_normalizado: tel_norm, estado, cidade, empresa, email,
+    status: 'homologado', origem: 'manual',
+  });
+  if (error) { toast(error.message,'err'); return; }
+  toast('parceiro cadastrado','ok');
+  await renderProjeto(_pj.projeto.id);
 }
 async function aditivoNovo(ondaId){
   const valor = Number(prompt('Valor (R$):')); if (!valor || valor <= 0) return;
@@ -4678,6 +4790,7 @@ function desenharAtendimento(){
     ${cardAtAtendimentos()}
     ${cardAtNdas()}
     ${cardAtCartas()}
+    ${cardAtParceiros()}
     ${cardAtDossies()}`;
   vincularAtendimento();
 }
