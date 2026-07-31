@@ -660,13 +660,19 @@ function renderSchemaMissing(){
 // ─── VIEW: LISTA ──────────────────────────────────────────────────
 async function renderLista(){
   app.innerHTML = `<div class="empty"><h2>Carregando projetos…</h2></div>`;
-  const { data, error } = await sb.from('va_projetos_resumo').select('*').order('criado_em', {ascending:false});
-  if (error) { renderErr(error.message); return; }
-  // Enriquece cada projeto com onda ativa/última pra tags
-  const { data: ondasAll } = await sb.from('va_projeto_ondas').select('projeto_id,numero,status,data_fim,dias_pausados').order('numero');
-  const ondaByProj = {};
-  for (const o of (ondasAll||[])) ondaByProj[o.projeto_id] = o; // pega a maior numero por sobrescrita
-  for (const p of data) p._onda = ondaByProj[p.id] || null;
+  const [carteiraR, cockpitR, resumoR] = await Promise.all([
+    sb.from('va_carteira_resumo').select('*'),
+    sb.from('va_carteira_cockpit').select('*').maybeSingle(),
+    sb.from('va_projetos_resumo').select('*').order('criado_em', {ascending:false}),
+  ]);
+  const carteira = carteiraR.data || [];
+  const cockpit = cockpitR.data || {};
+  const data = resumoR.data || [];
+  if (resumoR.error) { renderErr(resumoR.error.message); return; }
+  // Merge carteira → data (por id)
+  const carteiraMap = Object.fromEntries(carteira.map(x => [x.projeto_id, x]));
+  for (const p of data) p._c = carteiraMap[p.id] || {};
+  for (const p of data) p._onda = p._c.onda_status ? { status: p._c.onda_status, data_fim: p._c.onda_fim, dias_pausados: p._c.dias_pausados, numero: p._c.onda_numero } : null;
   // Ordenação por urgência: renova em <=15d primeiro, depois pausado, depois aguardando, depois normal
   const urgencia = p => {
     const o = p._onda; if (!o) return 4;
@@ -690,7 +696,27 @@ async function renderLista(){
       </div>`;
     return;
   }
+  const brl = v => 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const cockpitHtml = `
+    <div class="k-card" style="margin-bottom:22px">
+      <div class="lbl">cockpit da carteira</div>
+      <div class="orc-resumo" style="margin-top:10px">
+        <div class="orc-kpi"><div class="k">receita recorrente</div><div class="v">${brl(cockpit.receita_recorrente_ativa)}</div></div>
+        <div class="orc-kpi"><div class="k">orçamento ativo</div><div class="v">${brl(cockpit.orcamento_ativo)}</div></div>
+        <div class="orc-kpi"><div class="k">gasto</div><div class="v">${brl(cockpit.gasto_ativo)}</div></div>
+        <div class="orc-kpi ${Number(cockpit.saldo_ativo)>0?'destaque':''}"><div class="k">saldo</div><div class="v">${brl(cockpit.saldo_ativo)}</div></div>
+        <div class="orc-kpi"><div class="k">comissão líquida</div><div class="v">${brl(cockpit.comissao_liq_projetada)}</div></div>
+      </div>
+      <div class="orc-resumo" style="margin-top:10px">
+        <div class="orc-kpi"><div class="k">mandatos ativos</div><div class="v">${cockpit.mandatos_ativos||0}</div></div>
+        <div class="orc-kpi"><div class="k">em negociação</div><div class="v">${cockpit.mandatos_em_negociacao||0}</div></div>
+        <div class="orc-kpi"><div class="k">com proposta</div><div class="v">${cockpit.mandatos_com_proposta||0}</div></div>
+        <div class="orc-kpi ${cockpit.renovacoes_15d>0?'destaque':''}"><div class="k">renova 15d</div><div class="v">${cockpit.renovacoes_15d||0}<small style="font-size:11px;color:var(--ink-3)"> · ${brl(cockpit.valor_renovacoes_15d)}</small></div></div>
+        <div class="orc-kpi"><div class="k">capacidade 8h</div><div class="v">${Math.round((cockpit.mandatos_ativos||0)*1.0)}<small style="font-size:11px;color:var(--ink-3)"> mand./op</small></div></div>
+      </div>
+    </div>`;
   app.innerHTML = `
+    ${cockpitHtml}
     <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px">
       <div>
         <div class="lbl" style="margin-bottom:6px">carteira</div>

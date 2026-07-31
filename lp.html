@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>Negócio à venda · 1Negócio</title>
+<style>
+  :root{--ink:#1a1a1a;--ink-3:#666;--line:#e0e0e0;--accent:#25d366;--surface:#fff;--surface-2:#f7f8fa}
+  *{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;color:var(--ink);background:var(--surface-2);line-height:1.6}
+  .wrap{max-width:640px;margin:0 auto;padding:32px 16px 100px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px;margin-bottom:16px}
+  h1{font-size:26px;margin:0 0 8px;line-height:1.2}h2{font-size:14px;margin:0 0 6px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em}
+  .destaque{background:var(--surface-2);padding:12px 14px;border-radius:8px;margin-top:10px;font-size:14px}
+  .cta{position:fixed;bottom:16px;left:16px;right:16px;background:var(--accent);color:#fff;padding:16px;border-radius:12px;text-align:center;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(0,0,0,.15)}
+  img{max-width:100%;border-radius:8px;margin-top:10px}
+</style></head>
+<body><div class="wrap" id="app">carregando…</div>
+<script>
+const slug = new URLSearchParams(location.search).get('s');
+async function init(){
+  if (!slug) return document.getElementById('app').innerHTML = '<h1>⚠ Link inválido</h1>';
+  const r = await fetch('/api/landing-publica?s='+encodeURIComponent(slug));
+  const d = await r.json();
+  if (!r.ok || !d.ok) return document.getElementById('app').innerHTML = '<h1>⚠ '+(d.erro||'erro')+'</h1>';
+  const lp = d.lp;
+  const destaques = (lp.destaques||[]).map(x => `<div class="destaque">${esc(x)}</div>`).join('');
+  const imgs = (lp.imagens||[]).map(u => `<img src="${esc(u)}" alt="">`).join('');
+  document.getElementById('app').innerHTML = `
+    <div class="card">
+      <h2>Negócio à venda</h2>
+      <h1>${esc(lp.titulo||'Oportunidade')}</h1>
+      ${lp.subtitulo?`<p style="margin:8px 0 0;color:var(--ink-3)">${esc(lp.subtitulo)}</p>`:''}
+      ${imgs}
+    </div>
+    <div class="card">
+      <div style="white-space:pre-line;font-size:15px">${esc(lp.corpo||'')}</div>
+      ${destaques}
+    </div>`;
+  if (lp.wpp_link) {
+    document.body.insertAdjacentHTML('beforeend', `<a href="${esc(lp.wpp_link)}" class="cta">Quero saber mais no WhatsApp →</a>`);
+  }
+}
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c])}
+init();
+</script></body></html>

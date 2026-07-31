@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>Convite Parceiro · 1Negócio</title>
+<style>
+  :root{--ink:#1a1a1a;--ink-3:#666;--line:#e0e0e0;--accent:#3b6fd6;--surface:#fff;--surface-2:#f7f8fa}
+  *{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Inter",sans-serif;color:var(--ink);background:var(--surface-2);line-height:1.5}
+  .wrap{max-width:600px;margin:0 auto;padding:24px 16px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:16px}
+  h1{font-size:22px;margin:0 0 8px}h2{font-size:16px;margin:0 0 10px}
+  .lbl{font-size:11px;text-transform:uppercase;color:var(--ink-3);font-weight:600;letter-spacing:.06em}
+  .muted{color:var(--ink-3);font-size:13px}
+  label{display:block;font-size:13px;color:#333;margin-top:12px;font-weight:500}
+  input,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;margin-top:4px;font-family:inherit}
+  .btn{padding:12px 24px;border-radius:8px;border:none;font-size:14px;font-weight:600;cursor:pointer}
+  .btn-primary{background:var(--accent);color:#fff;width:100%}
+  .success{background:#e8f5e8;padding:16px;border-radius:8px;color:#265426}
+</style></head>
+<body><div class="wrap" id="app"><div class="card"><h2>Carregando…</h2></div></div>
+<script>
+const token = new URLSearchParams(location.search).get('t');
+async function init(){
+  if (!token) return document.getElementById('app').innerHTML = '<div class="card"><h1>⚠ Link inválido</h1></div>';
+  const r = await fetch('/api/parceiro-publico?t='+encodeURIComponent(token));
+  const d = await r.json();
+  if (!r.ok || !d.ok) return document.getElementById('app').innerHTML = `<div class="card"><h1>⚠ ${d.erro||'erro'}</h1></div>`;
+  render(d.envio);
+}
+function render(e){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="card">
+      <div class="lbl">convite para indicar</div>
+      <h1>Olá, ${esc(e.parceiro_nome)}</h1>
+      <p class="muted">A 1Negócio está trabalhando na venda deste negócio e convida você (${esc(e.parceiro_tipo)}) para indicar potenciais compradores. Comissão por venda: <b>${e.percentual||0}%</b>. Janela: ${e.janela_dias||180} dias.</p>
+    </div>
+    <div class="card">
+      <h2>Negócio disponível</h2>
+      <div style="margin-top:6px;font-size:14px">
+        Código: <b>#${esc(e.negocio.codigo||'—')}</b><br>
+        Setor: ${esc(e.negocio.setor||'—')}<br>
+        Região: ${esc(e.negocio.cidade||'')}${e.negocio.uf?'/'+esc(e.negocio.uf):''}
+        ${e.negocio.titulo_publico?`<br>Título: ${esc(e.negocio.titulo_publico)}`:''}
+      </div>
+      <p class="muted" style="margin-top:12px;font-size:12px">Detalhes adicionais só após NDA do interessado. Nome exato e valor não são compartilhados nesta fase.</p>
+    </div>
+    <div class="card">
+      <h2>Conhece alguém que possa comprar?</h2>
+      <p class="muted">Regra: primeiro registro vence. Se o telefone já estiver no projeto, avisamos aqui a data.</p>
+      <label>Nome do potencial comprador <input id="nome"></label>
+      <label>Telefone (WhatsApp) <input id="tel" placeholder="DDD + número"></label>
+      <label>Empresa (se aplicar) <input id="emp"></label>
+      <label>Contexto — quem é, por que compraria <textarea id="ctx" rows="3"></textarea></label>
+      <button class="btn btn-primary" style="margin-top:16px" onclick="indicar()">Enviar indicação</button>
+      <div id="status" class="muted" style="margin-top:10px;text-align:center"></div>
+    </div>`;
+}
+async function indicar(){
+  const nome = document.getElementById('nome').value.trim();
+  const tel = document.getElementById('tel').value.trim();
+  const emp = document.getElementById('emp').value.trim();
+  const ctx = document.getElementById('ctx').value.trim();
+  if (!nome || !tel) { alert('Nome e telefone obrigatórios'); return; }
+  const st = document.getElementById('status'); st.textContent = 'enviando…';
+  const r = await fetch('/api/parceiro-publico', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ token, dados: { nome, telefone: tel, empresa: emp, contexto: ctx } })
+  });
+  const d = await r.json();
+  if (!r.ok || !d.ok) { st.textContent = 'erro: '+(d.erro||'?'); return; }
+  const map = { registrada: '✓ Indicação registrada. Você será notificado sobre o desdobramento.',
+    duplicada: '⚠ Duplicada: '+(d.motivo||'já registrada por outro'),
+    bloqueada: '⚠ Bloqueada: '+(d.motivo||'') };
+  document.getElementById('app').innerHTML = `<div class="card"><div class="success"><h2 style="margin:0 0 8px">Recebido</h2>${map[d.status]||d.status}</div></div>`;
+}
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c])}
+init();
+</script></body></html>
