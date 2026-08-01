@@ -955,6 +955,40 @@ function renderNovo(){
           <div class="fld"><span class="lbl">comissão sobre venda</span><input id="f-com" placeholder="5 %" inputmode="decimal"></div>
           <div class="fld"><span class="lbl">expectativa valor venda</span><input id="f-exp" placeholder="R$ 0,00" inputmode="numeric"></div>
         </div>
+
+        <div style="border-top:1px solid var(--line);padding-top:16px;margin-top:6px">
+          <div class="lbl" style="margin-bottom:10px">Forma de pagamento</div>
+          <div class="form-grid">
+            <div class="fld"><span class="lbl">forma</span>
+              <select id="f-forma-pg">
+                <option value="pix">PIX</option>
+                <option value="boleto">Boleto</option>
+                <option value="cartao">Cartão</option>
+                <option value="transferencia">Transferência</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+            <div class="fld"><span class="lbl">parcelamento</span>
+              <select id="f-parcelamento">
+                <option value="mensal" selected>Mensal (padrão)</option>
+                <option value="a_vista_desconto">À vista com desconto</option>
+                <option value="entrada_parcelas">Entrada + parcelas</option>
+              </select>
+            </div>
+            <div class="fld"><span class="lbl">dia de vencimento</span><input id="f-dia-venc" type="number" min="1" max="31" placeholder="ex. 10"></div>
+            <div class="fld"><span class="lbl">1ª parcela</span>
+              <label style="display:flex;align-items:center;gap:6px;padding:9px 0;font-size:13px">
+                <input type="checkbox" id="f-pg-hoje" onchange="document.getElementById('f-pg-dt').style.display=this.checked?'':'none'"> já foi paga
+              </label>
+              <input id="f-pg-dt" type="date" value="${hoje}" style="display:none;margin-top:4px">
+            </div>
+            <div class="fld form-full"><span class="lbl">observação de cobrança</span>
+              <textarea id="f-obs-cob" rows="2" placeholder="ex. desconto pra pagamento antecipado / chave PIX específica / etc"></textarea>
+            </div>
+          </div>
+          <div class="muted" style="font-size:11px;margin-top:8px;font-family:var(--mono);letter-spacing:.02em">Renovação, repactuação e crédito extra ficam disponíveis em Contrato, dentro do projeto.</div>
+        </div>
+
         <div id="new-err" class="err-box hidden"></div>
         <div class="row" style="justify-content:flex-end;gap:10px;margin-top:6px">
           <button type="button" class="btn btn-ghost" onclick="rota('#/')">cancelar</button>
@@ -1010,8 +1044,9 @@ function renderNovo(){
     const fid  = Number(document.getElementById('f-fid').value)||0;
     const com  = lerValorPercent(inpCom);
     const exp  = lerValorDinheiro(inpExp);
-    // Comissão projetada: (expectativa × %) − investido_cliente. Novo projeto = 0 investido.
-    renderComissaoProjetada('dre-comissao', exp, com, 0);
+    // Comissão projetada: (expectativa × %) − MAIOR(investido, contrato_projetado).
+    // No cadastro sem parcelas pagas, deduz o contrato (mens × meses).
+    renderComissaoProjetada('dre-comissao', exp, com, 0, mens * fid);
     clearTimeout(simTimer);
     const dreCli = document.getElementById('dre-cliente');
     const dreMar = document.getElementById('dre-margem');
@@ -1022,7 +1057,7 @@ function renderNovo(){
   upd();
 
   // Persistência: qualquer input salva o rascunho na memória.
-  const _todosIds = ['f-nome','f-wp','f-tit','f-cnpj','f-cid','f-uf','f-dt','f-mens','f-fid','f-com','f-exp'];
+  const _todosIds = ['f-nome','f-wp','f-tit','f-cnpj','f-cid','f-uf','f-dt','f-mens','f-fid','f-com','f-exp','f-forma-pg','f-parcelamento','f-dia-venc','f-obs-cob'];
   _todosIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', _novoSalvarDraft);
@@ -1118,6 +1153,7 @@ function renderNovo(){
     }
 
     btn.disabled = true; btn.textContent = 'Criando…';
+    const diaVenc = Number(document.getElementById('f-dia-venc').value) || null;
     const payload = {
       cliente_nome: nome,
       cliente_whatsapp: wpBruto,
@@ -1130,6 +1166,9 @@ function renderNovo(){
       comissao_percent: lerValorPercent(document.getElementById('f-com')) || 5,
       data_inicio: dt,
       expectativa_valor: lerValorDinheiro(document.getElementById('f-exp')) || null,
+      forma_pagamento: document.getElementById('f-forma-pg').value,
+      dia_vencimento: diaVenc,
+      observacao_cobranca: document.getElementById('f-obs-cob').value.trim() || null,
     };
     const { data, error } = await sb.from('va_projetos').insert(payload).select('id').single();
     if (error) {
@@ -1138,6 +1177,20 @@ function renderNovo(){
       btn.disabled = false; btn.textContent = 'Salvar e abrir projeto';
       return;
     }
+    // Se 1ª parcela já paga · marca ela como paga (trigger va_parcela_ativa_onda_tg
+    // ativa a onda automaticamente)
+    if (document.getElementById('f-pg-hoje').checked) {
+      const pgDt = document.getElementById('f-pg-dt').value || new Date().toISOString().slice(0,10);
+      const { data: pcs } = await sb.from('va_projeto_parcelas')
+        .select('id,numero').eq('projeto_id', data.id).order('numero').limit(1);
+      if (pcs && pcs.length) {
+        const { error: eUp } = await sb.from('va_projeto_parcelas')
+          .update({ status: 'pago', pago_em: pgDt }).eq('id', pcs[0].id);
+        if (eUp) toast('projeto criado · parcela não pôde ser marcada como paga: '+eUp.message, 'err');
+      }
+    }
+    // Limpa draft e navega
+    window._novoDraft = {};
     toast('Projeto criado', 'ok');
     location.hash = '#/p/' + data.id;
   };
@@ -2640,6 +2693,7 @@ function htmlContrato(){
         <div class="meta">gestão</div>
         <h2>Contrato · ondas do mandato</h2>
         <div class="muted" style="margin-top:6px;font-size:13.5px">Cada onda tem seu período, valor e status próprios. Renovação mínima mensal, pausa estende o prazo, aditivo credita sem mexer no prazo.</div>
+        <div class="muted" style="margin-top:6px;font-size:12px;font-family:var(--mono);letter-spacing:.02em;color:var(--ink-3)">Ao fim da onda você pode renovar, repactuar ou encerrar. Para crédito extra a qualquer momento, use Aditivo.</div>
       </div>
     </div>
     <div class="k-card">
@@ -2890,15 +2944,23 @@ function dreMargemHtml(s) {
 
 // ═══ Comissão projetada · fórmula com conta aberta ═══════════════
 // comissão = (expectativa × %) − investido_cliente (total pago pelo cliente)
-function renderComissaoProjetada(containerId, expectativa, comissaoPct, investidoCliente){
+// Comissão líquida = taxa − MAIOR(investido acumulado, contrato projetado)
+// No cadastro (sem parcelas pagas): usa contrato projetado (mens×meses).
+// Depois com parcelas: usa investido real.
+function renderComissaoProjetada(containerId, expectativa, comissaoPct, investidoCliente, contratoProjetado){
   const el = document.getElementById(containerId); if (!el) return;
   const brl = v => 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   if (!expectativa || !comissaoPct) {
     el.innerHTML = '<div class="muted" style="font-size:12px">preencha expectativa e comissão</div>';
     return;
   }
+  const investido = Number(investidoCliente||0);
+  const contrato = Number(contratoProjetado||0);
   const bruta = Number(expectativa) * Number(comissaoPct) / 100;
-  const liq = bruta - Number(investidoCliente||0);
+  const deducao = Math.max(investido, contrato);
+  const usaInvestido = investido >= contrato && investido > 0;
+  const liq = bruta - deducao;
+  const labelDeducao = usaInvestido ? '(−) investido pelo cliente' : '(−) contrato da onda';
   el.innerHTML = `
     <table style="width:100%;border-collapse:collapse">
       <tr>
@@ -2906,12 +2968,12 @@ function renderComissaoProjetada(containerId, expectativa, comissaoPct, investid
         <td class="mono" style="text-align:right;padding:6px 0">${brl(bruta)}</td>
       </tr>
       <tr>
-        <td style="font-family:var(--mono);font-size:11.5px;color:var(--ink-2);padding:6px 0">(−) investido pelo cliente</td>
-        <td class="mono" style="text-align:right;padding:6px 0;color:${investidoCliente>0?'#c60':'var(--ink-3)'}">${brl(investidoCliente)}</td>
+        <td style="font-family:var(--mono);font-size:11.5px;color:var(--ink-2);padding:6px 0">${labelDeducao}</td>
+        <td class="mono" style="text-align:right;padding:6px 0;color:${deducao>0?'#c60':'var(--ink-3)'}">(${brl(deducao)})</td>
       </tr>
       <tr><td colspan="2" style="padding:2px 0"><div style="border-top:2px solid var(--ink-2)"></div></td></tr>
       <tr>
-        <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:${liq>0?'#0a7d3d':'#c00'};padding:8px 0">Comissão líquida</td>
+        <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:${liq>0?'#0a7d3d':'#c00'};padding:8px 0">Comissão líquida projetada</td>
         <td class="mono" style="text-align:right;padding:8px 0;font-family:var(--syne,inherit);font-weight:700;font-size:18px;color:${liq>0?'#0a7d3d':'#c00'}">${brl(liq)}</td>
       </tr>
     </table>`;
