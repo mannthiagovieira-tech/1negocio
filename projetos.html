@@ -2840,67 +2840,52 @@ function dreClienteHtml(s) {
 }
 
 // ═══ DRE de MARGEM · SÓ ADMIN ═══════════════════════════════════
-// Cobrado vs custo real. Impostos ficam fora (repasse). Nunca aparece
-// em views de cliente (va_cliente_investimento, /meu-projeto.html, etc).
+// Estrutura: Receita bruta → (−) impostos → (−) custo mídia → (−) custo
+// ferramentas → MARGEM. Tudo entra na conta · nada "fora".
+// Nunca aparece em views de cliente.
 function dreMargemHtml(s) {
   const brl = v => v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const total = Number(s.total_contrato||0);
-  const setupsPreco = Number(s.setup_arquetipos||0)+Number(s.combo_criativos||0)+Number(s.setup_campanha||0)+Number(s.anuncio_total||0);
-  const setupsAtiv = Number(s.avaliacao||0) + setupsPreco;
+  const impostos = Number(s.impostos||0);
+  const setupsAtiv = Number(s.avaliacao||0) + Number(s.setup_arquetipos||0) + Number(s.combo_criativos||0) + Number(s.setup_campanha||0) + Number(s.anuncio_total||0);
   const impPct = Number(s.percent_impulsionamento||0);
   const leadPct = Number(s.percent_lead||0);
-  const sobraLocal = total - Number(s.impostos||0) - Number(s.gestao||0) - setupsAtiv;
+  const sobraLocal = total - impostos - Number(s.gestao||0) - setupsAtiv;
   const impCobrado = sobraLocal * (impPct/100);
   const leadCobrado = sobraLocal * (leadPct/100);
-  // Custo real: mídia repasse × 1,5 (custo = cobrado ÷ 1,5). Lead custo × 3 (custo = cobrado ÷ 3).
-  // Gestão/avaliação/setups: custo interno = 0 (é trabalho nosso, não repasse).
-  const impCusto = impCobrado / 1.5;
-  const leadCusto = leadCobrado / 3;
-  const impMargem = impCobrado - impCusto;
-  const leadMargem = leadCobrado - leadCusto;
-  const gestaoV = Number(s.gestao||0);
-  const avalV = s.avaliacao_ja_paga ? 0 : Number(s.avaliacao||0);
-  const cobradoTot = gestaoV + avalV + setupsPreco + impCobrado + leadCobrado;
-  const custoTot = 0 + 0 + 0 + impCusto + leadCusto; // gestão/avaliação/setups têm custo interno 0
-  const margemTot = cobradoTot - custoTot;
-  const margemPct = cobradoTot > 0 ? (margemTot / cobradoTot * 100) : 0;
+  // Custo externo: mídia repasse × 1,5 (custo = cobrado ÷ 1,5). Lead × 3 (custo = cobrado ÷ 3).
+  const custoMidia = impCobrado / 1.5;
+  const custoFerramentas = leadCobrado / 3;
+  const custoTotal = impostos + custoMidia + custoFerramentas;
+  const margem = total - custoTotal;
+  const margemPct = total > 0 ? (margem / total * 100) : 0;
+  const pct = v => total > 0 ? (v/total*100).toFixed(1)+'%' : '—';
 
-  const linha = (label, cobrado, custo, margem, cor='') => `<tr style="border-bottom:1px solid var(--line)">
-    <td style="font-family:var(--mono);font-size:11px;letter-spacing:.02em;color:var(--ink-2);padding:4px 6px 4px 0">${label}</td>
-    <td class="mono" style="text-align:right;padding:4px 6px;font-size:11.5px">${brl(cobrado)}</td>
-    <td class="mono" style="text-align:right;padding:4px 6px;font-size:11.5px;color:var(--ink-3)">${brl(custo)}</td>
-    <td class="mono" style="text-align:right;padding:4px 0 4px 6px;font-size:11.5px;color:${cor||'inherit'}">${brl(margem)}</td>
+  const linha = (label, val, sinal='(−)', cor='var(--ink-2)') => `<tr>
+    <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;color:${cor};padding:5px 0">${sinal} ${label}</td>
+    <td class="mono" style="text-align:right;padding:5px 0">(${brl(val)})</td>
+    <td class="mono" style="text-align:right;padding:5px 0;font-size:10.5px;color:var(--ink-3)">${pct(val)}</td>
   </tr>`;
 
   return `
     <table style="width:100%;margin-top:10px;border-collapse:collapse">
-      <thead>
-        <tr style="border-bottom:1px solid var(--line)">
-          <th style="text-align:left;padding:4px 6px 4px 0;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600">linha</th>
-          <th style="text-align:right;padding:4px 6px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600">cobrado</th>
-          <th style="text-align:right;padding:4px 6px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600">custo real</th>
-          <th style="text-align:right;padding:4px 0 4px 6px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600">margem</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${linha('Gestão', gestaoV, 0, gestaoV)}
-        ${linha(s.avaliacao_ja_paga?'Avaliação (paga)':'Avaliação', avalV, 0, avalV)}
-        ${linha('Setups', setupsPreco, 0, setupsPreco)}
-        ${linha('Mídia paga', impCobrado, impCusto, impMargem)}
-        ${linha('Prospecção ativa', leadCobrado, leadCusto, leadMargem)}
-        <tr>
-          <td style="font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--ink-1);padding:8px 6px 4px 0">Total</td>
-          <td class="mono" style="text-align:right;padding:8px 6px 4px;font-weight:700">${brl(cobradoTot)}</td>
-          <td class="mono" style="text-align:right;padding:8px 6px 4px;font-weight:700;color:var(--ink-3)">${brl(custoTot)}</td>
-          <td class="mono" style="text-align:right;padding:8px 0 4px 6px;font-weight:700;color:#0a7d3d;font-family:var(--syne,inherit);font-size:15px">${brl(margemTot)}</td>
-        </tr>
-        <tr>
-          <td colspan="3" style="font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);padding:4px 6px 4px 0">Margem de contribuição</td>
-          <td class="mono" style="text-align:right;padding:4px 0 4px 6px;font-weight:700;color:#0a7d3d;font-family:var(--syne,inherit);font-size:15px">${margemPct.toFixed(1)}%</td>
-        </tr>
-      </tbody>
+      <tr>
+        <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;font-weight:600;color:var(--ink-1);padding:6px 0">Receita bruta</td>
+        <td class="mono" style="text-align:right;padding:6px 0;font-family:var(--syne,inherit);font-weight:700;font-size:16px">${brl(total)}</td>
+        <td class="mono" style="text-align:right;padding:6px 0;font-size:10.5px;color:var(--ink-3)">100%</td>
+      </tr>
+      <tr><td colspan="3" style="padding:2px 0"><div style="border-top:1px solid var(--line)"></div></td></tr>
+      ${linha('Impostos', impostos)}
+      ${linha('Custo de mídia', custoMidia)}
+      ${linha('Custo de ferramentas (leads)', custoFerramentas)}
+      <tr><td colspan="3" style="padding:2px 0"><div style="border-top:2px solid var(--ink-2)"></div></td></tr>
+      <tr>
+        <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:${margem>0?'#0a7d3d':'#c00'};padding:8px 0">Margem de contribuição</td>
+        <td class="mono" style="text-align:right;padding:8px 0;font-family:var(--syne,inherit);font-weight:700;font-size:17px;color:${margem>0?'#0a7d3d':'#c00'}">${brl(margem)}</td>
+        <td class="mono" style="text-align:right;padding:8px 0;font-size:11px;color:${margem>0?'#0a7d3d':'#c00'};font-weight:700">${margemPct.toFixed(1)}%</td>
+      </tr>
     </table>
-    <div class="muted" style="font-size:10.5px;margin-top:8px;font-family:var(--mono);letter-spacing:.02em">Impostos ficam fora · não são receita nem custo. Custos internos (gestão, avaliação, setups) contam como 100% margem.</div>`;
+    <div class="muted" style="font-size:10.5px;margin-top:8px;font-family:var(--mono);letter-spacing:.02em">Tudo o que sai do caixa entra na conta. Gestão/avaliação/setups não têm custo externo · são serviço próprio.</div>`;
 }
 
 // ═══ Comissão projetada · fórmula com conta aberta ═══════════════
