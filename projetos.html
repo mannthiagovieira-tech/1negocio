@@ -1357,6 +1357,13 @@ async function checarAutoConclusao(chave){
 function desenhaProjeto(){
   const p = _pj.projeto;
   const et = _pj.etapas;
+  // Contadores pro bloco "operar agora"
+  const arqCount = (_pj.arqProj || []).length;
+  const leadsCount = (_pj.prospBruta || []).length;
+  const pecasCount = (_pj.criativos || []).length;
+  const parcCount = (_pj.parcMatch || []).length;
+  const chip = (n, singular, plural) => `<span class="mono" style="font-size:11px;color:${n>0?'#0a7d3d':'var(--ink-3)'}">${n} ${n===1?singular:plural}</span>`;
+
   app.innerHTML = `
     ${bannerOndaEstado()}
     <div style="margin-bottom:22px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
@@ -1369,6 +1376,23 @@ function desenhaProjeto(){
         <span class="badge ${esc(p.status)}">${esc(p.status)}</span>
         <div class="mono" style="margin-top:8px;font-size:11px;color:var(--ink-3);letter-spacing:.05em">Início ${dataBR(p.data_inicio)} · fim onda ${dataBR(p.fim_da_onda)}</div>
         <div id="hd-precos-versao" class="mono" style="margin-top:4px;font-size:10px;color:var(--ink-3);letter-spacing:.05em"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:18px;padding:14px 16px">
+      <div class="lbl" style="margin-bottom:10px">Operar agora</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
+        <button class="btn btn-ghost" style="justify-content:flex-start;text-align:left;padding:10px 12px;height:auto;line-height:1.4" onclick="trocarAba('arquetipos')">
+          <div style="display:block"><b>Definir arquétipos</b><br>${chip(arqCount, 'arquétipo definido', 'arquétipos definidos')}</div>
+        </button>
+        <button class="btn btn-ghost" style="justify-content:flex-start;text-align:left;padding:10px 12px;height:auto;line-height:1.4" onclick="trocarAba('gestao_kanban')">
+          <div style="display:block"><b>Gerar leads</b><br>${chip(leadsCount, 'lead na base', 'leads na base')}</div>
+        </button>
+        <button class="btn btn-ghost" style="justify-content:flex-start;text-align:left;padding:10px 12px;height:auto;line-height:1.4" onclick="trocarAba('gestao_campanhas')">
+          <div style="display:block"><b>Criar peças</b><br>${chip(pecasCount, 'peça criada', 'peças criadas')}</div>
+        </button>
+        <button class="btn btn-ghost" style="justify-content:flex-start;text-align:left;padding:10px 12px;height:auto;line-height:1.4" onclick="trocarAba('gestao_atendimento')">
+          <div style="display:block"><b>Ativar parceiros</b><br>${chip(parcCount, 'parceiro com o negócio', 'parceiros com o negócio')}</div>
+        </button>
       </div>
     </div>
     <div class="proj-layout">
@@ -2667,6 +2691,16 @@ function htmlContrato(){
     acoes = `<div class="k-card">
       <div class="lbl">03 · ações</div>
       <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px">${btns.join('')}</div>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--line)">
+        ${_pj.projeto.operacao_liberada_manual
+          ? `<div class="row" style="justify-content:space-between;align-items:center">
+              <div style="font-size:12px;color:#0a7d3d"><b>Operação liberada manualmente</b> · ${esc(_pj.projeto.liberacao_manual_por||'')} · ${dataBR(_pj.projeto.liberacao_manual_em?.slice(0,10))}<br><span class="muted" style="font-size:11px">${esc(_pj.projeto.liberacao_manual_justificativa||'')}</span></div>
+              <button class="btn btn-ghost btn-sm" onclick="liberarOperacaoManual(false)">reverter liberação</button>
+            </div>`
+          : `<button class="btn btn-ghost btn-sm" onclick="liberarOperacaoManual(true)">🔓 Liberar operação manualmente</button>
+             <div class="muted" style="font-size:11px;margin-top:4px">Use quando controlar contrato/pagamento por fora e quiser destravar imediato.</div>`
+        }
+      </div>
     </div>`;
   }
 
@@ -2790,6 +2824,21 @@ async function parcelaPagar(id){
   const { error } = await sb.from('va_projeto_parcelas').update({ status:'pago', pago_em: new Date().toISOString() }).eq('id', id);
   if (error) { toast(error.message,'err'); return; }
   toast('parcela paga','ok'); await renderProjeto(_pj.projeto.id);
+}
+async function liberarOperacaoManual(liberar){
+  if (liberar) {
+    const j = prompt('Justificativa da liberação manual (obrigatória):\nEx: "cliente pagou por PIX fora do sistema, contrato assinado por email"');
+    if (!j || !j.trim()) return;
+    const { error } = await sb.rpc('va_liberar_operacao_manual', { p_projeto_id: _pj.projeto.id, p_justificativa: j.trim(), p_liberar: true });
+    if (error) { toast(error.message,'err'); return; }
+    toast('operação liberada','ok');
+  } else {
+    if (!confirm('Reverter liberação manual? A operação voltará a exigir parcela paga.')) return;
+    const { error } = await sb.rpc('va_liberar_operacao_manual', { p_projeto_id: _pj.projeto.id, p_justificativa: '', p_liberar: false });
+    if (error) { toast(error.message,'err'); return; }
+    toast('liberação revertida','ok');
+  }
+  await renderProjeto(_pj.projeto.id);
 }
 async function ondaPausar(ondaId){
   const motivo = prompt('Motivo da pausa:'); if (!motivo) return;
