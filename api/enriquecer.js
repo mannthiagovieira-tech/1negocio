@@ -61,10 +61,17 @@ function normalizarUF(uf) {
 // ── BrasilAPI ───────────────────────────────────────────────────
 async function buscarBrasilAPI(cnpj) {
   try {
+    // Timeout de 10s pra não travar UI
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
     const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
       headers: { Accept: 'application/json' },
-    });
-    if (!r.ok) return { ok: false, status: r.status };
+      signal: ctrl.signal,
+    }).finally(() => clearTimeout(t));
+    if (!r.ok) {
+      let msg = null; try { const j = await r.json(); msg = j.message || j.error || null; } catch {}
+      return { ok: false, status: r.status, msg };
+    }
     const d = await r.json();
     // Situação cadastral · BrasilAPI devolve numérico (2=ATIVA, 3=SUSPENSA, 4=INAPTA, 8=BAIXADA)
     const sitMap = { 1: 'NULA', 2: 'ATIVA', 3: 'SUSPENSA', 4: 'INAPTA', 8: 'BAIXADA' };
@@ -193,7 +200,17 @@ module.exports = async (req, res) => {
 
   // ETAPA 1 · BrasilAPI (sempre roda, é grátis e rápido)
   const ba = await buscarBrasilAPI(cnpj);
-  if (!ba.ok) return json(res, 502, { ok: false, erro: 'brasilapi_falhou', status: ba.status, detalhe: ba.erro });
+  if (!ba.ok) {
+    // Propaga status HTTP pra UI diferenciar 404 (não existe) de 400 (inválido)
+    // de erro de rede (sem status). Mensagem original da BrasilAPI quando existir.
+    const codigo = ba.status === 404 ? 404 : (ba.status === 400 ? 400 : 502);
+    return json(res, codigo, {
+      ok: false,
+      erro: 'brasilapi_falhou',
+      status: ba.status || null,
+      detalhe: ba.msg || ba.erro || null,
+    });
+  }
 
   let campos = { ...ba.campos };
   const fontes = { brasilapi: Object.keys(ba.campos).filter(k => ba.campos[k] != null) };

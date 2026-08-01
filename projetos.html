@@ -598,11 +598,18 @@ let _session = null;
 async function initAuth(){
   const { data: { session } } = await sb.auth.getSession();
   _session = session;
-  // Só re-rota quando login/logout de fato acontece.
-  // TOKEN_REFRESHED / INITIAL_SESSION / USER_UPDATED disparariam re-render e apagariam formulários.
+  // Blindagem contra re-render espúrio: o SDK re-emite SIGNED_IN em vários
+  // cenários (recover session no visibilitychange, getSession() interno,
+  // token refresh, etc). Só re-rota se o user.id mudou de fato (login real
+  // ou logout · null → id, id → null, ou id → id2).
+  let _lastUserId = session?.user?.id || null;
   sb.auth.onAuthStateChange((event, s) => {
     _session = s;
-    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') router();
+    const newId = s?.user?.id || null;
+    if (newId !== _lastUserId) {
+      _lastUserId = newId;
+      router();
+    }
   });
   return session;
 }
@@ -809,6 +816,25 @@ function cardProjeto(p){
 }
 
 // ─── VIEW: NOVO ───────────────────────────────────────────────────
+// Estado do form preservado em memória. Qualquer re-render (auth event,
+// erro assíncrono, etc) restaura os valores digitados.
+window._novoDraft = window._novoDraft || {};
+function _novoSalvarDraft(){
+  const ids = ['f-nome','f-wp','f-tit','f-cnpj','f-cid','f-uf','f-dt','f-mens','f-fid','f-com','f-exp'];
+  const draft = {};
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (el) draft[id] = el.value;
+  }
+  window._novoDraft = draft;
+}
+function _novoRestaurarDraft(){
+  const draft = window._novoDraft || {};
+  for (const [id, v] of Object.entries(draft)) {
+    const el = document.getElementById(id);
+    if (el && v && !el.value) el.value = v;
+  }
+}
 function renderNovo(){
   const hoje = new Date().toISOString().slice(0,10);
   app.innerHTML = `
@@ -828,8 +854,7 @@ function renderNovo(){
               <span class="lbl">CNPJ do negócio *</span>
               <div class="row" style="gap:8px;flex-wrap:wrap">
                 <input required id="f-cnpj" placeholder="14 dígitos · só números" style="flex:1;min-width:200px">
-                <button type="button" class="btn btn-ghost" id="f-enriquecer" title="BrasilAPI · gratuita">enriquecer · grátis</button>
-                <button type="button" class="btn btn-ghost" id="f-enriquecer-plus" title="Kipflow · faturamento, funcionários, dívida">+ dados de porte · R$ 0,39</button>
+                <button type="button" class="btn btn-ghost" id="f-enriquecer" title="BrasilAPI · gratuito · razão social, endereço, CNAE, sócios">buscar dados do CNPJ</button>
               </div>
               <span class="fld-err-msg">CNPJ obrigatório · 14 dígitos</span>
               <div id="f-enriq-status" class="muted" style="font-size:12px;margin-top:4px"></div>
@@ -877,50 +902,61 @@ function renderNovo(){
   ['f-mens','f-fid','f-com','f-exp'].forEach(id => document.getElementById(id).addEventListener('input', upd));
   upd();
 
+  // Persistência: qualquer input salva o rascunho na memória (não localStorage
+  // pra não vazar entre sessões). Se por qualquer motivo houver re-render,
+  // renderNovo restaura no fim.
+  const _todosIds = ['f-nome','f-wp','f-tit','f-cnpj','f-cid','f-uf','f-dt','f-mens','f-fid','f-com','f-exp'];
+  _todosIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', _novoSalvarDraft);
+  });
+  _novoRestaurarDraft();
+
   // limpa erro visual ao digitar
-  ['f-nome','f-wp','f-mens','f-dt','f-cnpj','f-cid','f-uf'].forEach(id => {
+  ['f-nome','f-wp','f-mens','f-dt','f-cnpj','f-cid','f-uf','f-fid'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', () => el.closest('.fld')?.classList.remove('err'));
   });
 
-  // Enriquecimento · 2 fontes
-  //   f-enriquecer      → BrasilAPI grátis (razão, endereço, CNAE, situação, capital, sócios básicos)
-  //   f-enriquecer-plus → BrasilAPI + Kipflow (faturamento, funcionários, dívida — R$ 0,39)
-  const enriquecerCNPJ = async (comKipflow) => {
+  // Enriquecimento único · BrasilAPI grátis (razão, endereço, CNAE, situação, capital, sócios).
+  // Kipflow (faturamento/funcionários/dívida) fica pra etapa de arquétipos, com custo visível lá.
+  document.getElementById('f-enriquecer').onclick = async () => {
     const cnpj = (document.getElementById('f-cnpj').value || '').replace(/\D/g, '');
     const st = document.getElementById('f-enriq-status');
-    if (cnpj.length !== 14) { st.textContent = 'CNPJ inválido (14 dígitos)'; st.style.color = '#c00'; return; }
-    st.textContent = comKipflow ? 'consultando BrasilAPI + Kipflow…' : 'consultando BrasilAPI…';
-    st.style.color = '';
+    if (!cnpj) { st.textContent = 'preencha o CNPJ primeiro'; st.style.color = '#c00'; return; }
+    if (cnpj.length !== 14) { st.textContent = 'CNPJ inválido · precisa 14 dígitos (não vamos consultar, mas você pode preencher os campos à mão e seguir)'; st.style.color = '#c60'; return; }
+    st.textContent = 'consultando BrasilAPI…'; st.style.color = '';
     try {
       const sess = (await sb.auth.getSession()).data.session;
       const r = await fetch('/api/enriquecer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (sess?.access_token || '') },
-        body: JSON.stringify({ cnpj, com_kipflow: !!comKipflow }),
+        body: JSON.stringify({ cnpj }),
       });
       const d = await r.json();
-      if (!r.ok || !d.ok) { st.textContent = d.erro || 'erro no enriquecimento'; st.style.color = '#c00'; return; }
+      if (!r.ok || !d.ok) {
+        // Diagnóstico rico · nunca bloqueia o cadastro
+        const status = d.status || r.status;
+        let msg;
+        if (status === 404) msg = 'CNPJ não encontrado na Receita Federal · você pode preencher à mão e seguir';
+        else if (status === 400) msg = 'CNPJ inválido · confira os dígitos ou preencha à mão';
+        else if (d.erro === 'brasilapi_falhou' && !status) msg = 'não foi possível consultar agora, tente de novo · você pode preencher à mão e seguir';
+        else msg = `consulta falhou · HTTP ${status||'?'}: ${d.erro || 'erro'}${d.detalhe?' · '+d.detalhe:''} · você pode preencher à mão e seguir`;
+        st.textContent = msg; st.style.color = '#c60';
+        return;
+      }
       const c = d.campos_extraidos || {};
       if (c.razao_social && !document.getElementById('f-tit').value) document.getElementById('f-tit').value = c.razao_social;
       if (c.cidade) document.getElementById('f-cid').value = c.cidade;
       if (c.estado) document.getElementById('f-uf').value = String(c.estado).slice(0,2).toUpperCase();
-      const fontes = d.fontes || {};
-      const nBA = (fontes.brasilapi || []).length;
-      const nKip = (fontes.kipflow || []).length;
-      const custo = d.kipflow?.costFormatted || (d.kipflow?.cost != null ? 'R$ '+Number(d.kipflow.cost).toFixed(2) : '');
-      let msg = `ok · ${c.razao_social || cnpj}${c.cnae_codigo ? ' · CNAE '+c.cnae_codigo : ''}`;
-      msg += ` · ${nBA} campo(s) BrasilAPI`;
-      if (nKip > 0) msg += ` + ${nKip} campo(s) Kipflow${custo?' · '+custo:''}`;
-      if (d.kipflow?.erro) msg += ` · ⚠ Kipflow falhou: ${d.kipflow.erro.erro || d.kipflow.erro}`;
-      st.textContent = msg;
-      st.style.color = 'green';
+      _novoSalvarDraft();
+      const nBA = (d.fontes?.brasilapi || []).length;
+      let msg = `ok · ${c.razao_social || cnpj}${c.cnae_codigo ? ' · CNAE '+c.cnae_codigo : ''} · ${nBA} campo(s) preenchidos da Receita`;
+      st.textContent = msg; st.style.color = 'green';
     } catch (e) {
-      st.textContent = 'erro de rede'; st.style.color = '#c00';
+      st.textContent = 'não foi possível consultar agora, tente de novo · você pode preencher à mão e seguir'; st.style.color = '#c60';
     }
   };
-  document.getElementById('f-enriquecer').onclick = () => enriquecerCNPJ(false);
-  document.getElementById('f-enriquecer-plus').onclick = () => enriquecerCNPJ(true);
 
   document.getElementById('new-form').onsubmit = async (ev) => {
     ev.preventDefault();
