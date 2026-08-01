@@ -1355,15 +1355,304 @@ async function checarAutoConclusao(chave){
 }
 
 function desenhaProjeto(){
+  return desenhaProjetoLinear();
+}
+function desenhaProjetoLinear(){
+  const p = _pj.projeto;
+  app.innerHTML = `
+    ${bannerOndaEstado()}
+    <div style="margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
+      <div>
+        <a onclick="rota('#/')" style="font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer">← voltar para projetos</a>
+        <h1 class="h1" style="margin-top:10px">${esc(p.cliente_nome)}</h1>
+        <p class="muted" style="margin-top:6px">${esc(p.negocio_titulo || p.setor || 'Negócio sem título')}${p.cidade ? ' · ' + esc(p.cidade) : ''} · <span class="mono" style="font-size:12px">${p.cliente_whatsapp||''}</span></p>
+      </div>
+      <div style="text-align:right">
+        <span class="badge ${esc(p.status)}">${esc(p.status)}</span>
+        <div class="mono" style="margin-top:8px;font-size:11px;color:var(--ink-3);letter-spacing:.05em">Início ${dataBR(p.data_inicio)} · fim onda ${dataBR(p.fim_da_onda)}</div>
+        <div id="hd-precos-versao" class="mono" style="margin-top:4px;font-size:10px;color:var(--ink-3);letter-spacing:.05em"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="abrirMenuMais()">▸ mais</button>
+      </div>
+    </div>
+
+    <div id="bloco-1-avaliacao" class="card" style="margin-bottom:14px"><div class="lbl">1 · avaliação</div><div id="bl-av-body" style="margin-top:10px"><div class="muted">carregando…</div></div></div>
+    <div id="bloco-2-financeiro" class="card" style="margin-bottom:14px"><div class="lbl">2 · financeiro</div><div id="bl-fin-body" style="margin-top:10px"><div class="muted">carregando…</div></div></div>
+    <div id="bloco-3-arquetipos" class="card" style="margin-bottom:14px"><div class="lbl">3 · arquétipos</div><div id="bl-arq-body" style="margin-top:10px"><div class="muted">carregando…</div></div></div>
+    <div id="bloco-4-leads" class="card" style="margin-bottom:14px"><div class="lbl">4 · leads</div><div id="bl-leads-body" style="margin-top:10px"><div class="muted">carregando…</div></div></div>
+    <div id="bloco-5-disparo" class="card" style="margin-bottom:14px"><div class="lbl">5 · disparo</div><div id="bl-disp-body" style="margin-top:10px"><div class="muted">carregando…</div></div></div>
+    <div id="bloco-6-campanhas" class="card" style="margin-bottom:14px"><div class="lbl">6 · campanhas</div><div id="bl-camp-body" style="margin-top:10px"><div class="muted">carregando…</div></div></div>
+  `;
+  carregarChipPrecosVersao(p.precos_versao_id);
+  renderBloco1Avaliacao();
+  renderBloco2Financeiro();
+  renderBloco3Arquetipos();
+  renderBloco4Leads();
+  renderBloco5Disparo();
+  renderBloco6Campanhas();
+}
+
+// ═══ BLOCOS LINEARES ══════════════════════════════════════════════
+async function renderBloco1Avaliacao(){
+  const p = _pj.projeto;
+  const brl = v => v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+  const bd = document.getElementById('bl-av-body'); if (!bd) return;
+  if (p.avaliacao_origem_id && p.laudo_v2_id) {
+    const { data: snap } = await sb.from('va_projeto_avaliacao').select('calc_json_snapshot, codigo_diagnostico, parametros_versao_id').eq('projeto_id', p.id).maybeSingle();
+    const cj = snap?.calc_json_snapshot || {};
+    const val = cj.valuation || {};
+    const ise = cj.ise || {};
+    const op = cj.operacional || {};
+    bd.innerHTML = `
+      <div class="row" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+        <div><b>${esc(snap?.codigo_diagnostico||'')}</b> · ${esc((cj.identificacao||{}).nome||'')} · <span class="muted">${esc(cj.identificacao?.setor?.label||'')}</span></div>
+        <div class="row" style="gap:6px">
+          <a href="/laudo-completo.html?id=${esc(p.avaliacao_origem_id)}" target="_blank" class="btn btn-ghost btn-sm">abrir laudo</a>
+          <button class="btn btn-ghost btn-sm" onclick="avaliacaoRevincular()">re-vincular</button>
+        </div>
+      </div>
+      <div class="orc-resumo" style="margin-top:10px">
+        <div class="orc-kpi destaque"><div class="k">valor de venda</div><div class="v">${brl(val.valor_venda)}</div><div class="calc-hint" style="font-size:10px">faixa ${brl(p.valor_avaliacao_min)} – ${brl(p.valor_avaliacao_max)}</div></div>
+        <div class="orc-kpi"><div class="k">ISE</div><div class="v">${ise.ise_total||'?'}</div><div class="calc-hint" style="font-size:10px">${esc(ise.classe||'')}</div></div>
+        <div class="orc-kpi"><div class="k">EBITDA anual</div><div class="v">${brl(val.ro_anual)}</div></div>
+        <div class="orc-kpi"><div class="k">faturamento</div><div class="v">${brl(op.fat_anual)}</div><div class="calc-hint" style="font-size:10px">${op.num_funcionarios||0} func</div></div>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)">
+        <div class="lbl">Valor de venda definido para operação</div>
+        <div class="row" style="gap:8px;margin-top:6px;flex-wrap:wrap;align-items:end">
+          <div class="fld"><span class="lbl">valor</span><input id="pj-vv-def" inputmode="numeric" placeholder="${brl(val.valor_venda)}" value="${p.valor_venda ? Number(p.valor_venda) : ''}"></div>
+          <div class="fld" style="flex:1;min-width:200px"><span class="lbl">justificativa</span><input id="pj-vv-just" placeholder="${p.valor_venda && Number(p.valor_venda)!==Number(val.valor_venda) ? 'ex: cliente prefere iniciar abaixo pra atrair mais interessados' : 'opcional'}" value="${esc(p.valor_venda_justificativa||'')}"></div>
+          <button class="btn btn-primary btn-sm" onclick="salvarValorVendaDefinido()">salvar</button>
+        </div>
+        ${p.valor_venda ? `<div class="muted" style="font-size:11px;margin-top:6px">definido: ${brl(p.valor_venda)}${p.valor_venda_justificativa?' · '+esc(p.valor_venda_justificativa):''}</div>` : ''}
+      </div>
+      <div style="margin-top:10px">
+        <button class="btn btn-ghost btn-sm" onclick="anexarTranscricao()">📎 anexar transcrição ou notas</button>
+        <span class="muted" style="font-size:11px;margin-left:6px">opcional</span>
+      </div>`;
+  } else {
+    bd.innerHTML = `
+      <p class="muted" style="font-size:13px;margin-bottom:8px">Cole o código do diagnóstico (1N-XXXXXX), UUID ou URL do laudo.</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <input id="av-busca" placeholder="1N-XXXXXX · UUID · URL do laudo" style="flex:1;min-width:240px;font-family:var(--mono)">
+        <button class="btn btn-primary" onclick="avaliacaoVincular()">vincular</button>
+      </div>
+      <div id="av-status" style="margin-top:6px;font-size:12px" class="muted"></div>
+      <div class="muted" style="margin-top:10px;font-size:12px">Se o cliente ainda não fez a avaliação, envie ele para <a href="/diagnostico.html" target="_blank">/diagnostico.html</a> · volte aqui pra vincular.</div>
+      <div style="margin-top:12px">
+        <button class="btn btn-ghost btn-sm" onclick="anexarTranscricao()">📎 anexar transcrição ou notas</button>
+        <span class="muted" style="font-size:11px;margin-left:6px">opcional</span>
+      </div>`;
+  }
+}
+window.salvarValorVendaDefinido = async function(){
+  const el = document.getElementById('pj-vv-def');
+  const raw = (el.value||'').replace(/\D/g,'');
+  const v = raw ? Number(raw) : null;
+  const j = document.getElementById('pj-vv-just').value.trim() || null;
+  const { error } = await sb.from('va_projetos').update({ valor_venda: v, valor_venda_justificativa: j }).eq('id', _pj.projeto.id);
+  if (error) { toast(error.message,'err'); return; }
+  toast('valor salvo','ok'); await renderProjeto(_pj.projeto.id);
+};
+window.anexarTranscricao = function(){
+  toast('em breve · use o menu "mais" enquanto isso','ok');
+};
+
+async function renderBloco2Financeiro(){
+  const bd = document.getElementById('bl-fin-body'); if (!bd) return;
+  const brl = v => 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+  const parcs = (_pj.parcelas || []).slice().sort((a,b) => (a.numero||0) - (b.numero||0));
+  const recebido = parcs.filter(p => p.status==='pago').reduce((s,p) => s + Number(p.valor||0), 0);
+  const aReceber = parcs.filter(p => p.status !== 'pago').reduce((s,p) => s + Number(p.valor||0), 0);
+  const proxima = parcs.find(p => p.status !== 'pago');
+  const saldo = Number(_pj.financeiro?.saldo || 0);
+  const oper = _pj.projeto.operacao_liberada_manual;
+  const primeiraPaga = parcs.some(p => p.numero === 1 && p.status === 'pago');
+  const linhaTempo = parcs.filter(p => p.status !== 'pago').slice(0, 6)
+    .map(p => `${brl(p.valor)} em ${dataBR(p.vencimento)}`).join(' · ') || '—';
+
+  const linhas = parcs.map(p => `
+    <tr style="border-top:1px solid var(--line)">
+      <td class="mono" style="padding:6px 8px">${p.numero}</td>
+      <td class="mono" style="padding:6px 8px">${dataBR(p.vencimento)}</td>
+      <td class="mono" style="padding:6px 8px">${brl(p.valor)}</td>
+      <td style="padding:6px 8px"><span class="pill" style="background:${p.status==='pago'?'#e6f7ee':'#fff8e1'};color:${p.status==='pago'?'#0a7d3d':'#c60'};border-color:${p.status==='pago'?'#8fd4ae':'#f0c040'}">${esc(p.status)}</span></td>
+      <td class="mono" style="padding:6px 8px">${p.pago_em ? dataBR(p.pago_em) : '—'}</td>
+      <td class="mono" style="padding:6px 8px;font-size:11px">${esc(p.observacao || _pj.projeto.forma_pagamento || '—')}</td>
+      <td style="padding:6px 8px;text-align:right">${p.status!=='pago' ? `<button class="btn btn-ghost btn-sm" onclick="parcelaPagar('${p.id}')">marcar paga</button>` : ''}</td>
+    </tr>`).join('');
+
+  bd.innerHTML = `
+    <div class="orc-resumo" style="margin-bottom:10px">
+      <div class="orc-kpi destaque"><div class="k">recebido</div><div class="v">${brl(recebido)}</div></div>
+      <div class="orc-kpi"><div class="k">a receber</div><div class="v">${brl(aReceber)}</div><div class="calc-hint" style="font-size:10px">${proxima?'próxima '+dataBR(proxima.vencimento):'sem pendências'}</div></div>
+      <div class="orc-kpi ${saldo>0?'destaque':''}"><div class="k">crédito ativo</div><div class="v">${brl(saldo)}</div></div>
+    </div>
+    <div class="muted" style="font-size:12px;font-family:var(--mono);margin-bottom:10px">fluxo · ${linhaTempo}</div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:600px">
+      <thead><tr style="border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">
+        <th style="text-align:left;padding:6px 8px">#</th><th style="text-align:left;padding:6px 8px">venc</th><th style="text-align:left;padding:6px 8px">valor</th>
+        <th style="text-align:left;padding:6px 8px">status</th><th style="text-align:left;padding:6px 8px">pago em</th>
+        <th style="text-align:left;padding:6px 8px">forma</th><th></th>
+      </tr></thead>
+      <tbody>${linhas || '<tr><td colspan="7" style="padding:16px;text-align:center" class="muted">Sem parcelas</td></tr>'}</tbody>
+    </table></div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)">
+      ${oper
+        ? `<div style="font-size:12px;color:#0a7d3d">🔓 <b>Operação liberada manualmente</b> · ${esc(_pj.projeto.liberacao_manual_por||'')} · ${dataBR(_pj.projeto.liberacao_manual_em?.slice(0,10))}${!primeiraPaga?' · <span style="color:#c60">Parcela 1 não consta como paga — confirme o recebimento</span>':''}</div>
+           <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="liberarOperacaoManual(false)">reverter</button>`
+        : `<button class="btn btn-ghost btn-sm" onclick="liberarOperacaoManual(true)">🔓 Liberar operação manualmente</button>
+           <span class="muted" style="font-size:11px;margin-left:6px">${primeiraPaga?'já operacional':'usa quando controla pagamento por fora'}</span>`
+      }
+    </div>`;
+}
+
+async function renderBloco3Arquetipos(){
+  const bd = document.getElementById('bl-arq-body'); if (!bd) return;
+  // Reusa htmlArquetipos (etapa) mas remove header interno pra encaixar como bloco
+  const e = (_pj.etapas || []).find(x => x.chave==='arquetipos') || { chave:'arquetipos', titulo:'Arquétipos' };
+  try {
+    bd.innerHTML = htmlArquetipos(e);
+    if (typeof vincularArquetipos === 'function') vincularArquetipos();
+    // esconde eventual stage-head duplicada
+    bd.querySelectorAll('.stage-head').forEach(el => el.style.display='none');
+  } catch (err) {
+    bd.innerHTML = '<div class="muted">erro ao carregar arquétipos: '+esc(err.message)+'</div>';
+  }
+}
+
+async function renderBloco4Leads(){
+  const bd = document.getElementById('bl-leads-body'); if (!bd) return;
+  const brutas = (_pj.prospBruta || []).length;
+  const qualif = (_pj.prospBruta || []).filter(x => x.status==='qualificado').length;
+  const aprov = (_pj.prospBruta || []).filter(x => x.status==='aprovado').length;
+  const contatosKanban = (_pj.contatos || []).length;
+  const naTriagem = (_pj.prospBruta || []).filter(x => x.status==='qualificado').slice(0,10);
+  bd.innerHTML = `
+    <div class="orc-resumo" style="margin-bottom:10px">
+      <div class="orc-kpi"><div class="k">brutos</div><div class="v">${brutas}</div></div>
+      <div class="orc-kpi"><div class="k">qualificados</div><div class="v">${qualif}</div></div>
+      <div class="orc-kpi"><div class="k">aprovados</div><div class="v">${aprov}</div></div>
+      <div class="orc-kpi destaque"><div class="k">no kanban</div><div class="v">${contatosKanban}</div></div>
+    </div>
+    <div class="row" style="gap:8px;margin-bottom:10px">
+      <button class="btn btn-ghost btn-sm" onclick="abrirMenuMais('arquetipos')">🎯 gerar mais leads (via arquétipos)</button>
+      <button class="btn btn-ghost btn-sm" onclick="abrirMenuMais('gestao_kanban')">→ ver kanban completo</button>
+    </div>
+    ${naTriagem.length ? `
+      <div class="lbl" style="margin-top:14px">na triagem · qualificados aguardando</div>
+      <ul style="margin-top:6px;font-size:12.5px;padding-left:16px">
+        ${naTriagem.map(x => `<li>${esc(x.razao_social||x.nome||'—')} · ${esc(x.cidade||'')}/${esc(x.uf||'')}</li>`).join('')}
+      </ul>
+      <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="abrirMenuMais('gestao_triagem')">aprovar em lote →</button>
+    ` : '<div class="muted" style="font-size:12px">Sem leads na triagem.</div>'}`;
+}
+
+async function renderBloco5Disparo(){
+  const bd = document.getElementById('bl-disp-body'); if (!bd) return;
+  bd.innerHTML = '<div class="muted">carregando cadência…</div>';
+  const [{ data: cad }, { data: tpl }, { data: fila }] = await Promise.all([
+    sb.from('va_disparo_cadencia').select('*').eq('projeto_id', _pj.projeto.id).maybeSingle(),
+    sb.from('va_disparo_templates').select('id,nome,corpo,status').eq('projeto_id', _pj.projeto.id).eq('status','aprovado').order('criado_em',{ascending:false}).limit(5),
+    sb.from('va_disparo_fila').select('id,status,enviado_em,contato_id').eq('projeto_id', _pj.projeto.id).order('enviado_em',{ascending:false, nullsFirst:false}).limit(5),
+  ]);
+  const pendentes = (fila||[]).filter(f => f.status==='pendente').length;
+  const enviados = (fila||[]).filter(f => ['enviado','entregue'].includes(f.status)).length;
+  const ativa = cad?.ativa === true;
+  bd.innerHTML = `
+    <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px;align-items:center">
+      <div>
+        <b>${ativa ? '🟢 cadência ativa' : '⚫ cadência desligada'}</b>
+        ${cad ? ` · ${cad.mensagens_por_dia||0}/dia · ${cad.hora_inicio||'—'} → ${cad.hora_fim||'—'}` : ''}
+      </div>
+      <div class="row" style="gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="disparoToggle(${!ativa})">${ativa?'desligar':'ligar'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="abrirMenuMais('gestao_cadencia')">editar</button>
+      </div>
+    </div>
+    <div class="orc-resumo" style="margin-top:10px">
+      <div class="orc-kpi"><div class="k">fila pendente</div><div class="v">${pendentes}</div></div>
+      <div class="orc-kpi destaque"><div class="k">enviados recentes</div><div class="v">${enviados}</div></div>
+      <div class="orc-kpi"><div class="k">templates ativos</div><div class="v">${(tpl||[]).length}</div></div>
+    </div>
+    ${(tpl||[]).length ? `
+      <div style="margin-top:10px">
+        <div class="lbl">template ativo</div>
+        <div style="font-size:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:8px;margin-top:4px;white-space:pre-wrap">${esc(tpl[0].corpo).slice(0,300)}</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="abrirMenuMais('gestao_cadencia')">editar templates</button>
+      </div>
+    ` : `<div class="muted" style="font-size:12px;margin-top:10px">Nenhum template ativo · <button class="btn btn-ghost btn-sm" onclick="abrirMenuMais('gestao_cadencia')">criar</button></div>`}`;
+}
+window.disparoToggle = async function(ativar){
+  const { error } = await sb.from('va_disparo_cadencia').update({ ativa: ativar }).eq('projeto_id', _pj.projeto.id);
+  if (error) { toast(error.message,'err'); return; }
+  toast(ativar?'cadência ligada':'cadência desligada','ok'); renderBloco5Disparo();
+};
+
+async function renderBloco6Campanhas(){
+  const bd = document.getElementById('bl-camp-body'); if (!bd) return;
+  const cri = (_pj.criativos || []).length;
+  const camps = (_pj.campanhas || []).length;
+  const wppRec = _pj.zapiTels?.find(z => z.tipo === 'receptivo');
+  const linkWpp = wppRec ? `https://wa.me/${wppRec.numero.replace(/\D/g,'')}` : null;
+  bd.innerHTML = `
+    <div class="orc-resumo" style="margin-bottom:10px">
+      <div class="orc-kpi"><div class="k">criativos</div><div class="v">${cri}</div></div>
+      <div class="orc-kpi"><div class="k">campanhas</div><div class="v">${camps}</div></div>
+      ${linkWpp ? `<div class="orc-kpi"><div class="k">WhatsApp receptivo</div><div class="v" style="font-size:12px;font-family:var(--mono)">${esc(wppRec.numero)}</div><div class="calc-hint" style="font-size:10px"><a onclick="navigator.clipboard.writeText('${linkWpp}');toast('copiado','ok')" style="cursor:pointer;color:var(--accent-2)">copiar link</a></div></div>` : ''}
+    </div>
+    <div class="row" style="gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="abrirMenuMais('gestao_campanhas')">criar peça / campanha</button>
+      <button class="btn btn-ghost btn-sm" onclick="abrirMenuMais('gestao_campanhas')">ver métricas</button>
+    </div>`;
+}
+
+// ═══ MENU MAIS · overlay que reusa UI antiga (trilha + abas) ══════
+window.abrirMenuMais = function(preAba){
+  if (preAba) _abaChave = preAba;
   const p = _pj.projeto;
   const et = _pj.etapas;
-  // Contadores pro bloco "operar agora"
+  const overlay = document.createElement('div');
+  overlay.id = 'menu-mais-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998';
+  overlay.onclick = (e) => { if (e.target === overlay) fecharMenuMais(); };
+  const painel = document.createElement('div');
+  painel.style.cssText = 'position:fixed;top:2%;left:2%;right:2%;bottom:2%;background:var(--surface);border-radius:12px;padding:16px 20px;z-index:9999;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.4)';
+  painel.innerHTML = `
+    <div class="row" style="justify-content:space-between;align-items:baseline;margin-bottom:14px">
+      <h2 style="margin:0">Mais · ${esc(p.cliente_nome)}</h2>
+      <button class="btn btn-ghost btn-sm" onclick="fecharMenuMais()">✕ fechar</button>
+    </div>
+    <div class="proj-layout">
+      <aside class="trail aberto" id="trail">
+        <div class="trail-title"><span>Etapas · <strong style="color:var(--accent-2)">${p.etapas_ok}/${p.etapas_total}</strong></span></div>
+        <div class="trail-body">
+          <div class="trail-grupo">setup</div>
+          <div class="steps">${et.map(desenhaStep).join('')}</div>
+          <div class="trail-sep">
+            <div class="trail-grupo">gestão</div>
+            <div class="steps">${GESTAO_ITENS.map(desenhaStepGestao).join('')}</div>
+          </div>
+        </div>
+      </aside>
+      <section class="stage" id="stage"></section>
+    </div>`;
+  document.body.append(overlay, painel);
+  desenhaAba();
+};
+window.fecharMenuMais = function(){
+  document.getElementById('menu-mais-overlay')?.remove();
+  document.querySelector('[style*="z-index:9999"]')?.remove();
+};
+
+/* legado (mantido pra referência · usado dentro do menu mais) */
+function _desenhaProjetoLegado_desativado(){
+  const p = _pj.projeto;
+  const et = _pj.etapas;
   const arqCount = (_pj.arqProj || []).length;
   const leadsCount = (_pj.prospBruta || []).length;
   const pecasCount = (_pj.criativos || []).length;
   const parcCount = (_pj.parcMatch || []).length;
   const chip = (n, singular, plural) => `<span class="mono" style="font-size:11px;color:${n>0?'#0a7d3d':'var(--ink-3)'}">${n} ${n===1?singular:plural}</span>`;
-
   app.innerHTML = `
     ${bannerOndaEstado()}
     <div style="margin-bottom:22px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
