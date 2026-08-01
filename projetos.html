@@ -531,6 +531,7 @@
   </div>
   <div class="row">
     <span id="conn" class="conn">conectando…</span>
+    <button id="config-btn" class="btn btn-ghost btn-sm hidden" onclick="rota('#/config')" title="Preços e Balanced Scorecard">configuração</button>
     <button id="new-btn" class="btn btn-primary hidden" onclick="rota('#/novo')">
       <span>+</span><span class="btn-lbl">&nbsp;Novo projeto</span>
     </button>
@@ -560,6 +561,7 @@ const app = document.getElementById('app');
 const conn = document.getElementById('conn');
 const newBtn = document.getElementById('new-btn');
 const logoutBtn = document.getElementById('logout-btn');
+const configBtn = document.getElementById('config-btn');
 
 // ─── util ──────────────────────────────────────────────────────────
 const esc = s => (s ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -703,6 +705,7 @@ async function logout(){ await sb.auth.signOut(); location.hash = '#/'; }
 function renderLogin(errMsg){
   newBtn.classList.add('hidden');
   logoutBtn.classList.add('hidden');
+  configBtn.classList.add('hidden');
   app.innerHTML = `
     <div class="auth-wrap">
       <div class="auth-card">
@@ -738,11 +741,13 @@ async function router(){
   if (!_session) { renderLogin(); return; }
   newBtn.classList.remove('hidden');
   logoutBtn.classList.remove('hidden');
+  configBtn.classList.remove('hidden');
   if (!health.ok && health.kind === 'schema') { renderSchemaMissing(); return; }
   if (!health.ok) { renderErr(health.msg); return; }
 
   const h = location.hash || '#/';
   if (h === '#/novo') return renderNovo();
+  if (h === '#/config' || h.startsWith('#/config/')) return renderConfig();
   const m = h.match(/^#\/p\/([\w-]+)$/);
   if (m) return renderProjeto(m[1]);
   return renderLista();
@@ -1310,6 +1315,7 @@ function desenhaProjeto(){
       <div style="text-align:right">
         <span class="badge ${esc(p.status)}">${esc(p.status)}</span>
         <div class="mono" style="margin-top:8px;font-size:11px;color:var(--ink-3);letter-spacing:.05em">Início ${dataBR(p.data_inicio)} · fim onda ${dataBR(p.fim_da_onda)}</div>
+        <div id="hd-precos-versao" class="mono" style="margin-top:4px;font-size:10px;color:var(--ink-3);letter-spacing:.05em"></div>
       </div>
     </div>
     <div class="proj-layout">
@@ -1332,6 +1338,16 @@ function desenhaProjeto(){
       <section class="stage" id="stage"></section>
     </div>`;
   desenhaAba();
+  carregarChipPrecosVersao(p.precos_versao_id);
+}
+
+async function carregarChipPrecosVersao(versaoId){
+  if (!versaoId) return;
+  const el = document.getElementById('hd-precos-versao'); if (!el) return;
+  const { data: v } = await sb.from('va_precos_versao_uso').select('numero,nome,vigente').eq('id', versaoId).single();
+  if (!v) return;
+  const desat = !v.vigente;
+  el.innerHTML = `preços · v${v.numero} ${esc(v.nome).slice(0,30)}${desat?' <span style="color:#c60">· desatualizada, migre na renovação</span>':''}`;
 }
 
 function etapaAtualTitulo(){
@@ -6322,6 +6338,348 @@ window.salvarCampanhaCri = salvarCampanhaCri;
 window.lancarMetrica = lancarMetrica;
 window.abrirBulkMetricas = abrirBulkMetricas;
 window.salvarBulkMetricas = salvarBulkMetricas;
+
+// ═══════════════════════════════════════════════════════════════
+// CONFIGURAÇÃO · preços versionados + Balanced Scorecard
+// ═══════════════════════════════════════════════════════════════
+let _cfgAba = 'versoes';
+let _cfgVersaoSel = null; // versão sendo editada
+let _cfgComparativoA = null, _cfgComparativoB = null;
+
+async function renderConfig(){
+  app.innerHTML = `
+    <div style="margin-bottom:18px">
+      <div class="lbl" style="margin-bottom:6px">plataforma</div>
+      <h1 class="h1">Configuração</h1>
+      <p class="muted" style="margin-top:6px">Tabela de preços versionada e balanced scorecard da carteira. Ajustes aqui não afetam projetos já criados — cada projeto congela a versão vigente no momento do cadastro.</p>
+    </div>
+    <div class="row" style="gap:0;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap">
+      ${['versoes','editor','comparativo','scorecard'].map(k=>{
+        const lbl = {versoes:'Versões',editor:'Editor',comparativo:'Comparativo',scorecard:'Scorecard'}[k];
+        const active = _cfgAba===k;
+        return `<button onclick="cfgTrocarAba('${k}')" style="background:none;border:none;border-bottom:2px solid ${active?'var(--accent-2)':'transparent'};padding:10px 16px;cursor:pointer;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:${active?'var(--ink-1)':'var(--ink-3)'};font-weight:${active?'700':'500'}">${lbl}</button>`;
+      }).join('')}
+    </div>
+    <div id="cfg-body"><div class="muted">carregando…</div></div>`;
+  await cfgRenderAba();
+}
+window.cfgTrocarAba = async function(k){ _cfgAba = k; await renderConfig(); };
+
+async function cfgRenderAba(){
+  const body = document.getElementById('cfg-body'); if (!body) return;
+  if (_cfgAba === 'versoes') return cfgRenderVersoes(body);
+  if (_cfgAba === 'editor') return cfgRenderEditor(body);
+  if (_cfgAba === 'comparativo') return cfgRenderComparativo(body);
+  if (_cfgAba === 'scorecard') return cfgRenderScorecard(body);
+}
+
+async function cfgRenderVersoes(body){
+  body.innerHTML = '<div class="muted">carregando…</div>';
+  const { data: versoes } = await sb.from('va_precos_versao_uso').select('*').order('numero', {ascending:false});
+  const rows = (versoes||[]).map(v => `
+    <tr style="border-top:1px solid var(--line)">
+      <td style="padding:10px 8px;font-family:var(--mono);color:var(--ink-3)">v${v.numero}</td>
+      <td style="padding:10px 8px">${esc(v.nome)}${v.vigente?' <span class="pill" style="background:#e6f7ee;color:#0a7d3d;border-color:#8fd4ae;font-size:10px">VIGENTE</span>':''}</td>
+      <td style="padding:10px 8px;font-family:var(--mono);text-align:right">${v.projetos_ativos||0}/${v.projetos_total||0}</td>
+      <td style="padding:10px 8px;font-size:11px;color:var(--ink-3)">${v.vigente_desde||'—'}</td>
+      <td style="padding:10px 8px;text-align:right">
+        <button class="btn btn-ghost btn-sm" onclick="cfgAbrirEditor('${v.id}')">${v.projetos_ativos>0?'ver':'editar'}</button>
+        ${!v.vigente?`<button class="btn btn-ghost btn-sm" onclick="cfgAtivarVersao('${v.id}','v${v.numero} · ${esc(v.nome).replace(/'/g,'&#39;')}')">ativar</button>`:''}
+      </td>
+    </tr>`).join('');
+  body.innerHTML = `
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:baseline;margin-bottom:12px">
+        <div class="lbl">Versões da tabela</div>
+        <button class="btn btn-primary btn-sm" onclick="cfgCriarVersao()">+ criar nova versão (clonar vigente)</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">
+            <th style="text-align:left;padding:8px 8px">#</th>
+            <th style="text-align:left;padding:8px 8px">nome</th>
+            <th style="text-align:right;padding:8px 8px">proj. ativos / total</th>
+            <th style="text-align:left;padding:8px 8px">vigente desde</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${rows || '<tr><td colspan="5" style="padding:20px;text-align:center" class="muted">Nenhuma versão.</td></tr>'}</tbody>
+      </table>
+      <div class="muted" style="font-size:11px;margin-top:12px;font-family:var(--mono);letter-spacing:.02em">Regra: versão em uso por projeto ativo pode ser vista mas não editada nem excluída.</div>
+    </div>`;
+}
+
+window.cfgCriarVersao = async function(){
+  const nome = prompt('Nome da nova versão (ex: v3 · reajuste de agosto):'); if (!nome) return;
+  const obs = prompt('Observação · o que mudou e por quê?'); if (!obs) return;
+  const { data, error } = await sb.rpc('va_precos_criar_versao', { p_nome: nome, p_observacao: obs });
+  if (error) { toast(error.message,'err'); return; }
+  toast('versão criada · edite e depois ative','ok');
+  _cfgVersaoSel = data; _cfgAba = 'editor'; await renderConfig();
+};
+
+window.cfgAbrirEditor = async function(id){ _cfgVersaoSel = id; _cfgAba = 'editor'; await renderConfig(); };
+
+window.cfgAtivarVersao = async function(id, rot){
+  const obs = prompt(`Ativar ${rot}?\nAviso: a versão vigente atual será desativada.\n\nObservação obrigatória sobre a ativação:`);
+  if (!obs || !obs.trim()) return;
+  const { error } = await sb.rpc('va_precos_ativar_versao', { p_versao_id: id, p_observacao: obs.trim() });
+  if (error) { toast(error.message,'err'); return; }
+  toast('versão ativada','ok'); await renderConfig();
+};
+
+async function cfgRenderEditor(body){
+  body.innerHTML = '<div class="muted">carregando…</div>';
+  const { data: versoes } = await sb.from('va_precos_versao_uso').select('*').order('numero',{ascending:false});
+  if (!versoes || !versoes.length) { body.innerHTML = '<div class="muted">nenhuma versão</div>'; return; }
+  if (!_cfgVersaoSel) _cfgVersaoSel = versoes.find(v=>v.vigente)?.id || versoes[0].id;
+  const vSel = versoes.find(v => v.id === _cfgVersaoSel) || versoes[0];
+  const readOnly = vSel.projetos_ativos > 0;
+
+  const [{ data: cfg }, { data: precos }] = await Promise.all([
+    sb.from('va_precos_versao_config').select('*').eq('versao_id', vSel.id).single(),
+    sb.from('va_precos').select('*').eq('versao_id', vSel.id).order('ordem'),
+  ]);
+
+  const optsVersao = versoes.map(v => `<option value="${v.id}" ${v.id===vSel.id?'selected':''}>v${v.numero} · ${esc(v.nome)}${v.vigente?' · vigente':''}</option>`).join('');
+
+  const linhaEditor = (p) => {
+    const custo = Number(p.custo_real||0);
+    const horas = Number(p.horas_estimadas||0);
+    const custoHora = Number(cfg?.custo_hora_operador||0);
+    // preço sugerido baseado no multiplicador padrão · UI mostra ao lado
+    const mult = p.repassa_sem_margem ? Number(cfg?.margem_repasse_multiplicador||1.5) : Number(cfg?.margem_padrao_multiplicador||3);
+    const precoSugerido = (custo + horas*custoHora) * mult;
+    const margem = Number(p.preco||0) - (custo + horas*custoHora);
+    const margemPct = p.preco>0 ? (margem/p.preco*100) : 0;
+    return `<tr style="border-top:1px solid var(--line)">
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:11px">${esc(p.tipo)}</td>
+      <td style="padding:6px 8px;font-size:12px">${esc(p.rotulo||'')}</td>
+      <td style="padding:6px 8px"><input ${readOnly?'disabled':''} type="number" step="0.01" min="0" value="${custo}" data-tipo="${p.tipo}" data-campo="custo_real" style="width:80px;font-family:var(--mono);font-size:12px" onchange="cfgSalvarLinha(this)"></td>
+      <td style="padding:6px 8px"><input ${readOnly?'disabled':''} type="number" step="0.5" min="0" value="${horas}" data-tipo="${p.tipo}" data-campo="horas_estimadas" style="width:60px;font-family:var(--mono);font-size:12px" onchange="cfgSalvarLinha(this)"></td>
+      <td style="padding:6px 8px"><input ${readOnly?'disabled':''} type="number" step="0.01" min="0" value="${Number(p.preco||0)}" data-tipo="${p.tipo}" data-campo="preco" style="width:90px;font-family:var(--mono);font-size:12px" onchange="cfgSalvarLinha(this)"></td>
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:11px;color:var(--ink-3);text-align:right">sug ${precoSugerido.toFixed(2)}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:11px;text-align:right;color:${margemPct>0?'#0a7d3d':margemPct<0?'#c00':'var(--ink-3)'}">${margem.toFixed(2)} <span style="color:var(--ink-3)">(${margemPct.toFixed(0)}%)</span></td>
+    </tr>`;
+  };
+
+  const cfgFld = (lbl, campo, valor, step='0.01') => `
+    <div class="fld"><span class="lbl">${lbl}</span>
+      <input ${readOnly?'disabled':''} type="number" step="${step}" value="${valor||0}" data-cfgcampo="${campo}" onchange="cfgSalvarConfig(this,'${vSel.id}')">
+    </div>`;
+
+  body.innerHTML = `
+    <div class="card">
+      <div class="row" style="gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <select onchange="cfgSelecionarVersao(this.value)" style="padding:6px 10px;font-size:13px;border:1px solid var(--line);border-radius:6px">${optsVersao}</select>
+        ${vSel.vigente?'<span class="pill" style="background:#e6f7ee;color:#0a7d3d;border-color:#8fd4ae">VIGENTE</span>':''}
+        ${readOnly?'<span class="pill" style="background:#fff8e1;color:#c60;border-color:#f0c040">READ-ONLY · em uso por '+vSel.projetos_ativos+' projeto(s) ativo(s)</span>':''}
+      </div>
+      <div class="lbl" style="margin-top:10px">Parâmetros globais desta versão</div>
+      <div class="form-grid" style="margin-top:8px">
+        ${cfgFld('custo/hora operador (R$)', 'custo_hora_operador', cfg?.custo_hora_operador)}
+        ${cfgFld('imposto (%)', 'percent_imposto', cfg?.percent_imposto, '0.1')}
+        ${cfgFld('gestão (%)', 'percent_gestao', cfg?.percent_gestao, '0.1')}
+        ${cfgFld('mult. padrão', 'margem_padrao_multiplicador', cfg?.margem_padrao_multiplicador, '0.1')}
+        ${cfgFld('mult. repasse', 'margem_repasse_multiplicador', cfg?.margem_repasse_multiplicador, '0.1')}
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="lbl" style="margin-bottom:8px">Preços · Preço = (custo real + horas × custo/hora) × multiplicador</div>
+      <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:800px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">
+            <th style="text-align:left;padding:6px 8px">tipo</th>
+            <th style="text-align:left;padding:6px 8px">rótulo</th>
+            <th style="text-align:left;padding:6px 8px">custo real</th>
+            <th style="text-align:left;padding:6px 8px">horas</th>
+            <th style="text-align:left;padding:6px 8px">preço</th>
+            <th style="text-align:right;padding:6px 8px">sugerido</th>
+            <th style="text-align:right;padding:6px 8px">margem</th>
+          </tr>
+        </thead>
+        <tbody>${(precos||[]).map(linhaEditor).join('')}</tbody>
+      </table>
+      </div>
+    </div>`;
+}
+window.cfgSelecionarVersao = async function(id){ _cfgVersaoSel = id; await cfgRenderAba(); };
+
+window.cfgSalvarLinha = async function(el){
+  const tipo = el.dataset.tipo, campo = el.dataset.campo;
+  const patch = { [campo]: Number(el.value) };
+  const { error } = await sb.from('va_precos').update(patch).eq('versao_id', _cfgVersaoSel).eq('tipo', tipo);
+  if (error) { toast(error.message,'err'); return; }
+  toast('salvo','ok');
+  // Re-render pra atualizar coluna "sugerido"/"margem"
+  await cfgRenderAba();
+};
+
+window.cfgSalvarConfig = async function(el, versaoId){
+  const campo = el.dataset.cfgcampo;
+  const patch = { [campo]: Number(el.value), atualizado_em: new Date().toISOString() };
+  const { error } = await sb.from('va_precos_versao_config').update(patch).eq('versao_id', versaoId);
+  if (error) { toast(error.message,'err'); return; }
+  toast('config atualizada','ok'); await cfgRenderAba();
+};
+
+async function cfgRenderComparativo(body){
+  const { data: versoes } = await sb.from('va_precos_versao_uso').select('*').order('numero',{ascending:false});
+  if (!versoes || versoes.length < 2) { body.innerHTML = '<div class="card"><div class="muted">Precisa ter pelo menos 2 versões para comparar.</div></div>'; return; }
+  if (!_cfgComparativoA) _cfgComparativoA = versoes[1].id;
+  if (!_cfgComparativoB) _cfgComparativoB = versoes[0].id;
+
+  const optsA = versoes.map(v => `<option value="${v.id}" ${v.id===_cfgComparativoA?'selected':''}>v${v.numero} · ${esc(v.nome)}</option>`).join('');
+  const optsB = versoes.map(v => `<option value="${v.id}" ${v.id===_cfgComparativoB?'selected':''}>v${v.numero} · ${esc(v.nome)}</option>`).join('');
+
+  const { data: diff } = await sb.rpc('va_precos_comparar', { p_a: _cfgComparativoA, p_b: _cfgComparativoB });
+  const brl = v => v==null ? '—' : 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+  const rows = (diff||[]).filter(r => Number(r.delta||0) !== 0 || r.preco_a==null || r.preco_b==null).map(r => {
+    const corDelta = r.delta > 0 ? '#c00' : r.delta < 0 ? '#0a7d3d' : 'var(--ink-3)';
+    return `<tr style="border-top:1px solid var(--line)">
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:11px">${esc(r.tipo)}</td>
+      <td style="padding:6px 8px;font-size:12px">${esc(r.rotulo||'')}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);text-align:right">${brl(r.preco_a)}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);text-align:right">${brl(r.preco_b)}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);text-align:right;color:${corDelta}">${r.delta>0?'+':''}${brl(r.delta)}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);text-align:right;color:${corDelta}">${r.delta_pct!=null?(r.delta_pct>0?'+':'')+r.delta_pct+'%':'—'}</td>
+    </tr>`;
+  }).join('');
+
+  // Impacto numa onda padrão R$ 1.500 × 3
+  const { data: simA } = await sb.rpc('va_simular_orcamento', { p_valor_mensal: 1500, p_meses: 3, p_projeto_id: null });
+  // Trocar temporariamente vigente é caro · usa SQL direto pra estimar em vez disso:
+  // Aqui só mostra o total_contrato e sobra da vigente. Alternativa: dois RPCs distintos por versão.
+  const rowsHTML = rows || '<tr><td colspan="6" style="padding:20px;text-align:center" class="muted">Nenhuma diferença entre as duas versões.</td></tr>';
+  body.innerHTML = `
+    <div class="card">
+      <div class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
+        <div class="fld"><span class="lbl">versão A</span><select onchange="_cfgComparativoA=this.value;cfgRenderAba()">${optsA}</select></div>
+        <div class="fld"><span class="lbl">versão B</span><select onchange="_cfgComparativoB=this.value;cfgRenderAba()">${optsB}</select></div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-top:14px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">
+            <th style="text-align:left;padding:6px 8px">tipo</th>
+            <th style="text-align:left;padding:6px 8px">rótulo</th>
+            <th style="text-align:right;padding:6px 8px">A</th>
+            <th style="text-align:right;padding:6px 8px">B</th>
+            <th style="text-align:right;padding:6px 8px">Δ</th>
+            <th style="text-align:right;padding:6px 8px">Δ %</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHTML}</tbody>
+      </table>
+    </div>`;
+}
+
+async function cfgRenderScorecard(body){
+  body.innerHTML = '<div class="muted">carregando scorecard…</div>';
+  const dias = 30;
+  const [
+    { data: fin }, { data: linhas }, { data: projs }, { data: cap }
+  ] = await Promise.all([
+    sb.rpc('va_scorecard_financeiro', { p_dias: dias }),
+    sb.rpc('va_scorecard_linha', { p_dias: dias, p_limite_desvio_pct: 20 }),
+    sb.rpc('va_scorecard_por_projeto', { p_dias: dias }),
+    sb.rpc('va_scorecard_capacidade', { p_dias: dias, p_capacidade_horas: 160 }),
+  ]);
+  const brl = v => 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+  const pct = v => v==null?'—':Number(v).toFixed(1)+'%';
+
+  const finCard = fin ? `
+    <div class="card">
+      <div class="lbl">Financeira · últimos ${dias} dias</div>
+      <div class="orc-resumo" style="margin-top:10px">
+        <div class="orc-kpi"><div class="k">receita bruta</div><div class="v">${brl(fin.receita_bruta)}</div><div class="calc-hint" style="font-size:10px">${fin.delta_receita_pct!=null?(fin.delta_receita_pct>0?'+':'')+fin.delta_receita_pct+'% vs período anterior':''}</div></div>
+        <div class="orc-kpi"><div class="k">impostos est.</div><div class="v">${brl(fin.impostos_estimados)}</div></div>
+        <div class="orc-kpi"><div class="k">receita líquida</div><div class="v">${brl(fin.receita_liquida)}</div></div>
+        <div class="orc-kpi"><div class="k">custo real</div><div class="v">${brl(fin.custo_real_total)}</div></div>
+        <div class="orc-kpi ${fin.margem_contribuicao_rs>0?'destaque':''}"><div class="k">margem contrib.</div><div class="v">${brl(fin.margem_contribuicao_rs)}</div><div class="calc-hint" style="font-size:10px">${pct(fin.margem_contribuicao_pct)}</div></div>
+      </div>
+    </div>` : '';
+
+  const linhasRows = (linhas||[]).map(l => `
+    <tr style="border-top:1px solid var(--line);${l.alerta?'background:#fff5f0':''}">
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:11px">${esc(l.tipo)}</td>
+      <td style="padding:6px 8px;font-size:12px">${esc(l.rotulo||'')}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);text-align:right">${brl(l.receita_total)}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);text-align:right;color:var(--ink-3)">${brl(l.custo_realizado_total)}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);text-align:right">${brl(l.margem)} <span style="color:var(--ink-3)">${pct(l.margem_pct)}</span></td>
+      <td style="padding:6px 8px;font-family:var(--mono);text-align:right;color:${l.alerta?'#c00':'var(--ink-3)'}">
+        prev ${brl(l.custo_previsto_versao_vigente)}<br>
+        real ${brl(l.custo_medio_realizado)}<br>
+        ${l.desvio_pct!=null?`<b style="color:${l.alerta?'#c00':'var(--ink-3)'}">${l.desvio_pct>0?'+':''}${l.desvio_pct}%</b>`:''}
+      </td>
+    </tr>`).join('');
+  const linhaCard = `
+    <div class="card" style="margin-top:14px">
+      <div class="lbl">Por linha de serviço · desvio custo realizado vs previsto</div>
+      <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;min-width:700px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">
+            <th style="text-align:left;padding:6px 8px">tipo</th>
+            <th style="text-align:left;padding:6px 8px">rótulo</th>
+            <th style="text-align:right;padding:6px 8px">receita</th>
+            <th style="text-align:right;padding:6px 8px">custo real</th>
+            <th style="text-align:right;padding:6px 8px">margem</th>
+            <th style="text-align:right;padding:6px 8px">desvio</th>
+          </tr>
+        </thead>
+        <tbody>${linhasRows || '<tr><td colspan="6" style="padding:16px;text-align:center" class="muted">Nenhum lançamento em ${dias} dias</td></tr>'}</tbody>
+      </table>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:8px;font-family:var(--mono);letter-spacing:.02em">Linha em vermelho = desvio > 20% vs versão vigente. Considerar reajuste de preço.</div>
+    </div>`;
+
+  const projsRows = (projs||[]).map(p => `
+    <tr style="border-top:1px solid var(--line);${Number(p.margem_pct||0) < 30 ? 'background:#fff5f0' : ''}">
+      <td style="padding:6px 8px">${esc(p.cliente_nome)}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)">v${p.versao_numero||'?'}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);text-align:right">${brl(p.receita)}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);text-align:right;color:var(--ink-3)">${brl(p.custo_real)}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);text-align:right">${brl(p.margem)} · ${pct(p.margem_pct)}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);text-align:right;color:var(--ink-3)">${Number(p.horas_estimadas||0).toFixed(1)}h</td>
+      <td style="padding:6px 8px;font-family:var(--mono);text-align:right">${p.margem_por_hora!=null?brl(p.margem_por_hora)+'/h':'—'}</td>
+    </tr>`).join('');
+  const projCard = `
+    <div class="card" style="margin-top:14px">
+      <div class="lbl">Por projeto · ordenado por menor margem</div>
+      <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;min-width:700px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)">
+            <th style="text-align:left;padding:6px 8px">projeto</th>
+            <th style="text-align:left;padding:6px 8px">tabela</th>
+            <th style="text-align:right;padding:6px 8px">receita</th>
+            <th style="text-align:right;padding:6px 8px">custo real</th>
+            <th style="text-align:right;padding:6px 8px">margem</th>
+            <th style="text-align:right;padding:6px 8px">horas</th>
+            <th style="text-align:right;padding:6px 8px">margem/h</th>
+          </tr>
+        </thead>
+        <tbody>${projsRows || '<tr><td colspan="7" style="padding:16px;text-align:center" class="muted">Nenhum projeto com receita/custo em ${dias} dias</td></tr>'}</tbody>
+      </table>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:8px;font-family:var(--mono);letter-spacing:.02em">Fundo vermelho = margem &lt; 30%. Mandato drenando.</div>
+    </div>`;
+
+  const capCard = cap ? `
+    <div class="card" style="margin-top:14px">
+      <div class="lbl">Capacidade</div>
+      <div class="orc-resumo" style="margin-top:10px">
+        <div class="orc-kpi"><div class="k">capacidade</div><div class="v">${cap.capacidade_horas}h</div></div>
+        <div class="orc-kpi"><div class="k">comprometido</div><div class="v">${Number(cap.horas_comprometidas||0).toFixed(1)}h</div><div class="calc-hint" style="font-size:10px">${cap.utilizacao_pct}% utilização</div></div>
+        <div class="orc-kpi"><div class="k">disponível</div><div class="v">${Number(cap.horas_disponiveis||0).toFixed(1)}h</div></div>
+        <div class="orc-kpi"><div class="k">receita/hora</div><div class="v">${cap.receita_por_hora!=null?brl(cap.receita_por_hora):'—'}</div></div>
+      </div>
+    </div>` : '';
+
+  body.innerHTML = finCard + linhaCard + projCard + capCard;
+}
+window.renderConfig = renderConfig;
 
 (async function boot(){
   await initAuth();
