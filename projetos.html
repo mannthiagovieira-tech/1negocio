@@ -573,6 +573,91 @@ function setConn(state, msg){ conn.className = 'conn ' + state; conn.textContent
 const _debTimers = {};
 function debounce(key, fn, ms=350){ clearTimeout(_debTimers[key]); _debTimers[key] = setTimeout(fn, ms); }
 
+// ═══ MÁSCARAS DE INPUT ═════════════════════════════════════════════
+// Filosofia: durante digitação o input fica LIVRE (só remove chars proibidos).
+// Formatação pretty acontece no BLUR. dataset.raw sempre reflete o valor puro.
+// Isso evita brigar com o cursor e frustar o usuário.
+
+const somenteDigits = s => (s||'').replace(/\D+/g, '');
+
+// ─ CNPJ · máscara viva 00.000.000/0000-00 (não briga com cursor pq só cresce)
+function aplicaMascaraCNPJInput(el){
+  const d = somenteDigits(el.value).slice(0,14);
+  el.dataset.raw = d;
+  el.value = d.replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d)/, '$1-$2');
+}
+
+// ─ WhatsApp · dataset.e164 sempre atualizado, display pretty no blur
+function parseWpp(v){
+  let d = somenteDigits(v);
+  if (!d) return '';
+  if (d.length >= 11 && d[0] === '0') d = d.slice(1); // remove 0 do DDD
+  if ((d.length === 10 || d.length === 11) && !d.startsWith('55')) d = '55' + d; // prefixa 55
+  return d.slice(0, 13);
+}
+function formatWppDisplay(e164){
+  if (!e164 || !e164.startsWith('55') || e164.length < 12) return e164;
+  const ddd = e164.slice(2,4);
+  const resto = e164.slice(4);
+  if (resto.length <= 4) return '(' + ddd + ') ' + resto;
+  if (resto.length <= 8) return '(' + ddd + ') ' + resto.slice(0, resto.length-4) + '-' + resto.slice(resto.length-4);
+  return '(' + ddd + ') ' + resto.slice(0,5) + '-' + resto.slice(5,9);
+}
+function aplicaMascaraWppInput(el){
+  // Durante digitação: só limita a chars válidos, atualiza dataset.e164
+  const e164 = parseWpp(el.value);
+  el.dataset.e164 = e164;
+  // Mantém o que o usuário digitou (menos chars não numéricos aleatórios não permitidos)
+  el.value = el.value.replace(/[^\d\s()\-+]/g,'');
+}
+function aplicaMascaraWppBlur(el){
+  const disp = formatWppDisplay(el.dataset.e164 || parseWpp(el.value));
+  if (disp) el.value = disp;
+}
+
+// ─ Dinheiro · input livre (dígitos, pontos, vírgulas), pretty no blur
+function parseDinheiro(v){
+  // Aceita: "4500", "4.500", "4500,50", "4.500,50", "R$ 4.500,00"
+  const s = (v||'').replace(/[^\d.,-]/g,'');
+  if (!s) return 0;
+  // Se tem vírgula, é o separador decimal · ponto é milhar
+  if (s.includes(',')) return Number(s.replace(/\./g,'').replace(',','.')) || 0;
+  // Sem vírgula · se tem ponto e último grupo tem 3+ dígitos → milhar. Se 1-2 → decimal.
+  const parts = s.split('.');
+  if (parts.length === 1) return Number(s) || 0;
+  const ultimo = parts[parts.length-1];
+  if (ultimo.length === 1 || ultimo.length === 2) return Number(parts.join('').slice(0,-ultimo.length) + '.' + ultimo) || 0;
+  return Number(s.replace(/\./g,'')) || 0;
+}
+function aplicaMascaraDinheiroInput(el){
+  // Só remove chars proibidos, mantém o resto pro usuário editar livre
+  el.value = (el.value||'').replace(/[^\d.,-]/g,'');
+  el.dataset.raw = String(parseDinheiro(el.value));
+}
+function aplicaMascaraDinheiroBlur(el){
+  const num = parseDinheiro(el.value);
+  el.dataset.raw = String(num);
+  if (num > 0) el.value = 'R$ ' + num.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  else el.value = '';
+}
+function lerValorDinheiro(el){ return Number(el?.dataset?.raw || 0); }
+
+// ─ Percent · aceita "5" ou "5,5", exibe "5 %" ou "5,5 %" no blur
+function parsePercent(v){
+  const s = (v||'').replace(/[^\d.,-]/g,'').replace(',','.');
+  return Number(s) || 0;
+}
+function aplicaMascaraPercentInput(el){
+  el.value = (el.value||'').replace(/[^\d.,%\s-]/g,'').replace('%','').trim();
+  el.dataset.raw = String(parsePercent(el.value));
+}
+function aplicaMascaraPercentBlur(el){
+  const n = parsePercent(el.value);
+  el.dataset.raw = String(n);
+  if (n) el.value = n.toString().replace('.', ',') + ' %';
+}
+function lerValorPercent(el){ return Number(el?.dataset?.raw || 0); }
+
 // ─── ping health check ────────────────────────────────────────────
 async function ping(){
   try {
@@ -735,7 +820,7 @@ async function renderLista(){
         <div class="orc-kpi"><div class="k">orçamento ativo</div><div class="v">${brl(cockpit.orcamento_ativo)}</div></div>
         <div class="orc-kpi"><div class="k">gasto</div><div class="v">${brl(cockpit.gasto_ativo)}</div></div>
         <div class="orc-kpi ${Number(cockpit.saldo_ativo)>0?'destaque':''}"><div class="k">saldo</div><div class="v">${brl(cockpit.saldo_ativo)}</div></div>
-        <div class="orc-kpi"><div class="k">comissão líquida</div><div class="v">${brl(cockpit.comissao_liq_projetada)}</div></div>
+        <div class="orc-kpi" title="taxa de sucesso menos o investido pelo cliente"><div class="k">comissão líquida</div><div class="v">${brl(cockpit.comissao_liq_projetada)}</div><div class="calc-hint" style="font-size:10px">taxa ${brl(cockpit.taxa_sucesso_bruta_total)} − investido ${brl(cockpit.investido_cliente_total)}</div></div>
       </div>
       <div class="orc-resumo" style="margin-top:10px">
         <div class="orc-kpi"><div class="k">mandatos ativos</div><div class="v">${cockpit.mandatos_ativos||0}</div></div>
@@ -843,74 +928,107 @@ function renderNovo(){
       <h1 class="h1" style="margin-top:10px">Novo projeto</h1>
       <p class="muted" style="margin-top:6px">Contrato, parcelas e trilha de 15 etapas são geradas automaticamente ao salvar.</p>
     </div>
-    <div class="new-layout">
-      <div class="card">
-        <form id="new-form" class="col" style="gap:20px">
-          <div class="form-grid">
-            <div class="fld" data-fld="nome"><span class="lbl">cliente ·  nome *</span><input required id="f-nome" placeholder="ex. João Marques"><span class="fld-err-msg">nome obrigatório</span></div>
-            <div class="fld" data-fld="wp"><span class="lbl">cliente · whatsapp *</span><input required id="f-wp" placeholder="ex. 5548999999999"><span class="fld-err-msg">whatsapp obrigatório</span></div>
-            <div class="fld form-full"><span class="lbl">título do negócio</span><input id="f-tit" placeholder="ex. Clínica de estética 8 anos · faturamento 90k/mês"></div>
-            <div class="fld form-full" data-fld="cnpj">
-              <span class="lbl">CNPJ do negócio *</span>
-              <div class="row" style="gap:8px;flex-wrap:wrap">
-                <input required id="f-cnpj" placeholder="14 dígitos · só números" style="flex:1;min-width:200px">
-                <button type="button" class="btn btn-ghost" id="f-enriquecer" title="BrasilAPI · gratuito · razão social, endereço, CNAE, sócios">buscar dados do CNPJ</button>
-              </div>
-              <span class="fld-err-msg">CNPJ obrigatório · 14 dígitos</span>
-              <div id="f-enriq-status" class="muted" style="font-size:12px;margin-top:4px"></div>
-            </div>
-            <div class="fld" data-fld="cid"><span class="lbl">cidade *</span><input required id="f-cid" placeholder="ex. Florianópolis"><span class="fld-err-msg">cidade obrigatória</span></div>
-            <div class="fld" data-fld="uf"><span class="lbl">UF *</span><input required id="f-uf" placeholder="ex. SC" maxlength="2" style="text-transform:uppercase"><span class="fld-err-msg">UF obrigatória (2 letras)</span></div>
-            <div class="fld" data-fld="dt"><span class="lbl">data de início *</span><input required type="date" id="f-dt" value="${hoje}"><span class="fld-err-msg">data obrigatória</span></div>
+    <div class="card">
+      <form id="new-form" class="col" style="gap:20px">
+        <div class="form-grid">
+          <div class="fld" data-fld="nome"><span class="lbl">cliente ·  nome *</span><input required id="f-nome" placeholder="ex. João Marques"><span class="fld-err-msg">nome obrigatório</span></div>
+          <div class="fld" data-fld="wp"><span class="lbl">cliente · whatsapp *</span><input required id="f-wp" placeholder="(48) 99999-0000" inputmode="tel"><span class="fld-err-msg">whatsapp obrigatório</span></div>
+          <div class="fld form-full"><span class="lbl">título do negócio</span><input id="f-tit" placeholder="ex. Clínica de estética 8 anos · faturamento 90k/mês"></div>
+          <div class="fld form-full" data-fld="cnpj">
+            <span class="lbl">CNPJ do negócio *</span>
+            <input required id="f-cnpj" placeholder="00.000.000/0000-00" inputmode="numeric" maxlength="18" autocomplete="off" style="font-family:var(--mono);letter-spacing:.05em">
+            <span class="fld-err-msg">CNPJ obrigatório · 14 dígitos</span>
+            <div id="f-enriq-status" class="muted" style="font-size:12px;margin-top:4px">digite os 14 dígitos · a busca é automática</div>
           </div>
-          <div class="form-grid">
-            <div class="fld" data-fld="mens"><span class="lbl">mensalidade (R$) *</span><input required type="number" min="1" step="100" id="f-mens" placeholder="ex. 3.000"><span class="fld-err-msg">mensalidade obrigatória e maior que zero</span></div>
-            <div class="fld" data-fld="fid"><span class="lbl">fidelidade (meses) *</span><input required type="number" min="3" max="24" id="f-fid" value="6"><span class="fld-err-msg">mínimo 3 meses</span></div>
-            <div class="fld"><span class="lbl">comissão (%)</span><input type="number" min="0" max="100" step="0.5" id="f-com" value="5"></div>
-            <div class="fld"><span class="lbl">expectativa valor venda</span><input type="number" min="0" step="1000" id="f-exp" placeholder="ex. 500.000"></div>
-          </div>
-          <div id="new-err" class="err-box hidden"></div>
-          <div class="row" style="justify-content:flex-end;gap:10px;margin-top:6px">
-            <button type="button" class="btn btn-ghost" onclick="rota('#/')">cancelar</button>
-            <button type="submit" class="btn btn-primary" id="new-save">Salvar e abrir projeto</button>
-          </div>
-        </form>
-      </div>
-
-      <div class="calc-sticky">
-        <div class="card">
-          <div class="lbl" style="margin-bottom:14px">simulação da onda</div>
-          <div id="calc-sim"><div class="muted" style="font-size:12px">preencha mensalidade e prazo</div></div>
-          <div class="calc-row" style="margin-top:12px"><div><div class="calc-lbl">Comissão projetada</div><div class="calc-hint">expectativa × %</div></div><div class="calc-val" id="c-com">R$ 0</div></div>
+          <div class="fld" data-fld="cid"><span class="lbl">cidade *</span><input required id="f-cid" placeholder="ex. Florianópolis"><span class="fld-err-msg">cidade obrigatória</span></div>
+          <div class="fld" data-fld="uf"><span class="lbl">UF *</span><input required id="f-uf" placeholder="ex. SC" maxlength="2" style="text-transform:uppercase"><span class="fld-err-msg">UF obrigatória (2 letras)</span></div>
+          <div class="fld" data-fld="dt"><span class="lbl">data de início *</span><input required type="date" id="f-dt" value="${hoje}"><span class="fld-err-msg">data obrigatória</span></div>
         </div>
+        <div class="form-grid">
+          <div class="fld" data-fld="mens"><span class="lbl">mensalidade *</span><input required id="f-mens" placeholder="R$ 0,00" inputmode="numeric"><span class="fld-err-msg">mensalidade obrigatória e maior que zero</span></div>
+          <div class="fld" data-fld="fid"><span class="lbl">fidelidade (meses) *</span><input required type="number" min="3" max="24" id="f-fid" value="6"><span class="fld-err-msg">mínimo 3 meses</span></div>
+          <div class="fld"><span class="lbl">comissão sobre venda</span><input id="f-com" placeholder="5 %" inputmode="decimal"></div>
+          <div class="fld"><span class="lbl">expectativa valor venda</span><input id="f-exp" placeholder="R$ 0,00" inputmode="numeric"></div>
+        </div>
+        <div id="new-err" class="err-box hidden"></div>
+        <div class="row" style="justify-content:flex-end;gap:10px;margin-top:6px">
+          <button type="button" class="btn btn-ghost" onclick="rota('#/')">cancelar</button>
+          <button type="submit" class="btn btn-primary" id="new-save">Salvar e abrir projeto</button>
+        </div>
+      </form>
+    </div>
+
+    <div style="margin-top:22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px" id="calc-dres">
+      <div class="card" id="dre-cliente-card">
+        <div class="lbl">DRE do cliente · para onde vai o que ele paga</div>
+        <div id="dre-cliente"><div class="muted" style="font-size:12px;margin-top:8px">preencha mensalidade e prazo</div></div>
       </div>
-    </div>`;
+      <div class="card" id="dre-margem-card">
+        <div class="row" style="justify-content:space-between;align-items:baseline">
+          <div class="lbl">DRE de margem · uso interno</div>
+          <span class="pill" style="background:#fff8e1;color:#c60;border-color:#f0c040;font-size:9px">ADMIN</span>
+        </div>
+        <div id="dre-margem"><div class="muted" style="font-size:12px;margin-top:8px">preencha mensalidade e prazo</div></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="lbl">Comissão projetada</div>
+      <div id="dre-comissao" style="margin-top:8px"><div class="muted" style="font-size:12px">preencha expectativa e comissão</div></div>
+    </div>
+  `;
+
+  // Aplica máscaras nos campos existentes primeiro
+  const inpCnpj = document.getElementById('f-cnpj');
+  const inpWp = document.getElementById('f-wp');
+  const inpMens = document.getElementById('f-mens');
+  const inpExp = document.getElementById('f-exp');
+  const inpCom = document.getElementById('f-com');
+  inpCnpj.addEventListener('input', () => { aplicaMascaraCNPJInput(inpCnpj); autoBuscarCNPJ(); });
+  inpWp.addEventListener('input', () => aplicaMascaraWppInput(inpWp));
+  inpWp.addEventListener('blur', () => aplicaMascaraWppBlur(inpWp));
+  inpMens.addEventListener('input', () => { aplicaMascaraDinheiroInput(inpMens); upd(); });
+  inpMens.addEventListener('blur', () => aplicaMascaraDinheiroBlur(inpMens));
+  inpMens.addEventListener('focus', () => { if (inpMens.dataset.raw && Number(inpMens.dataset.raw)>0) inpMens.value = inpMens.dataset.raw; });
+  inpExp.addEventListener('input', () => { aplicaMascaraDinheiroInput(inpExp); upd(); });
+  inpExp.addEventListener('blur', () => aplicaMascaraDinheiroBlur(inpExp));
+  inpExp.addEventListener('focus', () => { if (inpExp.dataset.raw && Number(inpExp.dataset.raw)>0) inpExp.value = inpExp.dataset.raw; });
+  inpCom.addEventListener('input', () => { aplicaMascaraPercentInput(inpCom); upd(); });
+  inpCom.addEventListener('blur', () => aplicaMascaraPercentBlur(inpCom));
+  inpCom.addEventListener('focus', () => { if (inpCom.dataset.raw && Number(inpCom.dataset.raw)>0) inpCom.value = inpCom.dataset.raw; });
+  // Default comissão 5%
+  inpCom.value = '5'; aplicaMascaraPercentInput(inpCom); aplicaMascaraPercentBlur(inpCom);
 
   let simTimer;
   const upd = () => {
-    const mens = Number(document.getElementById('f-mens').value)||0;
+    const mens = lerValorDinheiro(inpMens);
     const fid  = Number(document.getElementById('f-fid').value)||0;
-    const com  = Number(document.getElementById('f-com').value)||0;
-    const exp  = Number(document.getElementById('f-exp').value)||0;
-    document.getElementById('c-com').textContent = brlNice(exp*(com/100));
+    const com  = lerValorPercent(inpCom);
+    const exp  = lerValorDinheiro(inpExp);
+    // Comissão projetada: (expectativa × %) − investido_cliente. Novo projeto = 0 investido.
+    renderComissaoProjetada('dre-comissao', exp, com, 0);
     clearTimeout(simTimer);
-    const cont = document.getElementById('calc-sim');
-    if (!mens || !fid) { cont.innerHTML = '<div class="muted" style="font-size:12px">preencha mensalidade e prazo</div>'; return; }
-    if (fid < 3) { cont.innerHTML = '<div class="aviso" style="background:#fee;color:#800;padding:10px;border-radius:6px;font-size:12.5px">Prazo mínimo é 3 meses — a avaliação e os setups não cabem em ondas curtas.</div>'; return; }
-    simTimer = setTimeout(() => renderSimulador('novo', mens, fid, null, 'calc-sim'), 300);
+    const dreCli = document.getElementById('dre-cliente');
+    const dreMar = document.getElementById('dre-margem');
+    if (!mens || !fid) { dreCli.innerHTML = '<div class="muted" style="font-size:12px;margin-top:8px">preencha mensalidade e prazo</div>'; dreMar.innerHTML = '<div class="muted" style="font-size:12px;margin-top:8px">preencha mensalidade e prazo</div>'; return; }
+    simTimer = setTimeout(() => renderDREs(mens, fid, null), 300);
   };
-  ['f-mens','f-fid','f-com','f-exp'].forEach(id => document.getElementById(id).addEventListener('input', upd));
+  document.getElementById('f-fid').addEventListener('input', upd);
   upd();
 
-  // Persistência: qualquer input salva o rascunho na memória (não localStorage
-  // pra não vazar entre sessões). Se por qualquer motivo houver re-render,
-  // renderNovo restaura no fim.
+  // Persistência: qualquer input salva o rascunho na memória.
   const _todosIds = ['f-nome','f-wp','f-tit','f-cnpj','f-cid','f-uf','f-dt','f-mens','f-fid','f-com','f-exp'];
   _todosIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', _novoSalvarDraft);
   });
   _novoRestaurarDraft();
+  // Reaplica máscaras pretty após restaurar draft
+  if (inpMens.value) { aplicaMascaraDinheiroInput(inpMens); aplicaMascaraDinheiroBlur(inpMens); }
+  if (inpExp.value)  { aplicaMascaraDinheiroInput(inpExp);  aplicaMascaraDinheiroBlur(inpExp); }
+  if (inpCom.value)  { aplicaMascaraPercentInput(inpCom);   aplicaMascaraPercentBlur(inpCom); }
+  if (inpWp.value)   { aplicaMascaraWppInput(inpWp);        aplicaMascaraWppBlur(inpWp); }
+  if (inpCnpj.value) { aplicaMascaraCNPJInput(inpCnpj); }
 
   // limpa erro visual ao digitar
   ['f-nome','f-wp','f-mens','f-dt','f-cnpj','f-cid','f-uf','f-fid'].forEach(id => {
@@ -918,44 +1036,47 @@ function renderNovo(){
     if (el) el.addEventListener('input', () => el.closest('.fld')?.classList.remove('err'));
   });
 
-  // Enriquecimento único · BrasilAPI grátis (razão, endereço, CNAE, situação, capital, sócios).
-  // Kipflow (faturamento/funcionários/dívida) fica pra etapa de arquétipos, com custo visível lá.
-  document.getElementById('f-enriquecer').onclick = async () => {
-    const cnpj = (document.getElementById('f-cnpj').value || '').replace(/\D/g, '');
+  // Auto-busca CNPJ via publica.cnpj.ws (mesma API usada em /diagnostico.html).
+  // Dispara sozinha quando chega em 14 dígitos. Sem botão. Rate limit 3/min/IP.
+  let _cnpjTimer;
+  window.autoBuscarCNPJ = () => {
+    clearTimeout(_cnpjTimer);
+    const digitos = somenteDigits(inpCnpj.value);
     const st = document.getElementById('f-enriq-status');
-    if (!cnpj) { st.textContent = 'preencha o CNPJ primeiro'; st.style.color = '#c00'; return; }
-    if (cnpj.length !== 14) { st.textContent = 'CNPJ inválido · precisa 14 dígitos (não vamos consultar, mas você pode preencher os campos à mão e seguir)'; st.style.color = '#c60'; return; }
-    st.textContent = 'consultando BrasilAPI…'; st.style.color = '';
-    try {
-      const sess = (await sb.auth.getSession()).data.session;
-      const r = await fetch('/api/enriquecer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (sess?.access_token || '') },
-        body: JSON.stringify({ cnpj }),
-      });
-      const d = await r.json();
-      if (!r.ok || !d.ok) {
-        // Diagnóstico rico · nunca bloqueia o cadastro
-        const status = d.status || r.status;
-        let msg;
-        if (status === 404) msg = 'CNPJ não encontrado na Receita Federal · você pode preencher à mão e seguir';
-        else if (status === 400) msg = 'CNPJ inválido · confira os dígitos ou preencha à mão';
-        else if (d.erro === 'brasilapi_falhou' && !status) msg = 'não foi possível consultar agora, tente de novo · você pode preencher à mão e seguir';
-        else msg = `consulta falhou · HTTP ${status||'?'}: ${d.erro || 'erro'}${d.detalhe?' · '+d.detalhe:''} · você pode preencher à mão e seguir`;
-        st.textContent = msg; st.style.color = '#c60';
-        return;
-      }
-      const c = d.campos_extraidos || {};
-      if (c.razao_social && !document.getElementById('f-tit').value) document.getElementById('f-tit').value = c.razao_social;
-      if (c.cidade) document.getElementById('f-cid').value = c.cidade;
-      if (c.estado) document.getElementById('f-uf').value = String(c.estado).slice(0,2).toUpperCase();
-      _novoSalvarDraft();
-      const nBA = (d.fontes?.brasilapi || []).length;
-      let msg = `ok · ${c.razao_social || cnpj}${c.cnae_codigo ? ' · CNAE '+c.cnae_codigo : ''} · ${nBA} campo(s) preenchidos da Receita`;
-      st.textContent = msg; st.style.color = 'green';
-    } catch (e) {
-      st.textContent = 'não foi possível consultar agora, tente de novo · você pode preencher à mão e seguir'; st.style.color = '#c60';
+    if (digitos.length < 14) {
+      st.textContent = digitos.length ? `${digitos.length}/14 dígitos · buscamos automaticamente ao completar` : 'digite os 14 dígitos · a busca é automática';
+      st.style.color = '';
+      return;
     }
+    st.textContent = 'consultando Receita…'; st.style.color = '';
+    _cnpjTimer = setTimeout(async () => {
+      try {
+        const r = await fetch('https://publica.cnpj.ws/cnpj/' + digitos);
+        if (r.status === 404) { st.textContent = 'CNPJ não encontrado na Receita Federal · você pode preencher à mão e seguir'; st.style.color = '#c60'; return; }
+        if (r.status === 400) { st.textContent = 'CNPJ inválido · confira os dígitos ou preencha à mão'; st.style.color = '#c60'; return; }
+        if (r.status === 429) { st.textContent = 'muitas consultas · aguarde 1 min ou preencha à mão'; st.style.color = '#c60'; return; }
+        if (!r.ok) {
+          let msg = null; try { const j = await r.json(); msg = j.titulo || j.detalhes || null; } catch {}
+          st.textContent = `consulta falhou · HTTP ${r.status}${msg?' · '+msg:''} · você pode preencher à mão`; st.style.color = '#c60';
+          return;
+        }
+        const d = await r.json();
+        const est = d.estabelecimento || {};
+        const toTC = s => s ? s.toLowerCase().replace(/(?:^|\s|[-/])\S/g, c => c.toUpperCase()) : '';
+        const razao = toTC(d.razao_social || '');
+        const cidade = toTC(est.cidade?.nome || '');
+        const uf = (est.estado?.sigla || '').toUpperCase();
+        if (razao && !document.getElementById('f-tit').value) document.getElementById('f-tit').value = razao;
+        if (cidade) document.getElementById('f-cid').value = cidade;
+        if (uf) document.getElementById('f-uf').value = uf;
+        _novoSalvarDraft();
+        const preench = ['razão social','cidade','UF'].filter((_,i)=>[razao,cidade,uf][i]);
+        st.textContent = `✓ ${razao || digitos} · preenchidos: ${preench.join(', ')}`;
+        st.style.color = 'green';
+      } catch (e) {
+        st.textContent = 'não foi possível consultar agora, tente de novo · você pode preencher à mão e seguir'; st.style.color = '#c60';
+      }
+    }, 250);
   };
 
   document.getElementById('new-form').onsubmit = async (ev) => {
@@ -966,13 +1087,13 @@ function renderNovo(){
 
     // validação campo a campo
     const nome = document.getElementById('f-nome').value.trim();
-    const wpBruto = document.getElementById('f-wp').value.replace(/\D/g,'');
+    const wpEl = document.getElementById('f-wp');
+    const wpBruto = wpEl.dataset.e164 || somenteDigits(wpEl.value);
     const dt = document.getElementById('f-dt').value;
-    const mens = Number(document.getElementById('f-mens').value);
-    const cnpjBruto = (document.getElementById('f-cnpj').value || '').replace(/\D/g,'');
+    const mens = lerValorDinheiro(document.getElementById('f-mens'));
+    const cnpjBruto = somenteDigits(document.getElementById('f-cnpj').value);
     const cidade = document.getElementById('f-cid').value.trim();
     const uf = document.getElementById('f-uf').value.trim().toUpperCase();
-
     const fid = Number(document.getElementById('f-fid').value) || 0;
     const invalidos = [];
     document.querySelectorAll('#new-form .fld.err').forEach(el => el.classList.remove('err'));
@@ -1001,9 +1122,9 @@ function renderNovo(){
       uf,
       valor_mensal: mens,
       fidelidade_meses: Number(document.getElementById('f-fid').value) || 3,
-      comissao_percent: Number(document.getElementById('f-com').value) || 5,
+      comissao_percent: lerValorPercent(document.getElementById('f-com')) || 5,
       data_inicio: dt,
-      expectativa_valor: Number(document.getElementById('f-exp').value) || null,
+      expectativa_valor: lerValorDinheiro(document.getElementById('f-exp')) || null,
     };
     const { data, error } = await sb.from('va_projetos').insert(payload).select('id').single();
     if (error) {
@@ -2629,144 +2750,170 @@ async function simularAsync(prefix, valor, meses, projetoId){
   return error ? { erro: error.message } : data;
 }
 function renderSimulador(prefix, valor, meses, projetoId, cont) {
+  // Legacy · usado pelo painel de renovação. Renderiza as 2 DREs dentro do container único.
   const el = document.getElementById(cont); if (!el) return;
   el.innerHTML = '<div class="muted" style="font-size:12px">calculando…</div>';
-  // Simula na atual e no comparativo (3 ou 6 · o oposto)
-  const cmpMeses = meses === 3 ? 6 : (meses === 6 ? 3 : (meses < 6 ? 6 : 3));
-  Promise.all([
-    simularAsync(prefix, valor, meses, projetoId),
-    simularAsync(prefix, valor, cmpMeses, projetoId),
-  ]).then(([s, cmp]) => {
+  simularAsync(prefix, valor, meses, projetoId).then(s => {
     if (s.erro) { el.innerHTML = `<div class="aviso-red" style="background:#fee;color:#800;padding:10px;border-radius:6px">${esc(s.erro)}</div>`; return; }
-    el.innerHTML = simHtml(s, cmp, cmpMeses);
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
+        <div class="k-card" style="margin:0;padding:14px">${dreClienteHtml(s)}</div>
+        <div class="k-card" style="margin:0;padding:14px">${dreMargemHtml(s)}</div>
+      </div>`;
   });
 }
-function simHtml(s, cmp, cmpMeses){
+
+// Renderiza duas DREs no form novo (ids fixos dre-cliente e dre-margem).
+async function renderDREs(valor, meses, projetoId) {
+  const dreCli = document.getElementById('dre-cliente');
+  const dreMar = document.getElementById('dre-margem');
+  if (!dreCli || !dreMar) return;
+  dreCli.innerHTML = '<div class="muted" style="font-size:12px;margin-top:8px">calculando…</div>';
+  dreMar.innerHTML = '<div class="muted" style="font-size:12px;margin-top:8px">calculando…</div>';
+  const s = await simularAsync('novo', valor, meses, projetoId);
+  if (s.erro) {
+    const av = `<div class="aviso" style="background:#fee;color:#800;padding:10px;border-radius:6px;font-size:12.5px;margin-top:8px">${esc(s.erro)}</div>`;
+    dreCli.innerHTML = av; dreMar.innerHTML = ''; return;
+  }
+  dreCli.innerHTML = dreClienteHtml(s);
+  dreMar.innerHTML = dreMargemHtml(s);
+}
+
+// ═══ DRE do CLIENTE ═══════════════════════════════════════════════
+// "Para onde vai o que ele paga" · fecha em zero. Aparece em proposta
+// e no portal do cliente. NUNCA expõe custo real nem margem.
+function dreClienteHtml(s) {
   const brl = v => 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const total = Number(s.total_contrato||0);
-  const pct = v => total ? (Number(v||0)*100/total).toFixed(1)+'%' : '—';
   const setupsAtivacoes = Number(s.avaliacao||0)+Number(s.setup_arquetipos||0)+Number(s.combo_criativos||0)+Number(s.setup_campanha||0)+Number(s.anuncio_total||0);
-
-  // linha padrão em uma tabela · label (mono cinza) · valor mono · % cinza
-  const lin = (label, val, opts={}) => {
-    const cor = opts.cor || '';
-    const style = opts.style || '';
-    return `<tr style="${style}">
-      <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;color:${cor||'var(--ink-2)'};padding:4px 0">${label}</td>
-      <td class="mono" style="text-align:right;padding:4px 0;color:${cor||'var(--ink-1)'}">${brl(val)}</td>
-      <td class="mono" style="text-align:right;font-size:10.5px;padding:4px 0;color:var(--ink-3)">${opts.extra||pct(val)}</td>
-    </tr>`;
-  };
-  const sep = `<tr><td colspan="3" style="padding:2px 0"><div style="border-top:1px solid var(--line)"></div></td></tr>`;
-
-  const avalRow = s.avaliacao_ja_paga
-    ? `<tr>
-        <td style="font-family:var(--mono);font-size:11.5px;color:var(--ink-3);padding:4px 0;text-decoration:line-through">Avaliação (já paga)</td>
-        <td class="mono" style="text-align:right;padding:4px 0;color:var(--ink-3);text-decoration:line-through">R$ 588,00</td>
-        <td class="mono" style="text-align:right;font-size:10.5px;padding:4px 0;color:var(--ink-3)">até ${dataBR(s.avaliacao_valida_ate)}</td>
-      </tr>`
-    : lin('Avaliação', s.avaliacao);
-
-  const bA = `
-    <div class="k-card" style="margin:0;padding:14px">
-      <div class="lbl">A · onde vai o dinheiro</div>
-      <table style="width:100%;margin-top:10px;border-collapse:collapse">
-        <tr>
-          <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;color:var(--ink-1);padding:4px 0;font-weight:600">Contrato da onda</td>
-          <td class="mono" style="text-align:right;padding:4px 0;font-family:var(--syne,inherit);font-weight:600;font-size:15px">${brl(total)}</td>
-          <td class="mono" style="text-align:right;font-size:10.5px;padding:4px 0;color:var(--ink-3)">100%</td>
-        </tr>
-        ${sep}
-        ${lin('Impostos', s.impostos)}
-        ${lin('Gestão e atendimento', s.gestao)}
-        ${sep}
-        ${avalRow}
-        ${lin('Setup de arquétipos', s.setup_arquetipos)}
-        ${lin('Combo de criativos', s.combo_criativos)}
-        ${lin('Setup de campanha', s.setup_campanha)}
-        ${lin('Anúncio na plataforma', s.anuncio_total)}
-        <tr>
-          <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;color:var(--ink-1);padding:4px 0;font-weight:600">Setups e ativações</td>
-          <td class="mono" style="text-align:right;padding:4px 0;font-weight:600">${brl(setupsAtivacoes)}</td>
-          <td class="mono" style="text-align:right;font-size:10.5px;padding:4px 0;color:var(--ink-3)">${total ? (setupsAtivacoes/total*100).toFixed(1)+'%' : '—'}</td>
-        </tr>
-        ${sep}
-        <tr>
-          <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:${s.sobra_operacional>0?'#0a7d3d':'#c00'};padding:8px 0 4px;font-weight:700;text-transform:uppercase">Sobra operacional</td>
-          <td class="mono" style="text-align:right;padding:8px 0 4px;font-family:var(--syne,inherit);font-weight:700;font-size:17px;color:${s.sobra_operacional>0?'#0a7d3d':'#c00'}">${brl(s.sobra_operacional)}</td>
-          <td class="mono" style="text-align:right;font-size:10.5px;padding:8px 0 4px;color:${s.sobra_operacional>0?'#0a7d3d':'#c00'};font-weight:600">${total ? (s.sobra_operacional/total*100).toFixed(1)+'%' : '—'}</td>
-        </tr>
-        <tr>
-          <td colspan="3" style="text-align:right;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);padding:0 0 6px">${brl(s.sobra_operacional_mensal)}/mês</td>
-        </tr>
-      </table>
-    </div>`;
-
   const impPct = Number(s.percent_impulsionamento||0);
   const leadPct = Number(s.percent_lead||0);
-  const impVal = s.sobra_operacional * (impPct/100);
-  const leadVal = s.sobra_operacional * (leadPct/100);
-  const aviso = s.aviso ? `<div class="aviso" style="margin-top:8px;font-size:12px;background:${s.impulsionamento_desligado?'#ffe8e0':'#fff8e1'};padding:8px;border-radius:6px">${esc(s.aviso)}</div>` : '';
-  const bB = `
-    <div class="k-card" style="margin:0;padding:14px">
-      <div class="lbl">B · alocação</div>
-      ${s.sobra_operacional > 0 ? `
-        <div style="display:flex;height:36px;margin-top:10px;border-radius:6px;overflow:hidden">
-          ${impPct>0?`<div style="flex:${impPct};background:linear-gradient(135deg,#3b6fd6,#2450a8);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;font-weight:600" title="Mídia paga">Mídia paga ${impPct}%</div>`:''}
-          ${leadPct>0?`<div style="flex:${leadPct};background:linear-gradient(135deg,#0a9d55,#087a43);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;font-weight:600" title="Prospecção ativa">Prospecção ativa ${leadPct}%</div>`:''}
-        </div>
-        <div class="row" style="justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:6px">
-          <span>Mídia paga ${brl(impVal)}</span>
-          <span>Prospecção ativa ${brl(leadVal)}</span>
-        </div>
-      ` : '<div class="muted" style="margin-top:8px;font-size:12px">Sem sobra pra alocar.</div>'}
-      ${aviso}
-    </div>`;
+  // Sobra calculada localmente pra garantir que a DRE fecha em zero
+  const sobraLocal = total - Number(s.impostos||0) - Number(s.gestao||0) - setupsAtivacoes;
+  const impVal = sobraLocal * (impPct/100);
+  const leadVal = sobraLocal * (leadPct/100);
+  const saldo = total - Number(s.impostos||0) - Number(s.gestao||0) - setupsAtivacoes - impVal - leadVal;
 
-  const diasMidia = impPct>0 && s.piso_impulsionamento ? Math.round(impVal/s.piso_impulsionamento*30) : 0;
-  const bC = `
-    <div class="k-card" style="margin:0;padding:14px">
-      <div class="lbl">entrega prevista</div>
-      <div style="margin-top:10px;font-size:13px;line-height:1.9">
-        <div><span style="font-family:var(--syne,inherit);font-weight:700;font-size:17px">${(s.projecao_leads||0).toLocaleString('pt-BR')}</span> <span style="font-family:var(--mono);font-size:11px;color:var(--ink-2);letter-spacing:.02em">contatos qualificados · teto teórico</span></div>
-        <div><span style="font-family:var(--syne,inherit);font-weight:700;font-size:17px">${(s.projecao_disparos||0).toLocaleString('pt-BR')}</span> <span style="font-family:var(--mono);font-size:11px;color:var(--ink-2);letter-spacing:.02em">disparos WhatsApp</span></div>
-        <div><span style="font-family:var(--syne,inherit);font-weight:700;font-size:17px">${diasMidia}</span> <span style="font-family:var(--mono);font-size:11px;color:var(--ink-2);letter-spacing:.02em">dias de mídia paga</span></div>
-      </div>
-      <div class="muted" style="font-size:11px;margin-top:8px;font-family:var(--mono);letter-spacing:.02em">Teto teórico = orçamento ÷ preço do lead. Volume real depende de oferta do setor e conversão do funil.</div>
-    </div>`;
+  const linha = (label, val, sub) => `<tr>
+    <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;color:var(--ink-2);padding:5px 0">${label}${sub?` <span style="color:var(--ink-3);font-size:10.5px">${sub}</span>`:''}</td>
+    <td class="mono" style="text-align:right;padding:5px 0">${val<0 || String(val).startsWith('(')?val:brl(val)}</td>
+  </tr>`;
+  const paren = v => '('+brl(Math.abs(v))+')';
+  const avalRow = s.avaliacao_ja_paga
+    ? `<tr><td style="font-family:var(--mono);font-size:11.5px;color:var(--ink-3);padding:5px 0;text-decoration:line-through">Avaliação (já paga)</td><td class="mono" style="text-align:right;padding:5px 0;color:var(--ink-3)">—</td></tr>`
+    : null;
 
-  // Comparativo prazo · tabela 2 colunas 3m vs 6m
-  let comp = '';
-  if (cmp && !cmp.erro && s.entrada.meses !== cmpMeses) {
-    const [curM, cmpM] = [Number(s.entrada.meses), Number(cmpMeses)];
-    const setupsCmp = Number(cmp.avaliacao||0)+Number(cmp.setup_arquetipos||0)+Number(cmp.combo_criativos||0)+Number(cmp.setup_campanha||0)+Number(cmp.anuncio_total||0);
-    const cell = v => `<td class="mono" style="text-align:right;padding:5px 8px;font-size:12px">${v}</td>`;
-    const cellPct = v => `<td class="mono" style="text-align:right;padding:5px 8px;font-size:11px;color:var(--ink-3)">${v}</td>`;
-    const label = t => `<td style="font-family:var(--mono);font-size:11px;letter-spacing:.02em;color:var(--ink-2);padding:5px 8px">${t}</td>`;
-    const [ordCur, ordCmp] = curM < cmpM ? [{s, m: curM, setups: setupsAtivacoes}, {s: cmp, m: cmpM, setups: setupsCmp}] : [{s: cmp, m: cmpM, setups: setupsCmp}, {s, m: curM, setups: setupsAtivacoes}];
-    comp = `<div class="k-card" style="margin:0;padding:14px;background:var(--surface-2)">
-      <div class="lbl">comparativo de prazo</div>
-      <table style="width:100%;margin-top:10px;border-collapse:collapse">
-        <thead>
-          <tr style="border-bottom:1px solid var(--line)">
-            ${label('')}
-            <th style="text-align:right;padding:5px 8px;font-family:var(--syne,inherit);font-size:14px;font-weight:700">${ordCur.m} meses</th>
-            <th style="text-align:right;padding:5px 8px;font-family:var(--syne,inherit);font-size:14px;font-weight:700">${ordCmp.m} meses</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>${label('Contrato total')}${cell(brl(ordCur.s.total_contrato))}${cell(brl(ordCmp.s.total_contrato))}</tr>
-          <tr>${label('Setups e ativações')}${cellPct(brl(ordCur.setups)+' · '+(ordCur.setups/ordCur.s.total_contrato*100).toFixed(0)+'%')}${cellPct(brl(ordCmp.setups)+' · '+(ordCmp.setups/ordCmp.s.total_contrato*100).toFixed(0)+'%')}</tr>
-          <tr>${label('Sobra operacional')}${cell(brl(ordCur.s.sobra_operacional_mensal)+'/mês')}${cell(brl(ordCmp.s.sobra_operacional_mensal)+'/mês')}</tr>
-          <tr>${label('Mídia paga')}${cellPct(Number(ordCur.s.percent_impulsionamento||0)+'%')}${cellPct(Number(ordCmp.s.percent_impulsionamento||0)+'%')}</tr>
-          <tr>${label('Prospecção ativa')}${cellPct(Number(ordCur.s.percent_lead||0)+'%')}${cellPct(Number(ordCmp.s.percent_lead||0)+'%')}</tr>
-        </tbody>
-      </table>
-      <div class="muted" style="font-size:11px;margin-top:8px;font-family:var(--mono);letter-spacing:.02em">A onda longa dilui o custo fixo · a mesma mensalidade rende mais em operação.</div>
-    </div>`;
+  return `
+    <table style="width:100%;margin-top:10px;border-collapse:collapse">
+      <tr><td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;font-weight:600;color:var(--ink-1);padding:6px 0">Contrato da onda <span style="color:var(--ink-3);font-size:10.5px">${Number(s.entrada?.meses||0)}m × ${brl(s.entrada?.valor_mensal||0)}</span></td>
+        <td class="mono" style="text-align:right;padding:6px 0;font-family:var(--syne,inherit);font-weight:700;font-size:16px">${brl(total)}</td></tr>
+      <tr><td colspan="2" style="padding:2px 0"><div style="border-top:1px solid var(--line)"></div></td></tr>
+      ${linha('Impostos e taxas', paren(s.impostos))}
+      ${linha('Gestão e atendimento', paren(s.gestao))}
+      ${avalRow ? avalRow : linha('Avaliação e setups', paren(setupsAtivacoes))}
+      ${!avalRow ? '' : linha('Setups e ativações', paren(setupsAtivacoes - Number(s.avaliacao||0)))}
+      ${linha('Mídia paga', paren(impVal), `${impPct}%`)}
+      ${linha('Prospecção ativa', paren(leadVal), `${leadPct}%`)}
+      <tr><td colspan="2" style="padding:2px 0"><div style="border-top:1px solid var(--line)"></div></td></tr>
+      <tr>
+        <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;font-weight:700;color:${Math.abs(saldo)<1?'#0a7d3d':'#c00'};text-transform:uppercase;padding:8px 0">Saldo</td>
+        <td class="mono" style="text-align:right;padding:8px 0;font-family:var(--syne,inherit);font-weight:700;font-size:15px;color:${Math.abs(saldo)<1?'#0a7d3d':'#c00'}">${brl(saldo)}</td>
+      </tr>
+    </table>
+    <div class="muted" style="font-size:11px;margin-top:8px;font-family:var(--mono);letter-spacing:.02em">Tudo o que ele paga é aplicado · a soma fecha em zero.</div>`;
+}
+
+// ═══ DRE de MARGEM · SÓ ADMIN ═══════════════════════════════════
+// Cobrado vs custo real. Impostos ficam fora (repasse). Nunca aparece
+// em views de cliente (va_cliente_investimento, /meu-projeto.html, etc).
+function dreMargemHtml(s) {
+  const brl = v => v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const total = Number(s.total_contrato||0);
+  const setupsPreco = Number(s.setup_arquetipos||0)+Number(s.combo_criativos||0)+Number(s.setup_campanha||0)+Number(s.anuncio_total||0);
+  const setupsAtiv = Number(s.avaliacao||0) + setupsPreco;
+  const impPct = Number(s.percent_impulsionamento||0);
+  const leadPct = Number(s.percent_lead||0);
+  const sobraLocal = total - Number(s.impostos||0) - Number(s.gestao||0) - setupsAtiv;
+  const impCobrado = sobraLocal * (impPct/100);
+  const leadCobrado = sobraLocal * (leadPct/100);
+  // Custo real: mídia repasse × 1,5 (custo = cobrado ÷ 1,5). Lead custo × 3 (custo = cobrado ÷ 3).
+  // Gestão/avaliação/setups: custo interno = 0 (é trabalho nosso, não repasse).
+  const impCusto = impCobrado / 1.5;
+  const leadCusto = leadCobrado / 3;
+  const impMargem = impCobrado - impCusto;
+  const leadMargem = leadCobrado - leadCusto;
+  const gestaoV = Number(s.gestao||0);
+  const avalV = s.avaliacao_ja_paga ? 0 : Number(s.avaliacao||0);
+  const cobradoTot = gestaoV + avalV + setupsPreco + impCobrado + leadCobrado;
+  const custoTot = 0 + 0 + 0 + impCusto + leadCusto; // gestão/avaliação/setups têm custo interno 0
+  const margemTot = cobradoTot - custoTot;
+  const margemPct = cobradoTot > 0 ? (margemTot / cobradoTot * 100) : 0;
+
+  const linha = (label, cobrado, custo, margem, cor='') => `<tr style="border-bottom:1px solid var(--line)">
+    <td style="font-family:var(--mono);font-size:11px;letter-spacing:.02em;color:var(--ink-2);padding:4px 6px 4px 0">${label}</td>
+    <td class="mono" style="text-align:right;padding:4px 6px;font-size:11.5px">${brl(cobrado)}</td>
+    <td class="mono" style="text-align:right;padding:4px 6px;font-size:11.5px;color:var(--ink-3)">${brl(custo)}</td>
+    <td class="mono" style="text-align:right;padding:4px 0 4px 6px;font-size:11.5px;color:${cor||'inherit'}">${brl(margem)}</td>
+  </tr>`;
+
+  return `
+    <table style="width:100%;margin-top:10px;border-collapse:collapse">
+      <thead>
+        <tr style="border-bottom:1px solid var(--line)">
+          <th style="text-align:left;padding:4px 6px 4px 0;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600">linha</th>
+          <th style="text-align:right;padding:4px 6px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600">cobrado</th>
+          <th style="text-align:right;padding:4px 6px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600">custo real</th>
+          <th style="text-align:right;padding:4px 0 4px 6px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600">margem</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${linha('Gestão', gestaoV, 0, gestaoV)}
+        ${linha(s.avaliacao_ja_paga?'Avaliação (paga)':'Avaliação', avalV, 0, avalV)}
+        ${linha('Setups', setupsPreco, 0, setupsPreco)}
+        ${linha('Mídia paga', impCobrado, impCusto, impMargem)}
+        ${linha('Prospecção ativa', leadCobrado, leadCusto, leadMargem)}
+        <tr>
+          <td style="font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--ink-1);padding:8px 6px 4px 0">Total</td>
+          <td class="mono" style="text-align:right;padding:8px 6px 4px;font-weight:700">${brl(cobradoTot)}</td>
+          <td class="mono" style="text-align:right;padding:8px 6px 4px;font-weight:700;color:var(--ink-3)">${brl(custoTot)}</td>
+          <td class="mono" style="text-align:right;padding:8px 0 4px 6px;font-weight:700;color:#0a7d3d;font-family:var(--syne,inherit);font-size:15px">${brl(margemTot)}</td>
+        </tr>
+        <tr>
+          <td colspan="3" style="font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);padding:4px 6px 4px 0">Margem de contribuição</td>
+          <td class="mono" style="text-align:right;padding:4px 0 4px 6px;font-weight:700;color:#0a7d3d;font-family:var(--syne,inherit);font-size:15px">${margemPct.toFixed(1)}%</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="muted" style="font-size:10.5px;margin-top:8px;font-family:var(--mono);letter-spacing:.02em">Impostos ficam fora · não são receita nem custo. Custos internos (gestão, avaliação, setups) contam como 100% margem.</div>`;
+}
+
+// ═══ Comissão projetada · fórmula com conta aberta ═══════════════
+// comissão = (expectativa × %) − investido_cliente (total pago pelo cliente)
+function renderComissaoProjetada(containerId, expectativa, comissaoPct, investidoCliente){
+  const el = document.getElementById(containerId); if (!el) return;
+  const brl = v => 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (!expectativa || !comissaoPct) {
+    el.innerHTML = '<div class="muted" style="font-size:12px">preencha expectativa e comissão</div>';
+    return;
   }
-
-  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">${bA}${bB}${bC}</div>${comp}`;
+  const bruta = Number(expectativa) * Number(comissaoPct) / 100;
+  const liq = bruta - Number(investidoCliente||0);
+  el.innerHTML = `
+    <table style="width:100%;border-collapse:collapse">
+      <tr>
+        <td style="font-family:var(--mono);font-size:11.5px;color:var(--ink-2);padding:6px 0">Taxa de sucesso <span style="color:var(--ink-3);font-size:10.5px">(${Number(comissaoPct)}% de ${brl(expectativa)})</span></td>
+        <td class="mono" style="text-align:right;padding:6px 0">${brl(bruta)}</td>
+      </tr>
+      <tr>
+        <td style="font-family:var(--mono);font-size:11.5px;color:var(--ink-2);padding:6px 0">(−) investido pelo cliente</td>
+        <td class="mono" style="text-align:right;padding:6px 0;color:${investidoCliente>0?'#c60':'var(--ink-3)'}">${brl(investidoCliente)}</td>
+      </tr>
+      <tr><td colspan="2" style="padding:2px 0"><div style="border-top:2px solid var(--ink-2)"></div></td></tr>
+      <tr>
+        <td style="font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:${liq>0?'#0a7d3d':'#c00'};padding:8px 0">Comissão líquida</td>
+        <td class="mono" style="text-align:right;padding:8px 0;font-family:var(--syne,inherit);font-weight:700;font-size:18px;color:${liq>0?'#0a7d3d':'#c00'}">${brl(liq)}</td>
+      </tr>
+    </table>`;
 }
 
 // Painel de renovação/repactuação/encerramento · substitui prompts do slice ondas
