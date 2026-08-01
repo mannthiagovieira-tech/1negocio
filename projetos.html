@@ -1502,6 +1502,7 @@ function desenhaAba(){
   // SETUP
   const e = _pj.etapas.find(x => x.chave === _abaChave) || _pj.etapas[0];
   if (!e) { stage.innerHTML = '<div class="empty"><h2>Etapa não encontrada</h2></div>'; return; }
+  if (e.chave === 'avaliacao')  { stage.innerHTML = htmlAvaliacao(e);  vincularAvaliacao();  return; }
   if (e.chave === 'kickoff')    { stage.innerHTML = htmlKickoff(e);    vincularKickoff();    return; }
   if (e.chave === 'regras')     { stage.innerHTML = htmlRegras(e);     vincularRegras();     return; }
   if (e.chave === 'laudo')      { stage.innerHTML = htmlLaudo(e);      vincularLaudo();      return; }
@@ -1548,6 +1549,100 @@ function htmlEtapaGenerica(e){
       <p class="muted" style="margin-top:8px;font-size:13.5px">Responsável: <strong style="color:var(--ink-2)">${esc(e.responsavel||'—')}</strong>. Use o botão acima para ${ok ? 'reabrir' : 'marcar como concluída'}.</p>
     </div>`;
 }
+
+// ═══ ETAPA · AVALIAÇÃO ═══════════════════════════════════════════
+// Vincula avaliação existente em laudos_v2 (marketplace) ao projeto VA.
+// Lê snapshot congelado em va_projeto_avaliacao (se já vinculado).
+function htmlAvaliacao(e){
+  return `<section class="stage-head">
+    <div><div class="meta">setup · D+${e.offset_dias||2}</div><h2>Avaliação do negócio</h2>
+    <div class="muted" style="margin-top:6px;font-size:13.5px">Vincula a avaliação já feita no diagnóstico (código 1N-XXXX). O valor de venda, faixa e ISE ficam congelados no projeto.</div></div>
+  </section>
+  <div id="av-body" class="col" style="gap:14px;margin-top:14px"><div class="muted">carregando…</div></div>`;
+}
+async function vincularAvaliacao(){
+  const body = document.getElementById('av-body');
+  const p = _pj.projeto;
+  const brl = v => v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+  // Se já vinculado, mostra resumo. Senão, form de busca.
+  if (p.avaliacao_origem_id && p.laudo_v2_id) {
+    const { data: snap } = await sb.from('va_projeto_avaliacao')
+      .select('calc_json_snapshot, codigo_diagnostico, parametros_versao_id, vinculada_em, vinculada_por')
+      .eq('projeto_id', p.id).maybeSingle();
+    const cj = snap?.calc_json_snapshot || {};
+    const val = cj.valuation || {};
+    const ise = cj.ise || {};
+    const atr = cj.atratividade || {};
+    const op = cj.operacional || {};
+    const idn = cj.identificacao || {};
+    body.innerHTML = `
+      <div class="card">
+        <div class="row" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+          <div>
+            <div class="lbl">avaliação vinculada</div>
+            <div style="font-size:16px;font-weight:600;margin-top:4px">${esc(snap?.codigo_diagnostico||'')} · ${esc(idn.nome||'')}</div>
+            <div class="muted" style="font-size:11px;margin-top:2px">Vinculada em ${dataBR(snap?.vinculada_em?.slice(0,10))} por ${esc(snap?.vinculada_por||'')} · parâmetros ${esc(snap?.parametros_versao_id||'')}</div>
+          </div>
+          <div class="row" style="gap:8px">
+            <a href="/laudo-completo.html?id=${esc(p.avaliacao_origem_id)}" target="_blank" class="btn btn-ghost btn-sm">abrir laudo</a>
+            <button class="btn btn-ghost btn-sm" onclick="avaliacaoRevincular()">re-vincular</button>
+          </div>
+        </div>
+
+        <div class="orc-resumo" style="margin-top:14px">
+          <div class="orc-kpi destaque"><div class="k">valor de venda</div><div class="v">${brl(val.valor_venda)}</div><div class="calc-hint" style="font-size:10px">faixa ${brl(p.valor_avaliacao_min)} – ${brl(p.valor_avaliacao_max)}</div></div>
+          <div class="orc-kpi"><div class="k">valor operação</div><div class="v">${brl(val.valor_operacao)}</div><div class="calc-hint" style="font-size:10px">+ PL ${brl(val.patrimonio_liquido)}</div></div>
+          <div class="orc-kpi"><div class="k">RO anual</div><div class="v">${brl(val.ro_anual)}</div></div>
+          <div class="orc-kpi"><div class="k">múltiplo aplicado</div><div class="v">${Number(val.fator_final||0).toFixed(2)}×</div><div class="calc-hint" style="font-size:10px">base ${Number(val.multiplo_base||0).toFixed(2)} · setor ${Number(val.multiplo_setor?.valor||0).toFixed(2)}</div></div>
+        </div>
+
+        <div class="orc-resumo" style="margin-top:10px">
+          <div class="orc-kpi"><div class="k">ISE (0-100)</div><div class="v">${ise.ise_total||'?'}</div><div class="calc-hint" style="font-size:10px">${esc(ise.classe||'')} · fator ${Number(ise.fator_classe||0).toFixed(2)}</div></div>
+          <div class="orc-kpi"><div class="k">atratividade</div><div class="v">${atr.total||'?'}</div><div class="calc-hint" style="font-size:10px">${esc(atr.label||'')}</div></div>
+          <div class="orc-kpi"><div class="k">setor</div><div class="v" style="font-size:14px">${esc(idn.setor?.label||p.avaliacao_setor||'')}</div><div class="calc-hint" style="font-size:10px">${esc(idn.localizacao?.cidade||'')}/${esc(idn.localizacao?.estado||'')}</div></div>
+          <div class="orc-kpi"><div class="k">faturamento anual</div><div class="v">${brl(op.fat_anual)}</div><div class="calc-hint" style="font-size:10px">${op.num_funcionarios||0} func · ${op.tempo_operacao_anos||0} anos</div></div>
+        </div>
+
+        <div class="muted" style="font-size:11px;margin-top:12px;font-family:var(--mono);letter-spacing:.02em">Snapshot congelado · mudar a tabela de parâmetros não altera esses valores.</div>
+      </div>`;
+  } else {
+    body.innerHTML = `
+      <div class="card">
+        <div class="lbl">Vincular avaliação existente</div>
+        <p class="muted" style="margin-top:8px;font-size:13px">Cole o código do diagnóstico (ex: <code>1N-DZYQRD</code>), o UUID do negócio, ou a URL completa do laudo.</p>
+        <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
+          <input id="av-busca" placeholder="1N-XXXXXX · UUID · URL do laudo" style="flex:1;min-width:260px;font-family:var(--mono)">
+          <button class="btn btn-primary" onclick="avaliacaoVincular()">vincular</button>
+        </div>
+        <div id="av-status" style="margin-top:8px;font-size:12px" class="muted"></div>
+        <div class="muted" style="margin-top:14px;font-size:12px;padding-top:12px;border-top:1px dashed var(--line)">
+          Se o cliente ainda não fez a avaliação, envie ele para <a href="/diagnostico.html" target="_blank">/diagnostico.html</a> · quando ele terminar, você volta aqui e vincula pelo código.
+        </div>
+      </div>`;
+  }
+}
+window.avaliacaoVincular = async function(){
+  const busca = document.getElementById('av-busca').value.trim();
+  const st = document.getElementById('av-status');
+  if (!busca) { st.textContent = 'preencha o código, UUID ou URL'; st.style.color='#c60'; return; }
+  st.textContent = 'consultando…'; st.style.color = '';
+  const { data, error } = await sb.rpc('va_vincular_avaliacao', { p_projeto_id: _pj.projeto.id, p_busca: busca });
+  if (error) { st.textContent = 'erro: '+error.message; st.style.color='#c00'; return; }
+  if (!data?.ok) {
+    let msg = data?.erro || 'falha';
+    if (data?.erro === 'sem_laudo_v2') msg = data.mensagem + ' · ' + (data.codigo_diagnostico||'');
+    if (data?.erro === 'valor_venda_ausente') msg = data.mensagem;
+    st.textContent = '⚠ '+msg; st.style.color='#c60'; return;
+  }
+  toast('avaliação vinculada · '+data.codigo_diagnostico,'ok');
+  await renderProjeto(_pj.projeto.id);
+};
+window.avaliacaoRevincular = async function(){
+  if (!confirm('Re-vincular sobrescreve a avaliação atual do projeto. Continuar?')) return;
+  // Limpa marca do vínculo pra forçar re-render do form
+  await sb.from('va_projetos').update({ avaliacao_origem_id: null, laudo_v2_id: null }).eq('id', _pj.projeto.id);
+  await renderProjeto(_pj.projeto.id);
+};
 
 function htmlKickoff(e){
   const k = _pj.kickoff;
