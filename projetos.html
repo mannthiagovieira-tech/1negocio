@@ -566,7 +566,7 @@ const configBtn = document.getElementById('config-btn');
 // ─── util ──────────────────────────────────────────────────────────
 const esc = s => (s ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const brl = n => (Number(n)||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0});
-const brlNice = n => 'R$ ' + (Number(n)||0).toLocaleString('pt-BR', {maximumFractionDigits:0});
+const brlNice = n => 'R$ ' + (Number(n)||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 const dataBR = d => { if(!d) return '—'; const dt = new Date(d+'T00:00:00'); return dt.toLocaleDateString('pt-BR', {day:'2-digit', month:'short'}).replace('.',''); };
 function toast(msg, kind){ const t = document.getElementById('toast'); t.className = 'toast show ' + (kind||''); t.textContent = msg; clearTimeout(toast._t); toast._t = setTimeout(()=>{ t.className='toast'; }, 2200); }
 function setConn(state, msg){ conn.className = 'conn ' + state; conn.textContent = msg; }
@@ -1460,10 +1460,29 @@ async function renderBloco1Avaliacao(){
         </div>
         ${p.valor_venda ? `<div class="muted" style="font-size:11px;margin-top:6px">definido: ${brl(p.valor_venda)}${p.valor_venda_justificativa?' · '+esc(p.valor_venda_justificativa):''}</div>` : ''}
       </div>
-      <div style="margin-top:10px">
-        <button class="btn btn-ghost btn-sm" onclick="anexarTranscricao()">📎 anexar transcrição ou notas</button>
-        <span class="muted" style="font-size:11px;margin-left:6px">opcional</span>
+      <div id="ctx-container" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)">
+        <div class="row" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+          <div class="lbl">Contexto do negócio</div>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="ctxAbrir('reuniao')">+ reunião</button>
+            <button class="btn btn-ghost btn-sm" onclick="ctxAbrir('documento')">📎 arquivo</button>
+            <button class="btn btn-ghost btn-sm" onclick="ctxAbrir('link')">🔗 link</button>
+          </div>
+        </div>
+        <div id="ctx-lista" style="margin-top:8px"><div class="muted" style="font-size:12px">carregando…</div></div>
+      </div>
+      <div id="desc-container" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)">
+        <div class="row" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+          <div class="lbl">Descrição analítica do negócio ${p.descricao_negocio_versao ? `<span class="muted" style="font-size:10px">· v${p.descricao_negocio_versao}</span>` : ''}</div>
+          <button class="btn btn-ghost btn-sm" onclick="gerarDescricao()" title="Claude Sonnet · aprox R$ 0,10 por geração">🤖 gerar com IA · ~R$ 0,10</button>
+        </div>
+        <textarea id="desc-txt" rows="8" style="width:100%;margin-top:8px;font-family:var(--sans);font-size:13px;line-height:1.55" placeholder="Escreva à mão ou clique em 'gerar com IA' pra montar a descrição usando o laudo + reuniões + anexos.">${esc(p.descricao_negocio||'')}</textarea>
+        <div class="row" style="gap:6px;margin-top:6px">
+          <button class="btn btn-primary btn-sm" onclick="salvarDescricao()">salvar</button>
+          <span id="desc-status" class="muted" style="font-size:11px;align-self:center"></span>
+        </div>
       </div>`;
+    setTimeout(() => carregarContextoLista(), 50);
   } else {
     bd.innerHTML = `
       <p class="muted" style="font-size:13px;margin-bottom:8px">Cole o código do diagnóstico (1N-XXXXXX), UUID ou URL do laudo.</p>
@@ -1487,6 +1506,173 @@ window.salvarValorVendaDefinido = async function(){
   const { error } = await sb.from('va_projetos').update({ valor_venda: v, valor_venda_justificativa: j }).eq('id', _pj.projeto.id);
   if (error) { toast(error.message,'err'); return; }
   toast('valor salvo','ok'); await renderProjeto(_pj.projeto.id);
+};
+
+// ═══ CONTEXTO DO NEGÓCIO · reunião/arquivo/link ═════════════════════════
+const CTX_TIPOS = {
+  reuniao:   { label:'reunião', icon:'📅' },
+  nota:      { label:'nota',    icon:'📝' },
+  documento: { label:'arquivo', icon:'📎' },
+  foto:      { label:'foto',    icon:'🖼️' },
+  video:     { label:'vídeo',   icon:'🎬' },
+  link:      { label:'link',    icon:'🔗' },
+};
+window.carregarContextoLista = async function(){
+  const el = document.getElementById('ctx-lista'); if (!el) return;
+  const { data, error } = await sb.from('va_projeto_contexto')
+    .select('id, tipo, titulo, data_referencia, conteudo, arquivo_path, url_externa, criado_em')
+    .eq('projeto_id', _pj.projeto.id).order('criado_em',{ascending:false});
+  if (error) { el.innerHTML = `<div class="muted" style="font-size:12px;color:#c00">erro · ${esc(error.message)}</div>`; return; }
+  if (!data || !data.length) { el.innerHTML = '<div class="muted" style="font-size:12px">Nada registrado ainda. Use os botões acima.</div>'; return; }
+  const grupos = {};
+  data.forEach(c => { (grupos[c.tipo] = grupos[c.tipo] || []).push(c); });
+  el.innerHTML = Object.entries(grupos).map(([tipo, itens]) => {
+    const meta = CTX_TIPOS[tipo] || { label:tipo, icon:'·' };
+    const linhas = itens.map(c => {
+      const dt = dataBR(c.data_referencia || c.criado_em?.slice(0,10));
+      let corpo = '';
+      if (c.tipo === 'link' && c.url_externa) {
+        corpo = `<a href="${esc(c.url_externa)}" target="_blank" class="mono" style="font-size:11px;word-break:break-all">${esc(c.url_externa)}</a>`;
+      } else if (c.arquivo_path) {
+        corpo = `<span class="muted mono" style="font-size:11px">📎 ${esc(c.arquivo_path.split('/').pop())}</span>`;
+      }
+      const preview = c.conteudo ? `<div style="font-size:12px;line-height:1.4;margin-top:4px;color:var(--ink-2);white-space:pre-wrap">${esc(c.conteudo.length>320?c.conteudo.slice(0,320)+'…':c.conteudo)}</div>` : '';
+      return `<div style="border-top:1px solid var(--line);padding:8px 0">
+        <div class="row" style="justify-content:space-between;align-items:baseline;gap:8px">
+          <div style="flex:1;min-width:0"><b style="font-size:12.5px">${esc(c.titulo||'(sem título)')}</b> <span class="muted mono" style="font-size:10.5px">· ${dt}</span></div>
+          <button class="btn btn-ghost btn-sm" onclick="ctxRemover('${esc(c.id)}')" title="remover" style="padding:2px 6px;font-size:11px">×</button>
+        </div>
+        ${corpo}
+        ${preview}
+      </div>`;
+    }).join('');
+    return `<div style="margin-top:10px">
+      <div class="lbl" style="font-size:10.5px">${meta.icon} ${meta.label} · ${itens.length}</div>
+      ${linhas}
+    </div>`;
+  }).join('');
+};
+window.ctxRemover = async function(id){
+  if (!confirm('Remover este item do contexto?')) return;
+  const { error } = await sb.from('va_projeto_contexto').delete().eq('id', id);
+  if (error) { toast(error.message,'err'); return; }
+  toast('removido','ok'); carregarContextoLista();
+};
+window.ctxAbrir = function(tipo){
+  const hoje = new Date().toISOString().slice(0,10);
+  const meta = CTX_TIPOS[tipo] || { label:tipo, icon:'·' };
+  const camposEspec = tipo === 'link'
+    ? `<div class="fld"><span class="lbl">url</span><input id="cx-url" placeholder="https://..." style="font-family:var(--mono)"></div>`
+    : (tipo === 'documento' || tipo === 'foto' || tipo === 'video')
+      ? `<div class="fld"><span class="lbl">arquivo</span><input id="cx-file" type="file" ${tipo==='foto'?'accept="image/*"':(tipo==='video'?'accept="video/*"':'')}></div>`
+      : '';
+  const labelTexto = tipo === 'reuniao' ? 'notas da reunião · o que foi dito, decidido, próximos passos'
+    : tipo === 'nota' ? 'texto livre'
+    : 'observações · opcional';
+  const html = `
+    <div id="cx-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998" onclick="ctxFechar()"></div>
+    <div id="cx-painel" style="position:fixed;top:5%;left:50%;transform:translateX(-50%);width:95%;max-width:640px;max-height:90vh;overflow-y:auto;background:var(--surface);border-radius:12px;padding:22px;z-index:9999;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+      <div class="row" style="justify-content:space-between;align-items:baseline">
+        <h3 style="margin:0">${meta.icon} Registrar ${meta.label}</h3>
+        <button class="btn btn-ghost btn-sm" onclick="ctxFechar()">×</button>
+      </div>
+      <input type="hidden" id="cx-tipo" value="${esc(tipo)}">
+      <div class="form-grid" style="margin-top:12px">
+        <div class="fld"><span class="lbl">título</span><input id="cx-tit" placeholder="ex. ${tipo==='reuniao'?'reunião de kickoff':(tipo==='link'?'artigo sobre o setor':'descrição curta')}"></div>
+        <div class="fld"><span class="lbl">data</span><input id="cx-dt" type="date" value="${hoje}"></div>
+      </div>
+      ${camposEspec ? `<div style="margin-top:10px">${camposEspec}</div>` : ''}
+      <div class="fld" style="margin-top:10px"><span class="lbl">${labelTexto}</span>
+        <textarea id="cx-txt" rows="${tipo==='reuniao'?8:5}" placeholder="${tipo==='link'?'opcional · resumo do que interessa':'texto…'}"></textarea>
+      </div>
+      <div id="cx-status" class="muted" style="font-size:12px;margin-top:6px"></div>
+      <div class="row" style="gap:8px;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-ghost" onclick="ctxFechar()">cancelar</button>
+        <button class="btn btn-primary" onclick="ctxSalvar()">salvar</button>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+};
+window.ctxFechar = function(){
+  document.getElementById('cx-backdrop')?.remove();
+  document.getElementById('cx-painel')?.remove();
+};
+window.ctxSalvar = async function(){
+  const st = document.getElementById('cx-status');
+  const tipo = document.getElementById('cx-tipo').value;
+  const projetoId = _pj.projeto.id;
+  const titulo = document.getElementById('cx-tit').value.trim() || null;
+  const dt = document.getElementById('cx-dt').value || null;
+  const txt = document.getElementById('cx-txt').value.trim() || null;
+  const urlEl = document.getElementById('cx-url');
+  const fileEl = document.getElementById('cx-file');
+  const url = urlEl ? (urlEl.value.trim() || null) : null;
+  const file = fileEl ? fileEl.files[0] : null;
+  if (tipo === 'link' && !url) { st.textContent = 'informe a url'; st.style.color='#c60'; return; }
+  if ((tipo==='documento'||tipo==='foto'||tipo==='video') && !file && !url && !txt) {
+    st.textContent = 'anexe um arquivo ou escreva algo'; st.style.color='#c60'; return;
+  }
+  if (tipo === 'reuniao' && !txt) { st.textContent = 'escreva as notas da reunião'; st.style.color='#c60'; return; }
+  st.textContent = file ? 'subindo arquivo…' : 'salvando…'; st.style.color = '';
+  try {
+    let arquivo_path = null;
+    if (file) {
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+      arquivo_path = `${projetoId}/${Date.now()}-${safe}`;
+      const { error: eUp } = await sb.storage.from('projeto-contexto').upload(arquivo_path, file);
+      if (eUp) throw new Error('upload: '+eUp.message);
+    }
+    const { error: eIn } = await sb.from('va_projeto_contexto').insert({
+      projeto_id: projetoId, tipo, titulo,
+      data_referencia: dt, conteudo: txt,
+      arquivo_path, url_externa: url,
+      criado_por: (await sb.auth.getSession()).data.session?.user?.email || 'admin',
+    });
+    if (eIn) throw new Error('insert: '+eIn.message);
+    toast('registrado','ok'); ctxFechar(); carregarContextoLista();
+  } catch (e) {
+    st.textContent = 'erro · '+String(e.message||e); st.style.color='#c00';
+  }
+};
+
+// ═══ DESCRIÇÃO ANALÍTICA · gerar via IA + salvar ═════════════════════════
+window.gerarDescricao = async function(){
+  const s = document.getElementById('desc-status'); if (!s) return;
+  const jaTem = document.getElementById('desc-txt').value.trim();
+  const msg = jaTem
+    ? 'Já existe uma descrição. Gerar de novo vai substituir o texto atual (o histórico fica salvo). Custo ~R$ 0,10. Seguir?'
+    : 'Vai gerar a descrição usando laudo + reuniões + anexos. Custo ~R$ 0,10 (Claude Sonnet). Seguir?';
+  if (!confirm(msg)) return;
+  s.textContent = 'gerando… (~20s)'; s.style.color = '';
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const r = await fetch('/api/gerar-descricao', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ projeto_id: _pj.projeto.id }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.erro || ('http '+r.status));
+    document.getElementById('desc-txt').value = d.texto || '';
+    s.textContent = `✓ v${d.versao} gerada · ${d.tokens_prompt||0} in / ${d.tokens_resposta||0} out`;
+    s.style.color = '#0a7d3d';
+    toast('descrição gerada · v'+d.versao,'ok');
+    // atualiza projeto local
+    _pj.projeto.descricao_negocio = d.texto;
+    _pj.projeto.descricao_negocio_versao = d.versao;
+  } catch (e) {
+    s.textContent = 'erro · '+String(e.message||e);
+    s.style.color = '#c00';
+  }
+};
+window.salvarDescricao = async function(){
+  const s = document.getElementById('desc-status'); if (!s) return;
+  const txt = document.getElementById('desc-txt').value;
+  s.textContent = 'salvando…'; s.style.color = '';
+  const { error } = await sb.from('va_projetos').update({ descricao_negocio: txt }).eq('id', _pj.projeto.id);
+  if (error) { s.textContent = 'erro · '+error.message; s.style.color = '#c00'; return; }
+  _pj.projeto.descricao_negocio = txt;
+  s.textContent = '✓ salvo'; s.style.color = '#0a7d3d';
+  toast('descrição salva','ok');
 };
 // Modal · anexar transcrição (upload de arquivo ou colar texto)
 window.anexarTranscricao = async function(){
@@ -2971,7 +3157,7 @@ function desenhaTriagem(){
       <td>${esc(b.razao_social||b.nome||'—')}</td>
       <td>${esc(b.cidade||'')}${b.estado?'/'+esc(b.estado):''}</td>
       <td class="mono" style="font-size:12px">${esc(b.telefone||'')}${whats}</td>
-      <td>${b.porte_faturamento ? 'R$ '+Number(b.porte_faturamento).toLocaleString('pt-BR') : '—'}</td>
+      <td>${b.porte_faturamento ? brlFmt(b.porte_faturamento) : '—'}</td>
       <td><span class="chip">${esc(b.fonte)}</span></td>
       <td style="color:${scoreCor};font-weight:600">${b.score ?? '—'}</td>
       <td><span class="pill">${esc(b.status)}</span></td>
@@ -3137,7 +3323,7 @@ function htmlContrato(){
         <span class="pill" style="color:${cor}">${esc(o.status)}</span>
       </div>
       <div class="muted" style="font-size:12px;margin-top:3px">
-        ${dataBR(o.data_inicio)} → ${dataBR(o.data_fim)} · ${o.meses}m · R$ ${Number(o.valor_mensal).toLocaleString('pt-BR')}/mês · comissão ${o.comissao_percent}%
+        ${dataBR(o.data_inicio)} → ${dataBR(o.data_fim)} · ${o.meses}m · ${brlFmt(o.valor_mensal)}/mês · comissão ${o.comissao_percent}%
         ${o.dias_pausados>0?` · <b>${o.dias_pausados}d pausado</b>`:''}
       </div>
       ${pauseIn.length?`<div style="margin-top:4px;font-size:11px;color:var(--ink-3)">${pauseIn.map(p=>`⏸ ${dataBR(p.pausado_em)}${p.retomado_em?'→'+dataBR(p.retomado_em):' (aberta)'} · ${esc(p.motivo)}`).join(' · ')}</div>`:''}
@@ -3149,7 +3335,7 @@ function htmlContrato(){
     <div class="k-card">
       <div class="lbl">02 · onda atual</div>
       <div class="orc-resumo" style="margin-top:10px">
-        <div class="orc-kpi"><div class="k">valor mensal</div><div class="v">R$ ${Number(ondaAtual.valor_mensal).toLocaleString('pt-BR')}</div></div>
+        <div class="orc-kpi"><div class="k">valor mensal</div><div class="v">${brlFmt(ondaAtual.valor_mensal)}</div></div>
         <div class="orc-kpi"><div class="k">comissão</div><div class="v">${ondaAtual.comissao_percent}%</div></div>
         <div class="orc-kpi ${diasRestantes<=15?'destaque':''}"><div class="k">dias restantes</div><div class="v">${diasRestantes>0?diasRestantes:0}</div></div>
         <div class="orc-kpi"><div class="k">dias pausados</div><div class="v">${ondaAtual.dias_pausados||0}</div></div>
@@ -3162,7 +3348,7 @@ function htmlContrato(){
           <tbody>${parcelasOnda.map(p => `
             <tr style="border-top:1px solid var(--line)">
               <td>${p.numero}</td><td>${dataBR(p.vencimento)}</td>
-              <td>R$ ${Number(p.valor).toLocaleString('pt-BR')}</td>
+              <td>${brlFmt(p.valor)}</td>
               <td>${esc(p.status)}</td>
               <td>${p.status!=='pago'?`<button class="btn btn-ghost btn-sm" onclick="parcelaPagar('${p.id}')">marcar paga</button>`:''}</td>
             </tr>`).join('')}
@@ -3215,7 +3401,7 @@ function htmlContrato(){
       <thead><tr style="text-align:left;color:var(--ink-3)"><th>valor</th><th>motivo</th><th>venc</th><th>status</th><th></th></tr></thead>
       <tbody>${aditivos.map(a => `
         <tr style="border-top:1px solid var(--line)">
-          <td>R$ ${Number(a.valor).toLocaleString('pt-BR')}</td><td>${esc(a.motivo)}</td>
+          <td>${brlFmt(a.valor)}</td><td>${esc(a.motivo)}</td>
           <td>${a.vencimento?dataBR(a.vencimento):'—'}</td><td>${esc(a.status)}</td>
           <td>${a.status==='pendente'?`<button class="btn btn-ghost btn-sm" onclick="aditivoMarcarPago('${a.id}')">marcar pago</button>`:''}</td>
         </tr>`).join('')}</tbody>
@@ -3265,11 +3451,11 @@ function cardUmaRevisao(r){
   const ondaN = p.ondas?.numero;
   const acima = p.preco?.acima_faixa;
   const eixos = [
-    { key:'preco', titulo:'preço', evid: `venda R$ ${Number(p.preco?.valor_venda||0).toLocaleString('pt-BR')} · faixa ${p.preco?.valor_avaliacao_min?'R$ '+Number(p.preco.valor_avaliacao_min).toLocaleString('pt-BR'):'?'} → ${p.preco?.valor_avaliacao_max?'R$ '+Number(p.preco.valor_avaliacao_max).toLocaleString('pt-BR'):'?'} · ${p.preco?.cartas_recebidas||0} cartas`, opts:['manter','ajustar','reavaliar'] },
+    { key:'preco', titulo:'preço', evid: `venda ${brlFmt(p.preco?.valor_venda||0)} · faixa ${p.preco?.valor_avaliacao_min?brlFmt(p.preco.valor_avaliacao_min):'?'} → ${p.preco?.valor_avaliacao_max?brlFmt(p.preco.valor_avaliacao_max):'?'} · ${p.preco?.cartas_recebidas||0} cartas`, opts:['manter','ajustar','reavaliar'] },
     { key:'teaser', titulo:'teaser', evid: `${p.teaser?.versoes||0} versões · ${p.teaser?.aprovados||0} aprovada(s)`, opts:['manter','ajustar','refazer'] },
     { key:'arquetipos', titulo:'arquétipos', evid: `${p.arquetipos?.ativos||0} ativos · ${p.arquetipos?.com_query||0} com query calibrada`, opts:['manter','ajustar','refazer'] },
     { key:'campanhas', titulo:'campanhas', evid: `${p.campanhas?.ativas||0} ativa(s)`, opts:['manter','ajustar','encerrar'] },
-    { key:'estrategia', titulo:'estratégia', evid: `${p.estrategia?.alcancados||0} alcançados · ${p.estrategia?.interessados||0} interessados · ${p.estrategia?.em_negociacao||0} em negociação · R$ ${Number(p.estrategia?.consumido||0).toLocaleString('pt-BR')} consumido`, opts:['manter','ajustar','repactuar'] },
+    { key:'estrategia', titulo:'estratégia', evid: `${p.estrategia?.alcancados||0} alcançados · ${p.estrategia?.interessados||0} interessados · ${p.estrategia?.em_negociacao||0} em negociação · ${brlFmt(p.estrategia?.consumido||0)} consumido`, opts:['manter','ajustar','repactuar'] },
   ];
   return `<div style="border:1px solid var(--line);border-radius:8px;padding:14px;margin-top:12px;background:${r.status==='realizada'?'#f7fdf7':'var(--surface)'}">
     <div class="row" style="justify-content:space-between;align-items:baseline">
@@ -3865,7 +4051,7 @@ function cardAtCartas(){
     const desvio = ((c.valor_ofertado - valorVenda) / valorVenda * 100).toFixed(1);
     const dentro = c.valor_ofertado >= valorMinimo;
     const cor = dentro ? 'green' : '#c60';
-    return `<span style="color:${cor};font-size:12px">${desvio>0?'+':''}${desvio}% ${dentro?'· dentro da flexibilidade':'· ABAIXO do mínimo (R$ '+valorMinimo.toLocaleString('pt-BR')+')'}</span>`;
+    return `<span style="color:${cor};font-size:12px">${desvio>0?'+':''}${desvio}% ${dentro?'· dentro da flexibilidade':'· ABAIXO do mínimo ('+brlFmt(valorMinimo)+')'}</span>`;
   };
 
   const rows = cartas.length ? cartas.map(c => {
@@ -3873,7 +4059,7 @@ function cardAtCartas(){
     return `<div style="border-top:1px solid var(--line);padding:10px 0">
       <div class="row" style="justify-content:space-between">
         <div><strong>${esc(ct?.nome || ct?.empresa || '(contato)')} </strong> <span class="pill">${esc(c.status)}</span></div>
-        <div>R$ ${Number(c.valor_ofertado||0).toLocaleString('pt-BR')}</div>
+        <div>${brlFmt(c.valor_ofertado||0)}</div>
       </div>
       <div style="font-size:12px;margin-top:4px">${compara(c)}</div>
       <div class="muted" style="font-size:12px;margin-top:2px">${c.forma_pagamento?esc(c.forma_pagamento).slice(0,80):'—'}</div>
@@ -4322,8 +4508,8 @@ function htmlTeaser(e){
   const editor = sel ? `
     <div class="row" style="justify-content:space-between;align-items:baseline">
       <div>
-        <div class="h3">Versão ${sel.versao}</div>
-        <div class="muted mono" style="font-size:11px;margin-top:4px">criada ${dataBR(sel.criado_em?.slice(0,10))}${sel.aprovado_em?' · aprovada '+dataBR(sel.aprovado_em.slice(0,10)):''}</div>
+        <div class="h3">Versão ${sel.versao}${sel.angulo?` <span class="muted" style="font-size:12px;font-weight:400">· ângulo ${esc(sel.angulo)}</span>`:''}</div>
+        <div class="muted mono" style="font-size:11px;margin-top:4px">${sel.gerado_por?'IA · '+esc(sel.gerado_por)+' · ':''}criada ${dataBR(sel.criado_em?.slice(0,10))}${sel.aprovado_em?' · aprovada '+dataBR(sel.aprovado_em.slice(0,10)):''}</div>
       </div>
       <span class="ts-status-badge"><span class="status-dot st-${esc(sel.status)}"></span>${esc(TS_STATUS_LBL[sel.status]||sel.status)}</span>
     </div>
@@ -4356,9 +4542,12 @@ function htmlTeaser(e){
 
     <div class="ts-layout">
       <div class="k-card ts-editor">
-        <div class="lbl" style="display:flex;justify-content:space-between;align-items:baseline">
+        <div class="lbl" style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px">
           <span>versões</span>
-          <button class="btn btn-ghost btn-sm" id="ts-nova">+ nova versão</button>
+          <div class="row" style="gap:6px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" id="ts-gerar-ia" title="Claude Sonnet · gera 3 ângulos (números / operação / mercado) · ~R$ 0,25">🤖 gerar 3 com IA · ~R$ 0,25</button>
+            <button class="btn btn-ghost btn-sm" id="ts-nova">+ nova versão</button>
+          </div>
         </div>
         <div class="ts-versoes" style="margin-top:10px">${chips}</div>
         <div class="aviso">Teaser é cego. Sem nome, sócios, CNPJ ou endereço exato. Tudo que vem depois — criativos, anúncios, distribuição a parceiros — deriva daqui.</div>
@@ -4587,6 +4776,8 @@ function vincularTeaser(){
   });
   const bn = document.getElementById('ts-nova');
   if (bn) bn.addEventListener('click', novaVersaoTeaser);
+  const bg = document.getElementById('ts-gerar-ia');
+  if (bg) bg.addEventListener('click', gerarTeaserIA);
   const bs = document.getElementById('ts-salvar');
   if (bs) bs.addEventListener('click', salvarTeaserTexto);
   const bag = document.getElementById('ts-aguardando');
@@ -4595,6 +4786,38 @@ function vincularTeaser(){
   if (bap) bap.addEventListener('click', () => mudarStatusTeaser('aprovado'));
   const brc = document.getElementById('ts-recusar');
   if (brc) brc.addEventListener('click', () => mudarStatusTeaser('recusado'));
+}
+
+async function gerarTeaserIA(){
+  const bg = document.getElementById('ts-gerar-ia');
+  const p = _pj.projeto;
+  if (!p.avaliacao_origem_id) { toast('vincule a avaliação primeiro (bloco Avaliação)','err'); return; }
+  const desc = p.descricao_negocio || '';
+  const aviso = desc
+    ? 'Gera 3 versões (números / operação / mercado) usando descrição analítica + laudo + reuniões. Custo ~R$ 0,25. Seguir?'
+    : 'Ainda não há descrição analítica gerada. A IA vai escrever teaser direto do laudo + reuniões (fica mais raso). Recomendo gerar descrição primeiro. Seguir mesmo assim?';
+  if (!confirm(aviso)) return;
+  const sigilo = confirm('Sigilo RIGOROSO? (OK = rigoroso · nunca cita cidade específica · usa "capital do estado". Cancelar = padrão · cidade OK)') ? 'rigoroso' : 'padrao';
+  const txtOriginal = bg.textContent;
+  bg.disabled = true; bg.textContent = '⏳ gerando 3 versões…';
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const r = await fetch('/api/gerar-teaser', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ projeto_id: p.id, nivel_sigilo: sigilo }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.erro || ('http '+r.status));
+    toast(`${d.quantidade} versões geradas · ${d.tokens_prompt||0} in / ${d.tokens_resposta||0} out`,'ok');
+    // recarrega teasers
+    const { data: novas } = await sb.from('va_projeto_teaser').select('*').eq('projeto_id', p.id).order('versao',{ascending:false});
+    _pj.teasers = novas || [];
+    _pj.teaserSel = _pj.teasers[0]?.id;
+    desenhaAba();
+  } catch (e) {
+    toast('falhou · '+String(e.message||e),'err');
+    bg.disabled = false; bg.textContent = txtOriginal;
+  }
 }
 
 async function novaVersaoTeaser(){

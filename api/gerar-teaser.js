@@ -136,9 +136,14 @@ Sem markdown, sem \`\`\`, só o JSON puro.`;
     for (const v of parsed.versoes) {
       const insR = await fetch(`${SB_URL}/rest/v1/va_projeto_teaser`, {
         method:'POST', headers:{ ...H, Prefer:'return=representation' },
-        body: JSON.stringify({ projeto_id, versao: vNum, angulo: v.angulo, texto: v.texto, gerado_por:'claude/'+MODEL }),
+        body: JSON.stringify({
+          projeto_id, versao: vNum, texto: v.texto,
+          status: 'rascunho', angulo: v.angulo,
+          gerado_por: 'claude/'+MODEL, gerado_em: new Date().toISOString(),
+        }),
       });
       if (insR.ok) { const [row] = await insR.json(); inseridos.push(row.id); }
+      else { console.error('teaser_insert_fail', insR.status, (await insR.text()).slice(0,200)); }
       vNum++;
     }
     return json(res, 200, { ok:true, quantidade: parsed.versoes.length, ids: inseridos, versoes: parsed.versoes, tokens_prompt: d?.usage?.input_tokens, tokens_resposta: d?.usage?.output_tokens });
