@@ -956,38 +956,7 @@ function renderNovo(){
           <div class="fld"><span class="lbl">expectativa valor venda</span><input id="f-exp" placeholder="R$ 0,00" inputmode="numeric"></div>
         </div>
 
-        <div style="border-top:1px solid var(--line);padding-top:16px;margin-top:6px">
-          <div class="lbl" style="margin-bottom:10px">Forma de pagamento</div>
-          <div class="form-grid">
-            <div class="fld"><span class="lbl">forma</span>
-              <select id="f-forma-pg">
-                <option value="pix">PIX</option>
-                <option value="boleto">Boleto</option>
-                <option value="cartao">Cartão</option>
-                <option value="transferencia">Transferência</option>
-                <option value="outro">Outro</option>
-              </select>
-            </div>
-            <div class="fld"><span class="lbl">parcelamento</span>
-              <select id="f-parcelamento">
-                <option value="mensal" selected>Mensal (padrão)</option>
-                <option value="a_vista_desconto">À vista com desconto</option>
-                <option value="entrada_parcelas">Entrada + parcelas</option>
-              </select>
-            </div>
-            <div class="fld"><span class="lbl">dia de vencimento</span><input id="f-dia-venc" type="number" min="1" max="31" placeholder="ex. 10"></div>
-            <div class="fld"><span class="lbl">1ª parcela</span>
-              <label style="display:flex;align-items:center;gap:6px;padding:9px 0;font-size:13px">
-                <input type="checkbox" id="f-pg-hoje" onchange="document.getElementById('f-pg-dt').style.display=this.checked?'':'none'"> já foi paga
-              </label>
-              <input id="f-pg-dt" type="date" value="${hoje}" style="display:none;margin-top:4px">
-            </div>
-            <div class="fld form-full"><span class="lbl">observação de cobrança</span>
-              <textarea id="f-obs-cob" rows="2" placeholder="ex. desconto pra pagamento antecipado / chave PIX específica / etc"></textarea>
-            </div>
-          </div>
-          <div class="muted" style="font-size:11px;margin-top:8px;font-family:var(--mono);letter-spacing:.02em">Renovação, repactuação e crédito extra ficam disponíveis em Contrato, dentro do projeto.</div>
-        </div>
+        <div class="muted" style="font-size:11px;margin-top:6px;font-family:var(--mono);letter-spacing:.02em">Forma de pagamento e vencimento se registram na tabela de parcelas depois de criar o projeto. Renovação, repactuação e crédito extra ficam em Contrato.</div>
 
         <div id="new-err" class="err-box hidden"></div>
         <div class="row" style="justify-content:flex-end;gap:10px;margin-top:6px">
@@ -1057,7 +1026,7 @@ function renderNovo(){
   upd();
 
   // Persistência: qualquer input salva o rascunho na memória.
-  const _todosIds = ['f-nome','f-wp','f-tit','f-cnpj','f-cid','f-uf','f-dt','f-mens','f-fid','f-com','f-exp','f-forma-pg','f-parcelamento','f-dia-venc','f-obs-cob'];
+  const _todosIds = ['f-nome','f-wp','f-tit','f-cnpj','f-cid','f-uf','f-dt','f-mens','f-fid','f-com','f-exp'];
   _todosIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', _novoSalvarDraft);
@@ -1153,7 +1122,6 @@ function renderNovo(){
     }
 
     btn.disabled = true; btn.textContent = 'Criando…';
-    const diaVenc = Number(document.getElementById('f-dia-venc').value) || null;
     const payload = {
       cliente_nome: nome,
       cliente_whatsapp: wpBruto,
@@ -1166,9 +1134,6 @@ function renderNovo(){
       comissao_percent: lerValorPercent(document.getElementById('f-com')) || 5,
       data_inicio: dt,
       expectativa_valor: lerValorDinheiro(document.getElementById('f-exp')) || null,
-      forma_pagamento: document.getElementById('f-forma-pg').value,
-      dia_vencimento: diaVenc,
-      observacao_cobranca: document.getElementById('f-obs-cob').value.trim() || null,
     };
     const { data, error } = await sb.from('va_projetos').insert(payload).select('id').single();
     if (error) {
@@ -1177,19 +1142,6 @@ function renderNovo(){
       btn.disabled = false; btn.textContent = 'Salvar e abrir projeto';
       return;
     }
-    // Se 1ª parcela já paga · marca ela como paga (trigger va_parcela_ativa_onda_tg
-    // ativa a onda automaticamente)
-    if (document.getElementById('f-pg-hoje').checked) {
-      const pgDt = document.getElementById('f-pg-dt').value || new Date().toISOString().slice(0,10);
-      const { data: pcs } = await sb.from('va_projeto_parcelas')
-        .select('id,numero').eq('projeto_id', data.id).order('numero').limit(1);
-      if (pcs && pcs.length) {
-        const { error: eUp } = await sb.from('va_projeto_parcelas')
-          .update({ status: 'pago', pago_em: pgDt }).eq('id', pcs[0].id);
-        if (eUp) toast('projeto criado · parcela não pôde ser marcada como paga: '+eUp.message, 'err');
-      }
-    }
-    // Limpa draft e navega
     window._novoDraft = {};
     toast('Projeto criado', 'ok');
     location.hash = '#/p/' + data.id;
@@ -1514,8 +1466,80 @@ window.salvarValorVendaDefinido = async function(){
   if (error) { toast(error.message,'err'); return; }
   toast('valor salvo','ok'); await renderProjeto(_pj.projeto.id);
 };
-window.anexarTranscricao = function(){
-  toast('em breve · use o menu "mais" enquanto isso','ok');
+// Modal · anexar transcrição (upload de arquivo ou colar texto)
+window.anexarTranscricao = async function(){
+  const projetoId = _pj.projeto.id;
+  const { data: prev } = await sb.from('va_projeto_transcricoes')
+    .select('id, titulo, data_reuniao, origem, arquivo_path, created_em:criado_em, conteudo').eq('projeto_id', projetoId).order('criado_em',{ascending:false});
+  const hoje = new Date().toISOString().slice(0,10);
+  const listaPrev = (prev||[]).map(t => `
+    <div style="border-top:1px solid var(--line);padding:8px 0;font-size:12px">
+      <div class="row" style="justify-content:space-between"><b>${esc(t.titulo||'(sem título)')}</b><span class="muted">${dataBR(t.data_reuniao||t.created_em?.slice(0,10))}</span></div>
+      <div class="muted" style="font-size:11px">${esc(t.origem)} · ${t.arquivo_path?'arquivo':'texto colado'} · ${t.conteudo?t.conteudo.length+' chars':'—'}</div>
+    </div>`).join('');
+  const html = `
+    <div id="tr-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998" onclick="fecharAnexarTr()"></div>
+    <div id="tr-painel" style="position:fixed;top:5%;left:50%;transform:translateX(-50%);width:95%;max-width:640px;max-height:90vh;overflow-y:auto;background:var(--surface);border-radius:12px;padding:22px;z-index:9999;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+      <div class="row" style="justify-content:space-between;align-items:baseline">
+        <h3 style="margin:0">Anexar transcrição ou notas</h3>
+        <button class="btn btn-ghost btn-sm" onclick="fecharAnexarTr()">×</button>
+      </div>
+      <p class="muted" style="font-size:12px;margin-top:6px">Opcional. Sobe arquivo (.txt, .md, .vtt, .srt, .docx) ou cola texto direto. Cada anexo vira um registro.</p>
+      <div class="form-grid" style="margin-top:12px">
+        <div class="fld"><span class="lbl">título</span><input id="tr-tit" placeholder="ex. reunião de kickoff · 02/08"></div>
+        <div class="fld"><span class="lbl">data da reunião</span><input id="tr-dt" type="date" value="${hoje}"></div>
+      </div>
+      <div class="fld" style="margin-top:10px"><span class="lbl">arquivo (opcional)</span><input id="tr-file" type="file" accept=".txt,.md,.vtt,.srt,.docx"></div>
+      <div class="fld" style="margin-top:10px"><span class="lbl">ou cole o texto aqui</span>
+        <textarea id="tr-txt" rows="6" placeholder="cole a transcrição/notas · ou deixe vazio se subiu arquivo"></textarea>
+      </div>
+      <div id="tr-status" class="muted" style="font-size:12px;margin-top:6px"></div>
+      <div class="row" style="gap:8px;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-ghost" onclick="fecharAnexarTr()">cancelar</button>
+        <button class="btn btn-primary" onclick="salvarTranscricao()">salvar anexo</button>
+      </div>
+      ${listaPrev ? `<div style="margin-top:18px"><div class="lbl">anexos anteriores</div>${listaPrev}</div>` : ''}
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+};
+window.fecharAnexarTr = function(){
+  document.getElementById('tr-backdrop')?.remove();
+  document.getElementById('tr-painel')?.remove();
+};
+window.salvarTranscricao = async function(){
+  const st = document.getElementById('tr-status');
+  const projetoId = _pj.projeto.id;
+  const titulo = document.getElementById('tr-tit').value.trim() || null;
+  const dtR = document.getElementById('tr-dt').value || null;
+  const file = document.getElementById('tr-file').files[0];
+  const txt = document.getElementById('tr-txt').value.trim();
+  if (!file && !txt) { st.textContent = 'anexe um arquivo ou cole texto'; st.style.color='#c60'; return; }
+  st.textContent = file ? 'lendo arquivo…' : 'salvando…'; st.style.color = '';
+  try {
+    let conteudo = txt || null;
+    let arquivo_path = null;
+    if (file) {
+      // Salva no bucket · projeto-transcricoes/<projeto_id>/<timestamp>-<nome>
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+      arquivo_path = `${projetoId}/${Date.now()}-${safe}`;
+      const { error: eUp } = await sb.storage.from('projeto-transcricoes').upload(arquivo_path, file);
+      if (eUp) throw new Error('upload: '+eUp.message);
+      // Se arquivo é texto plano, também extrai conteúdo (docx precisa parser · pula por enquanto)
+      if (/\.(txt|md|vtt|srt)$/i.test(file.name)) {
+        conteudo = await file.text();
+      }
+    }
+    const { error: eIn } = await sb.from('va_projeto_transcricoes').insert({
+      projeto_id: projetoId, titulo, data_reuniao: dtR,
+      origem: file ? 'upload' : 'colado',
+      arquivo_path, conteudo,
+      criado_por: (await sb.auth.getSession()).data.session?.user?.email || 'admin',
+    });
+    if (eIn) throw new Error('insert: '+eIn.message);
+    toast('anexo salvo','ok'); fecharAnexarTr();
+  } catch (e) {
+    st.textContent = 'erro · '+String(e.message||e); st.style.color='#c00';
+  }
 };
 
 async function renderBloco2Financeiro(){
