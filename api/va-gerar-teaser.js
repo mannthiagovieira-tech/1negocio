@@ -171,26 +171,29 @@ function detectarVazamento(texto, proibidosDiretos, cidadeExata, valoresExatos) 
   return found;
 }
 function detectarAritmeticaInvalida(texto, permitidos) {
-  // Extrai "N,N×" e "N,N%" e checa contra permitidos com tolerância 0.15
+  // Extrai "N,N×" e "N,N%" e checa contra permitidos.
+  // Tolerância: pra múltiplos pequenos (< 1×) usar 0.05, pra maiores 0.15.
   const problemas = [];
   const permMult = permitidos.filter((x) => x.tipo === 'mult').map((x) => x.valor);
   const permPct = permitidos.filter((x) => x.tipo === 'pct').map((x) => x.valor);
+  const fmtBR = (n) => n.toFixed(2).replace('.', ',') + '×';
+  const fmtBRPct = (n) => n.toFixed(1).replace('.', ',') + '%';
   const reMult = /(\d+(?:[,.]\d+)?)\s*[xX×]/g;
   const rePct = /(\d+(?:[,.]\d+)?)\s*%/g;
   let m;
   while ((m = reMult.exec(texto)) !== null) {
     const v = parseFloat(m[1].replace(',', '.'));
     if (!isFinite(v)) continue;
-    if (permMult.length === 0) { problemas.push(`múltiplo "${m[0]}" sem valor permitido`); continue; }
-    const ok = permMult.some((p) => Math.abs(v - p) <= 0.15);
-    if (!ok) problemas.push(`múltiplo "${m[0]}" fora da tolerância (permitidos: ${permMult.map((p) => p.toFixed(2)).join(', ')})`);
+    if (permMult.length === 0) { problemas.push(`múltiplo "${m[0]}" citado mas NÃO EXISTEM múltiplos permitidos · REMOVA qualquer menção a "×" do texto`); continue; }
+    const ok = permMult.some((p) => Math.abs(v - p) <= (p < 1 ? 0.05 : 0.15));
+    if (!ok) problemas.push(`múltiplo "${m[0]}" INVENTADO · use EXATAMENTE ${permMult.map(fmtBR).join(' ou ')} (não arredonde, não invente outro)`);
   }
   while ((m = rePct.exec(texto)) !== null) {
     const v = parseFloat(m[1].replace(',', '.'));
     if (!isFinite(v)) continue;
-    if (permPct.length === 0) { problemas.push(`percentual "${m[0]}" sem valor permitido`); continue; }
+    if (permPct.length === 0) { problemas.push(`percentual "${m[0]}" citado mas NÃO EXISTEM percentuais permitidos · REMOVA qualquer "%" do texto`); continue; }
     const ok = permPct.some((p) => Math.abs(v - p) <= 0.5);
-    if (!ok) problemas.push(`percentual "${m[0]}" fora da tolerância (permitidos: ${permPct.map((p) => p.toFixed(1)+'%').join(', ')})`);
+    if (!ok) problemas.push(`percentual "${m[0]}" INVENTADO · use EXATAMENTE ${permPct.map(fmtBRPct).join(' ou ')}`);
   }
   return problemas;
 }
