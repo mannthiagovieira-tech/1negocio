@@ -14,6 +14,7 @@ const SB_ANON = process.env.SUPABASE_ANON_KEY;
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = 'claude-sonnet-4-6';
+const { montarContextoQualitativo, extrairTermosProibidos, detectarSituacaoSensivel } = require('./_va_fontes.js');
 
 function json(res, code, body) { res.status(code).setHeader('Content-Type', 'application/json'); res.send(JSON.stringify(body)); }
 async function lerBody(req) {
@@ -242,7 +243,7 @@ async function chamarSonnet(prompt, maxTokens = 4000) {
 }
 
 // ─── PROMPT ───────────────────────────────────────────────────────────
-function promptLista(fatos, desc, corrigir) {
+function promptLista(fatos, desc, contextoQuali, sensivel, corrigir) {
   const cor = corrigir ? '\nCORREÇÃO NECESSÁRIA · o retorno anterior falhou: ' + corrigir + '\nRefaça respeitando o schema e as regras.' : '';
   const d = desc ? desc.slice(0, 800) : '—';
   const bMult = [];
@@ -273,6 +274,15 @@ DESCRIÇÃO ADICIONAL DO ASSESSOR: ${d}
 
 DIRECIONAMENTO:
 Teses típicas de M&A de PME BR: (a) concorrente local/regional consolidando; (b) player adjacente entrando; (c) empresário do mesmo CNAE em cidade vizinha; (d) investidor/search fund calibrado à faixa. Ancorar nos FATOS acima.
+
+HIERARQUIA DE INFORMAÇÃO (regra SOBERANA):
+- DADOS QUANTITATIVOS (fat, EBITDA, margem, múltiplos, valor de venda, dívidas)
+  vêm EXCLUSIVAMENTE dos FATOS acima (laudo + valor de venda do sistema).
+- As FONTES fornecem APENAS contexto qualitativo (diferenciais operacionais,
+  processos, base de clientes, motivação, restrições de sigilo, teses sugeridas).
+- Se o sistema NÃO tem um número, OMITA-O · nunca preencher com valor da fonte.
+- Em conflito entre fonte e sistema, o SISTEMA vence silenciosamente
+  (não mencionar divergência no output).
 
 REGRAS ABSOLUTAS (violação → rejeição):
 
@@ -320,7 +330,15 @@ FORMATO (JSON estrito · SEM markdown · SEM preâmbulo):
 REGRAS INEGOCIÁVEIS:
 - Filtro precisa ter PELO MENOS UM critério.
 - 3 ou 4 arquétipos com teses distintas.
-- SÓ o JSON. Zero texto fora.${cor}`;
+- SÓ o JSON. Zero texto fora.
+${contextoQuali ? `
+CONTEXTO QUALITATIVO (reuniões e anotações do consultor · uso INTERNO):
+${contextoQuali}
+
+Como usar este contexto:
+- REFINA teses e abordagem (motivação real do dono, restrições, compradores sugeridos, clientes-âncora).
+- NUNCA aparece literalmente em material EXTERNO (angulo). Nomes de pessoas/empresas mencionados nas fontes são PROIBIDOS em QUALQUER campo do JSON.${sensivel && sensivel.length ? `
+- Situações sensíveis detectadas: ${sensivel.join(', ')}. Isto orienta a tese/objeção INTERNAMENTE; NUNCA aparece em angulo/teaser.` : ''}` : ''}${cor}`;
 }
 function promptAbordagem(arq, fatos) {
   const bMult = [];
@@ -421,6 +439,15 @@ module.exports = async (req, res) => {
     ...(arit.margem_ebitda != null ? [{ tipo: 'pct', valor: arit.margem_ebitda }] : []),
   ];
 
+  // Fontes qualitativas · reuniões/anotações do consultor
+  const fR = await fetch(`${SB_URL}/rest/v1/va_projeto_fontes?projeto_id=eq.${projeto_id}&select=id,tipo,titulo,conteudo,conteudo_destilado,formato_detectado,criado_em&order=criado_em.desc`, { headers: H });
+  const fontes = (await fR.json()) || [];
+  const contextoQuali = montarContextoQualitativo(fontes);
+  const sensivel = detectarSituacaoSensivel(fontes);
+  // Termos proibidos extraídos das fontes entram na lista global
+  const termosFonte = extrairTermosProibidos(fontes);
+  for (const t of termosFonte) proibidosGlobais.push(t);
+
   // ── MODO PARCIAL · regenerar abordagem
   if (arquetipo_id && blocoParcial === 'abordagem') {
     const aR = await fetch(`${SB_URL}/rest/v1/va_arquetipos?id=eq.${arquetipo_id}&select=id,projeto_id,status,nome,tese,filtro,abordagem`, { headers: H });
@@ -465,7 +492,7 @@ module.exports = async (req, res) => {
   let corrigir = null;
   for (let t = 0; t < 2; t++) {
     try {
-      const raw = await chamarSonnet(promptLista(fatos, p.descricao_negocio, corrigir));
+      const raw = await chamarSonnet(promptLista(fatos, p.descricao_negocio, contextoQuali, sensivel, corrigir));
       const parsed = parseJsonEstrito(raw);
       if (!Array.isArray(parsed)) { corrigir = 'esperava array JSON no topo'; continue; }
       if (parsed.length < 3 || parsed.length > 4) { corrigir = `esperava 3-4 arquétipos, recebi ${parsed.length}`; continue; }

@@ -49,8 +49,13 @@
     const teaserRasc = teasers.find(t => t.status === 'rascunho');
     const teaserAp = teasers.find(t => t.status === 'aprovado');
 
+    const fontes = (await sb.from('va_projeto_fontes')
+      .select('id, tipo, titulo, conteudo, conteudo_destilado, formato_detectado, criado_em, destilado_em')
+      .eq('projeto_id', m.id).order('criado_em',{ascending:false})).data || [];
+
     body.innerHTML = `
       ${renderFaixa(m, calc)}
+      ${renderSecaoFontes(m, fontes)}
       ${renderSecaoAvaliacao(m, calc, laudoR.data)}
       ${renderSecaoValor(m, calc)}
       ${renderSecaoTeaser(m, teaserRasc, teaserAp)}
@@ -59,6 +64,56 @@
     ligarEventos(m);
     // Sinal de prontidão do módulo (padrão MANDATO)
     document.getElementById('ativo-body').setAttribute('data-ready', 'true');
+  }
+
+  // ─── Seção Fontes ───────────────────────────────────────────────
+  function renderSecaoFontes(m, fontes) {
+    const badge = (f) => {
+      if (f.destilado_em) return '<span class="pill pill--accent">destilado</span>';
+      if (f.formato_detectado === 'transcript') return '<span class="pill" style="background:var(--warn);color:#7a5c00">destilando…</span>';
+      return '';
+    };
+    const linhas = fontes.map(f => {
+      const usa = f.conteudo_destilado || f.conteudo || '';
+      const preview = usa.replace(/\s+/g, ' ').trim().slice(0, 140);
+      return `<article class="fonte-linha" data-fonte="${esc(f.id)}">
+        <header class="fonte-head" onclick="ativoToggleFonte('${esc(f.id)}')">
+          <div style="flex:1;min-width:0">
+            <div class="fonte-titulo">
+              <b>${esc(f.titulo || (f.tipo==='reuniao'?'Reunião':(f.tipo==='documento'?'Documento':'Anotação')))}</b>
+              <span class="pill mono" style="font-size:10.5px">${esc(f.tipo)}</span>
+              ${f.formato_detectado ? `<span class="pill mono" style="font-size:10.5px">${esc(f.formato_detectado)}</span>` : ''}
+              ${badge(f)}
+            </div>
+            <div class="fonte-meta">${dataBR(f.criado_em?.slice(0,10))} · ${(f.conteudo||'').length.toLocaleString('pt-BR')} chars${f.conteudo_destilado ? ` · destilado ${f.conteudo_destilado.length.toLocaleString('pt-BR')} chars`:''}</div>
+            <div class="fonte-preview">${esc(preview)}${usa.length > 140 ? '…' : ''}</div>
+          </div>
+          <button class="btn btn--sm btn--ghost" onclick="event.stopPropagation();ativoExcluirFonte('${esc(f.id)}')">Excluir</button>
+        </header>
+        <div class="fonte-corpo" id="fc-${esc(f.id)}" hidden>
+          ${f.conteudo_destilado ? `
+            <div class="tabs" style="margin-bottom:12px">
+              <button data-view="destilado" aria-current="true" onclick="ativoTrocaFonteView('${esc(f.id)}','destilado')">Destilado</button>
+              <button data-view="bruto" onclick="ativoTrocaFonteView('${esc(f.id)}','bruto')">Bruto (${(f.conteudo||'').length.toLocaleString('pt-BR')})</button>
+            </div>
+            <pre id="fc-${esc(f.id)}-destilado" class="fonte-pre">${esc(f.conteudo_destilado)}</pre>
+            <pre id="fc-${esc(f.id)}-bruto" class="fonte-pre" hidden>${esc(f.conteudo)}</pre>
+          ` : `<pre class="fonte-pre">${esc(f.conteudo || '')}</pre>`}
+        </div>
+      </article>`;
+    }).join('');
+    return `<section class="secao">
+      <header class="secao__head">
+        <div class="lbl">Fontes qualitativas · ${fontes.length}</div>
+        <h2 class="secao__title">Reuniões, anotações, documentos</h2>
+        <button class="btn btn--primary btn--sm" id="btn-add-fonte">+ Adicionar fonte</button>
+      </header>
+      <p class="muted" style="font-size:12.5px;margin:-4px 0 12px">
+        Colar transcrições de reunião (Gemini/Meet), anotações e documentos.
+        As gerações IA usam este contexto — números vêm sempre do laudo (regra soberana).
+      </p>
+      ${fontes.length ? `<div class="fontes-lista">${linhas}</div>` : `<div class="empty"><p class="muted">Sem fontes ainda. Cole a próxima reunião pra alimentar as IAs.</p></div>`}
+    </section>`;
   }
 
   // ─── Faixa-resumo ────────────────────────────────────────────────
@@ -312,6 +367,8 @@
   // ═══════════════════════════════════════════════════════════════════
   // Handlers
   function ligarEventos(m) {
+    // Fontes
+    document.getElementById('btn-add-fonte')?.addEventListener('click', () => abrirModalFonte(m));
     // Valor de venda
     document.getElementById('btn-def-valor')?.addEventListener('click', () => abrirModalValor(m));
     // Teaser
@@ -349,6 +406,94 @@
     document.querySelectorAll('[data-arq-nova-versao]').forEach(el => el.addEventListener('click', () => novaVersaoArq(m, el.dataset.arqNovaVersao)));
     document.querySelectorAll('[data-arq-salvar]').forEach(el => el.addEventListener('click', () => salvarArqEdicoes(m, el.dataset.arqSalvar)));
     document.querySelectorAll('[data-arq-regen-abord]').forEach(el => el.addEventListener('click', () => regenerarAbordagem(m, el.dataset.arqRegenAbord)));
+  }
+
+  // ─── Fontes · toggle / excluir / trocar view ────────────────────
+  window.ativoToggleFonte = function(id) {
+    const el = document.getElementById('fc-' + id);
+    if (el) el.hidden = !el.hidden;
+  };
+  window.ativoTrocaFonteView = function(id, view) {
+    const btns = document.querySelectorAll(`#fc-${id} .tabs button`);
+    btns.forEach(b => b.setAttribute('aria-current', b.dataset.view === view ? 'true' : 'false'));
+    document.getElementById(`fc-${id}-destilado`).hidden = view !== 'destilado';
+    document.getElementById(`fc-${id}-bruto`).hidden = view !== 'bruto';
+  };
+  window.ativoExcluirFonte = async function(id) {
+    if (!confirm('Excluir esta fonte? A ação é irreversível.')) return;
+    try {
+      const tok = (await sb.auth.getSession()).data.session?.access_token;
+      const r = await fetch('/api/va-projeto-fontes', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+        body: JSON.stringify({ id }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) throw new Error(d.erro || 'HTTP '+r.status);
+      toast('ok', 'Fonte removida');
+      const mAtual = await import('/mandato/core/core.js').then(x => x.getMandatoAtivo());
+      renderAtivo(mAtual);
+    } catch (e) { toast('err', String(e.message).slice(0, 180)); }
+  };
+
+  function abrirModalFonte(m) {
+    const html = `<div class="modal-bg" onclick="if(event.target===this)this.remove()">
+      <div class="modal" style="max-width:720px">
+        <div class="lbl">Adicionar fonte</div>
+        <h3 style="margin-top:6px">Reunião, anotação ou documento</h3>
+        <div class="field" style="margin-top:12px"><span class="lbl">tipo</span>
+          <select id="mf-tipo">
+            <option value="reuniao">reunião (detecta Gemini / transcript automaticamente)</option>
+            <option value="anotacao">anotação</option>
+            <option value="documento">documento (texto colado)</option>
+          </select>
+        </div>
+        <div class="field" style="margin-top:10px"><span class="lbl">título (opcional)</span>
+          <input id="mf-titulo" placeholder="ex.: Reunião ${new Date().toLocaleDateString('pt-BR')}">
+        </div>
+        <div class="field" style="margin-top:10px"><span class="lbl">conteúdo · <span id="mf-count" class="mono muted">0</span> chars</span>
+          <textarea id="mf-conteudo" rows="14" placeholder="Cole aqui a transcrição (Gemini Meet · Zoom · notas manuais…)"></textarea>
+        </div>
+        <div id="mf-status" class="muted" style="font-size:12px;margin-top:10px;min-height:18px"></div>
+        <div class="row" style="gap:8px;justify-content:flex-end;margin-top:12px">
+          <button class="btn btn--ghost" onclick="this.closest('.modal-bg').remove()">Cancelar</button>
+          <button class="btn btn--primary" id="mf-salvar">Salvar</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const ta = document.getElementById('mf-conteudo');
+    ta.addEventListener('input', () => { document.getElementById('mf-count').textContent = ta.value.length.toLocaleString('pt-BR'); });
+    document.getElementById('mf-salvar').addEventListener('click', async () => {
+      const tipo = document.getElementById('mf-tipo').value;
+      const titulo = document.getElementById('mf-titulo').value.trim() || null;
+      const conteudo = ta.value.trim();
+      const status = document.getElementById('mf-status');
+      if (conteudo.length < 10) { status.textContent = 'Cole ao menos 10 caracteres.'; return; }
+      status.textContent = 'Salvando…';
+      try {
+        const tok = (await sb.auth.getSession()).data.session?.access_token;
+        const r = await fetch('/api/va-projeto-fontes', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+          body: JSON.stringify({ projeto_id: m.id, tipo, titulo, conteudo }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok) throw new Error(d.erro || 'HTTP '+r.status);
+        toast('ok', `Fonte salva · ${d.aproveitados.toLocaleString('pt-BR')} de ${d.original.toLocaleString('pt-BR')} chars aproveitados`);
+        // Se precisa destilar (transcript bruto), dispara em background
+        if (d.precisa_destilacao) {
+          toast('info', 'Destilando transcript com IA…');
+          fetch('/api/va-destilar-fonte', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+            body: JSON.stringify({ fonte_id: d.fonte.id }),
+          }).then(r2 => r2.json()).then(dd => {
+            if (dd.ok) { toast('ok', 'Destilado pronto · ' + dd.chars_destilado + ' chars'); renderAtivo(m); }
+            else toast('err', 'Destilação falhou: ' + (dd.erro||''));
+          }).catch(e => toast('err', 'Destilação: ' + String(e.message).slice(0,120)));
+        }
+        document.querySelector('.modal-bg').remove();
+        renderAtivo(m);
+      } catch (e) { status.textContent = 'Erro · ' + String(e.message).slice(0, 200); }
+    });
   }
 
   // ─── Modal valor ─────────────────────────────────────────────────

@@ -10,6 +10,7 @@ const SB_ANON = process.env.SUPABASE_ANON_KEY;
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = 'claude-sonnet-4-6';
+const { montarContextoQualitativo, extrairTermosProibidos, detectarSituacaoSensivel } = require('./_va_fontes.js');
 
 function json(res, code, body) { res.status(code).setHeader('Content-Type', 'application/json'); res.send(JSON.stringify(body)); }
 async function lerBody(req) {
@@ -199,7 +200,7 @@ function detectarAritmeticaInvalida(texto, permitidos) {
 }
 
 // ═══ PROMPT ═══════════════════════════════════════════════════════════
-function promptTeaser(fatos, arqAprovados, corrigir) {
+function promptTeaser(fatos, arqAprovados, contextoQuali, sensivel, corrigir) {
   const arqBlock = arqAprovados.length
     ? '\nARQUÉTIPOS APROVADOS (calibre o ângulo pra estes perfis):\n' +
       arqAprovados.map((a) => `- ${a.nome}: ${a.tese}`).join('\n')
@@ -252,7 +253,26 @@ Bullets · faturamento (faixa), EBITDA (faixa), margem, funcionários (faixa), c
 ## Ticket
 1 linha · usar a faixa de valor de venda e os múltiplos exatos acima.
 
-FORMATO: SÓ o markdown, sem preâmbulo, sem cerca de código.${cor}`;
+FORMATO: SÓ o markdown, sem preâmbulo, sem cerca de código.
+
+HIERARQUIA DE INFORMAÇÃO (regra SOBERANA):
+- Números (faturamento, EBITDA, margem, múltiplos, valor de venda, dívidas)
+  vêm EXCLUSIVAMENTE dos FATOS do sistema acima. Nunca da fonte qualitativa.
+- Se o sistema não tem um número, OMITA-O · nunca completar com valor da fonte.
+- Em conflito entre fonte e sistema, o SISTEMA vence silenciosamente
+  (não mencionar divergência no teaser).${contextoQuali ? `
+
+CONTEXTO QUALITATIVO (reuniões e anotações · uso APENAS pra qualificar diferenciais):
+${contextoQuali}
+
+Como usar este contexto:
+- REFINA "Diferenciais operacionais" e "Perfil de comprador que faz sentido"
+  (maturidade, base de clientes, motivação genérica que possa ser dita cegamente).
+- NUNCA reproduzir literalmente. Nomes de pessoas/empresas mencionados nas fontes
+  são PROIBIDOS no teaser.${sensivel && sensivel.length ? `
+- Situações sensíveis detectadas: ${sensivel.join(', ')}. Isto é contexto INTERNO
+  · NUNCA aparece no teaser (nem dívida, nem fiscal, nem judicial, nem motivo
+  de venda sensível).` : ''}` : ''}${cor}`;
 }
 
 // ═══ HANDLER ═══════════════════════════════════════════════════════════
@@ -332,10 +352,17 @@ module.exports = async (req, res) => {
     ...(arit.margem_ebitda != null ? [{ tipo: 'pct', valor: arit.margem_ebitda }] : []),
   ];
 
+  // Fontes qualitativas · reuniões/anotações do consultor
+  const fR = await fetch(`${SB_URL}/rest/v1/va_projeto_fontes?projeto_id=eq.${projeto_id}&select=id,tipo,titulo,conteudo,conteudo_destilado,formato_detectado,criado_em&order=criado_em.desc`, { headers: H });
+  const fontes = (await fR.json()) || [];
+  const contextoQuali = montarContextoQualitativo(fontes);
+  const sensivel = detectarSituacaoSensivel(fontes);
+  for (const t of extrairTermosProibidos(fontes)) proibidos.push(t);
+
   let corrigir = null, texto = '';
   for (let t = 0; t < 2; t++) {
     try {
-      const raw = await chamarSonnet(promptTeaser(fatos, arqs, corrigir));
+      const raw = await chamarSonnet(promptTeaser(fatos, arqs, contextoQuali, sensivel, corrigir));
       texto = raw.trim().replace(/^```(?:markdown|md)?\s*/i, '').replace(/```$/i, '').trim();
       if (texto.length < 300) { corrigir = 'teaser curto demais'; continue; }
 

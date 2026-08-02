@@ -215,7 +215,36 @@ test.describe('Zona ATIVO · E2E', () => {
     await expect(page.locator(`.arq-card[data-arq="${arqId}"]`)).toBeVisible();
   });
 
-  // ── 7. cleanup: garante que os testes não deixaram rastro ───────
+  // ── 7. fonte · adicionar → aparece na lista → excluir ─────────────
+  test('7 · fonte · adicionar, listar, excluir', async ({ page }) => {
+    const tok = await loginToken();
+    const m = await apiListMandato(tok);
+    // Cleanup prévio
+    const ctxDel = await request.newContext();
+    await ctxDel.delete(`${SB_URL}/rest/v1/va_projeto_fontes?projeto_id=eq.${m.id}&titulo=like.E2E%25`, {
+      headers: { apikey: SB_ANON, Authorization: `Bearer ${tok}` },
+    });
+    await ctxDel.dispose();
+
+    await login(page);
+    await irParaAtivo(page, m.id);
+    page.on('dialog', (d) => d.accept());
+
+    await page.click('#btn-add-fonte');
+    await page.waitForSelector('.modal');
+    await page.selectOption('#mf-tipo', 'anotacao');
+    await page.fill('#mf-titulo', 'E2E · fonte de teste');
+    await page.fill('#mf-conteudo',
+      'Nota do consultor: dono valoriza processos maduros e base recorrente. Nenhum dado sensível pra teste E2E.');
+    await page.click('#mf-salvar');
+    await page.waitForSelector('.fonte-linha:has-text("E2E · fonte de teste")', { timeout: 8000 });
+    // Excluir
+    await page.locator('.fonte-linha:has-text("E2E · fonte de teste") button:has-text("Excluir")').click();
+    await page.waitForTimeout(600);
+    await expect(page.locator('.fonte-linha:has-text("E2E · fonte de teste")')).toHaveCount(0);
+  });
+
+  // ── 8. cleanup: garante que os testes não deixaram rastro ───────
   test.afterAll(async () => {
     const tok = await loginToken();
     const m = await apiListMandato(tok);
