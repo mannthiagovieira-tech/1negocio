@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MANDATO · Máquina</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/mandato/core/tokens.css">
+<link rel="stylesheet" href="/mandato/core/base.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<main class="wrap"><section class="page">
+  <header class="page__head">
+    <div class="page__zone">Zona · Máquina</div>
+    <h1 class="page__title">Os motores que trazem comprador</h1>
+    <p class="page__sub">Captação faz o dinheiro virar contato. Funil move contato até conversa. Cadência é regra de fundo, não tela.</p>
+  </header>
+
+  <nav class="tabs" id="mq-tabs" role="tablist" aria-label="Motores da Máquina">
+    <button data-tab="captacao" role="tab" aria-current="true">Captação</button>
+    <button data-tab="funil" role="tab" aria-current="false">Funil</button>
+  </nav>
+
+  <div id="mq-panel-captacao">
+    <div class="placeholder-grid cols-2">
+      <div class="slot">
+        <div>
+          <div class="slot__lbl">Bloco 01 · Portão de crédito</div>
+          <div class="slot__title">Quanto crédito, para quanto contato</div>
+          <div class="slot__desc">Saldo · custo médio por contato aprovado · quantos leads dá para trazer nesta janela sem estourar.</div>
+        </div>
+        <div class="slot__foot">Em construção · Prompt 4</div>
+      </div>
+      <div class="slot">
+        <div>
+          <div class="slot__lbl">Bloco 02 · Extração + triagem</div>
+          <div class="slot__title">Bruto entra · aprovado sai</div>
+          <div class="slot__desc">Lote atual · fontes ativas · aprovar em bulk · rejeitar · manda pro Funil. Sem tela separada de triagem.</div>
+        </div>
+        <div class="slot__foot">Em construção · Prompt 4</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mq-panel-funil" hidden>
+    <div class="placeholder-grid cols-4">
+      <div class="slot">
+        <div>
+          <div class="slot__lbl">Coluna 01</div>
+          <div class="slot__title">Na fila</div>
+          <div class="slot__desc">Aprovado, esperando primeiro toque.</div>
+        </div>
+        <div class="slot__foot">Em construção · Prompt 4</div>
+      </div>
+      <div class="slot">
+        <div>
+          <div class="slot__lbl">Coluna 02</div>
+          <div class="slot__title">Contatado</div>
+          <div class="slot__desc">Primeiro toque enviado, aguardando resposta.</div>
+        </div>
+        <div class="slot__foot">Em construção · Prompt 4</div>
+      </div>
+      <div class="slot">
+        <div>
+          <div class="slot__lbl">Coluna 03</div>
+          <div class="slot__title">Respondeu</div>
+          <div class="slot__desc">Respondeu qualquer coisa · precisa de próximo passo.</div>
+        </div>
+        <div class="slot__foot">Em construção · Prompt 4</div>
+      </div>
+      <div class="slot">
+        <div>
+          <div class="slot__lbl">Coluna 04</div>
+          <div class="slot__title">Em conversa</div>
+          <div class="slot__desc">Diálogo qualificado em andamento · vira Mesa quando pedir NDA.</div>
+        </div>
+        <div class="slot__foot">Em construção · Prompt 4</div>
+      </div>
+    </div>
+  </div>
+</section></main>
+
+<script type="module">
+  import { requireAdmin, getMandatoAtivo, watchAuth } from '/mandato/core/core.js';
+  import { mountTopbar, renderSelector } from '/mandato/core/ui.js';
+  await requireAdmin();
+  watchAuth(() => location.reload());
+  const mandato = await getMandatoAtivo();
+  mountTopbar('maquina', mandato);
+  if (!mandato) { await renderSelector('maquina'); }
+  else {
+    // troca de aba client-side · preserva URL, guarda no hash
+    const painelCap = document.getElementById('mq-panel-captacao');
+    const painelFun = document.getElementById('mq-panel-funil');
+    const btns = document.querySelectorAll('#mq-tabs button');
+    function setAba(nome) {
+      const ok = nome === 'funil' ? 'funil' : 'captacao';
+      painelCap.hidden = ok !== 'captacao';
+      painelFun.hidden = ok !== 'funil';
+      btns.forEach(b => b.setAttribute('aria-current', b.dataset.tab === ok ? 'true' : 'false'));
+      const url = new URL(location.href);
+      if (ok === 'funil') url.hash = '#funil'; else url.hash = '';
+      history.replaceState(null, '', url);
+    }
+    btns.forEach(b => b.addEventListener('click', () => setAba(b.dataset.tab)));
+    setAba(location.hash === '#funil' ? 'funil' : 'captacao');
+  }
+</script>
+</body>
+</html>
