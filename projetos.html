@@ -784,6 +784,7 @@ async function renderLista(){
   const ordem = window._listaOrdem || 'urgencia';
   const filtroStatus = window._listaFiltroStatus || 'todos';
   const filtroProp = window._listaFiltroProposta || false;
+  const busca = (window._listaBusca || '').toLowerCase().trim();
   const urgencia = p => {
     const o = p._onda; if (!o) return 4;
     if (o.status === 'aguardando_pagamento') return 1;
@@ -799,6 +800,10 @@ async function renderLista(){
   const dataFiltrada = data.filter(p => {
     if (filtroStatus !== 'todos' && p.status !== filtroStatus) return false;
     if (filtroProp && (Number(p._c?.propostas)||0) === 0) return false;
+    if (busca) {
+      const hay = [p.codigo, p.cliente_nome, p.negocio_titulo, p.cidade, p.uf].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(busca)) return false;
+    }
     return true;
   });
   dataFiltrada.sort((a,b) => {
@@ -861,9 +866,13 @@ async function renderLista(){
         </select>
       </label>
       <label style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-2);text-transform:uppercase;white-space:nowrap"><input type="checkbox" id="lst-prop" ${filtroProp?'checked':''} style="margin:0"> com proposta em aberto</label>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-2);text-transform:uppercase;flex:1;min-width:180px">buscar
+        <input id="lst-busca" placeholder="código VA-XXXX, cliente ou cidade" value="${esc(busca)}" style="flex:1;padding:6px 10px;font-size:13px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-family:var(--mono)">
+      </label>
     </div>
     <div class="grid">${dataFiltrada.map(cardProjeto).join('')}</div>`;
 
+  document.getElementById('lst-busca').addEventListener('input', e => { window._listaBusca = e.target.value; renderLista(); });
   document.getElementById('lst-ordem').addEventListener('change', e => { window._listaOrdem = e.target.value; renderLista(); });
   document.getElementById('lst-status').addEventListener('change', e => { window._listaFiltroStatus = e.target.value; renderLista(); });
   document.getElementById('lst-prop').addEventListener('change', e => { window._listaFiltroProposta = e.target.checked; renderLista(); });
@@ -887,7 +896,7 @@ function cardProjeto(p){
     <div class="card proj-card" onclick="rota('#/p/${p.id}')">
       <div class="top">
         <div>
-          <h3>${esc(p.cliente_nome)}</h3>
+          <h3>${esc(p.cliente_nome)}${p.codigo?` <span class="mono" style="font-size:10px;padding:2px 6px;background:var(--surface-2);border:1px solid var(--line);border-radius:4px;color:var(--ink-3);margin-left:6px;vertical-align:middle">${esc(p.codigo)}</span>`:''}</h3>
           <div class="sub">${esc(p.negocio_titulo || p.setor || 'Negócio sem título')}${p.cidade ? ' · ' + esc(p.cidade) : ''}</div>
           ${tags?`<div style="margin-top:6px">${tags}</div>`:''}
         </div>
@@ -977,6 +986,13 @@ function renderNovo(){
           <span class="pill" style="background:#fff8e1;color:#c60;border-color:#f0c040;font-size:9px">ADMIN</span>
         </div>
         <div id="dre-margem"><div class="muted" style="font-size:12px;margin-top:8px">preencha mensalidade e prazo</div></div>
+      </div>
+      <div class="card" id="dre-entrega-card">
+        <div class="row" style="justify-content:space-between;align-items:baseline">
+          <div class="lbl">Expectativa de entrega</div>
+          <span class="pill" style="background:#fff5e6;color:#c60;border-color:#f0c040;font-size:9px">NÃO É GARANTIA</span>
+        </div>
+        <div id="dre-entrega"><div class="muted" style="font-size:12px;margin-top:8px">preencha mensalidade e prazo</div></div>
       </div>
     </div>
 
@@ -1322,7 +1338,10 @@ function desenhaProjeto(){
     <div style="margin-bottom:22px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
       <div>
         <a onclick="rota('#/')" style="font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer">← voltar para projetos</a>
-        <h1 class="h1" style="margin-top:10px">${esc(p.cliente_nome)}</h1>
+        <h1 class="h1" style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          ${esc(p.cliente_nome)}
+          ${p.codigo ? `<span class="mono" style="font-size:12px;padding:3px 8px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;color:var(--ink-2);cursor:pointer" onclick="navigator.clipboard.writeText('${esc(p.codigo)}');toast('código copiado','ok')" title="copiar">${esc(p.codigo)} 📋</span>` : ''}
+        </h1>
         <p class="muted" style="margin-top:6px">${esc(p.negocio_titulo || p.setor || 'Negócio sem título')}${p.cidade ? ' · ' + esc(p.cidade) : ''} · <span class="mono" style="font-size:12px">${p.cliente_whatsapp||''}</span></p>
       </div>
       <div style="text-align:right">
@@ -1377,7 +1396,10 @@ function desenhaProjetoLinear(){
     <div style="margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
       <div>
         <a onclick="rota('#/')" style="font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer">← voltar para projetos</a>
-        <h1 class="h1" style="margin-top:10px">${esc(p.cliente_nome)}</h1>
+        <h1 class="h1" style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          ${esc(p.cliente_nome)}
+          ${p.codigo ? `<span class="mono" style="font-size:12px;padding:3px 8px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;color:var(--ink-2);cursor:pointer" onclick="navigator.clipboard.writeText('${esc(p.codigo)}');toast('código copiado','ok')" title="copiar">${esc(p.codigo)} 📋</span>` : ''}
+        </h1>
         <p class="muted" style="margin-top:6px">${esc(p.negocio_titulo || p.setor || 'Negócio sem título')}${p.cidade ? ' · ' + esc(p.cidade) : ''} · <span class="mono" style="font-size:12px">${p.cliente_whatsapp||''}</span></p>
       </div>
       <div style="text-align:right">
@@ -1743,7 +1765,10 @@ function _desenhaProjetoLegado_desativado(){
     <div style="margin-bottom:22px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
       <div>
         <a onclick="rota('#/')" style="font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer">← voltar para projetos</a>
-        <h1 class="h1" style="margin-top:10px">${esc(p.cliente_nome)}</h1>
+        <h1 class="h1" style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          ${esc(p.cliente_nome)}
+          ${p.codigo ? `<span class="mono" style="font-size:12px;padding:3px 8px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;color:var(--ink-2);cursor:pointer" onclick="navigator.clipboard.writeText('${esc(p.codigo)}');toast('código copiado','ok')" title="copiar">${esc(p.codigo)} 📋</span>` : ''}
+        </h1>
         <p class="muted" style="margin-top:6px">${esc(p.negocio_titulo || p.setor || 'Negócio sem título')}${p.cidade ? ' · ' + esc(p.cidade) : ''} · <span class="mono" style="font-size:12px">${p.cliente_whatsapp||''}</span></p>
       </div>
       <div style="text-align:right">
@@ -3358,20 +3383,23 @@ function renderSimulador(prefix, valor, meses, projetoId, cont) {
   });
 }
 
-// Renderiza duas DREs no form novo (ids fixos dre-cliente e dre-margem).
+// Renderiza 3 DREs no form novo (cliente, margem, expectativa entrega).
 async function renderDREs(valor, meses, projetoId) {
   const dreCli = document.getElementById('dre-cliente');
   const dreMar = document.getElementById('dre-margem');
+  const dreEnt = document.getElementById('dre-entrega');
   if (!dreCli || !dreMar) return;
   dreCli.innerHTML = '<div class="muted" style="font-size:12px;margin-top:8px">calculando…</div>';
   dreMar.innerHTML = '<div class="muted" style="font-size:12px;margin-top:8px">calculando…</div>';
+  if (dreEnt) dreEnt.innerHTML = '<div class="muted" style="font-size:12px;margin-top:8px">calculando…</div>';
   const s = await simularAsync('novo', valor, meses, projetoId);
   if (s.erro) {
     const av = `<div class="aviso" style="background:#fee;color:#800;padding:10px;border-radius:6px;font-size:12.5px;margin-top:8px">${esc(s.erro)}</div>`;
-    dreCli.innerHTML = av; dreMar.innerHTML = ''; return;
+    dreCli.innerHTML = av; dreMar.innerHTML = ''; if (dreEnt) dreEnt.innerHTML=''; return;
   }
   dreCli.innerHTML = dreClienteHtml(s);
   dreMar.innerHTML = dreMargemHtml(s);
+  if (dreEnt) dreEnt.innerHTML = await entregaPrevistaHtml(s);
 }
 
 // ═══ DRE do CLIENTE ═══════════════════════════════════════════════
@@ -3465,6 +3493,51 @@ function dreMargemHtml(s) {
       </tr>
     </table>
     <div class="muted" style="font-size:10.5px;margin-top:8px;font-family:var(--mono);letter-spacing:.02em">Tudo o que sai do caixa entra na conta. Gestão/avaliação/setups não têm custo externo · são serviço próprio.</div>`;
+}
+
+// ═══ Expectativa de entrega · estimativa (não garantia) ══════════
+// Usa CPM/CTR/conversão configuráveis em va_precos_versao_config.
+async function entregaPrevistaHtml(s) {
+  const brl = v => 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+  const num = v => Number(v||0).toLocaleString('pt-BR');
+  const impPct = Number(s.percent_impulsionamento||0);
+  const leadPct = Number(s.percent_lead||0);
+  const impVal = s.sobra_operacional * (impPct/100);
+  const leadVal = s.sobra_operacional * (leadPct/100);
+  // Carrega config da versão ativa (defaults se falhar)
+  let cpm = 25, ctr = 1.5, conv = 12, interesse = 15;
+  try {
+    const { data } = await sb.from('va_precos_versao_config').select('cpm_estimado,ctr_estimado_pct,taxa_conversa_pct,taxa_interesse_real_pct,versao_id').eq('versao_id', s.entrada?.versao_id || '').maybeSingle();
+    if (data) { cpm = Number(data.cpm_estimado)||cpm; ctr = Number(data.ctr_estimado_pct)||ctr; conv = Number(data.taxa_conversa_pct)||conv; interesse = Number(data.taxa_interesse_real_pct)||interesse; }
+  } catch {}
+  // Prospecção · leads/disparos
+  const leads = Math.floor((s.projecao_leads||0));
+  const disparos = Math.floor((s.projecao_disparos||0));
+  // Mídia · impressões e cliques
+  const impressoes = impVal > 0 ? Math.round((impVal / cpm) * 1000) : 0;
+  const cliques = Math.round(impressoes * ctr/100);
+  // Conversas · % dos disparos + % dos cliques
+  const convProsp = Math.round(disparos * conv/100);
+  const convMidia = Math.round(cliques * conv/100);
+  const convTotal = convProsp + convMidia;
+  const interesseReal = Math.round(convTotal * interesse/100);
+
+  return `
+    <table style="width:100%;margin-top:10px;border-collapse:collapse;font-size:12.5px">
+      <tr><td colspan="2" style="padding:6px 0;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600">Prospecção ativa</td></tr>
+      <tr><td style="padding:3px 0">Empresas identificadas + enriquecidas</td><td class="mono" style="text-align:right;padding:3px 0"><b>${num(leads)}</b></td></tr>
+      <tr><td style="padding:3px 0">Abordagens WhatsApp</td><td class="mono" style="text-align:right;padding:3px 0"><b>${num(disparos)}</b></td></tr>
+      <tr><td colspan="2" style="padding:8px 0 6px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600;border-top:1px solid var(--line);margin-top:6px">Mídia paga</td></tr>
+      <tr><td style="padding:3px 0">Investimento</td><td class="mono" style="text-align:right;padding:3px 0"><b>${brl(impVal)}</b></td></tr>
+      <tr><td style="padding:3px 0">Impressões estimadas <span class="muted" style="font-size:10px">CPM ${brl(cpm)}</span></td><td class="mono" style="text-align:right;padding:3px 0">~${num(impressoes)}</td></tr>
+      <tr><td style="padding:3px 0">Cliques estimados <span class="muted" style="font-size:10px">CTR ${ctr}%</span></td><td class="mono" style="text-align:right;padding:3px 0">~${num(cliques)}</td></tr>
+      <tr><td colspan="2" style="padding:8px 0 6px;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600;border-top:1px solid var(--line);margin-top:6px">Conversas estimadas</td></tr>
+      <tr><td style="padding:3px 0">Conversas iniciadas <span class="muted" style="font-size:10px">${conv}% dos tocados</span></td><td class="mono" style="text-align:right;padding:3px 0">~${num(convTotal)}</td></tr>
+      <tr><td style="padding:3px 0;color:#0a7d3d;font-weight:600">Com interesse real <span class="muted" style="font-size:10px;color:var(--ink-3);font-weight:400">${interesse}% delas</span></td><td class="mono" style="text-align:right;padding:3px 0;color:#0a7d3d;font-weight:700">~${num(interesseReal)}</td></tr>
+    </table>
+    <div style="margin-top:10px;padding:8px 10px;background:#fff5e6;border:1px solid #f0c040;border-radius:6px;font-size:10.5px;color:#8a5a00">
+      <b>Estimativa baseada em parâmetros médios.</b> Volume real depende do setor, da oferta disponível na região e da conversão do funil. Não constitui garantia contratual.
+    </div>`;
 }
 
 // ═══ Comissão projetada · fórmula com conta aberta ═══════════════
