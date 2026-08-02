@@ -1,7 +1,9 @@
-// /api/va-gerar-teaser · MANDATO · Zona ATIVO · Vercel Function.
-// Gera teaser CEGO em markdown. Valida contra identificadores conhecidos
-// do projeto (razão social, sócios, CNPJ) e rejeita+regenera se vazar.
-// Insere como rascunho em va_projeto_teaser.
+// /api/va-gerar-teaser · MANDATO · Zona ATIVO
+// Gera teaser CEGO em markdown. Servidor pré-processa TUDO em faixas
+// (fat, EBITDA, funcionários, região, idade) e calcula toda aritmética
+// (múltiplos, margem). Prompt proíbe modelo de derivar números — só
+// reproduzir. Valida saída: rejeita cidade exata, valores exatos e
+// múltiplos/percentuais que não batem com os fatos injetados.
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_ANON = process.env.SUPABASE_ANON_KEY;
@@ -34,64 +36,223 @@ async function chamarSonnet(prompt, maxTokens = 2000) {
   return d?.content?.[0]?.text || '';
 }
 
-function detectarIdentificacao(texto, proibidos) {
+// ═══ SIGILO POR FAIXAS ═══════════════════════════════════════════════
+// Regra: banda em torno do valor com granularidade ~10-15%.
+// Fat/EBITDA em milhões: step 1M; abaixo de 1M: step 100k. Idade: dezenas.
+// Funcionários: banda de 10.
+function faixaMonetaria(v) {
+  if (v == null || v <= 0) return '—';
+  const n = Number(v);
+  if (n >= 1_000_000) {
+    const lo = Math.floor(n / 1_000_000);
+    const hi = Math.ceil(n / 1_000_000);
+    return lo === hi ? `R$ ${lo}–${lo + 1}M` : `R$ ${lo}–${hi}M`;
+  }
+  if (n >= 100_000) {
+    const lo = Math.floor(n / 100_000) * 100;
+    const hi = lo + 100;
+    return `R$ ${lo}–${hi}k`;
+  }
+  const lo = Math.floor(n / 10_000) * 10;
+  return `R$ ${lo}–${lo + 10}k`;
+}
+function faixaFuncionarios(n) {
+  if (n == null || n <= 0) return '—';
+  const v = Number(n);
+  if (v < 10) return `<10`;
+  const lo = Math.floor(v / 10) * 10;
+  return `${lo}–${lo + 10}`;
+}
+function faixaIdade(anos) {
+  if (anos == null || anos <= 0) return '—';
+  const v = Math.floor(Number(anos) / 10) * 10;
+  return `${v}+ anos`;
+}
+// Mapeamento simples de cidade → região. Sem cair na cidade exata.
+// Tabela: capital das principais UFs + mesorregiões conhecidas.
+// Fallback: "interior de {UF}".
+const REGIOES = {
+  // capitais e regiões metropolitanas
+  'florianopolis-sc': 'Grande Florianópolis',
+  'joinville-sc': 'norte de SC',
+  'blumenau-sc': 'Vale do Itajaí',
+  'chapeco-sc': 'oeste de SC',
+  'sao paulo-sp': 'capital paulista',
+  'campinas-sp': 'região de Campinas',
+  'rio de janeiro-rj': 'Grande Rio',
+  'belo horizonte-mg': 'Grande BH',
+  'porto alegre-rs': 'Grande Porto Alegre',
+  'caxias do sul-rs': 'serra gaúcha',
+  'santa cruz do sul-rs': 'Vale do Rio Pardo',
+  'lajeado-rs': 'Vale do Taquari',
+  'teutonia-rs': 'Vale do Taquari',
+  'estrela-rs': 'Vale do Taquari',
+  'canoas-rs': 'Grande Porto Alegre',
+  'curitiba-pr': 'Grande Curitiba',
+  'salvador-ba': 'Grande Salvador',
+  'recife-pe': 'Grande Recife',
+  'fortaleza-ce': 'Grande Fortaleza',
+  'brasilia-df': 'Distrito Federal',
+  'goiania-go': 'Grande Goiânia',
+};
+function normSemAcento(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+function derivarRegiao(cidade, uf) {
+  const ufSafe = (uf || '').toUpperCase();
+  if (!cidade) return ufSafe ? `interior de ${ufSafe}` : '—';
+  const key = `${normSemAcento(cidade)}-${ufSafe.toLowerCase()}`;
+  return REGIOES[key] || (ufSafe ? `interior de ${ufSafe}` : '—');
+}
+
+// ═══ ARITMÉTICA EM CÓDIGO ═══════════════════════════════════════════
+// Calcula múltiplos e margem. Retorna string BR já formatada + o número
+// pra validação posterior. NULL se não puder calcular com precisão.
+function fmtMult(x) { return x == null ? null : x.toFixed(2).replace('.', ',') + '×'; }
+function fmtPct(x) { return x == null ? null : x.toFixed(1).replace('.', ',') + '%'; }
+function calcularAritmetica(fat, ebitda, valorVenda) {
+  const out = { multiplo_fat: null, multiplo_ebitda: null, margem_ebitda: null,
+                multiplo_fat_str: null, multiplo_ebitda_str: null, margem_ebitda_str: null };
+  const _fat = Number(fat) || 0;
+  const _ebitda = Number(ebitda) || 0;
+  const _vv = Number(valorVenda) || 0;
+  if (_fat > 0 && _ebitda > 0) {
+    out.margem_ebitda = (_ebitda / _fat) * 100;
+    out.margem_ebitda_str = fmtPct(out.margem_ebitda);
+  }
+  if (_vv > 0 && _fat > 0) {
+    out.multiplo_fat = _vv / _fat;
+    out.multiplo_fat_str = fmtMult(out.multiplo_fat);
+  }
+  if (_vv > 0 && _ebitda > 0) {
+    out.multiplo_ebitda = _vv / _ebitda;
+    out.multiplo_ebitda_str = fmtMult(out.multiplo_ebitda);
+  }
+  return out;
+}
+
+// ═══ VALIDAÇÃO ANTI-VAZAMENTO E ANTI-INVENÇÃO ═════════════════════════
+// 1) Cidade exata do projeto (case + acento insensitive, boundary word)
+// 2) Valores exatos do laudo (fat, ebitda, valor_venda) em qualquer
+//    formato reconhecível (com ou sem R$, com separador . ou vírgula)
+// 3) Nomes/CNPJ (já existia)
+// 4) Múltiplos "N,Nx" ou percentuais "N,N%" devem estar entre os
+//    permitidos (tolerância 0,15)
+function detectarVazamento(texto, proibidosDiretos, cidadeExata, valoresExatos) {
   const found = [];
-  const t = texto.toLowerCase();
-  for (const p of proibidos) {
+  const tLower = texto.toLowerCase();
+
+  for (const p of proibidosDiretos) {
     if (!p) continue;
     const norm = String(p).trim().toLowerCase();
     if (norm.length < 4) continue;
-    if (t.includes(norm)) found.push(p);
+    if (tLower.includes(norm)) found.push(`nome/id proibido: "${p}"`);
   }
+  // Cidade exata (sem acento, boundary)
+  if (cidadeExata) {
+    const cNorm = normSemAcento(cidadeExata);
+    const tNorm = normSemAcento(texto);
+    const re = new RegExp('\\b' + cNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+    if (re.test(tNorm)) found.push(`cidade exata: "${cidadeExata}"`);
+  }
+  // Valores exatos (>= 4 dígitos significativos)
+  for (const raw of valoresExatos) {
+    if (!raw || raw < 10000) continue;
+    const n = Math.round(raw);
+    // formas: 7.716.000 · 7716000 · 7.716 (milhares) · 7716k · 7,7M
+    const compact = String(n);
+    if (compact.length >= 5 && texto.includes(compact)) found.push(`valor exato: ${compact}`);
+    // formato BR com pontos: 7.716.000
+    const brFmt = n.toLocaleString('pt-BR');
+    if (brFmt !== compact && texto.includes(brFmt)) found.push(`valor exato BR: ${brFmt}`);
+  }
+  // CNPJ formatado
   if (/\b\d{2}[.\s]?\d{3}[.\s]?\d{3}[/\s]?\d{4}[-\s]?\d{2}\b/.test(texto)) found.push('CNPJ formatado');
   return found;
 }
+function detectarAritmeticaInvalida(texto, permitidos) {
+  // Extrai "N,N×" e "N,N%" e checa contra permitidos com tolerância 0.15
+  const problemas = [];
+  const permMult = permitidos.filter((x) => x.tipo === 'mult').map((x) => x.valor);
+  const permPct = permitidos.filter((x) => x.tipo === 'pct').map((x) => x.valor);
+  const reMult = /(\d+(?:[,.]\d+)?)\s*[xX×]/g;
+  const rePct = /(\d+(?:[,.]\d+)?)\s*%/g;
+  let m;
+  while ((m = reMult.exec(texto)) !== null) {
+    const v = parseFloat(m[1].replace(',', '.'));
+    if (!isFinite(v)) continue;
+    if (permMult.length === 0) { problemas.push(`múltiplo "${m[0]}" sem valor permitido`); continue; }
+    const ok = permMult.some((p) => Math.abs(v - p) <= 0.15);
+    if (!ok) problemas.push(`múltiplo "${m[0]}" fora da tolerância (permitidos: ${permMult.map((p) => p.toFixed(2)).join(', ')})`);
+  }
+  while ((m = rePct.exec(texto)) !== null) {
+    const v = parseFloat(m[1].replace(',', '.'));
+    if (!isFinite(v)) continue;
+    if (permPct.length === 0) { problemas.push(`percentual "${m[0]}" sem valor permitido`); continue; }
+    const ok = permPct.some((p) => Math.abs(v - p) <= 0.5);
+    if (!ok) problemas.push(`percentual "${m[0]}" fora da tolerância (permitidos: ${permPct.map((p) => p.toFixed(1)+'%').join(', ')})`);
+  }
+  return problemas;
+}
 
-function promptTeaser(cj, valorVenda, arqAprovados, corrigir) {
-  const val = cj.valuation || {}, op = cj.operacional || {}, idn = cj.identificacao || {}, dre = cj.dre || {};
-  const brl = (n) => 'R$ ' + Number(n || 0).toLocaleString('pt-BR');
+// ═══ PROMPT ═══════════════════════════════════════════════════════════
+function promptTeaser(fatos, arqAprovados, corrigir) {
   const arqBlock = arqAprovados.length
     ? '\nARQUÉTIPOS APROVADOS (calibre o ângulo pra estes perfis):\n' +
-      arqAprovados.map((a) => `- ${a.nome}: ${a.tese}`).join('\n') : '';
-  const vv = valorVenda ? brl(valorVenda) : 'faixa a discutir';
-  const cor = corrigir ? '\nCORREÇÃO · a última tentativa incluiu identificadores proibidos: ' + corrigir + '\nRefaça mantendo estritamente o sigilo cego.' : '';
+      arqAprovados.map((a) => `- ${a.nome}: ${a.tese}`).join('\n')
+    : '';
+  const cor = corrigir ? '\nCORREÇÃO · a última tentativa violou uma regra: ' + corrigir + '\nRefaça respeitando estritamente o sigilo e a aritmética.' : '';
+  const bMult = [];
+  if (fatos.multiplo_fat_str) bMult.push(`${fatos.multiplo_fat_str} sobre faturamento`);
+  if (fatos.multiplo_ebitda_str) bMult.push(`${fatos.multiplo_ebitda_str} sobre EBITDA`);
+  const multStr = bMult.length ? bMult.join(' · ') : '(sem valor de venda definido pra calcular)';
+
   return `Escreva um teaser CEGO em markdown pra apresentar este negócio a compradores potenciais SEM revelar identidade.
 
-DADOS (só pra orientar o texto — NÃO reproduzir literalmente):
-- Setor: ${idn.setor?.label || '—'}
-- Cidade/UF: ${idn.localizacao?.cidade || '—'} / ${idn.localizacao?.estado || '—'}
-- Tempo de operação: ${idn.tempo_operacao_anos || '—'} anos
-- Faturamento anual: ${brl(op.fat_anual)}
-- EBITDA anual: ${brl(val.ro_anual)}
-- Margem operacional: ${dre.margem_op_pct != null ? dre.margem_op_pct + '%' : '—'}
-- Funcionários: ${op.num_funcionarios || '—'}
-- Concentração de clientes: ${op.concentracao_status || '—'}
-- Valor de venda: ${vv}${arqBlock}
+FATOS DO NEGÓCIO (use apenas isto · faixas já pré-calculadas):
+- Setor: ${fatos.setor}
+- Região: ${fatos.regiao}
+- Idade do negócio: ${fatos.idade_faixa}
+- Faturamento anual: ${fatos.fat_faixa}
+- EBITDA anual: ${fatos.ebitda_faixa}
+- Margem EBITDA: ${fatos.margem_ebitda_str || '(não calculável)'}
+- Funcionários: ${fatos.func_faixa}
+- Concentração de clientes: ${fatos.concentracao}
+- Valor de venda indicativo: ${fatos.valor_venda_faixa}
+- Múltiplos (já calculados): ${multStr}${arqBlock}
 
-REGRAS DE SIGILO (absolutas):
-- NUNCA escreva: razão social, nome fantasia, nome de sócio, CNPJ, endereço específico, marca, domínio.
-- Cidade + UF: OK. Bairro: NÃO.
-- Números REAIS podem aparecer (faturamento, EBITDA, margem) — são o valor do teaser.
+REGRAS DE SIGILO (absolutas · qualquer violação → rejeição):
+- NUNCA escrever: razão social, nome fantasia, nome de sócio, CNPJ, endereço, marca, domínio.
+- NUNCA escrever cidade exata do negócio. Usar SOMENTE a "Região" acima (${fatos.regiao}).
+- NUNCA usar valores exatos (ex.: R$ 7.716.000). Usar SOMENTE as faixas acima (ex.: ${fatos.fat_faixa}).
+- A precisão vem pós-NDA. Aqui é banda deliberada.
+
+REGRAS DE ARITMÉTICA (absolutas):
+- PROIBIDO calcular, derivar ou estimar qualquer número novo. Múltiplos e margem já vieram prontos.
+- Se citar múltiplo, use exatamente: ${bMult.join(' ou ') || '(nenhum · não cite múltiplos)'}.
+- Se citar margem, use exatamente: ${fatos.margem_ebitda_str || '(não calculável · não cite margem)'}.
+- Não invente "×2", "cresce X%", "próximo de N". Só o que veio nos FATOS.
 
 ESTRUTURA (markdown · sem H1):
 ## Resumo
-1-2 linhas · setor, região, tempo, tese.
+1-2 linhas · setor, região, idade, tese.
 
 ## Números
-Bullets · faturamento anual, EBITDA anual, margem, funcionários, concentração de clientes.
+Bullets · faturamento (faixa), EBITDA (faixa), margem, funcionários (faixa), concentração de clientes.
 
 ## Diferenciais operacionais
-2-4 bullets.
+2-4 bullets ancorados nos FATOS.
 
 ## Perfil de comprador que faz sentido
 1-3 linhas · ancorar nos arquétipos se houver.
 
 ## Ticket
-1 linha · valor de venda ou faixa.
+1 linha · usar a faixa de valor de venda e os múltiplos exatos acima.
 
 FORMATO: SÓ o markdown, sem preâmbulo, sem cerca de código.${cor}`;
 }
 
+// ═══ HANDLER ═══════════════════════════════════════════════════════════
 module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') return res.status(204).end();
@@ -121,9 +282,34 @@ module.exports = async (req, res) => {
   const arqR = await fetch(`${SB_URL}/rest/v1/va_arquetipos?projeto_id=eq.${projeto_id}&status=eq.aprovado&select=nome,tese`, { headers: H });
   const arqs = await arqR.json();
 
-  // Enriquece proibidos com dados de va_empresas (se houver)
+  // ── EXTRAI DADOS-FONTE ────────────────────────────────────────────
+  const val = calc.valuation || {}, op = calc.operacional || {}, idn = calc.identificacao || {}, dre = calc.dre || {};
+  const cidade = idn.localizacao?.cidade || null;
+  const uf = idn.localizacao?.estado || null;
+  const fat = Number(op.fat_anual) || 0;
+  const ebitda = Number(val.ro_anual) || 0;
+  const valorVenda = p.valor_venda ? Number(p.valor_venda) : (Number(val.valor_venda) || 0);
+  const anos = idn.tempo_operacao_anos || 0;
+  const funcionarios = op.num_funcionarios || 0;
+
+  const arit = calcularAritmetica(fat, ebitda, valorVenda);
+  const fatos = {
+    setor: idn.setor?.label || '—',
+    regiao: derivarRegiao(cidade, uf),
+    idade_faixa: faixaIdade(anos),
+    fat_faixa: faixaMonetaria(fat),
+    ebitda_faixa: faixaMonetaria(ebitda),
+    margem_ebitda_str: arit.margem_ebitda_str,
+    func_faixa: faixaFuncionarios(funcionarios),
+    concentracao: op.concentracao_status || '—',
+    valor_venda_faixa: valorVenda > 0 ? faixaMonetaria(valorVenda) : 'faixa a discutir',
+    multiplo_fat_str: arit.multiplo_fat_str,
+    multiplo_ebitda_str: arit.multiplo_ebitda_str,
+  };
+
+  // Nomes/id proibidos (enriquecidos com va_empresas)
   const proibidos = [
-    p.cliente_nome, p.negocio_titulo, calc.identificacao?.nome, calc.identificacao?.razao_social, p.cnpj,
+    p.cliente_nome, p.negocio_titulo, idn.nome, idn.razao_social, p.cnpj,
   ].filter(Boolean);
   if (p.cnpj) {
     const eR = await fetch(`${SB_URL}/rest/v1/va_empresas?cnpj=eq.${p.cnpj}&select=razao_social,nome_fantasia,socios`, { headers: H });
@@ -136,15 +322,26 @@ module.exports = async (req, res) => {
       }
     }
   }
+  const valoresExatos = [fat, ebitda, valorVenda].filter((v) => v > 0);
+  const permitidosArit = [
+    ...(arit.multiplo_fat != null ? [{ tipo: 'mult', valor: arit.multiplo_fat }] : []),
+    ...(arit.multiplo_ebitda != null ? [{ tipo: 'mult', valor: arit.multiplo_ebitda }] : []),
+    ...(arit.margem_ebitda != null ? [{ tipo: 'pct', valor: arit.margem_ebitda }] : []),
+  ];
 
   let corrigir = null, texto = '';
   for (let t = 0; t < 2; t++) {
     try {
-      const raw = await chamarSonnet(promptTeaser(calc, p.valor_venda ? Number(p.valor_venda) : null, arqs, corrigir));
+      const raw = await chamarSonnet(promptTeaser(fatos, arqs, corrigir));
       texto = raw.trim().replace(/^```(?:markdown|md)?\s*/i, '').replace(/```$/i, '').trim();
       if (texto.length < 300) { corrigir = 'teaser curto demais'; continue; }
-      const vazamento = detectarIdentificacao(texto, proibidos);
-      if (vazamento.length) { corrigir = vazamento.join(', '); continue; }
+
+      const vazamento = detectarVazamento(texto, proibidos, cidade, valoresExatos);
+      const aritmProblemas = detectarAritmeticaInvalida(texto, permitidosArit);
+      if (vazamento.length || aritmProblemas.length) {
+        corrigir = [...vazamento, ...aritmProblemas].join(' · ');
+        continue;
+      }
 
       // próxima versão
       const uR = await fetch(`${SB_URL}/rest/v1/va_projeto_teaser?projeto_id=eq.${projeto_id}&select=versao&order=versao.desc&limit=1`, { headers: H });
@@ -159,10 +356,10 @@ module.exports = async (req, res) => {
       });
       const inseridos = await insR.json();
       if (!insR.ok) return json(res, 500, { ok: false, erro: 'insert: ' + JSON.stringify(inseridos).slice(0, 300) });
-      return json(res, 200, { ok: true, teaser: inseridos[0] || inseridos, tentativas: t + 1 });
+      return json(res, 200, { ok: true, teaser: inseridos[0] || inseridos, tentativas: t + 1, fatos_usados: fatos });
     } catch (e) {
       return json(res, 502, { ok: false, erro: 'anthropic_fail', detalhe: String(e.message).slice(0, 300) });
     }
   }
-  return json(res, 502, { ok: false, erro: 'vazamento_identidade_persistente', proibidos_detectados: corrigir });
+  return json(res, 502, { ok: false, erro: 'violacao_persistente', detalhe: corrigir });
 };
