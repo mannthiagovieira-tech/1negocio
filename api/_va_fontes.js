@@ -191,20 +191,34 @@ const STOPLIST_LABEL_DESTILADO = new Set([
 ]);
 function extrairTermosProibidos(fontes) {
   const proibidos = new Set();
+  const add = (raw) => {
+    const cand = String(raw || '').trim();
+    if (!cand) return;
+    if (STOPLIST_LABEL_DESTILADO.has(cand)) return;
+    if (STOPLIST_GEO.has(cand)) return;
+    if (/^\s+[A-Z]{2}\s+$/.test(cand)) return;
+    if (cand.length >= 4 && cand.length <= 60) proibidos.add(cand);
+  };
   for (const f of fontes) {
     const textos = [f.conteudo_destilado || '', f.conteudo || ''];
     for (const txt of textos) {
       if (!txt) continue;
-      const reNomes = /\b([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+(?:\s+(?:d[aeoi]s?|d[oa]s?|von|van|del|la|el|y)?\s*[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+){1,3})\b/g;
+      // 1) Palavras isoladas em **negrito** no destilado (ex.: **Quimibras**,
+      //    **Natura**). O destilador tende a marcar entidades relevantes.
+      const reBoldSingle = /\*\*([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][A-Za-zÀ-ÿ]{3,30})\*\*/g;
       let m;
+      while ((m = reBoldSingle.exec(txt)) !== null) add(m[1]);
+      // 2) Nomes próprios de 2-4 palavras (heurística original)
+      const reNomes = /\b([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+(?:\s+(?:d[aeoi]s?|d[oa]s?|von|van|del|la|el|y)?\s*[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+){1,3})\b/g;
       while ((m = reNomes.exec(txt)) !== null) {
         const cand = m[1].trim();
-        if (STOPLIST_LABEL_DESTILADO.has(cand)) continue;
-        if (STOPLIST_GEO.has(cand)) continue;
-        // Também ignora se termina com "SC", "RS" etc (ex.: "Bella Luna RS" — provavelmente cidade+UF)
-        if (/\s+[A-Z]{2}$/.test(cand)) continue;
-        if (cand.length >= 8 && cand.length <= 60) proibidos.add(cand);
+        if (cand.length >= 8) add(cand);
       }
+      // 3) Nomes/marcas após pistas explícitas ("concorrente X", "empresa X",
+      //    "cliente X", "fornecedor X", "blacklist: X"). Pega palavra única.
+      const rePistas = /\b(?:concorrente|empresa|cliente|fornecedor|marca|blacklist(?:\s*absoluta)?:?)\s+([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][A-Za-zÀ-ÿ]{3,30})\b/gi;
+      while ((m = rePistas.exec(txt)) !== null) add(m[1]);
+      // 4) CNPJ
       const reCnpj = /\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/g;
       while ((m = reCnpj.exec(txt)) !== null) proibidos.add(m[0]);
     }
