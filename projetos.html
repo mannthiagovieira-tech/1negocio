@@ -1198,7 +1198,7 @@ function renderNovo(){
 
 // ─── VIEW: PROJETO ────────────────────────────────────────────────
 let _pj = null; // { projeto, etapas, kickoff }
-let _abaChave = 'gestao_contrato'; // primeira aba padrão no menu "mais" (kickoff deprecado)
+let _abaChave = 'avaliacao'; // primeira etapa da trilha SETUP
 
 async function renderProjeto(id){
   app.innerHTML = `<div class="empty"><h2>Carregando projeto…</h2></div>`;
@@ -1355,7 +1355,68 @@ async function checarAutoConclusao(chave){
 }
 
 function desenhaProjeto(){
-  return desenhaProjetoLinear();
+  // TRILHA LATERAL + ABAS · versão restaurada · desenhaProjetoLinear
+  // (6 blocos empilhados) fica disponível como função separada mas
+  // não é usada no fluxo principal.
+  const p = _pj.projeto;
+  const et = _pj.etapas;
+  const arqCount = (_pj.arqProj || []).length;
+  const leadsCount = (_pj.prospBruta || []).length;
+  const pecasCount = (_pj.criativos || []).length;
+  const parcCount = (_pj.parcMatch || []).length;
+  const chip = (n, singular, plural) => `<span class="mono" style="font-size:11px;color:${n>0?'#0a7d3d':'var(--ink-3)'}">${n} ${n===1?singular:plural}</span>`;
+  app.innerHTML = `
+    ${bannerOndaEstado()}
+    <div style="margin-bottom:22px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">
+      <div>
+        <a onclick="rota('#/')" style="font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer">← voltar para projetos</a>
+        <h1 class="h1" style="margin-top:10px">${esc(p.cliente_nome)}</h1>
+        <p class="muted" style="margin-top:6px">${esc(p.negocio_titulo || p.setor || 'Negócio sem título')}${p.cidade ? ' · ' + esc(p.cidade) : ''} · <span class="mono" style="font-size:12px">${p.cliente_whatsapp||''}</span></p>
+      </div>
+      <div style="text-align:right">
+        <span class="badge ${esc(p.status)}">${esc(p.status)}</span>
+        <div class="mono" style="margin-top:8px;font-size:11px;color:var(--ink-3);letter-spacing:.05em">Início ${dataBR(p.data_inicio)} · fim onda ${dataBR(p.fim_da_onda)}</div>
+        <div id="hd-precos-versao" class="mono" style="margin-top:4px;font-size:10px;color:var(--ink-3);letter-spacing:.05em"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:18px;padding:14px 16px">
+      <div class="lbl" style="margin-bottom:10px">Operar agora</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
+        <button class="btn btn-ghost" style="justify-content:flex-start;text-align:left;padding:10px 12px;height:auto;line-height:1.4" onclick="trocarAba('arquetipos')">
+          <div style="display:block"><b>Definir arquétipos</b><br>${chip(arqCount, 'arquétipo definido', 'arquétipos definidos')}</div>
+        </button>
+        <button class="btn btn-ghost" style="justify-content:flex-start;text-align:left;padding:10px 12px;height:auto;line-height:1.4" onclick="trocarAba('gestao_kanban')">
+          <div style="display:block"><b>Gerar leads</b><br>${chip(leadsCount, 'lead na base', 'leads na base')}</div>
+        </button>
+        <button class="btn btn-ghost" style="justify-content:flex-start;text-align:left;padding:10px 12px;height:auto;line-height:1.4" onclick="trocarAba('gestao_campanhas')">
+          <div style="display:block"><b>Criar peças</b><br>${chip(pecasCount, 'peça criada', 'peças criadas')}</div>
+        </button>
+        <button class="btn btn-ghost" style="justify-content:flex-start;text-align:left;padding:10px 12px;height:auto;line-height:1.4" onclick="trocarAba('gestao_atendimento')">
+          <div style="display:block"><b>Ativar parceiros</b><br>${chip(parcCount, 'parceiro com o negócio', 'parceiros com o negócio')}</div>
+        </button>
+      </div>
+    </div>
+    <div class="proj-layout">
+      <aside class="trail ${_pj.trailAberto?'aberto':''}" id="trail">
+        <div class="trail-title">
+          <span>Progresso · <strong style="color:var(--accent-2)">${p.etapas_ok}/${p.etapas_total}</strong></span>
+          <button class="trail-toggle" onclick="toggleTrail()" title="ver todas as etapas">
+            <span>${esc(etapaAtualTitulo())}</span><span class="chev">▾</span>
+          </button>
+        </div>
+        <div class="trail-body">
+          <div class="trail-grupo">setup</div>
+          <div class="steps">${et.map(desenhaStep).join('')}</div>
+          <div class="trail-sep">
+            <div class="trail-grupo">gestão</div>
+            <div class="steps">${GESTAO_ITENS.map(desenhaStepGestao).join('')}</div>
+          </div>
+        </div>
+      </aside>
+      <section class="stage" id="stage"></section>
+    </div>`;
+  desenhaAba();
+  carregarChipPrecosVersao(p.precos_versao_id);
 }
 function desenhaProjetoLinear(){
   const p = _pj.projeto;
@@ -1934,16 +1995,12 @@ window.avaliacaoRevincular = async function(){
 };
 
 function htmlKickoff(e){
-  // Depreciado · substituído pelo Bloco 1 · Avaliação da tela principal.
-  // Mantido pra compat de rota do menu "mais" (não deleta dados existentes).
-  return `<div class="stage-head">
-    <div><div class="meta">deprecado</div><h2>Kickoff</h2>
-    <div class="muted" style="margin-top:6px;font-size:13.5px">Esta etapa foi substituída pelo <b>Bloco 1 · Avaliação</b> na tela principal do projeto. As "três perguntas" e "história do negócio" saíram do fluxo — o operador não preenche isso durante a reunião real.</div>
-    <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="fecharMenuMais()">← voltar pra tela principal</button>
-    </div>
-  </div>`;
+  // Depreciado · a chave da etapa passou a ser 'avaliacao'. Se por algum motivo
+  // a chave antiga 'kickoff' aparecer (dados legados fora do banco atual),
+  // redireciona pra tela de avaliação.
+  return htmlAvaliacao({ ...e, chave: 'avaliacao' });
 }
-function vincularKickoff(){ /* noop · deprecado */ }
+function vincularKickoff(){ vincularAvaliacao(); }
 function _htmlKickoff_legado_desativado(e){
   const k = _pj.kickoff;
   const itens = k.itens || {};
