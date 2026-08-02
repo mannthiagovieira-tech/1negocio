@@ -42,14 +42,28 @@ export async function requireAdmin() {
   return session;
 }
 
-// Re-emissão espúria (visibilitychange, refresh) — só recarrega em mudança real de user.id
+// Reage APENAS a mudanças reais de autenticação. Bugs evitados:
+//
+//   1) Race INITIAL_SESSION vs getSession(): o SDK dispara INITIAL_SESSION
+//      sincronamente ao subscrever, ANTES de qualquer getSession().then()
+//      resolver. Se _lastUserId ainda for null nesse instante e o usuário
+//      já estiver logado, `id !== null` → reload → mesma corrida → loop.
+//      Fix: aguardar getSession() ANTES de subscrever.
+//
+//   2) Eventos que não são "mudança de auth" pro nosso propósito
+//      (TOKEN_REFRESHED, USER_UPDATED com mesmo uid, INITIAL_SESSION,
+//      PASSWORD_RECOVERY). Fix: whitelist explícita de eventos e comparação
+//      de user.id.
 let _lastUserId = null;
-export function watchAuth(onChange) {
-  _lastUserId = null;
-  sb.auth.getSession().then(({ data }) => { _lastUserId = data.session?.user?.id || null; });
-  sb.auth.onAuthStateChange((_evt, s) => {
+export async function watchAuth(onChange) {
+  const { data } = await sb.auth.getSession();
+  _lastUserId = data.session?.user?.id || null;
+  sb.auth.onAuthStateChange((evt, s) => {
+    if (evt !== 'SIGNED_IN' && evt !== 'SIGNED_OUT') return;
     const id = s?.user?.id || null;
-    if (id !== _lastUserId) { _lastUserId = id; onChange?.(s); }
+    if (id === _lastUserId) return;
+    _lastUserId = id;
+    onChange?.(s);
   });
 }
 
