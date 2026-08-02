@@ -29,14 +29,11 @@ async function login(page, email = EMAIL, pass = PASS) {
 }
 
 // Helper: espera o seletor de mandatos aparecer (renderizado depois do login,
-// via renderSelector que popula .selector__grid com cards)
+// via renderSelector que popula .selector__grid com cards).
+// IMPORTANTE: só espera .selector__card. Não considerar .muted:not(:empty)
+// como sinal de prontidão — ele casa com "Carregando…" antes dos cards existirem.
 async function esperarSeletor(page) {
-  await page.waitForSelector('.selector', { timeout: 10_000 });
-  // aguarda os cards carregarem do banco (não fica só "Carregando…")
-  await page.waitForFunction(
-    () => !!document.querySelector('.selector__card, .selector__grid .muted:not(:empty)'),
-    { timeout: 10_000 }
-  );
+  await page.waitForSelector('.selector__card', { timeout: 10_000 });
 }
 
 // Helper: reúne erros de console + pageerror pro critério 7
@@ -187,23 +184,21 @@ test.describe('MANDATO chassi · critérios de aceite', () => {
     ]);
     const mandatoId = new URL(page.url()).searchParams.get('mandato');
     await page.goto(`/mandato/maquina.html?mandato=${mandatoId}`);
-    await expect(page.locator('#mq-tabs')).toBeVisible({ timeout: 10_000 });
+    // Espera o MÓDULO ES sinalizar prontidão · #mq-tabs é HTML estático
+    // (existe antes do JS montar handlers). data-ready="true" é setado como
+    // última linha do inline module de maquina.html.
+    await page.waitForSelector('#mq-tabs[data-ready="true"]', { timeout: 10_000 });
 
     // Estado inicial: Captação
     await expect(page.locator('#mq-panel-captacao')).toBeVisible();
     await expect(page.locator('#mq-panel-funil')).toBeHidden();
     await expect(page.locator('#mq-tabs button[data-tab="captacao"][aria-current="true"]')).toBeVisible();
 
-    // Instala sensor de navegação (queremos garantir que NÃO recarrega)
-    let recarregou = false;
-    page.on('framenavigated', (f) => {
-      if (f === page.mainFrame() && f.url() !== 'about:blank') {
-        // qualquer navegação após montar conta como recarregar (ignora a inicial)
-        recarregou = true;
-      }
-    });
-    // reset sensor: ignora frame nav durante a carga inicial já processada
-    recarregou = false;
+    // Sensor de reload robusto: planta um marcador único no window da página
+    // atual. Se sobreviver aos cliques, não houve reload. hash changes via
+    // history.replaceState() NÃO limpam o window — só reload de página inteira.
+    const marker = 'e2e-no-reload-' + Date.now();
+    await page.evaluate((m) => { window.__e2eMarker = m; }, marker);
 
     // Clica Funil
     await page.locator('#mq-tabs button[data-tab="funil"]').click();
@@ -216,7 +211,9 @@ test.describe('MANDATO chassi · critérios de aceite', () => {
     await expect(page.locator('#mq-panel-captacao')).toBeVisible();
     await expect(page.locator('#mq-panel-funil')).toBeHidden();
 
-    expect(recarregou).toBe(false);
+    // Se houve reload, window.__e2eMarker foi apagado.
+    const markerAtual = await page.evaluate(() => window.__e2eMarker);
+    expect(markerAtual).toBe(marker);
     // ?mandato continua na URL
     expect(new URL(page.url()).searchParams.get('mandato')).toBe(mandatoId);
   });
