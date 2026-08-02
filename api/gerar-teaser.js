@@ -28,6 +28,7 @@ module.exports = async (req, res) => {
   if (!projeto_id) return json(res, 400, { ok:false, erro:'projeto_id obrigatório' });
 
   const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!SB_SERVICE) return json(res, 503, { ok:false, erro:'SUPABASE_SERVICE_ROLE_KEY ausente no Vercel' });
   const H = { apikey:SB_SERVICE, Authorization:'Bearer '+SB_SERVICE, 'Content-Type':'application/json' };
 
   const [projR, avalR, ctxR, arqR] = await Promise.all([

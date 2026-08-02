@@ -1180,7 +1180,7 @@ let _abaChave = 'onboarding'; // primeira etapa da trilha SETUP
 
 async function renderProjeto(id){
   app.innerHTML = `<div class="empty"><h2>Carregando projeto…</h2></div>`;
-  const [proj, etapas, kickoff, blk, arqCat, arqProj, anx, teas, fin, plano, razao, parcelas, precos, contatos, funil, canaisM, chatArqRow, prospBruta, fonteDesemp, ondas, pausas, aditivos, gateOnda, ndas, cartas, parcMatch, parcEnvios, parcIndic, revisoes, landing, modEtapas, zapiTels] = await Promise.all([
+  const [proj, etapas, kickoff, blk, arqCat, arqProj, anx, teas, fin, plano, razao, parcelas, precos, contatos, funil, canaisM, chatArqRow, prospBruta, fonteDesemp, ondas, pausas, aditivos, gateOnda, ndas, cartas, parcMatch, parcEnvios, parcIndic, revisoes, landing, modEtapas, zapiTels, msgTpls] = await Promise.all([
     sb.from('va_projetos_resumo').select('*').eq('id', id).maybeSingle(),
     sb.from('va_projeto_etapas').select('*').eq('projeto_id', id).order('ordem'),
     sb.from('va_projeto_kickoff').select('*').eq('projeto_id', id).maybeSingle(),
@@ -1213,6 +1213,7 @@ async function renderProjeto(id){
     sb.from('va_projeto_landing').select('*').eq('projeto_id', id).maybeSingle(),
     sb.from('va_modalidade_etapas').select('etapa_chave, ativa, observacao'),
     sb.from('va_zapi_telefones').select('*').eq('ativo', true),
+    sb.from('va_mensagens_template').select('*'),
   ]);
   if (proj.error || !proj.data) { renderErr(proj.error?.message || 'Projeto não encontrado'); return; }
   if (arqCat.data) window._catalogoArq = arqCat.data;
@@ -1264,6 +1265,7 @@ async function renderProjeto(id){
     landing: landing?.data || null,
     modEtapas: modEtapas?.data || [],
     zapiTels: zapiTels?.data || [],
+    msgTemplates: msgTpls?.data || [],
     listaOrdem: 'urgencia',
     listaFiltroStatus: 'todos',
     listaFiltroProposta: false,
@@ -1523,7 +1525,15 @@ window.salvarValorVendaDefinido = async function(){
   const j = document.getElementById('pj-vv-just').value.trim() || null;
   const { error } = await sb.from('va_projetos').update({ valor_venda: v, valor_venda_justificativa: j }).eq('id', _pj.projeto.id);
   if (error) { toast(error.message,'err'); return; }
-  toast('valor salvo','ok'); await renderProjeto(_pj.projeto.id);
+  // Auto-conclui etapa 'preco'
+  if (v && v > 0) {
+    const eP = (_pj.etapas||[]).find(x => x.chave==='preco');
+    if (eP && eP.status !== 'concluida') {
+      await sb.from('va_projeto_etapas').update({ status:'concluida', data_real: new Date().toISOString().slice(0,10) }).eq('id', eP.id);
+      toast('✓ valor salvo · etapa Preço concluída','ok');
+    } else { toast('valor salvo','ok'); }
+  } else { toast('valor salvo','ok'); }
+  await renderProjeto(_pj.projeto.id);
 };
 
 // ═══ CONTEXTO DO NEGÓCIO · reunião/arquivo/link ═════════════════════════
@@ -1763,6 +1773,7 @@ window.salvarTranscricao = async function(){
     });
     if (eIn) throw new Error('insert: '+eIn.message);
     toast('anexo salvo','ok'); fecharAnexarTr();
+    carregarAvaliacaoAnexos();
   } catch (e) {
     st.textContent = 'erro · '+String(e.message||e); st.style.color='#c00';
   }
@@ -2182,48 +2193,81 @@ function htmlEtapaGenerica(e){
 // Depois de enviado, projeto entra em AGUARDANDO CLIENTE até
 // primeira_reuniao_em (registrado manual ou quando cliente agendar).
 
-function _ondbMsgsDefault(p){
+// Templates ficam em va_mensagens_template · carregados em desenhaProjeto e
+// cacheados em _pj.msgTemplates. Fallback embarcado se banco não retornar.
+const _ONDB_FALLBACK = {
+  onboarding_portal: 'Oi {{primeiro_nome}}, aqui é do 1negocio. Bem-vindo(a) ao seu projeto de venda assessorada.\n\nSeu portal pra acompanhar o processo: {{link_portal}}\n\nUse seu WhatsApp para receber o código de acesso.',
+  onboarding_checklist: 'Pra nossa primeira reunião (a Avaliação), separa:\n\n• DRE ou faturamento dos últimos 12 meses\n• Extratos bancários dos últimos 3 meses\n• Número de funcionários e sócios\n• Se possível, lista dos 10 maiores clientes\n\nNão precisa estar perfeito — a gente ajusta na reunião.',
+  onboarding_agenda: 'Para avançarmos, precisamos de uma conversa de cerca de 1h. Separei três horários:\n\n{{opcoes}}\n\nMe responde com o número da opção que funciona melhor.'
+};
+const DIAS_SEMANA_BR = ['dom','seg','ter','qua','qui','sex','sáb'];
+function _ondbTpl(chave){
+  const t = (_pj.msgTemplates||[]).find(x => x.chave === chave);
+  return t?.corpo || _ONDB_FALLBACK[chave] || '';
+}
+function _ondbFormataOpcao(iso){
+  if (!iso) return '';
+  const d = new Date(iso);
+  const dia = String(d.getDate()).padStart(2,'0'), mes = String(d.getMonth()+1).padStart(2,'0');
+  const h = String(d.getHours()).padStart(2,'0'), min = String(d.getMinutes()).padStart(2,'0');
+  return `${DIAS_SEMANA_BR[d.getDay()]}, ${dia}/${mes}, às ${h}h${min==='00'?'':min}`;
+}
+function _ondbSugerirDiasUteis(){
+  // Próximos 3 dias úteis com horários pré-definidos
+  const horas = [14, 10, 16];
+  const out = [];
+  const d = new Date(); d.setSeconds(0,0);
+  let i = 0;
+  while (out.length < 3 && i < 14) {
+    d.setDate(d.getDate() + 1);
+    i++;
+    if (d.getDay() === 0 || d.getDay() === 6) continue;
+    const dt = new Date(d);
+    dt.setHours(horas[out.length], 0, 0, 0);
+    out.push(dt.toISOString());
+  }
+  return out;
+}
+function _ondbMontaMensagens(p, opcoes){
   const nomeCurto = (p.cliente_nome||'').split(' ')[0] || 'você';
+  const nomeNeg = p.negocio_titulo || p.setor || '';
   const portalUrl = location.origin + '/meu-projeto.html';
-  const agendaUrl = p.agendamento_link || 'https://cal.com/1negocio';
+  const opcoesTxt = (opcoes||[]).filter(Boolean).map((iso, i) => `${i+1} · ${_ondbFormataOpcao(iso)}`).join('\n');
+  const sub = (s) => s
+    .replaceAll('{{primeiro_nome}}', nomeCurto)
+    .replaceAll('{{nome_negocio}}', nomeNeg)
+    .replaceAll('{{link_portal}}', portalUrl)
+    .replaceAll('{{opcoes}}', opcoesTxt || '(defina 3 horários)');
   return [
-    `Oi ${nomeCurto}, aqui é do 1negocio. Bem-vindo(a) ao seu projeto de venda assessorada.\n\n` +
-    `Seu portal pra acompanhar o processo: ${portalUrl}\n\n` +
-    `Use seu WhatsApp (${p.cliente_whatsapp||'—'}) pra receber o código de acesso.`,
-
-    `Pra nossa primeira reunião (a Avaliação), separa:\n\n` +
-    `• DRE ou faturamento dos últimos 12 meses\n` +
-    `• Extratos bancários dos últimos 3 meses\n` +
-    `• Número de funcionários e sócios\n` +
-    `• Se possível, lista dos 10 maiores clientes\n\n` +
-    `Não precisa estar perfeito — a gente ajusta na reunião.`,
-
-    `Agende sua reunião de Avaliação: ${agendaUrl}\n\n` +
-    `Se preferir outro horário, é só me responder aqui. Bom começo!`
+    sub(_ondbTpl('onboarding_portal')),
+    sub(_ondbTpl('onboarding_checklist')),
+    sub(_ondbTpl('onboarding_agenda')),
   ];
 }
 function htmlOnboarding(e){
   const ok = e.status === 'concluida';
   const p = _pj.projeto;
   const enviado = !!p.onboarding_enviado_em;
-  const primeira = p.primeira_reuniao_em;
+  const primeira = p.horario_escolhido || p.primeira_reuniao_em;
   const snap = p.onboarding_conteudo_snapshot || {};
-  const msgsEnviadas = snap.mensagens || _ondbMsgsDefault(p);
-  const editaveis = _ondbMsgsDefault(p);
+  const opcoesInit = (p.opcoes_horario && Array.isArray(p.opcoes_horario) && p.opcoes_horario.length)
+    ? p.opcoes_horario : ['', '', ''];
+  const inputSlot = (i) => `<input id="ondb-op${i}" type="datetime-local" value="${opcoesInit[i]?opcoesInit[i].slice(0,16):''}" onchange="ondbAtualizarPreview()">`;
   return `
     <div class="stage-head">
       <div>
         <div class="meta">Etapa ${e.ordem}/${_pj.etapas.length} · setup</div>
         <h2>${esc(e.titulo)}</h2>
         <div class="muted" style="margin-top:6px;font-size:13.5px">
-          Um clique dispara portal + checklist + agendamento no WhatsApp do cliente.
-          Preview editável antes de confirmar. Marca a etapa como enviada e o projeto
-          entra em AGUARDANDO CLIENTE até a primeira reunião.
+          Um clique dispara 3 mensagens no WhatsApp do cliente com 2,5s entre elas.
+          Preview editável antes de confirmar. Depois de enviado, projeto entra em
+          AGUARDANDO CLIENTE até você registrar o horário escolhido.
         </div>
       </div>
-      <button class="btn ${ok?'btn-ghost':'btn-primary'}" onclick="toggleEtapa('${e.id}',${ok?'true':'false'})">
-        ${ok ? '↻ Reabrir' : '✓ Concluir etapa'}
-      </button>
+      <div class="row" style="gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="abrirTemplatesConfig()" title="editar textos padrão">⚙ templates</button>
+        <button class="btn ${ok?'btn-ghost':'btn-primary'}" onclick="toggleEtapa('${e.id}',${ok?'true':'false'})">${ok ? '↻ Reabrir' : '✓ Concluir'}</button>
+      </div>
     </div>
 
     ${enviado ? `
@@ -2232,46 +2276,50 @@ function htmlOnboarding(e){
         ✓ Onboarding enviado em ${dataBR(p.onboarding_enviado_em.slice(0,10))} por ${esc(p.onboarding_enviado_por||'—')}
       </div>
       ${primeira
-        ? `<div style="font-size:12.5px;color:#0a7d3d;margin-top:4px">✓ Primeira reunião marcada para ${dataBR(primeira.slice(0,10))}</div>`
-        : `<div style="font-size:12.5px;color:#0a7d3d;margin-top:4px">⏳ Aguardando cliente agendar a primeira reunião</div>`
+        ? `<div style="font-size:12.5px;color:#0a7d3d;margin-top:4px">✓ Reunião marcada: <b>${_ondbFormataOpcao(primeira)}</b></div>`
+        : `<div style="font-size:12.5px;color:#0a7d3d;margin-top:4px">⏳ Aguardando cliente responder com a opção escolhida (1, 2 ou 3)</div>`
       }
     </div>` : ''}
 
     <div class="card">
-      <div class="lbl">${enviado ? '01 · reenviar' : '01 · preview das mensagens'}</div>
+      <div class="lbl">01 · 3 horários que você oferece</div>
       <p class="muted" style="font-size:12.5px;margin-top:6px">
-        3 mensagens enviadas em sequência (2,5s entre cada) pro WhatsApp
-        <span class="mono">${esc(p.cliente_whatsapp||'—')}</span>.
-        Edite se quiser.
+        A terceira mensagem oferece essas 3 opções · o cliente responde com o número.
       </p>
-      <div id="ondb-msgs" style="margin-top:10px">
-        ${editaveis.map((m, i) => `
-          <div class="fld" style="margin-bottom:12px">
-            <span class="lbl">mensagem ${i+1}</span>
-            <textarea id="ondb-m${i}" rows="${m.split('\n').length + 1}" style="font-size:12.5px;line-height:1.5">${esc(m)}</textarea>
-          </div>`).join('')}
+      <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap;align-items:end">
+        <div class="fld"><span class="lbl">opção 1</span>${inputSlot(0)}</div>
+        <div class="fld"><span class="lbl">opção 2</span>${inputSlot(1)}</div>
+        <div class="fld"><span class="lbl">opção 3</span>${inputSlot(2)}</div>
+        <button class="btn btn-ghost btn-sm" onclick="ondbSugerirDatas()" title="preenche 3 próximos dias úteis · 14h, 10h, 16h">✨ sugerir</button>
       </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="lbl">02 · ${enviado ? 'reenviar' : 'preview das 3 mensagens'}</div>
+      <p class="muted" style="font-size:12.5px;margin-top:6px">
+        Enviadas em sequência (2,5s entre cada) pro WhatsApp <span class="mono">${esc(p.cliente_whatsapp||'—')}</span>. Edite pra este projeto sem alterar o padrão.
+      </p>
+      <div id="ondb-msgs" style="margin-top:10px"></div>
       <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
         <button class="btn btn-primary" id="ondb-enviar">${enviado ? '📤 Reenviar' : '📤 Enviar onboarding ao cliente'}</button>
-        <button class="btn btn-ghost btn-sm" onclick="ondbReset()">restaurar padrão</button>
+        <button class="btn btn-ghost btn-sm" onclick="ondbAtualizarPreview()">restaurar do template</button>
         <span id="ondb-status" class="muted" style="font-size:12px;align-self:center"></span>
       </div>
     </div>
 
     <div class="card" style="margin-top:14px">
-      <div class="lbl">02 · agendamento</div>
+      <div class="lbl">03 · registrar horário escolhido</div>
       <p class="muted" style="font-size:12.5px;margin-top:6px">
-        Registre a data da primeira reunião quando o cliente agendar (ou responda no WhatsApp).
-        Ao registrar, a etapa conclui automaticamente e o projeto sai do estado de espera.
+        Quando o cliente responder qual opção escolheu · clique no botão. Ou informe outra data manualmente. Ao registrar, a etapa conclui automaticamente.
       </p>
-      <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap;align-items:end">
-        <div class="fld"><span class="lbl">data/hora da primeira reunião</span>
+      <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">
+        ${[0,1,2].map(i => `<button class="btn btn-ghost btn-sm" onclick="ondbEscolherOpcao(${i})" ${opcoesInit[i]?'':'disabled'}>escolheu opção ${i+1}${opcoesInit[i]?' · '+_ondbFormataOpcao(opcoesInit[i]):''}</button>`).join('')}
+      </div>
+      <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap;align-items:end">
+        <div class="fld"><span class="lbl">ou data/hora livre</span>
           <input id="ondb-primeira" type="datetime-local" value="${primeira?primeira.slice(0,16):''}">
         </div>
-        <div class="fld" style="flex:1;min-width:220px"><span class="lbl">link de agendamento (opcional · usado nas mensagens)</span>
-          <input id="ondb-link" placeholder="https://cal.com/..." value="${esc(p.agendamento_link||'')}">
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="ondbSalvarAgendamento()">salvar</button>
+        <button class="btn btn-primary btn-sm" onclick="ondbSalvarHorarioLivre()">registrar</button>
       </div>
     </div>
 
@@ -2280,24 +2328,48 @@ function htmlOnboarding(e){
       <div class="lbl">último envio (${dataBR(p.onboarding_enviado_em.slice(0,10))})</div>
       ${(snap.mensagens||[]).map((m,i) => `
         <div style="border-top:1px solid var(--line);padding:8px 0;font-size:12.5px;white-space:pre-wrap">
-          <div class="mono" style="font-size:10.5px;color:var(--ink-3);margin-bottom:4px">msg ${i+1} · ${(snap.resultados||[])[i]?.ok?'✓ enviado':'✗ falhou'}</div>
+          <div class="mono" style="font-size:10.5px;color:var(--ink-3);margin-bottom:4px">msg ${i+1} · ${(snap.resultados||[])[i]?.ok?'✓ enviado':'✗ '+esc((snap.resultados||[])[i]?.erro||'falhou')}</div>
           ${esc(m)}
         </div>`).join('')}
     </div>` : ''}`;
 }
 function vincularOnboarding(){
   document.getElementById('ondb-enviar')?.addEventListener('click', ondbEnviar);
+  ondbAtualizarPreview();
 }
-window.ondbReset = function(){
-  const padroes = _ondbMsgsDefault(_pj.projeto);
-  padroes.forEach((m, i) => {
-    const el = document.getElementById('ondb-m'+i); if (el) el.value = m;
+window.ondbLerOpcoes = function(){
+  return [0,1,2].map(i => {
+    const el = document.getElementById('ondb-op'+i);
+    return el?.value ? new Date(el.value).toISOString() : '';
   });
-  toast('restaurado','ok');
+};
+window.ondbAtualizarPreview = function(){
+  const cont = document.getElementById('ondb-msgs');
+  if (!cont) return;
+  const opcoes = ondbLerOpcoes();
+  const msgs = _ondbMontaMensagens(_pj.projeto, opcoes);
+  cont.innerHTML = msgs.map((m, i) => `
+    <div class="fld" style="margin-bottom:12px">
+      <span class="lbl">mensagem ${i+1}</span>
+      <textarea id="ondb-m${i}" rows="${Math.max(m.split('\n').length + 1, 4)}" style="font-size:12.5px;line-height:1.5">${esc(m)}</textarea>
+    </div>`).join('');
+};
+window.ondbSugerirDatas = function(){
+  const sug = _ondbSugerirDiasUteis();
+  sug.forEach((iso, i) => {
+    const el = document.getElementById('ondb-op'+i);
+    if (el) el.value = iso.slice(0,16);
+  });
+  ondbAtualizarPreview();
+  toast('3 opções sugeridas · ajuste se quiser','ok');
 };
 window.ondbEnviar = async function(){
   const btn = document.getElementById('ondb-enviar');
   const st = document.getElementById('ondb-status');
+  const opcoes = ondbLerOpcoes();
+  if (opcoes.filter(Boolean).length < 3) {
+    if (!confirm('Você preencheu menos de 3 opções de horário. A mensagem 3 vai ficar incompleta. Enviar assim mesmo?')) return;
+  }
   const mensagens = [];
   for (let i = 0; i < 10; i++) {
     const el = document.getElementById('ondb-m'+i);
@@ -2307,43 +2379,115 @@ window.ondbEnviar = async function(){
   }
   if (!mensagens.length) { toast('nenhuma mensagem preenchida','err'); return; }
   const fone = _pj.projeto.cliente_whatsapp;
-  if (!confirm(`Enviar ${mensagens.length} mensagens ao WhatsApp ${fone}?\n\nA primeira sai imediatamente e as próximas com 2,5s de intervalo. Depois disso o projeto entra em AGUARDANDO CLIENTE.`)) return;
+  if (!confirm(`Enviar ${mensagens.length} mensagens ao WhatsApp ${fone}?\n\nSaem em sequência com 2,5s de intervalo. Depois o projeto entra em AGUARDANDO CLIENTE.`)) return;
   btn.disabled = true; st.textContent = 'enviando…'; st.style.color = '';
   try {
-    const tok = (await sb.auth.getSession()).data.session?.access_token;
-    const email = (await sb.auth.getSession()).data.session?.user?.email;
+    const sess = (await sb.auth.getSession()).data.session;
     const r = await fetch('/api/enviar-onboarding', {
-      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
-      body: JSON.stringify({ projeto_id: _pj.projeto.id, mensagens, remetente_email: email }),
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+sess?.access_token },
+      body: JSON.stringify({ projeto_id: _pj.projeto.id, mensagens, remetente_email: sess?.user?.email, opcoes_horario: opcoes.filter(Boolean) }),
     });
-    const d = await r.json();
-    if (!r.ok || !d.ok) throw new Error(d.erro || ('http '+r.status));
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) {
+      // erro detalhado por mensagem
+      const detalhes = (d.resultados||[]).map(x => `msg${x.i+1}: ${x.ok?'ok':(x.erro||'?')}`).join(' | ');
+      throw new Error((d.erro||('http '+r.status)) + (detalhes?' · '+detalhes:''));
+    }
     st.textContent = `✓ ${d.quantidade}/${mensagens.length} enviadas`;
     st.style.color = '#0a7d3d';
     toast(`onboarding enviado · ${d.quantidade}/${mensagens.length}`,'ok');
+    await sb.from('va_projetos').update({ opcoes_horario: opcoes.filter(Boolean) }).eq('id', _pj.projeto.id);
     await renderProjeto(_pj.projeto.id);
   } catch (e) {
     st.textContent = 'erro · '+String(e.message||e);
     st.style.color = '#c00';
     btn.disabled = false;
-    toast('falhou · '+String(e.message||e),'err');
+    toast('falhou · '+String(e.message||e).slice(0,140),'err');
   }
 };
-window.ondbSalvarAgendamento = async function(){
+window.ondbEscolherOpcao = async function(idx){
+  const opcoes = _pj.projeto.opcoes_horario || [];
+  const iso = opcoes[idx];
+  if (!iso) { toast('opção sem data','err'); return; }
+  await _ondbGravarHorario(iso);
+};
+window.ondbSalvarHorarioLivre = async function(){
   const dt = document.getElementById('ondb-primeira').value;
-  const link = document.getElementById('ondb-link').value.trim() || null;
-  const patch = { primeira_reuniao_em: dt ? new Date(dt).toISOString() : null, agendamento_link: link };
+  if (!dt) { toast('escolha uma data','err'); return; }
+  await _ondbGravarHorario(new Date(dt).toISOString());
+};
+async function _ondbGravarHorario(iso){
+  const patch = { horario_escolhido: iso, primeira_reuniao_em: iso };
   const { error } = await sb.from('va_projetos').update(patch).eq('id', _pj.projeto.id);
   if (error) { toast(error.message,'err'); return; }
-  // Se marcou reunião, conclui etapa onboarding
-  if (dt) {
-    const eOnb = (_pj.etapas||[]).find(x => x.chave==='onboarding');
-    if (eOnb && eOnb.status !== 'concluida') {
-      await sb.from('va_projeto_etapas').update({ status:'concluida', data_real: new Date().toISOString().slice(0,10) }).eq('id', eOnb.id);
+  const eOnb = (_pj.etapas||[]).find(x => x.chave==='onboarding');
+  if (eOnb && eOnb.status !== 'concluida') {
+    await sb.from('va_projeto_etapas').update({ status:'concluida', data_real: new Date().toISOString().slice(0,10) }).eq('id', eOnb.id);
+  }
+  toast('horário registrado · etapa concluída','ok');
+  await renderProjeto(_pj.projeto.id);
+}
+
+// ═══ TEMPLATES CONFIG · edita mensagens padrão de onboarding ══════
+window.abrirTemplatesConfig = async function(){
+  const { data, error } = await sb.from('va_mensagens_template').select('*').order('chave');
+  if (error) { toast(error.message,'err'); return; }
+  const linhas = (data||[]).map(t => `
+    <div class="fld" style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--line)">
+      <div class="row" style="justify-content:space-between;align-items:baseline">
+        <div><b>${esc(t.nome)}</b> <span class="mono muted" style="font-size:10.5px">· ${esc(t.chave)}</span></div>
+        <div class="muted" style="font-size:11px">${(t.variaveis||[]).map(v => `<code>{{${esc(v)}}}</code>`).join(' ') || 'sem variáveis'}</div>
+      </div>
+      ${t.descricao ? `<div class="muted" style="font-size:11.5px;margin-top:4px">${esc(t.descricao)}</div>` : ''}
+      <textarea id="tpl-${esc(t.chave)}" rows="6" style="margin-top:6px;font-family:var(--sans);font-size:12.5px;line-height:1.5">${esc(t.corpo)}</textarea>
+    </div>`).join('');
+  const html = `
+    <div id="tpl-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998" onclick="fecharTemplatesConfig()"></div>
+    <div id="tpl-painel" style="position:fixed;top:3%;left:50%;transform:translateX(-50%);width:95%;max-width:820px;max-height:94vh;overflow-y:auto;background:var(--surface);border-radius:12px;padding:22px;z-index:9999;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+      <div class="row" style="justify-content:space-between;align-items:baseline">
+        <h3 style="margin:0">⚙ Templates de mensagens · onboarding</h3>
+        <button class="btn btn-ghost btn-sm" onclick="fecharTemplatesConfig()">×</button>
+      </div>
+      <p class="muted" style="font-size:12px;margin-top:6px">
+        Editar aqui muda o padrão pra TODOS os projetos futuros. Em cada projeto o preview
+        continua editável por-projeto sem alterar este padrão. Variáveis:
+        <code>{{primeiro_nome}}</code> <code>{{nome_negocio}}</code>
+        <code>{{link_portal}}</code> <code>{{opcoes}}</code>.
+      </p>
+      <div style="margin-top:14px">${linhas}</div>
+      <div class="row" style="gap:8px;justify-content:flex-end;margin-top:6px">
+        <button class="btn btn-ghost" onclick="fecharTemplatesConfig()">cancelar</button>
+        <button class="btn btn-primary" onclick="salvarTemplatesConfig()">salvar mudanças</button>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+};
+window.fecharTemplatesConfig = function(){
+  document.getElementById('tpl-backdrop')?.remove();
+  document.getElementById('tpl-painel')?.remove();
+};
+window.salvarTemplatesConfig = async function(){
+  const email = (await sb.auth.getSession()).data.session?.user?.email || 'admin';
+  const { data } = await sb.from('va_mensagens_template').select('id, chave, corpo');
+  let mudou = 0;
+  for (const t of (data||[])) {
+    const el = document.getElementById('tpl-'+t.chave);
+    if (!el) continue;
+    const novo = el.value;
+    if (novo !== t.corpo) {
+      const { error } = await sb.from('va_mensagens_template')
+        .update({ corpo: novo, atualizado_em: new Date().toISOString(), atualizado_por: email })
+        .eq('id', t.id);
+      if (error) { toast('erro em '+t.chave+': '+error.message,'err'); return; }
+      mudou++;
     }
   }
-  toast('agendamento salvo','ok');
-  await renderProjeto(_pj.projeto.id);
+  toast(`${mudou} template(s) salvo(s)`,'ok');
+  fecharTemplatesConfig();
+  // recarrega cache
+  const { data: novas } = await sb.from('va_mensagens_template').select('*');
+  _pj.msgTemplates = novas || [];
+  if (_abaChave === 'onboarding') desenhaAba();
 };
 
 // ═══ ETAPA · AVALIAÇÃO ═══════════════════════════════════════════
@@ -2367,9 +2511,72 @@ function htmlAvaliacao(e){
       <button class="btn btn-ghost btn-sm" onclick="anexarTranscricao()">3. registrar transcrição/notas</button>
     </div>
   </div>
+  <div id="av-anexos" style="margin-top:12px"><div class="muted" style="font-size:12px">carregando anexos…</div></div>
   <div id="av-body" class="col" style="gap:14px;margin-top:14px"><div class="muted">carregando…</div></div>`;
 }
+async function carregarAvaliacaoAnexos(){
+  const el = document.getElementById('av-anexos'); if (!el) return;
+  const projetoId = _pj.projeto.id;
+  const [trR, ctxR] = await Promise.all([
+    sb.from('va_projeto_transcricoes').select('id, titulo, data_reuniao, origem, arquivo_path, conteudo, criado_em').eq('projeto_id', projetoId).order('criado_em',{ascending:false}),
+    sb.from('va_projeto_contexto').select('id, tipo, titulo, data_referencia, arquivo_path, conteudo, url_externa, criado_em').eq('projeto_id', projetoId).order('criado_em',{ascending:false}),
+  ]);
+  const trans = trR.data || [], ctx = ctxR.data || [];
+  const total = trans.length + ctx.length;
+  if (!total) { el.innerHTML = '<div class="muted" style="font-size:12px;padding:8px 0">Nenhuma transcrição ou contexto anexado ainda.</div>'; return; }
+  const linhaTrans = trans.map(t => {
+    const tam = t.conteudo ? Math.round(t.conteudo.length/100)/10+' kB texto' : (t.arquivo_path ? 'arquivo' : '—');
+    return `<div style="border-top:1px solid var(--line);padding:8px 4px;display:flex;align-items:baseline;gap:8px">
+      <span style="flex-shrink:0;font-size:14px">📎</span>
+      <div style="flex:1;min-width:0">
+        <div><b style="font-size:12.5px">${esc(t.titulo||'(sem título)')}</b> <span class="muted mono" style="font-size:10.5px">· transcrição · ${dataBR(t.data_reuniao||t.criado_em?.slice(0,10))} · ${tam}</span></div>
+        ${t.arquivo_path ? `<div class="muted mono" style="font-size:10.5px;word-break:break-all">${esc(t.arquivo_path.split('/').pop())}</div>` : ''}
+      </div>
+      <div class="row" style="gap:4px">
+        ${t.arquivo_path ? `<button class="btn btn-ghost btn-sm" onclick="abrirArquivoTranscricao('${esc(t.arquivo_path)}')" title="baixar">↗</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="excluirTranscricao('${esc(t.id)}','${esc(t.arquivo_path||'')}')" title="excluir">×</button>
+      </div>
+    </div>`;
+  }).join('');
+  const linhaCtx = ctx.map(c => {
+    const emj = c.tipo==='reuniao'?'📅':(c.tipo==='link'?'🔗':(c.tipo==='documento'?'📄':(c.tipo==='foto'?'🖼️':'📝')));
+    const meta = c.tipo + (c.url_externa?' · '+c.url_externa.slice(0,50):'') + (c.arquivo_path?' · arquivo':'');
+    return `<div style="border-top:1px solid var(--line);padding:8px 4px;display:flex;align-items:baseline;gap:8px">
+      <span style="flex-shrink:0;font-size:14px">${emj}</span>
+      <div style="flex:1;min-width:0">
+        <div><b style="font-size:12.5px">${esc(c.titulo||'(sem título)')}</b> <span class="muted mono" style="font-size:10.5px">· ${esc(meta)} · ${dataBR(c.data_referencia||c.criado_em?.slice(0,10))}</span></div>
+      </div>
+      <div class="row" style="gap:4px">
+        ${c.arquivo_path ? `<button class="btn btn-ghost btn-sm" onclick="abrirArquivoContexto('${esc(c.arquivo_path)}')" title="baixar">↗</button>` : ''}
+        ${c.url_externa ? `<a href="${esc(c.url_externa)}" target="_blank" class="btn btn-ghost btn-sm" title="abrir">↗</a>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="ctxRemover('${esc(c.id)}')" title="excluir">×</button>
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div class="card" style="padding:12px 14px">
+    <div class="lbl">anexos e contexto · ${total}</div>
+    ${linhaTrans}${linhaCtx}
+  </div>`;
+}
+window.abrirArquivoTranscricao = async function(path){
+  const { data, error } = await sb.storage.from('projeto-transcricoes').createSignedUrl(path, 60);
+  if (error) { toast(error.message,'err'); return; }
+  window.open(data.signedUrl, '_blank');
+};
+window.abrirArquivoContexto = async function(path){
+  const { data, error } = await sb.storage.from('projeto-contexto').createSignedUrl(path, 60);
+  if (error) { toast(error.message,'err'); return; }
+  window.open(data.signedUrl, '_blank');
+};
+window.excluirTranscricao = async function(id, path){
+  if (!confirm('Excluir esta transcrição?')) return;
+  if (path) { await sb.storage.from('projeto-transcricoes').remove([path]); }
+  const { error } = await sb.from('va_projeto_transcricoes').delete().eq('id', id);
+  if (error) { toast(error.message,'err'); return; }
+  toast('excluída','ok'); carregarAvaliacaoAnexos();
+};
 async function vincularAvaliacao(){
+  carregarAvaliacaoAnexos();
   const body = document.getElementById('av-body');
   const p = _pj.projeto;
   const brl = v => v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
@@ -3037,10 +3244,19 @@ async function salvarValorVendaExplicito(){
   const { error } = await sb.from('va_projetos').update(patch).eq('id', _pj.projeto.id);
   if (error) { st.textContent = 'erro · '+error.message; st.style.color='#c00'; return; }
   patchProjetoLocal(patch);
-  st.textContent = '✓ salvo'; st.style.color = '#0a7d3d';
-  toast('valor de venda salvo · '+brlNice(val),'ok');
-  await checarAutoConclusao('preco');
-  if (_abaChave === 'preco') desenhaAba();
+  // Auto-conclui etapa 'preco' se o valor foi salvo (>0)
+  let etapaConcluida = false;
+  if (val != null && val > 0) {
+    const eP = (_pj.etapas||[]).find(x => x.chave==='preco');
+    if (eP && eP.status !== 'concluida') {
+      await sb.from('va_projeto_etapas').update({ status:'concluida', data_real: new Date().toISOString().slice(0,10) }).eq('id', eP.id);
+      etapaConcluida = true;
+    }
+  }
+  st.textContent = etapaConcluida ? '✓ salvo · etapa concluída' : '✓ salvo';
+  st.style.color = '#0a7d3d';
+  toast(etapaConcluida ? '✓ valor '+brlNice(val)+' · etapa Preço concluída' : 'valor salvo · '+brlNice(val), 'ok');
+  await renderProjeto(_pj.projeto.id);
 }
 
 async function salvarPrecoCampo(campo, raw){
@@ -5148,8 +5364,11 @@ async function gerarTeaserIA(){
       method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
       body: JSON.stringify({ projeto_id: p.id, nivel_sigilo: sigilo }),
     });
-    const d = await r.json();
-    if (!r.ok || !d.ok) throw new Error(d.erro || ('http '+r.status));
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok || !d.ok) {
+      const det = d.detalhe ? ' · '+d.detalhe.slice(0,200) : '';
+      throw new Error((d.erro || ('http '+r.status)) + det);
+    }
     toast(`${d.quantidade} versões geradas · ${d.tokens_prompt||0} in / ${d.tokens_resposta||0} out`,'ok');
     // recarrega teasers
     const { data: novas } = await sb.from('va_projeto_teaser').select('*').eq('projeto_id', p.id).order('versao',{ascending:false});
