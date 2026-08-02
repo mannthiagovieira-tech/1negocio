@@ -16,11 +16,16 @@ function detectarFormatoReuniao(raw) {
   const s = String(raw);
   const temSecoesGemini =
     /^\s*(?:#{1,3}\s*|\*\*)?(?:Resumo|Pr[óo]ximas?\s+etapas?|Detalhes)\b/mi.test(s);
-  const linhas = s.split(/\r?\n/).slice(0, 200);
-  const linhasComTimestamp = linhas.filter((l) => /\b\d{1,2}:\d{2}(?::\d{2})?\b/.test(l)).length;
-  const linhasComFala = linhas.filter((l) => /^[A-Z][\wÀ-ÿ\s]{2,30}:\s+\S/.test(l)).length;
-  const parecTranscript = linhasComTimestamp >= 3 && linhasComFala >= 5;
   if (temSecoesGemini) return 'gemini';
+  // Transcript: timestamps + falas com nome. Aceita 3 formatos comuns:
+  //   "[HH:MM:SS] Nome: fala"
+  //   "HH:MM Nome: fala"
+  //   "Nome (HH:MM): fala"
+  const linhas = s.split(/\r?\n/).slice(0, 400);
+  const reFalaComTs = /^(?:\[?\d{1,2}:\d{2}(?::\d{2})?\]?\s+)?[A-Za-zÀ-ÿ][\wÀ-ÿ\s.()]{1,40}:\s+\S/;
+  const linhasComTimestamp = linhas.filter((l) => /\b\d{1,2}:\d{2}(?::\d{2})?\b/.test(l)).length;
+  const linhasComFala = linhas.filter((l) => reFalaComTs.test(l)).length;
+  const parecTranscript = linhasComTimestamp >= 3 && linhasComFala >= 5;
   if (parecTranscript) return 'transcript';
   return 'livre';
 }
