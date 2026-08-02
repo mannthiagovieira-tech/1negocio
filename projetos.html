@@ -155,7 +155,11 @@
   .step.ok .bul{background:var(--accent);border-color:var(--accent);color:#fff}
   .step.ok .bul::after{content:'✓';font-size:10px;font-weight:700}
   .step.now .bul{border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 4px var(--accent-soft)}
+  .step.now .tit{color:var(--accent-2);font-weight:700}
   .step.active .bul{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  @keyframes stepPulseOk{0%{transform:scale(.7);opacity:0}60%{transform:scale(1.35);opacity:1}100%{transform:scale(1);opacity:1}}
+  .step.recem-concluida .bul{animation:stepPulseOk .55s var(--ease)}
+  .step.recem-concluida .tit{animation:stepPulseOk .55s var(--ease) .1s both}
   .step .tit{font-family:var(--sans);font-weight:600;font-size:12.5px;color:var(--ink);line-height:1.35;letter-spacing:-.005em}
   .step.ok .tit{color:var(--ink-3);text-decoration:line-through;text-decoration-thickness:1px;text-decoration-color:var(--ink-4)}
   .step .meta{font-family:var(--mono);font-size:9.5px;color:var(--ink-4);letter-spacing:.06em;text-transform:uppercase;margin-top:3px}
@@ -797,7 +801,11 @@ async function renderLista(){
     if (o.status === 'encerrada') return 5;
     return 4;
   };
+  const mostrarArquivados = window._listaArquivados || false;
   const dataFiltrada = data.filter(p => {
+    // arquivados: por padrão escondidos · toggle mostra só arquivados
+    const arq = !!p.arquivado_em;
+    if (mostrarArquivados !== arq) return false;
     if (filtroStatus !== 'todos' && p.status !== filtroStatus) return false;
     if (filtroProp && (Number(p._c?.propostas)||0) === 0) return false;
     if (busca) {
@@ -866,6 +874,7 @@ async function renderLista(){
         </select>
       </label>
       <label style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-2);text-transform:uppercase;white-space:nowrap"><input type="checkbox" id="lst-prop" ${filtroProp?'checked':''} style="margin:0"> com proposta em aberto</label>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-2);text-transform:uppercase;white-space:nowrap"><input type="checkbox" id="lst-arq" ${mostrarArquivados?'checked':''} style="margin:0"> mostrar arquivados</label>
       <label style="display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-2);text-transform:uppercase;flex:1;min-width:180px">buscar
         <input id="lst-busca" placeholder="código VA-XXXX, cliente ou cidade" value="${esc(busca)}" style="flex:1;padding:6px 10px;font-size:13px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-family:var(--mono)">
       </label>
@@ -876,6 +885,7 @@ async function renderLista(){
   document.getElementById('lst-ordem').addEventListener('change', e => { window._listaOrdem = e.target.value; renderLista(); });
   document.getElementById('lst-status').addEventListener('change', e => { window._listaFiltroStatus = e.target.value; renderLista(); });
   document.getElementById('lst-prop').addEventListener('change', e => { window._listaFiltroProposta = e.target.checked; renderLista(); });
+  document.getElementById('lst-arq').addEventListener('change', e => { window._listaArquivados = e.target.checked; renderLista(); });
 }
 
 function cardProjeto(p){
@@ -1166,7 +1176,7 @@ function renderNovo(){
 
 // ─── VIEW: PROJETO ────────────────────────────────────────────────
 let _pj = null; // { projeto, etapas, kickoff }
-let _abaChave = 'avaliacao'; // primeira etapa da trilha SETUP
+let _abaChave = 'onboarding'; // primeira etapa da trilha SETUP
 
 async function renderProjeto(id){
   app.innerHTML = `<div class="empty"><h2>Carregando projeto…</h2></div>`;
@@ -1346,8 +1356,16 @@ function desenhaProjeto(){
       </div>
       <div style="text-align:right">
         <span class="badge ${esc(p.status)}">${esc(p.status)}</span>
+        ${p.onboarding_enviado_em && !p.primeira_reuniao_em ? `<div style="margin-top:6px;padding:4px 10px;display:inline-block;background:#fff8e1;border:1px solid #f0c040;border-radius:99px;font-size:11px;font-weight:600;color:#8a5a00">⏳ aguardando cliente</div>` : ''}
+        ${p.arquivado_em ? `<div style="margin-top:6px;padding:4px 10px;display:inline-block;background:#f5f5f5;border:1px solid #ccc;border-radius:99px;font-size:11px;font-weight:600;color:var(--ink-3)">🗄 arquivado ${dataBR(p.arquivado_em.slice(0,10))}</div>` : ''}
         <div class="mono" style="margin-top:8px;font-size:11px;color:var(--ink-3);letter-spacing:.05em">Início ${dataBR(p.data_inicio)} · fim onda ${dataBR(p.fim_da_onda)}</div>
         <div id="hd-precos-versao" class="mono" style="margin-top:4px;font-size:10px;color:var(--ink-3);letter-spacing:.05em"></div>
+        <div style="margin-top:8px">
+          ${p.arquivado_em
+            ? `<button class="btn btn-ghost btn-sm" onclick="restaurarProjeto()" title="restaurar projeto">↻ restaurar</button>`
+            : `<button class="btn btn-ghost btn-sm" onclick="arquivarProjetoModal()" title="arquivar projeto (não deleta)">🗄 arquivar</button>`
+          }
+        </div>
       </div>
     </div>
     <div class="card" style="margin-bottom:18px;padding:14px 16px">
@@ -1370,14 +1388,14 @@ function desenhaProjeto(){
     <div class="proj-layout">
       <aside class="trail ${_pj.trailAberto?'aberto':''}" id="trail">
         <div class="trail-title">
-          <span>Progresso · <strong style="color:var(--accent-2)">${p.etapas_ok}/${p.etapas_total}</strong></span>
+          <span>Progresso · <strong style="color:var(--accent-2)">${p.etapas_ok||0} de ${p.etapas_total||et.length}</strong> · <strong style="color:var(--accent-2)">${p.etapas_total?Math.round((p.etapas_ok||0)*100/p.etapas_total):0}%</strong></span>
           <button class="trail-toggle" onclick="toggleTrail()" title="ver todas as etapas">
             <span>${esc(etapaAtualTitulo())}</span><span class="chev">▾</span>
           </button>
         </div>
         <div class="trail-body">
           <div class="trail-grupo">setup</div>
-          <div class="steps">${et.map(desenhaStep).join('')}</div>
+          <div class="steps">${desenhaStepsSetup(et).join('')}</div>
           <div class="trail-sep">
             <div class="trail-grupo">gestão</div>
             <div class="steps">${GESTAO_ITENS.map(desenhaStepGestao).join('')}</div>
@@ -1959,8 +1977,16 @@ function _desenhaProjetoLegado_desativado(){
       </div>
       <div style="text-align:right">
         <span class="badge ${esc(p.status)}">${esc(p.status)}</span>
+        ${p.onboarding_enviado_em && !p.primeira_reuniao_em ? `<div style="margin-top:6px;padding:4px 10px;display:inline-block;background:#fff8e1;border:1px solid #f0c040;border-radius:99px;font-size:11px;font-weight:600;color:#8a5a00">⏳ aguardando cliente</div>` : ''}
+        ${p.arquivado_em ? `<div style="margin-top:6px;padding:4px 10px;display:inline-block;background:#f5f5f5;border:1px solid #ccc;border-radius:99px;font-size:11px;font-weight:600;color:var(--ink-3)">🗄 arquivado ${dataBR(p.arquivado_em.slice(0,10))}</div>` : ''}
         <div class="mono" style="margin-top:8px;font-size:11px;color:var(--ink-3);letter-spacing:.05em">Início ${dataBR(p.data_inicio)} · fim onda ${dataBR(p.fim_da_onda)}</div>
         <div id="hd-precos-versao" class="mono" style="margin-top:4px;font-size:10px;color:var(--ink-3);letter-spacing:.05em"></div>
+        <div style="margin-top:8px">
+          ${p.arquivado_em
+            ? `<button class="btn btn-ghost btn-sm" onclick="restaurarProjeto()" title="restaurar projeto">↻ restaurar</button>`
+            : `<button class="btn btn-ghost btn-sm" onclick="arquivarProjetoModal()" title="arquivar projeto (não deleta)">🗄 arquivar</button>`
+          }
+        </div>
       </div>
     </div>
     <div class="card" style="margin-bottom:18px;padding:14px 16px">
@@ -1983,14 +2009,14 @@ function _desenhaProjetoLegado_desativado(){
     <div class="proj-layout">
       <aside class="trail ${_pj.trailAberto?'aberto':''}" id="trail">
         <div class="trail-title">
-          <span>Progresso · <strong style="color:var(--accent-2)">${p.etapas_ok}/${p.etapas_total}</strong></span>
+          <span>Progresso · <strong style="color:var(--accent-2)">${p.etapas_ok||0} de ${p.etapas_total||et.length}</strong> · <strong style="color:var(--accent-2)">${p.etapas_total?Math.round((p.etapas_ok||0)*100/p.etapas_total):0}%</strong></span>
           <button class="trail-toggle" onclick="toggleTrail()" title="ver todas as etapas">
             <span>${esc(etapaAtualTitulo())}</span><span class="chev">▾</span>
           </button>
         </div>
         <div class="trail-body">
           <div class="trail-grupo">setup</div>
-          <div class="steps">${et.map(desenhaStep).join('')}</div>
+          <div class="steps">${desenhaStepsSetup(et).join('')}</div>
           <div class="trail-sep">
             <div class="trail-grupo">gestão</div>
             <div class="steps">${GESTAO_ITENS.map(desenhaStepGestao).join('')}</div>
@@ -2047,10 +2073,23 @@ function desenhaStepGestao(g){
     </div>`;
 }
 
+// Marca a primeira etapa pendente como "atual" (destaque) se nenhuma está em_andamento
+function desenhaStepsSetup(et){
+  const temEmAndamento = et.some(x => x.status === 'em_andamento');
+  let marcouAtual = false;
+  return et.map(e => {
+    if (!temEmAndamento && !marcouAtual && e.status !== 'concluida') {
+      marcouAtual = true;
+      return desenhaStep({ ...e, _atual: true });
+    }
+    return desenhaStep(e);
+  });
+}
+
 function desenhaStep(e){
   const isActive = e.chave === _abaChave;
   const ok = e.status === 'concluida';
-  const now = e.status === 'em_andamento';
+  const now = e.status === 'em_andamento' || e._atual;
   const respCls = e.responsavel === 'cliente' ? 'cliente' : '';
   const mod = _pj.projeto.modalidade || 'assessorada';
   const etapaModal = (_pj.modEtapas||[]).find(x => x.etapa_chave === e.chave);
@@ -2087,6 +2126,7 @@ function desenhaAba(){
   // SETUP
   const e = _pj.etapas.find(x => x.chave === _abaChave) || _pj.etapas[0];
   if (!e) { stage.innerHTML = '<div class="empty"><h2>Etapa não encontrada</h2></div>'; return; }
+  if (e.chave === 'onboarding') { stage.innerHTML = htmlOnboarding(e); vincularOnboarding(); return; }
   if (e.chave === 'avaliacao')  { stage.innerHTML = htmlAvaliacao(e);  vincularAvaliacao();  return; }
   if (e.chave === 'kickoff')    { stage.innerHTML = htmlKickoff(e);    vincularKickoff();    return; }
   if (e.chave === 'regras')     { stage.innerHTML = htmlRegras(e);     vincularRegras();     return; }
@@ -2135,14 +2175,198 @@ function htmlEtapaGenerica(e){
     </div>`;
 }
 
+// ═══ ETAPA · ONBOARDING ═══════════════════════════════════════════
+// Um clique dispara 3 mensagens sequenciais no WhatsApp:
+//   1. link do portal (OTP · /meu-projeto.html) 2. checklist da reunião
+//   3. link de agendamento. Preview editável antes de confirmar.
+// Depois de enviado, projeto entra em AGUARDANDO CLIENTE até
+// primeira_reuniao_em (registrado manual ou quando cliente agendar).
+
+function _ondbMsgsDefault(p){
+  const nomeCurto = (p.cliente_nome||'').split(' ')[0] || 'você';
+  const portalUrl = location.origin + '/meu-projeto.html';
+  const agendaUrl = p.agendamento_link || 'https://cal.com/1negocio';
+  return [
+    `Oi ${nomeCurto}, aqui é do 1negocio. Bem-vindo(a) ao seu projeto de venda assessorada.\n\n` +
+    `Seu portal pra acompanhar o processo: ${portalUrl}\n\n` +
+    `Use seu WhatsApp (${p.cliente_whatsapp||'—'}) pra receber o código de acesso.`,
+
+    `Pra nossa primeira reunião (a Avaliação), separa:\n\n` +
+    `• DRE ou faturamento dos últimos 12 meses\n` +
+    `• Extratos bancários dos últimos 3 meses\n` +
+    `• Número de funcionários e sócios\n` +
+    `• Se possível, lista dos 10 maiores clientes\n\n` +
+    `Não precisa estar perfeito — a gente ajusta na reunião.`,
+
+    `Agende sua reunião de Avaliação: ${agendaUrl}\n\n` +
+    `Se preferir outro horário, é só me responder aqui. Bom começo!`
+  ];
+}
+function htmlOnboarding(e){
+  const ok = e.status === 'concluida';
+  const p = _pj.projeto;
+  const enviado = !!p.onboarding_enviado_em;
+  const primeira = p.primeira_reuniao_em;
+  const snap = p.onboarding_conteudo_snapshot || {};
+  const msgsEnviadas = snap.mensagens || _ondbMsgsDefault(p);
+  const editaveis = _ondbMsgsDefault(p);
+  return `
+    <div class="stage-head">
+      <div>
+        <div class="meta">Etapa ${e.ordem}/${_pj.etapas.length} · setup</div>
+        <h2>${esc(e.titulo)}</h2>
+        <div class="muted" style="margin-top:6px;font-size:13.5px">
+          Um clique dispara portal + checklist + agendamento no WhatsApp do cliente.
+          Preview editável antes de confirmar. Marca a etapa como enviada e o projeto
+          entra em AGUARDANDO CLIENTE até a primeira reunião.
+        </div>
+      </div>
+      <button class="btn ${ok?'btn-ghost':'btn-primary'}" onclick="toggleEtapa('${e.id}',${ok?'true':'false'})">
+        ${ok ? '↻ Reabrir' : '✓ Concluir etapa'}
+      </button>
+    </div>
+
+    ${enviado ? `
+    <div class="card" style="background:#e6f7ee;border-color:#8fd4ae;margin-bottom:14px">
+      <div style="font-size:14px;color:#0a7d3d;font-weight:600">
+        ✓ Onboarding enviado em ${dataBR(p.onboarding_enviado_em.slice(0,10))} por ${esc(p.onboarding_enviado_por||'—')}
+      </div>
+      ${primeira
+        ? `<div style="font-size:12.5px;color:#0a7d3d;margin-top:4px">✓ Primeira reunião marcada para ${dataBR(primeira.slice(0,10))}</div>`
+        : `<div style="font-size:12.5px;color:#0a7d3d;margin-top:4px">⏳ Aguardando cliente agendar a primeira reunião</div>`
+      }
+    </div>` : ''}
+
+    <div class="card">
+      <div class="lbl">${enviado ? '01 · reenviar' : '01 · preview das mensagens'}</div>
+      <p class="muted" style="font-size:12.5px;margin-top:6px">
+        3 mensagens enviadas em sequência (2,5s entre cada) pro WhatsApp
+        <span class="mono">${esc(p.cliente_whatsapp||'—')}</span>.
+        Edite se quiser.
+      </p>
+      <div id="ondb-msgs" style="margin-top:10px">
+        ${editaveis.map((m, i) => `
+          <div class="fld" style="margin-bottom:12px">
+            <span class="lbl">mensagem ${i+1}</span>
+            <textarea id="ondb-m${i}" rows="${m.split('\n').length + 1}" style="font-size:12.5px;line-height:1.5">${esc(m)}</textarea>
+          </div>`).join('')}
+      </div>
+      <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" id="ondb-enviar">${enviado ? '📤 Reenviar' : '📤 Enviar onboarding ao cliente'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="ondbReset()">restaurar padrão</button>
+        <span id="ondb-status" class="muted" style="font-size:12px;align-self:center"></span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="lbl">02 · agendamento</div>
+      <p class="muted" style="font-size:12.5px;margin-top:6px">
+        Registre a data da primeira reunião quando o cliente agendar (ou responda no WhatsApp).
+        Ao registrar, a etapa conclui automaticamente e o projeto sai do estado de espera.
+      </p>
+      <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap;align-items:end">
+        <div class="fld"><span class="lbl">data/hora da primeira reunião</span>
+          <input id="ondb-primeira" type="datetime-local" value="${primeira?primeira.slice(0,16):''}">
+        </div>
+        <div class="fld" style="flex:1;min-width:220px"><span class="lbl">link de agendamento (opcional · usado nas mensagens)</span>
+          <input id="ondb-link" placeholder="https://cal.com/..." value="${esc(p.agendamento_link||'')}">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="ondbSalvarAgendamento()">salvar</button>
+      </div>
+    </div>
+
+    ${enviado && snap.mensagens ? `
+    <div class="card" style="margin-top:14px">
+      <div class="lbl">último envio (${dataBR(p.onboarding_enviado_em.slice(0,10))})</div>
+      ${(snap.mensagens||[]).map((m,i) => `
+        <div style="border-top:1px solid var(--line);padding:8px 0;font-size:12.5px;white-space:pre-wrap">
+          <div class="mono" style="font-size:10.5px;color:var(--ink-3);margin-bottom:4px">msg ${i+1} · ${(snap.resultados||[])[i]?.ok?'✓ enviado':'✗ falhou'}</div>
+          ${esc(m)}
+        </div>`).join('')}
+    </div>` : ''}`;
+}
+function vincularOnboarding(){
+  document.getElementById('ondb-enviar')?.addEventListener('click', ondbEnviar);
+}
+window.ondbReset = function(){
+  const padroes = _ondbMsgsDefault(_pj.projeto);
+  padroes.forEach((m, i) => {
+    const el = document.getElementById('ondb-m'+i); if (el) el.value = m;
+  });
+  toast('restaurado','ok');
+};
+window.ondbEnviar = async function(){
+  const btn = document.getElementById('ondb-enviar');
+  const st = document.getElementById('ondb-status');
+  const mensagens = [];
+  for (let i = 0; i < 10; i++) {
+    const el = document.getElementById('ondb-m'+i);
+    if (!el) break;
+    const v = el.value.trim();
+    if (v) mensagens.push(v);
+  }
+  if (!mensagens.length) { toast('nenhuma mensagem preenchida','err'); return; }
+  const fone = _pj.projeto.cliente_whatsapp;
+  if (!confirm(`Enviar ${mensagens.length} mensagens ao WhatsApp ${fone}?\n\nA primeira sai imediatamente e as próximas com 2,5s de intervalo. Depois disso o projeto entra em AGUARDANDO CLIENTE.`)) return;
+  btn.disabled = true; st.textContent = 'enviando…'; st.style.color = '';
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const email = (await sb.auth.getSession()).data.session?.user?.email;
+    const r = await fetch('/api/enviar-onboarding', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ projeto_id: _pj.projeto.id, mensagens, remetente_email: email }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.erro || ('http '+r.status));
+    st.textContent = `✓ ${d.quantidade}/${mensagens.length} enviadas`;
+    st.style.color = '#0a7d3d';
+    toast(`onboarding enviado · ${d.quantidade}/${mensagens.length}`,'ok');
+    await renderProjeto(_pj.projeto.id);
+  } catch (e) {
+    st.textContent = 'erro · '+String(e.message||e);
+    st.style.color = '#c00';
+    btn.disabled = false;
+    toast('falhou · '+String(e.message||e),'err');
+  }
+};
+window.ondbSalvarAgendamento = async function(){
+  const dt = document.getElementById('ondb-primeira').value;
+  const link = document.getElementById('ondb-link').value.trim() || null;
+  const patch = { primeira_reuniao_em: dt ? new Date(dt).toISOString() : null, agendamento_link: link };
+  const { error } = await sb.from('va_projetos').update(patch).eq('id', _pj.projeto.id);
+  if (error) { toast(error.message,'err'); return; }
+  // Se marcou reunião, conclui etapa onboarding
+  if (dt) {
+    const eOnb = (_pj.etapas||[]).find(x => x.chave==='onboarding');
+    if (eOnb && eOnb.status !== 'concluida') {
+      await sb.from('va_projeto_etapas').update({ status:'concluida', data_real: new Date().toISOString().slice(0,10) }).eq('id', eOnb.id);
+    }
+  }
+  toast('agendamento salvo','ok');
+  await renderProjeto(_pj.projeto.id);
+};
+
 // ═══ ETAPA · AVALIAÇÃO ═══════════════════════════════════════════
 // Vincula avaliação existente em laudos_v2 (marketplace) ao projeto VA.
 // Lê snapshot congelado em va_projeto_avaliacao (se já vinculado).
 function htmlAvaliacao(e){
+  const ok = e.status === 'concluida';
   return `<section class="stage-head">
-    <div><div class="meta">setup · D+${e.offset_dias||2}</div><h2>Avaliação do negócio</h2>
-    <div class="muted" style="margin-top:6px;font-size:13.5px">Vincula a avaliação já feita no diagnóstico (código 1N-XXXX). O valor de venda, faixa e ISE ficam congelados no projeto.</div></div>
+    <div><div class="meta">Etapa ${e.ordem}/${_pj.etapas.length} · ambos</div><h2>Avaliação do negócio</h2>
+    <div class="muted" style="margin-top:6px;font-size:13.5px">Vincula a avaliação feita no diagnóstico (código 1N-XXXX). Valor de venda, faixa e ISE ficam congelados no projeto.</div></div>
+    <button class="btn ${ok?'btn-ghost':'btn-primary'}" onclick="toggleEtapa('${e.id}',${ok?'true':'false'})">${ok?'↻ Reabrir':'✓ Concluir etapa'}</button>
   </section>
+  <div class="card" style="background:#fff8e1;border-color:#f0c040;margin-top:12px">
+    <div style="font-size:13px;color:#8a5a00;line-height:1.55">
+      <b>Esta etapa é o resultado da reunião de Avaliação.</b><br>
+      Na reunião você preenche o <a href="/diagnostico.html" target="_blank" style="color:#8a5a00;text-decoration:underline"><b>/diagnostico.html</b></a> com o cliente e transcreve a conversa. Ao final terá: o código da avaliação, as anotações e o valor sugerido.
+    </div>
+    <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">
+      <a href="/diagnostico.html" target="_blank" class="btn btn-primary btn-sm">↗ 1. abrir /diagnostico.html</a>
+      <a href="#av-vincular" onclick="document.getElementById('av-busca')?.focus();return false" class="btn btn-ghost btn-sm">2. vincular o código gerado</a>
+      <button class="btn btn-ghost btn-sm" onclick="anexarTranscricao()">3. registrar transcrição/notas</button>
+    </div>
+  </div>
   <div id="av-body" class="col" style="gap:14px;margin-top:14px"><div class="muted">carregando…</div></div>`;
 }
 async function vincularAvaliacao(){
@@ -2161,6 +2385,14 @@ async function vincularAvaliacao(){
     const op = cj.operacional || {};
     const idn = cj.identificacao || {};
     body.innerHTML = `
+      <div class="card" style="background:#e6f7ee;border-color:#8fd4ae">
+        <div class="row" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+          <div style="color:#0a7d3d;font-weight:600;font-size:14px">
+            ✓ Avaliação ${esc(snap?.codigo_diagnostico||'')} vinculada${snap?.vinculada_em?' em '+dataBR(snap.vinculada_em.slice(0,10)):''}
+          </div>
+          <a href="/laudo-completo.html?id=${esc(p.avaliacao_origem_id)}" target="_blank" class="btn btn-primary btn-sm">↗ abrir laudo</a>
+        </div>
+      </div>
       <div class="card">
         <div class="row" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
           <div>
@@ -2219,7 +2451,12 @@ window.avaliacaoVincular = async function(){
     if (data?.erro === 'valor_venda_ausente') msg = data.mensagem;
     st.textContent = '⚠ '+msg; st.style.color='#c60'; return;
   }
-  toast('avaliação vinculada · '+data.codigo_diagnostico,'ok');
+  // Conclui a etapa Avaliação automaticamente ao vincular
+  const eAv = (_pj.etapas||[]).find(x => x.chave==='avaliacao');
+  if (eAv && eAv.status !== 'concluida') {
+    await sb.from('va_projeto_etapas').update({ status:'concluida', data_real: new Date().toISOString().slice(0,10) }).eq('id', eAv.id);
+  }
+  toast('✓ avaliação '+data.codigo_diagnostico+' vinculada · etapa concluída','ok');
   await renderProjeto(_pj.projeto.id);
 };
 window.avaliacaoRevincular = async function(){
@@ -2360,14 +2597,83 @@ async function salvarKickoffItens(){
   toast('Checklist salvo', 'ok');
 }
 
+// ═══ ARQUIVAR PROJETO · soft delete ══════════════════════════════
+window.arquivarProjetoModal = function(){
+  const p = _pj.projeto;
+  const html = `
+    <div id="arq-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998" onclick="arqFechar()"></div>
+    <div id="arq-painel" style="position:fixed;top:15%;left:50%;transform:translateX(-50%);width:95%;max-width:520px;background:var(--surface);border-radius:12px;padding:22px;z-index:9999;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+      <div class="row" style="justify-content:space-between;align-items:baseline">
+        <h3 style="margin:0">🗄 Arquivar projeto</h3>
+        <button class="btn btn-ghost btn-sm" onclick="arqFechar()">×</button>
+      </div>
+      <p class="muted" style="font-size:13px;margin-top:8px">
+        Vai sumir da carteira principal (aparece só com o filtro "mostrar arquivados"). Nada é deletado — o histórico fica.
+      </p>
+      <div class="fld" style="margin-top:12px"><span class="lbl">motivo (obrigatório)</span>
+        <textarea id="arq-motivo" rows="3" placeholder="ex: cliente desistiu · fora de perfil · concluído com sucesso · duplicado"></textarea>
+      </div>
+      <div id="arq-status" class="muted" style="font-size:12px;margin-top:6px"></div>
+      <div class="row" style="gap:8px;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-ghost" onclick="arqFechar()">cancelar</button>
+        <button class="btn btn-primary" onclick="arqConfirmar()">arquivar</button>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(() => document.getElementById('arq-motivo')?.focus(), 60);
+};
+window.arqFechar = function(){
+  document.getElementById('arq-backdrop')?.remove();
+  document.getElementById('arq-painel')?.remove();
+};
+window.arqConfirmar = async function(){
+  const st = document.getElementById('arq-status');
+  const motivo = document.getElementById('arq-motivo').value.trim();
+  if (!motivo) { st.textContent = 'motivo é obrigatório'; st.style.color='#c60'; return; }
+  st.textContent = 'arquivando…'; st.style.color = '';
+  const email = (await sb.auth.getSession()).data.session?.user?.email || 'admin';
+  const { error } = await sb.from('va_projetos').update({
+    arquivado_em: new Date().toISOString(),
+    arquivado_por: email,
+    arquivado_motivo: motivo,
+  }).eq('id', _pj.projeto.id);
+  if (error) { st.textContent = 'erro · '+error.message; st.style.color='#c00'; return; }
+  toast('projeto arquivado','ok');
+  arqFechar();
+  rota('#/');
+};
+window.restaurarProjeto = async function(){
+  if (!confirm('Restaurar este projeto? Ele volta a aparecer na carteira principal.')) return;
+  const { error } = await sb.from('va_projetos').update({
+    arquivado_em: null, arquivado_por: null, arquivado_motivo: null,
+  }).eq('id', _pj.projeto.id);
+  if (error) { toast(error.message,'err'); return; }
+  toast('projeto restaurado','ok');
+  await renderProjeto(_pj.projeto.id);
+};
+
 async function toggleEtapa(id, atualmenteOk){
   const patch = atualmenteOk
     ? { status: 'pendente', data_real: null }
     : { status: 'concluida', data_real: new Date().toISOString().slice(0,10) };
   const { error } = await sb.from('va_projeto_etapas').update(patch).eq('id', id);
   if (error) { toast('Falhou: ' + error.message, 'err'); return; }
-  toast(atualmenteOk ? 'Reaberta' : 'Concluída', 'ok');
-  renderProjeto(_pj.projeto.id);
+  toast(atualmenteOk ? '↻ etapa reaberta' : '✓ etapa concluída', 'ok');
+  if (!atualmenteOk) _pj._recemConcluidaId = id;
+  await renderProjeto(_pj.projeto.id);
+  // Aplica animação na etapa recém-concluída
+  if (!atualmenteOk) {
+    setTimeout(() => {
+      const chaveRc = (_pj.etapas||[]).find(e => e.id === id)?.chave;
+      if (!chaveRc) return;
+      document.querySelectorAll('#trail .step').forEach(el => {
+        if (el.getAttribute('onclick')?.includes(`'${chaveRc}'`)) {
+          el.classList.add('recem-concluida');
+          setTimeout(() => el.classList.remove('recem-concluida'), 800);
+        }
+      });
+    }, 80);
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════
@@ -2597,20 +2903,23 @@ function htmlPreco(e){
   let desvioHtml = '';
   if (vv != null && vc > 0) {
     const desvio = ((vv - vc) / vc) * 100;
-    const cls = Math.abs(desvio) < 1 ? 'desvio-neutro' : (desvio > 0 ? 'desvio-pos' : 'desvio-neg');
+    const cls = Math.abs(desvio) < 1 ? 'desvio-neutro' : (desvio > 0 ? 'desvio-pos' : (desvio <= -10 ? 'desvio-oportunidade' : 'desvio-neg'));
     const sinal = desvio > 0 ? '+' : (desvio < 0 ? '' : '');
     desvioHtml = `
-      <div class="desvio-box">
+      <div class="desvio-box" ${desvio<=-10?'style="background:#e6f7ee;border-color:#8fd4ae"':''}>
         <div>
-          <div class="lbl">Desvio vs central</div>
+          <div class="lbl" ${desvio<=-10?'style="color:#0a7d3d"':''}>${desvio<=-10?'Oportunidade':'Desvio vs central'}</div>
           <div class="muted" style="margin-top:2px;font-size:12px">Central era ${brlNice(vc)}</div>
         </div>
-        <div class="desvio-val ${cls}">${sinal}${desvio.toFixed(1).replace('.',',')}%</div>
+        <div class="desvio-val ${cls}" ${desvio<=-10?'style="color:#0a7d3d"':''}>${sinal}${desvio.toFixed(1).replace('.',',')}%</div>
       </div>
-      ${desvio > 10 ? `<div class="aviso">Preço <strong>acima da faixa</strong>. Registre a justificativa — é o que transforma a conversa do dia 60 em replanejamento em vez de discussão.</div>` : ''}`;
+      ${desvio > 10 ? `<div class="aviso">Preço <strong>acima da faixa</strong>. Registre a justificativa — é o que transforma a conversa do dia 60 em replanejamento em vez de discussão.</div>` : ''}
+      ${desvio <= -10 ? `<div class="aviso" style="background:#e6f7ee;border-color:#8fd4ae;color:#0a7d3d"><strong>Preço ${Math.abs(desvio).toFixed(1).replace('.',',')}% abaixo</strong> da avaliação técnica — posicionado como <strong>oportunidade de mercado</strong>. Bom argumento pra acelerar interesse.</div>` : ''}`;
   }
 
-  const comissaoProj = vv != null ? vv * (cpc/100) : null;
+  const comissaoBruta = vv != null ? vv * (cpc/100) : null;
+  const contratoOnda = Number(_pj.financeiro?.contrato_total || 0);
+  const comissaoLiquida = comissaoBruta != null ? comissaoBruta - contratoOnda : null;
 
   return `
     <div class="stage-head">
@@ -2637,6 +2946,10 @@ function htmlPreco(e){
             ${DECIDIDO_OPCOES.map(o => `<option value="${o.v}" ${vd===o.v?'selected':''}>${esc(o.l)}</option>`).join('')}
           </select>
         </div>
+      </div>
+      <div class="row" style="gap:8px;margin-top:10px;align-items:center">
+        <button class="btn btn-primary btn-sm" id="pr-salvar">💾 salvar valor de venda</button>
+        <span id="pr-salvar-status" class="muted" style="font-size:12px"></span>
       </div>
 
       ${desvioHtml}
@@ -2669,16 +2982,24 @@ function htmlPreco(e){
       </label>
     </div>
 
-    ${comissaoProj != null ? `
+    ${comissaoBruta != null ? `
       <div class="k-card" style="background:linear-gradient(135deg,rgba(10,157,85,.05),transparent)">
-        <div class="lbl">projeção</div>
-        <div class="row" style="justify-content:space-between;margin-top:6px">
-          <div>
-            <div class="h3">Comissão projetada</div>
-            <div class="muted" style="margin-top:4px;font-size:12.5px">${brlNice(vv)} × ${String(cpc).replace('.',',')}%</div>
-          </div>
-          <div class="calc-val big">${brlNice(comissaoProj)}</div>
-        </div>
+        <div class="lbl">projeção · comissão líquida</div>
+        <table style="width:100%;margin-top:8px;border-collapse:collapse;font-size:13px">
+          <tr>
+            <td style="padding:6px 0;color:var(--ink-2)">Taxa de sucesso <span class="muted" style="font-size:11px">(${String(cpc).replace('.',',')}% de ${brlNice(vv)})</span></td>
+            <td style="padding:6px 0;text-align:right;font-family:var(--mono)">${brlNice(comissaoBruta)}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 0;color:var(--ink-2)">(−) contrato da onda</td>
+            <td style="padding:6px 0;text-align:right;font-family:var(--mono);color:${contratoOnda>0?'var(--danger)':'var(--ink-3)'}">${contratoOnda>0?'('+brlNice(contratoOnda)+')':'—'}</td>
+          </tr>
+          <tr style="border-top:1px solid var(--line)">
+            <td style="padding:8px 0;font-weight:700">COMISSÃO LÍQUIDA PROJETADA</td>
+            <td style="padding:8px 0;text-align:right;font-family:var(--mono);font-weight:700;font-size:16px;color:${comissaoLiquida>=0?'#0a7d3d':'var(--danger)'}">${brlNice(comissaoLiquida)}</td>
+          </tr>
+        </table>
+        ${contratoOnda===0?'<div class="muted" style="font-size:11px;margin-top:6px">Contrato da onda ainda não lançado. Assim que houver, o líquido reflete aqui.</div>':''}
       </div>` : ''}`;
 }
 
@@ -2686,9 +3007,12 @@ function vincularPreco(){
   const v = document.getElementById('pr-valor');
   const d = document.getElementById('pr-decidido');
   const j = document.getElementById('pr-just');
+  // blur ainda salva (mantém behavior), MAS agora tem botão explícito com toast
   if (v) v.addEventListener('blur', () => salvarPrecoCampo('valor_venda', v.value));
   if (d) d.addEventListener('change', () => salvarPrecoCampo('valor_venda_decidido_por', d.value));
   if (j) j.addEventListener('blur', () => salvarPrecoCampo('valor_venda_justificativa', j.value));
+  const btnSalvar = document.getElementById('pr-salvar');
+  if (btnSalvar) btnSalvar.addEventListener('click', salvarValorVendaExplicito);
   const flex = document.getElementById('pr-flex');
   const ent  = document.getElementById('pr-entmin');
   const parc = document.getElementById('pr-parc');
@@ -2699,6 +3023,24 @@ function vincularPreco(){
   if (parc) parc.addEventListener('change',() => { salvarPrecoCampo('aceita_parcelamento', parc.value==='true'); if(parcM) parcM.disabled = parc.value!=='true'; });
   if (parcM) parcM.addEventListener('blur',() => salvarPrecoCampo('parcelamento_max_meses', parcM.value));
   if (obsn) obsn.addEventListener('blur',  () => salvarPrecoCampo('observacoes_negociacao', obsn.value));
+}
+
+async function salvarValorVendaExplicito(){
+  const st = document.getElementById('pr-salvar-status');
+  const v = document.getElementById('pr-valor');
+  const d = document.getElementById('pr-decidido');
+  const raw = v?.value;
+  const val = (raw==='' || raw==null) ? null : Number(raw);
+  if (val != null && !isFinite(val)) { toast('valor inválido','err'); return; }
+  st.textContent = 'salvando…'; st.style.color = '';
+  const patch = { valor_venda: val, valor_venda_decidido_por: d?.value || null };
+  const { error } = await sb.from('va_projetos').update(patch).eq('id', _pj.projeto.id);
+  if (error) { st.textContent = 'erro · '+error.message; st.style.color='#c00'; return; }
+  patchProjetoLocal(patch);
+  st.textContent = '✓ salvo'; st.style.color = '#0a7d3d';
+  toast('valor de venda salvo · '+brlNice(val),'ok');
+  await checarAutoConclusao('preco');
+  if (_abaChave === 'preco') desenhaAba();
 }
 
 async function salvarPrecoCampo(campo, raw){
