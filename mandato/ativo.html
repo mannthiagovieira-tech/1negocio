@@ -9,60 +9,557 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/mandato/core/tokens.css">
 <link rel="stylesheet" href="/mandato/core/base.css">
+<link rel="stylesheet" href="/mandato/ativo.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
-<main class="wrap"><section class="page">
+<main class="wrap" id="stage"><section class="page">
   <header class="page__head">
     <div class="page__zone">Zona · Ativo</div>
     <h1 class="page__title">O que está sendo vendido</h1>
-    <p class="page__sub">Os quatro artefatos que definem o negócio no mercado. Cada um tem estado (rascunho, aprovado) e versão. É a base do teaser público, dos criativos e das conversas com comprador.</p>
+    <p class="page__sub">Máquina rascunha, humano julga, resultado congela. Os 4 artefatos que definem o negócio no mercado.</p>
   </header>
-
-  <div class="placeholder-grid cols-4">
-    <div class="slot">
-      <div>
-        <div class="slot__lbl">Artefato 01</div>
-        <div class="slot__title">Avaliação</div>
-        <div class="slot__desc">Laudo vinculado ao mandato · faixa mínima · central · máxima · ISE · atratividade. Snapshot congelado.</div>
-      </div>
-      <div class="slot__foot">Em construção · Prompt 3</div>
-    </div>
-    <div class="slot">
-      <div>
-        <div class="slot__lbl">Artefato 02</div>
-        <div class="slot__title">Valor de venda</div>
-        <div class="slot__desc">Preço decidido para operar · desvio versus avaliação · justificativa · comissão líquida projetada.</div>
-      </div>
-      <div class="slot__foot">Em construção · Prompt 3</div>
-    </div>
-    <div class="slot">
-      <div>
-        <div class="slot__lbl">Artefato 03</div>
-        <div class="slot__title">Teaser</div>
-        <div class="slot__desc">Versões geradas com ângulos diferentes · aprovada vira base da landing pública e das mensagens.</div>
-      </div>
-      <div class="slot__foot">Em construção · Prompt 3</div>
-    </div>
-    <div class="slot">
-      <div>
-        <div class="slot__lbl">Artefato 04</div>
-        <div class="slot__title">Arquétipos</div>
-        <div class="slot__desc">Perfis de comprador com queries de busca e canais. Sem query, nenhum contato entra na fila.</div>
-      </div>
-      <div class="slot__foot">Em construção · Prompt 3</div>
-    </div>
-  </div>
+  <div id="ativo-body"><div class="muted">Carregando…</div></div>
 </section></main>
 
 <script type="module">
-  import { requireAdmin, getMandatoAtivo, watchAuth } from '/mandato/core/core.js';
-  import { mountTopbar, renderSelector } from '/mandato/core/ui.js';
+  import { sb, requireAdmin, getMandatoAtivo, watchAuth, mandatoIdFromURL } from '/mandato/core/core.js';
+  import { mountTopbar, renderSelector, toast } from '/mandato/core/ui.js';
+  import { brl, brlCompact, num, dataBR, esc } from '/mandato/core/format.js';
+
   await requireAdmin();
   watchAuth(() => location.reload());
   const mandato = await getMandatoAtivo();
   mountTopbar('ativo', mandato);
-  if (!mandato) await renderSelector('ativo');
+  if (!mandato) { await renderSelector('ativo'); }
+  else { await renderAtivo(mandato); }
+
+  // ═══════════════════════════════════════════════════════════════════
+  async function renderAtivo(m) {
+    const body = document.getElementById('ativo-body');
+    // Carrega em paralelo
+    const [laudoR, arqR, teaserR] = await Promise.all([
+      m.laudo_v2_id ? sb.from('laudos_v2').select('calc_json, versao, criado_em').eq('id', m.laudo_v2_id).maybeSingle() : Promise.resolve({data:null}),
+      sb.from('va_arquetipos').select('*').eq('projeto_id', m.id).order('criado_em',{ascending:true}),
+      sb.from('va_projeto_teaser').select('*').eq('projeto_id', m.id).order('versao',{ascending:false}),
+    ]);
+    const calc = laudoR.data?.calc_json || null;
+    const arqTodos = arqR.data || [];
+    const teasers = teaserR.data || [];
+    const teaserRasc = teasers.find(t => t.status === 'rascunho');
+    const teaserAp = teasers.find(t => t.status === 'aprovado');
+
+    body.innerHTML = `
+      ${renderFaixa(m, calc)}
+      ${renderSecaoAvaliacao(m, calc, laudoR.data)}
+      ${renderSecaoValor(m, calc)}
+      ${renderSecaoTeaser(m, teaserRasc, teaserAp)}
+      ${renderSecaoArquetipos(m, arqTodos)}
+    `;
+    ligarEventos(m);
+    // Sinal de prontidão do módulo (padrão MANDATO)
+    document.getElementById('ativo-body').setAttribute('data-ready', 'true');
+  }
+
+  // ─── Faixa-resumo ────────────────────────────────────────────────
+  function renderFaixa(m, calc) {
+    const setor = m.avaliacao_setor || m.setor || calc?.identificacao?.setor?.label || '—';
+    const fat = calc?.operacional?.fat_anual;
+    const nomeNeg = m.negocio_titulo || m.cliente_nome || '—';
+    const localizacao = [m.cidade, m.uf].filter(Boolean).join('/') || '—';
+    const laudoLink = m.laudo_v2_id
+      ? `<a href="/laudo-completo.html?id=${esc(m.avaliacao_origem_id||'')}" target="_blank" class="faixa__link">Ver laudo completo</a>`
+      : '<span class="muted mono" style="font-size:11px">sem laudo</span>';
+    return `
+    <section class="faixa">
+      <div class="faixa__col">
+        <div class="lbl">Negócio</div>
+        <div class="faixa__nome">${esc(nomeNeg)}</div>
+        <div class="mono muted" style="font-size:11px;margin-top:2px">${esc(setor)} · ${esc(localizacao)}${m.codigo?' · '+esc(m.codigo):''}</div>
+      </div>
+      <div class="faixa__col">
+        <div class="lbl">Faturamento anual</div>
+        <div class="faixa__num">${fat != null ? brlCompact(fat) : '<span class="muted">—</span>'}</div>
+      </div>
+      <div class="faixa__col">
+        <div class="lbl">Valor de venda</div>
+        <div class="faixa__num" style="color:${m.valor_venda?'var(--accent)':'var(--ink-3)'}">
+          ${m.valor_venda ? brlCompact(m.valor_venda) : '<span class="muted" style="font-size:16px">— a definir</span>'}
+        </div>
+      </div>
+      <div class="faixa__col faixa__col--end">
+        ${laudoLink}
+      </div>
+    </section>`;
+  }
+
+  // ─── Seção 1 · Avaliação ─────────────────────────────────────────
+  function renderSecaoAvaliacao(m, calc, laudo) {
+    if (!m.laudo_v2_id || !calc) {
+      return `<section class="secao">
+        <header class="secao__head"><div class="lbl">Artefato 01</div><h2 class="secao__title">Avaliação</h2></header>
+        <div class="empty">
+          <p>Nenhum laudo vinculado a este mandato.</p>
+          <p class="muted" style="font-size:13px;margin-top:6px">O vínculo é feito no painel legado — <a href="/projetos.html#/p/${esc(m.id)}" target="_blank" style="color:var(--accent)">abra este projeto lá</a> e use "Bloco Avaliação · vincular laudo".</p>
+        </div>
+      </section>`;
+    }
+    const v = calc.valuation || {}, ise = calc.ise || {}, atr = calc.atratividade || {};
+    return `<section class="secao">
+      <header class="secao__head">
+        <div class="lbl">Artefato 01</div>
+        <h2 class="secao__title">Avaliação</h2>
+        <span class="pill">v${laudo?.versao || '?'} · ${dataBR(laudo?.criado_em?.slice(0,10))}</span>
+      </header>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="lbl">Valor de venda (laudo)</div><div class="kpi__v">${brl(v.valor_venda)}</div></div>
+        <div class="kpi"><div class="lbl">Faixa DCF</div><div class="kpi__v">${brl(v.valor_operacao)}<span class="kpi__sub">operação</span></div></div>
+        <div class="kpi"><div class="lbl">EBITDA anual</div><div class="kpi__v">${brl(v.ro_anual)}</div></div>
+        <div class="kpi"><div class="lbl">Múltiplo</div><div class="kpi__v">${Number(v.fator_final||0).toFixed(2)}<span class="kpi__sub">×</span></div></div>
+        <div class="kpi"><div class="lbl">ISE (0-100)</div><div class="kpi__v">${ise.ise_total ?? '—'}<span class="kpi__sub">${esc(ise.classe||'')}</span></div></div>
+        <div class="kpi"><div class="lbl">Atratividade</div><div class="kpi__v">${atr.total ?? '—'}<span class="kpi__sub">${esc(atr.label||'')}</span></div></div>
+      </div>
+    </section>`;
+  }
+
+  // ─── Seção 2 · Valor de venda ────────────────────────────────────
+  function renderSecaoValor(m, calc) {
+    const vv = m.valor_venda;
+    const teto = calc?.valuation?.valor_venda;
+    let delta = '';
+    if (vv && teto) {
+      const pct = ((vv - teto) / teto) * 100;
+      const cls = Math.abs(pct) < 1 ? 'delta-neutro' : (pct > 0 ? 'delta-warn' : 'delta-abaixo');
+      const sinal = pct > 0 ? '+' : '';
+      delta = `<span class="delta ${cls}">${sinal}${pct.toFixed(1).replace('.',',')}% ${pct>0?'sobre o teto':'abaixo do teto'} da avaliação</span>`;
+    }
+    return `<section class="secao">
+      <header class="secao__head">
+        <div class="lbl">Artefato 02</div>
+        <h2 class="secao__title">Valor de venda</h2>
+        <button class="btn btn--sm" id="btn-def-valor">${vv ? 'Editar valor' : 'Definir valor'}</button>
+      </header>
+      ${vv ? `
+      <div class="valor-box">
+        <div class="valor-box__num">${brl(vv)}</div>
+        ${delta}
+        ${m.valor_venda_justificativa ? `<div class="valor-box__just">${esc(m.valor_venda_justificativa)}</div>` : ''}
+        <div class="mono muted" style="font-size:11px;margin-top:8px">definido ${m.valor_venda_definido_em?dataBR(m.valor_venda_definido_em.slice(0,10)):'—'}${m.valor_venda_decidido_por?' · '+esc(m.valor_venda_decidido_por):''}</div>
+      </div>` : `<div class="empty"><p class="muted">Nenhum valor definido. A avaliação do laudo é uma referência técnica; o valor de venda é decisão comercial.</p></div>`}
+    </section>`;
+  }
+
+  // ─── Seção 3 · Teaser ────────────────────────────────────────────
+  function renderSecaoTeaser(m, rasc, aprovado) {
+    const alvo = rasc || aprovado;
+    if (!alvo) {
+      return `<section class="secao">
+        <header class="secao__head"><div class="lbl">Artefato 03</div><h2 class="secao__title">Teaser</h2></header>
+        <div class="empty">
+          <p class="muted" style="margin-bottom:12px">Material cego que apresenta o negócio sem revelar identidade.</p>
+          <button class="btn btn--primary" id="btn-ger-teaser">Gerar teaser com IA</button>
+        </div>
+      </section>`;
+    }
+    const st = alvo.status;
+    const pill = st === 'aprovado' ? '<span class="pill pill--accent">Aprovado</span>' : '<span class="pill">Rascunho</span>';
+    return `<section class="secao">
+      <header class="secao__head">
+        <div class="lbl">Artefato 03</div>
+        <h2 class="secao__title">Teaser</h2>
+        ${pill}
+        <span class="mono muted" style="font-size:11px">v${alvo.versao}${alvo.aprovado_em?' · aprovado '+dataBR(alvo.aprovado_em.slice(0,10)):' · '+dataBR(alvo.criado_em?.slice(0,10))}</span>
+      </header>
+      <div class="teaser-wrap">
+        <div class="teaser-editor">
+          <div class="lbl">markdown</div>
+          <textarea id="teaser-txt" ${st==='aprovado'?'disabled':''}>${esc(alvo.texto||'')}</textarea>
+        </div>
+        <aside class="teaser-preview">
+          <div class="lbl">preview</div>
+          <div id="teaser-preview-body" class="md">${renderMarkdown(alvo.texto||'')}</div>
+        </aside>
+      </div>
+      <div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">
+        ${st === 'rascunho' ? `
+          <button class="btn btn--primary btn--sm" id="teaser-aprovar" data-id="${esc(alvo.id)}">Aprovar</button>
+          <button class="btn btn--sm" id="teaser-salvar" data-id="${esc(alvo.id)}">Salvar edição</button>
+          <button class="btn btn--ghost btn--sm" id="teaser-regen">Regenerar</button>
+        ` : `
+          <button class="btn btn--primary btn--sm" id="teaser-nova-versao" data-id="${esc(alvo.id)}">Nova versão</button>
+        `}
+      </div>
+    </section>`;
+  }
+
+  // ─── Seção 4 · Arquétipos ────────────────────────────────────────
+  function renderSecaoArquetipos(m, arqTodos) {
+    const mostrarArquivados = window.__mostrarArquivadosArq === true;
+    const ativos = arqTodos.filter(a => a.status !== 'arquivado');
+    const arquivados = arqTodos.filter(a => a.status === 'arquivado');
+    const visiveis = mostrarArquivados ? arquivados : ativos;
+    const teto = 5, restantes = teto - ativos.length;
+    return `<section class="secao secao--arq">
+      <header class="secao__head">
+        <div class="lbl">Artefato 04 · o coração da zona</div>
+        <h2 class="secao__title">Arquétipos</h2>
+        <span class="pill">${ativos.length} de ${teto} ativos</span>
+        ${arquivados.length ? `<label class="toggle" style="margin-left:auto"><input type="checkbox" id="tog-arq" ${mostrarArquivados?'checked':''}> mostrar arquivados (${arquivados.length})</label>` : ''}
+      </header>
+      ${ativos.length === 0 && !mostrarArquivados ? `
+        <div class="empty">
+          <p class="muted" style="margin-bottom:14px">Cada arquétipo é um perfil de comprador que compila em query de extração + abordagem.</p>
+          <div class="row" style="gap:10px">
+            <button class="btn btn--primary" id="btn-ger-arq" ${restantes<=0?'disabled':''}>Gerar arquétipos com IA</button>
+            <button class="btn" id="btn-man-arq" ${restantes<=0?'disabled':''}>Criar manual</button>
+          </div>
+        </div>` : `
+        <div class="row" style="gap:8px;margin-bottom:16px;flex-wrap:wrap">
+          <button class="btn btn--sm" id="btn-ger-arq" ${restantes<=0?'disabled title="teto de 5"':''}>Gerar com IA${restantes<5?` (+${restantes})`:''}</button>
+          <button class="btn btn--sm" id="btn-man-arq" ${restantes<=0?'disabled title="teto de 5"':''}>Criar manual</button>
+        </div>
+        <div class="arq-grid">${visiveis.map(arqCard).join('')}</div>
+      `}
+    </section>`;
+  }
+  function arqCard(a) {
+    const status = a.status; // rascunho/aprovado/arquivado
+    const stCls = status==='aprovado'?'pill--accent':(status==='arquivado'?'pill--muted':'');
+    const filtro = a.filtro || {};
+    const pillsFilt = [];
+    if (filtro.uf?.length) pillsFilt.push(filtro.uf.join(','));
+    if (filtro.porte?.length) pillsFilt.push(filtro.porte.join('-'));
+    if (filtro.faturamento_min || filtro.faturamento_max) {
+      const min = filtro.faturamento_min ? (filtro.faturamento_min/1000000).toFixed(1)+'M' : '?';
+      const max = filtro.faturamento_max ? (filtro.faturamento_max/1000000).toFixed(1)+'M' : '?';
+      pillsFilt.push(min+'-'+max);
+    }
+    if (filtro.socio_idade_min || filtro.socio_idade_max) {
+      const min = filtro.socio_idade_min || '?', max = filtro.socio_idade_max || '?';
+      pillsFilt.push(min+'-'+max+'a');
+    }
+    const expandido = window.__arqExp?.has?.(a.id);
+    return `<article class="arq-card" data-arq="${esc(a.id)}" data-status="${esc(status)}">
+      <header class="arq-card__head" data-toggle="${esc(a.id)}">
+        <div style="flex:1;min-width:0">
+          <h3 class="arq-card__nome">${esc(a.nome)}</h3>
+          <div class="arq-card__meta">
+            <span class="pill ${stCls}">${status}</span>
+            <span class="pill mono" style="font-size:10.5px">${a.origem==='ia'?'IA':'manual'}</span>
+            <span class="mono muted" style="font-size:10.5px">v${a.versao}</span>
+          </div>
+        </div>
+        <button class="arq-card__chev" aria-label="expandir">${expandido?'−':'+'}</button>
+      </header>
+      <p class="arq-card__tese">${esc(a.tese)}</p>
+      ${pillsFilt.length ? `<div class="arq-card__pills">${pillsFilt.map(p=>`<span class="pill mono" style="font-size:10.5px">${esc(p)}</span>`).join('')}</div>` : ''}
+      ${expandido ? renderArqExpandido(a) : ''}
+      <footer class="arq-card__foot">
+        <span class="mono muted" style="font-size:10.5px">— sem leads ainda</span>
+        <div class="arq-card__actions">
+          ${status==='rascunho' ? `
+            <button class="btn btn--sm btn--primary" data-arq-aprovar="${esc(a.id)}">Aprovar</button>
+            <button class="btn btn--sm" data-arq-editar="${esc(a.id)}">${expandido?'Fechar':'Editar'}</button>
+            <button class="btn btn--sm btn--ghost" data-arq-arquivar="${esc(a.id)}">Arquivar</button>
+          ` : status==='aprovado' ? `
+            <button class="btn btn--sm" data-arq-nova-versao="${esc(a.id)}">Nova versão</button>
+            <button class="btn btn--sm btn--ghost" data-arq-arquivar="${esc(a.id)}">Arquivar</button>
+          ` : `
+            <button class="btn btn--sm" data-arq-reativar="${esc(a.id)}">Reativar</button>
+          `}
+        </div>
+      </footer>
+    </article>`;
+  }
+  function renderArqExpandido(a) {
+    const isRasc = a.status === 'rascunho';
+    const f = a.filtro || {}, b = a.abordagem || {};
+    const readonlyAttr = isRasc ? '' : 'disabled';
+    return `<div class="arq-exp">
+      <div class="arq-exp__bloco">
+        <div class="lbl">01 · Tese</div>
+        <div class="field"><span class="lbl">nome</span><input data-exp="nome" data-id="${esc(a.id)}" value="${esc(a.nome)}" ${readonlyAttr}></div>
+        <div class="field"><span class="lbl">tese</span><textarea data-exp="tese" data-id="${esc(a.id)}" rows="4" ${readonlyAttr}>${esc(a.tese)}</textarea></div>
+      </div>
+      <div class="arq-exp__bloco">
+        <div class="lbl">02 · Filtro (compila em query de extração)</div>
+        <div class="filt-grid">
+          <div class="field"><span class="lbl">cnaes (vírgula)</span><input data-filt="cnaes" data-id="${esc(a.id)}" value="${esc((f.cnaes||[]).join(', '))}" ${readonlyAttr}></div>
+          <div class="field"><span class="lbl">porte (vírgula)</span><input data-filt="porte" data-id="${esc(a.id)}" value="${esc((f.porte||[]).join(', '))}" ${readonlyAttr}></div>
+          <div class="field"><span class="lbl">fat min (R$/ano)</span><input type="number" data-filt="faturamento_min" data-id="${esc(a.id)}" value="${f.faturamento_min ?? ''}" ${readonlyAttr}></div>
+          <div class="field"><span class="lbl">fat max (R$/ano)</span><input type="number" data-filt="faturamento_max" data-id="${esc(a.id)}" value="${f.faturamento_max ?? ''}" ${readonlyAttr}></div>
+          <div class="field"><span class="lbl">uf (vírgula)</span><input data-filt="uf" data-id="${esc(a.id)}" value="${esc((f.uf||[]).join(', '))}" ${readonlyAttr}></div>
+          <div class="field"><span class="lbl">cidades (vírgula)</span><input data-filt="cidades" data-id="${esc(a.id)}" value="${esc((f.cidades||[]).join(', '))}" ${readonlyAttr}></div>
+          <div class="field"><span class="lbl">raio km</span><input type="number" data-filt="raio_km" data-id="${esc(a.id)}" value="${f.raio_km ?? ''}" ${readonlyAttr}></div>
+          <div class="field"><span class="lbl">idade sócio min</span><input type="number" data-filt="socio_idade_min" data-id="${esc(a.id)}" value="${f.socio_idade_min ?? ''}" ${readonlyAttr}></div>
+          <div class="field"><span class="lbl">idade sócio max</span><input type="number" data-filt="socio_idade_max" data-id="${esc(a.id)}" value="${f.socio_idade_max ?? ''}" ${readonlyAttr}></div>
+          <div class="field"><span class="lbl">dívida (true/false/vazio)</span><input data-filt="com_divida" data-id="${esc(a.id)}" value="${f.com_divida==null?'':String(f.com_divida)}" ${readonlyAttr}></div>
+          <div class="field"><span class="lbl">fonte</span><input data-filt="fonte_preferida" data-id="${esc(a.id)}" value="${esc(f.fonte_preferida||'')}" ${readonlyAttr}></div>
+        </div>
+      </div>
+      <div class="arq-exp__bloco">
+        <div class="lbl">03 · Abordagem
+          ${isRasc ? `<button class="btn btn--sm btn--ghost" style="float:right" data-arq-regen-abord="${esc(a.id)}">Regenerar abordagem com IA</button>` : ''}
+        </div>
+        <div class="field"><span class="lbl">ângulo da 1ª mensagem</span><textarea data-ab="angulo" data-id="${esc(a.id)}" rows="3" ${readonlyAttr}>${esc(b.angulo||'')}</textarea></div>
+        <div class="field"><span class="lbl">objeção provável</span><textarea data-ab="objecao_provavel" data-id="${esc(a.id)}" rows="3" ${readonlyAttr}>${esc(b.objecao_provavel||'')}</textarea></div>
+        <div class="field"><span class="lbl">segmentação (meta ads)</span><textarea data-ab="segmentacao_meta" data-id="${esc(a.id)}" rows="2" ${readonlyAttr}>${esc(b.segmentacao_meta||'')}</textarea></div>
+      </div>
+      ${isRasc ? `<div class="row" style="gap:8px;margin-top:12px"><button class="btn btn--sm btn--primary" data-arq-salvar="${esc(a.id)}">Salvar edições</button></div>` : ''}
+    </div>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Handlers
+  function ligarEventos(m) {
+    // Valor de venda
+    document.getElementById('btn-def-valor')?.addEventListener('click', () => abrirModalValor(m));
+    // Teaser
+    document.getElementById('btn-ger-teaser')?.addEventListener('click', () => gerarTeaser(m));
+    document.getElementById('teaser-regen')?.addEventListener('click', () => gerarTeaser(m));
+    document.getElementById('teaser-salvar')?.addEventListener('click', (e) => salvarTeaser(m, e.target.dataset.id));
+    document.getElementById('teaser-aprovar')?.addEventListener('click', (e) => aprovarTeaser(m, e.target.dataset.id));
+    document.getElementById('teaser-nova-versao')?.addEventListener('click', (e) => novaVersaoTeaser(m, e.target.dataset.id));
+    document.getElementById('teaser-txt')?.addEventListener('input', (e) => {
+      document.getElementById('teaser-preview-body').innerHTML = renderMarkdown(e.target.value);
+    });
+    // Arquétipos
+    document.getElementById('btn-ger-arq')?.addEventListener('click', () => gerarArquetipos(m));
+    document.getElementById('btn-man-arq')?.addEventListener('click', () => criarArqManual(m));
+    document.getElementById('tog-arq')?.addEventListener('change', (e) => {
+      window.__mostrarArquivadosArq = e.target.checked;
+      renderAtivo(m);
+    });
+    document.querySelectorAll('[data-toggle]').forEach(el => el.addEventListener('click', (e) => {
+      if (e.target.tagName === 'BUTTON') return;
+      const id = el.dataset.toggle;
+      window.__arqExp = window.__arqExp || new Set();
+      window.__arqExp.has(id) ? window.__arqExp.delete(id) : window.__arqExp.add(id);
+      renderAtivo(m);
+    }));
+    document.querySelectorAll('[data-arq-aprovar]').forEach(el => el.addEventListener('click', () => aprovarArq(m, el.dataset.arqAprovar)));
+    document.querySelectorAll('[data-arq-editar]').forEach(el => el.addEventListener('click', () => {
+      const id = el.dataset.arqEditar;
+      window.__arqExp = window.__arqExp || new Set();
+      window.__arqExp.has(id) ? window.__arqExp.delete(id) : window.__arqExp.add(id);
+      renderAtivo(m);
+    }));
+    document.querySelectorAll('[data-arq-arquivar]').forEach(el => el.addEventListener('click', () => arquivarArq(m, el.dataset.arqArquivar)));
+    document.querySelectorAll('[data-arq-reativar]').forEach(el => el.addEventListener('click', () => reativarArq(m, el.dataset.arqReativar)));
+    document.querySelectorAll('[data-arq-nova-versao]').forEach(el => el.addEventListener('click', () => novaVersaoArq(m, el.dataset.arqNovaVersao)));
+    document.querySelectorAll('[data-arq-salvar]').forEach(el => el.addEventListener('click', () => salvarArqEdicoes(m, el.dataset.arqSalvar)));
+    document.querySelectorAll('[data-arq-regen-abord]').forEach(el => el.addEventListener('click', () => regenerarAbordagem(m, el.dataset.arqRegenAbord)));
+  }
+
+  // ─── Modal valor ─────────────────────────────────────────────────
+  function abrirModalValor(m) {
+    const atual = m.valor_venda || '';
+    const html = `<div class="modal-bg" onclick="if(event.target===this)this.remove()">
+      <div class="modal">
+        <div class="lbl">Definir valor de venda</div>
+        <h3 style="margin-top:6px">Preço decidido pra operar</h3>
+        <div class="field"><span class="lbl">valor (R$)</span>
+          <input id="mv-valor" type="text" inputmode="numeric" value="${atual?brl(atual).replace('R$ ',''):''}">
+        </div>
+        <div class="field" style="margin-top:12px"><span class="lbl">justificativa</span>
+          <textarea id="mv-just" rows="4" placeholder="Ex.: pedida 15% acima do teto do DCF pra margem de negociação.">${esc(m.valor_venda_justificativa||'')}</textarea>
+        </div>
+        <div class="row" style="gap:8px;justify-content:flex-end;margin-top:16px">
+          <button class="btn btn--ghost" onclick="this.closest('.modal-bg').remove()">Cancelar</button>
+          <button class="btn btn--primary" id="mv-salvar">Salvar</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.getElementById('mv-salvar').addEventListener('click', async () => {
+      const raw = (document.getElementById('mv-valor').value||'').replace(/\D/g,'');
+      const v = raw ? Number(raw) : null;
+      const j = document.getElementById('mv-just').value.trim() || null;
+      const { error } = await sb.from('va_projetos').update({
+        valor_venda: v, valor_venda_justificativa: j,
+      }).eq('id', m.id);
+      if (error) { toast('err', error.message); return; }
+      toast('ok', v ? 'Valor definido: ' + brl(v) : 'Valor removido');
+      document.querySelector('.modal-bg').remove();
+      const novo = { ...m, valor_venda: v, valor_venda_justificativa: j, valor_venda_definido_em: new Date().toISOString() };
+      renderAtivo(novo);
+    });
+  }
+
+  // ─── Teaser handlers ─────────────────────────────────────────────
+  async function gerarTeaser(m) {
+    if (!confirm('Gerar teaser via IA? Custo ~R$ 0,10.')) return;
+    const btn = document.getElementById('btn-ger-teaser') || document.getElementById('teaser-regen');
+    if (btn) { btn.disabled = true; btn.textContent = 'gerando…'; }
+    try {
+      const tok = (await sb.auth.getSession()).data.session?.access_token;
+      const r = await fetch('/api/va-gerar-teaser', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+        body: JSON.stringify({ projeto_id: m.id }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) throw new Error(d.erro || ('HTTP ' + r.status));
+      toast('ok', 'Teaser rascunhado (v' + d.teaser.versao + ')');
+      renderAtivo(m);
+    } catch (e) { toast('err', String(e.message).slice(0,180)); if (btn) { btn.disabled = false; btn.textContent = 'Gerar teaser com IA'; } }
+  }
+  async function salvarTeaser(m, id) {
+    const t = document.getElementById('teaser-txt').value;
+    const { error } = await sb.from('va_projeto_teaser').update({ texto: t }).eq('id', id);
+    if (error) { toast('err', error.message); return; }
+    toast('ok', 'Edição salva');
+  }
+  async function aprovarTeaser(m, id) {
+    if (!confirm('Aprovar? Texto passa a ser imutável — mudanças exigem nova versão.')) return;
+    const t = document.getElementById('teaser-txt').value;
+    await sb.from('va_projeto_teaser').update({ texto: t }).eq('id', id);
+    const { error } = await sb.from('va_projeto_teaser').update({ status: 'aprovado', aprovado_em: new Date().toISOString() }).eq('id', id);
+    if (error) { toast('err', error.message); return; }
+    toast('ok', 'Teaser aprovado'); renderAtivo(m);
+  }
+  async function novaVersaoTeaser(m, id) {
+    const { data: base } = await sb.from('va_projeto_teaser').select('*').eq('id', id).maybeSingle();
+    const { data: ult } = await sb.from('va_projeto_teaser')
+      .select('versao').eq('projeto_id', m.id).order('versao',{ascending:false}).limit(1).maybeSingle();
+    const nova = (ult?.versao || 0) + 1;
+    const { error } = await sb.from('va_projeto_teaser').insert({
+      projeto_id: m.id, versao: nova, texto: base.texto, status: 'rascunho', origem: 'manual',
+    });
+    if (error) { toast('err', error.message); return; }
+    toast('ok', 'Rascunho v' + nova + ' criado'); renderAtivo(m);
+  }
+
+  // ─── Arquétipos handlers ─────────────────────────────────────────
+  async function gerarArquetipos(m) {
+    if (!confirm('Gerar 3-4 arquétipos via IA? Ancorado no laudo. Custo ~R$ 0,20.')) return;
+    const btn = document.getElementById('btn-ger-arq');
+    if (btn) { btn.disabled = true; btn.textContent = 'gerando…'; }
+    try {
+      const tok = (await sb.auth.getSession()).data.session?.access_token;
+      const r = await fetch('/api/va-gerar-arquetipos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+        body: JSON.stringify({ projeto_id: m.id }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) throw new Error(d.erro || ('HTTP ' + r.status));
+      toast('ok', d.quantidade + ' arquétipos rascunhados');
+      renderAtivo(m);
+    } catch (e) { toast('err', String(e.message).slice(0,180)); if (btn) { btn.disabled = false; btn.textContent = 'Gerar com IA'; } }
+  }
+  async function criarArqManual(m) {
+    const nome = prompt('Nome do arquétipo (curto e concreto):');
+    if (!nome || nome.trim().length < 4) return;
+    const tese = prompt('Tese em 1-3 frases (por que esse perfil paga):');
+    if (!tese || tese.trim().length < 20) return;
+    const uf = prompt('UF principal (ex.: SC · use vírgulas):', 'SC');
+    const { error } = await sb.from('va_arquetipos').insert({
+      projeto_id: m.id, nome, tese, origem: 'manual',
+      filtro: { uf: uf ? uf.split(',').map(s=>s.trim()).filter(Boolean) : [] },
+      abordagem: { angulo: '(preencher)', objecao_provavel: '(preencher)', segmentacao_meta: '(preencher)' },
+    });
+    if (error) { toast('err', error.message); return; }
+    toast('ok', 'Arquétipo criado'); renderAtivo(m);
+  }
+  async function aprovarArq(m, id) {
+    if (!confirm('Aprovar? A partir daqui é imutável — mudanças exigem nova versão.')) return;
+    const { error } = await sb.from('va_arquetipos').update({ status: 'aprovado' }).eq('id', id);
+    if (error) { toast('err', error.message); return; }
+    toast('ok', 'Aprovado'); renderAtivo(m);
+  }
+  async function arquivarArq(m, id) {
+    if (!confirm('Arquivar? Some do grid principal (acessível via toggle).')) return;
+    const { error } = await sb.from('va_arquetipos').update({ status: 'arquivado' }).eq('id', id);
+    if (error) { toast('err', error.message); return; }
+    toast('ok', 'Arquivado'); renderAtivo(m);
+  }
+  async function reativarArq(m, id) {
+    const { error } = await sb.from('va_arquetipos').update({ status: 'rascunho', arquivado_em: null }).eq('id', id);
+    if (error) { toast('err', error.message); return; }
+    toast('ok', 'Reativado'); renderAtivo(m);
+  }
+  async function novaVersaoArq(m, id) {
+    const { data: base } = await sb.from('va_arquetipos').select('*').eq('id', id).maybeSingle();
+    if (!base) return;
+    // Checa teto
+    const { data: ativos } = await sb.from('va_arquetipos').select('id').eq('projeto_id', m.id).neq('status','arquivado');
+    if ((ativos||[]).length >= 5) {
+      if (!confirm('Teto de 5 atingido. Arquivar a v' + base.versao + ' pra abrir espaço?')) return;
+      await sb.from('va_arquetipos').update({ status:'arquivado' }).eq('id', id);
+    }
+    const { error } = await sb.from('va_arquetipos').insert({
+      projeto_id: m.id, parent_id: id, versao: base.versao + 1,
+      status: 'rascunho', origem: base.origem, nome: base.nome, tese: base.tese,
+      filtro: base.filtro, abordagem: base.abordagem,
+    });
+    if (error) { toast('err', error.message); return; }
+    toast('ok', 'Nova versão criada'); renderAtivo(m);
+  }
+  async function salvarArqEdicoes(m, id) {
+    const q = (sel) => document.querySelector(sel + '[data-id="'+id+'"]');
+    const listaText = (nome) => {
+      const el = document.querySelector('[data-filt="'+nome+'"][data-id="'+id+'"]');
+      return el?.value ? el.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
+    };
+    const numFilt = (nome) => {
+      const el = document.querySelector('[data-filt="'+nome+'"][data-id="'+id+'"]');
+      const v = el?.value; return v ? Number(v) : null;
+    };
+    const divVal = document.querySelector('[data-filt="com_divida"][data-id="'+id+'"]')?.value?.trim().toLowerCase();
+    const filtro = {
+      cnaes: listaText('cnaes'), porte: listaText('porte'),
+      faturamento_min: numFilt('faturamento_min'), faturamento_max: numFilt('faturamento_max'),
+      uf: listaText('uf'), cidades: listaText('cidades'),
+      raio_km: numFilt('raio_km'),
+      socio_idade_min: numFilt('socio_idade_min'), socio_idade_max: numFilt('socio_idade_max'),
+      com_divida: divVal === 'true' ? true : divVal === 'false' ? false : null,
+      fonte_preferida: document.querySelector('[data-filt="fonte_preferida"][data-id="'+id+'"]')?.value?.trim() || null,
+    };
+    // limpa arrays vazios
+    Object.keys(filtro).forEach(k => Array.isArray(filtro[k]) && filtro[k].length === 0 && (filtro[k] = null));
+    const abordagem = {
+      angulo: q('[data-ab="angulo"]')?.value?.trim() || '',
+      objecao_provavel: q('[data-ab="objecao_provavel"]')?.value?.trim() || '',
+      segmentacao_meta: q('[data-ab="segmentacao_meta"]')?.value?.trim() || '',
+    };
+    const nome = q('[data-exp="nome"]')?.value?.trim();
+    const tese = q('[data-exp="tese"]')?.value?.trim();
+    const { error } = await sb.from('va_arquetipos').update({ nome, tese, filtro, abordagem }).eq('id', id);
+    if (error) { toast('err', error.message); return; }
+    toast('ok', 'Edições salvas'); renderAtivo(m);
+  }
+  async function regenerarAbordagem(m, arqId) {
+    if (!confirm('Regenerar abordagem via IA? Substitui o bloco atual.')) return;
+    try {
+      const tok = (await sb.auth.getSession()).data.session?.access_token;
+      const r = await fetch('/api/va-gerar-arquetipos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok },
+        body: JSON.stringify({ projeto_id: m.id, arquetipo_id: arqId, bloco: 'abordagem' }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) throw new Error(d.erro || 'HTTP ' + r.status);
+      toast('ok', 'Abordagem regerada'); renderAtivo(m);
+    } catch (e) { toast('err', String(e.message).slice(0, 180)); }
+  }
+
+  // ─── Markdown mínimo (headers, bullets, negrito) ────────────────
+  function renderMarkdown(md) {
+    if (!md) return '<p class="muted">(vazio)</p>';
+    let h = esc(md);
+    h = h.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+    h = h.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+    h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // bullets
+    h = h.replace(/^(?:- (.+))(?:\n- (.+))*/gm, (m) => {
+      const items = m.split('\n').map(l => l.replace(/^-\s+/, '').trim()).filter(Boolean);
+      return '<ul>' + items.map(i => '<li>'+i+'</li>').join('') + '</ul>';
+    });
+    // paragraphs
+    h = h.split(/\n\n+/).map(p => {
+      if (/^<(h3|h4|ul|ol|blockquote)/.test(p)) return p;
+      return '<p>'+p.replace(/\n/g,'<br>')+'</p>';
+    }).join('');
+    return h;
+  }
 </script>
 </body>
 </html>

@@ -134,12 +134,28 @@ export function withMandato(href, mandatoId = mandatoIdFromURL()) {
  * Carrega o mandato ativo. Se ausente na URL, retorna null — a página deve
  * chamar renderSelector(). Se presente, busca em va_projetos_resumo.
  */
+// SELECT amplo: cada zona consome campos diferentes de va_projetos_resumo.
+// Se ficar caro no futuro, particionar por zona (getMandatoAtivo/getMandatoAtivo({ campos }))
+// mas por ora manter simples e completo evita bugs de campo ausente pós-reload.
+const MANDATO_CAMPOS = [
+  'id', 'codigo', 'cliente_nome', 'cliente_whatsapp', 'negocio_titulo',
+  'setor', 'avaliacao_setor', 'cidade', 'uf', 'cnpj',
+  'status', 'data_inicio', 'dia_atual', 'etapas_ok', 'etapas_total',
+  'arquivado_em', 'arquivado_por', 'arquivado_motivo',
+  'valor_venda', 'valor_venda_justificativa', 'valor_venda_decidido_por', 'valor_venda_definido_em',
+  'valor_avaliacao', 'valor_avaliacao_min', 'valor_avaliacao_max',
+  'laudo_v2_id', 'avaliacao_origem_id',
+  'descricao_negocio', 'descricao_negocio_versao', 'descricao_negocio_gerado_em',
+  'modalidade', 'nivel_sigilo', 'fidelidade_meses', 'comissao_percent',
+  'expectativa_valor',
+].join(', ');
+
 export async function getMandatoAtivo() {
   const id = mandatoIdFromURL();
   if (!id) return null;
   const { data, error } = await sb
     .from('va_projetos_resumo')
-    .select('id, codigo, cliente_nome, negocio_titulo, cidade, status, data_inicio, dia_atual, etapas_ok, etapas_total, arquivado_em')
+    .select(MANDATO_CAMPOS)
     .eq('id', id).maybeSingle();
   if (error) throw error;
   return data;
