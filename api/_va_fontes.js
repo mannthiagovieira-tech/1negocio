@@ -166,18 +166,43 @@ function montarContextoQualitativo(fontes) {
 // ═══ TERMOS PROIBIDOS EXTRAÍDOS DA FONTE ══════════════════════════════
 // Nomes próprios de pessoas/empresas + CNPJs mencionados. Se houver
 // conteudo_destilado (transcript), a seção RESTRIÇÕES é enriquecida.
+// Stoplist geográfica · nomes de cidade/estado brasileiros comuns.
+// Não bloquear estes como "nome proibido" — são referências geográficas
+// necessárias (as gerações citam "Grande Porto Alegre", "capital paulista" etc).
+const STOPLIST_GEO = new Set([
+  'Porto Alegre','São Paulo','Rio de Janeiro','Belo Horizonte','Curitiba','Salvador',
+  'Recife','Fortaleza','Brasília','Goiânia','Manaus','Belém','Florianópolis','Vitória',
+  'Natal','João Pessoa','Maceió','Aracaju','São Luís','Teresina','Palmas','Cuiabá',
+  'Campo Grande','Rio Branco','Porto Velho','Boa Vista','Macapá','Caxias do Sul',
+  'Santa Cruz do Sul','Vale do Taquari','Vale do Itajaí','Grande Florianópolis',
+  'Grande Rio','Grande Porto Alegre','Grande BH','Grande Curitiba','Grande Salvador',
+  'Grande Recife','Grande Fortaleza','Distrito Federal','Grande Goiânia',
+  'Rio Grande','São Paulo','Minas Gerais','Santa Catarina','Rio Grande do Sul',
+  'Rio Grande do Norte','Mato Grosso','Mato Grosso do Sul','Espírito Santo',
+]);
+const STOPLIST_LABEL_DESTILADO = new Set([
+  'Detalhes','Resumo','Próximas Etapas','Proximas Etapas','Reunião','Reuniao',
+  'Transcrição','Transcricao','Compradores','Contexto','Fontes','Anotações',
+  'Anotacoes','Bloco','Capítulo','Documento','Fatos','Motivação','Restrições',
+  'Expectativa','Ações Combinadas','Acoes Combinadas','Fatos de Negócio',
+  'Fatos de Negocio','Motivação de Venda','Motivacao de Venda',
+  'Restrições e Sigilo','Restricoes e Sigilo','Contexto de Negociação',
+  'Contexto de Negociacao',
+]);
 function extrairTermosProibidos(fontes) {
   const proibidos = new Set();
   for (const f of fontes) {
     const textos = [f.conteudo_destilado || '', f.conteudo || ''];
     for (const txt of textos) {
       if (!txt) continue;
-      // Heurística: sequências capitalizadas com 2+ palavras
       const reNomes = /\b([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+(?:\s+(?:d[aeoi]s?|d[oa]s?|von|van|del|la|el|y)?\s*[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][a-záàâãéêíóôõúç]+){1,3})\b/g;
       let m;
       while ((m = reNomes.exec(txt)) !== null) {
         const cand = m[1].trim();
-        if (/^(Detalhes|Resumo|Pr[óo]ximas Etapas|Reuni[ãa]o|Transcri[çc][ãa]o|Compradores|Contexto|Fontes|Anota[çc][õo]es|Bloco|Cap[íi]tulo|Documento|Fatos|Motiva[çc][ãa]o|Restri[çc][õo]es|Expectativa|A[çc][õo]es Combinadas)$/i.test(cand)) continue;
+        if (STOPLIST_LABEL_DESTILADO.has(cand)) continue;
+        if (STOPLIST_GEO.has(cand)) continue;
+        // Também ignora se termina com "SC", "RS" etc (ex.: "Bella Luna RS" — provavelmente cidade+UF)
+        if (/\s+[A-Z]{2}$/.test(cand)) continue;
         if (cand.length >= 8 && cand.length <= 60) proibidos.add(cand);
       }
       const reCnpj = /\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/g;
