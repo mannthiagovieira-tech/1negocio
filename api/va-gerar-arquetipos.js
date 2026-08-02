@@ -105,10 +105,35 @@ function calcularAritmetica(fat, ebitda, valorVenda) {
   return out;
 }
 
-// ─── validações ───────────────────────────────────────────────────────
-// SÓ aplica sobre "angulo" (texto que sai pro mundo). Filtro/tese/objeção
-// não passam pela regra de faixas/aritmética (são internos).
-function detectarVazamentoAngulo(texto, cidadeExata, valoresExatos, permitidosArit) {
+// ─── validações do ANGULO (material externo · primeira mensagem a lead frio)
+// Regra do operador: angulo NÃO revela preço nem múltiplo. Só apresenta ativo
+// em faixas (região, fat, tempo, funcionários) + convite à conversa. Preço
+// vem em conversa avançada. Tese e objeção (internas) continuam podendo.
+//
+// Regras (sobre o angulo):
+//  1) cidade exata do projeto → rejeita
+//  2) valores exatos do laudo (fat, ebitda, valor_venda) → rejeita
+//  3) QUALQUER menção a preço próximo do valor_venda (exato OU em faixa) → rejeita
+//     · faixas de fat/EBITDA são OK (não sobrepõem valor_venda)
+//  4) QUALQUER padrão N,Nx (múltiplo · nenhum tolerado no angulo) → rejeita
+//  5) percentuais fora dos permitidos → rejeita
+function _parseMonetarioParaReais(hit) {
+  // Extrai centro numérico do match. Ex.: "R$ 4-5M" → 4500000
+  // "R$ 700k" → 700000. "R$ 4,5 milhões" → 4500000. "R$ 4.5M" → 4500000.
+  const s = hit.toLowerCase().replace(/r\$/, '').trim();
+  const numRe = /(\d+(?:[,.]\d+)?)/g;
+  const nums = [];
+  let n; while ((n = numRe.exec(s)) !== null) nums.push(parseFloat(n[1].replace(',', '.')));
+  if (!nums.length) return null;
+  const centro = nums.length >= 2 ? (nums[0] + nums[1]) / 2 : nums[0];
+  const mult = /(milh(?:ão|ões)|\bmm?\b|\bmi\b|^m$)/i.test(s.replace(/\d|[,.\-–\s]/g,'')) ? 1_000_000
+             : /\bk\b|mil\b/i.test(s.replace(/\d|[,.\-–\s]/g,'')) ? 1_000
+             : /m$/i.test(s.replace(/\s/g,'')) ? 1_000_000
+             : /k$/i.test(s.replace(/\s/g,'')) ? 1_000
+             : 1;
+  return Math.round(centro * mult);
+}
+function detectarVazamentoAngulo(texto, cidadeExata, valoresExatos, permitidosArit, valorVenda) {
   const problemas = [];
   if (cidadeExata) {
     const cNorm = normSemAcento(cidadeExata);
@@ -116,6 +141,7 @@ function detectarVazamentoAngulo(texto, cidadeExata, valoresExatos, permitidosAr
     const re = new RegExp('\\b' + cNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
     if (re.test(tNorm)) problemas.push(`angulo cita cidade exata "${cidadeExata}"`);
   }
+  // (1) valores exatos do laudo em compact/BR-fmt
   for (const raw of valoresExatos) {
     if (!raw || raw < 10000) continue;
     const n = Math.round(raw);
@@ -124,25 +150,40 @@ function detectarVazamentoAngulo(texto, cidadeExata, valoresExatos, permitidosAr
     const brFmt = n.toLocaleString('pt-BR');
     if (brFmt !== compact && texto.includes(brFmt)) problemas.push(`angulo cita valor exato BR ${brFmt}`);
   }
-  // aritmética · N,Nx e N,N%
-  const permMult = permitidosArit.filter((x) => x.tipo === 'mult').map((x) => x.valor);
-  const permPct = permitidosArit.filter((x) => x.tipo === 'pct').map((x) => x.valor);
-  const fmtBR = (n) => n.toFixed(2).replace('.', ',') + '×';
-  const fmtBRPct = (n) => n.toFixed(1).replace('.', ',') + '%';
+  // (2) preço · rejeita SÓ menções próximas do valor_venda (fat/EBITDA em faixa continuam OK)
+  if (valorVenda && valorVenda > 0) {
+    const reMonet = /R\$?\s*\d+(?:[.,]\d+)?\s*(?:[–\-]\s*\d+(?:[.,]\d+)?)?\s*(?:M|MM|mm|MI|mi|milh(?:ão|ões)|k|K|mil)?\b/gi;
+    const matches = texto.match(reMonet) || [];
+    for (const hit of matches) {
+      const v = _parseMonetarioParaReais(hit);
+      if (v == null) continue;
+      // proximidade: sobreposição com valor_venda ± 30% (mesma ordem de grandeza)
+      if (v >= valorVenda * 0.5 && v <= valorVenda * 1.5) {
+        problemas.push(`angulo cita valor próximo do valor_venda "${hit.trim()}" (~R$${v}) · preço não pode aparecer no angulo`);
+      }
+    }
+    // Também rejeita padrões de convite a preço tipo "vendido por", "pedido de", "ticket"
+    if (/\b(vendido|pedid[oa]|ticket|valor de venda|R\$\s*\d)/i.test(texto)
+        && /\b(por|de|em)\s*R?\$?\s*\d/i.test(texto)) {
+      // heurística branda · só marca se claramente introduz preço
+      const ret = texto.match(/\b(?:vendido por|pedido de|valor de venda|ticket de|preço de)[^.\n]{0,60}\d[^.\n]{0,40}/i);
+      if (ret) problemas.push(`angulo introduz preço com "${ret[0].slice(0,80)}"`);
+    }
+  }
+  // (3) múltiplos N,Nx · PROIBIDO no angulo (independente de permitidos)
   const reMult = /(\d+(?:[,.]\d+)?)\s*[xX×]/g;
-  const rePct = /(\d+(?:[,.]\d+)?)\s*%/g;
   let m;
   while ((m = reMult.exec(texto)) !== null) {
-    const v = parseFloat(m[1].replace(',', '.'));
-    if (!isFinite(v)) continue;
-    if (permMult.length === 0) { problemas.push(`angulo cita "${m[0]}" mas NÃO EXISTEM múltiplos permitidos · REMOVA menção a "×"`); continue; }
-    const ok = permMult.some((p) => Math.abs(v - p) <= (p < 1 ? 0.05 : 0.15));
-    if (!ok) problemas.push(`angulo · múltiplo "${m[0]}" INVENTADO · use EXATAMENTE ${permMult.map(fmtBR).join(' ou ')}`);
+    problemas.push(`angulo cita múltiplo "${m[0].trim()}" · múltiplo não pode aparecer no angulo`);
   }
+  // (4) percentuais: só passam se estão nos permitidos
+  const permPct = permitidosArit.filter((x) => x.tipo === 'pct').map((x) => x.valor);
+  const fmtBRPct = (n) => n.toFixed(1).replace('.', ',') + '%';
+  const rePct = /(\d+(?:[,.]\d+)?)\s*%/g;
   while ((m = rePct.exec(texto)) !== null) {
     const v = parseFloat(m[1].replace(',', '.'));
     if (!isFinite(v)) continue;
-    if (permPct.length === 0) { problemas.push(`angulo cita "${m[0]}" mas NÃO EXISTEM percentuais permitidos · REMOVA "%"`); continue; }
+    if (permPct.length === 0) { problemas.push(`angulo cita "${m[0]}" · REMOVA "%" (nenhum percentual foi liberado)`); continue; }
     const ok = permPct.some((p) => Math.abs(v - p) <= 0.5);
     if (!ok) problemas.push(`angulo · percentual "${m[0]}" INVENTADO · use EXATAMENTE ${permPct.map(fmtBRPct).join(' ou ')}`);
   }
@@ -239,14 +280,19 @@ REGRAS ABSOLUTAS (violação → rejeição):
    - Use cidades reais (pode incluir a cidade do negócio + vizinhas), CNAEs específicos, faixas de fat.
    - Isto NÃO sai pro mercado — é pra buscar leads no Kipflow/Apify.
 
-2) ANGULO (texto que vai pra 1ª mensagem · MATERIAL EXTERNO):
-   - NUNCA cite a cidade exata do negócio. Use SOMENTE "${fatos.regiao}".
-   - NUNCA cite valores exatos. Use SOMENTE faixas: ${fatos.fat_faixa} · ${fatos.ebitda_faixa} · ${fatos.valor_venda_faixa}.
-   - NUNCA calcule ou invente múltiplo/percentual. Se citar, use exatamente: ${bMult.join(' ou ') || '(não citar)'} · margem ${fatos.margem_ebitda_str || '(não citar)'}.
+2) ANGULO (primeira mensagem a lead FRIO · MATERIAL EXTERNO):
+   Objetivo: apresentar o ATIVO em FAIXAS (setor, região, faturamento, tempo de
+   operação) e o CONVITE à conversa. Preço vem depois, em conversa avançada.
+   - NUNCA cite cidade exata. Use SOMENTE "${fatos.regiao}".
+   - Pode citar em FAIXA: ${fatos.fat_faixa} · ${fatos.ebitda_faixa} · ${fatos.idade_faixa} · ${fatos.func_faixa}.
+   - PROIBIDO no angulo: valor de venda (nem exato nem em faixa · zero R$ ${fatos.valor_venda_faixa.replace('R$ ','').replace(/[^0-9\-–kMm]/g,'')} tipo de coisa),
+     múltiplo (0×, 6,5×, etc.), qualquer padrão "R$ N-NM/k/mi/milhões".
    - PROIBIDO razão social, sócio, CNPJ, marca, domínio.
 
 3) TESE e OBJECAO_PROVAVEL (internos · assessor lê pra decidir):
-   - Podem ter contexto detalhado, incluindo os múltiplos e margem já calculados acima.
+   - PODEM ter valor de venda, múltiplos, margem — texto interno pra julgamento.
+   - Múltiplos permitidos: ${bMult.join(' ou ') || '(sem múltiplo calculável)'}.
+   - Margem permitida: ${fatos.margem_ebitda_str || '(não calculável)'}.
    - Proibido razão social/sócio/CNPJ mesmo no interno.
 
 FORMATO (JSON estrito · SEM markdown · SEM preâmbulo):
@@ -293,10 +339,12 @@ nome: ${arq.nome}
 tese: ${arq.tese}
 filtro: ${JSON.stringify(arq.filtro)}
 
-REGRAS ABSOLUTAS PRO CAMPO 'angulo' (externo · CEGO):
+REGRAS ABSOLUTAS PRO CAMPO 'angulo' (primeira mensagem a lead FRIO):
 - Nunca cite cidade exata (use SOMENTE "${fatos.regiao}").
-- Nunca cite valor exato — só faixas acima.
-- Nunca calcule novo número — só use múltiplos/margem exatos acima.
+- Pode citar em faixa: fat, EBITDA, idade, funcionários.
+- PROIBIDO no angulo: valor de venda (nem exato nem em faixa),
+  múltiplos (0,5×, 6×, etc.), padrões "R$ N-NM/k/mi/milhões".
+  Preço vem em conversa avançada, não no primeiro contato.
 - Sem razão social/sócio/CNPJ.
 
 RETORNO · JSON estrito (só o objeto, sem markdown):
@@ -391,7 +439,7 @@ module.exports = async (req, res) => {
         if (!ok) { corrigir = 'JSON de abordagem inválido'; continue; }
         // Validação SÓ do angulo
         const nomes = detectarNomesEmQualquerLugar(parsed, proibidosGlobais);
-        const vazam = detectarVazamentoAngulo(parsed.angulo, cidade, valoresExatos, permitidosArit);
+        const vazam = detectarVazamentoAngulo(parsed.angulo, cidade, valoresExatos, permitidosArit, valorVenda);
         if (nomes.length || vazam.length) {
           corrigir = [...nomes.map(n=>'nome proibido: '+n), ...vazam].join(' · ');
           continue;
@@ -432,7 +480,7 @@ module.exports = async (req, res) => {
       for (let i = 0; i < parsed.length; i++) {
         const nomes = detectarNomesEmQualquerLugar(parsed[i], proibidosGlobais);
         if (nomes.length) calibProblems.push(`[${i}] nomes proibidos: ${nomes.join(', ')}`);
-        const vaz = detectarVazamentoAngulo(parsed[i].abordagem.angulo, cidade, valoresExatos, permitidosArit);
+        const vaz = detectarVazamentoAngulo(parsed[i].abordagem.angulo, cidade, valoresExatos, permitidosArit, valorVenda);
         if (vaz.length) calibProblems.push(`[${i}] ${vaz.join(' · ')}`);
       }
       if (calibProblems.length) { corrigir = calibProblems.join(' · '); continue; }
