@@ -10,7 +10,7 @@ const SB_ANON = process.env.SUPABASE_ANON_KEY;
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = 'claude-sonnet-4-6';
-const { montarContextoQualitativo, extrairTermosProibidos, detectarSituacaoSensivel, derivarSetorTermos, detectarTriangulacao, ehRegiaoMacro } = require('./_va_fontes.js');
+const { montarContextoQualitativo, extrairTermosProibidos, detectarSituacaoSensivel, derivarSetorTermos, detectarTriangulacao, ehRegiaoMacro, derivarRegiao, detectarAfirmacaoRegulatoria } = require('./_va_fontes.js');
 
 function json(res, code, body) { res.status(code).setHeader('Content-Type', 'application/json'); res.send(JSON.stringify(body)); }
 async function lerBody(req) {
@@ -69,42 +69,7 @@ function faixaIdade(anos) {
   const v = Math.floor(Number(anos) / 10) * 10;
   return `${v}+ anos`;
 }
-// Mapeamento simples de cidade → região. Sem cair na cidade exata.
-// Tabela: capital das principais UFs + mesorregiões conhecidas.
-// Fallback: "interior de {UF}".
-const REGIOES = {
-  // capitais e regiões metropolitanas
-  'florianopolis-sc': 'Grande Florianópolis',
-  'joinville-sc': 'norte de SC',
-  'blumenau-sc': 'Vale do Itajaí',
-  'chapeco-sc': 'oeste de SC',
-  'sao paulo-sp': 'capital paulista',
-  'campinas-sp': 'região de Campinas',
-  'rio de janeiro-rj': 'Grande Rio',
-  'belo horizonte-mg': 'Grande BH',
-  'porto alegre-rs': 'Grande Porto Alegre',
-  'caxias do sul-rs': 'serra gaúcha',
-  'santa cruz do sul-rs': 'Vale do Rio Pardo',
-  'lajeado-rs': 'Vale do Taquari',
-  'teutonia-rs': 'Vale do Taquari',
-  'estrela-rs': 'Vale do Taquari',
-  'canoas-rs': 'Grande Porto Alegre',
-  'curitiba-pr': 'Grande Curitiba',
-  'salvador-ba': 'Grande Salvador',
-  'recife-pe': 'Grande Recife',
-  'fortaleza-ce': 'Grande Fortaleza',
-  'brasilia-df': 'Distrito Federal',
-  'goiania-go': 'Grande Goiânia',
-};
-function normSemAcento(s) {
-  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-}
-function derivarRegiao(cidade, uf) {
-  const ufSafe = (uf || '').toUpperCase();
-  if (!cidade) return ufSafe ? `interior de ${ufSafe}` : '—';
-  const key = `${normSemAcento(cidade)}-${ufSafe.toLowerCase()}`;
-  return REGIOES[key] || (ufSafe ? `interior de ${ufSafe}` : '—');
-}
+// derivarRegiao vem de _va_fontes.js (mapeamento centralizado + fallback "{UF}")
 
 // ═══ ARITMÉTICA EM CÓDIGO ═══════════════════════════════════════════
 // Calcula múltiplos e margem. Retorna string BR já formatada + o número
@@ -230,6 +195,12 @@ REGRAS DE SIGILO (absolutas · qualquer violação → rejeição):
 - NUNCA escrever cidade exata do negócio. Usar SOMENTE a "Região" acima (${fatos.regiao}).
 - NUNCA usar valores exatos (ex.: R$ 7.716.000). Usar SOMENTE as faixas acima (ex.: ${fatos.fat_faixa}).
 - A precisão vem pós-NDA. Aqui é banda deliberada.
+- NÃO-AFIRMAÇÃO REGULATÓRIA: material externo NUNCA afirma nem nega status
+  regulatório, licenças, conformidade fiscal/trabalhista/judicial · nem como
+  problema, nem como qualidade. Zero: "licenciada", "regularizada", "sem
+  passivos", "em conformidade", "em dia com", "alvará", "licença", "auditoria
+  limpa", "compliance". Silêncio total · diligência é pós-NDA. Mesmo se o
+  laudo atestar, OMITIR aqui.
 - NÃO-TRIANGULAÇÃO: precisão setorial e geográfica são mutuamente exclusivas.
   Se o texto citar setor específico (ex.: cosméticos, insumos, farmacêutico,
   metalúrgico, alimentício etc.), a geografia embaça pra MACRO:
@@ -379,8 +350,9 @@ module.exports = async (req, res) => {
       const vazamento = detectarVazamento(texto, proibidos, cidade, valoresExatos);
       const aritmProblemas = detectarAritmeticaInvalida(texto, permitidosArit);
       const triProblemas = detectarTriangulacao(texto, fatos.regiao, setorTermos);
-      if (vazamento.length || aritmProblemas.length || triProblemas.length) {
-        corrigir = [...vazamento, ...aritmProblemas, ...triProblemas].join(' · ');
+      const regProblemas = detectarAfirmacaoRegulatoria(texto);
+      if (vazamento.length || aritmProblemas.length || triProblemas.length || regProblemas.length) {
+        corrigir = [...vazamento, ...aritmProblemas, ...triProblemas, ...regProblemas].join(' · ');
         continue;
       }
 

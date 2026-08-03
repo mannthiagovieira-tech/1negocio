@@ -14,7 +14,7 @@ const SB_ANON = process.env.SUPABASE_ANON_KEY;
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = 'claude-sonnet-4-6';
-const { montarContextoQualitativo, extrairTermosProibidos, detectarSituacaoSensivel, derivarSetorTermos, detectarTriangulacao, ehRegiaoMacro } = require('./_va_fontes.js');
+const { montarContextoQualitativo, extrairTermosProibidos, detectarSituacaoSensivel, derivarSetorTermos, detectarTriangulacao, ehRegiaoMacro, derivarRegiao, detectarAfirmacaoRegulatoria } = require('./_va_fontes.js');
 
 function json(res, code, body) { res.status(code).setHeader('Content-Type', 'application/json'); res.send(JSON.stringify(body)); }
 async function lerBody(req) {
@@ -58,38 +58,7 @@ function faixaIdade(anos) {
   const v = Math.floor(Number(anos) / 10) * 10;
   return `${v}+ anos`;
 }
-const REGIOES = {
-  'florianopolis-sc': 'Grande Florianópolis',
-  'joinville-sc': 'norte de SC',
-  'blumenau-sc': 'Vale do Itajaí',
-  'chapeco-sc': 'oeste de SC',
-  'sao paulo-sp': 'capital paulista',
-  'campinas-sp': 'região de Campinas',
-  'rio de janeiro-rj': 'Grande Rio',
-  'belo horizonte-mg': 'Grande BH',
-  'porto alegre-rs': 'Grande Porto Alegre',
-  'caxias do sul-rs': 'serra gaúcha',
-  'santa cruz do sul-rs': 'Vale do Rio Pardo',
-  'lajeado-rs': 'Vale do Taquari',
-  'teutonia-rs': 'Vale do Taquari',
-  'estrela-rs': 'Vale do Taquari',
-  'canoas-rs': 'Grande Porto Alegre',
-  'curitiba-pr': 'Grande Curitiba',
-  'salvador-ba': 'Grande Salvador',
-  'recife-pe': 'Grande Recife',
-  'fortaleza-ce': 'Grande Fortaleza',
-  'brasilia-df': 'Distrito Federal',
-  'goiania-go': 'Grande Goiânia',
-};
-function normSemAcento(s) {
-  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-}
-function derivarRegiao(cidade, uf) {
-  const ufSafe = (uf || '').toUpperCase();
-  if (!cidade) return ufSafe ? `interior de ${ufSafe}` : '—';
-  const key = `${normSemAcento(cidade)}-${ufSafe.toLowerCase()}`;
-  return REGIOES[key] || (ufSafe ? `interior de ${ufSafe}` : '—');
-}
+// derivarRegiao vem de _va_fontes.js (mapeamento centralizado + fallback "{UF}")
 
 // ─── aritmética ───────────────────────────────────────────────────────
 function fmtMult(x) { return x == null ? null : x.toFixed(2).replace('.', ',') + '×'; }
@@ -370,9 +339,12 @@ REGRAS ABSOLUTAS PRO CAMPO 'angulo' (primeira mensagem a lead FRIO):
   múltiplos (0,5×, 6×, etc.), padrões "R$ N-NM/k/mi/milhões".
   Preço vem em conversa avançada, não no primeiro contato.
 - Sem razão social/sócio/CNPJ.
+- NÃO-AFIRMAÇÃO REGULATÓRIA: material externo NUNCA afirma nem nega status
+  regulatório/licenças/conformidade/passivos. Silêncio total. Tese/objecao
+  (internos) podem tratar como fator de precificação.
 - NÃO-TRIANGULAÇÃO: setor específico + mesorregião "${fatos.regiao}" juntos
   identifica o ativo. Escolha um: ou mesorregião + setor genérico, ou setor
-  específico + geografia macro ("Sul do Brasil", "interior de {UF}").
+  específico + geografia macro ("Sul do Brasil", "Estado de {UF}").
 
 RETORNO · JSON estrito (só o objeto, sem markdown):
 { "angulo": "...", "objecao_provavel": "...", "segmentacao_meta": "..." }`;
@@ -478,8 +450,9 @@ module.exports = async (req, res) => {
         const nomes = detectarNomesEmQualquerLugar(parsed, proibidosGlobais);
         const vazam = detectarVazamentoAngulo(parsed.angulo, cidade, valoresExatos, permitidosArit, valorVenda);
         const tri = detectarTriangulacao(parsed.angulo, fatos.regiao, setorTermos);
-        if (nomes.length || vazam.length || tri.length) {
-          corrigir = [...nomes.map(n=>'nome proibido: '+n), ...vazam, ...tri].join(' · ');
+        const reg = detectarAfirmacaoRegulatoria(parsed.angulo);
+        if (nomes.length || vazam.length || tri.length || reg.length) {
+          corrigir = [...nomes.map(n=>'nome proibido: '+n), ...vazam, ...tri, ...reg].join(' · ');
           continue;
         }
         const upR = await fetch(`${SB_URL}/rest/v1/va_arquetipos?id=eq.${arq.id}`, {
@@ -522,6 +495,8 @@ module.exports = async (req, res) => {
         if (vaz.length) calibProblems.push(`[${i}] ${vaz.join(' · ')}`);
         const tri = detectarTriangulacao(parsed[i].abordagem.angulo, fatos.regiao, setorTermos);
         if (tri.length) calibProblems.push(`[${i}] ${tri.join(' · ')}`);
+        const reg = detectarAfirmacaoRegulatoria(parsed[i].abordagem.angulo);
+        if (reg.length) calibProblems.push(`[${i}] ${reg.join(' · ')}`);
       }
       if (calibProblems.length) { corrigir = calibProblems.join(' · '); continue; }
 

@@ -315,6 +315,107 @@ function _extrairUF(regiao) {
   return m ? m[1] : null;
 }
 
+// ═══ GEOGRAFIA (2.4) ══════════════════════════════════════════════════
+// Mapeamento cidade→região metropolitana. Fallback NÃO usa "interior de UF"
+// (assume o que não sabe) · devolve só a UF (honesto sobre a incerteza).
+const REGIOES_MAP = {
+  // SC · Grande Floripa · Vale do Itajaí · norte/oeste
+  'florianopolis-sc':'Grande Florianópolis','sao jose-sc':'Grande Florianópolis',
+  'palhoca-sc':'Grande Florianópolis','biguacu-sc':'Grande Florianópolis',
+  'joinville-sc':'norte de SC',
+  'blumenau-sc':'Vale do Itajaí','itajai-sc':'Vale do Itajaí','balneario camboriu-sc':'Vale do Itajaí',
+  'chapeco-sc':'oeste de SC',
+  // SP · Grande São Paulo · região de Campinas
+  'sao paulo-sp':'Grande São Paulo','guarulhos-sp':'Grande São Paulo',
+  'sao bernardo do campo-sp':'Grande São Paulo','santo andre-sp':'Grande São Paulo',
+  'sao caetano do sul-sp':'Grande São Paulo','diadema-sp':'Grande São Paulo',
+  'osasco-sp':'Grande São Paulo','barueri-sp':'Grande São Paulo',
+  'maua-sp':'Grande São Paulo','ribeirao pires-sp':'Grande São Paulo',
+  'campinas-sp':'região de Campinas',
+  // RJ · Grande Rio
+  'rio de janeiro-rj':'Grande Rio','niteroi-rj':'Grande Rio','sao goncalo-rj':'Grande Rio',
+  'duque de caxias-rj':'Grande Rio','nova iguacu-rj':'Grande Rio',
+  'sao joao de meriti-rj':'Grande Rio','belford roxo-rj':'Grande Rio',
+  // MG · Grande BH
+  'belo horizonte-mg':'Grande BH','contagem-mg':'Grande BH','betim-mg':'Grande BH',
+  'ribeirao das neves-mg':'Grande BH',
+  // RS · Grande Porto Alegre · serra · vales
+  'porto alegre-rs':'Grande Porto Alegre','canoas-rs':'Grande Porto Alegre',
+  'gravatai-rs':'Grande Porto Alegre','viamao-rs':'Grande Porto Alegre',
+  'novo hamburgo-rs':'Grande Porto Alegre','sao leopoldo-rs':'Grande Porto Alegre',
+  'alvorada-rs':'Grande Porto Alegre',
+  'caxias do sul-rs':'serra gaúcha','bento goncalves-rs':'serra gaúcha',
+  'santa cruz do sul-rs':'Vale do Rio Pardo',
+  'lajeado-rs':'Vale do Taquari','teutonia-rs':'Vale do Taquari',
+  'estrela-rs':'Vale do Taquari','encantado-rs':'Vale do Taquari',
+  // PR · Grande Curitiba
+  'curitiba-pr':'Grande Curitiba','sao jose dos pinhais-pr':'Grande Curitiba',
+  'colombo-pr':'Grande Curitiba','pinhais-pr':'Grande Curitiba',
+  // BA · Grande Salvador
+  'salvador-ba':'Grande Salvador','lauro de freitas-ba':'Grande Salvador',
+  'camacari-ba':'Grande Salvador','simoes filho-ba':'Grande Salvador',
+  // PE · Grande Recife
+  'recife-pe':'Grande Recife','jaboatao dos guararapes-pe':'Grande Recife',
+  'olinda-pe':'Grande Recife','paulista-pe':'Grande Recife',
+  // CE · Grande Fortaleza
+  'fortaleza-ce':'Grande Fortaleza','caucaia-ce':'Grande Fortaleza',
+  'maracanau-ce':'Grande Fortaleza',
+  // DF
+  'brasilia-df':'Distrito Federal',
+  // GO · Grande Goiânia
+  'goiania-go':'Grande Goiânia','aparecida de goiania-go':'Grande Goiânia',
+  // Outras
+  'manaus-am':'Grande Manaus','belem-pa':'Grande Belém',
+  'vitoria-es':'Grande Vitória','vila velha-es':'Grande Vitória','serra-es':'Grande Vitória',
+  'natal-rn':'Grande Natal','joao pessoa-pb':'Grande João Pessoa',
+  'maceio-al':'Grande Maceió','aracaju-se':'Grande Aracaju',
+  'sao luis-ma':'Grande São Luís','teresina-pi':'Grande Teresina',
+  'campo grande-ms':'Grande Campo Grande','cuiaba-mt':'Grande Cuiabá',
+};
+function normSemAcento(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+function derivarRegiao(cidade, uf) {
+  const ufSafe = (uf || '').toUpperCase();
+  if (!cidade) return ufSafe ? `Estado de ${ufSafe}` : '—';
+  const key = `${normSemAcento(cidade)}-${ufSafe.toLowerCase()}`;
+  return REGIOES_MAP[key] || (ufSafe ? ufSafe : '—');
+}
+
+// ═══ NÃO-AFIRMAÇÃO REGULATÓRIA (2.4) ═════════════════════════════════
+// Material externo (teaser · angulo) NÃO afirma nem nega status regulatório.
+// Diligência é pós-NDA. Mesmo com laudo dizendo "sem passivos", omitir.
+// Tese/objecao (internos) PODEM tratar como fator de risco/precificação.
+// Regex sem \b em bordas com acento (JS \b só reconhece [a-zA-Z0-9_]).
+// Uso [\s.,;:!?)(] ou início/fim de string como delimitador.
+const TERMOS_REGULATORIOS = [
+  /(?:^|[\s.,;:!?)(])licenciad[oa]s?(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])regulariz[aei][a-záàâãéêíóôõúç]*(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])em\s+conformidade(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])em\s+dia\s+com(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])alvar[áa]s?(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])licen[çc]as?(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])sem\s+passivos?(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])sem\s+d[íi]vidas?(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])sem\s+processos?(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])habilitad[oa]s?(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])certificad[oa]s?(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])autorizad[oa]s?(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])anvisa(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])regulamentad[oa]s?(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])compliance(?=[\s.,;:!?)(]|$)/i,
+  /(?:^|[\s.,;:!?)(])audit(?:oria|ada)\s+limpa(?=[\s.,;:!?)(]|$)/i,
+];
+function detectarAfirmacaoRegulatoria(texto) {
+  const problemas = [];
+  if (!texto) return problemas;
+  for (const re of TERMOS_REGULATORIOS) {
+    const m = texto.match(re);
+    if (m) problemas.push(`asserção regulatória: "${m[0]}" · diligência é pós-NDA, remova`);
+  }
+  return problemas;
+}
+
 module.exports = {
   TETO_CHARS_CONTEXTO,
   detectarFormatoReuniao,
@@ -326,4 +427,7 @@ module.exports = {
   ehRegiaoMacro,
   derivarSetorTermos,
   detectarTriangulacao,
+  derivarRegiao,
+  REGIOES_MAP,
+  detectarAfirmacaoRegulatoria,
 };
