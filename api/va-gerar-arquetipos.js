@@ -120,17 +120,27 @@ function detectarVazamentoAngulo(texto, cidadeExata, valoresExatos, permitidosAr
     const brFmt = n.toLocaleString('pt-BR');
     if (brFmt !== compact && texto.includes(brFmt)) problemas.push(`angulo cita valor exato BR ${brFmt}`);
   }
-  // (2) preço · rejeita SÓ menções próximas do valor_venda (fat/EBITDA em faixa continuam OK)
+  // (2) preço · rejeita menções próximas do valor_venda A MENOS que sejam
+  // claramente qualificadas como faturamento/receita (caso patológico: quando
+  // valor_venda cai dentro da faixa de faturamento, a IA legitimamente cita
+  // "R$ 2-3M de faturamento" — o número por si só está no range do preço, mas
+  // o rótulo semântico separa).
   if (valorVenda && valorVenda > 0) {
     const reMonet = /R\$?\s*\d+(?:[.,]\d+)?\s*(?:[–\-]\s*\d+(?:[.,]\d+)?)?\s*(?:M|MM|mm|MI|mi|milh(?:ão|ões)|k|K|mil)?\b/gi;
-    const matches = texto.match(reMonet) || [];
-    for (const hit of matches) {
+    // pistas que qualificam o número como FATURAMENTO/receita (não preço)
+    const reQualifFat = /\b(faturamento|receita|revenue|porte de|fatura(?:mento)?\s+(?:anual|de)|com\s+faturamento|de\s+faturamento|EBITDA|margem)\b/i;
+    let m;
+    while ((m = reMonet.exec(texto)) !== null) {
+      const hit = m[0];
+      const idx = m.index;
       const v = _parseMonetarioParaReais(hit);
       if (v == null) continue;
-      // proximidade: sobreposição com valor_venda ± 30% (mesma ordem de grandeza)
-      if (v >= valorVenda * 0.5 && v <= valorVenda * 1.5) {
-        problemas.push(`angulo cita valor próximo do valor_venda "${hit.trim()}" (~R$${v}) · preço não pode aparecer no angulo`);
-      }
+      if (v < valorVenda * 0.5 || v > valorVenda * 1.5) continue; // fora do ± 50%
+      // olha janela de 40 chars antes e 25 depois — se qualifica como faturamento, permite
+      const antes = texto.slice(Math.max(0, idx - 40), idx);
+      const depois = texto.slice(idx + hit.length, idx + hit.length + 25);
+      if (reQualifFat.test(antes) || reQualifFat.test(depois)) continue; // qualificado como fat/EBITDA
+      problemas.push(`angulo cita valor próximo do valor_venda "${hit.trim()}" (~R$${v}) sem qualificar como faturamento/receita · preço não pode aparecer no angulo`);
     }
     // Também rejeita padrões de convite a preço tipo "vendido por", "pedido de", "ticket"
     if (/\b(vendido|pedid[oa]|ticket|valor de venda|R\$\s*\d)/i.test(texto)
@@ -264,8 +274,11 @@ REGRAS ABSOLUTAS (violação → rejeição):
    operação) e o CONVITE à conversa. Preço vem depois, em conversa avançada.
    - NUNCA cite cidade exata. Use SOMENTE "${fatos.regiao}".
    - Pode citar em FAIXA: ${fatos.fat_faixa} · ${fatos.ebitda_faixa} · ${fatos.idade_faixa} · ${fatos.func_faixa}.
+   - QUALIFIQUE SEMPRE a menção monetária com o rótulo: "faturamento de X",
+     "receita anual X", "EBITDA X" · NUNCA um valor em R$ solto. Isso é crítico
+     quando faturamento e preço têm magnitudes vizinhas — o rótulo separa.
    - PROIBIDO no angulo: valor de venda (nem exato nem em faixa · zero R$ ${fatos.valor_venda_faixa.replace('R$ ','').replace(/[^0-9\-–kMm]/g,'')} tipo de coisa),
-     múltiplo (0×, 6,5×, etc.), qualquer padrão "R$ N-NM/k/mi/milhões".
+     múltiplo (0×, 6,5×, etc.), qualquer padrão "R$ N-NM/k/mi/milhões" sem rótulo semântico.
    - PROIBIDO razão social, sócio, CNPJ, marca, domínio.
    - NÃO-TRIANGULAÇÃO: setor específico + mesorregião juntos identifica o
      ativo. Escolha um: OU cita mesorregião "${fatos.regiao}" mantendo setor
