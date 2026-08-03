@@ -11,7 +11,9 @@ const SB_ANON = process.env.SUPABASE_ANON_KEY;
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const KIP_KEY = process.env.KIPFLOW_API_KEY;
 
-const DATASETS = 'partners,debts'; // apenas o que a extração magra não trouxe
+// P4.2: online_presence agrega telefone/email/site/redes · junta com partners+debts.
+// Dataset caro (+R$ 0,05/bruto no ranking) mas SÓ chamado sob demanda por lead.
+const DATASETS = 'partners,debts,online_presence';
 
 function json(res, code, body) {
   res.status(code).setHeader('Content-Type','application/json');
@@ -62,6 +64,25 @@ async function enriquecer(cnpj) {
       const vals = [divida.total, divida.divida_ativa, divida.protestos, divida.tributaria].filter(x => typeof x === 'number');
       if (vals.length) temDivida = vals.some(v => v > 0);
     }
+    // online_presence · Kipflow expõe telefones/emails/site em campos variados.
+    // Aceita: telefone|telefones|phones · email|emails · site|website|sites.
+    // Prefere primeiro item de arrays. Normaliza telefone (só dígitos).
+    const arr = (v) => Array.isArray(v) ? v : (v == null ? [] : [v]);
+    const norm = (t) => String(t||'').replace(/\D/g,'') || null;
+    const telefones = [...arr(data.telefone), ...arr(data.telefones), ...arr(data.phones), ...arr(data.phone)]
+      .map(t => typeof t === 'string' ? t : (t?.numero || t?.number || t?.value))
+      .filter(Boolean);
+    const emails = [...arr(data.email), ...arr(data.emails)]
+      .map(e => typeof e === 'string' ? e : (e?.endereco || e?.address || e?.value))
+      .filter(Boolean);
+    const sites = [...arr(data.site), ...arr(data.sites), ...arr(data.website), ...arr(data.websites)]
+      .filter(Boolean);
+    const telefone = norm(telefones.find(t => norm(t)?.length >= 10));
+    // Heurística WhatsApp: mesmo telefone (padrão brasileiro celular = 11 dígitos com DDD)
+    const whatsapp = norm(telefones.find(t => norm(t)?.length === 11 || norm(t)?.length === 13));
+    const email = emails[0] || null;
+    const site = sites[0] || null;
+
     return {
       ok: true,
       cost: parsed?.cost != null ? Number(parsed.cost) : 0,
@@ -72,6 +93,8 @@ async function enriquecer(cnpj) {
         idade_max_socios: idades.length ? Math.max(...idades) : null,
         com_divida: temDivida,
         divida_bruto: divida || null,
+        telefone, whatsapp, email, site,
+        telefones_todos: telefones.map(norm).filter(Boolean),
       },
     };
   } catch (e) {
@@ -115,15 +138,20 @@ module.exports = async (req, res) => {
       partners: r.campos.socios,
       divida: r.campos.divida_bruto,
     });
+    // P4.2 · grava telefone/whatsapp/email vindos do online_presence.
+    // Não sobrescreve valores prévios (COALESCE-style: só preenche se está NULL/vazio).
+    const patch = {
+      enriquecido_em: new Date().toISOString(),
+      custo_enriquecimento_kipflow: r.cost || 0,
+      socios: r.campos.socios,
+      dados_brutos: brutoOut,
+      dados_enriquecimento: r.campos,
+    };
+    if (!l.telefone && r.campos.telefone) patch.telefone = r.campos.telefone;
+    if (!l.whatsapp && r.campos.whatsapp) patch.whatsapp = r.campos.whatsapp;
+    if (!l.email && r.campos.email) patch.email = r.campos.email;
     const upd = await fetch(`${SB_URL}/rest/v1/va_leads?id=eq.${l.id}`, {
-      method:'PATCH', headers: H,
-      body: JSON.stringify({
-        enriquecido_em: new Date().toISOString(),
-        custo_enriquecimento_kipflow: r.cost || 0,
-        socios: r.campos.socios,
-        dados_brutos: brutoOut,
-        dados_enriquecimento: r.campos,
-      }),
+      method:'PATCH', headers: H, body: JSON.stringify(patch),
     });
     if (!upd.ok) { falhas.push({ id: l.id, motivo: `update: ${(await upd.text()).slice(0,200)}` }); continue; }
     // Débito · 1 unidade de 'lead_enriquecimento' por lead com sucesso
