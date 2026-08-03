@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/mandato/core/tokens.css">
 <link rel="stylesheet" href="/mandato/core/base.css">
+<link rel="stylesheet" href="/mandato/captacao.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
@@ -25,24 +26,8 @@
   </nav>
 
   <div id="mq-panel-captacao">
-    <div class="placeholder-grid cols-2">
-      <div class="slot">
-        <div>
-          <div class="slot__lbl">Bloco 01 · Portão de crédito</div>
-          <div class="slot__title">Quanto crédito, para quanto contato</div>
-          <div class="slot__desc">Saldo · custo médio por contato aprovado · quantos leads dá para trazer nesta janela sem estourar.</div>
-        </div>
-        <div class="slot__foot">Em construção · Prompt 4</div>
-      </div>
-      <div class="slot">
-        <div>
-          <div class="slot__lbl">Bloco 02 · Extração + triagem</div>
-          <div class="slot__title">Bruto entra · aprovado sai</div>
-          <div class="slot__desc">Lote atual · fontes ativas · aprovar em bulk · rejeitar · manda pro Funil. Sem tela separada de triagem.</div>
-        </div>
-        <div class="slot__foot">Em construção · Prompt 4</div>
-      </div>
-    </div>
+    <!-- populado por /mandato/captacao.js via mountCaptacao(mandato) -->
+    <div class="antes-vazia"><p>Carregando captação…</p></div>
   </div>
 
   <div id="mq-panel-funil" hidden>
@@ -86,6 +71,7 @@
 <script type="module">
   import { requireAdmin, getMandatoAtivo, watchAuth } from '/mandato/core/core.js';
   import { mountTopbar, renderSelector } from '/mandato/core/ui.js';
+  import { mountCaptacao } from '/mandato/captacao.js';
   await requireAdmin();
   watchAuth(() => location.reload());
   const mandato = await getMandatoAtivo();
@@ -96,6 +82,7 @@
     const painelCap = document.getElementById('mq-panel-captacao');
     const painelFun = document.getElementById('mq-panel-funil');
     const btns = document.querySelectorAll('#mq-tabs button');
+    let captacaoMontada = false;
     function setAba(nome) {
       const ok = nome === 'funil' ? 'funil' : 'captacao';
       painelCap.hidden = ok !== 'captacao';
@@ -104,6 +91,10 @@
       const url = new URL(location.href);
       if (ok === 'funil') url.hash = '#funil'; else url.hash = '';
       history.replaceState(null, '', url);
+      if (ok === 'captacao' && !captacaoMontada) {
+        captacaoMontada = true;
+        mountCaptacao(mandato).catch(err => console.error('captacao', err));
+      }
     }
     btns.forEach(b => b.addEventListener('click', () => setAba(b.dataset.tab)));
     setAba(location.hash === '#funil' ? 'funil' : 'captacao');
