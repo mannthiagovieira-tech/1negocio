@@ -256,6 +256,10 @@ function detectarSituacaoSensivel(fontes) {
 function ehRegiaoMacro(regiao) {
   if (!regiao) return true; // sem geo especificada = OK
   const r = String(regiao).toLowerCase().trim();
+  // UF sozinha (SC, MT, RJ etc) e "Estado de X" · fallbacks 2.4 quando cidade
+  // é desconhecida ou ausente — são macros por definição (não localizam).
+  if (/^[a-z]{2}$/i.test(r)) return true;
+  if (/^estado\s+de\s+/i.test(r)) return true;
   return /^(grande\s|capital\s|distrito federal|interior de\s|sul do brasil|sudeste do brasil|nordeste do brasil|norte do brasil|centro-oeste)/i.test(r);
 }
 
