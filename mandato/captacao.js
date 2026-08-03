@@ -223,16 +223,56 @@ function renderAntessala() {
   }));
   el.querySelectorAll('[data-desc1]').forEach(b => b.addEventListener('click', () => descartarUm(b.dataset.desc1)));
   el.querySelectorAll('[data-over1]').forEach(b => b.addEventListener('click', () => abrirModalOverride(b.dataset.over1)));
+  el.querySelectorAll('[data-enriq1]').forEach(b => b.addEventListener('click', () => enriquecerLeads([b.dataset.enriq1])));
+  const btnEnriqMassa = document.getElementById('btn-enriq-massa');
+  if (btnEnriqMassa) btnEnriqMassa.addEventListener('click', () => {
+    const ids = [...SELECAO].filter(id => {
+      const l = LEADS.find(x => x.id === id);
+      return l && !l.blacklist_hit && !l.enriquecido_em;
+    });
+    if (ids.length) enriquecerLeads(ids);
+  });
+}
+async function enriquecerLeads(ids) {
+  if (!ids.length) return;
+  if (!confirm(`Enriquecer ${ids.length} lead(s)? Cada chamada tem custo Kipflow (partners+debts).`)) return;
+  const btnMassa = document.getElementById('btn-enriq-massa');
+  if (btnMassa) { btnMassa.disabled = true; btnMassa.textContent = 'enriquecendo…'; }
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const r = await fetch('/api/va-enriquecer-lead', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ projeto_id: MANDATO.id, lead_ids: ids }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error([d.erro, d.detalhe].filter(Boolean).join(' · ') || ('HTTP '+r.status));
+    const custo = d.custo_kipflow_total || 0;
+    toast('ok', `${d.enriquecidos} enriquecido(s) · custo Kipflow ${brl(custo)}${d.falhas?` · ${d.falhas.length} falha(s)`:''}`);
+    await recarregarTudo();
+  } catch (e) {
+    toast('err', String(e.message).slice(0,240));
+    if (btnMassa) { btnMassa.disabled = false; btnMassa.textContent = 'Enriquecer'; }
+  }
 }
 function tabelaAntessala(rows) {
+  const selecionadosParaEnriq = [...SELECAO].filter(id => {
+    const l = LEADS.find(x => x.id === id);
+    return l && !l.blacklist_hit && !l.enriquecido_em;
+  });
+  const btnEnriqMassa = selecionadosParaEnriq.length
+    ? `<button class="btn btn--xs" id="btn-enriq-massa" title="enriquece partners+debts dos selecionados">Enriquecer ${selecionadosParaEnriq.length}</button>`
+    : '';
   return `
     <div class="antes-tabela-wrap">
+    <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:6px">${btnEnriqMassa}</div>
     <table class="antes-tabela">
       <thead><tr>
         <th style="width:22px"><input type="checkbox" id="chk-all"></th>
         <th class="col-razao">Empresa · CNAE</th>
         <th>Cidade/UF</th>
         <th>Faturamento</th>
+        <th>Sócio idade</th>
+        <th>Dívida</th>
         <th>Flags</th>
         <th>Arquétipo</th>
         <th class="col-acao">Ações</th>
@@ -253,11 +293,19 @@ function trLead(l) {
   const flags = [
     l.same_city ? `<span class="pill pill--samecity" title="mesma cidade do ativo · risco de identificação — triar com atenção">same-city</span>` : '',
     l.blacklist_hit ? `<span class="pill pill--blocked" title="proibido pela blacklist deste mandato">BLOQUEADO</span>` : '',
+    l.enriquecido_em ? `<span class="pill" style="font-size:10px" title="dados de sócio/dívida vindos do enriquecimento">enriq.</span>` : '',
   ].filter(Boolean).join(' ') || '—';
+  // Dados de enriquecimento (quando existem)
+  const enr = l.dados_enriquecimento || {};
+  const idadeStr = (enr.idade_min_socios != null || enr.idade_max_socios != null)
+    ? (enr.idade_min_socios === enr.idade_max_socios ? String(enr.idade_min_socios) : `${enr.idade_min_socios||'?'}–${enr.idade_max_socios||'?'}`)
+    : '—';
+  const dividaStr = (enr.com_divida === true) ? 'sim' : (enr.com_divida === false) ? 'não' : '—';
   const acoes = l.blacklist_hit
     ? `<button class="btn btn--xs" data-over1="${l.id}">Liberar…</button>`
     : `<button class="btn btn--xs btn--primary" data-aprov1="${l.id}" title="A">Aprovar</button>
-       <button class="btn btn--xs" data-desc1="${l.id}" title="D">Descartar</button>`;
+       <button class="btn btn--xs" data-desc1="${l.id}" title="D">Descartar</button>
+       ${l.enriquecido_em ? '' : `<button class="btn btn--xs" data-enriq1="${l.id}" title="enriquecer partners+debts">Enriq.</button>`}`;
   const checkbox = l.blacklist_hit
     ? '' // bloqueados não entram na seleção normal
     : `<input type="checkbox" data-chk="${l.id}" ${SELECAO.has(l.id)?'checked':''}>`;
@@ -270,6 +318,8 @@ function trLead(l) {
       </td>
       <td class="mono">${esc(l.cidade || '—')}/${esc(l.uf || '—')}</td>
       <td class="mono">${l.faturamento_estimado != null ? brl(l.faturamento_estimado) : '—'}</td>
+      <td class="mono">${idadeStr}</td>
+      <td class="mono">${dividaStr}</td>
       <td>${flags}</td>
       <td class="mono" style="font-size:11px">${esc(arqNome)}</td>
       <td class="col-acao">${acoes}</td>

@@ -114,12 +114,15 @@ function compilarFiltro(filtro) {
     andBlocks.push({ $or: orUf });
   }
 
-  // Pós-filtros aplicativos (Kipflow não suporta como gate nativo)
+  // Pós-filtros aplicativos · slice 3.1: SÓ cidades corta (grátis, address vem
+  // no basic). socio_idade e com_divida DEIXAM DE CORTAR — dado caro, aparece
+  // "—" na antessala e vira acionável via botão "enriquecer" (sob demanda).
   const motivosPosFiltro = {
     cidades: Array.isArray(filtro?.cidades) ? filtro.cidades.map(norm).filter(Boolean) : [],
-    socio_idade_min: filtro?.socio_idade_min != null ? Number(filtro.socio_idade_min) : null,
-    socio_idade_max: filtro?.socio_idade_max != null ? Number(filtro.socio_idade_max) : null,
-    com_divida:      filtro?.com_divida != null ? Boolean(filtro.com_divida) : null,
+    // socio_idade / com_divida INFORMATIVOS (mostrar no filtro snapshot) · não cortam
+    socio_idade_min_informativo: filtro?.socio_idade_min ?? null,
+    socio_idade_max_informativo: filtro?.socio_idade_max ?? null,
+    com_divida_informativo: filtro?.com_divida ?? null,
     raio_km_ignorado: filtro?.raio_km ?? null, // Kipflow não geocodifica · documentar
   };
 
@@ -142,33 +145,15 @@ function idadeAnos(dnasc) {
 }
 
 // Aplica pós-filtros aplicativos em UM registro Kipflow. Retorna true se passa.
+// Slice 3.1: SÓ cidades corta (dado grátis vem em address · basic). socio_idade
+// e com_divida dependem de datasets caros (partners/debts) que só são buscados
+// sob demanda via /api/va-enriquecer-lead. Sem dado ≠ rejeitar.
 function passaPosFiltro(reg, pf) {
   if (pf.cidades.length) {
     const cid = norm(reg.municipio || reg.cidade || '');
     if (!cid) return false;
     const bate = pf.cidades.some(c => cid.includes(c) || c.includes(cid));
     if (!bate) return false;
-  }
-  if (pf.socio_idade_min != null || pf.socio_idade_max != null) {
-    const socios = Array.isArray(reg.partners) ? reg.partners : (Array.isArray(reg.socios) ? reg.socios : []);
-    if (!socios.length) return false;
-    const idades = socios.map(s => idadeAnos(s.data_nascimento)).filter(x => x != null);
-    if (!idades.length) return false;
-    const iMax = Math.max(...idades);
-    const iMin = Math.min(...idades);
-    if (pf.socio_idade_min != null && iMax < pf.socio_idade_min) return false;
-    if (pf.socio_idade_max != null && iMin > pf.socio_idade_max) return false;
-  }
-  if (pf.com_divida != null) {
-    // Kipflow retorna dataset `debts` como estrutura ou flags. Heurística:
-    // qualquer divida.* com valor > 0 → tem dívida.
-    const d = reg.divida || reg.debts || reg.divida_ativa || null;
-    let tem = false;
-    if (d && typeof d === 'object') {
-      const valores = [d.total, d.divida_ativa, d.protestos, d.tributaria].filter(x => typeof x === 'number');
-      tem = valores.some(v => v > 0);
-    }
-    if (pf.com_divida !== tem) return false;
   }
   return true;
 }
@@ -251,11 +236,14 @@ module.exports = async (req, res) => {
   // 5 · paginação Kipflow · busca até tetoBrutoEff ou até acumular TETO_LIQUIDO
   const passados = []; // registros Kipflow que passaram pós-filtro
   let consultadosBruto = 0;
-  let custoKipflowTotal = 0; // soma de parsed.cost por página · sonda de custo
+  let custoKipflowTotal = 0; // soma de parsed.cost por página · rastreabilidade
   let custoFormattedUlt = null;
   let erroKipflow = null;
   let page = 0;
-  const datasets = ['basic','address','partners','debts']; // partners → socio_idade; debts → com_divida
+  // Slice 3.1: extração magra · basic (razão/CNAE/faturamento/situação) +
+  // address (município/UF/bairro/CEP). Sem partners (sócios/idade) e sem debts
+  // (dívidas): esses vêm sob demanda via /api/va-enriquecer-lead pra economizar.
+  const datasets = ['basic','address'];
 
   try {
     while (consultadosBruto < tetoBrutoEff && passados.length < TETO_LIQUIDO) {
@@ -328,7 +316,7 @@ module.exports = async (req, res) => {
     if (cnpj) jaCnpjs.add(cnpj);
   }
 
-  // 7 · fecha extração
+  // 7 · fecha extração · persiste custo + datasets usados
   await fetch(`${SB_URL}/rest/v1/va_extracoes?id=eq.${ext.id}`, {
     method:'PATCH', headers: H,
     body: JSON.stringify({
@@ -338,6 +326,9 @@ module.exports = async (req, res) => {
       qtd_novos: qtdNovos,
       qtd_duplicados: qtdDuplicados,
       qtd_blacklist: qtdBlacklist,
+      custo_kipflow_total: custoKipflowTotal,
+      custo_kipflow_moeda: custoFormattedUlt ? (custoFormattedUlt.startsWith('R$') ? 'BRL' : 'USD') : null,
+      datasets_usados: datasets,
       concluido_em: new Date().toISOString(),
     }),
   });
