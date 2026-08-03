@@ -10,7 +10,7 @@ const SB_ANON = process.env.SUPABASE_ANON_KEY;
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = 'claude-sonnet-4-6';
-const { montarContextoQualitativo, extrairTermosProibidos, detectarSituacaoSensivel } = require('./_va_fontes.js');
+const { montarContextoQualitativo, extrairTermosProibidos, detectarSituacaoSensivel, derivarSetorTermos, detectarTriangulacao, ehRegiaoMacro } = require('./_va_fontes.js');
 
 function json(res, code, body) { res.status(code).setHeader('Content-Type', 'application/json'); res.send(JSON.stringify(body)); }
 async function lerBody(req) {
@@ -230,6 +230,14 @@ REGRAS DE SIGILO (absolutas · qualquer violação → rejeição):
 - NUNCA escrever cidade exata do negócio. Usar SOMENTE a "Região" acima (${fatos.regiao}).
 - NUNCA usar valores exatos (ex.: R$ 7.716.000). Usar SOMENTE as faixas acima (ex.: ${fatos.fat_faixa}).
 - A precisão vem pós-NDA. Aqui é banda deliberada.
+- NÃO-TRIANGULAÇÃO: precisão setorial e geográfica são mutuamente exclusivas.
+  Se o texto citar setor específico (ex.: cosméticos, insumos, farmacêutico,
+  metalúrgico, alimentício etc.), a geografia embaça pra MACRO:
+  "Sul/Sudeste/Norte/Nordeste/Centro-Oeste do Brasil", "interior de {UF}",
+  "capital paulista", "Grande {qualquer}", "Distrito Federal".
+  Combinação "setor específico + ${fatos.regiao}" é PROIBIDA em texto externo.
+  Escolha um: ou usa a mesorregião (${fatos.regiao}) e mantém setor genérico,
+  ou cita setor específico e embaça a geografia.
 
 REGRAS DE ARITMÉTICA (absolutas):
 - PROIBIDO calcular, derivar ou estimar qualquer número novo. Múltiplos e margem já vieram prontos.
@@ -358,6 +366,8 @@ module.exports = async (req, res) => {
   const contextoQuali = montarContextoQualitativo(fontes);
   const sensivel = detectarSituacaoSensivel(fontes);
   for (const t of extrairTermosProibidos(fontes)) proibidos.push(t);
+  // Termos setoriais específicos (pra regra de não-triangulação)
+  const setorTermos = derivarSetorTermos(calc, p.descricao_negocio);
 
   let corrigir = null, texto = '';
   for (let t = 0; t < 2; t++) {
@@ -368,8 +378,9 @@ module.exports = async (req, res) => {
 
       const vazamento = detectarVazamento(texto, proibidos, cidade, valoresExatos);
       const aritmProblemas = detectarAritmeticaInvalida(texto, permitidosArit);
-      if (vazamento.length || aritmProblemas.length) {
-        corrigir = [...vazamento, ...aritmProblemas].join(' · ');
+      const triProblemas = detectarTriangulacao(texto, fatos.regiao, setorTermos);
+      if (vazamento.length || aritmProblemas.length || triProblemas.length) {
+        corrigir = [...vazamento, ...aritmProblemas, ...triProblemas].join(' · ');
         continue;
       }
 

@@ -241,6 +241,80 @@ function detectarSituacaoSensivel(fontes) {
   return Array.from(flags);
 }
 
+// ═══ REGRA DE NÃO-TRIANGULAÇÃO (2.3) ═════════════════════════════════
+// Em texto externo (teaser · angulo), precisão setorial e geográfica são
+// mutuamente exclusivas. Setor específico + mesorregião = identifica.
+// Regra: se setor específico for citado, geografia embaça pra macro.
+//
+// MACRO (OK com qualquer setor · não identifica sozinha):
+//   "capital paulista", "Grande {qualquer}", "Distrito Federal",
+//   "interior de {UF}", "Sul/Sudeste/Nordeste/Norte/Centro-Oeste do Brasil"
+// MESO (NÃO citar junto com setor específico):
+//   "Vale do Taquari", "serra gaúcha", "Vale do Rio Pardo",
+//   "norte de SC", "oeste de SC", "Vale do Itajaí", "região de Campinas"
+
+function ehRegiaoMacro(regiao) {
+  if (!regiao) return true; // sem geo especificada = OK
+  const r = String(regiao).toLowerCase().trim();
+  return /^(grande\s|capital\s|distrito federal|interior de\s|sul do brasil|sudeste do brasil|nordeste do brasil|norte do brasil|centro-oeste)/i.test(r);
+}
+
+// Dicionário mínimo de setores/subsetores comuns que triangulam.
+// Se o texto contiver qualquer destas palavras, considera "setor específico".
+const SETORES_ESPECIFICOS = [
+  'cosmético','cosméticos','cosmetico','cosmeticos','perfumaria','fragrância','fragrancia','fragrâncias','fragrancias',
+  'insumo','insumos','farmacêutico','farmaceutico','têxtil','textil','confecção','confeccao',
+  'metalúrgico','metalurgico','metal-mecânico','metal-mecanico','automotivo','autopeças','autopecas',
+  'alimentício','alimenticio','alimentícia','alimenticia','bebida','bebidas','sucos','laticínios','laticinios',
+  'plástico','plastico','plásticos','plasticos','embalagem','embalagens','madeireiro','moveleiro','movelaria',
+  'calçadista','calcadista','couro','couros','eletrônico','eletronico','químico','quimico','química','quimica',
+  'agrícola','agricola','pesqueiro','pesca','construção civil','construcao civil','logística','logistica',
+];
+function extrairSetorTermosDoTexto(txt) {
+  if (!txt) return [];
+  const t = String(txt).toLowerCase();
+  const hits = new Set();
+  for (const s of SETORES_ESPECIFICOS) if (t.includes(s)) hits.add(s);
+  return Array.from(hits);
+}
+function derivarSetorTermos(calcJson, descricaoNegocio) {
+  const s = new Set();
+  const label = calcJson?.identificacao?.setor?.label;
+  // Só adiciona label se for específico (não "Indústria"/"Serviços" genéricos)
+  if (label && !/^(ind[úu]stria|serviços?|com[ée]rcio|agroneg[óo]cio|energia)$/i.test(label.trim())) {
+    s.add(label.toLowerCase());
+  }
+  for (const t of extrairSetorTermosDoTexto(descricaoNegocio || '')) s.add(t);
+  return Array.from(s);
+}
+
+// Detecta triangulação · retorna [] se OK, ou lista de conflitos.
+// Uso: se o texto EXTERNO contém termo setorial específico E a regiao
+// (fatos.regiao) é MESO (não macro), rejeita.
+function detectarTriangulacao(textoExterno, regiao, setorTermos) {
+  const problemas = [];
+  if (!textoExterno || !regiao || ehRegiaoMacro(regiao)) return problemas;
+  // Regiao MESO: verifica se aparece no texto
+  const t = String(textoExterno).toLowerCase();
+  const regNorm = String(regiao).toLowerCase();
+  if (!t.includes(regNorm)) return problemas; // mesorregião nem foi citada
+  // Achou meso · vê se junto tem setor específico
+  const setoresNoTexto = extrairSetorTermosDoTexto(textoExterno);
+  const listaSetor = (setorTermos && setorTermos.length ? setorTermos : setoresNoTexto);
+  const hitsSetor = setoresNoTexto.filter((s) => listaSetor.some((x) => x.includes(s) || s.includes(x)));
+  if (hitsSetor.length) {
+    problemas.push(
+      `triangulação: mesorregião "${regiao}" + setor específico (${hitsSetor.join(', ')}) · embace a geografia pra macro (ex.: "Sul do Brasil", "interior de ${_extrairUF(regiao) || 'UF'}")`
+    );
+  }
+  return problemas;
+}
+function _extrairUF(regiao) {
+  // Tenta extrair UF do nome ("norte de SC" → SC). Fallback null.
+  const m = String(regiao || '').match(/\b([A-Z]{2})\b/);
+  return m ? m[1] : null;
+}
+
 module.exports = {
   TETO_CHARS_CONTEXTO,
   detectarFormatoReuniao,
@@ -249,4 +323,7 @@ module.exports = {
   montarContextoQualitativo,
   extrairTermosProibidos,
   detectarSituacaoSensivel,
+  ehRegiaoMacro,
+  derivarSetorTermos,
+  detectarTriangulacao,
 };

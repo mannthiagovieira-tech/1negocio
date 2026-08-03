@@ -14,7 +14,7 @@ const SB_ANON = process.env.SUPABASE_ANON_KEY;
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = 'claude-sonnet-4-6';
-const { montarContextoQualitativo, extrairTermosProibidos, detectarSituacaoSensivel } = require('./_va_fontes.js');
+const { montarContextoQualitativo, extrairTermosProibidos, detectarSituacaoSensivel, derivarSetorTermos, detectarTriangulacao, ehRegiaoMacro } = require('./_va_fontes.js');
 
 function json(res, code, body) { res.status(code).setHeader('Content-Type', 'application/json'); res.send(JSON.stringify(body)); }
 async function lerBody(req) {
@@ -298,6 +298,12 @@ REGRAS ABSOLUTAS (violação → rejeição):
    - PROIBIDO no angulo: valor de venda (nem exato nem em faixa · zero R$ ${fatos.valor_venda_faixa.replace('R$ ','').replace(/[^0-9\-–kMm]/g,'')} tipo de coisa),
      múltiplo (0×, 6,5×, etc.), qualquer padrão "R$ N-NM/k/mi/milhões".
    - PROIBIDO razão social, sócio, CNPJ, marca, domínio.
+   - NÃO-TRIANGULAÇÃO: setor específico + mesorregião juntos identifica o
+     ativo. Escolha um: OU cita mesorregião "${fatos.regiao}" mantendo setor
+     genérico ("indústria", "operação industrial") · OU cita setor específico
+     (cosméticos, insumos, farmacêutico etc.) embaçando a geografia pra macro
+     ("Sul do Brasil", "interior de ${(fatos.uf||'UF')}", "capital paulista",
+     "Grande {qualquer}"). A combinação é PROIBIDA.
 
 3) TESE e OBJECAO_PROVAVEL (internos · assessor lê pra decidir):
    - PODEM ter valor de venda, múltiplos, margem — texto interno pra julgamento.
@@ -364,6 +370,9 @@ REGRAS ABSOLUTAS PRO CAMPO 'angulo' (primeira mensagem a lead FRIO):
   múltiplos (0,5×, 6×, etc.), padrões "R$ N-NM/k/mi/milhões".
   Preço vem em conversa avançada, não no primeiro contato.
 - Sem razão social/sócio/CNPJ.
+- NÃO-TRIANGULAÇÃO: setor específico + mesorregião "${fatos.regiao}" juntos
+  identifica o ativo. Escolha um: ou mesorregião + setor genérico, ou setor
+  específico + geografia macro ("Sul do Brasil", "interior de {UF}").
 
 RETORNO · JSON estrito (só o objeto, sem markdown):
 { "angulo": "...", "objecao_provavel": "...", "segmentacao_meta": "..." }`;
@@ -444,9 +453,10 @@ module.exports = async (req, res) => {
   const fontes = (await fR.json()) || [];
   const contextoQuali = montarContextoQualitativo(fontes);
   const sensivel = detectarSituacaoSensivel(fontes);
-  // Termos proibidos extraídos das fontes entram na lista global
   const termosFonte = extrairTermosProibidos(fontes);
   for (const t of termosFonte) proibidosGlobais.push(t);
+  // Termos setoriais específicos (pra regra de não-triangulação no angulo)
+  const setorTermos = derivarSetorTermos(calc, p.descricao_negocio);
 
   // ── MODO PARCIAL · regenerar abordagem
   if (arquetipo_id && blocoParcial === 'abordagem') {
@@ -467,8 +477,9 @@ module.exports = async (req, res) => {
         // Validação SÓ do angulo
         const nomes = detectarNomesEmQualquerLugar(parsed, proibidosGlobais);
         const vazam = detectarVazamentoAngulo(parsed.angulo, cidade, valoresExatos, permitidosArit, valorVenda);
-        if (nomes.length || vazam.length) {
-          corrigir = [...nomes.map(n=>'nome proibido: '+n), ...vazam].join(' · ');
+        const tri = detectarTriangulacao(parsed.angulo, fatos.regiao, setorTermos);
+        if (nomes.length || vazam.length || tri.length) {
+          corrigir = [...nomes.map(n=>'nome proibido: '+n), ...vazam, ...tri].join(' · ');
           continue;
         }
         const upR = await fetch(`${SB_URL}/rest/v1/va_arquetipos?id=eq.${arq.id}`, {
@@ -509,6 +520,8 @@ module.exports = async (req, res) => {
         if (nomes.length) calibProblems.push(`[${i}] nomes proibidos: ${nomes.join(', ')}`);
         const vaz = detectarVazamentoAngulo(parsed[i].abordagem.angulo, cidade, valoresExatos, permitidosArit, valorVenda);
         if (vaz.length) calibProblems.push(`[${i}] ${vaz.join(' · ')}`);
+        const tri = detectarTriangulacao(parsed[i].abordagem.angulo, fatos.regiao, setorTermos);
+        if (tri.length) calibProblems.push(`[${i}] ${tri.join(' · ')}`);
       }
       if (calibProblems.length) { corrigir = calibProblems.join(' · '); continue; }
 
