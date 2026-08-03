@@ -80,15 +80,26 @@ async function contarEnviadosHoje(projetoId) {
 }
 
 async function pegarTelefoneInstancia() {
-  // Padrão do sistema legado: tabela zapi_telefones/va_zapi_telefones · tipo='prospeccao' · ativo=true.
-  // Fallback: env vars ZAPI_INSTANCE/TOKEN/CLIENT_TOKEN.
+  // Ordem de resolução:
+  //   1. zapi_telefones (padrão legado, com client_token real de produção)
+  //   2. va_zapi_telefones (schema novo, usado apenas se legado indisponível)
+  //   3. env vars ZAPI_INSTANCE / ZAPI_TOKEN / (ZAPI_CLIENT_TOKEN | CLIENT_TOKEN)
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/zapi_telefones?ativo=eq.true&order=ultima_atividade.desc.nullsfirst&limit=1&select=apelido,zapi_instance,zapi_token,zapi_client_token`, { headers: H_SVC() });
+    if (r.ok) {
+      const [row] = await r.json();
+      if (row?.zapi_instance && row?.zapi_token && row?.zapi_client_token) {
+        return { instance: row.zapi_instance, token: row.zapi_token, clientToken: row.zapi_client_token, origem: 'zapi_telefones' };
+      }
+    }
+  } catch (_) {}
   try {
     const r = await fetch(`${SB_URL}/rest/v1/va_zapi_telefones?tipo=eq.prospeccao&ativo=eq.true&limit=1&select=numero,instancia,token,client_token`, { headers: H_SVC() });
     if (r.ok) {
       const [row] = await r.json();
-      if (row && row.instancia && row.token) return {
-        instance: row.instancia, token: row.token, clientToken: row.client_token, origem: 'va_zapi_telefones',
-      };
+      if (row?.instancia && row?.token && row?.client_token) {
+        return { instance: row.instancia, token: row.token, clientToken: row.client_token, origem: 'va_zapi_telefones' };
+      }
     }
   } catch (_) {}
   if (process.env.ZAPI_INSTANCE && process.env.ZAPI_TOKEN) {
