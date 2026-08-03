@@ -10,7 +10,7 @@ const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const KIP_KEY = process.env.KIPFLOW_API_KEY;
 
 const TETO_LIQUIDO = 60;   // teto de leads que entram na antessala por extração
-const TETO_BRUTO   = 300;  // teto de registros consultados na fonte
+const TETO_BRUTO   = 100;  // teto de registros consultados na fonte (ajuste operador · economia Kipflow)
 const PAGE_SIZE    = 100;  // tamanho máximo por página no Kipflow
 
 const SIGLA_UF = {
