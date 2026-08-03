@@ -211,8 +211,10 @@ module.exports = async (req, res) => {
   if (!SB_SERVICE) return json(res, 503, { ok:false, erro:'SUPABASE_SERVICE_ROLE_KEY ausente' });
 
   let body; try { body = await lerBody(req); } catch { return json(res, 400, { ok:false, erro:'json inválido' }); }
-  const { projeto_id, arquetipo_id } = body || {};
+  const { projeto_id, arquetipo_id, teto_bruto: teto_bruto_override } = body || {};
   if (!projeto_id || !arquetipo_id) return json(res, 400, { ok:false, erro:'projeto_id + arquetipo_id obrigatórios' });
+  // Override do teto bruto (uso: sonda de custo · valor pequeno consome menos saldo Kipflow)
+  const tetoBrutoEff = Math.max(1, Math.min(TETO_BRUTO, Number(teto_bruto_override) || TETO_BRUTO));
 
   const H = { apikey: SB_SERVICE, Authorization:'Bearer '+SB_SERVICE, 'Content-Type':'application/json', Prefer:'return=representation' };
 
@@ -246,16 +248,18 @@ module.exports = async (req, res) => {
   const jaLidos = await jaR.json();
   const jaCnpjs = new Set(jaLidos.map(x => x.cnpj));
 
-  // 5 · paginação Kipflow · busca até TETO_BRUTO ou até acumular TETO_LIQUIDO
+  // 5 · paginação Kipflow · busca até tetoBrutoEff ou até acumular TETO_LIQUIDO
   const passados = []; // registros Kipflow que passaram pós-filtro
   let consultadosBruto = 0;
+  let custoKipflowTotal = 0; // soma de parsed.cost por página · sonda de custo
+  let custoFormattedUlt = null;
   let erroKipflow = null;
   let page = 0;
   const datasets = ['basic','address','partners','debts']; // partners → socio_idade; debts → com_divida
 
   try {
-    while (consultadosBruto < TETO_BRUTO && passados.length < TETO_LIQUIDO) {
-      const sizeAgora = Math.min(PAGE_SIZE, TETO_BRUTO - consultadosBruto);
+    while (consultadosBruto < tetoBrutoEff && passados.length < TETO_LIQUIDO) {
+      const sizeAgora = Math.min(PAGE_SIZE, tetoBrutoEff - consultadosBruto);
       const kipBody = {
         $filter: { $and: compilado.andBlocks },
         $page: page,
@@ -273,6 +277,8 @@ module.exports = async (req, res) => {
 
       const lista = Array.isArray(parsed?.data) ? parsed.data : [];
       consultadosBruto += lista.length;
+      if (parsed?.cost != null) custoKipflowTotal += Number(parsed.cost) || 0;
+      if (parsed?.costFormatted) custoFormattedUlt = parsed.costFormatted;
       if (lista.length === 0) break;
 
       for (const reg of lista) {
@@ -346,7 +352,12 @@ module.exports = async (req, res) => {
     qtd_duplicados: qtdDuplicados,
     qtd_blacklist: qtdBlacklist,
     teto_liquido: TETO_LIQUIDO,
-    teto_bruto: TETO_BRUTO,
+    teto_bruto: tetoBrutoEff,
+    // Custo Kipflow medido (soma dos parsed.cost das páginas) — para calibrar pricing
+    custo_kipflow_total: custoKipflowTotal,
+    custo_kipflow_por_bruto: consultadosBruto ? (custoKipflowTotal / consultadosBruto) : null,
+    custo_kipflow_por_liquido: passados.length ? (custoKipflowTotal / passados.length) : null,
+    custo_kipflow_formatted_ult: custoFormattedUlt,
     aviso_raio_ignorado: compilado.motivosPosFiltro.raio_km_ignorado
       ? 'raio_km ignorado: Kipflow não geocodifica'
       : null,
