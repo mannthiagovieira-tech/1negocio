@@ -131,11 +131,40 @@ function templatesHTML() {
   const arqsRelevantes = ARQUETIPOS.filter(a => arqsUsados.has(a.id) || TEMPLATES.some(t => t.arquetipo_id === a.id));
   if (!arqsRelevantes.length) return `<div class="muted" style="font-size:12px">Nenhum arquétipo com lead no funil. Templates aparecem quando o portão manda leads pra cá.</div>`;
   return `
-    <div class="cad-panel__title mono" style="font-size:10.5px;text-transform:uppercase;color:var(--ink-3)">TEMPLATES POR ARQUÉTIPO (2 toques)</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div class="mono" style="font-size:10.5px;text-transform:uppercase;color:var(--ink-3)">TEMPLATES POR ARQUÉTIPO (2 toques)</div>
+      <button class="btn btn--xs" id="tpl-aprovar-todos" title="Aprova todos os templates rascunhados do projeto">Aprovar todos</button>
+    </div>
     <div class="tpl-list">
       ${arqsRelevantes.map(a => tplItemHTML(a)).join('')}
     </div>
   `;
+}
+async function aprovarTodosTemplates() {
+  // Coleta rascunhos (textarea + arquétipo/toque) que estão não-aprovados
+  const rascunhos = [];
+  document.querySelectorAll('[data-tpl]').forEach(el => {
+    const [aid, tqStr] = el.dataset.tpl.split('::');
+    const key = aid + '::' + tqStr;
+    // check se o botão Aprovar está habilitado (=não aprovado ainda)
+    const bt = document.querySelector(`[data-tpl-aprovar="${key}"]`);
+    if (bt && !bt.disabled) {
+      rascunhos.push({ arquetipo_id: aid, toque: Number(tqStr), corpo: el.value.trim() });
+    }
+  });
+  if (!rascunhos.length) { toast('ok', 'Nenhum rascunho pra aprovar'); return; }
+  if (!confirm(`Aprovar em massa ${rascunhos.length} template(s) rascunhado(s)?`)) return;
+  let ok = 0, fail = 0;
+  for (const r of rascunhos) {
+    if (r.corpo.length < 10) { fail++; continue; }
+    const { error } = await sb.from('va_cadencia_templates').upsert(
+      { projeto_id: MANDATO.id, arquetipo_id: r.arquetipo_id, toque: r.toque, corpo: r.corpo, aprovado: true },
+      { onConflict: 'arquetipo_id,toque' }
+    );
+    if (error) fail++; else ok++;
+  }
+  toast('ok', `${ok} aprovado(s)${fail?` · ${fail} falha(s)`:''}`);
+  await recarregarTudo();
 }
 function tplItemHTML(arq) {
   const t1 = TEMPLATES.find(t => t.arquetipo_id === arq.id && t.toque === 1) || rascunhoTemplate(arq, 1);
@@ -177,15 +206,18 @@ function tplToqueHTML(arq, t) {
   `;
 }
 function rascunhoTemplate(arq, toque) {
-  const angulo = arq?.abordagem?.angulo || '';
+  // Toque 1 · abertura curta e neutra
+  // Toque 2 · BUMP curto (P4.1): tentativa de reconexão + reforço mínimo.
+  // Angulo completo vira munição da IA de resposta personalizada, não do T2.
   const corpo = toque === 1
     ? `Bom dia, {{nome_fantasia}}. Assessoro uma venda no setor · pode fazer sentido a gente conversar rápido pra ver se é caso. Faz sentido?`
-    : (angulo ? angulo.slice(0,600) : `Segue o contexto: {{nome_fantasia}}, mandei um toque outro dia sobre uma oportunidade. Sigo à disposição pra detalhar.`);
+    : `Oi {{nome_fantasia}}, só reconectando · a oportunidade que citei segue aberta. Se fizer sentido, marco 15 min. Se não for agora, sem problema.`;
   return { arquetipo_id: arq.id, toque, corpo, aprovado: false, _rascunho: true };
 }
 function bindCadenciaHandlers() {
   document.getElementById('cad-salvar')?.addEventListener('click', salvarCadencia);
   document.getElementById('cad-tick')?.addEventListener('click', processarAgora);
+  document.getElementById('tpl-aprovar-todos')?.addEventListener('click', aprovarTodosTemplates);
   document.querySelectorAll('[data-tpl-salvar]').forEach(b => b.addEventListener('click', () => salvarTemplate(b.dataset.tplSalvar, false)));
   document.querySelectorAll('[data-tpl-aprovar]').forEach(b => b.addEventListener('click', () => salvarTemplate(b.dataset.tplAprovar, true)));
   // preview: pega 1º lead do arquétipo e resolve
@@ -364,27 +396,23 @@ async function abrirDrawer(leadId) {
           </div>
         </div>` : ''}
 
+        ${l.funil_etapa === 'respondeu' || l.funil_etapa === 'em_conversa' ? `
         <div class="drw__section">
-          <h4>Histórico de disparos (${disparos.length})</h4>
-          <div class="drw__historico">
-            ${disparos.length ? disparos.map(d => `
-              <div class="drw__disparo">
-                <b>T${d.toque} · ${d.status}${d.enviado_em?' · '+dataBR(d.enviado_em.slice(0,10)):''}</b>
-                <div style="margin-top:3px;white-space:pre-wrap;font-size:11.5px">${esc(d.corpo_snapshot || '')}</div>
-                ${d.erro?`<div style="color:#a52a2a;font-size:10.5px;margin-top:2px">${esc(d.erro)}</div>`:''}
-              </div>
-            `).join('') : '<div class="muted" style="font-size:11px">Sem disparos ainda.</div>'}
+          <h4>Rascunhar resposta (IA)</h4>
+          <button class="btn btn--sm btn--primary" id="drw-rascunhar">Rascunhar com IA</button>
+          <div id="drw-rascunho-wrap" style="display:none;margin-top:8px">
+            <textarea id="drw-rascunho" rows="4" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:var(--r-sm);font-family:var(--mono);font-size:12px"></textarea>
+            <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px">
+              <button class="btn btn--sm" id="drw-regenerar">Regenerar</button>
+              <button class="btn btn--sm btn--primary" id="drw-enviar">Aprovar e enviar</button>
+            </div>
           </div>
-        </div>
+          <div id="drw-rascunho-status" class="mono muted" style="font-size:10.5px;margin-top:4px"></div>
+        </div>` : ''}
         <div class="drw__section">
-          <h4>Mensagens recebidas (${mensagens.length})</h4>
+          <h4>Conversa (${disparos.length + mensagens.length})</h4>
           <div class="drw__historico">
-            ${mensagens.length ? mensagens.map(m => `
-              <div class="drw__msg">
-                <b>${dataBR((m.recebida_em||'').slice(0,10))} · ${esc(m.telefone)}</b>
-                <div style="margin-top:3px;white-space:pre-wrap;font-size:11.5px">${esc(m.corpo || '(sem texto)')}</div>
-              </div>
-            `).join('') : '<div class="muted" style="font-size:11px">Sem mensagens recebidas.</div>'}
+            ${renderConversaCrono(disparos, mensagens)}
           </div>
         </div>
       </div>
@@ -396,6 +424,75 @@ async function abrirDrawer(leadId) {
   document.getElementById('drw-promover')?.addEventListener('click', () => promoverLead(leadId));
   document.getElementById('drw-optout')?.addEventListener('click', () => optOutManual(leadId));
   document.getElementById('drw-desd-salvar')?.addEventListener('click', () => salvarDesdobramento(leadId));
+  document.getElementById('drw-rascunhar')?.addEventListener('click', () => rascunharIA(leadId));
+  document.getElementById('drw-regenerar')?.addEventListener('click', () => rascunharIA(leadId));
+  document.getElementById('drw-enviar')?.addEventListener('click', () => enviarResposta(leadId));
+}
+
+// Junta disparos + mensagens em uma timeline única (asc por tempo)
+function renderConversaCrono(disparos, mensagens) {
+  const items = [];
+  for (const d of disparos) {
+    if (d.status === 'enviado' && d.enviado_em) items.push({ ts: d.enviado_em, tipo: 'saida', label:`Nós · T${d.toque}${d.tipo_envio==='resposta'?' (resposta)':''}`, corpo: d.corpo_snapshot });
+  }
+  for (const m of mensagens) items.push({ ts: m.recebida_em, tipo: 'entrada', label:`Lead · ${m.telefone}`, corpo: m.corpo });
+  items.sort((a,b) => new Date(a.ts) - new Date(b.ts));
+  if (!items.length) return '<div class="muted" style="font-size:11px">Sem mensagens ainda.</div>';
+  return items.map(i => `
+    <div class="drw__${i.tipo==='saida'?'disparo':'msg'}">
+      <b>${dataBR((i.ts||'').slice(0,10))} ${new Date(i.ts).toISOString().slice(11,16)} · ${esc(i.label)}</b>
+      <div style="margin-top:3px;white-space:pre-wrap;font-size:11.5px">${esc(i.corpo || '(vazio)')}</div>
+    </div>
+  `).join('');
+}
+async function rascunharIA(leadId) {
+  const btn = document.getElementById('drw-rascunhar');
+  const btnR = document.getElementById('drw-regenerar');
+  const status = document.getElementById('drw-rascunho-status');
+  const wrap = document.getElementById('drw-rascunho-wrap');
+  const ta = document.getElementById('drw-rascunho');
+  const antes = btn?.textContent || 'Rascunhar com IA';
+  if (btn) { btn.disabled = true; btn.textContent = 'gerando…'; }
+  if (btnR) btnR.disabled = true;
+  status.textContent = '';
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const r = await fetch('/api/va-rascunhar-resposta', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ lead_id: leadId }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error([d.erro, d.detalhe].filter(Boolean).join(' · ') || 'HTTP '+r.status);
+    ta.value = d.rascunho;
+    wrap.style.display = 'block';
+    status.textContent = `arquétipo: ${d.contexto?.arquetipo || '—'} · região: ${d.contexto?.regiao || '—'} · ${d.contexto?.msgs_count||0} mensagem(ns) do lead`;
+    if (btn) btn.textContent = 'Regerar (novo)';
+  } catch (e) {
+    status.textContent = String(e.message).slice(0,240);
+    if (btn) btn.textContent = antes;
+  } finally { if (btn) btn.disabled = false; if (btnR) btnR.disabled = false; }
+}
+async function enviarResposta(leadId) {
+  const corpo = document.getElementById('drw-rascunho').value.trim();
+  if (!corpo || corpo.length < 5) { toast('err', 'rascunho vazio'); return; }
+  if (!confirm('Enviar essa resposta agora via WhatsApp? Consumo do teto de disparos NÃO é contado (resposta ≠ cadência).')) return;
+  const btn = document.getElementById('drw-enviar');
+  if (btn) { btn.disabled = true; btn.textContent = 'enviando…'; }
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const r = await fetch('/api/va-enviar-resposta', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ lead_id: leadId, corpo }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.erro || 'HTTP '+r.status);
+    toast('ok', 'Enviado · lead → em conversa');
+    document.querySelector('.drw-bg')?.remove();
+    await recarregarTudo();
+  } catch (e) {
+    toast('err', String(e.message).slice(0,240));
+    if (btn) { btn.disabled = false; btn.textContent = 'Aprovar e enviar'; }
+  }
 }
 async function togglePausa(id) {
   const l = LEADS.find(x => x.id === id);

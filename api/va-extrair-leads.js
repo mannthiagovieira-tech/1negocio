@@ -196,7 +196,7 @@ module.exports = async (req, res) => {
   if (!SB_SERVICE) return json(res, 503, { ok:false, erro:'SUPABASE_SERVICE_ROLE_KEY ausente' });
 
   let body; try { body = await lerBody(req); } catch { return json(res, 400, { ok:false, erro:'json inválido' }); }
-  const { projeto_id, arquetipo_id, teto_bruto: teto_bruto_override } = body || {};
+  const { projeto_id, arquetipo_id, teto_bruto: teto_bruto_override, datasets: datasetsOverride } = body || {};
   if (!projeto_id || !arquetipo_id) return json(res, 400, { ok:false, erro:'projeto_id + arquetipo_id obrigatórios' });
   // Override do teto bruto (uso: sonda de custo · valor pequeno consome menos saldo Kipflow)
   const tetoBrutoEff = Math.max(1, Math.min(TETO_BRUTO, Number(teto_bruto_override) || TETO_BRUTO));
@@ -240,10 +240,13 @@ module.exports = async (req, res) => {
   let custoFormattedUlt = null;
   let erroKipflow = null;
   let page = 0;
-  // Slice 3.1: extração magra · basic (razão/CNAE/faturamento/situação) +
-  // address (município/UF/bairro/CEP). Sem partners (sócios/idade) e sem debts
-  // (dívidas): esses vêm sob demanda via /api/va-enriquecer-lead pra economizar.
-  const datasets = ['basic','address'];
+  // Slice 3.1: extração magra · basic + address. Datasets caros (partners,
+  // debts, contacts) vêm sob demanda via /api/va-enriquecer-lead.
+  // P4.1: body.datasets sobrescreve (uso: sondar custo de datasets alternativos
+  // como 'contacts' pra decidir se entra no padrão).
+  const datasets = Array.isArray(datasetsOverride) && datasetsOverride.length
+    ? datasetsOverride
+    : ['basic','address'];
 
   try {
     while (consultadosBruto < tetoBrutoEff && passados.length < TETO_LIQUIDO) {
