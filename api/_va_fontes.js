@@ -433,5 +433,6 @@ module.exports = {
   detectarTriangulacao,
   derivarRegiao,
   REGIOES_MAP,
+  normSemAcento,
   detectarAfirmacaoRegulatoria,
 };
