@@ -214,11 +214,11 @@ function extrairTermosProibidos(fontes) {
         const cand = m[1].trim();
         if (cand.length >= 8) add(cand);
       }
-      // 3) Nomes/marcas após pistas explícitas ("concorrente X", "empresa X",
-      //    "cliente X", "fornecedor X", "blacklist: X"). Pega palavra única.
-      const rePistas = /\b(?:concorrente|empresa|cliente|fornecedor|marca|blacklist(?:\s*absoluta)?:?)\s+([A-ZÁÀÂÃÉÊÍÓÔÕÚÇ][A-Za-zÀ-ÿ]{3,30})\b/gi;
-      while ((m = rePistas.exec(txt)) !== null) add(m[1]);
-      // 4) CNPJ
+      // (Regra "pistas contextuais" removida · gerava falsos positivos como
+      //  "concorrente direta" → "direta". Cobertura via bold no destilado é
+      //  suficiente pra marcas · o destilador consistentemente aplica **bold**
+      //  em entidades relevantes.)
+      // 3) CNPJ
       const reCnpj = /\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/g;
       while ((m = reCnpj.exec(txt)) !== null) proibidos.add(m[0]);
     }
