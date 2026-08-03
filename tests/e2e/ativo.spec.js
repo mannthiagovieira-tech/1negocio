@@ -95,9 +95,9 @@ test.describe('Zona ATIVO · E2E', () => {
     await page.fill('#mv-valor', String(valor));
     await page.fill('#mv-just', 'E2E · valor de teste, será revertido');
     await page.click('#mv-salvar');
-    await page.waitForSelector('.valor-box__num', { timeout: 5000 });
-    const txt = await page.locator('.valor-box__num').textContent();
-    expect(txt).toContain('1.234.567');
+    // Modal fecha e a seção Valor de venda é re-renderizada. Usa toContainText
+    // com auto-retry pra evitar race com rerender (page.textContent é síncrono).
+    await expect(page.locator('.valor-box__num')).toContainText('1.234.567', { timeout: 5000 });
     // Confirma persistência no banco (via API) ANTES de recarregar
     const ctx = await request.newContext();
     const chk = await ctx.get(`${SB_URL}/rest/v1/va_projetos_resumo?id=eq.${m.id}&select=valor_venda`, {
