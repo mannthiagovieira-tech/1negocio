@@ -35,12 +35,21 @@ export async function mountCaptacao(mandato) {
 }
 
 async function recarregarTudo() {
+  // Descobre versão de preços do projeto (fallback vigente global)
+  const projR = await sb.from('va_projetos').select('precos_versao_id').eq('id', MANDATO.id).maybeSingle();
+  let versaoId = projR.data?.precos_versao_id || null;
+  if (!versaoId) {
+    const vR = await sb.from('va_precos_versao').select('id').eq('vigente', true).limit(1).maybeSingle();
+    versaoId = vR.data?.id || null;
+  }
   const [arqR, extR, leadsR, blR, precoR, fontesR] = await Promise.all([
     sb.from('va_arquetipos').select('*').eq('projeto_id', MANDATO.id).eq('status','aprovado').order('criado_em', { ascending:false }),
     sb.from('va_extracoes').select('*').eq('projeto_id', MANDATO.id).order('criado_em', { ascending:false }).limit(5),
     sb.from('va_leads').select('*').eq('projeto_id', MANDATO.id).in('status', ['antessala','bloqueado']).order('criado_em', { ascending:false }),
     sb.from('va_projeto_blacklist').select('*').eq('projeto_id', MANDATO.id).order('criado_em', { ascending:false }),
-    sb.from('va_precos').select('preco, rotulo').eq('tipo','lead_scrapper').eq('ativo', true).maybeSingle(),
+    versaoId
+      ? sb.from('va_precos').select('preco, rotulo').eq('tipo','lead_scrapper').eq('ativo', true).eq('versao_id', versaoId).limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
     sb.from('va_projeto_fontes').select('conteudo_destilado, conteudo, formato_detectado, tipo').eq('projeto_id', MANDATO.id),
   ]);
   ARQUETIPOS = (arqR.data || []).map(a => ({ ...a, extraivel: filtroCompilavel(a.filtro) }));

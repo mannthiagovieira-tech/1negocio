@@ -47,8 +47,17 @@ module.exports = async (req, res) => {
 
   const H = { apikey: SB_SERVICE, Authorization:'Bearer '+SB_SERVICE, 'Content-Type':'application/json', Prefer:'return=representation' };
 
-  // 1 · busca preço vigente
-  const pR = await fetch(`${SB_URL}/rest/v1/va_precos?tipo=eq.${TIPO_PRECO}&ativo=eq.true&select=tipo,rotulo,preco`, { headers: H });
+  // 1 · descobre versão do projeto (fallback vigente global) e busca preço lead_scrapper
+  const projR = await fetch(`${SB_URL}/rest/v1/va_projetos?id=eq.${projeto_id}&select=precos_versao_id`, { headers: H });
+  const [proj] = await projR.json();
+  let versaoId = proj?.precos_versao_id || null;
+  if (!versaoId) {
+    const vR = await fetch(`${SB_URL}/rest/v1/va_precos_versao?vigente=eq.true&select=id&limit=1`, { headers: H });
+    const [v] = await vR.json();
+    versaoId = v?.id || null;
+  }
+  if (!versaoId) return json(res, 503, { ok:false, erro:'nenhuma versão de preços encontrada' });
+  const pR = await fetch(`${SB_URL}/rest/v1/va_precos?tipo=eq.${TIPO_PRECO}&ativo=eq.true&versao_id=eq.${versaoId}&select=tipo,rotulo,preco`, { headers: H });
   const precos = await pR.json();
   const prc = precos?.[0];
   if (!prc || !(prc.preco > 0)) return json(res, 503, { ok:false, erro:'preço vigente de lead_scrapper ausente/zero' });
