@@ -84,32 +84,55 @@ test.describe('Zona ATIVO · E2E', () => {
   });
 
   // ── 2. definir valor de venda via modal ──────────────────────────
+  // Fix bug: o teste antigo pegava "primeiro mandato" e sobrescrevia
+  // valor_venda sem restaurar — atingia Arte Deli em produção. Agora
+  // usa mandato DEDICADO de teste (Bella Luna · cae2862d) e SEMPRE
+  // restaura o valor original no finally (salva antes, restaura depois).
+  const MANDATO_TESTE_VALOR = 'cae2862d-bf61-4d6c-881a-8a1073e49da2'; // Bella Luna
   test('2 · definir valor de venda persiste e recarrega', async ({ page }) => {
     const tok = await loginToken();
-    const m = await apiListMandato(tok);
-    await login(page);
-    await irParaAtivo(page, m.id);
-    await page.click('#btn-def-valor');
-    await page.waitForSelector('.modal');
-    const valor = 1234567;
-    await page.fill('#mv-valor', String(valor));
-    await page.fill('#mv-just', 'E2E · valor de teste, será revertido');
-    await page.click('#mv-salvar');
-    // Modal fecha e a seção Valor de venda é re-renderizada. Usa toContainText
-    // com auto-retry pra evitar race com rerender (page.textContent é síncrono).
-    await expect(page.locator('.valor-box__num')).toContainText('1.234.567', { timeout: 5000 });
-    // Confirma persistência no banco (via API) ANTES de recarregar
-    const ctx = await request.newContext();
-    const chk = await ctx.get(`${SB_URL}/rest/v1/va_projetos_resumo?id=eq.${m.id}&select=valor_venda`, {
+    // Salva estado ANTES pra restaurar no finally
+    const ctxSalvar = await request.newContext();
+    const rBefore = await ctxSalvar.get(`${SB_URL}/rest/v1/va_projetos?id=eq.${MANDATO_TESTE_VALOR}&select=id,valor_venda,valor_venda_justificativa,valor_venda_definido_em`, {
       headers: { apikey: SB_ANON, Authorization: `Bearer ${tok}` },
     });
-    const rows = await chk.json();
-    await ctx.dispose();
-    expect(Number(rows[0]?.valor_venda)).toBe(valor);
-    // Reload com goto (bypassa qualquer cache do reload)
-    await page.goto(`/mandato/ativo.html?mandato=${m.id}`);
-    await page.waitForSelector('#ativo-body[data-ready="true"]');
-    await expect(page.locator('.valor-box__num')).toContainText('1.234.567');
+    const [before] = await rBefore.json();
+    if (!before) { await ctxSalvar.dispose(); throw new Error('mandato de teste ausente'); }
+    await ctxSalvar.dispose();
+    const m = before;
+    try {
+      await login(page);
+      await irParaAtivo(page, m.id);
+      await page.click('#btn-def-valor');
+      await page.waitForSelector('.modal');
+      const valor = 1234567;
+      await page.fill('#mv-valor', String(valor));
+      await page.fill('#mv-just', 'E2E · valor de teste, será revertido');
+      await page.click('#mv-salvar');
+      await expect(page.locator('.valor-box__num')).toContainText('1.234.567', { timeout: 5000 });
+      const ctx = await request.newContext();
+      const chk = await ctx.get(`${SB_URL}/rest/v1/va_projetos_resumo?id=eq.${m.id}&select=valor_venda`, {
+        headers: { apikey: SB_ANON, Authorization: `Bearer ${tok}` },
+      });
+      const rows = await chk.json();
+      await ctx.dispose();
+      expect(Number(rows[0]?.valor_venda)).toBe(valor);
+      await page.goto(`/mandato/ativo.html?mandato=${m.id}`);
+      await page.waitForSelector('#ativo-body[data-ready="true"]');
+      await expect(page.locator('.valor-box__num')).toContainText('1.234.567');
+    } finally {
+      // Restauração INCONDICIONAL (mesmo se o teste falhar)
+      const ctxR = await request.newContext();
+      await ctxR.patch(`${SB_URL}/rest/v1/va_projetos?id=eq.${m.id}`, {
+        headers: { apikey: SB_ANON, Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
+        data: {
+          valor_venda: before.valor_venda,
+          valor_venda_justificativa: before.valor_venda_justificativa,
+          valor_venda_definido_em: before.valor_venda_definido_em,
+        },
+      });
+      await ctxR.dispose();
+    }
   });
 
   // ── 3. criar arquétipo manual completo → rascunho ────────────────
