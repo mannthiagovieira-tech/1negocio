@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="/mandato/core/tokens.css">
 <link rel="stylesheet" href="/mandato/core/base.css">
 <link rel="stylesheet" href="/mandato/captacao.css">
+<link rel="stylesheet" href="/mandato/funil.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
@@ -31,40 +32,8 @@
   </div>
 
   <div id="mq-panel-funil" hidden>
-    <div class="placeholder-grid cols-4">
-      <div class="slot">
-        <div>
-          <div class="slot__lbl">Coluna 01</div>
-          <div class="slot__title">Na fila</div>
-          <div class="slot__desc">Aprovado, esperando primeiro toque.</div>
-        </div>
-        <div class="slot__foot">Em construção · Prompt 4</div>
-      </div>
-      <div class="slot">
-        <div>
-          <div class="slot__lbl">Coluna 02</div>
-          <div class="slot__title">Contatado</div>
-          <div class="slot__desc">Primeiro toque enviado, aguardando resposta.</div>
-        </div>
-        <div class="slot__foot">Em construção · Prompt 4</div>
-      </div>
-      <div class="slot">
-        <div>
-          <div class="slot__lbl">Coluna 03</div>
-          <div class="slot__title">Respondeu</div>
-          <div class="slot__desc">Respondeu qualquer coisa · precisa de próximo passo.</div>
-        </div>
-        <div class="slot__foot">Em construção · Prompt 4</div>
-      </div>
-      <div class="slot">
-        <div>
-          <div class="slot__lbl">Coluna 04</div>
-          <div class="slot__title">Em conversa</div>
-          <div class="slot__desc">Diálogo qualificado em andamento · vira Mesa quando pedir NDA.</div>
-        </div>
-        <div class="slot__foot">Em construção · Prompt 4</div>
-      </div>
-    </div>
+    <!-- populado por /mandato/funil.js via mountFunil(mandato) -->
+    <div class="antes-vazia"><p>Carregando funil…</p></div>
   </div>
 </section></main>
 
@@ -72,6 +41,7 @@
   import { requireAdmin, getMandatoAtivo, watchAuth } from '/mandato/core/core.js';
   import { mountTopbar, renderSelector } from '/mandato/core/ui.js';
   import { mountCaptacao } from '/mandato/captacao.js';
+  import { mountFunil } from '/mandato/funil.js';
   await requireAdmin();
   watchAuth(() => location.reload());
   const mandato = await getMandatoAtivo();
@@ -83,6 +53,7 @@
     const painelFun = document.getElementById('mq-panel-funil');
     const btns = document.querySelectorAll('#mq-tabs button');
     let captacaoMontada = false;
+    let funilMontado = false;
     function setAba(nome) {
       const ok = nome === 'funil' ? 'funil' : 'captacao';
       painelCap.hidden = ok !== 'captacao';
@@ -94,6 +65,10 @@
       if (ok === 'captacao' && !captacaoMontada) {
         captacaoMontada = true;
         mountCaptacao(mandato).catch(err => console.error('captacao', err));
+      }
+      if (ok === 'funil' && !funilMontado) {
+        funilMontado = true;
+        mountFunil(mandato).catch(err => console.error('funil', err));
       }
     }
     btns.forEach(b => b.addEventListener('click', () => setAba(b.dataset.tab)));

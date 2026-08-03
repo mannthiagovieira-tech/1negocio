@@ -38,19 +38,30 @@ async function api(tok) {
   });
   return ctx;
 }
+// Fixa Arte Deli (b676073a) como projeto único do E2E de captação. Antes
+// era resolvido dinamicamente sem ORDER, e o projeto variava entre testes,
+// contaminando estado (blacklist/leads) e causando flake do teste 5.
+const CAPTACAO_PROJ_ID = 'b676073a-6074-48d4-a608-7947de006dff';
 async function pegarMandatoComArquetipoAprovado(tok) {
-  // Usa Arte Deli (que já tem arquétipos aprovados no ambiente)
   const ctx = await api(tok);
-  const rProj = await ctx.get(`${SB_URL}/rest/v1/va_projetos_resumo?arquivado_em=is.null&select=id,cliente_nome,negocio_titulo,cidade,uf`);
-  const projs = await rProj.json();
-  // pegamos qualquer mandato que TENHA pelo menos 1 arquétipo aprovado
-  for (const p of projs) {
-    const rA = await ctx.get(`${SB_URL}/rest/v1/va_arquetipos?projeto_id=eq.${p.id}&status=eq.aprovado&select=id,nome,filtro&limit=1`);
-    const arqs = await rA.json();
-    if (arqs.length) { await ctx.dispose(); return { proj: p, arq: arqs[0] }; }
+  const rProj = await ctx.get(`${SB_URL}/rest/v1/va_projetos_resumo?id=eq.${CAPTACAO_PROJ_ID}&select=id,cliente_nome,negocio_titulo,cidade,uf`);
+  const [proj] = await rProj.json();
+  if (!proj) { await ctx.dispose(); throw new Error(`Projeto ${CAPTACAO_PROJ_ID} não encontrado`); }
+  // Garante que exista pelo menos 1 arquétipo aprovado (reativa arquivado se preciso)
+  const rA = await ctx.get(`${SB_URL}/rest/v1/va_arquetipos?projeto_id=eq.${proj.id}&status=eq.aprovado&select=id,nome,filtro&order=criado_em.asc&limit=1`);
+  let [arq] = await rA.json();
+  if (!arq) {
+    // fallback: pega qualquer arquivado e reativa
+    const rArq = await ctx.get(`${SB_URL}/rest/v1/va_arquetipos?projeto_id=eq.${proj.id}&order=criado_em.asc&limit=1`);
+    const [any] = await rArq.json();
+    if (!any) { await ctx.dispose(); throw new Error('Arte Deli sem arquétipos'); }
+    await ctx.patch(`${SB_URL}/rest/v1/va_arquetipos?id=eq.${any.id}`, {
+      data: { status:'aprovado', arquivado_em: null },
+    });
+    arq = { ...any, status:'aprovado' };
   }
   await ctx.dispose();
-  throw new Error('Nenhum mandato com arquétipo aprovado');
+  return { proj, arq };
 }
 async function seedLeads(tok, projetoId, arquetipoId, cidadeAtivo) {
   const ctx = await api(tok);

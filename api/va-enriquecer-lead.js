@@ -126,6 +126,19 @@ module.exports = async (req, res) => {
       }),
     });
     if (!upd.ok) { falhas.push({ id: l.id, motivo: `update: ${(await upd.text()).slice(0,200)}` }); continue; }
+    // Débito · 1 unidade de 'lead_enriquecimento' por lead com sucesso
+    // Falha do débito NÃO reverte o enriquecimento (dado já veio) · loga em falhas.detalhe.
+    try {
+      const shortL = String(l.id).slice(0,8);
+      const dR = await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+        method:'POST', headers: H,
+        body: JSON.stringify({
+          p_projeto: projeto_id, p_tipo: 'lead_enriquecimento', p_qtd: 1,
+          p_referencia: `enriq:${shortL} · partners+debts`, p_ciclo: null,
+        }),
+      });
+      if (!dR.ok) console.error('va_debitar enriquecimento falhou:', await dR.text());
+    } catch (e) { console.error('va_debitar erro:', e); }
     ok.push({ id: l.id, idade_min: r.campos.idade_min_socios, idade_max: r.campos.idade_max_socios, com_divida: r.campos.com_divida, cost: r.cost });
   }
 

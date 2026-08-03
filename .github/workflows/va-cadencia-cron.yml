@@ -1,0 +1,27 @@
+name: MANDATO · cadência (P4) · tick a cada 5 min
+
+# P4 · cron isolado do domínio MANDATO (va_*). Não interfere no
+# disparador-cron legado que processa campanhas manuais em
+# disparador_campanhas/envios.
+#
+# Chama /api/va-cadencia-tick na Vercel com header x-cron-secret.
+# A function processa TODAS as va_cadencia_config.ativa=true dentro
+# da janela horária configurada e do teto diário por projeto.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'  # 5min · ATIVO
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /api/va-cadencia-tick
+        run: |
+          curl -sS -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            'https://www.1negocio.com.br/api/va-cadencia-tick'
+          echo ""
