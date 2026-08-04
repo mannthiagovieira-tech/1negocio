@@ -21,6 +21,38 @@ const WEBHOOK_TOKEN = process.env.ZAPI_WEBHOOK_TOKEN;
 
 const RE_OPTOUT = /\b(n[ãa]o\s+quero|nao\s+tenho\s+interesse|remover|pare|parar|sair\s+da\s+lista|descadastr(?:ar|e)|stop|unsub)\b/i;
 
+// P5 Slice C · parse do adContext CTWA. Meta preserva o ctwaPayload que
+// injetamos no url_tags do creative (base64({campanha_id, criativo_id,
+// arquetipo_id})). Cai em raw.adContext.ctwaPayload OU em
+// raw.adContext.entryPointConversionSource (fallback URL com query param).
+function parseCtwaPayload(raw) {
+  try {
+    const adCtx = raw?.adContext;
+    if (!adCtx) return null;
+    // Tentativa 1: ctwaPayload como Buffer (Z-API costuma passar {data:[...]})
+    const buf = adCtx.ctwaPayload;
+    if (buf?.data && Array.isArray(buf.data) && buf.data.length) {
+      const bytes = Buffer.from(buf.data);
+      const raw1 = bytes.toString('utf8');
+      // Tenta JSON direto · se falhar tenta base64 do bytes
+      try { return JSON.parse(raw1); } catch {}
+      try { return JSON.parse(Buffer.from(raw1, 'base64').toString('utf8')); } catch {}
+    }
+    // Tentativa 2: string base64 direta
+    if (typeof buf === 'string' && buf.length) {
+      try { return JSON.parse(Buffer.from(buf, 'base64').toString('utf8')); } catch {}
+    }
+    // Tentativa 3: url_tags no entryPointConversionSource (nosso próprio inject)
+    const src = adCtx.entryPointConversionSource || '';
+    const m = String(src).match(/ctwa_payload=([^&]+)/);
+    if (m) {
+      const decoded = decodeURIComponent(m[1]);
+      try { return JSON.parse(Buffer.from(decoded, 'base64').toString('utf8')); } catch {}
+    }
+    return null;
+  } catch { return null; }
+}
+
 function json(res, code, body) {
   res.status(code).setHeader('Content-Type','application/json');
   res.send(JSON.stringify(body));
@@ -69,6 +101,44 @@ module.exports = async (req, res) => {
   });
 
   if (!lead) {
+    // P5 Slice C · Antes de guardar como órfã, tenta desemboque CTWA:
+    // se o payload traz referral de campanha nossa, cria lead na antessala.
+    const payload = parseCtwaPayload(body);
+    if (payload?.campanha_id) {
+      const cR = await fetch(`${SB_URL}/rest/v1/va_campanhas?id=eq.${payload.campanha_id}&select=id,projeto_id,arquetipo_id,criativo_id`, { headers: H() });
+      const [cmp] = await cR.json();
+      if (cmp) {
+        // Cria lead na ANTESSALA do projeto da campanha · origem=campanha · whatsapp_verificado=true (veio DO WhatsApp)
+        const ins = await fetch(`${SB_URL}/rest/v1/va_leads`, {
+          method:'POST', headers: H(),
+          body: JSON.stringify({
+            projeto_id: cmp.projeto_id,
+            arquetipo_id: payload.arquetipo_id || cmp.arquetipo_id,
+            campanha_id: cmp.id,
+            criativo_id: payload.criativo_id || cmp.criativo_id,
+            origem: 'campanha', fonte: 'meta_ctwa',
+            razao_social: `Lead inbound · ${telefone.slice(-4)}`,
+            whatsapp: telefone, telefone,
+            whatsapp_verificado: true, verificado_em: new Date().toISOString(),
+            contato_fonte: 'manual',
+            status: 'antessala',
+            ad_ref: { adContext: body?.adContext || null, ctwa_payload: payload },
+          }),
+        });
+        if (ins.ok) {
+          const [novo] = await ins.json();
+          // Grava a primeira mensagem já vinculada
+          await fetch(`${SB_URL}/rest/v1/va_mensagens_recebidas`, {
+            method:'POST', headers: H(),
+            body: JSON.stringify({
+              projeto_id: cmp.projeto_id, lead_id: novo.id,
+              telefone, corpo, raw: body, processada: true,
+            }),
+          });
+          return json(res, 200, { ok:true, match:true, origem:'campanha', lead_id: novo.id, campanha_id: cmp.id, criado:true });
+        }
+      }
+    }
     // órfã · guarda pra triagem
     await fetch(`${SB_URL}/rest/v1/va_mensagens_recebidas`, {
       method:'POST', headers: H(),

@@ -505,9 +505,13 @@ function cardHTML(l) {
   const toqueCopy = l.funil_etapa === 'na_fila' ? 1 : (l.funil_etapa === 'contatado' && !l.toque2_em ? 2 : null);
   const acoes = (l.funil_etapa === 'na_fila' || l.funil_etapa === 'contatado')
     ? `<div class="kb-card__acoes" style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">${botaoWa(l)}${toqueCopy ? botaoCopyT(l, toqueCopy) : ''}</div>` : '';
+  // P5 Slice C · pill INBOUND distintiva pra leads de campanha (cor + texto)
+  const inbound = l.origem === 'campanha'
+    ? '<span class="pill" style="background:#dbeafe;color:#1e40af;font-weight:600;font-size:9.5px;padding:1px 5px" title="lead entrou via CTWA · campanha Meta">INBOUND</span>' : '';
+  const cardStyle = l.origem === 'campanha' ? 'border-left:3px solid #2563eb' : '';
   return `
-    <div class="kb-card" data-lead-abrir="${l.id}" title="${esc(l.razao_social||'')}">
-      <div class="kb-card__nome">${esc(fmtNomeLead(l) || '(sem nome)')}${pause} ${badgeVerificado(l)}</div>
+    <div class="kb-card" data-lead-abrir="${l.id}" title="${esc(l.razao_social||'')}" style="${cardStyle}">
+      <div class="kb-card__nome">${inbound} ${esc(fmtNomeLead(l) || '(sem nome)')}${pause} ${badgeVerificado(l)}</div>
       <div class="kb-card__meta">
         <span class="pill" style="font-size:10px">${esc(arq.slice(0,30))}</span>
         <span>${caption}</span>

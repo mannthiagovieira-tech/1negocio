@@ -379,6 +379,7 @@ function trLead(l) {
     <tr class="${cls.join(' ')}" data-lid="${l.id}">
       <td>${checkbox}</td>
       <td class="col-razao">
+        ${l.origem === 'campanha' ? '<span class="pill" style="background:#dbeafe;color:#1e40af;font-weight:600;font-size:9.5px;padding:1px 5px;margin-right:4px" title="lead inbound · CTWA">INBOUND</span>' : ''}
         <strong>${esc(l.razao_social || l.nome_fantasia || '(sem razão)')}</strong>
         <div class="mono">${esc(l.cnpj || '—')} · CNAE ${esc(l.cnae || '—')}</div>
       </td>
