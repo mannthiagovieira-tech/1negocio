@@ -401,12 +401,20 @@ async function renderCriativo(id, silent = false) {
       method: 'POST', headers: { 'Content-Type':'application/json', Authorization: 'Bearer ' + tok },
       body: JSON.stringify({ criativo_id: id }),
     });
-    const d = await r.json();
-    if (!r.ok || !d.ok) throw new Error(d.erro || 'HTTP ' + r.status);
+    // Defensivo: se runtime da function falha (FUNCTION_INVOCATION_FAILED),
+    // body vem como texto (HTML) e r.json() explode com "Unexpected token".
+    // Tratamos como erro do endpoint em vez de engolir silenciosamente.
+    const raw = await r.text();
+    let d = null;
+    try { d = JSON.parse(raw); } catch {
+      throw new Error('HTTP ' + r.status + ' · runtime falhou: ' + raw.slice(0, 180));
+    }
+    if (!r.ok || !d.ok) throw new Error((d.erro || 'HTTP ' + r.status) + (d.detalhe ? ' · ' + d.detalhe : ''));
     if (!silent) toast('ok', 'Renderizado');
     await recarregar();
   } catch (e) {
-    if (!silent) toast('err', String(e.message).slice(0, 220));
+    console.error('[renderCriativo]', e);
+    if (!silent) toast('err', 'Render: ' + String(e.message).slice(0, 260));
     if (btn) { btn.disabled = false; btn.textContent = 'Renderizar'; }
   }
 }

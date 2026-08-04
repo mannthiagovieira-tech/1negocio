@@ -1,25 +1,25 @@
-// /api/va-render-criativo · Slice P5 · Vercel Node runtime
-// Renderiza 1 criativo em PNG no bucket Storage 'criativos-png'.
-// Usa @vercel/og (satori + resvg internos · sem headless browser).
+// /api/va-render-criativo · Slice P5 · EDGE RUNTIME (obrigatório pro @vercel/og)
+// @vercel/og v0.6 usa wasm de resvg que só carrega em Edge · Node runtime quebra
+// com FUNCTION_INVOCATION_FAILED na hora do import (antes de entrar no handler).
+//
+// Renderiza 1 criativo (headline+texto+cta) em PNG no bucket criativos-png.
 // 3 formatos · 3 layouts · design system 1Negócio.
 // Auth: JWT admin (va_is_admin).
 
-const { ImageResponse } = require('@vercel/og');
+export const config = { runtime: 'edge' };
+
+import { ImageResponse } from '@vercel/og';
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_ANON = process.env.SUPABASE_ANON_KEY;
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-function json(res, code, body) { res.status(code).setHeader('Content-Type','application/json'); res.send(JSON.stringify(body)); }
-async function lerBody(req) {
-  if (req.body) return typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-  const c = []; for await (const x of req) c.push(x);
-  const s = Buffer.concat(c).toString('utf8'); return s ? JSON.parse(s) : {};
-}
 async function ehAdmin(tok) {
   if (!tok) return false;
   const r = await fetch(SB_URL + '/rest/v1/rpc/va_is_admin', {
-    method:'POST', headers:{ apikey: SB_ANON, Authorization:'Bearer '+tok, 'Content-Type':'application/json' }, body:'{}',
+    method:'POST',
+    headers:{ apikey: SB_ANON, Authorization:'Bearer '+tok, 'Content-Type':'application/json' },
+    body:'{}',
   });
   return r.ok && (await r.json()) === true;
 }
@@ -33,7 +33,8 @@ function tamanho(f) {
   return { w: 1200, h: 628 };
 }
 
-// Fontes cacheadas por invocação (fetch 1× por cold start)
+// Fontes fetched em runtime (cache por invocação · Edge reusa entre requests
+// dentro do mesmo cold-start)
 let _fontesCache = null;
 async function carregarFontes() {
   if (_fontesCache) return _fontesCache;
@@ -54,8 +55,6 @@ async function carregarFontes() {
   return out;
 }
 
-// ─── Layouts JSX (React-like objects que @vercel/og aceita) ─────────────
-// Referência visual do dado_destaque = cards do index.html (número grande accent + label pequena)
 function tree(layout, formato, copy) {
   const { w, h } = tamanho(formato);
   const pad = Math.round(w * 0.06);
@@ -104,8 +103,6 @@ function tree(layout, formato, copy) {
       },
     };
   } else {
-    // dado_destaque · número grande accent centrado (ref: cards do index.html)
-    // Formato link (1200×628) tem H baixinho · escala pelo min(w, h*1.7) evita overflow.
     const m = copy.headline.match(/(R\$\s*[\d.\-–\s]+M?|[\d.]+×|\d+%)/);
     const dado = m?.[0]?.trim() || copy.headline.split(' ').slice(0, 3).join(' ');
     const resto = copy.headline.replace(dado, '').trim();
@@ -137,24 +134,31 @@ function tree(layout, formato, copy) {
   };
 }
 
-module.exports = async (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST') return json(res, 405, { ok: false });
-  const tok = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-  if (!(await ehAdmin(tok))) return json(res, 403, { ok: false, erro: 'não autorizado' });
-  if (!SB_SERVICE) return json(res, 503, { ok: false, erro: 'SUPABASE_SERVICE_ROLE_KEY ausente' });
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+const jResp = (code, body) => new Response(JSON.stringify(body), { status: code, headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 
-  let body; try { body = await lerBody(req); } catch { return json(res, 400, { ok: false }); }
+export default async function handler(req) {
+  if (req.method === 'OPTIONS') return new Response('ok', { status: 204, headers: CORS });
+  if (req.method !== 'POST') return jResp(405, { ok: false });
+
+  const tok = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+  if (!(await ehAdmin(tok))) return jResp(403, { ok: false, erro: 'não autorizado' });
+  if (!SB_SERVICE) return jResp(503, { ok: false, erro: 'SUPABASE_SERVICE_ROLE_KEY ausente' });
+
+  let body; try { body = await req.json(); } catch { return jResp(400, { ok: false }); }
   const { criativo_id } = body || {};
-  if (!criativo_id) return json(res, 400, { ok: false, erro: 'criativo_id obrigatório' });
+  if (!criativo_id) return jResp(400, { ok: false, erro: 'criativo_id obrigatório' });
 
-  // Carrega criativo
-  const cR = await fetch(`${SB_URL}/rest/v1/va_criativos?id=eq.${criativo_id}&select=*`, { headers: H_SVC() });
-  const [c] = await cR.json();
-  if (!c) return json(res, 404, { ok: false, erro: 'criativo não encontrado' });
+  const cR = await fetch(`${SB_URL}/rest/v1/va_criativos?id=eq.${criativo_id}&select=*`, { headers: { ...H_SVC(), 'Content-Type':'application/json' } });
+  const arr = await cR.json();
+  const c = Array.isArray(arr) ? arr[0] : null;
+  if (!c) return jResp(404, { ok: false, erro: 'criativo não encontrado' });
   if (c.status === 'aprovado' && c.png_path) {
-    return json(res, 400, { ok: false, erro: 'aprovado_imutavel · desative pra re-render' });
+    return jResp(400, { ok: false, erro: 'aprovado_imutavel · desative pra re-render' });
   }
 
   try {
@@ -164,7 +168,7 @@ module.exports = async (req, res) => {
     });
     const { w, h } = tamanho(c.formato || 'feed_1080');
     const img = new ImageResponse(arv, { width: w, height: h, fonts });
-    const png = Buffer.from(await img.arrayBuffer());
+    const png = new Uint8Array(await img.arrayBuffer());
 
     const path = `${c.projeto_id}/${c.id}-v${c.versao || 1}.png`;
     const up = await fetch(`${SB_URL}/storage/v1/object/${encodeURIComponent('criativos-png')}/${path}`, {
@@ -178,16 +182,15 @@ module.exports = async (req, res) => {
     }
     const pngUrl = `${SB_URL}/storage/v1/object/public/criativos-png/${path}`;
 
-    // Persiste path + snapshot
     await fetch(`${SB_URL}/rest/v1/va_criativos?id=eq.${criativo_id}`, {
       method: 'PATCH',
       headers: { ...H_SVC(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ png_path: path, html_snapshot: JSON.stringify(arv).slice(0, 20000) }),
     });
 
-    return json(res, 200, { ok: true, criativo_id, png_path: path, png_url: pngUrl, w, h });
+    return jResp(200, { ok: true, criativo_id, png_path: path, png_url: pngUrl, w, h });
   } catch (e) {
     console.error('[va-render-criativo]', e?.message, e?.stack?.slice(0, 500));
-    return json(res, 500, { ok: false, erro: 'render_falhou', detalhe: String(e?.message || e).slice(0, 400) });
+    return jResp(500, { ok: false, erro: 'render_falhou', detalhe: String(e?.message || e).slice(0, 400) });
   }
-};
+}

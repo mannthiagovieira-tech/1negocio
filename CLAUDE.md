@@ -75,6 +75,29 @@ A edge lê `va_disparo_fila`, envia via Z-API server-side, e chama
 O cron do `disparador-rodar-campanha` já processa `va_disparo_fila`
 automaticamente a cada 5 min — o botão é só pra despachar sob demanda.
 
+### Prova de slice · endpoint em produção via UI real
+
+Prova de slice NUNCA é aceita por script local · rodar o mesmo código
+`node scripts/…` no macOS ou via `execute_sql` MCP **não** conta como
+prova de que o endpoint funciona na Vercel. Runtime serverless, cold
+start, bundle, deps peer, env vars, timeout, tamanho de function e
+resolução de módulos são diferentes do local — um script que renderiza
+localmente pode falhar no `import` sem nem entrar no handler
+(`FUNCTION_INVOCATION_FAILED`), como aconteceu com `@vercel/og` em Node
+runtime.
+
+Critério mínimo pra fechar slice:
+1. Endpoint chamado em `https://www.1negocio.com.br/api/<nome>` com JWT
+   admin real (ou webhook token real, quando for público)
+2. Botão da UI clicado no navegador · resposta OK · efeito observável
+   (linha nova no banco, arquivo no bucket, PNG na galeria, disparo Z-API)
+3. Print/URL/ID como evidência colada no relatório
+
+Fallback pro dev: se não houver JWT admin local, ou (a) documentar a
+pendência explícita no relatório final ("prova UI dependente do operador
+· rodar botão X"), ou (b) obter credencial temporária. Escrever "testado
+localmente OK" sem provar em prod é violação desta regra.
+
 ### /projetos.html não pode ficar inacessível
 
 `/projetos.html` é o painel operacional do usuário. Qualquer mudança
