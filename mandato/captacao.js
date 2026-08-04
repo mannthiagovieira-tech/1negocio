@@ -233,6 +233,8 @@ function renderAntessala() {
   el.querySelectorAll('[data-desc1]').forEach(b => b.addEventListener('click', () => descartarUm(b.dataset.desc1)));
   el.querySelectorAll('[data-over1]').forEach(b => b.addEventListener('click', () => abrirModalOverride(b.dataset.over1)));
   el.querySelectorAll('[data-enriq1]').forEach(b => b.addEventListener('click', () => enriquecerLeads([b.dataset.enriq1])));
+  el.querySelectorAll('[data-edit-tel]').forEach(b => b.addEventListener('click', () => editarContato(b.dataset.editTel)));
+  el.querySelectorAll('[data-cands]').forEach(b => b.addEventListener('click', () => escolherCandidato(b.dataset.cands)));
   const btnEnriqMassa = document.getElementById('btn-enriq-massa');
   if (btnEnriqMassa) btnEnriqMassa.addEventListener('click', () => {
     const ids = [...SELECAO].filter(id => {
@@ -279,7 +281,7 @@ function tabelaAntessala(rows) {
         <th style="width:22px"><input type="checkbox" id="chk-all"></th>
         <th class="col-razao">Empresa · CNAE</th>
         <th>Cidade/UF</th>
-        <th>Faturamento</th>
+        <th>Contato</th>
         <th>Sócio idade</th>
         <th>Dívida</th>
         <th>Flags</th>
@@ -318,6 +320,22 @@ function trLead(l) {
   const checkbox = l.blacklist_hit
     ? '' // bloqueados não entram na seleção normal
     : `<input type="checkbox" data-chk="${l.id}" ${SELECAO.has(l.id)?'checked':''}>`;
+  // Coluna Contato · P4.3
+  const fone = l.whatsapp || l.telefone || null;
+  const fonteBadge = l.contato_fonte
+    ? `<span class="pill" style="font-size:9.5px;padding:1px 5px" title="fonte do contato">${esc(l.contato_fonte)}</span>`
+    : '';
+  const cands = (l.dados_enriquecimento?.gmaps?.candidatos || []).filter(c => !l.dados_enriquecimento?.gmaps?.escolhido);
+  const btnCandidatos = (cands.length > 0 && !fone)
+    ? `<button class="btn btn--xs" data-cands="${l.id}" title="${cands.length} candidatos Gmaps sem match automático">${cands.length} candidatos</button>`
+    : '';
+  const contatoHtml = fone
+    ? `<div class="mono" style="font-size:11px">${esc(fone)} ${fonteBadge}
+         <button class="btn btn--xs" style="padding:0 4px;font-size:10px" data-edit-tel="${l.id}" title="editar">✎</button></div>`
+    : `<div>
+         <button class="btn btn--xs" style="padding:2px 6px" data-edit-tel="${l.id}">+ tel</button>
+         ${btnCandidatos}
+       </div>`;
   return `
     <tr class="${cls.join(' ')}" data-lid="${l.id}">
       <td>${checkbox}</td>
@@ -326,7 +344,7 @@ function trLead(l) {
         <div class="mono">${esc(l.cnpj || '—')} · CNAE ${esc(l.cnae || '—')}</div>
       </td>
       <td class="mono">${esc(l.cidade || '—')}/${esc(l.uf || '—')}</td>
-      <td class="mono">${l.faturamento_estimado != null ? brl(l.faturamento_estimado) : '—'}</td>
+      <td>${contatoHtml}</td>
       <td class="mono">${idadeStr}</td>
       <td class="mono">${dividaStr}</td>
       <td>${flags}</td>
@@ -344,6 +362,72 @@ async function descartarUm(id) {
   toast('ok', 'Descartado');
   SELECAO.delete(id);
   await recarregarTudo();
+}
+
+// P4.3 · edição manual de contato · chama /api/va-lead-contato
+async function editarContato(id) {
+  const lead = LEADS.find(l => l.id === id); if (!lead) return;
+  const atual = lead.whatsapp || lead.telefone || '';
+  const raw = prompt('Telefone/WhatsApp (só dígitos · DDD + número):', atual);
+  if (raw == null) return;
+  const digits = String(raw).replace(/\D/g,'');
+  if (digits && (digits.length < 10 || digits.length > 13)) { toast('err','telefone deve ter 10 a 13 dígitos'); return; }
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const r = await fetch('/api/va-lead-contato', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ lead_id:id, telefone: digits || null, whatsapp: digits || null, fonte:'manual' }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.erro || 'HTTP '+r.status);
+    toast('ok', digits ? 'Contato salvo (manual)' : 'Contato removido');
+    await recarregarTudo();
+  } catch (e) { toast('err', String(e.message).slice(0,200)); }
+}
+// P4.3 · escolher entre candidatos Gmaps ambíguos
+async function escolherCandidato(id) {
+  const lead = LEADS.find(l => l.id === id); if (!lead) return;
+  const cands = lead.dados_enriquecimento?.gmaps?.candidatos || [];
+  if (!cands.length) { toast('err','sem candidatos'); return; }
+  const html = `<div class="modal-bg" onclick="if(event.target===this)this.remove()">
+    <div class="modal" style="max-width:640px">
+      <div class="lbl">Candidatos Gmaps · ${cands.length}</div>
+      <h3 style="margin:6px 0 10px;font-size:16px">${esc(lead.razao_social || lead.nome_fantasia || '')}</h3>
+      <div style="display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow-y:auto">
+        ${cands.map((c,i) => `
+          <div style="border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12.5px"><b>${esc(c.title||'—')}</b> <span class="mono muted" style="font-size:10px">score ${c.score}</span></div>
+              <div class="mono" style="font-size:10.5px;color:var(--ink-3)">${esc(c.address||'—')}</div>
+              <div class="mono" style="font-size:11px">📞 ${esc(c.phone||'—')} ${c.website?`· 🌐 ${esc(c.website)}`:''}</div>
+            </div>
+            <button class="btn btn--xs btn--primary" data-cand-pick="${i}">Escolher</button>
+          </div>
+        `).join('')}
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:10px">
+        <button class="btn btn--ghost" onclick="this.closest('.modal-bg').remove()">Fechar</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.querySelectorAll('[data-cand-pick]').forEach(b => b.addEventListener('click', async () => {
+    const c = cands[Number(b.dataset.candPick)];
+    const digits = String(c.phone||'').replace(/\D/g,'');
+    if (digits.length < 10) { toast('err','telefone inválido'); return; }
+    try {
+      const tok = (await sb.auth.getSession()).data.session?.access_token;
+      const r = await fetch('/api/va-lead-contato', {
+        method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+        body: JSON.stringify({ lead_id:id, telefone: digits, whatsapp: (digits.length===11||digits.length===13)?digits:null, fonte:'gmaps' }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) throw new Error(d.erro || 'HTTP '+r.status);
+      toast('ok', 'Candidato aplicado (gmaps)');
+      document.querySelector('.modal-bg')?.remove();
+      await recarregarTudo();
+    } catch (e) { toast('err', String(e.message).slice(0,200)); }
+  }));
 }
 function abrirModalOverride(leadId) {
   const lead = LEADS.find(l => l.id === leadId); if (!lead) return;

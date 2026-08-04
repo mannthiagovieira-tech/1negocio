@@ -10,10 +10,33 @@ const SB_URL = process.env.SUPABASE_URL;
 const SB_ANON = process.env.SUPABASE_ANON_KEY;
 const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const KIP_KEY = process.env.KIPFLOW_API_KEY;
+const APIFY_TOKEN = process.env.APIFY_TOKEN;
+const APIFY_ACTOR = 'compass~crawler-google-places';
 
-// P4.2: online_presence agrega telefone/email/site/redes · junta com partners+debts.
-// Dataset caro (+R$ 0,05/bruto no ranking) mas SÓ chamado sob demanda por lead.
 const DATASETS = 'partners,debts,online_presence';
+
+// Score de similaridade nome (Dice/bigrama simples · 0..1)
+function normNome(s) { return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim(); }
+function bigrams(s) { const r=[]; for (let i=0;i<s.length-1;i++) r.push(s.slice(i,i+2)); return r; }
+function diceSim(a, b) {
+  const A = normNome(a), B = normNome(b);
+  if (!A || !B) return 0;
+  if (A === B) return 1;
+  const bA = bigrams(A), bB = bigrams(B);
+  if (!bA.length || !bB.length) return 0;
+  const setB = new Map(); for (const x of bB) setB.set(x, (setB.get(x)||0)+1);
+  let inter = 0;
+  for (const x of bA) { const c = setB.get(x); if (c) { inter++; setB.set(x, c-1); } }
+  return (2 * inter) / (bA.length + bB.length);
+}
+function extrairDominio(url) {
+  if (!url) return null;
+  try { return new URL(String(url).startsWith('http') ? url : 'http://'+url).hostname.replace(/^www\./,'').toLowerCase(); } catch { return null; }
+}
+function mesmoDominio(a, b) {
+  const dA = extrairDominio(a), dB = extrairDominio(b);
+  return !!(dA && dB && dA === dB);
+}
 
 function json(res, code, body) {
   res.status(code).setHeader('Content-Type','application/json');
@@ -45,7 +68,71 @@ function idadeAnos(dnasc) {
   return age;
 }
 
-// Consulta 1 CNPJ no Kipflow com datasets partners+debts. Retorna { ok, cost, campos, erro }.
+// P4.3 · Consulta Apify Google Maps. Retorna { ok, cost_places, places[], erro }.
+// Actor 'compass~crawler-google-places' síncrono. Custo debitado como
+// 'lead_maps' pós-fato (mesmo padrão do slice12e). Timeout 90s (com jitter).
+async function buscarGmaps(query, limite) {
+  if (!APIFY_TOKEN) return { ok:false, erro:'APIFY_TOKEN ausente' };
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 90_000);
+  try {
+    const url = `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${APIFY_TOKEN}`;
+    const r = await fetch(url, {
+      method:'POST', signal: controller.signal,
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        searchStringsArray: [query],
+        maxCrawledPlacesPerSearch: Math.max(1, Math.min(15, limite || 6)),
+        language: 'pt-BR',
+        countryCode: 'br',
+        exportPlaceUrls: false,
+        includeWebResults: false,
+        scrapeContacts: true,
+      }),
+    });
+    if (r.status === 401) return { ok:false, erro:'apify_token_invalido' };
+    if (r.status === 429) return { ok:false, erro:'apify_rate_limit' };
+    if (!r.ok) return { ok:false, erro:`apify_http_${r.status}` };
+    const places = await r.json();
+    return { ok:true, places: Array.isArray(places) ? places : [], count: Array.isArray(places) ? places.length : 0 };
+  } catch (e) {
+    return { ok:false, erro: 'apify_rede: ' + String(e?.message||e).slice(0,200) };
+  } finally { clearTimeout(t); }
+}
+
+// Casa 1 lead contra placespossíveis. Retorna { escolhido, candidatos, motivo }.
+// score = diceSim(nome) + bonus 0.20 se domínio bate com site vindo do Kipflow.
+// Escolhido: score >= 0.80 (limiar auto) · candidatos: 0.55 <= score < 0.80.
+function casarPlacesComLead(lead, places, siteKipflow) {
+  const nomeLead = lead.nome_fantasia || lead.razao_social || '';
+  const cidadeLead = normNome(lead.cidade || '');
+  const scored = places.map(p => {
+    const nomeP = p.title || p.name || '';
+    let s = diceSim(nomeLead, nomeP);
+    if (siteKipflow && mesmoDominio(siteKipflow, p.website)) s += 0.20;
+    // penalidade se cidade Apify (address) diverge fortemente
+    const addr = normNome(p.city || p.address || '');
+    if (cidadeLead && addr && !addr.includes(cidadeLead) && !cidadeLead.includes(addr.split(' ')[0])) s -= 0.05;
+    const fone = p.phoneUnformatted || p.phone || p.phoneNumber || null;
+    return {
+      score: Number(s.toFixed(3)),
+      title: nomeP,
+      phone: fone,
+      website: p.website || null,
+      address: p.formattedAddress || p.address || null,
+      city: p.city || null,
+      placeId: p.placeId || null,
+    };
+  }).filter(x => x.phone) // sem telefone, place é inútil pro nosso objetivo
+    .sort((a,b) => b.score - a.score);
+  if (!scored.length) return { escolhido:null, candidatos:[], motivo:'sem_places_com_fone' };
+  const top = scored[0];
+  if (top.score >= 0.80) return { escolhido: top, candidatos: scored.slice(0,5), motivo:'auto_high_score' };
+  if (top.score >= 0.55) return { escolhido: null, candidatos: scored.slice(0,5), motivo:'ambiguo' };
+  return { escolhido:null, candidatos: scored.slice(0,3), motivo:'score_baixo' };
+}
+
+// Consulta 1 CNPJ no Kipflow com datasets partners+debts+online_presence. Retorna { ok, cost, campos, erro }.
 async function enriquecer(cnpj) {
   try {
     const r = await fetch(`https://api.kipflow.io/companies/v1/search?cnpj=${encodeURIComponent(cnpj)}&datasets=${DATASETS}`, {
@@ -125,7 +212,9 @@ module.exports = async (req, res) => {
   const leads = await lR.json();
   if (!Array.isArray(leads) || !leads.length) return json(res, 404, { ok:false, erro:'nenhum lead encontrado no projeto' });
 
-  let custoTotal = 0;
+  let custoTotal = 0;      // custo Kipflow acumulado (partners+debts+online_presence)
+  let custoApifyTotal = 0; // custo Apify acumulado (lead_maps)
+  let placesApifyTotal = 0;
   const ok = []; const falhas = [];
   for (const l of leads) {
     const cnpjLimpo = String(l.cnpj || '').replace(/\D/g,'');
@@ -133,23 +222,75 @@ module.exports = async (req, res) => {
     const r = await enriquecer(cnpjLimpo);
     if (!r.ok) { falhas.push({ id: l.id, motivo: r.erro }); continue; }
     custoTotal += r.cost || 0;
-    // funde dados_brutos existente com o enriquecimento
+
+    // ─── CASCATA APIFY (P4.3) · só se Kipflow deixou telefone/whatsapp vazio
+    let campoTel = r.campos.telefone;
+    let campoWa  = r.campos.whatsapp;
+    let contatoFonte = (campoTel || campoWa) ? 'kipflow' : null;
+    let gmapsEscolhido = null;
+    let gmapsCandidatos = null;
+    let gmapsMotivo = null;
+    const precisaGmaps = !l.telefone && !l.whatsapp && !campoTel && !campoWa;
+    if (precisaGmaps) {
+      const nomeQ = l.nome_fantasia || l.razao_social || '';
+      const cidQ  = l.cidade || '';
+      const siteK = (r.campos.site && typeof r.campos.site === 'object') ? r.campos.site.site
+                  : (typeof r.campos.site === 'string' ? r.campos.site : null);
+      const q = `${nomeQ} ${cidQ}`.trim();
+      if (q.length >= 4) {
+        const g = await buscarGmaps(q, 6);
+        if (g.ok) {
+          placesApifyTotal += g.count || 0;
+          // Custo lead_maps é por PLACE retornado (padrão do slice12e)
+          const custoUnit = 0.005;
+          custoApifyTotal += (g.count || 0) * custoUnit;
+          const m = casarPlacesComLead(l, g.places || [], siteK);
+          gmapsCandidatos = m.candidatos;
+          gmapsMotivo = m.motivo;
+          if (m.escolhido && m.escolhido.phone) {
+            gmapsEscolhido = m.escolhido;
+            const foneNorm = String(m.escolhido.phone).replace(/\D/g,'');
+            if (foneNorm.length >= 10) {
+              campoTel = foneNorm;
+              // Heurística: 11-13 dígitos = celular BR (whatsapp provável)
+              if (foneNorm.length === 11 || foneNorm.length === 13) campoWa = foneNorm;
+              contatoFonte = 'gmaps';
+            }
+          }
+        } else {
+          gmapsMotivo = g.erro;
+        }
+      } else {
+        gmapsMotivo = 'query_curta';
+      }
+    }
+
+    // funde dados_brutos existente com o enriquecimento + gmaps
     const brutoOut = Object.assign({}, l.dados_brutos || {}, {
       partners: r.campos.socios,
       divida: r.campos.divida_bruto,
     });
-    // P4.2 · grava telefone/whatsapp/email vindos do online_presence.
-    // Não sobrescreve valores prévios (COALESCE-style: só preenche se está NULL/vazio).
+    // Enriquecimento inclui Kipflow + Gmaps (candidatos ou escolhido)
+    const enrOut = Object.assign({}, r.campos, {
+      gmaps: {
+        escolhido: gmapsEscolhido,
+        candidatos: gmapsCandidatos,
+        motivo: gmapsMotivo,
+        buscado: !!precisaGmaps,
+      },
+    });
+    // Não sobrescreve valores prévios
     const patch = {
       enriquecido_em: new Date().toISOString(),
       custo_enriquecimento_kipflow: r.cost || 0,
       socios: r.campos.socios,
       dados_brutos: brutoOut,
-      dados_enriquecimento: r.campos,
+      dados_enriquecimento: enrOut,
     };
-    if (!l.telefone && r.campos.telefone) patch.telefone = r.campos.telefone;
-    if (!l.whatsapp && r.campos.whatsapp) patch.whatsapp = r.campos.whatsapp;
+    if (!l.telefone && campoTel) patch.telefone = campoTel;
+    if (!l.whatsapp && campoWa)  patch.whatsapp = campoWa;
     if (!l.email && r.campos.email) patch.email = r.campos.email;
+    if (contatoFonte && !l.telefone && !l.whatsapp) patch.contato_fonte = contatoFonte;
     const upd = await fetch(`${SB_URL}/rest/v1/va_leads?id=eq.${l.id}`, {
       method:'PATCH', headers: H, body: JSON.stringify(patch),
     });
@@ -167,7 +308,32 @@ module.exports = async (req, res) => {
       });
       if (!dR.ok) console.error('va_debitar enriquecimento falhou:', await dR.text());
     } catch (e) { console.error('va_debitar erro:', e); }
-    ok.push({ id: l.id, idade_min: r.campos.idade_min_socios, idade_max: r.campos.idade_max_socios, com_divida: r.campos.com_divida, cost: r.cost });
+    // Debita lead_maps por PLACE retornado (padrão slice12e)
+    if (precisaGmaps && placesApifyTotal > 0) {
+      try {
+        const shortL = String(l.id).slice(0,8);
+        const nPlaces = (gmapsCandidatos?.length || 0) + (gmapsEscolhido ? 1 : 0);
+        if (nPlaces > 0) {
+          await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+            method:'POST', headers: H,
+            body: JSON.stringify({
+              p_projeto: projeto_id, p_tipo:'lead_maps', p_qtd: Math.max(1, Math.min(6, nPlaces)),
+              p_referencia: `enriq_gmaps:${shortL}`, p_ciclo: null,
+            }),
+          });
+        }
+      } catch {}
+    }
+    ok.push({
+      id: l.id,
+      idade_min: r.campos.idade_min_socios, idade_max: r.campos.idade_max_socios,
+      com_divida: r.campos.com_divida, cost_kipflow: r.cost,
+      telefone_final: campoTel || l.telefone || null,
+      whatsapp_final: campoWa  || l.whatsapp || null,
+      contato_fonte: contatoFonte,
+      gmaps_motivo: gmapsMotivo,
+      gmaps_candidatos_n: gmapsCandidatos?.length || 0,
+    });
   }
 
   return json(res, 200, {
@@ -175,7 +341,11 @@ module.exports = async (req, res) => {
     enriquecidos: ok.length,
     falhas: falhas.length ? falhas : undefined,
     custo_kipflow_total: custoTotal,
-    custo_kipflow_por_lead: ok.length ? (custoTotal / ok.length) : null,
+    custo_kipflow_por_lead: ok.length ? Number((custoTotal / ok.length).toFixed(3)) : null,
+    custo_apify_total: Number(custoApifyTotal.toFixed(3)),
+    custo_apify_por_lead: ok.length ? Number((custoApifyTotal / ok.length).toFixed(4)) : null,
+    places_apify_total: placesApifyTotal,
+    custo_total_sessao: Number((custoTotal + custoApifyTotal).toFixed(3)),
     resultados: ok,
   });
 };
