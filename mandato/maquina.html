@@ -24,16 +24,19 @@
   <nav class="tabs" id="mq-tabs" role="tablist" aria-label="Motores da Máquina">
     <button data-tab="captacao" role="tab" aria-current="true">Captação</button>
     <button data-tab="funil" role="tab" aria-current="false">Funil</button>
+    <button data-tab="campanhas" role="tab" aria-current="false">Campanhas</button>
   </nav>
 
   <div id="mq-panel-captacao">
-    <!-- populado por /mandato/captacao.js via mountCaptacao(mandato) -->
     <div class="antes-vazia"><p>Carregando captação…</p></div>
   </div>
 
   <div id="mq-panel-funil" hidden>
-    <!-- populado por /mandato/funil.js via mountFunil(mandato) -->
     <div class="antes-vazia"><p>Carregando funil…</p></div>
+  </div>
+
+  <div id="mq-panel-campanhas" hidden>
+    <div class="antes-vazia"><p>Carregando campanhas…</p></div>
   </div>
 </section></main>
 
@@ -42,39 +45,34 @@
   import { mountTopbar, renderSelector } from '/mandato/core/ui.js';
   import { mountCaptacao } from '/mandato/captacao.js';
   import { mountFunil } from '/mandato/funil.js';
+  import { mountCampanhas } from '/mandato/campanhas.js';
   await requireAdmin();
   watchAuth(() => location.reload());
   const mandato = await getMandatoAtivo();
   mountTopbar('maquina', mandato);
   if (!mandato) { await renderSelector('maquina'); }
   else {
-    // troca de aba client-side · preserva URL, guarda no hash
     const painelCap = document.getElementById('mq-panel-captacao');
     const painelFun = document.getElementById('mq-panel-funil');
+    const painelCam = document.getElementById('mq-panel-campanhas');
     const btns = document.querySelectorAll('#mq-tabs button');
-    let captacaoMontada = false;
-    let funilMontado = false;
+    let capM = false, funM = false, camM = false;
     function setAba(nome) {
-      const ok = nome === 'funil' ? 'funil' : 'captacao';
+      const ok = ['captacao','funil','campanhas'].includes(nome) ? nome : 'captacao';
       painelCap.hidden = ok !== 'captacao';
       painelFun.hidden = ok !== 'funil';
+      painelCam.hidden = ok !== 'campanhas';
       btns.forEach(b => b.setAttribute('aria-current', b.dataset.tab === ok ? 'true' : 'false'));
       const url = new URL(location.href);
-      if (ok === 'funil') url.hash = '#funil'; else url.hash = '';
+      url.hash = ok === 'captacao' ? '' : '#' + ok;
       history.replaceState(null, '', url);
-      if (ok === 'captacao' && !captacaoMontada) {
-        captacaoMontada = true;
-        mountCaptacao(mandato).catch(err => console.error('captacao', err));
-      }
-      if (ok === 'funil' && !funilMontado) {
-        funilMontado = true;
-        mountFunil(mandato).catch(err => console.error('funil', err));
-      }
+      if (ok === 'captacao'  && !capM) { capM = true; mountCaptacao(mandato).catch(e => console.error('captacao', e)); }
+      if (ok === 'funil'     && !funM) { funM = true; mountFunil(mandato).catch(e => console.error('funil', e)); }
+      if (ok === 'campanhas' && !camM) { camM = true; mountCampanhas(mandato).catch(e => console.error('campanhas', e)); }
     }
     btns.forEach(b => b.addEventListener('click', () => setAba(b.dataset.tab)));
-    setAba(location.hash === '#funil' ? 'funil' : 'captacao');
-    // Padrão · módulo sinaliza prontidão. Testes E2E aguardam este atributo
-    // antes de interagir · evita corridas com HTML estático.
+    const h = (location.hash || '').replace('#','');
+    setAba(['funil','campanhas'].includes(h) ? h : 'captacao');
     document.getElementById('mq-tabs').setAttribute('data-ready', 'true');
   }
 </script>
