@@ -74,7 +74,10 @@ function idadeAnos(dnasc) {
 async function buscarGmaps(query, limite) {
   if (!APIFY_TOKEN) return { ok:false, erro:'APIFY_TOKEN ausente' };
   const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 90_000);
+  // Actor Apify run-sync bloqueia até terminar · o Cowork legado usa 120s.
+  // Vercel Function suporta até 300s no plano atual · 120s cabe com margem
+  // pra caso paralelizar 8 leads simultâneos.
+  const t = setTimeout(() => controller.abort(), 120_000);
   try {
     const url = `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${APIFY_TOKEN}`;
     const r = await fetch(url, {
