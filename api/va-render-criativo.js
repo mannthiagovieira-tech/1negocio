@@ -8,7 +8,11 @@
 
 export const config = { runtime: 'edge' };
 
-import { ImageResponse } from '@vercel/og';
+// @vercel/og carregado LAZY (dynamic import dentro do handler POST). Se
+// importado no top-level, o wasm resvg começa a inicializar durante a
+// carga do módulo · qualquer OPTIONS de preflight recebe 500
+// (FUNCTION_INVOCATION_FAILED) antes do handler rodar. Isso mata o botão
+// no browser · o preflight falha, o POST nem sai.
 
 const SB_URL = process.env.SUPABASE_URL;
 const SB_ANON = process.env.SUPABASE_ANON_KEY;
@@ -162,6 +166,8 @@ export default async function handler(req) {
   }
 
   try {
+    // Dynamic import · wasm resvg inicializa aqui, DEPOIS de auth passar
+    const { ImageResponse } = await import('@vercel/og');
     const fonts = await carregarFontes();
     const arv = tree(c.layout || 'tipografico_a', c.formato || 'feed_1080', {
       headline: c.headline || '', texto: c.texto || '', cta: c.cta || 'Saiba mais',
