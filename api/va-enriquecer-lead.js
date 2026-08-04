@@ -68,6 +68,54 @@ function idadeAnos(dnasc) {
   return age;
 }
 
+// P4.4 Camada 0 · BrasilAPI · telefone cadastral da Receita Federal (custo zero).
+// Endpoint público, sem auth, agrega Receita + Sintegra + CEP. Rate-limit ~3 req/s.
+// Retorna { ok, telefone_cadastral, telefone_cadastral_2, email_cadastral, erro }.
+// Timeout 6s (o endpoint pode demorar 1-3s por CNPJ novo).
+async function buscarCadastral(cnpj) {
+  const c = String(cnpj || '').replace(/\D/g,'');
+  if (c.length !== 14) return { ok:false, erro:'cnpj_invalido' };
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 6000);
+    const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${c}`, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    });
+    clearTimeout(t);
+    if (r.status === 404) return { ok:false, erro:'cnpj_nao_encontrado' };
+    if (r.status === 429) return { ok:false, erro:'brasilapi_rate_limit' };
+    if (!r.ok) return { ok:false, erro:`brasilapi_http_${r.status}` };
+    const d = await r.json();
+    return {
+      ok: true,
+      telefone_cadastral:   String(d.ddd_telefone_1 || '').trim() || null,
+      telefone_cadastral_2: String(d.ddd_telefone_2 || '').trim() || null,
+      email_cadastral:      String(d.email || '').trim() || null,
+    };
+  } catch (e) {
+    return { ok:false, erro: 'brasilapi_rede: ' + String(e?.message||e).slice(0,150) };
+  }
+}
+
+// P4.4 Camada 0 · normaliza telefone BR cadastral e classifica celular vs fixo.
+// Regras (2º dígito após DDD = 9 · pós-2012 celular tem 9 dígitos):
+//   14 dig · começa "55" · length 13 = 55+DDD+9 → CELULAR (novo padrão)
+//   11 dig · DDD(2)+9dig · 3º dígito '9' → CELULAR → retorna 55+11=13 dig
+//   10 dig · DDD(2)+8dig → FIXO → retorna 55+10=12 dig (não whatsapp)
+//   9 dig · começa "9" (algumas Receitas gravam sem DDD) → não usa (ambíguo)
+//   qualquer outro comprimento → retorna raw como fixo (não whatsapp)
+function normalizarFoneCadastral(raw) {
+  if (!raw) return null;
+  let d = String(raw).replace(/\D/g,'');
+  if (d.startsWith('0')) d = d.replace(/^0+/, ''); // remove código operadora antigo
+  if (d.startsWith('55') && d.length >= 12) d = d.slice(2); // remove 55 se veio duplicado
+  if (d.length === 11 && d[2] === '9') return { dig: '55'+d, tipo: 'celular' };
+  if (d.length === 10) return { dig: '55'+d, tipo: 'fixo' };
+  if (d.length >= 10 && d.length <= 13) return { dig: d.length < 12 ? '55'+d : d, tipo: 'fixo' };
+  return null;
+}
+
 // P4.3 · Consulta Apify Google Maps. Retorna { ok, cost_places, places[], erro }.
 // Actor 'compass~crawler-google-places' síncrono. Custo debitado como
 // 'lead_maps' pós-fato (mesmo padrão do slice12e). Timeout 90s (com jitter).
@@ -344,18 +392,44 @@ module.exports = async (req, res) => {
     if (!r.ok) { falhasAcc.push({ id: l.id, motivo: r.erro }); return; }
     custoTotal += r.cost || 0;
 
-    // ─── CASCATA (P4.4) · Kipflow → SITE → Gmaps → sem_contato
+    // ─── CASCATA (P4.4) · Kipflow → CADASTRAL(BrasilAPI) → SITE → Gmaps → sem_contato
     let campoTel = r.campos.telefone;
     let campoWa  = r.campos.whatsapp;
+    let campoEmail = r.campos.email || null;
     let contatoFonte = (campoTel || campoWa) ? 'kipflow' : null;
     let gmapsEscolhido = null;
     let gmapsCandidatos = null;
     let gmapsMotivo = null;
     let siteFetchResultado = null;
+    let cadastralResultado = null;
 
     // Descobre site vindo do Kipflow (online_presence)
     const siteK = (r.campos.site && typeof r.campos.site === 'object') ? r.campos.site.site
                 : (typeof r.campos.site === 'string' ? r.campos.site : null);
+
+    // CAMADA 0 · BrasilAPI · telefone cadastral (Receita Federal · custo zero)
+    // Roda quando Kipflow não trouxe WhatsApp confirmado. Se cadastral trouxer celular,
+    // salva como whatsapp e para. Se trouxer só fixo, salva telefone e SEGUE cascata
+    // pra tentar achar celular via site/gmaps.
+    if (!campoWa) {
+      const bc = await buscarCadastral(cnpjLimpo);
+      cadastralResultado = bc;
+      if (bc.ok && (bc.telefone_cadastral || bc.telefone_cadastral_2)) {
+        const t1 = normalizarFoneCadastral(bc.telefone_cadastral);
+        const t2 = normalizarFoneCadastral(bc.telefone_cadastral_2);
+        const celular = [t1, t2].find(x => x && x.tipo === 'celular');
+        const fixo    = [t1, t2].find(x => x && x.tipo === 'fixo');
+        if (celular) {
+          campoWa  = celular.dig;
+          if (!campoTel) campoTel = celular.dig;
+          contatoFonte = 'cadastral';
+        } else if (fixo && !campoTel) {
+          campoTel = fixo.dig;
+          contatoFonte = 'cadastral';
+        }
+      }
+      if (bc.ok && bc.email_cadastral && !campoEmail) campoEmail = bc.email_cadastral;
+    }
 
     // CAMADA 2 · fetch do site direto ANTES do Gmaps (só se ainda vazio e Kipflow trouxe site)
     if (!campoTel && !campoWa && siteK) {
@@ -371,7 +445,9 @@ module.exports = async (req, res) => {
       }
     }
 
-    const precisaGmaps = !campoTel && !campoWa;
+    // Gmaps roda se ainda não tem WhatsApp (celular). Ter só fixo (cadastral) não
+    // basta pra dispensar Gmaps · cascata deve tentar achar celular real.
+    const precisaGmaps = !campoWa;
     if (precisaGmaps) {
       const nomeQ = l.nome_fantasia || l.razao_social || '';
       const cidQ  = l.cidade || '';
@@ -412,8 +488,9 @@ module.exports = async (req, res) => {
       partners: r.campos.socios,
       divida: r.campos.divida_bruto,
     });
-    // Enriquecimento inclui Kipflow + site fetch + Gmaps
+    // Enriquecimento inclui Kipflow + cadastral + site fetch + Gmaps
     const enrOut = Object.assign({}, r.campos, {
+      cadastral: cadastralResultado,
       site_fetch: siteFetchResultado,
       gmaps: {
         escolhido: gmapsEscolhido,
@@ -432,7 +509,7 @@ module.exports = async (req, res) => {
     };
     if (!l.telefone && campoTel) patch.telefone = campoTel;
     if (!l.whatsapp && campoWa)  patch.whatsapp = campoWa;
-    if (!l.email && r.campos.email) patch.email = r.campos.email;
+    if (!l.email && campoEmail)  patch.email = campoEmail;
     if (contatoFonte && !l.telefone && !l.whatsapp) patch.contato_fonte = contatoFonte;
     // CAMADA 3 · esgotou cascata sem contato E lead já está aprovado no funil
     // (portão já rodou) · marca sem_contato automático (não bloqueia trabalho manual)
@@ -468,6 +545,7 @@ module.exports = async (req, res) => {
       telefone_final: campoTel || l.telefone || null,
       whatsapp_final: campoWa  || l.whatsapp || null,
       contato_fonte: contatoFonte,
+      cadastral_ok: !!(cadastralResultado?.ok && (cadastralResultado.telefone_cadastral || cadastralResultado.telefone_cadastral_2)),
       gmaps_motivo: gmapsMotivo,
       gmaps_candidatos_n: gmapsCandidatos?.length || 0,
       debitado: deveDebitar,
