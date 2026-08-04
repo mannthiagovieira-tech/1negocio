@@ -97,42 +97,50 @@ async function pegarCredZapi() {
   return null;
 }
 
-// P4.5 · get-iswhatsapp-batch · doc: até 50k phones/req · custo incluso no
-// plano da instância. Retorna array [{ exists, inputPhone, outputPhone, lid }].
-// Timeout 15s (a Z-API normalmente responde em 1-3s pra até 10 números).
-// Em MOCK, todo número que TERMINA em 9 conta como celular/WhatsApp true,
-// pra caber teste determinístico.
-async function checarWhatsAppLote(cred, phones) {
-  const uniq = [...new Set((phones || []).map(p => String(p).replace(/\D/g,'')).filter(x => x && x.length >= 10))];
-  if (!uniq.length) return { ok:true, resultados: {} };
-  if (MOCK_ZAPI) {
-    const r = {};
-    for (const p of uniq) r[p] = { exists: p.endsWith('9'), lid: null, outputPhone: p };
-    return { ok:true, resultados: r, mock: true };
-  }
-  if (!cred) return { ok:false, erro:'sem_cred_zapi', resultados: {} };
+// P4.5 · phone-exists (SINGLE · GET). A Z-API não tem endpoint batch operacional
+// (a doc menciona get-iswhatsapp-batch, mas retorna 405). Solução: N chamadas
+// single com espaçamento de 2s. IMPORTANTE: Z-API adiciona o 9 do celular novo
+// quando o input é fixo mas o número corresponde a um celular (ex: 551136215702
+// input → 5511936215702 no WhatsApp). O outputPhone retornado é o número REAL.
+// Em MOCK: número TERMINA em 9 → true, senão false.
+async function checarWhatsAppUm(cred, phone) {
+  const p = String(phone).replace(/\D/g,'');
+  if (!p || p.length < 10) return { exists: false, outputPhone: null, lid: null };
+  if (MOCK_ZAPI) return { exists: p.endsWith('9'), outputPhone: p, lid: null, mock: true };
+  if (!cred) return { erro: 'sem_cred_zapi', exists: false };
   try {
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 15000);
-    const url = `https://api.z-api.io/instances/${cred.instance}/token/${cred.token}/contacts/get-iswhatsapp-batch`;
+    const t = setTimeout(() => controller.abort(), 10000);
+    const url = `https://api.z-api.io/instances/${cred.instance}/token/${cred.token}/phone-exists/${p}`;
     const r = await fetch(url, {
-      method:'POST', signal: controller.signal,
-      headers:{ 'Content-Type':'application/json', 'client-token': cred.clientToken },
-      body: JSON.stringify({ phones: uniq }),
+      method:'GET', signal: controller.signal,
+      headers:{ 'client-token': cred.clientToken },
     });
     clearTimeout(t);
     const raw = await r.text();
-    if (!r.ok) return { ok:false, erro:`zapi_http_${r.status}: ${raw.slice(0,200)}`, resultados: {} };
-    let arr = []; try { arr = JSON.parse(raw); } catch {}
-    const out = {};
-    for (const item of Array.isArray(arr) ? arr : []) {
-      const key = String(item.inputPhone || '').replace(/\D/g,'');
-      if (key) out[key] = { exists: !!item.exists, lid: item.lid || null, outputPhone: item.outputPhone || null };
-    }
-    return { ok:true, resultados: out };
+    if (!r.ok) return { erro:`zapi_http_${r.status}: ${raw.slice(0,120)}`, exists: false };
+    let d = {}; try { d = JSON.parse(raw); } catch {}
+    return { exists: !!d.exists, outputPhone: d.phone || null, lid: d.lid || null };
   } catch (e) {
-    return { ok:false, erro:'zapi_rede: ' + String(e?.message||e).slice(0,150), resultados: {} };
+    return { erro:'zapi_rede: ' + String(e?.message||e).slice(0,100), exists: false };
   }
+}
+
+// Wrapper serial · espaça 2s entre chamadas pra não estressar a instância.
+async function checarWhatsAppLote(cred, phones) {
+  const uniq = [...new Set((phones || []).map(p => String(p).replace(/\D/g,'')).filter(x => x && x.length >= 10))];
+  if (!uniq.length) return { ok:true, resultados: {} };
+  if (!cred && !MOCK_ZAPI) return { ok:false, erro:'sem_cred_zapi', resultados: {} };
+  const out = {};
+  let anyErr = null;
+  for (let i = 0; i < uniq.length; i++) {
+    const p = uniq[i];
+    const r = await checarWhatsAppUm(cred, p);
+    if (r.erro) anyErr = r.erro;
+    out[p] = { exists: r.exists, outputPhone: r.outputPhone, lid: r.lid };
+    if (i < uniq.length - 1 && !MOCK_ZAPI) await new Promise(rs => setTimeout(rs, 2000));
+  }
+  return { ok: !anyErr || Object.values(out).some(x => x.exists), erro: anyErr, resultados: out, mock: MOCK_ZAPI || undefined };
 }
 
 // P4.4 Camada 0 · BrasilAPI · telefone cadastral da Receita Federal (custo zero).

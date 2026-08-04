@@ -42,38 +42,44 @@ async function pegarCred() {
   return null;
 }
 
+// P4.5 · phone-exists SINGLE (GET). Batch documentado na Z-API retorna 405.
+// Solução: N chamadas sequenciais espaçadas 2s. Z-API auto-adiciona o 9 do
+// celular novo quando input é fixo mas o número real é celular.
+async function checarWhatsAppUm(cred, phone) {
+  const p = String(phone).replace(/\D/g,'');
+  if (!p || p.length < 10) return { exists: false, outputPhone: null, lid: null };
+  if (MOCK_ZAPI) return { exists: p.endsWith('9'), outputPhone: p, lid: null, mock: true };
+  if (!cred) return { erro: 'sem_cred_zapi', exists: false };
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 10000);
+  try {
+    const url = `https://api.z-api.io/instances/${cred.instance}/token/${cred.token}/phone-exists/${p}`;
+    const r = await fetch(url, { method:'GET', signal: controller.signal, headers:{ 'client-token': cred.clientToken } });
+    clearTimeout(t);
+    const raw = await r.text();
+    if (!r.ok) return { erro:`zapi_http_${r.status}: ${raw.slice(0,120)}`, exists: false };
+    let d = {}; try { d = JSON.parse(raw); } catch {}
+    return { exists: !!d.exists, outputPhone: d.phone || null, lid: d.lid || null };
+  } catch (e) {
+    clearTimeout(t);
+    return { erro:'zapi_rede: ' + String(e?.message||e).slice(0,100), exists: false };
+  }
+}
+
 async function checarWhatsAppLote(cred, phones) {
   const uniq = [...new Set((phones || []).map(p => String(p).replace(/\D/g,'')).filter(x => x && x.length >= 10))];
   if (!uniq.length) return { ok:true, resultados: {} };
-  if (MOCK_ZAPI) {
-    const r = {};
-    for (const p of uniq) r[p] = { exists: p.endsWith('9'), lid: null, outputPhone: p };
-    return { ok:true, resultados: r, mock: true };
+  if (!cred && !MOCK_ZAPI) return { ok:false, erro:'sem_cred_zapi', resultados: {} };
+  const out = {};
+  let anyErr = null;
+  for (let i = 0; i < uniq.length; i++) {
+    const p = uniq[i];
+    const r = await checarWhatsAppUm(cred, p);
+    if (r.erro) anyErr = r.erro;
+    out[p] = { exists: r.exists, outputPhone: r.outputPhone, lid: r.lid };
+    if (i < uniq.length - 1 && !MOCK_ZAPI) await new Promise(rs => setTimeout(rs, 2000));
   }
-  if (!cred) return { ok:false, erro:'sem_cred_zapi', resultados: {} };
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 15000);
-  try {
-    const url = `https://api.z-api.io/instances/${cred.instance}/token/${cred.token}/contacts/get-iswhatsapp-batch`;
-    const r = await fetch(url, {
-      method:'POST', signal: controller.signal,
-      headers:{ 'Content-Type':'application/json', 'client-token': cred.clientToken },
-      body: JSON.stringify({ phones: uniq }),
-    });
-    clearTimeout(t);
-    const raw = await r.text();
-    if (!r.ok) return { ok:false, erro:`zapi_http_${r.status}: ${raw.slice(0,200)}`, resultados: {} };
-    let arr = []; try { arr = JSON.parse(raw); } catch {}
-    const out = {};
-    for (const item of Array.isArray(arr) ? arr : []) {
-      const key = String(item.inputPhone || '').replace(/\D/g,'');
-      if (key) out[key] = { exists: !!item.exists, lid: item.lid || null, outputPhone: item.outputPhone || null };
-    }
-    return { ok:true, resultados: out };
-  } catch (e) {
-    clearTimeout(t);
-    return { ok:false, erro:'zapi_rede: ' + String(e?.message||e).slice(0,150), resultados: {} };
-  }
+  return { ok: !anyErr || Object.values(out).some(x => x.exists), erro: anyErr, resultados: out, mock: MOCK_ZAPI || undefined };
 }
 
 module.exports = async (req, res) => {
