@@ -313,22 +313,8 @@ module.exports = async (req, res) => {
       });
       if (!dR.ok) console.error('va_debitar enriquecimento falhou:', await dR.text());
     } catch (e) { console.error('va_debitar erro:', e); }
-    // Debita lead_maps por PLACE retornado (padrão slice12e)
-    if (precisaGmaps) {
-      try {
-        const shortL = String(l.id).slice(0,8);
-        const nPlaces = (gmapsCandidatos?.length || 0) + (gmapsEscolhido ? 1 : 0);
-        if (nPlaces > 0) {
-          await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
-            method:'POST', headers: H,
-            body: JSON.stringify({
-              p_projeto: projeto_id, p_tipo:'lead_maps', p_qtd: Math.max(1, Math.min(6, nPlaces)),
-              p_referencia: `enriq_gmaps:${shortL}`, p_ciclo: null,
-            }),
-          });
-        }
-      } catch {}
-    }
+    // v3 · lead_maps foi ABSORVIDO em lead_enriquecimento (decisão operador).
+    // O tipo continua na tabela pro Cowork · MANDATO não debita mais separado.
     okAcc.push({
       id: l.id,
       idade_min: r.campos.idade_min_socios, idade_max: r.campos.idade_max_socios,
