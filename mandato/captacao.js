@@ -14,6 +14,7 @@ let LEADS = [];       // antessala + bloqueado
 let BLACKLIST = [];
 let SUGESTOES = [];   // sugestões automáticas de blacklist (não persistidas ainda)
 let PRECO_LEAD = null;
+let PRECO_ENRIQ = null; // 4.7-fix · preço do lead_enriquecimento pra estimar custo do lote
 let SELECAO = new Set();
 let FILTRO_UI = { arquetipo: 'todos', samecity: false, bloqueados: false };
 
@@ -42,13 +43,16 @@ async function recarregarTudo() {
     const vR = await sb.from('va_precos_versao').select('id').eq('vigente', true).limit(1).maybeSingle();
     versaoId = vR.data?.id || null;
   }
-  const [arqR, extR, leadsR, blR, precoR, fontesR] = await Promise.all([
+  const [arqR, extR, leadsR, blR, precoR, precoEnrR, fontesR] = await Promise.all([
     sb.from('va_arquetipos').select('*').eq('projeto_id', MANDATO.id).eq('status','aprovado').order('criado_em', { ascending:false }),
     sb.from('va_extracoes').select('*').eq('projeto_id', MANDATO.id).order('criado_em', { ascending:false }).limit(5),
     sb.from('va_leads').select('*').eq('projeto_id', MANDATO.id).in('status', ['antessala','bloqueado']).order('criado_em', { ascending:false }),
     sb.from('va_projeto_blacklist').select('*').eq('projeto_id', MANDATO.id).order('criado_em', { ascending:false }),
     versaoId
       ? sb.from('va_precos').select('preco, rotulo').eq('tipo','lead_scrapper').eq('ativo', true).eq('versao_id', versaoId).limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
+    versaoId
+      ? sb.from('va_precos').select('preco, rotulo').eq('tipo','lead_enriquecimento').eq('ativo', true).eq('versao_id', versaoId).limit(1).maybeSingle()
       : Promise.resolve({ data: null }),
     sb.from('va_projeto_fontes').select('conteudo_destilado, conteudo, formato_detectado, tipo').eq('projeto_id', MANDATO.id),
   ]);
@@ -57,6 +61,7 @@ async function recarregarTudo() {
   LEADS = leadsR.data || [];
   BLACKLIST = blR.data || [];
   PRECO_LEAD = precoR.data?.preco != null ? Number(precoR.data.preco) : null;
+  PRECO_ENRIQ = precoEnrR.data?.preco != null ? Number(precoEnrR.data.preco) : null;
   SUGESTOES = extrairSugestoesBlacklist(fontesR.data || [], BLACKLIST);
   SELECAO = new Set([...SELECAO].filter(id => LEADS.find(l => l.id === id))); // dropa selecoes stale
   renderFonte();
@@ -244,24 +249,45 @@ function renderAntessala() {
     if (ids.length) enriquecerLeads(ids);
   });
 }
+// 4.7-fix · enriquecimento em massa com chunking + custo estimado + progresso.
+// Chunk = 10 leads (endpoint processa 3 concurrent internamente · 10 cabe em
+// ~90-180s dentro do timeout 300s da Vercel). Guard de re-débito já existe no
+// endpoint (não cobra novamente leads com enriquecido_em não-null).
+const ENRIQ_BATCH = 10;
 async function enriquecerLeads(ids) {
   if (!ids.length) return;
-  if (!confirm(`Enriquecer ${ids.length} lead(s)? Cada chamada tem custo Kipflow (partners+debts).`)) return;
+  const custoEstim = PRECO_ENRIQ ? ids.length * PRECO_ENRIQ : null;
+  const mensagem = `Enriquecer ${ids.length} lead(s)?\n\n`
+    + `· Custo estimado: ${custoEstim != null ? brl(custoEstim) : '(preço indisponível)'} `
+    + `(${ids.length} × ${PRECO_ENRIQ ? brl(PRECO_ENRIQ) : '?'} · lead_enriquecimento)\n`
+    + `· Cascata: Kipflow → cadastral → site → Gmaps → check WhatsApp\n`
+    + `· Leads já enriquecidos NÃO são re-debitados (retry grátis)\n`
+    + `· Processo em lotes de ${ENRIQ_BATCH} · 2-3 min por lote`;
+  if (!confirm(mensagem)) return;
   const btnMassa = document.getElementById('btn-enriq-massa');
-  if (btnMassa) { btnMassa.disabled = true; btnMassa.textContent = 'enriquecendo…'; }
+  const total = ids.length;
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += ENRIQ_BATCH) chunks.push(ids.slice(i, i + ENRIQ_BATCH));
+  let feitos = 0, custoAcc = 0, falhas = 0;
   try {
     const tok = (await sb.auth.getSession()).data.session?.access_token;
-    const r = await fetch('/api/va-enriquecer-lead', {
-      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
-      body: JSON.stringify({ projeto_id: MANDATO.id, lead_ids: ids }),
-    });
-    const d = await r.json();
-    if (!r.ok || !d.ok) throw new Error([d.erro, d.detalhe].filter(Boolean).join(' · ') || ('HTTP '+r.status));
-    const custo = d.custo_kipflow_total || 0;
-    toast('ok', `${d.enriquecidos} enriquecido(s) · custo Kipflow ${brl(custo)}${d.falhas?` · ${d.falhas.length} falha(s)`:''}`);
+    for (let ci = 0; ci < chunks.length; ci++) {
+      const chunk = chunks[ci];
+      if (btnMassa) { btnMassa.disabled = true; btnMassa.textContent = `enriquecendo ${feitos+1}–${feitos+chunk.length} de ${total}…`; }
+      const r = await fetch('/api/va-enriquecer-lead', {
+        method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+        body: JSON.stringify({ projeto_id: MANDATO.id, lead_ids: chunk }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.ok) throw new Error([d.erro, d.detalhe].filter(Boolean).join(' · ') || ('HTTP '+r.status) + ` (lote ${ci+1}/${chunks.length})`);
+      feitos  += d.enriquecidos || 0;
+      custoAcc += d.custo_kipflow_total || 0;
+      falhas  += (d.falhas?.length || 0);
+    }
+    toast('ok', `${feitos} de ${total} enriquecido(s) · custo Kipflow ${brl(custoAcc)}${falhas?` · ${falhas} falha(s)`:''}`);
     await recarregarTudo();
   } catch (e) {
-    toast('err', String(e.message).slice(0,240));
+    toast('err', String(e.message).slice(0, 280));
     if (btnMassa) { btnMassa.disabled = false; btnMassa.textContent = 'Enriquecer'; }
   }
 }
@@ -270,8 +296,9 @@ function tabelaAntessala(rows) {
     const l = LEADS.find(x => x.id === id);
     return l && !l.blacklist_hit && !l.enriquecido_em;
   });
+  const custoLote = PRECO_ENRIQ ? selecionadosParaEnriq.length * PRECO_ENRIQ : null;
   const btnEnriqMassa = selecionadosParaEnriq.length
-    ? `<button class="btn btn--xs" id="btn-enriq-massa" title="enriquece partners+debts dos selecionados">Enriquecer ${selecionadosParaEnriq.length}</button>`
+    ? `<button class="btn btn--xs" id="btn-enriq-massa" title="cascata Kipflow → cadastral → site → Gmaps → check WhatsApp · guard não re-cobra enriquecidos">Enriquecer ${selecionadosParaEnriq.length}${custoLote != null ? ` · ${brl(custoLote)}` : ''}</button>`
     : '';
   return `
     <div class="antes-tabela-wrap">
