@@ -9,6 +9,8 @@ import { toast } from './core/ui.js';
 let MANDATO = null;
 let CRIATIVOS = [];
 let ARQUETIPOS = [];
+let CAMPANHAS = [];
+let METRICAS = null;
 let PRECO_CRIATIVO = null;
 
 export async function mountCampanhas(mandato) {
@@ -53,21 +55,43 @@ export async function mountCampanhas(mandato) {
         </div>
       </div>
       <div id="cmp-galeria"><div class="muted">Carregando…</div></div>
+
+      <hr style="border:none;border-top:1px solid var(--divisor);margin:28px 0">
+
+      <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div>
+          <h2 style="margin:0">Campanhas</h2>
+          <p class="muted mono" style="font-size:11px;margin:2px 0 0">CTWA no Meta · nasce PAUSADA · operador ativa no Ads Manager. Débito de mídia = gasto real × 1,5.</p>
+        </div>
+        <div id="cmp-metricas" class="mono muted" style="font-size:11px"></div>
+      </header>
+      <div style="padding:10px 12px;border:1px solid var(--divisor);border-radius:8px;margin-bottom:14px">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <b>Nova campanha</b>
+          <button class="btn btn--sm btn--primary" id="cmp-nova">+ Criar rascunho</button>
+        </div>
+        <p class="muted mono" style="font-size:11px;margin:6px 0 0">Escolha 1 criativo aprovado · público pré-preenche do arquétipo · orçamento e datas editáveis antes de aprovar.</p>
+      </div>
+      <div id="cmp-campanhas"><div class="muted">Carregando…</div></div>
     </section>
   `;
   await recarregar();
   bindGerador();
+  document.getElementById('cmp-nova').addEventListener('click', criarCampanha);
 }
 
 async function recarregar() {
-  const [arqR, criR, projR] = await Promise.all([
-    sb.from('va_arquetipos').select('id, nome').eq('projeto_id', MANDATO.id).in('status', ['aprovado']).order('criado_em', { ascending: false }),
+  const [arqR, criR, cmpR, metR, projR] = await Promise.all([
+    sb.from('va_arquetipos').select('id, nome, abordagem').eq('projeto_id', MANDATO.id).in('status', ['aprovado','arquivado']).order('criado_em', { ascending: false }),
     sb.from('va_criativos').select('*').eq('projeto_id', MANDATO.id).order('criado_em', { ascending: false }),
+    sb.from('va_campanhas').select('*').eq('projeto_id', MANDATO.id).order('criado_em', { ascending: false }),
+    sb.from('va_projetos_metricas_campanhas').select('*').eq('projeto_id', MANDATO.id).maybeSingle(),
     sb.from('va_projetos').select('precos_versao_id').eq('id', MANDATO.id).maybeSingle(),
   ]);
   ARQUETIPOS = arqR.data || [];
   CRIATIVOS = criR.data || [];
-  // Preço geração IA · da versão vigente do projeto (ou vigente global)
+  CAMPANHAS = cmpR.data || [];
+  METRICAS = metR.data || null;
   let versaoId = projR.data?.precos_versao_id || null;
   if (!versaoId) {
     const v = await sb.from('va_precos_versao').select('id').eq('vigente', true).limit(1).maybeSingle();
@@ -80,6 +104,177 @@ async function recarregar() {
   renderGerador();
   renderGaleria();
   renderStatus();
+  renderCampanhas();
+  renderMetricas();
+}
+
+function renderMetricas() {
+  const el = document.getElementById('cmp-metricas');
+  if (!el) return;
+  const m = METRICAS || { n_campanhas:0, n_ativas:0, gasto_total:0, conversas_geradas:0, custo_medio_por_conversa:null };
+  el.textContent = `${m.n_campanhas} campanha(s) · ${m.n_ativas} ativa(s) · gasto ${brl(m.gasto_total || 0)} · ${m.conversas_geradas} conversas · custo/conv ${m.custo_medio_por_conversa != null ? brl(m.custo_medio_por_conversa) : '—'}`;
+}
+
+function renderCampanhas() {
+  const el = document.getElementById('cmp-campanhas');
+  if (!el) return;
+  if (!CAMPANHAS.length) {
+    el.innerHTML = `<div class="muted mono" style="font-size:12px;padding:12px;text-align:center">Nenhuma campanha ainda. Aprove um criativo e clique "+ Criar rascunho".</div>`;
+    return;
+  }
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px">${CAMPANHAS.map(campanhaHTML).join('')}</div>`;
+  bindCampanhaCards();
+}
+
+function campanhaHTML(c) {
+  const cri = CRIATIVOS.find(x => x.id === c.criativo_id);
+  const arq = ARQUETIPOS.find(x => x.id === c.arquetipo_id);
+  const nConversas = ('n_conversas' in c) ? c.n_conversas : '—';
+  const statusPill = {
+    rascunho:  '<span class="pill pill--tpl-no">rascunho</span>',
+    aprovada:  '<span class="pill pill--tpl-ok">aprovada</span>',
+    publicada: '<span class="pill" style="background:#dbeafe;color:#1e40af">publicada (PAUSED no Meta)</span>',
+    ativa:     '<span class="pill pill--ativa">ATIVA</span>',
+    pausada:   '<span class="pill pill--pausada">pausada</span>',
+    encerrada: '<span class="pill" style="background:#e5e7eb;color:#4b5563">encerrada</span>',
+  }[c.status] || c.status;
+  return `
+    <div class="tpl-item" data-cid="${c.id}">
+      <div class="tpl-item__head">
+        <div class="tpl-item__nome">${esc(c.nome)} ${statusPill}</div>
+        <div class="tpl-item__pills mono" style="font-size:10.5px;color:var(--ink-3)">
+          orç ${brl(c.orcamento_diario||0)}/dia · gasto ${brl(c.gasto_acumulado||0)}${c.meta_campaign_id?` · camp ${esc(String(c.meta_campaign_id).slice(-8))}`:''}
+        </div>
+      </div>
+      <div class="mono" style="font-size:11px;margin:4px 0">
+        Criativo: <b>${esc(cri?.headline || '(sem)')}</b> · Arquétipo: ${esc(arq?.nome?.slice(0,50) || '(sem)')}
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">
+        ${c.status === 'rascunho' ? `<button class="btn btn--xs" data-editcmp="${c.id}">Editar</button>` : ''}
+        ${c.status === 'rascunho' ? `<button class="btn btn--xs btn--primary" data-aprovcmp="${c.id}">Aprovar</button>` : ''}
+        ${c.status === 'aprovada' ? `<button class="btn btn--xs" data-drycmp="${c.id}" title="SPEC + payload sem publicar">Ver SPEC</button>` : ''}
+        ${c.status === 'aprovada' ? `<button class="btn btn--xs btn--primary" data-pubcmp="${c.id}" title="publica no Meta em PAUSED">Publicar no Meta</button>` : ''}
+        ${['aprovada','publicada','ativa','pausada'].includes(c.status) ? `<button class="btn btn--xs" data-lancargasto="${c.id}" title="lançar gasto real do dia (débito ×1,5)">Lançar gasto</button>` : ''}
+        <button class="btn btn--xs" data-delcmp="${c.id}" title="descartar rascunho">Descartar</button>
+      </div>
+    </div>
+  `;
+}
+
+function bindCampanhaCards() {
+  document.querySelectorAll('[data-editcmp]').forEach(b => b.addEventListener('click', () => editarCampanha(b.dataset.editcmp)));
+  document.querySelectorAll('[data-aprovcmp]').forEach(b => b.addEventListener('click', () => aprovarCampanha(b.dataset.aprovcmp)));
+  document.querySelectorAll('[data-drycmp]').forEach(b => b.addEventListener('click', () => publicarCampanha(b.dataset.drycmp, true)));
+  document.querySelectorAll('[data-pubcmp]').forEach(b => b.addEventListener('click', () => publicarCampanha(b.dataset.pubcmp, false)));
+  document.querySelectorAll('[data-lancargasto]').forEach(b => b.addEventListener('click', () => lancarGasto(b.dataset.lancargasto)));
+  document.querySelectorAll('[data-delcmp]').forEach(b => b.addEventListener('click', () => descartarCampanha(b.dataset.delcmp)));
+}
+
+async function criarCampanha() {
+  const aprovados = CRIATIVOS.filter(c => c.status === 'aprovado' && c.png_path);
+  if (!aprovados.length) { toast('err', 'Aprove pelo menos 1 criativo antes'); return; }
+  const nome = prompt('Nome da campanha:', `Campanha ${new Date().toISOString().slice(0,10)}`);
+  if (!nome) return;
+  // Escolha do criativo
+  const escolhas = aprovados.map((c, i) => `${i+1}. ${(c.formato||'').padEnd(16)} · ${(c.headline||'').slice(0,40)}`).join('\n');
+  const idx = parseInt(prompt('Escolha o criativo (número):\n\n' + escolhas, '1'), 10) - 1;
+  if (isNaN(idx) || !aprovados[idx]) return;
+  const cri = aprovados[idx];
+  const arq = ARQUETIPOS.find(a => a.id === cri.arquetipo_id);
+  // Pré-preenche público do segmentacao_meta do arquétipo
+  const seg = arq?.abordagem?.segmentacao_meta || '';
+  const publico = { idade_min: 30, idade_max: 65, interesses: seg ? [seg] : [], regioes: [{ uf: MANDATO.uf || 'BR' }] };
+  const orc = parseFloat(prompt('Orçamento diário (R$):', '30')) || 30;
+  const dias = parseInt(prompt('Duração (dias):', '14'), 10) || 14;
+  const objetivo = confirm('Usar CTWA (WhatsApp direto)?\n\nOK = CTWA · Cancelar = Lead Gen (fallback)') ? 'ctwa' : 'leadgen';
+  const inicio = new Date().toISOString().slice(0,10);
+  const fim = new Date(Date.now() + dias * 86400_000).toISOString().slice(0,10);
+  const { error } = await sb.from('va_campanhas').insert({
+    projeto_id: MANDATO.id, criativo_id: cri.id, arquetipo_id: cri.arquetipo_id,
+    nome, plataforma: 'meta', objetivo_meta: objetivo, objetivo: objetivo,
+    publico, orcamento_diario: orc, orcamento_total: orc * dias,
+    data_inicio: inicio, data_fim: fim, status: 'rascunho',
+  });
+  if (error) { toast('err', error.message.slice(0,220)); return; }
+  toast('ok', 'Rascunho criado');
+  await recarregar();
+}
+
+async function editarCampanha(id) {
+  const c = CAMPANHAS.find(x => x.id === id);
+  if (!c) return;
+  const orc = parseFloat(prompt('Orçamento diário (R$):', String(c.orcamento_diario || 30))) || c.orcamento_diario;
+  const dias = parseInt(prompt('Duração (dias):', '14'), 10) || 14;
+  const inicio = c.data_inicio || new Date().toISOString().slice(0,10);
+  const fim = new Date(new Date(inicio).getTime() + dias * 86400_000).toISOString().slice(0,10);
+  const { error } = await sb.from('va_campanhas').update({
+    orcamento_diario: orc, orcamento_total: orc * dias, data_fim: fim,
+  }).eq('id', id);
+  if (error) { toast('err', error.message.slice(0,220)); return; }
+  toast('ok', 'Editada'); await recarregar();
+}
+
+async function aprovarCampanha(id) {
+  if (!confirm('Aprovar? Depois só é possível publicar (PAUSED no Meta) ou descartar.')) return;
+  const { error } = await sb.from('va_campanhas').update({ status: 'aprovada', aprovado_em: new Date().toISOString() }).eq('id', id);
+  if (error) { toast('err', error.message.slice(0,220)); return; }
+  toast('ok', 'Aprovada'); await recarregar();
+}
+
+async function publicarCampanha(id, dryRun) {
+  const label = dryRun ? 'Ver SPEC' : 'Publicar no Meta (PAUSED)';
+  if (!dryRun && !confirm('Publicar no Meta AGORA em PAUSED? Você precisa ativar manualmente no Ads Manager depois.')) return;
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const r = await fetch('/api/va-publicar-campanha', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ campanha_id: id, dry_run: !!dryRun }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.erro || 'HTTP '+r.status);
+    if (d.mode === 'spec_only' || d.mode === 'dry_run') {
+      // Mostra SPEC num modal
+      const html = `<div class="drw-bg" onclick="if(event.target===this)this.remove()">
+        <div class="drw"><button class="btn btn--sm" onclick="this.closest('.drw-bg').remove()" style="float:right">Fechar</button>
+        <h3>${dryRun?'SPEC (dry-run)':'SPEC (Meta indisponível)'}</h3>
+        <p class="muted mono" style="font-size:11px">${d.motivo ? esc('Motivo: ' + d.motivo) : 'Simulação · campanha não publicada.'}</p>
+        <pre style="background:#f3f4f6;padding:12px;border-radius:6px;font-size:11px;overflow-x:auto;white-space:pre-wrap">${esc(d.spec || '')}</pre>
+        <p class="mono" style="font-size:11px"><b>ctwaPayload (base64):</b><br>${esc(d.ctwa_payload_base64 || '')}</p>
+        </div></div>`;
+      document.body.insertAdjacentHTML('beforeend', html);
+    } else {
+      toast('ok', `Publicada PAUSED · campaign_id ${d.meta?.campaign_id}`);
+    }
+    await recarregar();
+  } catch (e) { toast('err', String(e.message).slice(0,220)); }
+}
+
+async function lancarGasto(id) {
+  const v = parseFloat(prompt('Valor de gasto real do dia (R$):', '10')) || 0;
+  if (v <= 0) return;
+  const c = CAMPANHAS.find(x => x.id === id);
+  const novo = Number(c?.gasto_acumulado || 0) + v;
+  const { error } = await sb.from('va_campanhas').update({ gasto_acumulado: novo }).eq('id', id);
+  if (error) { toast('err', error.message.slice(0,220)); return; }
+  // Débito midia_meta (×1,5) via RPC
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    await fetch('/api/va-publicar-campanha', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ campanha_id: id, lancar_gasto: v }),
+    });
+  } catch {}
+  toast('ok', 'Gasto lançado + débito midia_meta enviado');
+  await recarregar();
+}
+
+async function descartarCampanha(id) {
+  const c = CAMPANHAS.find(x => x.id === id);
+  if (!c) return;
+  if (!confirm(`Descartar "${c.nome}"?`)) return;
+  const { error } = await sb.from('va_campanhas').delete().eq('id', id);
+  if (error) { toast('err', error.message.slice(0,220)); return; }
+  toast('ok', 'Descartada'); await recarregar();
 }
 
 function renderStatus() {
