@@ -103,19 +103,121 @@ async function buscarGmaps(query, limite) {
   } finally { clearTimeout(t); }
 }
 
-// Casa 1 lead contra placespossíveis. Retorna { escolhido, candidatos, motivo }.
-// score = diceSim(nome) + bonus 0.20 se domínio bate com site vindo do Kipflow.
-// Escolhido: score >= 0.80 (limiar auto) · candidatos: 0.55 <= score < 0.80.
+// P4.4 · nome comercial a partir do domínio (adoradoces.com.br → "adora doces")
+// Serve como query alternativa no Apify · nome fantasia real bate melhor que razão jurídica.
+function nomeComercialDoDominio(site) {
+  const d = extrairDominio(site);
+  if (!d) return null;
+  const raiz = d.split('.')[0];
+  // Quebra em palavras usando CamelCase, hifens, underscore, ou heurística de vogais
+  if (!raiz || raiz.length < 3) return null;
+  // Se já vem com separador (hyphen/underscore)
+  if (/[-_]/.test(raiz)) return raiz.replace(/[-_]/g, ' ');
+  // Se tem CamelCase, split lá
+  if (/[a-z][A-Z]/.test(raiz)) return raiz.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+  // Nada mais · devolve como está (ex: "adoradoces" · Apify aceita, provavelmente separa)
+  return raiz;
+}
+
+// P4.4 · fetch de página com timeout curto + regex de telefone BR
+// Aceita http/https · segue 1 redirect · timeout 5s por página · retorna string ou null
+async function fetchPagina(url, timeoutMs = 5000) {
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), timeoutMs);
+    const r = await fetch(url, {
+      signal: controller.signal, redirect: 'follow',
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; 1NegocioBot/1.0)', 'Accept': 'text/html,*/*;q=0.5' },
+    });
+    clearTimeout(t);
+    if (!r.ok) return null;
+    const ct = r.headers.get('content-type') || '';
+    if (!/text\/html|application\/xhtml/i.test(ct)) return null;
+    const html = await r.text();
+    return html.length > 500 ? html : null;
+  } catch { return null; }
+}
+
+// Extrai (telefone, whatsapp) do HTML.
+// wa.me/554899… ou api.whatsapp.com/send?phone=554899… ou padrões BR (XX) 9XXXX-XXXX
+function extrairContatoDoHtml(html) {
+  if (!html) return { telefone: null, whatsapp: null };
+  const dedigit = s => String(s).replace(/\D/g,'');
+  let whatsapp = null;
+  let telefone = null;
+
+  // 1) wa.me / api.whatsapp.com · quase sempre = celular BR
+  const reWa = /(?:wa\.me\/|api\.whatsapp\.com\/send[^"'\s]*?phone=)(\+?55?\d{10,13})/gi;
+  const mWa = reWa.exec(html);
+  if (mWa) {
+    const d = dedigit(mWa[1]);
+    if (d.length >= 10 && d.length <= 13) whatsapp = d.length === 10 || d.length === 11 ? '55'+d : d;
+  }
+
+  // 2) tel: / callto:
+  const reTel = /(?:href=["'](?:tel|callto):|<\s*a[^>]*(?:tel|callto):)([+\d\s\-().]{10,})/gi;
+  const mTel = reTel.exec(html);
+  if (mTel) {
+    const d = dedigit(mTel[1]);
+    if (d.length >= 10 && d.length <= 13) telefone = d.length < 12 ? '55'+d : d;
+  }
+
+  // 3) Padrão BR visível no texto: (XX) XXXXX-XXXX ou +55 XX XXXXX-XXXX
+  if (!telefone) {
+    const reBR = /(?:\+?55\s*)?\(?([1-9]{2})\)?\s*(9?\d{4})[\s\-]?(\d{4})/g;
+    // Extrai só do texto visível (sem tags) pra reduzir falso positivo
+    const texto = html.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ');
+    const m = reBR.exec(texto);
+    if (m) {
+      const d = m[1] + m[2] + m[3];
+      if (d.length === 10 || d.length === 11) telefone = '55'+d;
+    }
+  }
+  // Se whatsapp e telefone forem o mesmo número, mantém só whatsapp
+  if (whatsapp && telefone && dedigit(whatsapp) === dedigit(telefone)) telefone = null;
+  return { telefone, whatsapp };
+}
+
+// P4.4 · orquestra fetch: home → /contato → /fale-conosco. Primeira que trouxer, ganha.
+async function buscarContatoNoSite(siteUrl) {
+  const dominio = extrairDominio(siteUrl);
+  if (!dominio) return { ok:false, motivo:'sem_dominio' };
+  const bases = [`https://${dominio}`, `http://${dominio}`];
+  const paths = ['', '/contato', '/fale-conosco'];
+  for (const b of bases) {
+    for (const p of paths) {
+      const html = await fetchPagina(b + p, 5000);
+      if (!html) continue;
+      const r = extrairContatoDoHtml(html);
+      if (r.telefone || r.whatsapp) return { ok:true, telefone: r.telefone, whatsapp: r.whatsapp, url_matched: b+p };
+    }
+    // Se a home falhou de vez, tenta próxima base (http)
+  }
+  return { ok:false, motivo:'sem_padrao_contato' };
+}
+
+// P4.4 · casar places · limiar auto 0,72 · dedupe por telefone reverso · bonus por endereço
 function casarPlacesComLead(lead, places, siteKipflow) {
   const nomeLead = lead.nome_fantasia || lead.razao_social || '';
   const cidadeLead = normNome(lead.cidade || '');
-  const scored = places.map(p => {
+  // Endereço vindo do Kipflow (dados_brutos.endereco/bairro/cep) pra bonus de match
+  const endKipflow = normNome([lead.dados_brutos?.endereco, lead.dados_brutos?.bairro].filter(Boolean).join(' '));
+  const cepKip = String(lead.dados_brutos?.cep || '').replace(/\D/g,'').slice(0,5); // 5 primeiros dígitos (região)
+
+  let scored = places.map(p => {
     const nomeP = p.title || p.name || '';
     let s = diceSim(nomeLead, nomeP);
     if (siteKipflow && mesmoDominio(siteKipflow, p.website)) s += 0.20;
-    // penalidade se cidade Apify (address) diverge fortemente
-    const addr = normNome(p.city || p.address || '');
-    if (cidadeLead && addr && !addr.includes(cidadeLead) && !cidadeLead.includes(addr.split(' ')[0])) s -= 0.05;
+    // Bonus endereço · +0.15 se cidade bate E logradouro/CEP aproxima
+    const addrP = normNome(p.formattedAddress || p.address || '');
+    const cidadeP = normNome(p.city || '');
+    if (cidadeLead && cidadeP && (cidadeLead === cidadeP || cidadeLead.includes(cidadeP) || cidadeP.includes(cidadeLead))) {
+      if (endKipflow && addrP && endKipflow.split(' ').some(w => w.length >= 4 && addrP.includes(w))) s += 0.15;
+      else if (cepKip && String(p.postalCode||'').replace(/\D/g,'').startsWith(cepKip)) s += 0.15;
+      else s += 0.05; // cidade bate mas sem detalhe · pequeno bonus
+    }
+    // Penalidade se cidade diverge fortemente
+    if (cidadeLead && cidadeP && !cidadeP.includes(cidadeLead) && !cidadeLead.includes(cidadeP)) s -= 0.05;
     const fone = p.phoneUnformatted || p.phone || p.phoneNumber || null;
     return {
       score: Number(s.toFixed(3)),
@@ -126,12 +228,21 @@ function casarPlacesComLead(lead, places, siteKipflow) {
       city: p.city || null,
       placeId: p.placeId || null,
     };
-  }).filter(x => x.phone) // sem telefone, place é inútil pro nosso objetivo
-    .sort((a,b) => b.score - a.score);
+  }).filter(x => x.phone);
+
+  // DEDUPE por telefone reverso · se 2 candidatos têm mesmo número, mantém só o de maior score
+  const porFone = new Map();
+  for (const c of scored) {
+    const f = String(c.phone).replace(/\D/g,'');
+    if (!f) continue;
+    const prev = porFone.get(f);
+    if (!prev || c.score > prev.score) porFone.set(f, c);
+  }
+  scored = [...porFone.values()].sort((a,b) => b.score - a.score);
   if (!scored.length) return { escolhido:null, candidatos:[], motivo:'sem_places_com_fone' };
   const top = scored[0];
-  if (top.score >= 0.80) return { escolhido: top, candidatos: scored.slice(0,5), motivo:'auto_high_score' };
-  if (top.score >= 0.55) return { escolhido: null, candidatos: scored.slice(0,5), motivo:'ambiguo' };
+  if (top.score >= 0.72) return { escolhido: top, candidatos: scored.slice(0,5), motivo:'auto_high_score' };
+  if (top.score >= 0.50) return { escolhido: null, candidatos: scored.slice(0,5), motivo:'ambiguo' };
   return { escolhido:null, candidatos: scored.slice(0,3), motivo:'score_baixo' };
 }
 
@@ -211,7 +322,7 @@ module.exports = async (req, res) => {
   const H = { apikey: SB_SERVICE, Authorization:'Bearer '+SB_SERVICE, 'Content-Type':'application/json', Prefer:'return=representation' };
 
   const inList = encodeURIComponent(`(${lead_ids.join(',')})`);
-  const lR = await fetch(`${SB_URL}/rest/v1/va_leads?id=in.${inList}&projeto_id=eq.${projeto_id}&select=id,cnpj,razao_social,dados_brutos,enriquecido_em,telefone,whatsapp,email`, { headers: H });
+  const lR = await fetch(`${SB_URL}/rest/v1/va_leads?id=in.${inList}&projeto_id=eq.${projeto_id}&select=id,cnpj,razao_social,nome_fantasia,cidade,dados_brutos,enriquecido_em,telefone,whatsapp,email,status,funil_etapa`, { headers: H });
   const leads = await lR.json();
   if (!Array.isArray(leads) || !leads.length) return json(res, 404, { ok:false, erro:'nenhum lead encontrado no projeto' });
 
@@ -233,45 +344,66 @@ module.exports = async (req, res) => {
     if (!r.ok) { falhasAcc.push({ id: l.id, motivo: r.erro }); return; }
     custoTotal += r.cost || 0;
 
-    // ─── CASCATA APIFY (P4.3) · só se Kipflow deixou telefone/whatsapp vazio
+    // ─── CASCATA (P4.4) · Kipflow → SITE → Gmaps → sem_contato
     let campoTel = r.campos.telefone;
     let campoWa  = r.campos.whatsapp;
     let contatoFonte = (campoTel || campoWa) ? 'kipflow' : null;
     let gmapsEscolhido = null;
     let gmapsCandidatos = null;
     let gmapsMotivo = null;
-    const precisaGmaps = !l.telefone && !l.whatsapp && !campoTel && !campoWa;
+    let siteFetchResultado = null;
+
+    // Descobre site vindo do Kipflow (online_presence)
+    const siteK = (r.campos.site && typeof r.campos.site === 'object') ? r.campos.site.site
+                : (typeof r.campos.site === 'string' ? r.campos.site : null);
+
+    // CAMADA 2 · fetch do site direto ANTES do Gmaps (só se ainda vazio e Kipflow trouxe site)
+    if (!campoTel && !campoWa && siteK) {
+      const s = await buscarContatoNoSite(siteK);
+      siteFetchResultado = s;
+      if (s.ok && (s.telefone || s.whatsapp)) {
+        if (s.telefone) campoTel = s.telefone;
+        if (s.whatsapp) {
+          campoWa = s.whatsapp;
+          if (!campoTel) campoTel = s.whatsapp; // pra ter sempre um telefone
+        }
+        contatoFonte = 'site';
+      }
+    }
+
+    const precisaGmaps = !campoTel && !campoWa;
     if (precisaGmaps) {
       const nomeQ = l.nome_fantasia || l.razao_social || '';
       const cidQ  = l.cidade || '';
-      const siteK = (r.campos.site && typeof r.campos.site === 'object') ? r.campos.site.site
-                  : (typeof r.campos.site === 'string' ? r.campos.site : null);
-      const q = `${nomeQ} ${cidQ}`.trim();
-      if (q.length >= 4) {
+      // Query 1: nome jurídico + cidade
+      // Query 2 (se site disponível): nome comercial do domínio + cidade
+      const q1 = `${nomeQ} ${cidQ}`.trim();
+      const nomeComercial = nomeComercialDoDominio(siteK);
+      const q2 = nomeComercial ? `${nomeComercial} ${cidQ}`.trim() : null;
+      const queries = [q1, q2].filter(q => q && q.length >= 4);
+      // Roda queries em série · para na primeira que trouxer escolhido auto
+      let totalPlaces = [];
+      for (const q of queries) {
         const g = await buscarGmaps(q, 6);
-        if (g.ok) {
-          placesApifyTotal += g.count || 0;
-          // Custo lead_maps é por PLACE retornado (padrão do slice12e)
-          const custoUnit = 0.005;
-          custoApifyTotal += (g.count || 0) * custoUnit;
-          const m = casarPlacesComLead(l, g.places || [], siteK);
-          gmapsCandidatos = m.candidatos;
-          gmapsMotivo = m.motivo;
-          if (m.escolhido && m.escolhido.phone) {
-            gmapsEscolhido = m.escolhido;
-            const foneNorm = String(m.escolhido.phone).replace(/\D/g,'');
-            if (foneNorm.length >= 10) {
-              campoTel = foneNorm;
-              // Heurística: 11-13 dígitos = celular BR (whatsapp provável)
-              if (foneNorm.length === 11 || foneNorm.length === 13) campoWa = foneNorm;
-              contatoFonte = 'gmaps';
-            }
-          }
-        } else {
-          gmapsMotivo = g.erro;
+        if (!g.ok) { gmapsMotivo = g.erro; continue; }
+        placesApifyTotal += g.count || 0;
+        custoApifyTotal += (g.count || 0) * 0.005;
+        totalPlaces = totalPlaces.concat(g.places || []);
+        // Roda match parcial pra ver se já achou · se sim, para de gastar
+        const parcial = casarPlacesComLead(l, totalPlaces, siteK);
+        if (parcial.escolhido) break;
+      }
+      const m = casarPlacesComLead(l, totalPlaces, siteK);
+      gmapsCandidatos = m.candidatos;
+      gmapsMotivo = m.motivo;
+      if (m.escolhido && m.escolhido.phone) {
+        gmapsEscolhido = m.escolhido;
+        const foneNorm = String(m.escolhido.phone).replace(/\D/g,'');
+        if (foneNorm.length >= 10) {
+          campoTel = foneNorm;
+          if (foneNorm.length === 11 || foneNorm.length === 13) campoWa = foneNorm;
+          contatoFonte = 'gmaps';
         }
-      } else {
-        gmapsMotivo = 'query_curta';
       }
     }
 
@@ -280,8 +412,9 @@ module.exports = async (req, res) => {
       partners: r.campos.socios,
       divida: r.campos.divida_bruto,
     });
-    // Enriquecimento inclui Kipflow + Gmaps (candidatos ou escolhido)
+    // Enriquecimento inclui Kipflow + site fetch + Gmaps
     const enrOut = Object.assign({}, r.campos, {
+      site_fetch: siteFetchResultado,
       gmaps: {
         escolhido: gmapsEscolhido,
         candidatos: gmapsCandidatos,
@@ -301,6 +434,12 @@ module.exports = async (req, res) => {
     if (!l.whatsapp && campoWa)  patch.whatsapp = campoWa;
     if (!l.email && r.campos.email) patch.email = r.campos.email;
     if (contatoFonte && !l.telefone && !l.whatsapp) patch.contato_fonte = contatoFonte;
+    // CAMADA 3 · esgotou cascata sem contato E lead já está aprovado no funil
+    // (portão já rodou) · marca sem_contato automático (não bloqueia trabalho manual)
+    const semContatoFinal = !campoTel && !campoWa && !l.telefone && !l.whatsapp;
+    if (semContatoFinal && l.status === 'aprovado' && (l.funil_etapa === 'na_fila' || !l.funil_etapa)) {
+      patch.funil_etapa = 'sem_contato';
+    }
     const upd = await fetch(`${SB_URL}/rest/v1/va_leads?id=eq.${l.id}`, {
       method:'PATCH', headers: H, body: JSON.stringify(patch),
     });
