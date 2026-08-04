@@ -347,7 +347,7 @@ function renderFora() {
     ${optOut ? `<button data-fora-toggle="optout">opt-out (${optOut})</button>` : ''}
     ${promov ? `<button data-fora-toggle="promovido">Promovidos (${promov})</button>` : ''}
   `;
-  el.querySelectorAll('[data-fora-toggle]').forEach(b => b.addEventListener('click', () => alert('Lista '+b.dataset.foraToggle+': ver via drawer nos cards existentes (v1 mostra contagem apenas)')));
+  el.querySelectorAll('[data-fora-toggle]').forEach(b => b.addEventListener('click', () => abrirListaFora(b.dataset.foraToggle)));
 }
 
 // ─── Drawer ──────────────────────────────────────────────────────────
@@ -494,6 +494,35 @@ async function enviarResposta(leadId) {
     if (btn) { btn.disabled = false; btn.textContent = 'Aprovar e enviar'; }
   }
 }
+// P4.4-fix · lista modal dos leads fora do kanban · clique abre drawer normal
+function abrirListaFora(etapa) {
+  const leads = LEADS.filter(l => l.funil_etapa === etapa);
+  if (!leads.length) return;
+  const rotulos = { sem_contato:'Sem contato', optout:'Opt-out', promovido:'Promovidos' };
+  const html = `<div class="drw-bg" onclick="if(event.target===this)this.remove()">
+    <div class="drw">
+      <button class="btn btn--sm" onclick="this.closest('.drw-bg').remove()" style="float:right">Fechar</button>
+      <h3>${esc(rotulos[etapa] || etapa)} (${leads.length})</h3>
+      <div class="mono muted" style="font-size:11px;margin-bottom:12px">${etapa === 'sem_contato' ? 'Leads aprovados no portão sem telefone/WhatsApp após cascata. Clique pra abrir · pode enriquecer manualmente na antessala ou editar contato.' : ''}</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${leads.map(l => `
+          <div class="drw__msg" data-lead-open="${l.id}" style="cursor:pointer">
+            <b>${esc(fmtNomeLead(l) || l.razao_social || '(sem nome)')}</b>
+            <div class="mono" style="font-size:10.5px;color:var(--ink-3)">${esc(l.cnpj||'—')} · ${esc(l.cidade||'')}/${esc(l.uf||'')}${l.contato_fonte?' · fonte '+esc(l.contato_fonte):''}</div>
+            ${l.dados_enriquecimento?.gmaps?.candidatos?.length ? `<div class="mono" style="font-size:10px;color:var(--ink-3)">${l.dados_enriquecimento.gmaps.candidatos.length} candidatos Gmaps (score ${l.dados_enriquecimento.gmaps.candidatos[0]?.score||'?'})</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.querySelectorAll('[data-lead-open]').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.leadOpen;
+    document.querySelector('.drw-bg')?.remove();
+    abrirDrawer(id);
+  }));
+}
+
 async function togglePausa(id) {
   const l = LEADS.find(x => x.id === id);
   const { error } = await sb.from('va_leads').update({ pausado: !l.pausado }).eq('id', id);
