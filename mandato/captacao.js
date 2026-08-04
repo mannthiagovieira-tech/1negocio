@@ -325,12 +325,18 @@ function trLead(l) {
   const fonteBadge = l.contato_fonte
     ? `<span class="pill" style="font-size:9.5px;padding:1px 5px" title="fonte do contato">${esc(l.contato_fonte)}</span>`
     : '';
+  // P4.5 · badge de verificação WhatsApp · ✓ verde · ✗ vermelho · ○ pendente
+  const vBadge = l.whatsapp_verificado === true
+    ? '<span title="WhatsApp confirmado via Z-API" style="color:#16a34a;font-weight:bold">✓</span>'
+    : l.whatsapp_verificado === false
+      ? '<span title="Número não é WhatsApp" style="color:#dc2626">✗</span>'
+      : '<span title="verificação pendente" style="color:#94a3b8">○</span>';
   const cands = (l.dados_enriquecimento?.gmaps?.candidatos || []).filter(c => !l.dados_enriquecimento?.gmaps?.escolhido);
   const btnCandidatos = (cands.length > 0 && !fone)
     ? `<button class="btn btn--xs" data-cands="${l.id}" title="${cands.length} candidatos Gmaps sem match automático">${cands.length} candidatos</button>`
     : '';
   const contatoHtml = fone
-    ? `<div class="mono" style="font-size:11px">${esc(fone)} ${fonteBadge}
+    ? `<div class="mono" style="font-size:11px">${esc(fone)} ${vBadge} ${fonteBadge}
          <button class="btn btn--xs" style="padding:0 4px;font-size:10px" data-edit-tel="${l.id}" title="editar">✎</button></div>`
     : `<div>
          <button class="btn btn--xs" style="padding:2px 6px" data-edit-tel="${l.id}">+ tel</button>

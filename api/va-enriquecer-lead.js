@@ -12,6 +12,7 @@ const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const KIP_KEY = process.env.KIPFLOW_API_KEY;
 const APIFY_TOKEN = process.env.APIFY_TOKEN;
 const APIFY_ACTOR = 'compass~crawler-google-places';
+const MOCK_ZAPI = process.env.VA_CADENCIA_MOCK === 'true';
 
 const DATASETS = 'partners,debts,online_presence';
 
@@ -66,6 +67,72 @@ function idadeAnos(dnasc) {
   const m = now.getMonth() - d.getMonth();
   if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
   return age;
+}
+
+// P4.5 · Z-API credencial (cachêada · 1 fetch por invocação da function).
+// Mesma fonte do va-cadencia-tick: zapi_telefones (legado) primeiro,
+// depois va_zapi_telefones (novo), depois env. Sem credencial → check pulado
+// (whatsapp_verificado fica null · disparador filtra).
+let _credCache = undefined;
+async function pegarCredZapi() {
+  if (_credCache !== undefined) return _credCache;
+  const H = { apikey: SB_SERVICE, Authorization:'Bearer '+SB_SERVICE, 'Content-Type':'application/json' };
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/zapi_telefones?ativo=eq.true&limit=1&select=zapi_instance,zapi_token,zapi_client_token`, { headers: H });
+    const [row] = await r.json();
+    if (row?.zapi_instance && row?.zapi_token && row?.zapi_client_token) {
+      _credCache = { instance: row.zapi_instance, token: row.zapi_token, clientToken: row.zapi_client_token };
+      return _credCache;
+    }
+  } catch {}
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/va_zapi_telefones?tipo=eq.prospeccao&ativo=eq.true&limit=1&select=instancia,token,client_token`, { headers: H });
+    const [row] = await r.json();
+    if (row?.instancia && row?.token && row?.client_token) {
+      _credCache = { instance: row.instancia, token: row.token, clientToken: row.client_token };
+      return _credCache;
+    }
+  } catch {}
+  _credCache = null;
+  return null;
+}
+
+// P4.5 · get-iswhatsapp-batch · doc: até 50k phones/req · custo incluso no
+// plano da instância. Retorna array [{ exists, inputPhone, outputPhone, lid }].
+// Timeout 15s (a Z-API normalmente responde em 1-3s pra até 10 números).
+// Em MOCK, todo número que TERMINA em 9 conta como celular/WhatsApp true,
+// pra caber teste determinístico.
+async function checarWhatsAppLote(cred, phones) {
+  const uniq = [...new Set((phones || []).map(p => String(p).replace(/\D/g,'')).filter(x => x && x.length >= 10))];
+  if (!uniq.length) return { ok:true, resultados: {} };
+  if (MOCK_ZAPI) {
+    const r = {};
+    for (const p of uniq) r[p] = { exists: p.endsWith('9'), lid: null, outputPhone: p };
+    return { ok:true, resultados: r, mock: true };
+  }
+  if (!cred) return { ok:false, erro:'sem_cred_zapi', resultados: {} };
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 15000);
+    const url = `https://api.z-api.io/instances/${cred.instance}/token/${cred.token}/contacts/get-iswhatsapp-batch`;
+    const r = await fetch(url, {
+      method:'POST', signal: controller.signal,
+      headers:{ 'Content-Type':'application/json', 'client-token': cred.clientToken },
+      body: JSON.stringify({ phones: uniq }),
+    });
+    clearTimeout(t);
+    const raw = await r.text();
+    if (!r.ok) return { ok:false, erro:`zapi_http_${r.status}: ${raw.slice(0,200)}`, resultados: {} };
+    let arr = []; try { arr = JSON.parse(raw); } catch {}
+    const out = {};
+    for (const item of Array.isArray(arr) ? arr : []) {
+      const key = String(item.inputPhone || '').replace(/\D/g,'');
+      if (key) out[key] = { exists: !!item.exists, lid: item.lid || null, outputPhone: item.outputPhone || null };
+    }
+    return { ok:true, resultados: out };
+  } catch (e) {
+    return { ok:false, erro:'zapi_rede: ' + String(e?.message||e).slice(0,150), resultados: {} };
+  }
 }
 
 // P4.4 Camada 0 · BrasilAPI · telefone cadastral da Receita Federal (custo zero).
@@ -370,7 +437,7 @@ module.exports = async (req, res) => {
   const H = { apikey: SB_SERVICE, Authorization:'Bearer '+SB_SERVICE, 'Content-Type':'application/json', Prefer:'return=representation' };
 
   const inList = encodeURIComponent(`(${lead_ids.join(',')})`);
-  const lR = await fetch(`${SB_URL}/rest/v1/va_leads?id=in.${inList}&projeto_id=eq.${projeto_id}&select=id,cnpj,razao_social,nome_fantasia,cidade,dados_brutos,enriquecido_em,telefone,whatsapp,email,status,funil_etapa`, { headers: H });
+  const lR = await fetch(`${SB_URL}/rest/v1/va_leads?id=in.${inList}&projeto_id=eq.${projeto_id}&select=id,cnpj,razao_social,nome_fantasia,cidade,dados_brutos,enriquecido_em,telefone,whatsapp,email,status,funil_etapa,whatsapp_verificado`, { headers: H });
   const leads = await lR.json();
   if (!Array.isArray(leads) || !leads.length) return json(res, 404, { ok:false, erro:'nenhum lead encontrado no projeto' });
 
@@ -483,12 +550,48 @@ module.exports = async (req, res) => {
       }
     }
 
+    // P4.5 · CHECK WhatsApp na cascata · roda em TODOS os telefones descobertos
+    // (não só os promovidos a campoTel/campoWa · fixos cadastrais também vão).
+    // Se check confirma WhatsApp num FIXO, ele vira o whatsapp final (PME com
+    // WhatsApp Business no fixo é comum). Preferência: celular verificado >
+    // fixo verificado > qualquer não verificado.
+    const candidatosFone = [
+      campoWa, campoTel,
+      cadastralResultado?.ok ? cadastralResultado.telefone_cadastral : null,
+      cadastralResultado?.ok ? cadastralResultado.telefone_cadastral_2 : null,
+    ].filter(Boolean).map(x => String(x).replace(/\D/g,'')).filter(x => x.length >= 10);
+    const cred = await pegarCredZapi();
+    const chk = await checarWhatsAppLote(cred, candidatosFone);
+    let whatsappVerificado = null;
+    let verificadoEm = null;
+    let numeroVerificado = null; // qual dos candidatos ficou verified
+    if (chk.ok) {
+      verificadoEm = new Date().toISOString();
+      // Ordena candidatos por preferência: celular (11 dig com 3º='9') primeiro, depois fixos
+      const ordenados = [...new Set(candidatosFone)].sort((a,b) => {
+        const aCel = a.length === 11 && a[2] === '9'   ? 0 : a.length === 13 && a[4] === '9' ? 0 : 1;
+        const bCel = b.length === 11 && b[2] === '9'   ? 0 : b.length === 13 && b[4] === '9' ? 0 : 1;
+        return aCel - bCel;
+      });
+      for (const p of ordenados) {
+        const rC = chk.resultados[p];
+        if (rC?.exists) { whatsappVerificado = true; numeroVerificado = rC.outputPhone || p; break; }
+      }
+      // Se nenhum retornou true e teve resposta pra pelo menos 1 → false
+      if (whatsappVerificado === null && Object.keys(chk.resultados).length > 0) whatsappVerificado = false;
+      // Se check confirmou WhatsApp num número (mesmo fixo cadastral) → promove
+      if (whatsappVerificado === true && numeroVerificado) {
+        campoWa = numeroVerificado;
+        if (!campoTel) campoTel = numeroVerificado;
+      }
+    }
+
     // funde dados_brutos existente com o enriquecimento + gmaps
     const brutoOut = Object.assign({}, l.dados_brutos || {}, {
       partners: r.campos.socios,
       divida: r.campos.divida_bruto,
     });
-    // Enriquecimento inclui Kipflow + cadastral + site fetch + Gmaps
+    // Enriquecimento inclui Kipflow + cadastral + site fetch + Gmaps + check WhatsApp
     const enrOut = Object.assign({}, r.campos, {
       cadastral: cadastralResultado,
       site_fetch: siteFetchResultado,
@@ -497,6 +600,12 @@ module.exports = async (req, res) => {
         candidatos: gmapsCandidatos,
         motivo: gmapsMotivo,
         buscado: !!precisaGmaps,
+      },
+      whatsapp_check: {
+        candidatos: candidatosFone,
+        resultados: chk.resultados,
+        erro: chk.erro || null,
+        mock: chk.mock || false,
       },
     });
     // Não sobrescreve valores prévios
@@ -511,9 +620,16 @@ module.exports = async (req, res) => {
     if (!l.whatsapp && campoWa)  patch.whatsapp = campoWa;
     if (!l.email && campoEmail)  patch.email = campoEmail;
     if (contatoFonte && !l.telefone && !l.whatsapp) patch.contato_fonte = contatoFonte;
-    // CAMADA 3 · esgotou cascata sem contato E lead já está aprovado no funil
-    // (portão já rodou) · marca sem_contato automático (não bloqueia trabalho manual)
-    const semContatoFinal = !campoTel && !campoWa && !l.telefone && !l.whatsapp;
+    // P4.5 · check WhatsApp · null se check pulou (sem cred), true/false se rodou
+    if (whatsappVerificado !== null) {
+      patch.whatsapp_verificado = whatsappVerificado;
+      patch.verificado_em = verificadoEm;
+    }
+    // Sem_contato final considera P4.5: telefone existe mas WhatsApp NÃO
+    // confirmado → também vira sem_contato (não é elegível pra cadência).
+    // Só marca automático se o check RODOU (whatsappVerificado !== null).
+    const semContatoFinal = (!campoTel && !campoWa && !l.telefone && !l.whatsapp)
+      || (whatsappVerificado === false && !l.whatsapp);
     if (semContatoFinal && l.status === 'aprovado' && (l.funil_etapa === 'na_fila' || !l.funil_etapa)) {
       patch.funil_etapa = 'sem_contato';
     }
@@ -548,6 +664,8 @@ module.exports = async (req, res) => {
       cadastral_ok: !!(cadastralResultado?.ok && (cadastralResultado.telefone_cadastral || cadastralResultado.telefone_cadastral_2)),
       gmaps_motivo: gmapsMotivo,
       gmaps_candidatos_n: gmapsCandidatos?.length || 0,
+      whatsapp_verificado: whatsappVerificado,
+      whatsapp_check_erro: chk.erro || null,
       debitado: deveDebitar,
       retry_sem_debito: !deveDebitar && jaEnriquecido,
     });

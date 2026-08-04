@@ -311,13 +311,20 @@ function colunaHTML(col) {
     </div>
   `;
 }
+// P4.5 · badge do check WhatsApp · ✓ verde = confirmado · ✗ = não tem · ○ = pendente
+function badgeVerificado(l) {
+  if (l.whatsapp_verificado === true) return '<span title="WhatsApp confirmado via Z-API" style="color:#16a34a;font-weight:bold">✓</span>';
+  if (l.whatsapp_verificado === false) return '<span title="Número não é WhatsApp" style="color:#dc2626">✗</span>';
+  return '<span title="verificação pendente" style="color:#94a3b8">○</span>';
+}
+
 function cardHTML(l) {
   const arq = ARQUETIPOS.find(a => a.id === l.arquetipo_id)?.nome || '—';
   const caption = captionCard(l);
   const pause = l.pausado ? ' <span class="kb-card__pause" title="pausado manualmente">‖</span>' : '';
   return `
     <div class="kb-card" data-lead-abrir="${l.id}" title="${esc(l.razao_social||'')}">
-      <div class="kb-card__nome">${esc(fmtNomeLead(l) || '(sem nome)')}${pause}</div>
+      <div class="kb-card__nome">${esc(fmtNomeLead(l) || '(sem nome)')}${pause} ${badgeVerificado(l)}</div>
       <div class="kb-card__meta">
         <span class="pill" style="font-size:10px">${esc(arq.slice(0,30))}</span>
         <span>${caption}</span>
@@ -368,10 +375,11 @@ async function abrirDrawer(leadId) {
         <h3>${esc(fmtNomeLead(l) || l.razao_social || '(sem nome)')}</h3>
         <div class="mono muted" style="font-size:11px">${esc(l.cnpj || '—')} · ${esc(l.cidade || '')}/${esc(l.uf || '')}</div>
         <div class="mono" style="font-size:11px;margin-top:4px">arquétipo: <b>${esc(arq?.nome || '—')}</b></div>
-        <div class="mono" style="font-size:11px">whatsapp: <b>${esc(l.whatsapp || '(sem)')}</b> · telefone: <b>${esc(l.telefone || '(sem)')}</b></div>
+        <div class="mono" style="font-size:11px">whatsapp: <b>${esc(l.whatsapp || '(sem)')}</b> ${badgeVerificado(l)} · telefone: <b>${esc(l.telefone || '(sem)')}</b></div>
         <div class="row">
           <button class="btn btn--sm" id="drw-pausar">${l.pausado?'Retomar cadência':'Pausar cadência'}</button>
           <button class="btn btn--sm" id="drw-mover">Mover…</button>
+          <button class="btn btn--sm" id="drw-reverify" title="Re-verificar via Z-API">Re-verificar WhatsApp</button>
           <button class="btn btn--sm btn--primary" id="drw-promover" ${l.funil_etapa==='promovido'?'disabled':''}>Promover pra Mesa</button>
           <button class="btn btn--sm" id="drw-optout" ${l.funil_etapa==='optout'?'disabled':''}>Marcar opt-out</button>
         </div>
@@ -423,6 +431,7 @@ async function abrirDrawer(leadId) {
   document.getElementById('drw-mover')?.addEventListener('click', () => moverLead(leadId));
   document.getElementById('drw-promover')?.addEventListener('click', () => promoverLead(leadId));
   document.getElementById('drw-optout')?.addEventListener('click', () => optOutManual(leadId));
+  document.getElementById('drw-reverify')?.addEventListener('click', () => reverificarLead(leadId));
   document.getElementById('drw-desd-salvar')?.addEventListener('click', () => salvarDesdobramento(leadId));
   document.getElementById('drw-rascunhar')?.addEventListener('click', () => rascunharIA(leadId));
   document.getElementById('drw-regenerar')?.addEventListener('click', () => rascunharIA(leadId));
@@ -494,6 +503,30 @@ async function enviarResposta(leadId) {
     if (btn) { btn.disabled = false; btn.textContent = 'Aprovar e enviar'; }
   }
 }
+// P4.5 · re-verificar WhatsApp on-demand · chama Z-API pro telefone do lead
+async function reverificarLead(leadId) {
+  const btn = document.getElementById('drw-reverify');
+  if (btn) { btn.disabled = true; btn.textContent = 'verificando…'; }
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const r = await fetch('/api/va-verificar-whatsapp', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ lead_id: leadId }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.erro || 'HTTP '+r.status);
+    const msg = d.whatsapp_verificado === true ? 'WhatsApp CONFIRMADO ✓'
+              : d.whatsapp_verificado === false ? 'Número não é WhatsApp ✗'
+              : 'sem resposta';
+    toast('ok', msg);
+    document.querySelector('.drw-bg')?.remove();
+    await recarregarTudo();
+  } catch (e) {
+    toast('err', String(e.message).slice(0,240));
+    if (btn) { btn.disabled = false; btn.textContent = 'Re-verificar WhatsApp'; }
+  }
+}
+
 // P4.4-fix · lista modal dos leads fora do kanban · clique abre drawer normal
 function abrirListaFora(etapa) {
   const leads = LEADS.filter(l => l.funil_etapa === etapa);

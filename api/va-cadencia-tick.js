@@ -228,9 +228,11 @@ module.exports = async (req, res) => {
     if (orcamento <= 0) { rProj.skipped = 'teto_diario'; resultado.projetos.push(rProj); continue; }
 
     // Elegíveis · toque 2 tem prioridade (terminar conversa antes de abrir nova)
+    // P4.5 · gate whatsapp_verificado=true · null (não checado) e false (não tem
+    // WhatsApp) ficam de fora da fila do disparador.
     const nowIso = new Date().toISOString();
-    const url2 = `${SB_URL}/rest/v1/va_leads?projeto_id=eq.${projeto_id}&funil_etapa=eq.contatado&pausado=is.false&proximo_toque_apos=lte.${encodeURIComponent(nowIso)}&toque2_em=is.null&order=aprovado_em.asc&limit=${orcamento}&select=*`;
-    const url1 = `${SB_URL}/rest/v1/va_leads?projeto_id=eq.${projeto_id}&funil_etapa=eq.na_fila&pausado=is.false&order=aprovado_em.asc&limit=${orcamento}&select=*`;
+    const url2 = `${SB_URL}/rest/v1/va_leads?projeto_id=eq.${projeto_id}&funil_etapa=eq.contatado&pausado=is.false&whatsapp_verificado=is.true&proximo_toque_apos=lte.${encodeURIComponent(nowIso)}&toque2_em=is.null&order=aprovado_em.asc&limit=${orcamento}&select=*`;
+    const url1 = `${SB_URL}/rest/v1/va_leads?projeto_id=eq.${projeto_id}&funil_etapa=eq.na_fila&pausado=is.false&whatsapp_verificado=is.true&order=aprovado_em.asc&limit=${orcamento}&select=*`;
     const [r2, r1] = await Promise.all([fetch(url2, { headers: H_SVC() }), fetch(url1, { headers: H_SVC() })]);
     const cand2 = (await r2.json()).map(l => ({ ...l, _toque: 2 }));
     const cand1 = (await r1.json()).map(l => ({ ...l, _toque: 1 }));
