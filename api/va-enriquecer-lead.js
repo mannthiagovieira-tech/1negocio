@@ -340,7 +340,12 @@ module.exports = async (req, res) => {
       gmaps_candidatos_n: gmapsCandidatos?.length || 0,
     });
   }
-  await Promise.all(leads.map(processarLead));
+  // Batches de 3 leads em paralelo · Apify run-sync não aguenta muita concorrência
+  // (empíricamente 8 concurrent → 6 timeouts). 3 concurrent × ~90s por batch ≈ 90-180s total.
+  const BATCH = 3;
+  for (let i = 0; i < leads.length; i += BATCH) {
+    await Promise.all(leads.slice(i, i + BATCH).map(processarLead));
+  }
   const ok = okAcc; const falhas = falhasAcc;
 
   return json(res, 200, {
