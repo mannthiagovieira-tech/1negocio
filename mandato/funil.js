@@ -61,7 +61,10 @@ export async function mountFunil(mandato) {
 async function recarregarTudo() {
   const [leadsR, arqR, cadR, tplR, dispR] = await Promise.all([
     sb.from('va_leads').select('*').eq('projeto_id', MANDATO.id).not('funil_etapa', 'is', null).order('aprovado_em', { ascending:true }),
-    sb.from('va_arquetipos').select('id, nome, filtro, abordagem').eq('projeto_id', MANDATO.id).eq('status','aprovado'),
+    // Carrega aprovados + arquivados. Leads herdados de versão v1 arquivada
+    // continuam vinculados por proveniência; sem isso o painel de cadência
+    // esconde o arquétipo do lead e mostra "Nenhum arquétipo com lead no funil".
+    sb.from('va_arquetipos').select('id, nome, filtro, abordagem, status').eq('projeto_id', MANDATO.id).in('status', ['aprovado','arquivado']),
     sb.from('va_cadencia_config').select('*').eq('projeto_id', MANDATO.id).maybeSingle(),
     sb.from('va_cadencia_templates').select('*').eq('projeto_id', MANDATO.id),
     sb.from('va_disparos').select('id').eq('projeto_id', MANDATO.id).eq('status','enviado').gte('enviado_em', new Date(new Date().setHours(0,0,0,0)).toISOString()),
@@ -173,10 +176,13 @@ function tplItemHTML(arq) {
   const aviso = (!t1.aprovado || !t2.aprovado) && semTpl
     ? `<span class="pill pill--tpl-no" title="tem lead esperando template aprovado">${semTpl} lead(s) parado(s)</span>`
     : '';
+  const arqvPill = arq.status === 'arquivado'
+    ? `<span class="pill" style="background:#fef3c7;color:#92400e;font-size:9.5px" title="arquétipo arquivado · leads dessa versão continuam listados aqui pra manter proveniência">arquivado</span>`
+    : '';
   return `
     <div class="tpl-item" data-arq="${arq.id}">
       <div class="tpl-item__head">
-        <div class="tpl-item__nome">${esc(arq.nome)}</div>
+        <div class="tpl-item__nome">${esc(arq.nome)} ${arqvPill}</div>
         <div class="tpl-item__pills">${aviso}</div>
       </div>
       <div class="tpl-toques">
