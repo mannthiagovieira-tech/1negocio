@@ -212,15 +212,18 @@ module.exports = async (req, res) => {
   const leads = await lR.json();
   if (!Array.isArray(leads) || !leads.length) return json(res, 404, { ok:false, erro:'nenhum lead encontrado no projeto' });
 
+  // Processa leads em PARALELO (Promise.all) pra caber no timeout 5min da Vercel.
+  // Cada lead faz 1 chamada Kipflow (~2-5s) + até 1 Apify (~20-60s) · N leads em
+  // paralelo terminam em ~max_lead + overhead. 8 leads em ~90s é confortável.
   let custoTotal = 0;      // custo Kipflow acumulado (partners+debts+online_presence)
   let custoApifyTotal = 0; // custo Apify acumulado (lead_maps)
   let placesApifyTotal = 0;
-  const ok = []; const falhas = [];
-  for (const l of leads) {
+  const okAcc = []; const falhasAcc = [];
+  async function processarLead(l) {
     const cnpjLimpo = String(l.cnpj || '').replace(/\D/g,'');
-    if (!cnpjLimpo) { falhas.push({ id: l.id, motivo:'sem_cnpj' }); continue; }
+    if (!cnpjLimpo) { falhasAcc.push({ id: l.id, motivo:'sem_cnpj' }); return; }
     const r = await enriquecer(cnpjLimpo);
-    if (!r.ok) { falhas.push({ id: l.id, motivo: r.erro }); continue; }
+    if (!r.ok) { falhasAcc.push({ id: l.id, motivo: r.erro }); return; }
     custoTotal += r.cost || 0;
 
     // ─── CASCATA APIFY (P4.3) · só se Kipflow deixou telefone/whatsapp vazio
@@ -294,9 +297,8 @@ module.exports = async (req, res) => {
     const upd = await fetch(`${SB_URL}/rest/v1/va_leads?id=eq.${l.id}`, {
       method:'PATCH', headers: H, body: JSON.stringify(patch),
     });
-    if (!upd.ok) { falhas.push({ id: l.id, motivo: `update: ${(await upd.text()).slice(0,200)}` }); continue; }
+    if (!upd.ok) { falhasAcc.push({ id: l.id, motivo: `update: ${(await upd.text()).slice(0,200)}` }); return; }
     // Débito · 1 unidade de 'lead_enriquecimento' por lead com sucesso
-    // Falha do débito NÃO reverte o enriquecimento (dado já veio) · loga em falhas.detalhe.
     try {
       const shortL = String(l.id).slice(0,8);
       const dR = await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
@@ -309,7 +311,7 @@ module.exports = async (req, res) => {
       if (!dR.ok) console.error('va_debitar enriquecimento falhou:', await dR.text());
     } catch (e) { console.error('va_debitar erro:', e); }
     // Debita lead_maps por PLACE retornado (padrão slice12e)
-    if (precisaGmaps && placesApifyTotal > 0) {
+    if (precisaGmaps) {
       try {
         const shortL = String(l.id).slice(0,8);
         const nPlaces = (gmapsCandidatos?.length || 0) + (gmapsEscolhido ? 1 : 0);
@@ -324,7 +326,7 @@ module.exports = async (req, res) => {
         }
       } catch {}
     }
-    ok.push({
+    okAcc.push({
       id: l.id,
       idade_min: r.campos.idade_min_socios, idade_max: r.campos.idade_max_socios,
       com_divida: r.campos.com_divida, cost_kipflow: r.cost,
@@ -335,6 +337,8 @@ module.exports = async (req, res) => {
       gmaps_candidatos_n: gmapsCandidatos?.length || 0,
     });
   }
+  await Promise.all(leads.map(processarLead));
+  const ok = okAcc; const falhas = falhasAcc;
 
   return json(res, 200, {
     ok: true,
