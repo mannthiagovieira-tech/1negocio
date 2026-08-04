@@ -472,6 +472,13 @@ module.exports = async (req, res) => {
           method: 'PATCH', headers: H, body: JSON.stringify({ abordagem: parsed }),
         });
         if (!upR.ok) return json(res, 500, { ok: false, erro: 'update: ' + upR.status });
+        // v3 · débito ia_geracao_arquetipos (modo parcial · abordagem)
+        try {
+          await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+            method:'POST', headers: H,
+            body: JSON.stringify({ p_projeto: projeto_id, p_tipo:'ia_geracao_arquetipos', p_qtd:1, p_referencia:`arq_abord:${arq.id.slice(0,8)}`, p_ciclo:null }),
+          });
+        } catch (e) { console.error('debit arq abord fail:', e); }
         return json(res, 200, { ok: true, modo: 'abordagem', arquetipo_id: arq.id, abordagem: parsed, tentativas: t + 1 });
       } catch (e) {
         return json(res, 502, { ok: false, erro: 'anthropic_fail', detalhe: String(e.message).slice(0, 300) });
@@ -523,6 +530,13 @@ module.exports = async (req, res) => {
       });
       const inseridos = await insR.json();
       if (!insR.ok) return json(res, 500, { ok: false, erro: 'insert: ' + JSON.stringify(inseridos).slice(0, 300) });
+      // v3 · débito ia_geracao_arquetipos (modo completo · 1 unidade por geração, não por arquétipo)
+      try {
+        await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+          method:'POST', headers: H,
+          body: JSON.stringify({ p_projeto: projeto_id, p_tipo:'ia_geracao_arquetipos', p_qtd:1, p_referencia:`arq_lista:${inseridos.length} arqs`, p_ciclo:null }),
+        });
+      } catch (e) { console.error('debit arq lista fail:', e); }
       return json(res, 200, { ok: true, quantidade: inseridos.length, arquetipos: inseridos, tentativas: t + 1, fatos_usados: fatos });
     } catch (e) {
       return json(res, 502, { ok: false, erro: 'anthropic_fail', detalhe: String(e.message).slice(0, 300) });

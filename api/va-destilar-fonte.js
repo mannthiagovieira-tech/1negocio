@@ -110,7 +110,7 @@ module.exports = async (req, res) => {
   if (!fonte_id) return json(res, 400, { ok: false, erro: 'fonte_id obrigatório' });
 
   const H = { apikey: SB_SERVICE, Authorization: 'Bearer ' + SB_SERVICE, 'Content-Type': 'application/json' };
-  const fR = await fetch(`${SB_URL}/rest/v1/va_projeto_fontes?id=eq.${fonte_id}&select=id,tipo,conteudo,formato_detectado,conteudo_destilado`, { headers: H });
+  const fR = await fetch(`${SB_URL}/rest/v1/va_projeto_fontes?id=eq.${fonte_id}&select=id,projeto_id,tipo,conteudo,formato_detectado,conteudo_destilado`, { headers: H });
   const [f] = await fR.json();
   if (!f) return json(res, 404, { ok: false, erro: 'fonte não encontrada' });
   if (f.tipo !== 'reuniao') return json(res, 400, { ok: false, erro: 'destilação só se aplica a tipo=reuniao' });
@@ -138,6 +138,15 @@ module.exports = async (req, res) => {
       body: JSON.stringify({ conteudo_destilado: destilado, destilado_em: new Date().toISOString() }),
     });
     if (!upR.ok) return json(res, 500, { ok: false, erro: 'update: ' + upR.status });
+    // v3 · débito ia_destilacao_fonte
+    if (f.projeto_id) {
+      try {
+        await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+          method:'POST', headers: H,
+          body: JSON.stringify({ p_projeto: f.projeto_id, p_tipo:'ia_destilacao_fonte', p_qtd:1, p_referencia:`destilar:${fonte_id.slice(0,8)}`, p_ciclo:null }),
+        });
+      } catch (e) { console.error('debit destilar fail:', e); }
+    }
     return json(res, 200, { ok: true, chars_destilado: destilado.length, chunks: chunks.length, destilado });
   } catch (e) {
     return json(res, 502, { ok: false, erro: 'destilacao_falhou', detalhe: String(e.message).slice(0, 300) });

@@ -103,6 +103,17 @@ module.exports = async (req, res) => {
     if (dR.ok) razaoId = await dR.json();
   } catch {}
 
+  // v3 · débito ia_resposta_personalizada (só no envio bem-sucedido · regenerar rascunho é grátis)
+  try {
+    await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+      method:'POST', headers: H_SVC(),
+      body: JSON.stringify({
+        p_projeto: lead.projeto_id, p_tipo:'ia_resposta_personalizada', p_qtd: 1,
+        p_referencia: `ia_resp:${disp.id.slice(0,8)} · lead:${lead.id.slice(0,8)}`, p_ciclo: null,
+      }),
+    });
+  } catch (e) { console.error('debit ia_resposta fail:', e); }
+
   await fetch(`${SB_URL}/rest/v1/va_disparos?id=eq.${disp.id}`, {
     method:'PATCH', headers: H_SVC(),
     body: JSON.stringify({

@@ -369,6 +369,13 @@ module.exports = async (req, res) => {
       });
       const inseridos = await insR.json();
       if (!insR.ok) return json(res, 500, { ok: false, erro: 'insert: ' + JSON.stringify(inseridos).slice(0, 300) });
+      // v3 · débito ia_geracao_teaser · falha do débito NÃO reverte insert
+      try {
+        await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+          method:'POST', headers: H,
+          body: JSON.stringify({ p_projeto: projeto_id, p_tipo:'ia_geracao_teaser', p_qtd:1, p_referencia:`teaser:${(inseridos[0]?.id||'').slice(0,8)}`, p_ciclo:null }),
+        });
+      } catch (e) { console.error('debit teaser fail:', e); }
       return json(res, 200, { ok: true, teaser: inseridos[0] || inseridos, tentativas: t + 1, fatos_usados: fatos });
     } catch (e) {
       return json(res, 502, { ok: false, erro: 'anthropic_fail', detalhe: String(e.message).slice(0, 300) });
