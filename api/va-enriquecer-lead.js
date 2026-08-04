@@ -203,7 +203,7 @@ module.exports = async (req, res) => {
   if (!SB_SERVICE) return json(res, 503, { ok:false, erro:'SUPABASE_SERVICE_ROLE_KEY ausente' });
 
   let body; try { body = await lerBody(req); } catch { return json(res, 400, { ok:false, erro:'json inválido' }); }
-  const { projeto_id, lead_ids } = body || {};
+  const { projeto_id, lead_ids, force_redebit } = body || {};
   if (!projeto_id || !Array.isArray(lead_ids) || !lead_ids.length) {
     return json(res, 400, { ok:false, erro:'projeto_id + lead_ids[] obrigatórios' });
   }
@@ -211,7 +211,7 @@ module.exports = async (req, res) => {
   const H = { apikey: SB_SERVICE, Authorization:'Bearer '+SB_SERVICE, 'Content-Type':'application/json', Prefer:'return=representation' };
 
   const inList = encodeURIComponent(`(${lead_ids.join(',')})`);
-  const lR = await fetch(`${SB_URL}/rest/v1/va_leads?id=in.${inList}&projeto_id=eq.${projeto_id}&select=id,cnpj,razao_social,dados_brutos`, { headers: H });
+  const lR = await fetch(`${SB_URL}/rest/v1/va_leads?id=in.${inList}&projeto_id=eq.${projeto_id}&select=id,cnpj,razao_social,dados_brutos,enriquecido_em,telefone,whatsapp,email`, { headers: H });
   const leads = await lR.json();
   if (!Array.isArray(leads) || !leads.length) return json(res, 404, { ok:false, erro:'nenhum lead encontrado no projeto' });
 
@@ -225,6 +225,10 @@ module.exports = async (req, res) => {
   async function processarLead(l) {
     const cnpjLimpo = String(l.cnpj || '').replace(/\D/g,'');
     if (!cnpjLimpo) { falhasAcc.push({ id: l.id, motivo:'sem_cnpj' }); return; }
+    // GUARD · lead já enriquecido não é serviço novo · re-execução é retry grátis
+    // (a menos que o operador force com body force_redebit=true)
+    const jaEnriquecido = !!l.enriquecido_em;
+    const deveDebitar   = force_redebit === true || !jaEnriquecido;
     const r = await enriquecer(cnpjLimpo);
     if (!r.ok) { falhasAcc.push({ id: l.id, motivo: r.erro }); return; }
     custoTotal += r.cost || 0;
@@ -302,17 +306,20 @@ module.exports = async (req, res) => {
     });
     if (!upd.ok) { falhasAcc.push({ id: l.id, motivo: `update: ${(await upd.text()).slice(0,200)}` }); return; }
     // Débito · 1 unidade de 'lead_enriquecimento' por lead com sucesso
-    try {
-      const shortL = String(l.id).slice(0,8);
-      const dR = await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
-        method:'POST', headers: H,
-        body: JSON.stringify({
-          p_projeto: projeto_id, p_tipo: 'lead_enriquecimento', p_qtd: 1,
-          p_referencia: `enriq:${shortL} · partners+debts`, p_ciclo: null,
-        }),
-      });
-      if (!dR.ok) console.error('va_debitar enriquecimento falhou:', await dR.text());
-    } catch (e) { console.error('va_debitar erro:', e); }
+    // Guard: só se ainda não foi enriquecido (ou force_redebit).
+    if (deveDebitar) {
+      try {
+        const shortL = String(l.id).slice(0,8);
+        const dR = await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+          method:'POST', headers: H,
+          body: JSON.stringify({
+            p_projeto: projeto_id, p_tipo: 'lead_enriquecimento', p_qtd: 1,
+            p_referencia: `enriq:${shortL}${force_redebit?' · FORCED':''}`, p_ciclo: null,
+          }),
+        });
+        if (!dR.ok) console.error('va_debitar enriquecimento falhou:', await dR.text());
+      } catch (e) { console.error('va_debitar erro:', e); }
+    }
     // v3 · lead_maps foi ABSORVIDO em lead_enriquecimento (decisão operador).
     // O tipo continua na tabela pro Cowork · MANDATO não debita mais separado.
     okAcc.push({
@@ -324,6 +331,8 @@ module.exports = async (req, res) => {
       contato_fonte: contatoFonte,
       gmaps_motivo: gmapsMotivo,
       gmaps_candidatos_n: gmapsCandidatos?.length || 0,
+      debitado: deveDebitar,
+      retry_sem_debito: !deveDebitar && jaEnriquecido,
     });
   }
   // Batches de 3 leads em paralelo · Apify run-sync não aguenta muita concorrência
