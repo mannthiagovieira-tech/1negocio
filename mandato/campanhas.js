@@ -12,6 +12,7 @@ let ARQUETIPOS = [];
 let CAMPANHAS = [];
 let METRICAS = null;
 let PRECO_CRIATIVO = null;
+let TEMPLATES = []; // P5.1 · templates globais
 
 export async function mountCampanhas(mandato) {
   MANDATO = mandato;
@@ -25,7 +26,40 @@ export async function mountCampanhas(mandato) {
         </div>
         <div id="cmp-status" class="mono muted" style="font-size:11px"></div>
       </header>
-      <div id="cmp-gerador" class="cad-config-grid" style="padding:10px 12px;border:1px solid var(--divisor);border-radius:8px;margin-bottom:14px">
+      <!-- P5.1 · seção CRIAR DO TEMPLATE (biblioteca global · sem IA · sem débito) -->
+      <div style="padding:10px 12px;border:1px solid var(--divisor);border-radius:8px;margin-bottom:14px">
+        <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+          <b>Criar do template</b>
+          <span class="muted mono" style="font-size:10.5px">sem IA · sem débito · resolvido dos dados do mandato</span>
+        </div>
+        <div id="cmp-templates"><div class="muted mono" style="font-size:11px">Carregando templates…</div></div>
+      </div>
+
+      <!-- P5.1 · seção SUBIR ARTE PRÓPRIA -->
+      <div style="padding:10px 12px;border:1px solid var(--divisor);border-radius:8px;margin-bottom:14px">
+        <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+          <b>Subir arte própria</b>
+          <span class="muted mono" style="font-size:10.5px">PNG/JPG até 5MB · validar sigilo manualmente</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
+          <label>formato
+            <select id="cmp-up-fmt">
+              <option value="feed_1080">feed 1080×1080</option>
+              <option value="story_1080x1920">story 1080×1920</option>
+              <option value="link_1200x628">link 1200×628</option>
+            </select>
+          </label>
+          <label>arquivo
+            <input type="file" id="cmp-up-file" accept="image/png,image/jpeg">
+          </label>
+          <button class="btn btn--sm btn--primary" id="cmp-up-btn" disabled>Subir</button>
+        </div>
+      </div>
+
+      <!-- Copy livre com IA (opção secundária · continua funcionando) -->
+      <details style="padding:10px 12px;border:1px solid var(--divisor);border-radius:8px;margin-bottom:14px">
+        <summary style="cursor:pointer"><b>Copy livre com IA</b> <span class="muted mono" style="font-size:10.5px">— gera 4 variações via Sonnet · custa por chamada</span></summary>
+        <div class="cad-config-grid" style="margin-top:10px">
         <label>arquétipo
           <select id="cmp-arq"><option value="">— escolha —</option></select>
         </label>
@@ -53,7 +87,8 @@ export async function mountCampanhas(mandato) {
           <span class="mono muted" style="font-size:11px" id="cmp-custo">custo: —</span>
           <button class="btn btn--sm btn--primary" id="cmp-gerar">Gerar com IA</button>
         </div>
-      </div>
+        </div>
+      </details>
       <div id="cmp-galeria"><div class="muted">Carregando…</div></div>
 
       <hr style="border:none;border-top:1px solid var(--divisor);margin:28px 0">
@@ -81,17 +116,19 @@ export async function mountCampanhas(mandato) {
 }
 
 async function recarregar() {
-  const [arqR, criR, cmpR, metR, projR] = await Promise.all([
+  const [arqR, criR, cmpR, metR, projR, tplR] = await Promise.all([
     sb.from('va_arquetipos').select('id, nome, abordagem').eq('projeto_id', MANDATO.id).in('status', ['aprovado','arquivado']).order('criado_em', { ascending: false }),
     sb.from('va_criativos').select('*').eq('projeto_id', MANDATO.id).order('criado_em', { ascending: false }),
     sb.from('va_campanhas').select('*').eq('projeto_id', MANDATO.id).order('criado_em', { ascending: false }),
     sb.from('va_projetos_metricas_campanhas').select('*').eq('projeto_id', MANDATO.id).maybeSingle(),
     sb.from('va_projetos').select('precos_versao_id').eq('id', MANDATO.id).maybeSingle(),
+    sb.from('va_criativo_templates').select('*').eq('status', 'ativo').order('nome'),
   ]);
   ARQUETIPOS = arqR.data || [];
   CRIATIVOS = criR.data || [];
   CAMPANHAS = cmpR.data || [];
   METRICAS = metR.data || null;
+  TEMPLATES = tplR.data || [];
   let versaoId = projR.data?.precos_versao_id || null;
   if (!versaoId) {
     const v = await sb.from('va_precos_versao').select('id').eq('vigente', true).limit(1).maybeSingle();
@@ -106,6 +143,93 @@ async function recarregar() {
   renderStatus();
   renderCampanhas();
   renderMetricas();
+  renderTemplates();
+}
+
+function renderTemplates() {
+  const el = document.getElementById('cmp-templates');
+  if (!el) return;
+  if (!TEMPLATES.length) {
+    el.innerHTML = '<div class="muted mono" style="font-size:11px">Nenhum template ativo.</div>';
+    return;
+  }
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px">${TEMPLATES.map(templateHTML).join('')}</div>`;
+  document.querySelectorAll('[data-tpl-gen]').forEach(b => b.addEventListener('click', () => gerarDoTemplate(b.dataset.tplGen)));
+}
+function templateHTML(t) {
+  const obrigs = Array.isArray(t.campos_obrigatorios) ? t.campos_obrigatorios : [];
+  const aspect = t.formato === 'story_1080x1920' ? '9/16' : (t.formato === 'link_1200x628' ? '1200/628' : '1/1');
+  return `
+    <div class="tpl-item" data-tid="${t.id}">
+      <div style="background:#f3f4f6;border-radius:6px;aspect-ratio:${aspect};display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px;text-align:center">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;letter-spacing:-0.5px">${esc(t.nome)}</div>
+        <div class="mono muted" style="font-size:9px;margin-top:4px">${esc(t.formato.replace('_',' '))}</div>
+      </div>
+      <div class="mono" style="font-size:10.5px;color:var(--ink-3);margin-top:6px;line-height:1.35">${esc(t.descricao || '')}</div>
+      <div class="mono" style="font-size:9.5px;color:var(--ink-3);margin-top:4px">requer: ${obrigs.join(', ') || '(sem)'}</div>
+      <button class="btn btn--xs btn--primary" style="margin-top:6px;width:100%" data-tpl-gen="${t.id}">Gerar do template</button>
+    </div>
+  `;
+}
+async function gerarDoTemplate(templateId) {
+  const btn = document.querySelector(`[data-tpl-gen="${templateId}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = 'gerando…'; }
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const r = await fetch('/api/va-gerar-do-template', {
+      method: 'POST', headers: { 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ projeto_id: MANDATO.id, template_id: templateId }),
+    });
+    const raw = await r.text(); let d = null;
+    try { d = JSON.parse(raw); } catch { throw new Error('HTTP ' + r.status + ' · ' + raw.slice(0, 160)); }
+    if (r.status === 422 && d.faltando) {
+      toast('err', 'Template indisponível — falta: ' + d.faltando.join(', '));
+      return;
+    }
+    if (!r.ok || !d.ok) throw new Error(d.erro || 'HTTP ' + r.status);
+    toast('ok', 'Rascunho criado · renderizando…');
+    await recarregar();
+    if (d.criativo_id) await renderCriativo(d.criativo_id, /*silent*/ true);
+  } catch (e) {
+    console.error('[gerarDoTemplate]', e);
+    toast('err', 'Template: ' + String(e.message).slice(0, 220));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Gerar do template'; }
+  }
+}
+async function subirArte() {
+  const file = document.getElementById('cmp-up-file').files[0];
+  const formato = document.getElementById('cmp-up-fmt').value;
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { toast('err', 'PNG > 5MB'); return; }
+  const b64 = await new Promise((resolve, reject) => {
+    const rd = new FileReader();
+    rd.onload = () => resolve(String(rd.result).split(',')[1]);
+    rd.onerror = reject;
+    rd.readAsDataURL(file);
+  });
+  const btn = document.getElementById('cmp-up-btn');
+  btn.disabled = true; btn.textContent = 'subindo…';
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const r = await fetch('/api/va-upload-criativo', {
+      method: 'POST', headers: { 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ projeto_id: MANDATO.id, formato, png_base64: b64, nome: file.name.slice(0, 80) }),
+    });
+    const raw = await r.text(); let d = null;
+    try { d = JSON.parse(raw); } catch { throw new Error('HTTP ' + r.status + ' · ' + raw.slice(0, 160)); }
+    if (!r.ok || !d.ok) throw new Error(d.erro || 'HTTP ' + r.status);
+    let msg = 'Enviado';
+    if (d.aviso_dims) msg += ' · ⚠ ' + d.aviso_dims;
+    toast('ok', msg);
+    await recarregar();
+  } catch (e) {
+    console.error('[subirArte]', e);
+    toast('err', 'Upload: ' + String(e.message).slice(0, 220));
+  } finally {
+    btn.disabled = true; btn.textContent = 'Subir';
+    document.getElementById('cmp-up-file').value = '';
+  }
 }
 
 function renderMetricas() {
@@ -361,7 +485,13 @@ function bindCards() {
 }
 
 function bindGerador() {
-  document.getElementById('cmp-gerar').addEventListener('click', gerarCriativos);
+  document.getElementById('cmp-gerar')?.addEventListener('click', gerarCriativos);
+  const upFile = document.getElementById('cmp-up-file');
+  const upBtn = document.getElementById('cmp-up-btn');
+  if (upFile && upBtn) {
+    upFile.addEventListener('change', () => { upBtn.disabled = !upFile.files[0]; });
+    upBtn.addEventListener('click', subirArte);
+  }
 }
 
 async function gerarCriativos() {

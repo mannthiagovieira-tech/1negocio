@@ -38,7 +38,7 @@ async function ehAdmin(tok) {
 const H_SVC = () => ({ apikey: SB_SERVICE, Authorization: 'Bearer ' + SB_SERVICE });
 
 // ─── Design system 1Negócio ─────────────────────────────────────────────
-const T = { ink: '#0A0A0A', ink3: '#4B5563', paper: '#FAFAFA', accent: '#16a34a', logo: '1Negócio' };
+const T = { ink: '#0A0A0A', ink3: '#4B5563', paper: '#FAFAFA', accent: '#16a34a', divisor: '#E5E7EB', logo: '1Negócio' };
 function tamanho(f) {
   if (f === 'feed_1080') return { w: 1080, h: 1080 };
   if (f === 'story_1080x1920') return { w: 1080, h: 1920 };
@@ -100,7 +100,7 @@ function tree(layout, formato, copy) {
         { type: 'div', key: 'hl', props: { style: { fontFamily: 'Syne', fontSize: Math.round(w * 0.062), fontWeight: 800, lineHeight: 1.05, letterSpacing: -1 }, children: copy.headline } },
       ],
     }};
-  } else {
+  } else if (layout === 'dado_destaque') {
     const m = copy.headline.match(/(R\$\s*[\d.\-–\s]+M?|[\d.]+×|\d+%)/);
     const dado = m?.[0]?.trim() || copy.headline.split(' ').slice(0, 3).join(' ');
     const resto = copy.headline.replace(dado, '').trim();
@@ -111,6 +111,91 @@ function tree(layout, formato, copy) {
         { type: 'div', key: 'n', props: { style: { fontFamily: 'Syne', fontSize: Math.round(escala * 0.14), fontWeight: 800, lineHeight: 0.95, color: T.accent, letterSpacing: -2, whiteSpace: 'nowrap' }, children: dado } },
         { type: 'div', key: 'l', props: { style: { fontFamily: 'Syne', fontSize: Math.round(escala * 0.036), fontWeight: 800, textAlign: 'center' }, children: resto || copy.headline } },
         { type: 'div', key: 't', props: { style: { fontSize: Math.round(escala * 0.022), color: T.ink3, textAlign: 'center', maxWidth: w * 0.8, marginTop: 8 }, children: copy.texto } },
+      ],
+    }};
+  } else if (layout === 'classificado') {
+    // "VENDE-SE" gigante topo · tipo · região · dados · CTA. Estética classificado M&A.
+    const vendese = 'VENDE-SE';
+    const resto = copy.headline.replace(/^VENDE-SE\s*·?\s*/i, '').trim();
+    miolo = { type: 'div', key: 'cls', props: {
+      style: { display: 'flex', flexDirection: 'column', gap: 18, flex: 1, justifyContent: 'center' },
+      children: [
+        { type: 'div', key: 'vs', props: {
+          style: { fontFamily: 'Syne', fontSize: Math.round(w * 0.145), fontWeight: 800, lineHeight: 0.92, color: T.accent, letterSpacing: -3, textTransform: 'uppercase' },
+          children: vendese } },
+        { type: 'div', key: 'tp', props: {
+          style: { fontFamily: 'Syne', fontSize: Math.round(w * 0.055), fontWeight: 800, lineHeight: 1.02, letterSpacing: -1, textTransform: 'uppercase' },
+          children: resto || copy.headline } },
+        { type: 'div', key: 'tx', props: {
+          style: { fontSize: Math.round(w * 0.024), color: T.ink3, lineHeight: 1.45, maxWidth: w - pad * 2, marginTop: 8, borderTop: `1px solid ${T.divisor || '#e5e7eb'}`, paddingTop: 12 },
+          children: copy.texto } },
+      ],
+    }};
+  } else if (layout === 'card_financeiro') {
+    // Grid dados · estética cards do index.html · rótulo pequeno + número grande
+    const partes = String(copy.texto || '').split(/\s+·\s+/).filter(Boolean);
+    miolo = { type: 'div', key: 'cf', props: {
+      style: { display: 'flex', flexDirection: 'column', gap: 14, flex: 1, justifyContent: 'center' },
+      children: [
+        { type: 'div', key: 'hl', props: {
+          style: { fontFamily: 'Syne', fontSize: Math.round(w * 0.05), fontWeight: 800, lineHeight: 1.05, letterSpacing: -1 },
+          children: copy.headline } },
+        { type: 'div', key: 'grid', props: {
+          style: { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 },
+          children: partes.slice(0, 4).map((p, i) => {
+            const [k, v] = p.split(/\s*:\s*/);
+            return { type: 'div', key: 'r' + i, props: {
+              style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, borderBottom: `1px solid ${T.divisor || '#e5e7eb'}`, paddingBottom: 6 },
+              children: [
+                { type: 'span', key: 'k', props: { style: { fontFamily: 'JetBrains Mono', fontSize: Math.round(w * 0.018), color: T.ink3, textTransform: 'uppercase', letterSpacing: 1 }, children: v ? k : 'dado' } },
+                { type: 'span', key: 'v', props: { style: { fontFamily: 'Syne', fontSize: Math.round(w * 0.03), fontWeight: 800, color: T.accent }, children: v || k } },
+              ],
+            }};
+          }),
+        }},
+      ],
+    }};
+  } else if (layout === 'teaser_dado') {
+    // Um dado gigante centrado + label + contexto (para story)
+    const escala = Math.min(w, h * 0.6);
+    miolo = { type: 'div', key: 'td', props: {
+      style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, flex: 1, justifyContent: 'center' },
+      children: [
+        { type: 'div', key: 'lb', props: {
+          style: { fontFamily: 'JetBrains Mono', fontSize: Math.round(escala * 0.03), color: T.ink3, textTransform: 'uppercase', letterSpacing: 3 },
+          children: (copy.texto || '').split(' · ')[0] || '' } },
+        { type: 'div', key: 'nm', props: {
+          style: { fontFamily: 'Syne', fontSize: Math.round(escala * 0.22), fontWeight: 800, lineHeight: 0.92, color: T.accent, letterSpacing: -3, textAlign: 'center', whiteSpace: 'nowrap' },
+          children: copy.headline } },
+        { type: 'div', key: 'ct', props: {
+          style: { fontSize: Math.round(escala * 0.04), color: T.ink, textAlign: 'center', maxWidth: w * 0.85, marginTop: 12, lineHeight: 1.35 },
+          children: copy.texto } },
+      ],
+    }};
+  } else if (layout === 'chamada_comprador') {
+    // "PROCURAMOS COMPRADOR" gigante · convite invertido pra comprador se identificar
+    const hl = String(copy.headline || '').replace(/^PROCURAMOS COMPRADOR\s*·?\s*/i, '').trim();
+    miolo = { type: 'div', key: 'ch', props: {
+      style: { display: 'flex', flexDirection: 'column', gap: 18, flex: 1, justifyContent: 'center' },
+      children: [
+        { type: 'div', key: 'pc', props: {
+          style: { fontFamily: 'Syne', fontSize: Math.round(w * 0.09), fontWeight: 800, lineHeight: 0.95, color: T.ink, letterSpacing: -2, textTransform: 'uppercase' },
+          children: 'PROCURAMOS COMPRADOR' } },
+        { type: 'div', key: 'de', props: {
+          style: { fontFamily: 'Syne', fontSize: Math.round(w * 0.048), fontWeight: 800, lineHeight: 1.05, color: T.accent, letterSpacing: -1 },
+          children: hl } },
+        { type: 'div', key: 'tx', props: {
+          style: { fontSize: Math.round(w * 0.024), color: T.ink3, lineHeight: 1.45, maxWidth: w - pad * 2, marginTop: 8, borderLeft: `4px solid ${T.accent}`, paddingLeft: 16 },
+          children: copy.texto } },
+      ],
+    }};
+  } else {
+    // fallback = tipografico_a
+    miolo = { type: 'div', key: 'fb', props: {
+      style: { display: 'flex', flexDirection: 'column', gap: 20, flex: 1, justifyContent: 'center' },
+      children: [
+        { type: 'div', key: 'hl', props: { style: { fontFamily: 'Syne', fontSize: Math.round(w * 0.078), fontWeight: 800, lineHeight: 1.05 }, children: copy.headline } },
+        { type: 'div', key: 'tx', props: { style: { fontSize: Math.round(w * 0.028), color: T.ink3, lineHeight: 1.4 }, children: copy.texto } },
       ],
     }};
   }
