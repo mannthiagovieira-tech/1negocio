@@ -75,22 +75,42 @@ async function chamarClaude({ prompt }) {
 }
 
 function montarPrompt({ lead, arq, msgs, ctxQualitativo, regiao, cidade }) {
-  const contatoNome = lead.contato_nome ? `${lead.contato_nome}${lead.contato_cargo?` (${lead.contato_cargo})`:''}` : '(não identificado)';
+  const cargoRegistrado = lead.contato_cargo || null;
+  const contatoNome = lead.contato_nome ? `${lead.contato_nome}${cargoRegistrado?` (${cargoRegistrado})`:''}` : '(não identificado)';
   const historico = msgs.map(m => `[${new Date(m.recebida_em).toISOString().slice(11,16)}] ${m.corpo || '(vazio)'}`).join('\n') || '(sem mensagens registradas — última tentativa registrada foi seu toque)';
   const nomeFmt = (lead.nome_fantasia || lead.razao_social || '')
     .split(/\s+/).map(w => w[0]?.toUpperCase() + w.slice(1).toLowerCase()).join(' ') || 'Prezado(a)';
+  // Dica de classificação · o operador pode ter registrado cargo no drawer
+  const dicaCargo = cargoRegistrado === 'dono_socio' ? 'DONO_OU_SOCIO (confirmado pelo operador)'
+                  : cargoRegistrado ? `TERCEIRO (cargo="${cargoRegistrado}" registrado pelo operador)`
+                  : 'DESCONHECIDO (classifique pelas mensagens abaixo)';
   return `
-Você recebeu uma resposta de um lead frio e vai rascunhar UMA resposta.
+Você recebeu uma resposta a um toque frio de WhatsApp e vai rascunhar UMA resposta curta.
 
-CONTEXTO DO ATIVO (uso INTERNO · não vaze):
+Antes de escrever, CLASSIFIQUE quem está do outro lado em 1 de 2 caminhos:
+
+CAMINHO (a) DONO OU SÓCIO — sinais: "sim sou o dono", "aqui é o [nome], sócio", pergunta sobre valor/oportunidade em 1ª pessoa, decisão própria ("me interessa", "quanto?"). Nesse caminho, escreva:
+- Apresentação curta: "Sou Thiago Mann, do 1Negócio · assessoria de M&A pra PMEs."
+- Tese do arquétipo em UMA frase (por que faria sentido pra ESSE PERFIL de comprador conversar sobre um caso do setor · derivar da tese/ângulo abaixo).
+- Pergunta de permissão pra avançar (ex: "posso te contar em 5 min o formato do caso, sob confidencialidade?" ou "faz sentido a gente marcar 15 min?").
+- NADA de preço, cidade exata, razão social, sócios, CNPJ, marca proibida.
+
+CAMINHO (b) FUNCIONÁRIO OU TERCEIRO — sinais: "aqui é a atendente/recepção", "o dono não está", cargo operacional. Nesse caminho, escreva:
+- Cordial e breve, pedindo o contato direto do proprietário (nome/WhatsApp/melhor horário).
+- NÃO revele o assunto ("venda", "aquisição", "oportunidade de negócio", "assessoria de M&A"). Trate como "um assunto pra alinhar diretamente com o dono/sócio".
+- Sem urgência, sem enfeite, sem detalhes.
+
+CLASSIFICAÇÃO SUGERIDA (pode divergir se as mensagens apontarem outra coisa): ${dicaCargo}
+
+CONTEXTO INTERNO (uso próprio · não vaze):
 - Setor: ${arq?.filtro?.cnaes?.length ? 'derivado do CNAE' : '—'}
 - Região macro: ${regiao || '—'}
 - Cidade real (INTERNA · nunca cite): ${cidade || '—'}
 
-ARQUÉTIPO deste lead:
+ARQUÉTIPO deste lead (base pra tese em caminho A):
 - Nome: ${arq?.nome || '—'}
 - Tese: ${arq?.tese || '—'}
-- Ângulo (só como MUNIÇÃO · não copie): ${arq?.abordagem?.angulo || '—'}
+- Ângulo (só como MUNIÇÃO · não copie literal): ${arq?.abordagem?.angulo || '—'}
 - Objeção provável: ${arq?.abordagem?.objecao_provavel || '—'}
 
 LEAD:
@@ -100,17 +120,17 @@ LEAD:
 ${historico}
 
 ${ctxQualitativo ? `INFORMAÇÕES QUALITATIVAS DAS FONTES (não copiar literal):\n${ctxQualitativo}\n` : ''}
-REGRAS ABSOLUTAS (violação → rejeição):
+REGRAS ABSOLUTAS (violação → rejeição · valem pros dois caminhos):
 - SEM preço, valor de venda, faturamento, múltiplos ou percentuais numéricos.
 - SEM cidade exata (${cidade || '(sem cidade)'}).
 - SEM razão social, sócio, CNPJ, marca proibida da fonte.
 - SEM afirmação regulatória (licenças, alvará, "em dia com", "sem passivos" etc).
 - SE setor específico for citado, geografia embaça pra macro (regra 2.3).
-- Tom: consultor sênior brasileiro. 2 a 4 frases. Sem emoji. Termina com pergunta ou próximo passo (uma call/reunião breve).
-- Sem prometer nada absoluto ("com certeza é o negócio pra você"). Sem urgência falsa.
-- Se o lead respondeu apenas confirmando recepção ("Recebido", "Vi", etc), agradeça brevemente e proponha 15min pra apresentar o caso sob NDA.
+- Tom: consultor sênior brasileiro. 2 a 4 frases. Sem emoji.
+- Sem prometer nada absoluto. Sem urgência falsa.
+- Se a resposta é apenas confirmação ("Recebido", "Vi"), agradece brevemente e propõe 15 min sob NDA — trate como caminho A.
 
-RETORNO: só o texto da mensagem (sem preâmbulo, sem markdown, sem aspas).
+RETORNO: só o texto da mensagem (sem preâmbulo, sem "Caminho A/B", sem markdown, sem aspas).
 `.trim();
 }
 

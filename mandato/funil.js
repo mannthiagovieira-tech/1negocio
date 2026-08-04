@@ -216,9 +216,18 @@ function rascunhoTemplate(arq, toque) {
   // Toque 2 · BUMP curto (P4.1): tentativa de reconexão + reforço mínimo.
   // Angulo completo vira munição da IA de resposta personalizada, não do T2.
   const corpo = toque === 1
-    ? `Bom dia, {{nome_fantasia}}. Assessoro uma venda no setor · pode fazer sentido a gente conversar rápido pra ver se é caso. Faz sentido?`
+    ? `{{saudacao}}, {{nome_fantasia}}. Assessoro uma venda no setor · pode fazer sentido a gente conversar rápido pra ver se é caso. Faz sentido?`
     : `Oi {{nome_fantasia}}, só reconectando · a oportunidade que citei segue aberta. Se fizer sentido, marco 15 min. Se não for agora, sem problema.`;
   return { arquetipo_id: arq.id, toque, corpo, aprovado: false, _rascunho: true };
+}
+// {{saudacao}} pra preview · usa hora local do browser (operador costuma
+// estar no fuso BR). No envio real, /api/va-cadencia-tick reavalia com
+// timezone America/Sao_Paulo pra garantir independência do host.
+function saudacaoBrowser() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Bom dia';
+  if (h < 18) return 'Boa tarde';
+  return 'Boa noite';
 }
 function bindCadenciaHandlers() {
   document.getElementById('cad-salvar')?.addEventListener('click', salvarCadencia);
@@ -233,7 +242,10 @@ function bindCadenciaHandlers() {
     const update = () => {
       const lead = LEADS.find(l => l.arquetipo_id === aid);
       const nome = fmtNomeLead(lead) || 'Prezado(a)';
-      el.textContent = 'preview: ' + (ta.value || '').replace(/\{\{\s*nome_fantasia\s*\}\}/g, nome).slice(0,80);
+      const resolvido = (ta.value || '')
+        .replace(/\{\{\s*nome_fantasia\s*\}\}/g, nome)
+        .replace(/\{\{\s*saudacao\s*\}\}/gi, saudacaoBrowser());
+      el.textContent = 'preview: ' + resolvido.slice(0, 80);
     };
     ta.addEventListener('input', update); update();
   });

@@ -54,9 +54,22 @@ function nomeFmt(l) {
   const raw = l.nome_fantasia || l.razao_social || '';
   return raw.split(/\s+/).map(w => w[0]?.toUpperCase() + w.slice(1).toLowerCase()).join(' ');
 }
+// {{saudacao}} resolvida no ENVIO com horário BR (America/Sao_Paulo).
+// Vercel roda em UTC · sem Intl.timeZone o horário sai errado. Regra:
+// <12 = Bom dia · 12–<18 = Boa tarde · >=18 = Boa noite.
+function saudacaoAgoraBR() {
+  const h = Number(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo', hour: 'numeric', hour12: false,
+  }).format(new Date()));
+  if (h < 12) return 'Bom dia';
+  if (h < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
 function resolverCorpo(template, lead) {
   const nome = nomeFmt(lead) || 'Prezado(a)';
-  return String(template).replace(/\{\{\s*nome_fantasia\s*\}\}/g, nome);
+  return String(template)
+    .replace(/\{\{\s*nome_fantasia\s*\}\}/g, nome)
+    .replace(/\{\{\s*saudacao\s*\}\}/gi, saudacaoAgoraBR());
 }
 
 function dentroJanela(cfg, now) {
