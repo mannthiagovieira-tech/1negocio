@@ -335,8 +335,14 @@ function trLead(l) {
   const btnCandidatos = (cands.length > 0 && !fone)
     ? `<button class="btn btn--xs" data-cands="${l.id}" title="${cands.length} candidatos Gmaps sem match automático">${cands.length} candidatos</button>`
     : '';
+  // P4.6 · botão WhatsApp direto quando tem contato · verde se verified, neutro senão
+  const foneClean = fone ? String(fone).replace(/\D/g,'') : null;
+  const waOk = l.whatsapp_verificado === true;
+  const btnWa = foneClean
+    ? `<a class="btn btn--xs" style="background:${waOk?'#25D366':'#94a3b8'};color:#fff;padding:2px 6px;font-size:9.5px;text-decoration:none;margin-left:4px" href="https://wa.me/${foneClean}" target="_blank" rel="noopener" title="${waOk?'Abrir WhatsApp':'Abrir WhatsApp · sem verificação (provável fixo)'}">WhatsApp</a>`
+    : '';
   const contatoHtml = fone
-    ? `<div class="mono" style="font-size:11px">${esc(fone)} ${vBadge} ${fonteBadge}
+    ? `<div class="mono" style="font-size:11px">${esc(fone)} ${vBadge} ${fonteBadge}${btnWa}
          <button class="btn btn--xs" style="padding:0 4px;font-size:10px" data-edit-tel="${l.id}" title="editar">✎</button></div>`
     : `<div>
          <button class="btn btn--xs" style="padding:2px 6px" data-edit-tel="${l.id}">+ tel</button>

@@ -65,7 +65,7 @@ module.exports = async (req, res) => {
 
   // 2 · busca leads · válidos = 'antessala' do projeto (bloqueados exigem override individual antes)
   const inList = encodeURIComponent(`(${lead_ids.join(',')})`);
-  const lR = await fetch(`${SB_URL}/rest/v1/va_leads?id=in.${inList}&projeto_id=eq.${projeto_id}&select=id,status,razao_social,nome_fantasia,arquetipo_id,whatsapp,telefone`, { headers: H });
+  const lR = await fetch(`${SB_URL}/rest/v1/va_leads?id=in.${inList}&projeto_id=eq.${projeto_id}&select=id,status,razao_social,nome_fantasia,arquetipo_id,whatsapp,telefone,whatsapp_verificado`, { headers: H });
   const leads = await lR.json();
   if (!Array.isArray(leads) || leads.length === 0) return json(res, 404, { ok:false, erro:'nenhum lead encontrado no projeto' });
 
@@ -97,13 +97,18 @@ module.exports = async (req, res) => {
     const ref = `lead:${shortId} · arq:${refArq}`;
 
     // 4a · UPDATE lead → aprovado com custo (trigger custo checa)
-    // P4 · também seta funil_etapa: 'na_fila' se tem WhatsApp/telefone; 'sem_contato' senão
-    const temFone = !!(lead.whatsapp || lead.telefone);
+    // P4 · funil_etapa: 'na_fila' se tem WhatsApp confirmado ou verificação
+    // ainda pendente com WhatsApp presente. P4.6 · fixo/telefone verified=false
+    // também cai em 'sem_contato' (pool LIGAR) · operador liga direto.
+    const temWa = !!lead.whatsapp;
+    const temFone = temWa || !!lead.telefone;
+    const semWaConfirmado = lead.whatsapp_verificado === false;
+    const funilEtapa = (temFone && !semWaConfirmado) ? 'na_fila' : 'sem_contato';
     const upd = await fetch(`${SB_URL}/rest/v1/va_leads?id=eq.${lead.id}`, {
       method:'PATCH', headers: H,
       body: JSON.stringify({
         status:'aprovado', custo_creditos: precoUnit, aprovado_em: new Date().toISOString(),
-        funil_etapa: temFone ? 'na_fila' : 'sem_contato',
+        funil_etapa: funilEtapa,
       }),
     });
     if (!upd.ok) {

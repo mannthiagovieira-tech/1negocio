@@ -94,9 +94,16 @@ function renderCadencia() {
   bindCadenciaHandlers();
 }
 function corpoCadenciaHTML() {
-  const c = CADENCIA || { ativa:false, teto_diario:4, janela_inicio:'09:00', janela_fim:'18:00', dias_uteis_apenas:true, intervalo_toques_dias:2 };
+  const c = CADENCIA || { ativa:false, teto_diario:4, janela_inicio:'09:00', janela_fim:'18:00', dias_uteis_apenas:true, intervalo_toques_dias:2, modo:'manual' };
+  const modo = c.modo || 'manual';
   return `
     <div class="cad-config-grid">
+      <label>modo
+        <select id="cad-modo" title="manual = tick não envia · você usa botão WhatsApp no card · auto = disparo automático via Z-API respeitando janela/teto">
+          <option value="manual" ${modo==='manual'?'selected':''}>manual (você dispara)</option>
+          <option value="auto" ${modo==='auto'?'selected':''}>automático (Z-API)</option>
+        </select>
+      </label>
       <label>ativa
         <select id="cad-ativa">
           <option value="false" ${!c.ativa?'selected':''}>não</option>
@@ -254,6 +261,7 @@ async function salvarCadencia() {
   const patch = {
     projeto_id: MANDATO.id,
     ativa: document.getElementById('cad-ativa').value === 'true',
+    modo: document.getElementById('cad-modo')?.value || 'manual',
     teto_diario: Number(document.getElementById('cad-teto').value) || 4,
     janela_inicio: document.getElementById('cad-ji').value,
     janela_fim: document.getElementById('cad-jf').value,
@@ -313,7 +321,51 @@ function fmtNomeLead(l) {
 function renderKanban() {
   const el = document.getElementById('kb-wrap');
   el.innerHTML = COLUNAS.map(c => colunaHTML(c)).join('');
-  el.querySelectorAll('[data-lead-abrir]').forEach(k => k.addEventListener('click', () => abrirDrawer(k.dataset.leadAbrir)));
+  el.querySelectorAll('[data-lead-abrir]').forEach(k => k.addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-wa],[data-copy-tpl],[data-tel-liga]')) return; // botões dentro do card não abrem drawer
+    abrirDrawer(k.dataset.leadAbrir);
+  }));
+  el.querySelectorAll('[data-wa]').forEach(b => b.addEventListener('click', (ev) => { ev.stopPropagation(); abrirWhatsApp(b.dataset.wa, b.dataset.waFone); }));
+  el.querySelectorAll('[data-copy-tpl]').forEach(b => b.addEventListener('click', (ev) => { ev.stopPropagation(); copiarTemplateResolvido(b.dataset.copyTpl); }));
+  el.querySelectorAll('[data-tel-liga]').forEach(b => b.addEventListener('click', (ev) => { ev.stopPropagation(); registrarTentativaLigacao(b.dataset.telLiga); }));
+}
+// P4.6 · abre wa.me em nova aba + log + move na_fila → contatado.
+// Desfazer: operador reabre drawer e usa "Mover…" pra voltar pra na_fila.
+async function abrirWhatsApp(leadId, foneClean) {
+  window.open('https://wa.me/' + foneClean, '_blank', 'noopener');
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const r = await fetch('/api/va-lead-contato-manual', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ lead_id: leadId, acao:'contato_manual_iniciado', detalhe:'wa.me · click UI', mover_para_contatado: true }),
+    });
+    const d = await r.json();
+    if (d.ok && d.etapa_antes !== d.etapa_depois) toast('ok', 'Aberto no WhatsApp · lead movido pra Contatado');
+    await recarregarTudo();
+  } catch (e) { /* abertura do wa.me é o que importa */ }
+}
+async function registrarTentativaLigacao(leadId) {
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    await fetch('/api/va-lead-contato-manual', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ lead_id: leadId, acao:'tentativa_ligacao', detalhe:'clique em Ligar UI' }),
+    });
+    toast('ok', 'Tentativa registrada');
+  } catch (e) { /* silêncio */ }
+}
+async function copiarTemplateResolvido(chave) {
+  const [leadId, toqueStr] = String(chave).split('::');
+  const toque = Number(toqueStr);
+  const lead = LEADS.find(l => l.id === leadId);
+  if (!lead) return;
+  const tpl = TEMPLATES.find(t => t.arquetipo_id === lead.arquetipo_id && t.toque === toque && t.aprovado);
+  if (!tpl) { toast('err', 'Sem template T'+toque+' aprovado'); return; }
+  const texto = resolverTemplateParaLead(tpl.corpo, lead);
+  try {
+    await navigator.clipboard.writeText(texto);
+    toast('ok', 'T'+toque+' copiado');
+  } catch (e) { toast('err', 'Falha ao copiar'); }
 }
 function colunaHTML(col) {
   const rows = LEADS.filter(l => l.funil_etapa === col.key);
@@ -336,10 +388,46 @@ function badgeVerificado(l) {
   return '<span title="verificação pendente" style="color:#94a3b8">○</span>';
 }
 
+// P4.6 · botão WhatsApp · abre wa.me/{numero} em nova aba.
+// Prioridade: whatsapp verified > telefone (para operador ligar em fixo).
+// Verde forte = whatsapp_verificado=true · neutro senão.
+function foneParaContato(l) { return l.whatsapp || l.telefone || null; }
+function botaoWa(l, tamanho) {
+  const fone = foneParaContato(l);
+  if (!fone) return '';
+  const clean = String(fone).replace(/\D/g,'');
+  const ok = l.whatsapp_verificado === true;
+  const bg = ok ? '#25D366' : '#94a3b8';
+  const title = ok ? 'Abrir WhatsApp' : 'Abrir WhatsApp · sem verificação (provável fixo)';
+  const px = tamanho === 'lg' ? '11px' : '9.5px';
+  return `<button class="btn btn--xs" style="background:${bg};color:#fff;padding:2px 6px;font-size:${px}" data-wa="${l.id}" data-wa-fone="${clean}" title="${title}">WhatsApp</button>`;
+}
+function botaoTel(l) {
+  const fone = foneParaContato(l);
+  if (!fone || l.whatsapp_verificado === true) return '';
+  const clean = String(fone).replace(/\D/g,'');
+  return `<a class="btn btn--xs" style="padding:2px 6px;font-size:9.5px" href="tel:+${clean}" title="Ligar">Ligar</a>`;
+}
+function botaoCopyT(l, toque) {
+  if (l.whatsapp_verificado !== true) return ''; // só faz sentido pra quem tem WA
+  const tpl = TEMPLATES.find(t => t.arquetipo_id === l.arquetipo_id && t.toque === toque && t.aprovado);
+  if (!tpl) return '';
+  return `<button class="btn btn--xs" style="padding:2px 5px;font-size:9.5px" data-copy-tpl="${l.id}::${toque}" title="Copia T${toque} pro clipboard com {{saudacao}}/{{nome_fantasia}} resolvidos">copiar T${toque}</button>`;
+}
+function resolverTemplateParaLead(corpo, lead) {
+  const nome = (fmtNomeLead(lead) || 'Prezado(a)');
+  return String(corpo || '')
+    .replace(/\{\{\s*nome_fantasia\s*\}\}/g, nome)
+    .replace(/\{\{\s*saudacao\s*\}\}/gi, saudacaoBrowser());
+}
+
 function cardHTML(l) {
   const arq = ARQUETIPOS.find(a => a.id === l.arquetipo_id)?.nome || '—';
   const caption = captionCard(l);
   const pause = l.pausado ? ' <span class="kb-card__pause" title="pausado manualmente">‖</span>' : '';
+  const toqueCopy = l.funil_etapa === 'na_fila' ? 1 : (l.funil_etapa === 'contatado' && !l.toque2_em ? 2 : null);
+  const acoes = (l.funil_etapa === 'na_fila' || l.funil_etapa === 'contatado')
+    ? `<div class="kb-card__acoes" style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap">${botaoWa(l)}${toqueCopy ? botaoCopyT(l, toqueCopy) : ''}</div>` : '';
   return `
     <div class="kb-card" data-lead-abrir="${l.id}" title="${esc(l.razao_social||'')}">
       <div class="kb-card__nome">${esc(fmtNomeLead(l) || '(sem nome)')}${pause} ${badgeVerificado(l)}</div>
@@ -347,6 +435,7 @@ function cardHTML(l) {
         <span class="pill" style="font-size:10px">${esc(arq.slice(0,30))}</span>
         <span>${caption}</span>
       </div>
+      ${acoes}
     </div>
   `;
 }
@@ -364,11 +453,16 @@ function captionCard(l) {
 }
 function renderFora() {
   const el = document.getElementById('kb-fora');
-  const semC = LEADS.filter(l => l.funil_etapa === 'sem_contato').length;
+  // P4.6 · pool LIGAR = sem_contato com telefone (verified=false ou fixo) ·
+  // SEM CONTATO puro = sem_contato sem telefone algum.
+  const semContato = LEADS.filter(l => l.funil_etapa === 'sem_contato');
+  const ligar  = semContato.filter(l => (l.telefone || l.whatsapp));
+  const semTel = semContato.filter(l => !l.telefone && !l.whatsapp);
   const optOut = LEADS.filter(l => l.funil_etapa === 'optout').length;
   const promov = LEADS.filter(l => l.funil_etapa === 'promovido').length;
   el.innerHTML = `
-    ${semC ? `<button data-fora-toggle="sem_contato">sem contato (${semC})</button>` : ''}
+    ${ligar.length  ? `<button data-fora-toggle="ligar">LIGAR (${ligar.length})</button>` : ''}
+    ${semTel.length ? `<button data-fora-toggle="sem_contato">sem contato (${semTel.length})</button>` : ''}
     ${optOut ? `<button data-fora-toggle="optout">opt-out (${optOut})</button>` : ''}
     ${promov ? `<button data-fora-toggle="promovido">Promovidos (${promov})</button>` : ''}
   `;
@@ -394,7 +488,13 @@ async function abrirDrawer(leadId) {
         <div class="mono muted" style="font-size:11px">${esc(l.cnpj || '—')} · ${esc(l.cidade || '')}/${esc(l.uf || '')}</div>
         <div class="mono" style="font-size:11px;margin-top:4px">arquétipo: <b>${esc(arq?.nome || '—')}</b></div>
         <div class="mono" style="font-size:11px">whatsapp: <b>${esc(l.whatsapp || '(sem)')}</b> ${badgeVerificado(l)} · telefone: <b>${esc(l.telefone || '(sem)')}</b></div>
-        <div class="row">
+        <div class="row" style="margin-top:6px">
+          ${botaoWa(l, 'lg')}
+          ${botaoTel(l)}
+          ${botaoCopyT(l, 1)}
+          ${botaoCopyT(l, 2)}
+        </div>
+        <div class="row" style="margin-top:6px">
           <button class="btn btn--sm" id="drw-pausar">${l.pausado?'Retomar cadência':'Pausar cadência'}</button>
           <button class="btn btn--sm" id="drw-mover">Mover…</button>
           <button class="btn btn--sm" id="drw-reverify" title="Re-verificar via Z-API">Re-verificar WhatsApp</button>
@@ -454,6 +554,10 @@ async function abrirDrawer(leadId) {
   document.getElementById('drw-rascunhar')?.addEventListener('click', () => rascunharIA(leadId));
   document.getElementById('drw-regenerar')?.addEventListener('click', () => rascunharIA(leadId));
   document.getElementById('drw-enviar')?.addEventListener('click', () => enviarResposta(leadId));
+  // P4.6 · handlers dos botões wa/copy/tel do topo do drawer
+  document.querySelectorAll('.drw [data-wa]').forEach(b => b.addEventListener('click', (ev) => { ev.stopPropagation(); abrirWhatsApp(b.dataset.wa, b.dataset.waFone); }));
+  document.querySelectorAll('.drw [data-copy-tpl]').forEach(b => b.addEventListener('click', (ev) => { ev.stopPropagation(); copiarTemplateResolvido(b.dataset.copyTpl); }));
+  document.querySelectorAll('.drw [data-tel-liga]').forEach(b => b.addEventListener('click', (ev) => { ev.stopPropagation(); registrarTentativaLigacao(b.dataset.telLiga); }));
 }
 
 // Junta disparos + mensagens em uma timeline única (asc por tempo)
@@ -547,22 +651,44 @@ async function reverificarLead(leadId) {
 
 // P4.4-fix · lista modal dos leads fora do kanban · clique abre drawer normal
 function abrirListaFora(etapa) {
-  const leads = LEADS.filter(l => l.funil_etapa === etapa);
+  // P4.6 · "ligar" = sem_contato COM telefone (WhatsApp não verificado ou fixo)
+  let leads;
+  if (etapa === 'ligar') {
+    leads = LEADS.filter(l => l.funil_etapa === 'sem_contato' && (l.telefone || l.whatsapp));
+  } else if (etapa === 'sem_contato') {
+    leads = LEADS.filter(l => l.funil_etapa === 'sem_contato' && !l.telefone && !l.whatsapp);
+  } else {
+    leads = LEADS.filter(l => l.funil_etapa === etapa);
+  }
   if (!leads.length) return;
-  const rotulos = { sem_contato:'Sem contato', optout:'Opt-out', promovido:'Promovidos' };
+  const rotulos = { ligar:'LIGAR (fixo/sem WhatsApp)', sem_contato:'Sem contato', optout:'Opt-out', promovido:'Promovidos' };
+  const desc = {
+    ligar: 'Leads com telefone mas SEM WhatsApp verificado — ligue direto. Ao encontrar WhatsApp na ligação, atualize o número na antessala pra re-verificação.',
+    sem_contato: 'Leads aprovados no portão sem telefone/WhatsApp após cascata. Abra pra enriquecer manualmente.',
+  };
   const html = `<div class="drw-bg" onclick="if(event.target===this)this.remove()">
     <div class="drw">
       <button class="btn btn--sm" onclick="this.closest('.drw-bg').remove()" style="float:right">Fechar</button>
       <h3>${esc(rotulos[etapa] || etapa)} (${leads.length})</h3>
-      <div class="mono muted" style="font-size:11px;margin-bottom:12px">${etapa === 'sem_contato' ? 'Leads aprovados no portão sem telefone/WhatsApp após cascata. Clique pra abrir · pode enriquecer manualmente na antessala ou editar contato.' : ''}</div>
+      <div class="mono muted" style="font-size:11px;margin-bottom:12px">${desc[etapa] || ''}</div>
       <div style="display:flex;flex-direction:column;gap:6px">
-        ${leads.map(l => `
-          <div class="drw__msg" data-lead-open="${l.id}" style="cursor:pointer">
-            <b>${esc(fmtNomeLead(l) || l.razao_social || '(sem nome)')}</b>
-            <div class="mono" style="font-size:10.5px;color:var(--ink-3)">${esc(l.cnpj||'—')} · ${esc(l.cidade||'')}/${esc(l.uf||'')}${l.contato_fonte?' · fonte '+esc(l.contato_fonte):''}</div>
-            ${l.dados_enriquecimento?.gmaps?.candidatos?.length ? `<div class="mono" style="font-size:10px;color:var(--ink-3)">${l.dados_enriquecimento.gmaps.candidatos.length} candidatos Gmaps (score ${l.dados_enriquecimento.gmaps.candidatos[0]?.score||'?'})</div>` : ''}
-          </div>
-        `).join('')}
+        ${leads.map(l => {
+          const fone = l.telefone || l.whatsapp;
+          const clean = fone ? String(fone).replace(/\D/g,'') : null;
+          const acoes = etapa === 'ligar' && clean
+            ? `<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
+                 <a class="btn btn--xs" href="tel:+${clean}" data-tel-liga="${l.id}" style="padding:2px 6px;font-size:10px">Ligar ${esc(fone)}</a>
+                 ${botaoWa(l)}
+               </div>` : '';
+          return `
+          <div class="drw__msg" style="cursor:pointer">
+            <div data-lead-open="${l.id}">
+              <b>${esc(fmtNomeLead(l) || l.razao_social || '(sem nome)')}</b> ${badgeVerificado(l)}
+              <div class="mono" style="font-size:10.5px;color:var(--ink-3)">${esc(l.cnpj||'—')} · ${esc(l.cidade||'')}/${esc(l.uf||'')}${l.contato_fonte?' · fonte '+esc(l.contato_fonte):''}</div>
+            </div>
+            ${acoes}
+          </div>`;
+        }).join('')}
       </div>
     </div>
   </div>`;
@@ -572,6 +698,8 @@ function abrirListaFora(etapa) {
     document.querySelector('.drw-bg')?.remove();
     abrirDrawer(id);
   }));
+  document.querySelectorAll('[data-tel-liga]').forEach(b => b.addEventListener('click', (ev) => { ev.stopPropagation(); registrarTentativaLigacao(b.dataset.telLiga); }));
+  document.querySelectorAll('[data-wa]').forEach(b => b.addEventListener('click', (ev) => { ev.stopPropagation(); abrirWhatsApp(b.dataset.wa, b.dataset.waFone); }));
 }
 
 async function togglePausa(id) {

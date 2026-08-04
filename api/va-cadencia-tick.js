@@ -234,7 +234,10 @@ module.exports = async (req, res) => {
 
   for (const cfg of configs) {
     const projeto_id = cfg.projeto_id;
-    const rProj = { projeto_id, disparos: [], skipped: null };
+    const rProj = { projeto_id, disparos: [], skipped: null, modo: cfg.modo || 'manual' };
+    // P4.6 · em modo manual, tick não envia (default do sistema). Operador dispara
+    // via botão wa.me no card. Auto = disparo pela Z-API respeitando janela/teto.
+    if ((cfg.modo || 'manual') !== 'auto') { rProj.skipped = 'modo_manual'; resultado.projetos.push(rProj); continue; }
     if (!dentroJanela(cfg, now)) { rProj.skipped = 'fora_da_janela'; resultado.projetos.push(rProj); continue; }
     const jaHoje = await contarEnviadosHoje(projeto_id);
     const orcamento = Math.min(cfg.teto_diario - jaHoje, MAX_ENVIOS_POR_TICK);
