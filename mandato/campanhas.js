@@ -297,45 +297,288 @@ function bindCampanhaCards() {
 async function criarCampanha() {
   const aprovados = CRIATIVOS.filter(c => c.status === 'aprovado' && c.png_path);
   if (!aprovados.length) { toast('err', 'Aprove pelo menos 1 criativo antes'); return; }
-  const nome = prompt('Nome da campanha:', `Campanha ${new Date().toISOString().slice(0,10)}`);
-  if (!nome) return;
-  // Escolha do criativo
-  const escolhas = aprovados.map((c, i) => `${i+1}. ${(c.formato||'').padEnd(16)} · ${(c.headline||'').slice(0,40)}`).join('\n');
-  const idx = parseInt(prompt('Escolha o criativo (número):\n\n' + escolhas, '1'), 10) - 1;
-  if (isNaN(idx) || !aprovados[idx]) return;
-  const cri = aprovados[idx];
-  const arq = ARQUETIPOS.find(a => a.id === cri.arquetipo_id);
-  // Pré-preenche público do segmentacao_meta do arquétipo
-  const seg = arq?.abordagem?.segmentacao_meta || '';
-  const publico = { idade_min: 30, idade_max: 65, interesses: seg ? [seg] : [], regioes: [{ uf: MANDATO.uf || 'BR' }] };
-  const orc = parseFloat(prompt('Orçamento diário (R$):', '30')) || 30;
-  const dias = parseInt(prompt('Duração (dias):', '14'), 10) || 14;
-  const objetivo = confirm('Usar CTWA (WhatsApp direto)?\n\nOK = CTWA · Cancelar = Lead Gen (fallback)') ? 'ctwa' : 'leadgen';
+  abrirBuilderPublico(null, aprovados);
+}
+
+// P5.2 · builder do público em camadas · modal estruturado
+function abrirBuilderPublico(campanhaExistente, aprovados) {
+  const c = campanhaExistente || {};
+  const p = c.publico || {};
+  const geo = p.geo || { modo: 'ufs', ufs: [MANDATO.uf || 'RJ'], cidades: [] };
+  const html = `<div class="drw-bg" onclick="if(event.target===this)this.remove()">
+    <div class="drw" style="max-width:640px">
+      <button class="btn btn--sm" onclick="this.closest('.drw-bg').remove()" style="float:right">Fechar</button>
+      <h3>${campanhaExistente ? 'Editar' : 'Nova'} campanha</h3>
+      <div class="cad-config-grid" style="margin-top:8px">
+        <label>Nome
+          <input id="pub-nome" type="text" value="${esc(c.nome || ('Campanha ' + new Date().toISOString().slice(0,10)))}">
+        </label>
+        <label>Criativo aprovado
+          <select id="pub-cri">
+            ${aprovados.map(cr => `<option value="${cr.id}" ${cr.id===c.criativo_id?'selected':''}>${esc((cr.formato||'')+' · '+(cr.headline||'').slice(0,40))}</option>`).join('')}
+          </select>
+        </label>
+        <label>Objetivo
+          <select id="pub-obj">
+            <option value="ctwa" ${c.objetivo_meta==='ctwa'?'selected':''}>CTWA (WhatsApp)</option>
+            <option value="leadgen" ${c.objetivo_meta==='leadgen'?'selected':''}>Lead Gen (form no anúncio)</option>
+            <option value="trafego" ${c.objetivo_meta==='trafego'?'selected':''}>Tráfego (link externo)</option>
+          </select>
+        </label>
+        <label>Orçamento diário (R$)
+          <input id="pub-orc" type="number" min="5" max="10000" value="${c.orcamento_diario || 30}">
+        </label>
+        <label>Duração (dias)
+          <input id="pub-dias" type="number" min="1" max="90" value="14">
+        </label>
+      </div>
+      <hr style="margin:14px 0;border:none;border-top:1px solid var(--divisor)">
+      <h4 style="margin:0 0 8px 0">Geo</h4>
+      <div class="row">
+        <label><input type="radio" name="pub-geo-modo" value="ufs" ${geo.modo!=='cidades'?'checked':''}> UFs</label>
+        <label><input type="radio" name="pub-geo-modo" value="cidades" ${geo.modo==='cidades'?'checked':''}> Cidades (raio)</label>
+      </div>
+      <div id="pub-geo-body" style="margin-top:8px"></div>
+      <hr style="margin:14px 0;border:none;border-top:1px solid var(--divisor)">
+      <h4 style="margin:0 0 8px 0">Demografia</h4>
+      <div class="cad-config-grid">
+        <label>Idade mín <input id="pub-imin" type="number" min="18" max="65" value="${p.idade_min || 30}"></label>
+        <label>Idade máx <input id="pub-imax" type="number" min="18" max="65" value="${p.idade_max || 60}"></label>
+        <label>Gênero
+          <select id="pub-gen">
+            <option value="todos" ${!p.genero||p.genero==='todos'?'selected':''}>todos</option>
+            <option value="homens" ${p.genero==='homens'?'selected':''}>homens</option>
+            <option value="mulheres" ${p.genero==='mulheres'?'selected':''}>mulheres</option>
+          </select>
+        </label>
+      </div>
+      <hr style="margin:14px 0;border:none;border-top:1px solid var(--divisor)">
+      <h4 style="margin:0 0 8px 0">Interesses</h4>
+      <div class="row" style="gap:6px">
+        <input id="pub-int-q" type="text" placeholder="buscar (ex: pequenas empresas)" style="flex:1;padding:6px 8px">
+        <button class="btn btn--sm" id="pub-int-buscar">Buscar</button>
+      </div>
+      <div id="pub-int-sugestoes" class="mono" style="font-size:11px;margin-top:6px;max-height:120px;overflow:auto"></div>
+      <div id="pub-int-selecionados" style="margin-top:8px"></div>
+      <label style="margin-top:10px;display:flex;align-items:center;gap:6px">
+        <input id="pub-adv" type="checkbox" ${p.advantage_detailed!==false?'checked':''}>
+        Advantage Detailed Targeting <span class="mono muted" style="font-size:10.5px">(Meta expande além dos interesses · recomendado)</span>
+      </label>
+      <hr style="margin:14px 0;border:none;border-top:1px solid var(--divisor)">
+      <div id="pub-resumo" class="mono" style="font-size:11px;background:#f3f4f6;padding:10px;border-radius:6px"></div>
+      <div id="pub-alcance" class="mono muted" style="font-size:11px;margin-top:6px"></div>
+      <div class="row" style="justify-content:space-between;margin-top:14px">
+        <button class="btn btn--sm" id="pub-alcance-btn">Estimar alcance</button>
+        <button class="btn btn--sm btn--primary" id="pub-salvar">${campanhaExistente?'Salvar':'Criar rascunho'}</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  ESTADO_PUB = { geo, interesses: (p.interesses || []).slice() };
+  bindBuilderPublico(campanhaExistente);
+  renderGeoBody(); renderInteresses(); atualizarResumo();
+}
+
+let ESTADO_PUB = { geo: {}, interesses: [] };
+
+function renderGeoBody() {
+  const el = document.getElementById('pub-geo-body');
+  if (!el) return;
+  if (ESTADO_PUB.geo.modo === 'cidades') {
+    el.innerHTML = `
+      <div class="row" style="gap:6px">
+        <input id="pub-geo-cidq" type="text" placeholder="buscar cidade" style="flex:1;padding:6px 8px">
+        <button class="btn btn--sm" id="pub-geo-cidbtn">Buscar</button>
+      </div>
+      <div id="pub-geo-cidsug" class="mono" style="font-size:11px;margin-top:6px;max-height:120px;overflow:auto"></div>
+      <div id="pub-geo-cidsel" style="margin-top:8px">${
+        (ESTADO_PUB.geo.cidades||[]).map((c,i) => `<span class="pill" style="margin:2px">${esc(c.nome)} · ${c.raio_km}km <button data-cid-rm="${i}" style="background:none;border:0;cursor:pointer;color:#dc2626">×</button></span>`).join('') || '<span class="muted mono" style="font-size:11px">nenhuma cidade</span>'
+      }</div>
+    `;
+    document.getElementById('pub-geo-cidbtn').addEventListener('click', buscarCidades);
+    document.querySelectorAll('[data-cid-rm]').forEach(b => b.addEventListener('click', () => {
+      ESTADO_PUB.geo.cidades.splice(Number(b.dataset.cidRm), 1);
+      renderGeoBody(); atualizarResumo();
+    }));
+  } else {
+    el.innerHTML = `<input id="pub-geo-ufs" type="text" placeholder="UFs separadas por vírgula (ex: RJ,SP,MG)" value="${(ESTADO_PUB.geo.ufs||[]).join(',')}" style="width:100%;padding:6px 8px">`;
+    document.getElementById('pub-geo-ufs').addEventListener('input', (ev) => {
+      ESTADO_PUB.geo.ufs = ev.target.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+      atualizarResumo();
+    });
+  }
+}
+async function buscarCidades() {
+  const q = document.getElementById('pub-geo-cidq').value.trim();
+  if (!q) return;
+  const el = document.getElementById('pub-geo-cidsug');
+  el.innerHTML = 'buscando…';
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const r = await fetch('/api/va-meta-buscar', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ type: 'adgeolocation', q, limit: 8 }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) { el.innerHTML = '<span style="color:#dc2626">' + esc(d.erro || 'erro') + '</span>'; return; }
+    el.innerHTML = (d.sugestoes || []).map((s,i) => `<div style="padding:4px;cursor:pointer;border-bottom:1px solid #eee" data-cid-add="${i}">${esc(s.nome)} (${esc(s.regiao||'')})</div>`).join('') || 'nada encontrado';
+    el.querySelectorAll('[data-cid-add]').forEach(b => b.addEventListener('click', () => {
+      const s = d.sugestoes[Number(b.dataset.cidAdd)];
+      ESTADO_PUB.geo.cidades = ESTADO_PUB.geo.cidades || [];
+      ESTADO_PUB.geo.cidades.push({ nome: s.nome, meta_key: s.meta_key, raio_km: 25 });
+      renderGeoBody(); atualizarResumo();
+    }));
+  } catch (e) { el.innerHTML = '<span style="color:#dc2626">rede: ' + esc(String(e.message)) + '</span>'; }
+}
+
+function renderInteresses() {
+  const el = document.getElementById('pub-int-selecionados');
+  if (!el) return;
+  el.innerHTML = ESTADO_PUB.interesses.length
+    ? ESTADO_PUB.interesses.map((i,idx) => `<span class="pill" style="margin:2px">${esc(i.nome)} <button data-int-rm="${idx}" style="background:none;border:0;cursor:pointer;color:#dc2626">×</button></span>`).join('')
+    : '<span class="muted mono" style="font-size:11px">nenhum interesse selecionado</span>';
+  el.querySelectorAll('[data-int-rm]').forEach(b => b.addEventListener('click', () => {
+    ESTADO_PUB.interesses.splice(Number(b.dataset.intRm), 1);
+    renderInteresses(); atualizarResumo();
+  }));
+}
+async function buscarInteresses() {
+  const q = document.getElementById('pub-int-q').value.trim();
+  if (!q) return;
+  const el = document.getElementById('pub-int-sugestoes');
+  el.innerHTML = 'buscando…';
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    const r = await fetch('/api/va-meta-buscar', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ type: 'adinterest', q, limit: 12 }),
+    });
+    const d = await r.json();
+    if (r.status === 503) { el.innerHTML = '<span style="color:#dc2626">META_ACCESS_TOKEN ausente na Vercel · sem busca por enquanto</span>'; return; }
+    if (!r.ok || !d.ok) { el.innerHTML = '<span style="color:#dc2626">' + esc(d.erro || 'erro') + '</span>'; return; }
+    el.innerHTML = (d.sugestoes || []).map((s,i) => `<div style="padding:4px;cursor:pointer;border-bottom:1px solid #eee" data-int-add="${i}">${esc(s.nome)}${s.path?' <span class="muted" style="font-size:10px">('+esc(s.path)+')</span>':''}${s.audience?' <span class="muted" style="font-size:10px">· ~'+Number(s.audience).toLocaleString('pt-BR')+'</span>':''}</div>`).join('') || 'nada encontrado';
+    el.querySelectorAll('[data-int-add]').forEach(b => b.addEventListener('click', () => {
+      const s = d.sugestoes[Number(b.dataset.intAdd)];
+      if (!ESTADO_PUB.interesses.find(x => x.meta_id === s.meta_id)) {
+        ESTADO_PUB.interesses.push({ meta_id: s.meta_id, nome: s.nome });
+      }
+      renderInteresses(); atualizarResumo();
+    }));
+  } catch (e) { el.innerHTML = '<span style="color:#dc2626">rede: ' + esc(String(e.message)) + '</span>'; }
+}
+
+function coletarPublico() {
+  const imin = Math.max(18, Math.min(65, Number(document.getElementById('pub-imin').value) || 30));
+  const imax = Math.max(18, Math.min(65, Number(document.getElementById('pub-imax').value) || 60));
+  return {
+    geo: ESTADO_PUB.geo,
+    idade_min: imin, idade_max: imax,
+    genero: document.getElementById('pub-gen').value,
+    interesses: ESTADO_PUB.interesses,
+    comportamentos: [],
+    advantage_detailed: document.getElementById('pub-adv').checked,
+    audiencias: { incluir: [], excluir: [] },
+    posicionamentos: 'automatico',
+    idiomas: ['pt_BR'],
+  };
+}
+
+function atualizarResumo() {
+  const el = document.getElementById('pub-resumo');
+  if (!el) return;
+  const p = coletarPublico();
+  const g = p.geo || {};
+  let geoStr = '(sem geo)';
+  if (g.modo === 'cidades' && g.cidades?.length) {
+    geoStr = g.cidades.map(c => `${c.nome} (raio ${c.raio_km}km)`).join(', ');
+  } else if (g.modo === 'ufs' && g.ufs?.length) {
+    geoStr = g.ufs.join('/');
+  }
+  const intStr = p.interesses.length ? p.interesses.map(i => i.nome).join(', ') : '(nenhum · Advantage ' + (p.advantage_detailed?'ON expande':'OFF · público AMPLO') + ')';
+  el.textContent = `${p.idade_min}-${p.idade_max} · ${p.genero} · ${geoStr} · interesses: ${intStr} · Advantage ${p.advantage_detailed?'ON':'OFF'}`;
+  const alerta = [];
+  if (!g.modo || (g.modo === 'cidades' && !g.cidades?.length) || (g.modo === 'ufs' && !g.ufs?.length)) alerta.push('⚠ geo vazio');
+  if (!p.interesses.length && !p.advantage_detailed) alerta.push('⚠ público amplo demais (sem interesses e Advantage OFF)');
+  if (alerta.length) el.innerHTML += '<div style="color:#dc2626;margin-top:4px">' + alerta.join(' · ') + '</div>';
+}
+
+function bindBuilderPublico(campanhaExistente) {
+  document.querySelectorAll('input[name="pub-geo-modo"]').forEach(r => r.addEventListener('change', () => {
+    ESTADO_PUB.geo.modo = document.querySelector('input[name="pub-geo-modo"]:checked').value;
+    renderGeoBody(); atualizarResumo();
+  }));
+  ['pub-imin','pub-imax','pub-gen','pub-adv'].forEach(id => document.getElementById(id).addEventListener('input', atualizarResumo));
+  document.getElementById('pub-int-buscar').addEventListener('click', buscarInteresses);
+  document.getElementById('pub-alcance-btn').addEventListener('click', estimarAlcance);
+  document.getElementById('pub-salvar').addEventListener('click', () => salvarCampanha(campanhaExistente));
+}
+
+async function estimarAlcance() {
+  const el = document.getElementById('pub-alcance');
+  el.textContent = 'calculando…';
+  try {
+    const tok = (await sb.auth.getSession()).data.session?.access_token;
+    // Pra chamar delivery_estimate precisamos do targeting_spec traduzido.
+    // Como o traduzir mora no backend, chamamos o dry_run do publicar-campanha com uma
+    // campanha temporária em memória? Simplificado: pedimos o backend receber o publico e
+    // devolver o spec + alcance num único endpoint. Por ora, chamamos meta-buscar reach_estimate
+    // com um spec montado no front (versão simplificada).
+    const p = coletarPublico();
+    const g = p.geo || {};
+    const spec = { age_min: p.idade_min, age_max: p.idade_max };
+    if (g.modo === 'cidades' && g.cidades?.length) spec.geo_locations = { cities: g.cidades.map(c => ({ key: c.meta_key, radius: c.raio_km, distance_unit: 'kilometer' })) };
+    else if (g.modo === 'ufs' && g.ufs?.length) spec.geo_locations = { regions: g.ufs.map(u => ({ key: u })) };
+    else spec.geo_locations = { countries: ['BR'] };
+    if (p.interesses.length) spec.flexible_spec = [{ interests: p.interesses.map(i => ({ id: i.meta_id, name: i.nome })) }];
+    if (p.genero === 'homens') spec.genders = [1]; else if (p.genero === 'mulheres') spec.genders = [2];
+    const r = await fetch('/api/va-meta-buscar', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
+      body: JSON.stringify({ type: 'reach_estimate', targeting_spec: spec }),
+    });
+    const d = await r.json();
+    if (r.status === 503) { el.textContent = 'META_ACCESS_TOKEN ausente · alcance indisponível'; return; }
+    if (!r.ok || !d.ok) { el.textContent = 'erro: ' + (d.erro || 'HTTP ' + r.status); return; }
+    if (d.users_lower || d.users_upper) el.textContent = `alcance potencial: ${(d.users_lower||0).toLocaleString('pt-BR')}–${(d.users_upper||0).toLocaleString('pt-BR')} pessoas`;
+    else el.textContent = 'alcance: sem dados retornados';
+  } catch (e) { el.textContent = 'rede: ' + String(e.message).slice(0,180); }
+}
+
+async function salvarCampanha(campanhaExistente) {
+  const nome = document.getElementById('pub-nome').value.trim();
+  if (!nome) { toast('err', 'nome obrigatório'); return; }
+  const cri_id = document.getElementById('pub-cri').value;
+  const objetivo = document.getElementById('pub-obj').value;
+  const orc = Number(document.getElementById('pub-orc').value) || 30;
+  const dias = Number(document.getElementById('pub-dias').value) || 14;
+  const publico = coletarPublico();
+  // Validação leve · geo obrigatório
+  if (!publico.geo?.modo || (publico.geo.modo === 'cidades' && !publico.geo.cidades?.length) || (publico.geo.modo === 'ufs' && !publico.geo.ufs?.length)) {
+    toast('err', 'geo obrigatório'); return;
+  }
+  const cri = CRIATIVOS.find(c => c.id === cri_id);
   const inicio = new Date().toISOString().slice(0,10);
   const fim = new Date(Date.now() + dias * 86400_000).toISOString().slice(0,10);
-  const { error } = await sb.from('va_campanhas').insert({
-    projeto_id: MANDATO.id, criativo_id: cri.id, arquetipo_id: cri.arquetipo_id,
-    nome, plataforma: 'meta', objetivo_meta: objetivo, objetivo: objetivo,
+  const row = {
+    projeto_id: MANDATO.id, criativo_id: cri_id, arquetipo_id: cri?.arquetipo_id,
+    nome, plataforma:'meta', objetivo_meta: objetivo, objetivo,
     publico, orcamento_diario: orc, orcamento_total: orc * dias,
     data_inicio: inicio, data_fim: fim, status: 'rascunho',
-  });
-  if (error) { toast('err', error.message.slice(0,220)); return; }
-  toast('ok', 'Rascunho criado');
+  };
+  const q = campanhaExistente
+    ? sb.from('va_campanhas').update({ nome, publico, orcamento_diario: orc, orcamento_total: orc * dias, objetivo_meta: objetivo, objetivo }).eq('id', campanhaExistente.id)
+    : sb.from('va_campanhas').insert(row);
+  const { error } = await q;
+  if (error) { toast('err', error.message.slice(0, 220)); return; }
+  toast('ok', campanhaExistente ? 'Salva' : 'Rascunho criado');
+  document.querySelector('.drw-bg')?.remove();
   await recarregar();
 }
 
 async function editarCampanha(id) {
   const c = CAMPANHAS.find(x => x.id === id);
   if (!c) return;
-  const orc = parseFloat(prompt('Orçamento diário (R$):', String(c.orcamento_diario || 30))) || c.orcamento_diario;
-  const dias = parseInt(prompt('Duração (dias):', '14'), 10) || 14;
-  const inicio = c.data_inicio || new Date().toISOString().slice(0,10);
-  const fim = new Date(new Date(inicio).getTime() + dias * 86400_000).toISOString().slice(0,10);
-  const { error } = await sb.from('va_campanhas').update({
-    orcamento_diario: orc, orcamento_total: orc * dias, data_fim: fim,
-  }).eq('id', id);
-  if (error) { toast('err', error.message.slice(0,220)); return; }
-  toast('ok', 'Editada'); await recarregar();
+  const aprovados = CRIATIVOS.filter(cr => cr.status === 'aprovado' && cr.png_path);
+  abrirBuilderPublico(c, aprovados);
 }
 
 async function aprovarCampanha(id) {

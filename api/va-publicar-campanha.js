@@ -73,6 +73,52 @@ function specPublicacao(cmp, cri, arq) {
   return linhas.join('\n');
 }
 
+// P5.2 · traduz o CONTRATO publico do va_campanhas → targeting_spec real do Meta
+// Estrutura Meta (v23):
+//   { geo_locations: { countries, regions, cities:[{key, radius, distance_unit}] },
+//     age_min, age_max, genders:[1=M,2=F],
+//     flexible_spec: [{ interests:[{id,name}], behaviors:[{id,name}] }],
+//     custom_audiences:[{id}], excluded_custom_audiences:[{id}],
+//     targeting_automation:{advantage_audience:1|0}, locales:[6] pt_BR=6 }
+function contratoParaTargeting(p) {
+  const t = {};
+  // GEO
+  const g = p?.geo || {};
+  if (g.modo === 'cidades' && Array.isArray(g.cidades) && g.cidades.length) {
+    t.geo_locations = { cities: g.cidades.map(c => ({
+      key: c.meta_key, radius: Number(c.raio_km || 25), distance_unit: 'kilometer',
+    })) };
+  } else if (g.modo === 'ufs' && Array.isArray(g.ufs) && g.ufs.length) {
+    t.geo_locations = { regions: g.ufs.map(u => ({ key: String(u) })) };
+  } else {
+    t.geo_locations = { countries: ['BR'] };
+  }
+  // Idade + gênero
+  t.age_min = Math.max(18, Math.min(65, Number(p?.idade_min || 25)));
+  t.age_max = Math.max(18, Math.min(65, Number(p?.idade_max || 65)));
+  if (p?.genero === 'homens') t.genders = [1];
+  else if (p?.genero === 'mulheres') t.genders = [2];
+  // Interesses + comportamentos → flexible_spec
+  const interests = (p?.interesses || []).filter(x => x?.meta_id).map(x => ({ id: String(x.meta_id), name: x.nome }));
+  const behaviors = (p?.comportamentos || []).filter(x => x?.meta_id).map(x => ({ id: String(x.meta_id), name: x.nome }));
+  if (interests.length || behaviors.length) {
+    const spec = {};
+    if (interests.length) spec.interests = interests;
+    if (behaviors.length) spec.behaviors = behaviors;
+    t.flexible_spec = [spec];
+  }
+  // Custom audiences
+  const aud = p?.audiencias || {};
+  if (Array.isArray(aud.incluir) && aud.incluir.length) t.custom_audiences = aud.incluir.map(id => ({ id }));
+  if (Array.isArray(aud.excluir) && aud.excluir.length) t.excluded_custom_audiences = aud.excluir.map(id => ({ id }));
+  // Advantage Detailed Targeting (default true · Meta expande além dos interesses)
+  const adv = p?.advantage_detailed !== false;
+  t.targeting_automation = { advantage_audience: adv ? 1 : 0 };
+  // Idiomas (pt_BR = 6)
+  t.locales = [6];
+  return t;
+}
+
 async function debitarMidia(projetoId, campanhaId, gasto) {
   if (!gasto || gasto <= 0) return null;
   try {
@@ -120,12 +166,24 @@ module.exports = async (req, res) => {
   const objetivo = cmp.objetivo_meta || 'ctwa';
   const ctwaPayload = { campanha_id: cmp.id, criativo_id: cri.id, arquetipo_id: arq?.id || null };
 
-  // dry_run: só devolve a SPEC + payload, não bate na API Meta
+  // P5.2 · valida contrato do público
+  const p = cmp.publico || {};
+  const validacoes = [];
+  if (!p.geo || !p.geo.modo) validacoes.push('geo.modo obrigatório (cidades|ufs|brasil)');
+  if (p.geo?.modo === 'cidades' && (!Array.isArray(p.geo.cidades) || !p.geo.cidades.length)) validacoes.push('geo.cidades vazio');
+  if (p.geo?.modo === 'ufs' && (!Array.isArray(p.geo.ufs) || !p.geo.ufs.length)) validacoes.push('geo.ufs vazio');
+  if (validacoes.length) {
+    return json(res, 422, { ok:false, erro:'contrato_publico_invalido', validacoes });
+  }
+  const targetingSpec = contratoParaTargeting(p);
+
+  // dry_run: devolve a SPEC + payload + targeting_spec real, não bate na API Meta
   if (dry_run) {
     return json(res, 200, {
       ok:true, mode:'dry_run', objetivo,
       ctwa_payload: ctwaPayload,
       ctwa_payload_base64: Buffer.from(JSON.stringify(ctwaPayload)).toString('base64'),
+      targeting_spec: targetingSpec,
       spec: specPublicacao(cmp, cri, arq),
     });
   }
@@ -171,15 +229,10 @@ module.exports = async (req, res) => {
       special_ad_categories: [],
     });
 
-    // 3 · Adset PAUSED
+    // 3 · Adset PAUSED · usa targeting_spec do contrato P5.2 já traduzido
     const startTime = new Date(cmp.data_inicio || new Date()).toISOString();
     const endTime = cmp.data_fim ? new Date(cmp.data_fim).toISOString() : new Date(Date.now() + 30 * 86400_000).toISOString();
-    const p = cmp.publico || {};
-    const targeting = {
-      geo_locations: { countries: ['BR'] },
-      age_min: p.idade_min || 30,
-      age_max: p.idade_max || 65,
-    };
+    const targeting = targetingSpec;
     const adsetPayload = {
       name: `Adset · ${cmp.nome}`,
       campaign_id: camp.id,
