@@ -172,12 +172,12 @@ async function processarUmDisparo(projetoId, lead, template, arq, cred, interval
   // Debita
   let razaoId = null;
   try {
-    const dR = await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+    const dR = await fetch(`${SB_URL}/rest/v1/rpc/va_debitar_seguro`, {
       method:'POST', headers: H_SVC(),
       body: JSON.stringify({
         p_projeto: projetoId, p_tipo:'disparo_whatsapp', p_qtd: 1,
         p_referencia: `disparo:${disp.id.slice(0,8)} · lead:${lead.id.slice(0,8)} · t${toque}`,
-        p_ciclo: null,
+        p_ciclo: null, p_excedente_autorizado: false,
       }),
     });
     if (dR.ok) razaoId = (await dR.json());

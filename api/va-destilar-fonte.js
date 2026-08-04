@@ -141,9 +141,9 @@ module.exports = async (req, res) => {
     // v3 · débito ia_destilacao_fonte
     if (f.projeto_id) {
       try {
-        await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+        await fetch(`${SB_URL}/rest/v1/rpc/va_debitar_seguro`, {
           method:'POST', headers: H,
-          body: JSON.stringify({ p_projeto: f.projeto_id, p_tipo:'ia_destilacao_fonte', p_qtd:1, p_referencia:`destilar:${fonte_id.slice(0,8)}`, p_ciclo:null }),
+          body: JSON.stringify({ p_projeto: f.projeto_id, p_tipo:'ia_destilacao_fonte', p_qtd:1, p_referencia:`destilar:${fonte_id.slice(0,8)}`, p_ciclo:null, p_excedente_autorizado: false }),
         });
       } catch (e) { console.error('debit destilar fail:', e); }
     }

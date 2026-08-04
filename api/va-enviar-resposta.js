@@ -92,12 +92,12 @@ module.exports = async (req, res) => {
   // Debita
   let razaoId = null;
   try {
-    const dR = await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+    const dR = await fetch(`${SB_URL}/rest/v1/rpc/va_debitar_seguro`, {
       method:'POST', headers: H_SVC(),
       body: JSON.stringify({
         p_projeto: lead.projeto_id, p_tipo:'disparo_whatsapp', p_qtd: 1,
         p_referencia: `resposta:${disp.id.slice(0,8)} · lead:${lead.id.slice(0,8)}`,
-        p_ciclo: null,
+        p_ciclo: null, p_excedente_autorizado: false,
       }),
     });
     if (dR.ok) razaoId = await dR.json();
@@ -105,11 +105,11 @@ module.exports = async (req, res) => {
 
   // v3 · débito ia_resposta_personalizada (só no envio bem-sucedido · regenerar rascunho é grátis)
   try {
-    await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+    await fetch(`${SB_URL}/rest/v1/rpc/va_debitar_seguro`, {
       method:'POST', headers: H_SVC(),
       body: JSON.stringify({
         p_projeto: lead.projeto_id, p_tipo:'ia_resposta_personalizada', p_qtd: 1,
-        p_referencia: `ia_resp:${disp.id.slice(0,8)} · lead:${lead.id.slice(0,8)}`, p_ciclo: null,
+        p_referencia: `ia_resp:${disp.id.slice(0,8)} · lead:${lead.id.slice(0,8)}`, p_ciclo: null, p_excedente_autorizado: false,
       }),
     });
   } catch (e) { console.error('debit ia_resposta fail:', e); }

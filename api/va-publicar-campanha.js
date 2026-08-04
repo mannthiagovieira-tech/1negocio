@@ -177,6 +177,28 @@ module.exports = async (req, res) => {
   }
   const targetingSpec = contratoParaTargeting(p);
 
+  // P5.3 · valida orçamento total ≤ saldo do ciclo (mídia é o maior consumidor)
+  try {
+    const sR = await fetch(`${SB_URL}/rest/v1/rpc/va_saldo_ciclo`, {
+      method:'POST', headers: { ...H_SVC(), 'Content-Type':'application/json' },
+      body: JSON.stringify({ p_projeto: cmp.projeto_id }),
+    });
+    if (sR.ok) {
+      const saldo = await sR.json();
+      if (saldo?.credito != null) {
+        const orcTotal = Number(cmp.orcamento_total || 0);
+        const saldoNum = Number(saldo.saldo || 0);
+        // Multiplica orçamento pelo markup midia_meta 1,5 pra estimar débito real
+        const debitoPrevisto = orcTotal * 1.5;
+        if (debitoPrevisto > saldoNum && !body?.excedente_autorizado) {
+          return json(res, 402, { ok:false, erro:'orcamento_excede_saldo',
+            saldo_ciclo: saldoNum, orcamento_total: orcTotal, debito_previsto: debitoPrevisto,
+            detalhe: `campanha comprometeria R$ ${debitoPrevisto.toFixed(2)} mas saldo do ciclo é R$ ${saldoNum.toFixed(2)}` });
+        }
+      }
+    }
+  } catch {}
+
   // dry_run: devolve a SPEC + payload + targeting_spec real, não bate na API Meta
   if (dry_run) {
     return json(res, 200, {

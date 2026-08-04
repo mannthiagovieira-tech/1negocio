@@ -36,6 +36,7 @@ export function mountTopbar(atual, mandato) {
         <span class="topbar__mandato-lbl">${esc(lblCentro)}</span>
         <span class="topbar__mandato-nome">${esc(nomeCentro)}</span>
       </div>
+      <span class="topbar__saldo pill" id="tb-saldo" title="crédito do ciclo" style="display:none">…</span>
       <nav class="topbar__nav">${navHtml}</nav>
       <button class="topbar__logout" id="tb-logout" title="Sair">Sair</button>
     </div>`;
@@ -48,6 +49,31 @@ export function mountTopbar(atual, mandato) {
   document.getElementById('tb-logout').addEventListener('click', async () => {
     await sb.auth.signOut(); location.reload();
   });
+  // P5.3 · pill de saldo do ciclo · presente em toda zona
+  if (mandato?.id) atualizarPillSaldo(mandato.id);
+}
+
+// P5.3 · pill de crédito · verde >=20% · amarelo 5-20% · vermelho <5% · cinza null
+async function atualizarPillSaldo(projetoId) {
+  const el = document.getElementById('tb-saldo');
+  if (!el) return;
+  try {
+    const { data, error } = await sb.rpc('va_saldo_ciclo', { p_projeto: projetoId });
+    if (error || !data || !data.credito) { el.style.display = 'none'; return; }
+    const saldo = Number(data.saldo || 0);
+    const credito = Number(data.credito || 0);
+    const pct = credito > 0 ? (saldo / credito) : 0;
+    const cor = pct >= 0.20 ? '#16a34a' : pct >= 0.05 ? '#f59e0b' : '#dc2626';
+    const fmt = v => 'R$ ' + v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    el.style.display = 'inline-flex';
+    el.style.background = cor;
+    el.style.color = '#fff';
+    el.style.fontSize = '11px';
+    el.style.padding = '4px 10px';
+    el.style.fontWeight = '600';
+    el.textContent = `CRÉDITO · ${fmt(saldo)} de ${fmt(credito)}`;
+    el.title = `ciclo ${data.ciclo_de} → ${data.ciclo_ate} · consumido R$ ${Number(data.consumido||0).toFixed(2)}`;
+  } catch { el.style.display = 'none'; }
 }
 
 function trocarMandato() {

@@ -221,12 +221,12 @@ module.exports = async (req, res) => {
   // Débito ia_geracao_criativo (1 chamada = 1 débito, não por variação)
   let razaoId = null;
   try {
-    const dR = await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+    const dR = await fetch(`${SB_URL}/rest/v1/rpc/va_debitar_seguro`, {
       method:'POST', headers: H(),
       body: JSON.stringify({
         p_projeto: projeto_id, p_tipo: 'ia_geracao_criativo', p_qtd: 1,
         p_referencia: `criativos:${(arq?.nome || 'ativo').slice(0,30)} · ${fmt}`,
-        p_ciclo: null,
+        p_ciclo: null, p_excedente_autorizado: false,
       }),
     });
     if (dR.ok) razaoId = await dR.json();

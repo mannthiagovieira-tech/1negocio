@@ -40,7 +40,7 @@ module.exports = async (req, res) => {
   if (!SB_SERVICE)           return json(res, 503, { ok:false, erro:'SUPABASE_SERVICE_ROLE_KEY ausente' });
 
   let body; try { body = await lerBody(req); } catch { return json(res, 400, { ok:false, erro:'json inválido' }); }
-  const { projeto_id, lead_ids } = body || {};
+  const { projeto_id, lead_ids, excedente_autorizado } = body || {};
   if (!projeto_id || !Array.isArray(lead_ids) || !lead_ids.length) {
     return json(res, 400, { ok:false, erro:'projeto_id + lead_ids[] obrigatórios' });
   }
@@ -117,22 +117,26 @@ module.exports = async (req, res) => {
       continue;
     }
 
-    // 4b · debita na razão (va_debitar já congela preço/custo/fornecedor)
-    const dR = await fetch(`${SB_URL}/rest/v1/rpc/va_debitar`, {
+    // 4b · debita na razão (P5.3 · va_debitar_seguro checa saldo do ciclo)
+    const dR = await fetch(`${SB_URL}/rest/v1/rpc/va_debitar_seguro`, {
       method:'POST', headers: H,
-      body: JSON.stringify({ p_projeto: projeto_id, p_tipo: TIPO_PRECO, p_qtd: 1, p_referencia: ref, p_ciclo: null }),
+      body: JSON.stringify({ p_projeto: projeto_id, p_tipo: TIPO_PRECO, p_qtd: 1, p_referencia: ref, p_ciclo: null, p_excedente_autorizado: !!excedente_autorizado }),
     });
     if (!dR.ok) {
       const t = await dR.text();
+      const esgotado = /CREDITO_CICLO_ESGOTADO/.test(t);
       // reverte o lead → antessala (best effort)
       await fetch(`${SB_URL}/rest/v1/va_leads?id=eq.${lead.id}`, {
         method:'PATCH', headers: H,
         body: JSON.stringify({ status:'antessala', custo_creditos: null, aprovado_em: null }),
       });
+      // Se esgotou, aborta o resto do batch (não faz sentido continuar)
+      if (esgotado) return json(res, 402, { ok:false, erro:'credito_ciclo_esgotado', detalhe: t.slice(0,300), aprovados: aprovados.length, restantes: leads.length - aprovados.length });
       falhas.push({ lead_id: lead.id, etapa:'debitar', detalhe: t.slice(0,200) });
       continue;
     }
-    const razaoId = await dR.json(); // va_debitar retorna uuid
+    const dRes = await dR.json();
+    const razaoId = dRes?.razao_id; // va_debitar_seguro retorna { razao_id, ... }
     razaoIds.push(String(razaoId));
     aprovados.push(lead.id);
   }
