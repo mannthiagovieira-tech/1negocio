@@ -3,7 +3,7 @@
 // Vazão = meta: seleção em massa, atalhos A/D, contadores discretos.
 
 import { sb } from '/mandato/core/core.js';
-import { toast } from '/mandato/core/ui.js';
+import { toast, fetchComGate } from '/mandato/core/ui.js';
 import { esc, brl, num, dataBR } from '/mandato/core/format.js';
 
 // ─── estado local do módulo ──────────────────────────────────────────
@@ -274,7 +274,7 @@ async function enriquecerLeads(ids) {
     for (let ci = 0; ci < chunks.length; ci++) {
       const chunk = chunks[ci];
       if (btnMassa) { btnMassa.disabled = true; btnMassa.textContent = `enriquecendo ${feitos+1}–${feitos+chunk.length} de ${total}…`; }
-      const r = await fetch('/api/va-enriquecer-lead', {
+      const r = await fetchComGate('/api/va-enriquecer-lead', {
         method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
         body: JSON.stringify({ projeto_id: MANDATO.id, lead_ids: chunk }),
       });
@@ -623,7 +623,7 @@ async function confirmarPortao() {
   if (btn) { btn.disabled = true; btn.textContent = 'processando…'; }
   try {
     const tok = (await sb.auth.getSession()).data.session?.access_token;
-    const r = await fetch('/api/va-portao-leads', {
+    const r = await fetchComGate('/api/va-portao-leads', {
       method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
       body: JSON.stringify({ projeto_id: MANDATO.id, lead_ids: ids }),
     });

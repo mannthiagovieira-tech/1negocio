@@ -161,6 +161,30 @@ export async function renderSelector(zonaAtual) {
   return new Promise(() => {});
 }
 
+// P5.3 · helper drop-in pra fetch() em endpoints que passam pelo gate de crédito.
+// Se retornar 402 (credito_ciclo_esgotado OU orcamento_excede_saldo), mostra
+// confirm com mensagem clara e reenvia com body.excedente_autorizado=true.
+// Uso IDÊNTICO ao fetch nativo: await fetchComGate(url, { method:'POST', headers, body: JSON.stringify({...}) })
+export async function fetchComGate(url, init = {}) {
+  let r = await fetch(url, init);
+  if (r.status !== 402) return r;
+  let d = null; try { d = await r.clone().json(); } catch {}
+  const erro = d?.erro || '';
+  if (!/credito_ciclo_esgotado|orcamento_excede_saldo/i.test(erro)) return r;
+  // Monta mensagem
+  const debito = d?.debito_previsto != null ? `R$ ${Number(d.debito_previsto).toFixed(2)}` : null;
+  const saldo  = d?.saldo_ciclo != null ? `R$ ${Number(d.saldo_ciclo).toFixed(2)}` : null;
+  const msg = erro === 'orcamento_excede_saldo'
+    ? `Orçamento da campanha ${debito || ''} excede saldo do ciclo ${saldo || ''}.\n\nExecutar mesmo assim? (marca [EXCEDENTE_AUTORIZADO] na razão)`
+    : `Crédito do ciclo esgotado.\n${d?.detalhe || ''}\n\nExecutar mesmo assim? (marca [EXCEDENTE_AUTORIZADO] na razão)`;
+  if (!confirm(msg)) return r;
+  // Reenvia com flag
+  let bodyObj = {};
+  try { bodyObj = JSON.parse(init.body || '{}'); } catch {}
+  bodyObj.excedente_autorizado = true;
+  return fetch(url, { ...init, body: JSON.stringify(bodyObj) });
+}
+
 // ─── Toasts ─────────────────────────────────────────────────────────
 let _toastWrap = null;
 export function toast(kind = 'info', msg = '') {

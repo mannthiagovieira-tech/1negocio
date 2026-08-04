@@ -2,7 +2,7 @@
 // Kanban 4 colunas + drawer + painel de cadência + adendos (desdobramento, contato).
 
 import { sb } from '/mandato/core/core.js';
-import { toast } from '/mandato/core/ui.js';
+import { toast, fetchComGate } from '/mandato/core/ui.js';
 import { esc, brl, num, dataBR } from '/mandato/core/format.js';
 
 let MANDATO = null;
@@ -692,7 +692,7 @@ async function enviarResposta(leadId) {
   if (btn) { btn.disabled = true; btn.textContent = 'enviando…'; }
   try {
     const tok = (await sb.auth.getSession()).data.session?.access_token;
-    const r = await fetch('/api/va-enviar-resposta', {
+    const r = await fetchComGate('/api/va-enviar-resposta', {
       method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
       body: JSON.stringify({ lead_id: leadId, corpo }),
     });

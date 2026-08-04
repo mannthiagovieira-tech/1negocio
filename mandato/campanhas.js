@@ -4,7 +4,7 @@
 
 import { sb } from './core/core.js';
 import { esc, brl } from './core/format.js';
-import { toast } from './core/ui.js';
+import { toast, fetchComGate } from './core/ui.js';
 
 let MANDATO = null;
 let CRIATIVOS = [];
@@ -593,7 +593,7 @@ async function publicarCampanha(id, dryRun) {
   if (!dryRun && !confirm('Publicar no Meta AGORA em PAUSED? Você precisa ativar manualmente no Ads Manager depois.')) return;
   try {
     const tok = (await sb.auth.getSession()).data.session?.access_token;
-    const r = await fetch('/api/va-publicar-campanha', {
+    const r = await fetchComGate('/api/va-publicar-campanha', {
       method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
       body: JSON.stringify({ campanha_id: id, dry_run: !!dryRun }),
     });
@@ -626,7 +626,7 @@ async function lancarGasto(id) {
   // Débito midia_meta (×1,5) via RPC
   try {
     const tok = (await sb.auth.getSession()).data.session?.access_token;
-    await fetch('/api/va-publicar-campanha', {
+    await fetchComGate('/api/va-publicar-campanha', {
       method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+tok },
       body: JSON.stringify({ campanha_id: id, lancar_gasto: v }),
     });
@@ -748,7 +748,7 @@ async function gerarCriativos() {
   btn.disabled = true; btn.textContent = 'gerando…';
   try {
     const tok = (await sb.auth.getSession()).data.session?.access_token;
-    const r = await fetch('/api/va-gerar-criativos', {
+    const r = await fetchComGate('/api/va-gerar-criativos', {
       method: 'POST', headers: { 'Content-Type':'application/json', Authorization: 'Bearer ' + tok },
       body: JSON.stringify({ projeto_id: MANDATO.id, arquetipo_id: arqId, formato: fmt, layout: lay, incluir_valor: val }),
     });
