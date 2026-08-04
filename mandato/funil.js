@@ -11,6 +11,7 @@ let ARQUETIPOS = [];
 let CADENCIA = null;  // 1 config
 let TEMPLATES = [];   // por arquétipo
 let DISPAROS_HOJE = 0;
+let RITMO = null;      // { meta_dia, meta_semana, hoje, semana, fila_pronta } · P4.7
 
 const COLUNAS = [
   { key:'na_fila',     label:'Na fila' },
@@ -59,7 +60,7 @@ export async function mountFunil(mandato) {
 }
 
 async function recarregarTudo() {
-  const [leadsR, arqR, cadR, tplR, dispR] = await Promise.all([
+  const [leadsR, arqR, cadR, tplR, dispR, ritmoR] = await Promise.all([
     sb.from('va_leads').select('*').eq('projeto_id', MANDATO.id).not('funil_etapa', 'is', null).order('aprovado_em', { ascending:true }),
     // Carrega aprovados + arquivados. Leads herdados de versão v1 arquivada
     // continuam vinculados por proveniência; sem isso o painel de cadência
@@ -68,16 +69,72 @@ async function recarregarTudo() {
     sb.from('va_cadencia_config').select('*').eq('projeto_id', MANDATO.id).maybeSingle(),
     sb.from('va_cadencia_templates').select('*').eq('projeto_id', MANDATO.id),
     sb.from('va_disparos').select('id').eq('projeto_id', MANDATO.id).eq('status','enviado').gte('enviado_em', new Date(new Date().setHours(0,0,0,0)).toISOString()),
+    sb.rpc('va_ritmo_mandato', { p_projeto: MANDATO.id }),
   ]);
   LEADS = leadsR.data || [];
   ARQUETIPOS = arqR.data || [];
   CADENCIA = cadR.data || null;
   TEMPLATES = tplR.data || [];
   DISPAROS_HOJE = (dispR.data || []).length;
+  RITMO = ritmoR.data || null;
   renderCadencia();
   renderDesdContadores();
   renderKanban();
   renderFora();
+}
+// P4.7 · duas dimensões · CONTATO (toques do dia/semana) + MUNIÇÃO (fila pronta).
+// Cinza: meta ausente.
+// CONTATO: verde hoje>=meta OU semana>=proRata · vermelho semana<50%proRata OU
+// (dia útil, >=12h, hoje=0) · amarelo entre.
+// MUNIÇÃO: verde fila>=meta_fila · vermelho fila<meta E antessala<meta (sem
+// estoque pra triar · precisa EXTRAIR) · amarelo fila<meta MAS antessala tem
+// estoque pra triagem.
+// Cor global = pior das duas.
+// Puxão contextual escolhe a ação prioritária.
+function classifRitmo(r) {
+  if (!r || !r.meta_dia) return { cor:'cinza', contato:'cinza', municao:'cinza', puxao:'sem meta configurada' };
+  const now = new Date();
+  const diaSem = now.getDay();
+  const ehDiaUtil = diaSem >= 1 && diaSem <= 5;
+  const diasUteisCorridos = diaSem === 0 ? 5 : Math.min(diaSem, 5);
+  const proRata = diasUteisCorridos * r.meta_dia;
+  const hoje = r.hoje || 0, sem = r.semana || 0;
+  const fila = r.fila_pronta || 0;
+  const antessala = r.antessala || 0;
+  const metaFila = r.meta_fila || 10;
+  // CONTATO
+  let contato;
+  if (sem < proRata * 0.5) contato = 'vermelho';
+  else if (ehDiaUtil && now.getHours() >= 12 && hoje === 0) contato = 'vermelho';
+  else if (hoje >= r.meta_dia || sem >= proRata) contato = 'verde';
+  else contato = 'amarelo';
+  // MUNIÇÃO
+  let municao;
+  if (fila >= metaFila) municao = 'verde';
+  else if (antessala >= metaFila) municao = 'amarelo';
+  else municao = 'vermelho';
+  // Cor global = pior das duas
+  const rank = { verde:0, amarelo:1, vermelho:2, cinza:-1 };
+  const cor = rank[contato] >= rank[municao] ? contato : municao;
+  // Puxão: prioriza gargalo estrutural (munição) sobre execução (contato)
+  const faltamHoje = Math.max(0, r.meta_dia - hoje);
+  const faltamFila = Math.max(0, metaFila - fila);
+  let puxao;
+  if (municao === 'vermelho') {
+    const dias = r.ultima_extracao_dias;
+    puxao = `EXTRAIR · fila ${fila} e antessala ${antessala} abaixo da meta (${metaFila})` + (dias != null ? ` · última extração há ${dias}d` : '');
+  } else if (municao === 'amarelo' && contato === 'verde') {
+    puxao = `TRIAR antessala · ${antessala} leads aguardando triagem pra recompor a fila`;
+  } else if (faltamHoje === 0) {
+    puxao = 'meta do dia batida' + (sem >= r.meta_semana ? ' · semana também' : '') + (municao === 'amarelo' ? ` · triar antessala (${antessala})` : '');
+  } else if (fila >= faltamHoje) {
+    puxao = `faltam ${faltamHoje} toque(s) hoje · ${fila} lead(s) pronto(s) na fila`;
+  } else if (fila > 0) {
+    puxao = `faltam ${faltamHoje} · só ${fila} pronto(s) · triar antessala (${antessala}) ou extrair`;
+  } else {
+    puxao = `faltam ${faltamHoje} · fila vazia · triar antessala (${antessala}) ou extrair`;
+  }
+  return { cor, contato, municao, puxao };
 }
 
 // ─── Cadência ────────────────────────────────────────────────────────
@@ -85,10 +142,22 @@ function renderCadencia() {
   const el = document.getElementById('cad-status');
   const ativa = !!CADENCIA?.ativa;
   const teto = CADENCIA?.teto_diario ?? 4;
+  const modo = CADENCIA?.modo || 'manual';
+  // P4.7 · termômetro de ritmo · 2 dimensões (contato + munição)
+  const r = RITMO || { meta_dia:0, meta_semana:0, meta_fila:0, hoje:0, semana:0, fila_pronta:0, antessala:0 };
+  const cls = classifRitmo(r);
+  const cores = { verde:'#16a34a', amarelo:'#f59e0b', vermelho:'#dc2626', cinza:'#94a3b8' };
+  const dotColor = c => `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${cores[c]};vertical-align:middle;margin-right:5px" title="${c}"></span>`;
+  const pct = r.meta_semana ? Math.min(100, Math.round((r.semana / r.meta_semana) * 100)) : 0;
+  const barra = `<span style="display:inline-block;width:72px;height:5px;background:#e5e7eb;border-radius:3px;vertical-align:middle;margin:0 4px"><span style="display:block;width:${pct}%;height:100%;background:${cores[cls.contato]};border-radius:3px"></span></span>`;
   el.innerHTML = `
-    <span class="pill ${ativa?'pill--ativa':'pill--pausada'}">${ativa?'ATIVA':'PAUSADA'}</span>
-    <span>hoje: ${DISPAROS_HOJE} de ${teto} disparos</span>
-    <span>janela: ${CADENCIA?.janela_inicio?.slice(0,5) || '09:00'}–${CADENCIA?.janela_fim?.slice(0,5) || '18:00'}${CADENCIA?.dias_uteis_apenas?' · úteis':''}</span>
+    <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:12px">
+      <span>${dotColor(cls.contato)}<b>CONTATO</b> HOJE ${r.hoje}/${r.meta_dia} · SEMANA ${r.semana}/${r.meta_semana}${barra}</span>
+      <span>${dotColor(cls.municao)}<b>MUNIÇÃO</b> ${r.fila_pronta||0}/${r.meta_fila||0} prontos · ${r.antessala||0} na antessala</span>
+      <span class="pill ${ativa?'pill--ativa':'pill--pausada'}">${modo==='auto'?(ativa?'AUTO':'AUTO pausada'):'MANUAL'}</span>
+      <span style="font-size:11px;color:var(--ink-3)">teto ${DISPAROS_HOJE}/${teto} · ${CADENCIA?.janela_inicio?.slice(0,5) || '09:00'}–${CADENCIA?.janela_fim?.slice(0,5) || '18:00'}${CADENCIA?.dias_uteis_apenas?' · úteis':''}</span>
+    </div>
+    <div style="font-size:11px;color:var(--ink-3);margin-top:3px">→ ${esc(cls.puxao)}</div>
   `;
   document.getElementById('cad-body').innerHTML = corpoCadenciaHTML();
   bindCadenciaHandlers();
@@ -127,6 +196,12 @@ function corpoCadenciaHTML() {
       </label>
       <label>intervalo T1→T2 (dias)
         <input id="cad-int" type="number" min="1" max="30" value="${c.intervalo_toques_dias}">
+      </label>
+      <label>meta toques/dia
+        <input id="cad-meta" type="number" min="0" max="200" value="${c.meta_toques_dia ?? 4}" title="4.7 · meta de CONTATO. Semanal = ×5.">
+      </label>
+      <label>meta fila (munição)
+        <input id="cad-metafila" type="number" min="0" max="10000" value="${c.meta_fila_minima ?? 10}" title="4.7 · quantos leads prontos (na_fila + whatsapp ✓) você quer sempre disponíveis. Alerta se cair abaixo.">
       </label>
     </div>
     <div class="row" style="justify-content:space-between;margin-top:10px">
@@ -267,6 +342,8 @@ async function salvarCadencia() {
     janela_fim: document.getElementById('cad-jf').value,
     dias_uteis_apenas: document.getElementById('cad-du').value === 'true',
     intervalo_toques_dias: Number(document.getElementById('cad-int').value) || 2,
+    meta_toques_dia: Number(document.getElementById('cad-meta')?.value ?? 4),
+    meta_fila_minima: Number(document.getElementById('cad-metafila')?.value ?? 10),
   };
   const { error } = await sb.from('va_cadencia_config').upsert(patch, { onConflict: 'projeto_id' });
   if (error) { toast('err', error.message); return; }

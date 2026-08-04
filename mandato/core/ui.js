@@ -75,6 +75,39 @@ export async function renderSelector(zonaAtual) {
       grid.innerHTML = `<div class="muted">Nenhum mandato ativo. Cadastre em <a href="/projetos.html">/projetos.html</a>.</div>`;
       return;
     }
+    // P4.7 · busca ritmo em lote pra pintar dot em cada card. Falha silenciosa
+    // (sem ritmo → dot cinza). Reusa RPC va_ritmo_carteira que faz N chamadas
+    // internas indexadas por projeto_id.
+    let ritmoMap = {};
+    try {
+      const ids = items.map(m => m.id).filter(Boolean);
+      if (ids.length) {
+        const { data } = await sb.rpc('va_ritmo_carteira', { p_projetos: ids });
+        ritmoMap = data || {};
+      }
+    } catch { /* sem ritmo → todos cinza */ }
+    // Classificador reduzido (2 dimensões · idêntico ao funil.js mas standalone
+    // pra não depender do módulo do funil aqui).
+    function corRitmo(r) {
+      if (!r || !r.meta_dia) return 'cinza';
+      const now = new Date();
+      const dow = now.getDay();
+      const diasUt = dow === 0 ? 5 : Math.min(dow, 5);
+      const proRata = diasUt * r.meta_dia;
+      const hoje = r.hoje||0, sem = r.semana||0, fila = r.fila_pronta||0, ante = r.antessala||0, metaF = r.meta_fila||10;
+      let contato;
+      if (sem < proRata * 0.5) contato = 'vermelho';
+      else if (dow>=1 && dow<=5 && now.getHours()>=12 && hoje===0) contato = 'vermelho';
+      else if (hoje >= r.meta_dia || sem >= proRata) contato = 'verde';
+      else contato = 'amarelo';
+      let mun;
+      if (fila >= metaF) mun = 'verde';
+      else if (ante >= metaF) mun = 'amarelo';
+      else mun = 'vermelho';
+      const rk = { verde:0, amarelo:1, vermelho:2 };
+      return rk[contato] >= rk[mun] ? contato : mun;
+    }
+    const cores = { verde:'#16a34a', amarelo:'#f59e0b', vermelho:'#dc2626', cinza:'#94a3b8' };
     grid.innerHTML = items.map(m => {
       const nome = m.negocio_titulo || m.cliente_nome || '—';
       const meta = [m.codigo, m.cidade, m.data_inicio ? 'início ' + dataBR(m.data_inicio) : null]
@@ -84,9 +117,12 @@ export async function renderSelector(zonaAtual) {
       const status = m.status ? `<span class="pill pill--accent">${esc(m.status)}</span>` : '';
       const progr = m.etapas_total
         ? `<span class="pill">${esc(m.etapas_ok || 0)} de ${esc(m.etapas_total)} etapas</span>` : '';
+      const r = ritmoMap[m.id] || null;
+      const cor = corRitmo(r);
+      const dot = `<span title="ritmo ${cor}${r ? ` · contato ${r.hoje||0}/${r.meta_dia||0} · fila ${r.fila_pronta||0}/${r.meta_fila||0}`:''}" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${cores[cor]};margin-right:6px;vertical-align:middle"></span>`;
       const url = withMandato(`${zonaAtual}.html`, m.id);
       return `<a class="selector__card" href="${esc(url)}">
-        <div class="selector__nome">${esc(nome)}</div>
+        <div class="selector__nome">${dot}${esc(nome)}</div>
         <div class="selector__meta">${esc(meta || '—')}</div>
         <div class="selector__pills">${status}${dia}${progr}</div>
       </a>`;
